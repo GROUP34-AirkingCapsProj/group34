@@ -1,0 +1,62 @@
+# Verifies the repo builds on every push/PR so GitHub shows a green check before deploy.
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Production build
+        run: npm run build
+        env:
+          CI: true
+          # Placeholder; set real URL in your host’s env (e.g. Netlify/Vercel).
+          REACT_APP_API_URL: https://example.com/api
+
+  backend:
+    name: Backend (Composer + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: back-end
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, xml, ctype, json, sqlite3, pdo_sqlite
+          coverage: none
+      - name: Get Composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('back-end/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+      - run: composer install --no-interaction --prefer-dist
+      - name: Prepare app env
+        run: |
+          cp .env.example .env
+          sed -i 's/^[[:space:]]*DB_DATABASE=.*/DB_DATABASE=database\/database.sqlite/' .env
+          php artisan key:generate --force
+          touch database/database.sqlite
+      - run: php artisan migrate --force --no-interaction
+      - run: php artisan test

@@ -1,0 +1,103 @@
+/* Alerts & Notices */
+.an-page { padding: 0; }
+.an-page-header { margin-bottom: 24px; }
+.an-page-title { font-size: 24px; font-weight: 800; color: #111827; margin: 0; }
+.an-page-subtitle { font-size: 13px; color: #6b7280; margin: 4px 0 0; }
+
+/* Card */
+.an-card {
+  background: #fff; border: 1px solid #f3f4f6; border-radius: 12px;
+  padding: 24px 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  margin-bottom: 20px;
+}
+.an-card-header { margin-bottom: 20px; }
+.an-card-header--row {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;
+  margin-bottom: 20px;
+}
+.an-card-header--row .an-card-title { margin-bottom: 2px; }
+.an-mark-read-btn {
+  padding: 8px 14px; font-size: 12px; font-weight: 600; color: #374151;
+  background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;
+}
+.an-mark-read-btn:hover { background: #e5e7eb; }
+.an-card-title { font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 2px; }
+.an-card-subtitle { font-size: 13px; color: #6b7280; margin: 0; }
+
+/* Low Stock Alert List */
+.an-alert-list { display: flex; flex-direction: column; }
+.an-alert-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 20px; border: 1px solid #f3f4f6; border-radius: 10px;
+  margin-bottom: 10px; transition: background 0.15s;
+}
+.an-alert-item:last-child { margin-bottom: 0; }
+.an-alert-item:hover { background: #f9fafb; }
+
+.an-alert-left { display: flex; flex-direction: column; gap: 3px; }
+.an-alert-name { font-size: 14px; font-weight: 600; color: #111827; }
+.an-alert-location { font-size: 12px; color: #6b7280; }
+
+.an-alert-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.an-alert-units { font-size: 14px; font-weight: 700; color: #dc2626; }
+.an-alert-reorder { font-size: 11px; color: #9ca3af; }
+
+/* Pending Approvals List */
+.an-approval-list { display: flex; flex-direction: column; }
+.an-approval-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 20px; border: 1px solid #f3f4f6; border-radius: 10px;
+  margin-bottom: 10px; background: #fffbeb;
+}
+.an-approval-item:last-child { margin-bottom: 0; }
+
+button.an-ntf-item {
+  width: 100%; text-align: left; font: inherit; cursor: pointer;
+  background: #eff6ff; border-color: #bfdbfe;
+}
+button.an-ntf-item:hover { background: #dbeafe; }
+.an-ntf-item--read { opacity: 0.75; background: #f9fafb !important; border-color: #f3f4f6 !important; }
+.an-ntf-text .an-approval-detail { display: block; }
+.an-ntf-hint { font-size: 11px; color: #2563eb; font-weight: 600; margin-top: 4px; }
+
+.an-pending-summary { background: #fffbeb; }
+.an-go-queue-btn {
+  padding: 8px 16px; font-size: 12px; font-weight: 700; color: #fff;
+  background: #dc2626; border: none; border-radius: 8px; cursor: pointer;
+}
+.an-go-queue-btn:hover { filter: brightness(1.05); }
+
+.an-approval-right { display: flex; align-items: center; flex-shrink: 0; }
+.an-approval-status {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #b45309; background: #fef3c7; padding: 6px 10px; border-radius: 6px;
+}
+
+.an-approval-left { display: flex; flex-direction: column; gap: 4px; }
+.an-approval-title { font-size: 14px; font-weight: 600; color: #111827; }
+.an-approval-detail { font-size: 12px; color: #6b7280; }
+
+.an-approval-actions { display: flex; gap: 10px; flex-shrink: 0; }
+.an-btn-approve {
+  padding: 6px 18px; background: transparent; color: #059669;
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.2px;
+}
+.an-btn-approve:hover { background: #f0fdf4; }
+.an-btn-reject {
+  padding: 6px 18px; background: transparent; color: #dc2626;
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.2px;
+}
+.an-btn-reject:hover { background: #fef2f2; }
+
+/* Empty State */
+.an-empty {
+  text-align: center; padding: 32px; color: #9ca3af; font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .an-alert-item, .an-approval-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .an-alert-right { align-items: flex-start; }
+  .an-approval-actions { align-self: flex-end; }
+}

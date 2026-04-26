@@ -1,0 +1,555 @@
+/* ============================================================
+   ROLE DASHBOARDS — shared styles for all role-specific pages
+   ============================================================ */
+
+/* ── Loading / Error states ───────────────────────────────── */
+.rd-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  gap: 14px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.rd-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #dc2626;
+  border-radius: 50%;
+  animation: rd-spin 0.7s linear infinite;
+}
+
+@keyframes rd-spin { to { transform: rotate(360deg); } }
+
+.rd-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px;
+  color: #ef4444;
+  font-size: 14px;
+}
+
+.rd-error button {
+  padding: 8px 20px;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── Page Header ──────────────────────────────────────────── */
+.rd-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.rd-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.rd-header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rd-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rd-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.rd-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+.rd-location-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.rd-primary-btn {
+  padding: 9px 20px;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.rd-primary-btn:hover { opacity: 0.88; }
+
+/* ── Stats Grid ───────────────────────────────────────────── */
+.rd-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 1100px) { .rd-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .rd-stats-grid { grid-template-columns: 1fr; } }
+
+.rd-stat-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  transition: box-shadow 0.15s;
+}
+
+.rd-stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+
+.rd-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rd-stat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rd-stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* ── Quick Link Buttons ───────────────────────────────────── */
+.rd-quick-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.rd-quick-link-btn {
+  padding: 7px 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1.5px solid;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.rd-quick-link-btn:hover { opacity: 0.75; }
+
+/* ── Charts ───────────────────────────────────────────────── */
+.rd-charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) { .rd-charts-row { grid-template-columns: 1fr; } }
+
+.rd-chart-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.rd-chart-wide {
+  grid-column: span 1;   /* default; use with 3-col layout if needed */
+}
+
+.rd-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.rd-chart-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.rd-chart-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 12px;
+}
+
+.rd-chart-body {
+  height: 220px;
+  position: relative;
+}
+
+/* ── Module Cards (Auditor) ───────────────────────────────── */
+.rd-module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 700px) { .rd-module-grid { grid-template-columns: 1fr; } }
+
+.rd-module-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.rd-module-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+
+.rd-module-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rd-module-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rd-module-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.rd-module-desc {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.rd-module-arrow {
+  color: #d1d5db;
+  flex-shrink: 0;
+}
+
+/* ── Warehouse Quick Action Cards ─────────────────────────── */
+.rd-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin: 4px 0 12px;
+}
+
+.rd-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) { .rd-actions-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px)  { .rd-actions-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.rd-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 16px;
+  padding: 22px 14px 18px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.rd-action-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); transform: translateY(-2px); }
+
+.rd-action-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-action-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+}
+
+.rd-action-desc {
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.rd-action-arrow {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+.rd-table-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  margin-bottom: 20px;
+}
+
+.rd-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.rd-table-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.rd-table-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.rd-table-action:hover { opacity: 0.7; }
+
+.rd-table-wrap { overflow-x: auto; }
+
+.rd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.rd-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #f3f4f6;
+  white-space: nowrap;
+}
+
+.rd-table td {
+  padding: 11px 12px;
+  color: #374151;
+  border-bottom: 1px solid #f9fafb;
+  vertical-align: middle;
+}
+
+.rd-table tr:last-child td { border-bottom: none; }
+.rd-table tr:hover td { background: #fafafa; }
+
+.rd-user-cell { font-weight: 600; color: #111827; }
+.rd-time-cell { color: #9ca3af; font-size: 12px; white-space: nowrap; }
+
+.rd-module-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Badges & Status ──────────────────────────────────────── */
+.rd-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.rd-badge-critical { background: rgba(239,68,68,0.12); color: #ef4444; }
+.rd-badge-low      { background: rgba(245,158,11,0.12); color: #f59e0b; }
+
+.rd-qty { font-weight: 700; font-size: 13px; }
+.rd-qty-critical { color: #ef4444; }
+.rd-qty-low      { color: #f59e0b; }
+
+.rd-empty {
+  padding: 24px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* ============================================================
+   SIDEBAR ACCENT OVERRIDES — keyed on [data-role]
+   Uses --role-accent CSS custom property set in AdminLayout
+   ============================================================ */
+
+/* Active nav item accent */
+.admin-shell[data-role] .nav-item.active {
+  background: color-mix(in srgb, var(--role-accent) 12%, transparent);
+  color: var(--role-accent);
+}
+
+.admin-shell[data-role] .nav-item.active .nav-icon svg {
+  stroke: var(--role-accent);
+}
+
+/* Logout button accent on hover */
+.admin-shell[data-role] .logout-btn-sidebar:hover {
+  color: var(--role-accent);
+}
+
+/* Sidebar location chip */
+.sidebar-location-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+}
+
+/* Admin keeps red accent (default, no override needed) */
+.admin-shell[data-role="admin"] .nav-item.active {
+  background: rgba(220,38,38,0.12);
+  color: #dc2626;
+}
+.admin-shell[data-role="admin"] .nav-item.active .nav-icon svg {
+  stroke: #dc2626;
+}
+
+/* Inventory Analyst — purple */
+.admin-shell[data-role="inventory_analyst"] .nav-item.active {
+  background: rgba(124,58,237,0.12);
+  color: #7c3aed;
+}
+.admin-shell[data-role="inventory_analyst"] .nav-item.active .nav-icon svg {
+  stroke: #7c3aed;
+}
+
+/* Auditor — amber */
+.admin-shell[data-role="auditor"] .nav-item.active {
+  background: rgba(217,119,6,0.12);
+  color: #d97706;
+}
+.admin-shell[data-role="auditor"] .nav-item.active .nav-icon svg {
+  stroke: #d97706;
+}
+
+/* Branch Manager — green */
+.admin-shell[data-role="branch_manager"] .nav-item.active {
+  background: rgba(5,150,105,0.12);
+  color: #059669;
+}
+.admin-shell[data-role="branch_manager"] .nav-item.active .nav-icon svg {
+  stroke: #059669;
+}
+
+/* Warehouse Personnel — blue */
+.admin-shell[data-role="warehouse_personnel"] .nav-item.active {
+  background: rgba(37,99,235,0.12);
+  color: #2563eb;
+}
+.admin-shell[data-role="warehouse_personnel"] .nav-item.active .nav-icon svg {
+  stroke: #2563eb;
+}

@@ -1,0 +1,40 @@
+/* SweetAlert2 toast - compact, top-end */
+.swal2-popup.swal-toast {
+  padding: 0.5rem 1rem !important;
+  font-size: 0.875rem !important;
+  width: auto !important;
+  min-width: 220px !important;
+  max-width: 340px !important;
+  border-radius: 0.5rem !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.swal2-popup.swal-toast .swal2-icon {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  margin: 0 0 0.25rem 0 !important;
+}
+
+.swal2-popup.swal-toast .swal2-icon-content {
+  font-size: 0.95rem !important;
+}
+
+.swal2-popup.swal-toast .swal2-title {
+  font-size: 0.875rem !important;
+  padding: 0 !important;
+  color: #111827 !important;
+}
+
+.swal2-popup.swal-toast .swal2-html-container {
+  font-size: 0.8125rem !important;
+  margin: 0 !important;
+  color: #374151 !important;
+}
+
+.swal2-popup.swal-toast .swal2-timer-progress-bar {
+  height: 3px !important;
+  background: rgba(0, 0, 0, 0.15) !important;
+}

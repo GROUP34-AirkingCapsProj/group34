@@ -1,0 +1,529 @@
+/* Branch Management - Card Layout */
+
+/* Page Header */
+.branch-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 30px;
+}
+
+.branch-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.branch-view-toggle {
+    display: inline-flex;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.branch-toggle-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+}
+
+.branch-toggle-btn.active {
+    background: #fef2f2;
+    color: #DC143C;
+}
+
+.branch-toggle-btn:not(.active):hover {
+    background: #f9fafb;
+}
+
+.branch-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.branch-search {
+    flex: 1;
+    max-width: 420px;
+}
+
+.branch-search input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+    background: #fff;
+}
+
+.branch-search input:focus {
+    border-color: #DC143C;
+    box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.12);
+}
+
+.branch-page-header-left h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 4px 0;
+}
+
+.branch-page-header-left p {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+
+.btn-create-branch {
+    background: #DC143C;
+    color: white;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.btn-create-branch:hover {
+    background: #a01028;
+}
+
+/* Cards Grid */
+.branch-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+/* Individual Card */
+.branch-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    transition: box-shadow 0.2s;
+}
+
+.branch-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Card Header */
+.branch-card-header {
+    margin-bottom: 20px;
+}
+
+.branch-card-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 2px 0;
+}
+
+.branch-code {
+    font-size: 13px;
+    color: #9ca3af;
+    font-weight: 500;
+}
+
+/* Card Body */
+.branch-card-body {
+    margin-bottom: 20px;
+}
+
+.branch-detail {
+    margin-bottom: 12px;
+}
+
+.branch-label {
+    display: block;
+    font-size: 12px;
+    color: #9ca3af;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.branch-value {
+    display: block;
+    font-size: 14px;
+    color: #374151;
+    font-weight: 500;
+}
+
+.branch-detail-row {
+    display: flex;
+    gap: 40px;
+}
+
+.branch-detail-row .branch-detail {
+    margin-bottom: 0;
+}
+
+/* Card Footer */
+.branch-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid #f3f4f6;
+}
+
+/* List view */
+.branch-list-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.branch-table-wrapper {
+    overflow-x: auto;
+}
+
+.branch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.branch-table thead th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b7280;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+}
+
+.branch-table tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+    vertical-align: top;
+}
+
+.branch-td-title {
+    font-weight: 700;
+    color: #111827;
+}
+
+.branch-td-muted {
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+.branch-td-ellipsis {
+    max-width: 260px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Pagination */
+.branch-pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.branch-page-btn {
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #374151;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.branch-page-btn:hover:not(:disabled) {
+    background: #f9fafb;
+}
+
+.branch-page-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.branch-page-btn.active {
+    border-color: #DC143C;
+    background: #fef2f2;
+    color: #DC143C;
+}
+
+.branch-page-meta {
+    margin-left: auto;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.btn-edit-link {
+    background: none;
+    border: none;
+    color: #DC143C;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.btn-edit-link:hover {
+    color: #a01028;
+    text-decoration: underline;
+}
+
+.btn-deactivate-link {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.btn-deactivate-link:hover {
+    color: #374151;
+    text-decoration: underline;
+}
+
+.btn-activate-link {
+    background: none;
+    border: none;
+    color: #16a34a;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.btn-activate-link:hover {
+    color: #166534;
+    text-decoration: underline;
+}
+
+.branch-actions-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.branch-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Status Badges */
+.status-active {
+    background: #dcfce7;
+    color: #16a34a;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-inactive {
+    background: #f3f4f6;
+    color: #6b7280;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Modal & Form Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    overflow: auto;
+}
+
+.modal-content {
+    background: white;
+    margin: 50px auto;
+    padding: 0;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 700px;
+    box-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.modal-header h2 {
+    color: #DC143C;
+    font-size: 24px;
+}
+
+.close {
+    color: #999;
+    font-size: 32px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.close:hover {
+    color: #DC143C;
+}
+
+.branch-register-form {
+    padding: 16px 0 0;
+}
+
+.form-section {
+    margin-bottom: 28px;
+}
+
+.form-section:last-of-type {
+    margin-bottom: 0;
+}
+
+.form-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.form-hint {
+    font-size: 12px;
+    color: #6b7280;
+    margin: 12px 0 0 0;
+    line-height: 1.45;
+}
+
+form {
+    padding: 30px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    color: #333;
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #DC143C;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 20px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.btn-cancel {
+    background: white;
+    color: #666;
+    padding: 10px 25px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-cancel:hover {
+    background: #f8f9fa;
+}
+
+.btn-save {
+    background: #DC143C;
+    color: white;
+    padding: 10px 25px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-save:hover {
+    background: #a01028;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .branch-cards-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .branch-page-header {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .branch-detail-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+}

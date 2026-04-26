@@ -1,0 +1,132 @@
+/* ========================================
+   Inventory Monitoring Page Styles
+   ======================================== */
+
+.inv-page { padding: 0; }
+
+.inv-page-header { margin-bottom: 20px; }
+.inv-page-title { font-size: 24px; font-weight: 800; color: #111827; margin: 0; }
+.inv-page-subtitle { font-size: 13px; color: #6b7280; margin: 4px 0 0; }
+
+/* Search Row */
+.inv-search-row { display: flex; gap: 10px; margin-bottom: 20px; }
+.inv-search-input {
+  flex: 1; display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 10px;
+  background: #f9fafb; transition: border-color 0.2s;
+}
+.inv-search-input:focus-within { border-color: #dc2626; background: #fff; }
+.inv-search-input svg { color: #9ca3af; flex-shrink: 0; }
+.inv-search-input input {
+  flex: 1; border: none; outline: none; font-size: 13px; color: #374151; background: transparent;
+}
+.inv-search-input input::placeholder { color: #9ca3af; }
+
+.inv-btn-export {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 20px; background: #111827; color: #fff; border: none;
+  border-radius: 10px; font-size: 12px; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.3px; white-space: nowrap;
+}
+.inv-btn-export:hover { background: #1f2937; }
+
+/* Stats Row */
+.inv-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.inv-stat-card {
+  background: #fff; border: 1px solid #f3f4f6; border-radius: 12px;
+  padding: 18px 20px; display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.inv-stat-icon {
+  width: 42px; height: 42px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.inv-stat-icon-green { background: #ecfdf5; }
+.inv-stat-icon-red { background: #fef2f2; }
+.inv-stat-icon-orange { background: #fff7ed; }
+.inv-stat-icon-emerald { background: #d1fae5; }
+.inv-stat-label { font-size: 10px; font-weight: 700; color: #6b7280; letter-spacing: 0.5px; }
+.inv-stat-number { font-size: 26px; font-weight: 800; color: #111827; line-height: 1.2; }
+.inv-stat-red { color: #dc2626; }
+.inv-stat-info { display: flex; flex-direction: column; }
+
+/* Loading & Error */
+.inv-loading { text-align: center; padding: 24px; color: #6b7280; font-size: 13px; }
+.inv-error { text-align: center; padding: 16px; color: #dc2626; font-size: 13px; background: #fef2f2; border-radius: 8px; margin-bottom: 16px; }
+
+/* Table Card */
+.inv-table-card {
+  background: #fff; border: 1px solid #f3f4f6; border-radius: 12px;
+  padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.inv-table-top { margin-bottom: 16px; }
+.inv-table-title { font-size: 16px; font-weight: 700; color: #111827; margin: 0; }
+.inv-table-subtitle { font-size: 12px; color: #9ca3af; margin: 2px 0 0; }
+
+.inv-table-wrapper { overflow-x: auto; }
+.inv-table { width: 100%; border-collapse: collapse; }
+.inv-table thead th {
+  text-align: left; padding: 10px 14px; font-size: 10px; font-weight: 700;
+  color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid #f3f4f6; white-space: nowrap;
+}
+.inv-table tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.15s; }
+.inv-table tbody tr:hover { background: #f9fafb; }
+.inv-table tbody td { padding: 14px; color: #374151; vertical-align: middle; font-size: 13px; }
+
+/* Product Cell */
+.inv-product-cell { display: flex; flex-direction: column; gap: 2px; }
+.inv-product-name { font-size: 13px; font-weight: 600; color: #111827; }
+.inv-product-meta { display: flex; gap: 8px; align-items: center; }
+.inv-product-branch { font-size: 10px; font-weight: 700; color: #dc2626; letter-spacing: 0.3px; }
+.inv-product-code { font-size: 10px; color: #9ca3af; }
+
+.inv-cell-qty { font-size: 15px; color: #111827; text-align: center; }
+.inv-cell-num { font-size: 13px; color: #6b7280; text-align: center; }
+
+/* Status Badges */
+.inv-status-badge {
+  display: inline-block; padding: 4px 12px; border-radius: 6px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap;
+}
+.inv-badge-optimal { background: #ecfdf5; color: #059669; }
+.inv-badge-critical { background: #fef2f2; color: #dc2626; }
+.inv-badge-reorder { background: #fff7ed; color: #b45309; }
+.inv-badge-outofstock { background: #f3f4f6; color: #6b7280; }
+.inv-badge-overstock { background: #fef3c7; color: #92400e; }
+
+/* Actions */
+.inv-cell-actions { display: flex; gap: 12px; }
+.inv-action-link {
+  background: none; border: none; font-size: 12px; font-weight: 600;
+  color: #3b82f6; cursor: pointer; padding: 0;
+}
+.inv-action-link:hover { text-decoration: underline; }
+.inv-action-edit { color: #059669; }
+.inv-action-edit:hover { color: #047857; }
+
+/* Pagination */
+.inv-pagination { display: flex; justify-content: center; gap: 4px; padding: 16px 0 4px; border-top: 1px solid #f3f4f6; margin-top: 8px; }
+.inv-page-btn {
+  padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px;
+  background: #fff; font-size: 12px; color: #374151; cursor: pointer;
+}
+.inv-page-btn:hover:not(:disabled) { background: #f9fafb; }
+.inv-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.inv-page-btn-active { background: #dc2626; color: #fff; border-color: #dc2626; }
+
+/* View Modal */
+.inv-view-details { padding: 4px 0; }
+.inv-view-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.inv-view-field { display: flex; flex-direction: column; gap: 4px; }
+.inv-view-field label { font-size: 10px; font-weight: 700; color: #9ca3af; letter-spacing: 0.5px; text-transform: uppercase; }
+.inv-view-field p { font-size: 14px; color: #111827; margin: 0; font-weight: 500; }
+.inv-modal-footer { display: flex; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #f3f4f6; }
+.inv-modal-btn-cancel {
+  flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px;
+  background: #fff; color: #6b7280; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.inv-modal-btn-cancel:hover { background: #f9fafb; }
+
+@media (max-width: 1024px) { .inv-stats-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .inv-stats-row { grid-template-columns: 1fr; } }

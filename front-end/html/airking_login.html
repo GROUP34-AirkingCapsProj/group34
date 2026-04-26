@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AirKing Inventory System - Login</title>
+    <link rel="stylesheet" href="../../frontend/css/style.css">
+</head>
+<body>
+    <!-- Back Button -->
+    <a href="../../frontend/html/landing_airking.html" class="back-button">
+        <span>←</span>
+        <span>Back to Home</span>
+    </a>
+
+    <div class="container">
+        <div class="left-side">
+            <div class="logo-box">
+                <img src="../../images/air.png" alt="AirKing Logo" class="logo">
+            </div>
+            <h1>AirKing Air Conditioning</h1>
+            <p class="description">
+                Inventory Management System with Digital Material Movement Ledger, 
+                Barcode-Driven Audit Trail, and Smart Restocking Workflow
+            </p>
+        </div>
+        
+        <div class="right-side">
+            <div class="login-form">
+                <h2>Welcome Back !</h2>
+                <p>Please login to your account</p>
+                
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="username" placeholder="Enter your username" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="password" placeholder="Enter your password" required>
+                    </div>
+                    
+                    <div class="form-options">
+                        <div class="remember">
+                            <input type="checkbox" id="remember">
+                            <label for="remember">Remember me</label>
+                        </div>
+                        <a href="#" class="forgot">Forgot Password?</a>
+                    </div>
+                    
+                   <a href="../../frontend/html/dashboard_air.html"><button type="button">Login</button></a>
+ 
+                    <p class="error" id="error">Invalid username or password!</p>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../../frontend/js/script.js"></script>
+</body>
+</html>
