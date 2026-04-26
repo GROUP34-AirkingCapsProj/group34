@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan serve:*)",
+      "Bash(php artisan:*)",
+      "Bash(dir:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx react-scripts build)",
+      "Bash(npm install *)",
+      "Bash(xargs grep *)"
+    ]
+  }
+}

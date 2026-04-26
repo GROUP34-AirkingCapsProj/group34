@@ -1,0 +1,45 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (keep *.example tracked)
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+back-end/.env
+back-end/.env.backup
+back-end/.env.production
+
+# Dependencies
+frontend/node_modules/
+back-end/vendor/
+back-end/scripts/node_modules/
+
+# Builds
+frontend/build/
+back-end/public/build/
+back-end/public/hot
+
+# Laravel / storage
+back-end/storage/*.key
+
+# Local SQLite (use migrations on each environment)
+back-end/database/*.sqlite
+back-end/database/*.sqlite-journal
+
+# Logs & debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.phpunit.result.cache
+
+# IDE
+.idea/
+*.swp
+*.swo

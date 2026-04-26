@@ -1,0 +1,911 @@
+/* Warranty Management Styles */
+
+/* Page Header */
+.war-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+}
+
+.war-page-header-left h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 4px 0;
+}
+
+.war-page-header-left p {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+
+.war-btn-create {
+    background: #DC143C;
+    color: white;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.war-btn-create:hover {
+    background: #a01028;
+}
+
+/* Stats Row */
+.war-stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.war-stat-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.war-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.war-stat-icon-blue { background: #eff6ff; }
+.war-stat-icon-orange { background: #fff7ed; }
+.war-stat-icon-green { background: #f0fdf4; }
+.war-stat-icon-red { background: #fef2f2; }
+
+.war-stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.war-stat-label {
+    font-size: 13px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.war-stat-number {
+    font-size: 28px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.2;
+}
+
+/* Filters Card */
+.war-filters-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.war-filters-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 2px 0;
+}
+
+.war-filters-header p {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 0 0 20px 0;
+}
+
+.war-filters-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 16px;
+}
+
+.war-filter-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.war-filter-group select,
+.war-filter-group input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #374151;
+    outline: none;
+    background: #fff;
+}
+
+.war-filter-group select:focus,
+.war-filter-group input:focus {
+    border-color: #DC143C;
+    box-shadow: 0 0 0 2px rgba(220, 20, 60, 0.1);
+}
+
+.war-search-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.war-search-input svg {
+    position: absolute;
+    left: 12px;
+}
+
+.war-search-input input {
+    padding-left: 36px;
+}
+
+/* Table Card */
+.war-table-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.war-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.war-table-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+}
+
+.war-table-count {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.war-table-wrapper {
+    overflow-x: auto;
+}
+
+.war-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.war-table thead th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+}
+
+.war-table tbody tr {
+    border-bottom: 1px solid #f3f4f6;
+    transition: background 0.15s;
+}
+
+.war-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.war-table tbody td {
+    padding: 14px 12px;
+    color: #374151;
+    vertical-align: top;
+}
+
+.war-cell-warranty {
+    font-weight: 600;
+    color: #111827;
+    white-space: nowrap;
+}
+
+.war-cell-customer {
+    display: flex;
+    flex-direction: column;
+}
+
+.war-customer-name {
+    font-weight: 600;
+    color: #111827;
+}
+
+.war-customer-contact {
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+.war-cell-item {
+    max-width: 160px;
+}
+
+.war-cell-serial {
+    font-family: monospace;
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+.war-cell-issue {
+    max-width: 180px;
+    color: #6b7280;
+}
+
+.war-cell-technician {
+    white-space: nowrap;
+}
+
+/* Priority Badges */
+.war-priority-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.war-priority-critical {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.war-priority-high {
+    background: #fff7ed;
+    color: #ea580c;
+    border: 1px solid #fed7aa;
+}
+
+.war-priority-medium {
+    background: #fffbeb;
+    color: #d97706;
+    border: 1px solid #fde68a;
+}
+
+.war-priority-low {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
+
+/* Status Badges */
+.war-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.war-status-icon {
+    font-size: 10px;
+}
+
+.war-status-open {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.war-status-repair {
+    background: #fff7ed;
+    color: #ea580c;
+}
+
+.war-status-completed {
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.war-status-closed {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* Action Buttons */
+.war-cell-actions {
+    display: flex;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.war-btn-view {
+    background: none;
+    border: 1px solid #3b82f6;
+    color: #3b82f6;
+    padding: 4px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.war-btn-view:hover {
+    background: #3b82f6;
+    color: white;
+}
+
+.war-btn-assign {
+    background: none;
+    border: 1px solid #f59e0b;
+    color: #f59e0b;
+    padding: 4px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.war-btn-assign:hover {
+    background: #f59e0b;
+    color: white;
+}
+
+/* Bottom Grid - Critical + Activity */
+.war-bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.war-bottom-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.war-bottom-card-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 2px 0;
+}
+
+.war-bottom-card-header p {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 0 0 20px 0;
+}
+
+/* Critical Claims */
+.war-critical-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.war-critical-item {
+    display: flex;
+    gap: 12px;
+    background: #fef2f2;
+    border-radius: 10px;
+    padding: 16px;
+    border: 1px solid #fecaca;
+}
+
+.war-critical-bar {
+    width: 4px;
+    background: #dc2626;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.war-critical-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.war-critical-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.war-critical-id {
+    font-weight: 700;
+    font-size: 14px;
+    color: #111827;
+}
+
+.war-critical-alert {
+    color: #dc2626;
+    font-size: 16px;
+}
+
+.war-critical-detail {
+    font-size: 13px;
+    color: #374151;
+}
+
+.war-critical-issue {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.war-critical-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.war-critical-branch {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.war-critical-date {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+/* Recent Activity */
+.war-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.war-activity-item {
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.war-activity-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.war-activity-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.war-activity-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.war-activity-id {
+    font-weight: 700;
+    font-size: 14px;
+    color: #111827;
+}
+
+.war-activity-customer {
+    font-size: 13px;
+    color: #374151;
+}
+
+.war-activity-item-name {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.war-activity-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.war-activity-date {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+/* Summary Card */
+.war-summary-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.war-summary-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 2px 0;
+}
+
+.war-summary-header p {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 0 0 20px 0;
+}
+
+.war-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.war-summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+}
+
+.war-summary-item-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.war-summary-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.war-summary-blue { background: #eff6ff; border-color: #dbeafe; }
+.war-summary-blue .war-summary-icon { background: #dbeafe; }
+.war-summary-blue .war-summary-number { color: #2563eb; }
+
+.war-summary-orange { background: #fff7ed; border-color: #fed7aa; }
+.war-summary-orange .war-summary-icon { background: #fed7aa; }
+.war-summary-orange .war-summary-number { color: #ea580c; }
+
+.war-summary-green { background: #f0fdf4; border-color: #bbf7d0; }
+.war-summary-green .war-summary-icon { background: #bbf7d0; }
+.war-summary-green .war-summary-number { color: #16a34a; }
+
+.war-summary-gray { background: #f9fafb; border-color: #e5e7eb; }
+.war-summary-gray .war-summary-icon { background: #e5e7eb; }
+.war-summary-gray .war-summary-number { color: #6b7280; }
+
+.war-summary-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.war-summary-desc {
+    display: block;
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+.war-summary-number {
+    font-size: 32px;
+    font-weight: 700;
+}
+
+/* View Details */
+.war-view-details {
+    padding: 24px 30px;
+}
+
+.war-view-details .form-group p {
+    font-size: 14px;
+    color: #374151;
+    margin: 0;
+}
+
+/* File Warranty Claim Modal */
+.war-modal-body {
+    padding: 24px 28px;
+}
+
+.war-modal-body form {
+    padding: 0;
+}
+
+.war-modal-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+}
+
+.war-modal-notice span {
+    font-size: 12px;
+    color: #991b1b;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.war-modal-field {
+    margin-bottom: 20px;
+}
+
+.war-modal-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.war-modal-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #374151;
+    outline: none;
+    background: #f9fafb;
+    transition: border-color 0.2s;
+}
+
+.war-modal-input:focus {
+    border-color: #dc2626;
+    background: #fff;
+}
+
+.war-modal-input::placeholder {
+    color: #9ca3af;
+}
+
+.war-serial-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.war-serial-row .war-modal-input {
+    flex: 1;
+}
+
+.war-btn-verify {
+    padding: 10px 20px;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.war-btn-verify:hover {
+    background: #b91c1c;
+}
+
+.war-btn-verify:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+}
+
+.war-modal-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.war-modal-textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #374151;
+    outline: none;
+    background: #f9fafb;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.war-modal-textarea:focus {
+    border-color: #dc2626;
+    background: #fff;
+}
+
+.war-modal-textarea::placeholder {
+    color: #9ca3af;
+}
+
+.war-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 16px;
+    margin-top: 28px;
+}
+
+.war-modal-cancel {
+    padding: 10px 24px;
+    background: transparent;
+    color: #6b7280;
+    border: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+}
+
+.war-modal-cancel:hover {
+    color: #374151;
+}
+
+.war-modal-submit {
+    padding: 10px 28px;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.war-modal-submit:hover {
+    background: #b91c1c;
+}
+
+/* Legacy form styles for view modal */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    color: #333;
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #DC143C;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 20px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.btn-cancel {
+    background: white;
+    color: #666;
+    padding: 10px 25px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-cancel:hover {
+    background: #f8f9fa;
+}
+
+.btn-save {
+    background: #DC143C;
+    color: white;
+    padding: 10px 25px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-save:hover {
+    background: #a01028;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .war-stats-row {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .war-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .war-page-header {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .war-stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .war-filters-row {
+        grid-template-columns: 1fr;
+    }
+
+    .war-bottom-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .war-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .war-modal-row {
+        grid-template-columns: 1fr;
+    }
+}

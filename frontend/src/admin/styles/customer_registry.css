@@ -1,0 +1,533 @@
+/* Customer Registry / Customer Management - same expanded layout as User Management */
+
+.cr-page {
+  width: 100%;
+  min-height: 100%;
+  /* No max-width: content expands to full page-content area like User Management */
+}
+
+.cr-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.cr-header {
+  flex: 1;
+}
+
+.cr-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.cr-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.cr-btn-add {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cr-btn-add:hover {
+  background: #b91c1c;
+}
+
+/* KPI cards */
+.cr-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.cr-kpi-card {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #f3f4f6;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cr-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cr-kpi-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.cr-kpi-icon-blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.cr-kpi-icon-green {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.cr-kpi-icon-purple {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.cr-kpi-icon-orange {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.cr-kpi-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.cr-kpi-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* All Customers section */
+.cr-section {
+  margin-bottom: 32px;
+}
+
+.cr-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.cr-section-meta {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 16px 0;
+}
+
+.cr-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cr-search {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.cr-search::placeholder {
+  color: #9ca3af;
+}
+
+.cr-search:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.cr-filter-select {
+  padding: 10px 32px 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #374151;
+  background: #fff;
+  cursor: pointer;
+  min-width: 120px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.cr-loading,
+.cr-error {
+  padding: 16px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.cr-error {
+  color: #dc2626;
+  background: #fef2f2;
+  border-radius: 8px;
+}
+
+.cr-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cr-table th {
+  text-align: left;
+  padding: 12px 16px;
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cr-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #111827;
+  vertical-align: middle;
+}
+
+.cr-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.cr-td-id {
+  font-weight: 500;
+  color: #374151;
+}
+
+.cr-td-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.cr-td-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cr-td-contact span {
+  font-size: 12px;
+}
+
+.cr-td-num {
+  text-align: right;
+}
+
+/* Type pills */
+.cr-type-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cr-type-individual {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.cr-type-business {
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+
+/* Status */
+.cr-status-active {
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.cr-status-inactive {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* View button */
+.cr-btn-view {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cr-btn-view:hover {
+  background: #1d4ed8;
+}
+
+/* Business Customers section */
+.cr-business-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.cr-business-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.cr-business-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 20px 0;
+}
+
+.cr-business-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.cr-business-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cr-business-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cr-business-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 2px 0;
+}
+
+.cr-business-company {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.cr-business-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.cr-business-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cr-business-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.cr-business-row span:first-child {
+  color: #6b7280;
+}
+
+.cr-business-row span:last-child {
+  font-weight: 600;
+  color: #111827;
+}
+
+.cr-outstanding span:last-child {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.cr-btn-full-details {
+  width: 100%;
+  padding: 10px 16px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cr-btn-full-details:hover {
+  background: #bae6fd;
+}
+
+/* View modal */
+.cr-view-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cr-view-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+}
+
+.cr-view-row span:first-child {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Add Customer modal - scrollable body like User Management */
+.cr-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: 4px;
+}
+
+.cr-form-error {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+/* Add form */
+.cr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cr-form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.cr-form-group input,
+.cr-form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.cr-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.cr-btn-cancel {
+  padding: 10px 20px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cr-btn-cancel:hover {
+  background: #e5e7eb;
+}
+
+.cr-btn-submit {
+  padding: 10px 20px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cr-btn-submit:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.cr-btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1100px) {
+  .cr-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cr-business-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .cr-header-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .cr-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cr-toolbar {
+    flex-direction: column;
+  }
+
+  .cr-business-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cr-table-wrap {
+    overflow-x: scroll;
+  }
+}

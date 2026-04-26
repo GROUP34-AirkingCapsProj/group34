@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>AirKing - Admin Dashboard</title>
+    <link rel="stylesheet" href="../../frontend/css/dashboard_air.css">
+    <link rel="stylesheet" href="../../frontend/css/user_management.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">
+            <img src="../../images/air.png" alt="AirKing Logo">
+            <h3>AirKing</h3>
+        </div>
+        <nav class="nav-menu" id="navMenu"></nav>
+        <div class="sidebar-footer">
+            <p>AirKing Admin Dashboard</p>
+            <p>© 2025 All Rights Reserved</p>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search...">
+                <button id="searchBtn">Search</button>
+            </div>
+            <div class="header-right" id="headerRight"></div>
+        </header>
+        
+        <!-- Welcome Section ni nga part-->
+        <div class="welcome-section" id="welcomeSection"></div>
+        
+        <!-- Statistics Cards or braha-->
+        <div class="stats-container" id="statsContainer"></div>
+        
+        <!-- Charts Section charts gani-->
+        <div class="charts-section" id="chartsSection"></div>
+        
+        <!-- Recent Activity Table mga recent in short-->
+        <div class="table-section">
+            <div class="table-header">
+                <h3>Recent Transactions</h3>
+                <button class="export-btn" id="exportBtn">Export</button>
+            </div>
+            <table class="data-table">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="../js/dashboard_air.js"></script>
+</body>
+</html>
