@@ -1,27 +1,194 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { toast } from '../utils/toast';
 import '../styles/system_configuration.css';
 
+const LockIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+  </svg>
+);
+
+const PersonIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
+  </svg>
+);
+
+const PersonAddIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+  </svg>
+);
+
+const ClockIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+);
+
+const ShieldIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+  </svg>
+);
+
+const KeyIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+  </svg>
+);
+
+const InfoIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+  </svg>
+);
+
+const SaveIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+  </svg>
+);
+
+const CameraIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 15.2c1.768 0 3.2-1.432 3.2-3.2S13.768 8.8 12 8.8 8.8 10.232 8.8 12s1.432 3.2 3.2 3.2zM9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+  </svg>
+);
+
+const AvatarPersonIcon = () => (
+  <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
+  </svg>
+);
+
+const MailIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+  </svg>
+);
+
+const PhoneIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+  </svg>
+);
+
+const MapPinIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/>
+  </svg>
+);
+
+const BriefcaseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
+  </svg>
+);
+
+const CheckCircleIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+  </svg>
+);
+
+const XCircleIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
+  </svg>
+);
+
+const CopyIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+  </svg>
+);
+
+const KeyOutlineIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="7.5" cy="15.5" r="5.5"/>
+    <path d="M21 2L13 10M18 5l2 2M11 13l2 2"/>
+  </svg>
+);
+
+const MOCK_USERS = [
+  { empId: 'ADM-001', name: 'John Smith',     role: 'System Admin',        location: 'CDO Head Office',     status: 'Active' },
+  { empId: 'ANL-001', name: 'Sarah Johnson',  role: 'Inventory Analyst',   location: 'CDO Head Office',     status: 'Active' },
+  { empId: 'AUD-001', name: 'Robert Wilson',  role: 'Auditor',             location: 'CDO Head Office',     status: 'Active' },
+  { empId: 'MGR-001', name: 'Miguel Rodriguez', role: 'Branch Manager',    location: 'CDO Showroom',        status: 'Active' },
+  { empId: 'WHP-001', name: 'Emily Davis',    role: 'Warehouse Personnel', location: 'CDO Bulua Warehouse A', status: 'Active' },
+  { empId: 'WHP-002', name: 'Linda Garcia',   role: 'Warehouse Personnel', location: 'CDO Bulua Warehouse B', status: 'Active' },
+];
+
+const MOCK_RESET_REQUESTS = [
+  { id: 1, name: 'Mary Analyst',    email: 'mary@airking.com',   requested: '2026-03-22 10:30 AM' },
+  { id: 2, name: 'Sarah Personnel', email: 'sarah@airking.com',  requested: '2026-03-21 02:15 PM' },
+];
+
+const MOCK_ACTIVE_CODES = [
+  { id: 1, name: 'Bob Manager', email: 'bob@airking.com', code: 'RST-8K9L2M', generated: '2026-03-22 09:00 AM', expires: '2026-03-23 09:00 AM' },
+];
+
+const ALL_USER_ROLES = ['All User', 'System Admin', 'Inventory Analyst', 'Auditor', 'Branch Manager', 'Warehouse Personnel'];
+const ALL_LOCATIONS  = ['All Location', 'CDO Head Office', 'CDO Showroom', 'CDO Bulua Warehouse A', 'CDO Bulua Warehouse B'];
+
+const TABS = [
+  { id: 'security', label: 'Security', icon: <LockIcon /> },
+  { id: 'profile', label: 'Profile Settings', icon: <PersonIcon /> },
+  { id: 'users', label: 'User Management', icon: <PersonAddIcon />, badge: 2 },
+];
+
+const DEFAULT_SETTINGS = {
+  minPasswordLength: '8',
+  passwordExpiry: '90',
+  sessionTimeout: '30',
+  maxLoginAttempts: '5',
+  twoFactorAuth: false,
+  resetCodeExpiry: '24',
+  allowSelfServiceReset: true,
+};
+
+const DEFAULT_PROFILE = {
+  fullName: 'Admin User',
+  email: 'admin@airking.com',
+  phone: '+63 912 345 6789',
+  address: 'Cagayan de Oro City, Philippines',
+  dateJoined: 'January 15, 2024',
+  position: 'System Administrator',
+};
+
 const SystemConfiguration = () => {
-  const [settings, setSettings] = useState({
-    companyName: 'Airking Air Conditioning',
-    systemEmail: 'system@airking.com',
-    timeZone: '',
-    currency: '',
-    reorderLevel: '20',
-    safetyStock: '10',
-    autoGenerateSKU: true,
-    lowStockAlerts: true,
-    twoFactorAuth: false,
-    sessionTimeout: false,
-    passwordExpiry: false,
-    loginAttempts: true,
-    emailNotifications: true,
-    dailyReports: true,
-    transactionAlerts: false,
-    notificationRecipients: 'admin@airking.com, manager@airking.com',
-  });
+  const [activeTab, setActiveTab] = useState('security');
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+  const fileInputRef = useRef(null);
+
+  const [userRoleFilter, setUserRoleFilter] = useState('All User');
+  const [userLocFilter, setUserLocFilter]  = useState('All Location');
+  const [resetRequests, setResetRequests]  = useState(MOCK_RESET_REQUESTS);
+  const [activeCodes, setActiveCodes]      = useState(MOCK_ACTIVE_CODES);
+  const [manualUser, setManualUser]        = useState('');
+
+  useEffect(() => {
+    const stored = localStorage.getItem('user');
+    if (stored) {
+      try {
+        const user = JSON.parse(stored);
+        setProfile(prev => ({
+          ...prev,
+          fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || prev.fullName,
+          email: user.email || prev.email,
+        }));
+      } catch {}
+    }
+  }, []);
 
   const handleChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
@@ -32,267 +199,459 @@ const SystemConfiguration = () => {
   };
 
   const handleResetDefaults = () => {
-    setSettings({
-      companyName: 'Airking Air Conditioning',
-      systemEmail: 'system@airking.com',
-      timeZone: '',
-      currency: '',
-      reorderLevel: '20',
-      safetyStock: '10',
-      autoGenerateSKU: true,
-      lowStockAlerts: true,
-      twoFactorAuth: false,
-      sessionTimeout: false,
-      passwordExpiry: false,
-      loginAttempts: true,
-      emailNotifications: true,
-      dailyReports: true,
-      transactionAlerts: false,
-      notificationRecipients: 'admin@airking.com, manager@airking.com',
-    });
+    setSettings(DEFAULT_SETTINGS);
   };
 
   const handleSave = () => {
     toast.success('Settings saved successfully!');
   };
 
+  const handleProfileChange = (field, value) => {
+    setProfile(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleProfileSave = () => {
+    toast.success('Profile updated successfully!');
+  };
+
+  const handleGenerateCode = (id) => {
+    toast.success('Reset code generated and shared with user.');
+    setResetRequests(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleDenyRequest = (id) => {
+    setResetRequests(prev => prev.filter(r => r.id !== id));
+    toast.success('Request denied.');
+  };
+
+  const handleRevoke = (id) => {
+    setActiveCodes(prev => prev.filter(c => c.id !== id));
+    toast.success('Reset code revoked.');
+  };
+
+  const handleCopyCode = (code) => {
+    navigator.clipboard?.writeText(code).then(() => toast.success('Code copied!'));
+  };
+
+  const handleManualGenerate = () => {
+    if (!manualUser.trim()) { toast.error('Please select a user.'); return; }
+    toast.success(`Reset code generated for ${manualUser}.`);
+    setManualUser('');
+  };
+
+  const filteredUsers = MOCK_USERS.filter(u =>
+    (userRoleFilter === 'All User'     || u.role     === userRoleFilter) &&
+    (userLocFilter  === 'All Location' || u.location === userLocFilter)
+  );
+
   return (
     <AdminLayout>
       <div className="sc-content">
-        {/* Page Header */}
         <div className="sc-page-header">
-          <h1>System Configuration</h1>
-          <p>Manage system settings and operational parameters</p>
+          <h1>System Settings</h1>
+          <p>Configure security, branding, inventory rules, and system preferences</p>
         </div>
 
-        {/* Settings Grid */}
-        <div className="sc-grid">
-          {/* Left Column */}
-          <div className="sc-column">
-            {/* General Settings */}
+        <div className="sc-tabs-bar">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              className={`sc-tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="sc-tab-icon">{tab.icon}</span>
+              {tab.label}
+              {tab.badge && <span className="sc-tab-badge">{tab.badge}</span>}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'security' && (
+          <div className="sc-tab-content">
             <div className="sc-card">
               <div className="sc-card-header">
-                <h3>General Settings</h3>
-                <p>Basic system configuration</p>
+                <h3>Password Policy</h3>
+                <p>Configure password requirements and complexity rules</p>
               </div>
               <div className="sc-card-body">
-                <div className="sc-field">
-                  <label>Company Name</label>
-                  <input
-                    type="text"
-                    value={settings.companyName}
-                    onChange={(e) => handleChange('companyName', e.target.value)}
-                  />
-                </div>
-                <div className="sc-field">
-                  <label>System Email</label>
-                  <input
-                    type="email"
-                    value={settings.systemEmail}
-                    onChange={(e) => handleChange('systemEmail', e.target.value)}
-                  />
-                </div>
-                <div className="sc-field">
-                  <label>Time Zone</label>
-                  <select
-                    value={settings.timeZone}
-                    onChange={(e) => handleChange('timeZone', e.target.value)}
-                  >
-                    <option value="">Select Time Zone</option>
-                    <option value="Asia/Manila">Asia/Manila (GMT+8)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
-                    <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
-                    <option value="UTC">UTC (GMT+0)</option>
-                  </select>
-                </div>
-                <div className="sc-field">
-                  <label>Currency</label>
-                  <select
-                    value={settings.currency}
-                    onChange={(e) => handleChange('currency', e.target.value)}
-                  >
-                    <option value="">Select Currency</option>
-                    <option value="PHP">Philippine Peso (₱)</option>
-                    <option value="USD">US Dollar ($)</option>
-                    <option value="EUR">Euro (€)</option>
-                  </select>
+                <div className="sc-field-row">
+                  <div className="sc-field">
+                    <label>Minimum Password Length</label>
+                    <input
+                      type="number"
+                      value={settings.minPasswordLength}
+                      onChange={(e) => handleChange('minPasswordLength', e.target.value)}
+                    />
+                  </div>
+                  <div className="sc-field">
+                    <label>Password Expiry (days)</label>
+                    <input
+                      type="number"
+                      value={settings.passwordExpiry}
+                      onChange={(e) => handleChange('passwordExpiry', e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Inventory Settings */}
             <div className="sc-card">
               <div className="sc-card-header">
-                <h3>Inventory Settings</h3>
-                <p>Stock and reorder configuration</p>
+                <h3>Session &amp; Authentication</h3>
+                <p>Configure session timeout and login security</p>
               </div>
               <div className="sc-card-body">
-                <div className="sc-field">
-                  <label>Default Reorder Level (%)</label>
+                <div className="sc-field-row">
+                  <div className="sc-field">
+                    <label><ClockIcon /> Session Timeout (minutes)</label>
+                    <input
+                      type="number"
+                      value={settings.sessionTimeout}
+                      onChange={(e) => handleChange('sessionTimeout', e.target.value)}
+                    />
+                    <span className="sc-field-hint">Auto-logout after inactivity period</span>
+                  </div>
+                  <div className="sc-field">
+                    <label><ShieldIcon /> Max Login Attempts</label>
+                    <input
+                      type="number"
+                      value={settings.maxLoginAttempts}
+                      onChange={(e) => handleChange('maxLoginAttempts', e.target.value)}
+                    />
+                    <span className="sc-field-hint">Lock account after failed attempts</span>
+                  </div>
+                </div>
+
+                <div className="sc-checkbox-row sc-checkbox-row--accent">
+                  <span className="sc-checkbox-icon sc-checkbox-icon--indigo">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                  </span>
+                  <input type="checkbox" id="twoFactorAuth" checked={settings.twoFactorAuth} onChange={() => handleToggle('twoFactorAuth')} />
+                  <label htmlFor="twoFactorAuth">
+                    <span className="sc-checkbox-label">Enable Two-Factor Authentication (2FA)</span>
+                    <span className="sc-checkbox-desc">Require SMS or authenticator app verification at login</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="sc-card">
+              <div className="sc-card-header">
+                <h3>Password Reset Configuration</h3>
+                <p>Configure password reset security settings</p>
+              </div>
+              <div className="sc-card-body">
+                <div className="sc-field sc-field--half">
+                  <label><ClockIcon /> Reset Code Expiry (minutes)</label>
                   <input
                     type="number"
-                    value={settings.reorderLevel}
-                    onChange={(e) => handleChange('reorderLevel', e.target.value)}
+                    value={settings.resetCodeExpiry}
+                    onChange={(e) => handleChange('resetCodeExpiry', e.target.value)}
                   />
+                  <span className="sc-field-hint">How long reset codes remain valid</span>
                 </div>
-                <div className="sc-field">
-                  <label>Safety Stock (%)</label>
-                  <input
-                    type="number"
-                    value={settings.safetyStock}
-                    onChange={(e) => handleChange('safetyStock', e.target.value)}
-                  />
+
+                <div className="sc-checkbox-row sc-checkbox-row--accent">
+                  <span className="sc-checkbox-icon sc-checkbox-icon--amber">
+                    <KeyIcon />
+                  </span>
+                  <input type="checkbox" id="allowSelfServiceReset" checked={settings.allowSelfServiceReset} onChange={() => handleToggle('allowSelfServiceReset')} />
+                  <label htmlFor="allowSelfServiceReset">
+                    <span className="sc-checkbox-label">Allow Self-Service Password Reset</span>
+                    <span className="sc-checkbox-desc">Users can request password reset; admin must approve and generate codes</span>
+                  </label>
                 </div>
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Auto-generate SKU</span>
-                    <span className="sc-toggle-desc">Automatically create SKU codes</span>
+
+                <div className="sc-info-box">
+                  <div className="sc-info-header">
+                    <span className="sc-info-icon"><InfoIcon /></span>
+                    <span className="sc-info-title">How Password Reset Works</span>
                   </div>
-                  <button
-                    className={`sc-toggle ${settings.autoGenerateSKU ? 'active' : ''}`}
-                    onClick={() => handleToggle('autoGenerateSKU')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
+                  <ul className="sc-info-list">
+                    <li>Users submit password reset requests</li>
+                    <li>Admin reviews and approves requests in User Management tab</li>
+                    <li>Admin generates unique reset code for approved requests</li>
+                    <li>Admin shares the code with the user securely</li>
+                    <li>User enters the code to reset their password</li>
+                    <li>Codes expire after the configured time period</li>
+                  </ul>
                 </div>
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Low Stock Alerts</span>
-                    <span className="sc-toggle-desc">Email notifications for low stock</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div className="sc-tab-content">
+            <div className="sc-card">
+              <div className="sc-card-header">
+                <h3>Profile Picture</h3>
+                <p>Upload your profile picture</p>
+              </div>
+              <div className="sc-card-body">
+                <div className="sc-profile-picture-row">
+                  <div className="sc-avatar-wrapper">
+                    <div className="sc-avatar">
+                      <AvatarPersonIcon />
+                    </div>
+                    <button
+                      className="sc-avatar-badge"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <CameraIcon />
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif"
+                      style={{ display: 'none' }}
+                    />
                   </div>
-                  <button
-                    className={`sc-toggle ${settings.lowStockAlerts ? 'active' : ''}`}
-                    onClick={() => handleToggle('lowStockAlerts')}
-                  >
-                    <span className="sc-toggle-knob"></span>
+                  <div className="sc-upload-info">
+                    <span className="sc-upload-title">Upload a new profile picture</span>
+                    <span className="sc-upload-hint">JPG, PNG or GIF. Max size 2MB.</span>
+                    <button
+                      className="sc-choose-file-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Choose File
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="sc-card">
+              <div className="sc-card-header">
+                <h3>Personal Details</h3>
+                <p>Update your personal information</p>
+              </div>
+              <div className="sc-card-body">
+                <div className="sc-field-row">
+                  <div className="sc-field">
+                    <label>Full Name</label>
+                    <input
+                      type="text"
+                      value={profile.fullName}
+                      onChange={(e) => handleProfileChange('fullName', e.target.value)}
+                    />
+                  </div>
+                  <div className="sc-field">
+                    <label>Email Address</label>
+                    <div className="sc-input-with-icon">
+                      <span className="sc-input-icon"><MailIcon /></span>
+                      <input
+                        type="email"
+                        value={profile.email}
+                        onChange={(e) => handleProfileChange('email', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="sc-field-row">
+                  <div className="sc-field">
+                    <label>Phone Number</label>
+                    <div className="sc-input-with-icon">
+                      <span className="sc-input-icon"><PhoneIcon /></span>
+                      <input
+                        type="tel"
+                        value={profile.phone}
+                        onChange={(e) => handleProfileChange('phone', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="sc-field">
+                    <label>Address</label>
+                    <div className="sc-input-with-icon">
+                      <span className="sc-input-icon"><MapPinIcon /></span>
+                      <input
+                        type="text"
+                        value={profile.address}
+                        onChange={(e) => handleProfileChange('address', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="sc-field-row">
+                  <div className="sc-field">
+                    <label>Date Joined</label>
+                    <div className="sc-input-with-icon">
+                      <span className="sc-input-icon"><CalendarIcon /></span>
+                      <input type="text" value={profile.dateJoined} readOnly />
+                    </div>
+                  </div>
+                  <div className="sc-field">
+                    <label>Position</label>
+                    <div className="sc-input-with-icon">
+                      <span className="sc-input-icon"><BriefcaseIcon /></span>
+                      <input type="text" value={profile.position} readOnly />
+                    </div>
+                  </div>
+                </div>
+                <div className="sc-profile-save-row">
+                  <button className="sc-btn-save" onClick={handleProfileSave}>
+                    <SaveIcon /> Save Changes
                   </button>
                 </div>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Right Column */}
-          <div className="sc-column">
-            {/* Security Settings */}
+        {activeTab === 'users' && (
+          <div className="sc-tab-content">
+            {/* User Accounts */}
             <div className="sc-card">
               <div className="sc-card-header">
-                <h3>Security Settings</h3>
-                <p>Access control and authentication</p>
+                <h3>User Accounts</h3>
+                <p>Manage user roles and permissions</p>
               </div>
               <div className="sc-card-body">
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Two-Factor Authentication</span>
-                    <span className="sc-toggle-desc">Require 2FA for all users</span>
-                  </div>
-                  <button
-                    className={`sc-toggle ${settings.twoFactorAuth ? 'active' : ''}`}
-                    onClick={() => handleToggle('twoFactorAuth')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
+                <div className="sc-um-filter-row">
+                  <span className="sc-um-filter-label">Filter by:</span>
+                  <select className="sc-um-select" value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)}>
+                    {ALL_USER_ROLES.map(r => <option key={r}>{r}</option>)}
+                  </select>
+                  <select className="sc-um-select" value={userLocFilter} onChange={e => setUserLocFilter(e.target.value)}>
+                    {ALL_LOCATIONS.map(l => <option key={l}>{l}</option>)}
+                  </select>
                 </div>
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Session Timeout</span>
-                    <span className="sc-toggle-desc">Automatic logout after inactivity</span>
-                  </div>
-                  <button
-                    className={`sc-toggle ${settings.sessionTimeout ? 'active' : ''}`}
-                    onClick={() => handleToggle('sessionTimeout')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
-                </div>
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Password Expiry</span>
-                    <span className="sc-toggle-desc">Force password change every</span>
-                  </div>
-                  <button
-                    className={`sc-toggle ${settings.passwordExpiry ? 'active' : ''}`}
-                    onClick={() => handleToggle('passwordExpiry')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
-                </div>
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Login Attempts</span>
-                    <span className="sc-toggle-desc">Lock account after failed attempts</span>
-                  </div>
-                  <button
-                    className={`sc-toggle dark ${settings.loginAttempts ? 'active' : ''}`}
-                    onClick={() => handleToggle('loginAttempts')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
-                </div>
+                <table className="sc-um-table">
+                  <thead>
+                    <tr>
+                      <th className="sc-um-th">EMPLOYEE ID</th>
+                      <th className="sc-um-th">NAME</th>
+                      <th className="sc-um-th">ROLE</th>
+                      <th className="sc-um-th">LOCATION</th>
+                      <th className="sc-um-th">STATUS</th>
+                      <th className="sc-um-th sc-um-th--right">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map(u => (
+                      <tr key={u.empId} className="sc-um-tr">
+                        <td className="sc-um-td sc-um-td--id">{u.empId}</td>
+                        <td className="sc-um-td sc-um-td--name">{u.name}</td>
+                        <td className="sc-um-td">{u.role}</td>
+                        <td className="sc-um-td">{u.location}</td>
+                        <td className="sc-um-td">
+                          <span className="sc-um-status-badge sc-um-status-badge--active">{u.status}</span>
+                        </td>
+                        <td className="sc-um-td sc-um-td--actions">
+                          <button className="sc-um-btn-edit">Edit</button>
+                          <button className="sc-um-btn-deactivate">Deactivate</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Notification Settings */}
+            {/* Password Reset Requests */}
             <div className="sc-card">
               <div className="sc-card-header">
-                <h3>Notification Settings</h3>
-                <p>Email and alert configuration</p>
+                <h3>Password Reset Requests</h3>
+                <p>Manage user password reset requests</p>
               </div>
               <div className="sc-card-body">
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Email Notifications</span>
-                    <span className="sc-toggle-desc">Send email alerts</span>
+                {resetRequests.length === 0 && (
+                  <p className="sc-placeholder" style={{ padding: '16px 0' }}>No pending reset requests.</p>
+                )}
+                {resetRequests.map(req => (
+                  <div key={req.id} className="sc-um-request-item">
+                    <div className="sc-um-request-avatar">
+                      <AvatarPersonIcon />
+                    </div>
+                    <div className="sc-um-request-info">
+                      <span className="sc-um-request-name">{req.name}</span>
+                      <span className="sc-um-request-email">{req.email}</span>
+                      <span className="sc-um-request-time">Requested: {req.requested}</span>
+                    </div>
+                    <div className="sc-um-request-actions">
+                      <button className="sc-um-btn-generate" onClick={() => handleGenerateCode(req.id)}>
+                        <CheckCircleIcon /> Generate Code
+                      </button>
+                      <button className="sc-um-btn-deny" onClick={() => handleDenyRequest(req.id)}>
+                        <XCircleIcon /> Deny
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    className={`sc-toggle ${settings.emailNotifications ? 'active' : ''}`}
-                    onClick={() => handleToggle('emailNotifications')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
-                </div>
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Daily Reports</span>
-                    <span className="sc-toggle-desc">Automated daily summary</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Active Reset Codes */}
+            <div className="sc-card">
+              <div className="sc-card-header">
+                <h3>Active Reset Codes</h3>
+                <p>View and manage active password reset codes</p>
+              </div>
+              <div className="sc-card-body">
+                {activeCodes.length === 0 && (
+                  <p className="sc-placeholder" style={{ padding: '16px 0' }}>No active reset codes.</p>
+                )}
+                {activeCodes.map(c => (
+                  <div key={c.id} className="sc-um-code-item">
+                    <div className="sc-um-code-left">
+                      <span className="sc-um-code-name">{c.name}</span>
+                      <span className="sc-um-code-email">{c.email}</span>
+                      <div className="sc-um-code-row">
+                        <span className="sc-um-code-icon"><KeyOutlineIcon /></span>
+                        <span className="sc-um-code-value">{c.code}</span>
+                        <button className="sc-um-code-copy" onClick={() => handleCopyCode(c.code)}>
+                          <CopyIcon />
+                        </button>
+                      </div>
+                      <div className="sc-um-code-meta">
+                        <span><strong>Generated</strong><br />{c.generated}</span>
+                        <span><strong>Expires</strong><br />{c.expires}</span>
+                      </div>
+                    </div>
+                    <button className="sc-um-btn-revoke" onClick={() => handleRevoke(c.id)}>
+                      <XCircleIcon /> Revoke
+                    </button>
                   </div>
-                  <button
-                    className={`sc-toggle ${settings.dailyReports ? 'active' : ''}`}
-                    onClick={() => handleToggle('dailyReports')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
-                </div>
-                <div className="sc-toggle-row">
-                  <div className="sc-toggle-info">
-                    <span className="sc-toggle-label">Transaction Alerts</span>
-                    <span className="sc-toggle-desc">Notify on large transactions</span>
-                  </div>
-                  <button
-                    className={`sc-toggle ${settings.transactionAlerts ? 'active' : ''}`}
-                    onClick={() => handleToggle('transactionAlerts')}
-                  >
-                    <span className="sc-toggle-knob"></span>
-                  </button>
-                </div>
-                <div className="sc-field">
-                  <label>Notification Recipients</label>
+                ))}
+              </div>
+            </div>
+
+            {/* Manual Password Reset */}
+            <div className="sc-card">
+              <div className="sc-card-header">
+                <h3>Manual Password Reset</h3>
+                <p>Generate reset code for any user</p>
+              </div>
+              <div className="sc-card-body">
+                <p className="sc-um-manual-desc">
+                  Select a user and generate a password reset code manually. The code will be valid for 24 hours.
+                </p>
+                <label className="sc-um-manual-label">Select User</label>
+                <div className="sc-um-manual-row">
                   <input
                     type="text"
-                    value={settings.notificationRecipients}
-                    onChange={(e) => handleChange('notificationRecipients', e.target.value)}
-                    placeholder="email1@example.com, email2@example.com"
+                    className="sc-um-manual-input"
+                    placeholder=""
+                    value={manualUser}
+                    onChange={e => setManualUser(e.target.value)}
                   />
+                  <button className="sc-um-btn-generate-code" onClick={handleManualGenerate}>
+                    <KeyOutlineIcon /> Generate Reset Code
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Footer Actions */}
-        <div className="sc-footer">
-          <button className="sc-btn-reset" onClick={handleResetDefaults}>Reset to Default</button>
-          <button className="sc-btn-save" onClick={handleSave}>Save All Changes</button>
-        </div>
+        {(activeTab === 'security' || activeTab === 'users') && (
+          <div className="sc-footer">
+            <button className="sc-btn-reset" onClick={handleResetDefaults}>Reset to Defaults</button>
+            <button className="sc-btn-save" onClick={activeTab === 'security' ? handleSave : () => toast.success('User settings saved!')}>
+              <SaveIcon /> {activeTab === 'security' ? 'Save Security Settings' : 'Save User Settings'}
+            </button>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
