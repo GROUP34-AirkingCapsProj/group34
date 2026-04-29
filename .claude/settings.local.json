@@ -7,7 +7,10 @@
       "Bash(npm run build:*)",
       "Bash(npx react-scripts build)",
       "Bash(npm install *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(npx react-scripts *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\")"
     ]
   }
 }

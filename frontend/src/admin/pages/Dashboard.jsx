@@ -156,11 +156,31 @@ const AdminDashboard = () => {
   };
 
   const stats = data?.stats ?? {};
-  const pendingActions = stats.pending_actions ?? 0;
-  const inventoryByCategory = data?.inventory_by_category ?? { labels: [], values: [] };
-  const warehouseCapacity   = data?.warehouse_capacity   ?? { labels: [], capacity: [], occupancy: [] };
-  const stockTrends         = data?.stock_trends         ?? { labels: [], values: [] };
-  const transactionTrends   = data?.transaction_trends   ?? { labels: [], values: [] };
+  const pendingActions        = stats.pending_actions ?? 0;
+  const lowStockItems         = data?.low_stock_items           ?? [];
+  const inventoryByCategory   = data?.inventory_by_category    ?? { labels: [], values: [] };
+  const stockStatusByLocation = data?.stock_status_by_location  ?? { labels: [], inStock: [], lowStock: [] };
+  const warehouseCapacity     = data?.warehouse_capacity        ?? { labels: [], capacity: [], occupancy: [] };
+  const stockTrends           = data?.stock_trends              ?? { labels: [], values: [] };
+  const transactionTrends     = data?.transaction_trends        ?? { labels: [], values: [] };
+  const recentActivity        = data?.recent_activity           ?? [];
+
+  const timeAgo = (iso) => {
+    if (!iso) return '';
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
+  const activityMeta = {
+    sale:      { label: 'Sale',      color: '#DC2626', bg: 'rgba(220,38,38,0.08)'  },
+    transfer:  { label: 'Transfer',  color: '#2563EB', bg: 'rgba(37,99,235,0.08)'  },
+    receiving: { label: 'Receiving', color: '#059669', bg: 'rgba(5,150,105,0.08)'  },
+    activity:  { label: 'Activity',  color: '#7C3AED', bg: 'rgba(124,58,237,0.08)' },
+    audit:     { label: 'Audit',     color: '#D97706', bg: 'rgba(217,119,6,0.08)'  },
+  };
 
   return (
     <AdminLayout>
@@ -228,6 +248,60 @@ const AdminDashboard = () => {
         </button>
       </div>
 
+      {/* LOW STOCK ALERT */}
+      {lowStockItems.length > 0 && (
+        <div className="low-stock-section">
+          <div className="low-stock-header">
+            <div className="low-stock-header-left">
+              <div className="low-stock-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+              </div>
+              <div>
+                <h3 className="low-stock-title">Low Stock Alert</h3>
+                <p className="low-stock-subtitle">{lowStockItems.length} product{lowStockItems.length !== 1 ? 's' : ''} at or below reorder level</p>
+              </div>
+            </div>
+            <button type="button" className="low-stock-view-all" onClick={() => navigate('/admin/alerts')}>
+              VIEW ALL ALERTS &gt;
+            </button>
+          </div>
+          <div className="low-stock-table-wrap">
+            <table className="low-stock-table">
+              <thead>
+                <tr>
+                  <th>PRODUCT</th>
+                  <th>CATEGORY</th>
+                  <th>ON HAND</th>
+                  <th>REORDER LEVEL</th>
+                  <th>DEFICIENCY</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lowStockItems.map((item) => (
+                  <tr key={item.product_id}>
+                    <td className="ls-td-name">{item.product_name}</td>
+                    <td className="ls-td-cat">{item.category ?? '—'}</td>
+                    <td className="ls-td-num ls-td-qty">{item.quantity}</td>
+                    <td className="ls-td-num">{item.recommended_stocks}</td>
+                    <td className="ls-td-num ls-td-def">−{item.deficiency}</td>
+                    <td>
+                      <span className={`ls-badge ${item.quantity === 0 ? 'ls-badge--out' : 'ls-badge--low'}`}>
+                        {item.quantity === 0 ? 'Out of Stock' : 'Needs Reorder'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* ENTERPRISE QUICK ACTIONS */}
       <div className="quick-actions-section">
         <div className="quick-actions-header">
@@ -258,13 +332,52 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* CHARTS ROW 1 */}
-      <div className="charts-section charts-section--single">
+      {/* CHARTS ROW 1 + RECENT ACTIVITY */}
+      <div className="charts-section">
         <div className="chart-card">
           <h3>Inventory by Category</h3>
           <div className="chart-wrapper">
             <Bar data={{ labels: inventoryByCategory.labels, datasets: [{ data: inventoryByCategory.values, backgroundColor: '#DC2626', borderRadius: 6, maxBarThickness: 72 }] }} options={barOptions} />
           </div>
+        </div>
+
+        <div className="recent-activity-section recent-activity-section--card">
+          <div className="recent-activity-header">
+            <div>
+              <h3 className="recent-activity-title">Recent Activity</h3>
+              <p className="recent-activity-subtitle">Latest sales, transfers, and receivings across all branches.</p>
+            </div>
+            <button type="button" className="recent-activity-view-all" onClick={() => navigate('/admin/inventory')}>
+              VIEW ALL &gt;
+            </button>
+          </div>
+          {recentActivity.length === 0 ? (
+            <div className="recent-activity-empty">No recent activity found.</div>
+          ) : (
+            <ul className="recent-activity-list">
+              {recentActivity.map((item, idx) => {
+                const meta = activityMeta[item.type] ?? { label: item.type, color: '#6b7280', bg: '#f3f4f6' };
+                return (
+                  <li key={idx} className="recent-activity-item">
+                    <span className="ra-dot" style={{ background: meta.color }} />
+                    <div className="ra-body">
+                      <div className="ra-top">
+                        <span className="ra-label" style={{ color: meta.color, background: meta.bg }}>{meta.label}</span>
+                        <span className="ra-name">{item.label}</span>
+                        {item.location && <span className="ra-location">{item.location}</span>}
+                      </div>
+                      <p className="ra-desc">{item.description}</p>
+                      {item.user && <p className="ra-user">by {item.user}</p>}
+                    </div>
+                    <div className="ra-right">
+                      <span className={`ra-status ra-status--${item.status?.toLowerCase().replace(/\s+/g, '-')}`}>{item.status}</span>
+                      <span className="ra-time">{timeAgo(item.timestamp)}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -273,7 +386,7 @@ const AdminDashboard = () => {
         <div className="chart-card">
           <h3>Stock Status by Branch</h3>
           <div className="chart-wrapper">
-            <Bar data={{ labels: ['CDO - Gusa', 'CDO - Carmen'], datasets: [{ label: 'In Stock', data: [5, 3], backgroundColor: '#DC2626', borderRadius: 4, barThickness: 50 }, { label: 'Low Stock', data: [1, 2], backgroundColor: '#F59E0B', borderRadius: 4, barThickness: 50 }] }} options={groupedBarOptions} />
+            <Bar data={{ labels: stockStatusByLocation.labels, datasets: [{ label: 'In Stock', data: stockStatusByLocation.inStock, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 50 }, { label: 'Low Stock', data: stockStatusByLocation.lowStock, backgroundColor: '#F59E0B', borderRadius: 4, barThickness: 50 }] }} options={groupedBarOptions} />
           </div>
         </div>
         <div className="chart-card">
@@ -299,6 +412,7 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
     </AdminLayout>
   );
 };

@@ -153,8 +153,8 @@ export const ROLE_MENUS = {
       label: 'PROCUREMENT & PLANNING',
       items: [
         { name: 'PO Recommendation', path: '/admin/po-recommendations', icon: 'po' },
-        { name: 'POS Operations', path: '/admin/transactions', icon: 'transactions' },
         { name: 'Draft PO Creator', path: '/admin/draft-po-creator', icon: 'procurement' },
+        { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
       ],
     },
     {
@@ -190,7 +190,7 @@ export const ROLE_MENUS = {
     {
       label: 'INVENTORY EXECUTION',
       items: [
-        { name: 'Receivings', path: '/admin/receivings', icon: 'purchaseorders' },
+        { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
         { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
         { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'barcode' },
         { name: 'Stock Movement', path: '/admin/inventory', icon: 'movement' },

@@ -1,15 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Pagination from '../components/Pagination';
 import { auditAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/audit_trail.css';
+
+const PAGE_SIZE = 15;
 
 const AuditTrail = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let mounted = true;
@@ -71,14 +75,21 @@ const AuditTrail = () => {
     };
   }), [logs]);
 
-  const filteredLogs = useMemo(() => normalizedLogs.filter((log) => {
-    if (!searchTerm) return true;
+  const filteredLogs = useMemo(() => {
+    setCurrentPage(1);
+    if (!searchTerm) return normalizedLogs;
     const q = searchTerm.toLowerCase();
-    return log.operator.toLowerCase().includes(q)
+    return normalizedLogs.filter((log) =>
+      log.operator.toLowerCase().includes(q)
       || log.action.toLowerCase().includes(q)
       || log.module.toLowerCase().includes(q)
-      || log.location.toLowerCase().includes(q);
-  }), [normalizedLogs, searchTerm]);
+      || log.location.toLowerCase().includes(q)
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedLogs, searchTerm]);
+
+  const totalPages  = Math.ceil(filteredLogs.length / PAGE_SIZE) || 1;
+  const pagedLogs   = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <AdminLayout>
@@ -111,6 +122,7 @@ const AuditTrail = () => {
             <h3>Activity Logs ({filteredLogs.length})</h3>
           </div>
 
+
           <div className="at-table-wrapper">
             <table className="at-table">
               <thead>
@@ -140,7 +152,7 @@ const AuditTrail = () => {
                     <td colSpan="5" className="at-cell-timestamp">No audit records found.</td>
                   </tr>
                 )}
-                {filteredLogs.map((log) => (
+                {pagedLogs.map((log) => (
                   <tr key={log.id}>
                     <td className="at-cell-timestamp">{log.timestamp}</td>
                     <td>
@@ -173,6 +185,14 @@ const AuditTrail = () => {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredLogs.length}
+            pageSize={PAGE_SIZE}
+            label="log entries"
+          />
         </div>
       </div>
     </AdminLayout>

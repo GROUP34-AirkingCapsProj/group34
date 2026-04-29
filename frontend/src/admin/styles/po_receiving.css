@@ -1,0 +1,334 @@
+/* =========================================================
+   PO Receiving — collapsible scan workflow
+   Shares the txn-page, txn-stats-row, txn-stat-card tokens
+   from transaction_management.css.
+========================================================= */
+
+/* ── Page shell ─────────────────────────────────────────── */
+.por-page { padding: 0 24px 40px; max-width: 1200px; margin: 0 auto; }
+
+.por-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.por-header h1 { font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 4px; }
+.por-header p  { font-size: 14px; color: #6b7280; margin: 0; }
+
+/* ── Filter bar ──────────────────────────────────────────── */
+.por-filter-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.por-search {
+  flex: 1;
+  min-width: 200px;
+  padding: 9px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.por-search:focus { border-color: #DC143C; box-shadow: 0 0 0 3px rgba(220,20,60,0.12); }
+
+.por-filter-select {
+  padding: 9px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+}
+.por-filter-select:focus { border-color: #DC143C; }
+
+.por-btn-reset {
+  padding: 9px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  color: #374151;
+  transition: background 0.15s;
+}
+.por-btn-reset:hover { background: #f9fafb; }
+
+/* ── PO count badge ──────────────────────────────────────── */
+.por-count { font-size: 13px; color: #6b7280; margin-bottom: 12px; }
+
+/* ── Collapsible PO card ─────────────────────────────────── */
+.por-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.por-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+.por-card.por-card--open { border-color: #DC143C; box-shadow: 0 2px 16px rgba(220,20,60,0.10); }
+
+/* ── Card header (always visible, click to expand) ────────── */
+.por-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.por-card-header-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+
+.por-chevron {
+  width: 24px; height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #f3f4f6;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, transform 0.22s;
+  color: #6b7280;
+}
+.por-card--open .por-chevron { transform: rotate(180deg); background: #ffe4e8; color: #DC143C; }
+
+.por-po-number { font-weight: 700; font-size: 15px; color: #111827; white-space: nowrap; }
+.por-po-meta   { font-size: 13px; color: #6b7280; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.por-card-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+/* ── Progress ring (header) ─────────────────────────────── */
+.por-progress-ring {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: #374151;
+}
+.por-progress-ring-bg {
+  width: 36px; height: 36px;
+}
+
+/* ── Status badges ──────────────────────────────────────── */
+.por-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.por-badge--approved          { background: #eff6ff; color: #1d4ed8; }
+.por-badge--partial           { background: #fff7ed; color: #c2410c; }
+.por-badge--received          { background: #f0fdf4; color: #15803d; }
+.por-badge--pending           { background: #f5f3ff; color: #6d28d9; }
+.por-badge--default           { background: #f3f4f6; color: #374151; }
+
+/* ── Expanded body ──────────────────────────────────────── */
+.por-card-body {
+  border-top: 1px solid #e5e7eb;
+  padding: 20px;
+}
+
+/* PO info strip */
+.por-po-info {
+  display: flex; flex-wrap: wrap; gap: 16px 32px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.por-info-item { display: flex; flex-direction: column; gap: 2px; }
+.por-info-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #9ca3af; }
+.por-info-value { font-size: 14px; color: #111827; font-weight: 500; }
+
+/* ── Product rows ───────────────────────────────────────── */
+.por-products { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+
+.por-product-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.por-product-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  background: #f9fafb;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.por-product-name { font-weight: 600; font-size: 14px; color: #111827; }
+.por-product-code { font-size: 12px; color: #6b7280; margin-top: 1px; }
+
+.por-product-progress {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.por-qty-text { font-size: 13px; font-weight: 700; color: #374151; white-space: nowrap; }
+
+.por-progress-bar-wrap {
+  width: 100px; height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.por-progress-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: #DC143C;
+  transition: width 0.4s ease;
+}
+.por-progress-bar-fill--done { background: #16a34a; }
+
+.por-btn-scan-product {
+  padding: 7px 16px;
+  background: #DC143C;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.por-btn-scan-product:hover  { background: #a01028; }
+.por-btn-scan-product:disabled { background: #9ca3af; cursor: default; }
+
+/* Active scan panel for a product */
+.por-scan-panel {
+  padding: 12px 16px 14px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+}
+
+.por-scan-input-row {
+  display: flex; gap: 8px; align-items: center;
+}
+.por-scan-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid #DC143C;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  font-family: 'Courier New', monospace;
+  letter-spacing: .5px;
+  transition: box-shadow 0.15s;
+}
+.por-scan-input:focus { box-shadow: 0 0 0 3px rgba(220,20,60,0.15); }
+.por-scan-input::placeholder { color: #9ca3af; font-family: inherit; letter-spacing: 0; }
+
+.por-btn-scan-submit {
+  padding: 10px 20px;
+  background: #DC143C;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.por-btn-scan-submit:hover    { background: #a01028; }
+.por-btn-scan-submit:disabled { background: #9ca3af; cursor: default; }
+
+.por-btn-scan-cancel {
+  padding: 10px 14px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.por-btn-scan-cancel:hover { background: #e5e7eb; }
+
+.por-scan-hint {
+  font-size: 12px; color: #6b7280;
+  margin-top: 6px;
+}
+
+/* Serial number chips */
+.por-serials {
+  margin-top: 10px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.por-serial-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 20px;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: #15803d;
+  font-weight: 500;
+}
+.por-serial-chip svg { flex-shrink: 0; }
+
+/* ── Scan session log at bottom of card ─────────────────── */
+.por-session-log {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+}
+.por-session-log h4 {
+  font-size: 13px; font-weight: 600; color: #6b7280;
+  text-transform: uppercase; letter-spacing: .5px;
+  margin-bottom: 8px;
+}
+.por-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.por-log-table th {
+  text-align: left; padding: 6px 10px;
+  font-weight: 600; color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+}
+.por-log-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+.por-log-table tr:last-child td { border-bottom: none; }
+
+/* ── Empty / loading states ─────────────────────────────── */
+.por-empty {
+  text-align: center;
+  padding: 56px 24px;
+  color: #6b7280;
+  font-size: 15px;
+}
+.por-empty svg { display: block; margin: 0 auto 12px; opacity: 0.35; }
+
+.por-loading { display: flex; justify-content: center; padding: 48px; }
+.por-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid #f3f4f6;
+  border-top-color: #DC143C;
+  border-radius: 50%;
+  animation: por-spin 0.7s linear infinite;
+}
+@keyframes por-spin { to { transform: rotate(360deg); } }
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .por-page { padding: 0 12px 32px; }
+  .por-card-header { padding: 14px 14px; }
+  .por-card-body { padding: 14px; }
+  .por-product-header { flex-direction: column; align-items: flex-start; }
+  .por-progress-bar-wrap { width: 72px; }
+}

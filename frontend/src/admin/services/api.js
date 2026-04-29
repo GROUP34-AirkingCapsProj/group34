@@ -410,6 +410,33 @@ export const receivingsAPI = {
     apiRequest(`/receivings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) =>
     apiRequest(`/receivings/${id}`, { method: 'DELETE' }),
+
+  /** Barcode-scan workflow — record one serial per call */
+  poScan: async (data) =>
+    apiRequest('/receivings/po-scan', { method: 'POST', body: JSON.stringify(data) }),
+
+  /** Per-product progress for a PO: ordered vs scanned, all serial numbers */
+  poScanStatus: async (poId) =>
+    apiRequest(`/receivings/po-scan-status/${poId}`),
+};
+
+/* ======================
+   SERIALS API
+====================== */
+export const serialsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/serials?${query}` : '/serials');
+  },
+  getById: async (id) => apiRequest(`/serials/${id}`),
+  create: async (data) =>
+    apiRequest('/serials', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/serials/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) =>
+    apiRequest(`/serials/${id}`, { method: 'DELETE' }),
+  scan: async (serialNumber) =>
+    apiRequest('/serials/scan', { method: 'POST', body: JSON.stringify({ serial_number: serialNumber }) }),
 };
 
 /* ======================

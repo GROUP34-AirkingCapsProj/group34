@@ -9,6 +9,9 @@ use App\Models\Product;
 use App\Models\Inventory;
 use App\Models\Sale;
 use App\Models\Transfer;
+use App\Models\Receiving;
+use App\Models\ActivityLog;
+use App\Models\AuditTrail;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -16,12 +19,15 @@ class DashboardController extends Controller
     public function index()
     {
         return response()->json([
-            'stats' => $this->getStats(),
-            'inventory_by_category'  => $this->getInventoryByCategory(),
-            'location_distribution'  => $this->getLocationDistribution(),
+            'stats'                    => $this->getStats(),
+            'low_stock_items'          => $this->getLowStockItems(),
+            'inventory_by_category'    => $this->getInventoryByCategory(),
+            'location_distribution'    => $this->getLocationDistribution(),
             'stock_status_by_location' => $this->getStockStatusByLocation(),
-            'stock_trends'           => $this->getStockTrends(),
-            'sales_trends'           => $this->getSalesTrends(),
+            'warehouse_capacity'       => $this->getWarehouseCapacity(),
+            'stock_trends'             => $this->getStockTrends(),
+            'transaction_trends'       => $this->getSalesTrends(),
+            'recent_activity'          => $this->getRecentActivity(),
         ]);
     }
 
@@ -60,14 +66,41 @@ class DashboardController extends Controller
 
     private function getStats(): array
     {
+        $pendingTransfers = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))->count();
+        $activeLocations  = Location::count();
+        $totalProducts    = Product::count();
+
         return [
             'total_users'       => User::count(),
-            'active_locations'  => Location::count(),
-            'total_products'    => Product::count(),
+            'active_locations'  => $activeLocations,
+            'active_branches'   => $activeLocations,
+            'total_products'    => $totalProducts,
+            'total_items'       => $totalProducts,
             'low_stock'         => Product::whereColumn('quantity', '<=', 'recommended_stocks')->count(),
             'total_sales'       => Sale::count(),
-            'pending_transfers' => Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))->count(),
+            'pending_transfers' => $pendingTransfers,
+            'pending_actions'   => $pendingTransfers,
         ];
+    }
+
+    private function getLowStockItems(): array
+    {
+        return Product::with(['category', 'brand'])
+            ->whereColumn('quantity', '<=', 'recommended_stocks')
+            ->orderByRaw('(recommended_stocks - quantity) DESC')
+            ->limit(20)
+            ->get()
+            ->map(fn($p) => [
+                'product_id'         => $p->product_id,
+                'product_name'       => $p->product_name,
+                'category'           => $p->category?->category_name,
+                'brand'              => $p->brand?->brand_name,
+                'quantity'           => (int) $p->quantity,
+                'recommended_stocks' => (int) $p->recommended_stocks,
+                'deficiency'         => max(0, (int) $p->recommended_stocks - (int) $p->quantity),
+            ])
+            ->values()
+            ->all();
     }
 
     private function getInventoryByCategory(): array
@@ -142,6 +175,29 @@ class DashboardController extends Controller
         ];
     }
 
+    private function getWarehouseCapacity(): array
+    {
+        $locations = Location::all();
+
+        if ($locations->isEmpty()) {
+            return ['labels' => [], 'capacity' => [], 'occupancy' => []];
+        }
+
+        $capacity  = [];
+        $occupancy = [];
+
+        foreach ($locations as $location) {
+            $capacity[]  = (int) ($location->capacity ?? 0);
+            $occupancy[] = (int) Inventory::where('location_id', $location->location_id)->sum('quantity_on_hand');
+        }
+
+        return [
+            'labels'    => $locations->pluck('location_name')->toArray(),
+            'capacity'  => $capacity,
+            'occupancy' => $occupancy,
+        ];
+    }
+
     private function getStockTrends(): array
     {
         $labels = [];
@@ -177,5 +233,86 @@ class DashboardController extends Controller
         }
 
         return ['labels' => $labels, 'values' => $trends];
+    }
+
+    private function getRecentActivity(): array
+    {
+        $rows = [];
+
+        try {
+            foreach (Sale::with(['customer', 'location', 'soldBy'])->orderBy('created_at', 'desc')->limit(5)->get() as $s) {
+                $rows[] = [
+                    'type'        => 'sale',
+                    'label'       => 'Sale ' . ($s->invoice_number ?? ('#' . $s->sales_id)),
+                    'description' => ($s->customer?->customer_name ?? 'Walk-in') . ' — ₱' . number_format((float) $s->total_amount, 2),
+                    'location'    => $s->location?->location_name,
+                    'user'        => $s->soldBy?->name,
+                    'status'      => 'Completed',
+                    'timestamp'   => $s->created_at?->toIso8601String(),
+                ];
+            }
+        } catch (\Throwable $_) {}
+
+        try {
+            foreach (Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'status'])->orderBy('created_at', 'desc')->limit(5)->get() as $t) {
+                $rows[] = [
+                    'type'        => 'transfer',
+                    'label'       => 'Transfer ' . ($t->transfer_number ?? ('#' . $t->transfer_id)),
+                    'description' => ($t->fromLocation?->location_name ?? '?') . ' → ' . ($t->toLocation?->location_name ?? '?') . ' (' . ($t->total_quantity_transferred ?? 0) . ' units)',
+                    'location'    => null,
+                    'user'        => $t->requestedBy?->name,
+                    'status'      => $t->status?->status_name ?? 'Pending',
+                    'timestamp'   => $t->created_at?->toIso8601String(),
+                ];
+            }
+        } catch (\Throwable $_) {}
+
+        try {
+            foreach (Receiving::with(['supplier', 'location', 'receivedBy'])->orderBy('created_at', 'desc')->limit(5)->get() as $r) {
+                $rows[] = [
+                    'type'        => 'receiving',
+                    'label'       => 'Receiving ' . ($r->receiving_number ?? ('#' . $r->receiving_id)),
+                    'description' => ($r->supplier?->supplier_name ?? 'Unknown supplier') . ' — ' . ($r->total_quantity_received ?? 0) . ' units received',
+                    'location'    => $r->location?->location_name,
+                    'user'        => $r->receivedBy?->name,
+                    'status'      => 'Received',
+                    'timestamp'   => $r->created_at?->toIso8601String(),
+                ];
+            }
+        } catch (\Throwable $_) {}
+
+        try {
+            foreach (ActivityLog::with(['user', 'status'])->orderBy('created_at', 'desc')->limit(5)->get() as $a) {
+                $rows[] = [
+                    'type'        => 'activity',
+                    'label'       => $a->module ?? 'System',
+                    'description' => $a->description ?? $a->activity_type,
+                    'location'    => null,
+                    'user'        => $a->user?->name,
+                    'status'      => $a->status?->status_name ?? ucfirst($a->activity_type ?? 'Info'),
+                    'timestamp'   => $a->created_at?->toIso8601String(),
+                ];
+            }
+        } catch (\Throwable $_) {}
+
+        try {
+            foreach (AuditTrail::with('user')->orderBy('created_at', 'desc')->limit(5)->get() as $a) {
+                $table  = str_replace('_', ' ', ucfirst($a->table_name ?? 'record'));
+                $rows[] = [
+                    'type'        => 'audit',
+                    'label'       => ucfirst($a->action ?? 'Change') . ' — ' . $table,
+                    'description' => 'Record #' . ($a->record_id ?? '?') . ' in ' . $table,
+                    'location'    => null,
+                    'user'        => $a->user?->name,
+                    'status'      => ucfirst($a->action ?? 'updated'),
+                    'timestamp'   => $a->created_at?->toIso8601String(),
+                ];
+            }
+        } catch (\Throwable $_) {}
+
+        $rows = array_filter($rows, fn($r) => $r['timestamp'] !== null);
+        usort($rows, fn($a, $b) => strcmp($b['timestamp'], $a['timestamp']));
+
+        return array_values(array_slice($rows, 0, 10));
     }
 }

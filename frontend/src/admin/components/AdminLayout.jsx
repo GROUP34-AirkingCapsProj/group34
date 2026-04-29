@@ -198,6 +198,7 @@ const AdminLayout = ({ children }) => {
       items: [
         { name: 'PO Recommendation', path: '/admin/po-recommendations', icon: 'po' },
         { name: 'Draft PO Creator', path: '/admin/draft-po-creator', icon: 'procurement' },
+        { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
         { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
         { name: 'Item Master', path: '/admin/items', icon: 'items' },
         { name: 'Categories and Brands', path: '/admin/categories', icon: 'category' },

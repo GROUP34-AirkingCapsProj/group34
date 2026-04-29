@@ -6,11 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * ItemSerial (ERD: item_serial)
- * Table: item_serial
- * Fields: serial_id, product_id FK, serial_number, serial_type, status_id FK
- */
 class ItemSerial extends Model
 {
     protected $table = 'item_serial';
@@ -18,6 +13,9 @@ class ItemSerial extends Model
 
     protected $fillable = [
         'product_id',
+        'location_id',
+        'receiving_id',
+        'scanned_by',
         'serial_number',
         'serial_type',
         'status_id',
@@ -26,6 +24,21 @@ class ItemSerial extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'location_id', 'location_id');
+    }
+
+    public function receiving(): BelongsTo
+    {
+        return $this->belongsTo(Receiving::class, 'receiving_id', 'receiving_id');
+    }
+
+    public function scannedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'scanned_by', 'user_id');
     }
 
     public function status(): BelongsTo

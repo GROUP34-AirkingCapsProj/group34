@@ -1,8 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Pagination from '../components/Pagination';
 import { receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/transaction_management.css';
+
+const PAGE_SIZE = 20;
 
 const TransactionManagement = () => {
   const [transactions, setTransactions] = useState([]);
@@ -13,6 +16,7 @@ const TransactionManagement = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [locations, setLocations] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const normalizeStatus = (status) => {
     if (status != null && typeof status === 'object') {
@@ -238,6 +242,11 @@ const TransactionManagement = () => {
   }, [transactions, searchTerm, typeFilter, statusFilter, locationFilter]);
 
   const totalTransactions = filteredTransactions.length;
+  const totalPages        = Math.ceil(totalTransactions / PAGE_SIZE) || 1;
+  const pagedTransactions = filteredTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter, statusFilter, locationFilter]);
 
   return (
     <AdminLayout>
@@ -302,7 +311,7 @@ const TransactionManagement = () => {
             {filteredTransactions.length === 0 ? (
               <div className="txn-empty">No transactions found.</div>
             ) : (
-              filteredTransactions.map((txn) => (
+              pagedTransactions.map((txn) => (
                 <article className="txn-feed-item" key={txn.id}>
                   <div className="txn-feed-left">
                     <div className="txn-feed-title-row">
@@ -322,6 +331,14 @@ const TransactionManagement = () => {
               ))
             )}
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={totalTransactions}
+            pageSize={PAGE_SIZE}
+            label="transactions"
+          />
         </div>
       </div>
     </AdminLayout>
