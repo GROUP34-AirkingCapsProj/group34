@@ -333,14 +333,12 @@ const AdminDashboard = () => {
       </div>
 
       {/* CHARTS ROW 1 + RECENT ACTIVITY */}
-      <div className="charts-section">
-        <div className="chart-card">
-          <h3>Inventory by Category</h3>
+      <div className="chart-card">
+          <h3>Transaction Trends</h3>
           <div className="chart-wrapper">
-            <Bar data={{ labels: inventoryByCategory.labels, datasets: [{ data: inventoryByCategory.values, backgroundColor: '#DC2626', borderRadius: 6, maxBarThickness: 72 }] }} options={barOptions} />
+            <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'purchase', data: transactionTrends.values.map((v) => v * 0.6), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'sales', data: transactionTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
           </div>
-        </div>
-
+        
         <div className="recent-activity-section recent-activity-section--card">
           <div className="recent-activity-header">
             <div>
@@ -405,15 +403,17 @@ const AdminDashboard = () => {
             <Line data={{ labels: stockTrends.labels, datasets: [{ label: 'reorder-level', data: stockTrends.labels.map(() => 140), borderColor: '#F59E0B', backgroundColor: 'transparent', borderWidth: 2, borderDash: [8, 4], pointRadius: 0, pointHoverRadius: 0 }, { label: 'stock', data: stockTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.1)', fill: true, tension: 0.4, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#DC2626', pointBorderColor: '#ffffff', pointBorderWidth: 2 }] }} options={lineOptions} />
           </div>
         </div>
+      
         <div className="chart-card">
-          <h3>Transaction Trends</h3>
+          <h3>Inventory by Category</h3>
           <div className="chart-wrapper">
-            <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'purchase', data: transactionTrends.values.map((v) => v * 0.6), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'sales', data: transactionTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+            <Bar data={{ labels: inventoryByCategory.labels, datasets: [{ data: inventoryByCategory.values, backgroundColor: '#DC2626', borderRadius: 6, maxBarThickness: 72 }] }} options={barOptions} />
           </div>
         </div>
       </div>
 
     </AdminLayout>
+
   );
 };
 
