@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Pagination from '../components/Pagination';
 import { auditAPI, dashboardAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import {
@@ -13,17 +14,24 @@ import {
 import '../styles/dashboard_air.css';
 import '../styles/alerts_notices.css';
 
+const PAGE_SIZE = 10;
+
 const AlertsNotices = () => {
   const navigate = useNavigate();
-  const [lowStockItems, setLowStockItems] = useState([]);
-  const [auditNotifications, setAuditNotifications] = useState([]);
+  const [allLowStock, setAllLowStock]       = useState([]);
+  const [allAudit, setAllAudit]             = useState([]);
   const [systemNotifications, setSystemNotifications] = useState([]);
-  const [pendingPoCount, setPendingPoCount] = useState(0);
+  const [pendingPoCount, setPendingPoCount]         = useState(0);
   const [pendingRestockCount, setPendingRestockCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  /* pagination pages */
+  const [sysPage,   setSysPage]   = useState(1);
+  const [stockPage, setStockPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+
   const refreshLocalQueues = useCallback(() => {
-    const pos = getApprovalQueuePurchaseOrders();
+    const pos     = getApprovalQueuePurchaseOrders();
     const restocks = getApprovalQueueRestockRequests();
     setPendingPoCount(pos.filter((p) => String(p.status || '').toLowerCase() === 'pending').length);
     setPendingRestockCount(restocks.filter((r) => String(r.status || '').toLowerCase() === 'pending').length);
@@ -37,7 +45,7 @@ const AlertsNotices = () => {
       try {
         const [lowStockRes, auditRes] = await Promise.all([
           dashboardAPI.getLowStock(),
-          auditAPI.getTrail({ per_page: 20 }),
+          auditAPI.getTrail({ per_page: 200 }),
         ]);
         const stockPayload = Array.isArray(lowStockRes?.data) ? lowStockRes.data : [];
         const auditPayload = Array.isArray(auditRes?.data?.data)
@@ -48,14 +56,14 @@ const AlertsNotices = () => {
 
         if (!mounted) return;
 
-        setLowStockItems(stockPayload.slice(0, 10));
-        setAuditNotifications(auditPayload.slice(0, 10).map((item) => {
+        setAllLowStock(stockPayload);
+        setAllAudit(auditPayload.map((item) => {
           const userName = `${item?.user?.first_name || ''} ${item?.user?.last_name || ''}`.trim()
             || item?.user?.username
             || 'System';
           return {
-            id: item?.audit_id || item?.id || Math.random(),
-            title: `${String(item?.action || 'activity').toUpperCase()} - ${item?.table_name || 'system'}`,
+            id:          item?.audit_id || item?.id || Math.random(),
+            title:       `${String(item?.action || 'activity').toUpperCase()} - ${item?.table_name || 'system'}`,
             description: `${userName} · ${item?.created_at ? new Date(item.created_at).toLocaleString() : ''}`,
           };
         }));
@@ -92,10 +100,21 @@ const AlertsNotices = () => {
     markNotificationRead(n.id);
     refreshLocalQueues();
     window.dispatchEvent(new CustomEvent('approval-notifications-updated'));
-    if (n.route) {
-      navigate(n.route);
-    }
+    if (n.route) navigate(n.route);
   };
+
+  /* ── derived page slices ── */
+  const sysTotal      = systemNotifications.length;
+  const sysTotalPages = Math.ceil(sysTotal / PAGE_SIZE) || 1;
+  const sysVisible    = systemNotifications.slice((sysPage - 1) * PAGE_SIZE, sysPage * PAGE_SIZE);
+
+  const stockTotal      = allLowStock.length;
+  const stockTotalPages = Math.ceil(stockTotal / PAGE_SIZE) || 1;
+  const stockVisible    = allLowStock.slice((stockPage - 1) * PAGE_SIZE, stockPage * PAGE_SIZE);
+
+  const auditTotal      = allAudit.length;
+  const auditTotalPages = Math.ceil(auditTotal / PAGE_SIZE) || 1;
+  const auditVisible    = allAudit.slice((auditPage - 1) * PAGE_SIZE, auditPage * PAGE_SIZE);
 
   return (
     <AdminLayout>
@@ -107,7 +126,7 @@ const AlertsNotices = () => {
           </p>
         </div>
 
-        {/* Same entries as the admin header notification bell */}
+        {/* In-app notifications */}
         <div className="an-card">
           <div className="an-card-header an-card-header--row">
             <div>
@@ -124,7 +143,7 @@ const AlertsNotices = () => {
             {systemNotifications.length === 0 ? (
               <div className="an-empty">No in-app notifications</div>
             ) : (
-              systemNotifications.map((n) => (
+              sysVisible.map((n) => (
                 <button
                   key={n.id}
                   type="button"
@@ -133,22 +152,25 @@ const AlertsNotices = () => {
                 >
                   <div className="an-approval-left an-ntf-text">
                     <span className="an-approval-title">{n.title || 'Notification'}</span>
-                    {n.description && (
-                      <span className="an-approval-detail">&bull; {n.description}</span>
-                    )}
-                    {n.details && (
-                      <span className="an-approval-detail">&bull; {n.details}</span>
-                    )}
-                    {n.route && (
-                      <span className="an-ntf-hint">Open linked page →</span>
-                    )}
+                    {n.description && <span className="an-approval-detail">&bull; {n.description}</span>}
+                    {n.details     && <span className="an-approval-detail">&bull; {n.details}</span>}
+                    {n.route       && <span className="an-ntf-hint">Open linked page →</span>}
                   </div>
                 </button>
               ))
             )}
           </div>
+          <Pagination
+            currentPage={sysPage}
+            totalPages={sysTotalPages}
+            onPageChange={setSysPage}
+            totalItems={sysTotal}
+            pageSize={PAGE_SIZE}
+            label="notifications"
+          />
         </div>
 
+        {/* Pending approvals */}
         <div className="an-card">
           <div className="an-card-header">
             <h3 className="an-card-title">Pending approvals</h3>
@@ -171,6 +193,7 @@ const AlertsNotices = () => {
           </div>
         </div>
 
+        {/* Low stock alerts */}
         <div className="an-card">
           <div className="an-card-header">
             <h3 className="an-card-title">Low stock alerts</h3>
@@ -179,10 +202,10 @@ const AlertsNotices = () => {
           <div className="an-approval-list">
             {loading ? (
               <div className="an-empty">Loading alerts...</div>
-            ) : lowStockItems.length === 0 ? (
+            ) : allLowStock.length === 0 ? (
               <div className="an-empty">No low-stock alerts at the moment</div>
             ) : (
-              lowStockItems.map((item, idx) => (
+              stockVisible.map((item, idx) => (
                 <div className="an-approval-item" key={item.product_id || item.id || idx}>
                   <div className="an-approval-left">
                     <span className="an-approval-title">
@@ -200,8 +223,19 @@ const AlertsNotices = () => {
               ))
             )}
           </div>
+          {!loading && (
+            <Pagination
+              currentPage={stockPage}
+              totalPages={stockTotalPages}
+              onPageChange={setStockPage}
+              totalItems={stockTotal}
+              pageSize={PAGE_SIZE}
+              label="low-stock items"
+            />
+          )}
         </div>
 
+        {/* Recent audit activity */}
         <div className="an-card">
           <div className="an-card-header">
             <h3 className="an-card-title">Recent audit activity</h3>
@@ -210,10 +244,10 @@ const AlertsNotices = () => {
           <div className="an-approval-list">
             {loading ? (
               <div className="an-empty">Loading...</div>
-            ) : auditNotifications.length === 0 ? (
+            ) : allAudit.length === 0 ? (
               <div className="an-empty">No audit entries yet</div>
             ) : (
-              auditNotifications.map((item) => (
+              auditVisible.map((item) => (
                 <div className="an-approval-item" key={item.id}>
                   <div className="an-approval-left">
                     <span className="an-approval-title">{item.title || 'System update'}</span>
@@ -223,6 +257,16 @@ const AlertsNotices = () => {
               ))
             )}
           </div>
+          {!loading && (
+            <Pagination
+              currentPage={auditPage}
+              totalPages={auditTotalPages}
+              onPageChange={setAuditPage}
+              totalItems={auditTotal}
+              pageSize={PAGE_SIZE}
+              label="audit entries"
+            />
+          )}
         </div>
       </div>
     </AdminLayout>

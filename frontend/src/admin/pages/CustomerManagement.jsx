@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
 import { customersAPI, branchesAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/customer_registry.css';
+
+const PAGE_SIZE = 15;
 
 const formatCustomerId = (id) => {
   if (id == null) return '—';
@@ -20,6 +23,7 @@ const CustomerManagement = () => {
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [viewingCustomer, setViewingCustomer] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     customer_type: 'Ordinary',
@@ -79,7 +83,12 @@ const CustomerManagement = () => {
     return name.includes(term) || email.includes(term) || phone.includes(searchPhone);
   });
 
+  const totalPages   = Math.ceil(filteredCustomers.length / PAGE_SIZE) || 1;
+  const pagedCustomers = filteredCustomers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   const totalCustomers = filteredCustomers.length;
+  // reset to page 1 whenever filters change
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterType, filterStatus]);
   const individualCount = filteredCustomers.filter((c) => (c.customer_type || '').toLowerCase() === 'ordinary' || (c.customer_type || '') === 'Individual').length;
   const businessCount = filteredCustomers.filter((c) => (c.customer_type || '').toLowerCase() === 'business').length;
   const activeCount = filteredCustomers.filter((c) => c.is_active !== false).length;
@@ -233,6 +242,7 @@ const CustomerManagement = () => {
           {error && <div className="cr-error">Error: {error}</div>}
 
           {!loading && !error && (
+            <>
             <div className="cr-table-wrap">
               <table className="cr-table">
                 <thead>
@@ -249,7 +259,7 @@ const CustomerManagement = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCustomers.map((c) => (
+                  {pagedCustomers.map((c) => (
                     <tr key={c.id}>
                       <td className="cr-td-id">{formatCustomerId(c.id)}</td>
                       <td className="cr-td-name">{c.customer_name || '—'}</td>
@@ -280,6 +290,15 @@ const CustomerManagement = () => {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={totalCustomers}
+              pageSize={PAGE_SIZE}
+              label="customers"
+            />
+            </>
           )}
         </section>
 

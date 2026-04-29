@@ -22,6 +22,7 @@ class PurchaseOrder extends Model
         'status_id',
         'created_by',
         'approved_by',
+        'received_by',
     ];
 
     protected $casts = [
@@ -49,6 +50,11 @@ class PurchaseOrder extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by', 'user_id');
+    }
+
+    public function receivedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'received_by', 'user_id');
     }
 
     public function status(): BelongsTo
