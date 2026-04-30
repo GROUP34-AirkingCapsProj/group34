@@ -50,7 +50,6 @@ Route::get('/', function () {
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:12,1');
 Route::get('/login/challenge', [AuthController::class, 'loginChallenge'])->middleware('throttle:30,1');
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,60');
 
 Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope'])->group(function () {
 

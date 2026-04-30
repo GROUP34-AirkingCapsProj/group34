@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
@@ -51,7 +52,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'username' => 'required|unique:users,username|max:50',
             'email' => 'required|email|unique:users,email|max:100',
-            'password' => 'required|min:8|confirmed',
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             'first_name' => 'required|max:50',
             'last_name' => 'required|max:50',
             'role_id' => 'required|exists:roles,role_id',
@@ -211,47 +212,4 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * Forgot password — throttled; audit logged.
-     */
-    public function forgotPassword(Request $request)
-    {
-        $ipKey = 'forgot:' . sha1($request->ip() . '|' . (string) $request->input('email'));
-        if (RateLimiter::tooManyAttempts($ipKey, 5)) {
-            throw ValidationException::withMessages([
-                'email' => ['Too many reset attempts. Try again later.'],
-            ]);
-        }
-        RateLimiter::hit($ipKey, 3600);
-
-        $validated = $request->validate([
-            'email' => 'required|email|max:100',
-        ]);
-
-        $user = User::where('email', $validated['email'])->first();
-
-        if (! $user) {
-            throw ValidationException::withMessages([
-                'email' => ['We could not find a matching account.'],
-            ]);
-        }
-
-        $temporaryPassword = Str::random(10);
-        $user->password_hash = Hash::make($temporaryPassword);
-        $user->save();
-
-        AuditTrail::create([
-            'user_id' => $user->user_id,
-            'action' => 'password_reset',
-            'table_name' => 'users',
-            'record_id' => $user->user_id,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
-        return response()->json([
-            'message' => 'Password has been reset. Use the temporary password to log in and then change it.',
-            'temporary_password' => $temporaryPassword,
-        ]);
-    }
 }

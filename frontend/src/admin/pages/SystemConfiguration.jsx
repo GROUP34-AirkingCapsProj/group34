@@ -3,6 +3,9 @@ import AdminLayout from '../components/AdminLayout';
 import { toast } from '../utils/toast';
 import '../styles/system_configuration.css';
 
+// API Base URL - should match the backend API URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
 const LockIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
@@ -118,26 +121,10 @@ const KeyOutlineIcon = () => (
   </svg>
 );
 
-const MOCK_USERS = [
-  { empId: 'ADM-001', name: 'John Smith',     role: 'System Admin',        location: 'CDO Head Office',     status: 'Active' },
-  { empId: 'ANL-001', name: 'Sarah Johnson',  role: 'Inventory Analyst',   location: 'CDO Head Office',     status: 'Active' },
-  { empId: 'AUD-001', name: 'Robert Wilson',  role: 'Auditor',             location: 'CDO Head Office',     status: 'Active' },
-  { empId: 'MGR-001', name: 'Miguel Rodriguez', role: 'Branch Manager',    location: 'CDO Showroom',        status: 'Active' },
-  { empId: 'WHP-001', name: 'Emily Davis',    role: 'Warehouse Personnel', location: 'CDO Bulua Warehouse A', status: 'Active' },
-  { empId: 'WHP-002', name: 'Linda Garcia',   role: 'Warehouse Personnel', location: 'CDO Bulua Warehouse B', status: 'Active' },
-];
-
-const MOCK_RESET_REQUESTS = [
-  { id: 1, name: 'Mary Analyst',    email: 'mary@airking.com',   requested: '2026-03-22 10:30 AM' },
-  { id: 2, name: 'Sarah Personnel', email: 'sarah@airking.com',  requested: '2026-03-21 02:15 PM' },
-];
-
-const MOCK_ACTIVE_CODES = [
-  { id: 1, name: 'Bob Manager', email: 'bob@airking.com', code: 'RST-8K9L2M', generated: '2026-03-22 09:00 AM', expires: '2026-03-23 09:00 AM' },
-];
-
-const ALL_USER_ROLES = ['All User', 'System Admin', 'Inventory Analyst', 'Auditor', 'Branch Manager', 'Warehouse Personnel'];
-const ALL_LOCATIONS  = ['All Location', 'CDO Head Office', 'CDO Showroom', 'CDO Bulua Warehouse A', 'CDO Bulua Warehouse B'];
+// NOTE: Fake data has been removed. Data is now fetched from the API.
+// - Users are fetched from /api/users
+// - Roles are fetched from /api/roles
+// - Locations are fetched from /api/locations
 
 const TABS = [
   { id: 'security', label: 'Security', icon: <LockIcon /> },
@@ -164,19 +151,70 @@ const DEFAULT_PROFILE = {
   position: 'System Administrator',
 };
 
+// Helper function to get auth token
+const getAuthToken = () => localStorage.getItem('token');
+
 const SystemConfiguration = () => {
   const [activeTab, setActiveTab] = useState('security');
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const fileInputRef = useRef(null);
 
-  const [userRoleFilter, setUserRoleFilter] = useState('All User');
-  const [userLocFilter, setUserLocFilter]  = useState('All Location');
-  const [resetRequests, setResetRequests]  = useState(MOCK_RESET_REQUESTS);
-  const [activeCodes, setActiveCodes]      = useState(MOCK_ACTIVE_CODES);
+  // API data states
+  const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [userRoleFilter, setUserRoleFilter] = useState('');
+  const [userLocFilter, setUserLocFilter]  = useState('');
+  const [resetRequests, setResetRequests]  = useState([]);
+  const [activeCodes, setActiveCodes]      = useState([]);
   const [manualUser, setManualUser]        = useState('');
 
+  // Fetch data from API
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    const token = getAuthToken();
+    
+    if (!token) {
+      setError('Authentication required. Please log in.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+
+      // Fetch users, roles, and locations in parallel
+      const [usersRes, rolesRes, locationsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/users?per_page=100`, { headers }),
+        fetch(`${API_BASE_URL}/roles`, { headers }),
+        fetch(`${API_BASE_URL}/locations?per_page=100`, { headers }),
+      ]);
+
+      const usersData = usersRes.ok ? await usersRes.json() : { data: [] };
+      const rolesData = rolesRes.ok ? await rolesRes.json() : { data: [] };
+      const locationsData = locationsRes.ok ? await locationsRes.json() : { data: [] };
+
+      setUsers(usersData.data || []);
+      setRoles(rolesData.data || rolesData || []);
+      setLocations(locationsData.data || locationsData || []);
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+      setError('Failed to load data from server');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
+    // Load user profile from localStorage
     const stored = localStorage.getItem('user');
     if (stored) {
       try {
@@ -185,9 +223,15 @@ const SystemConfiguration = () => {
           ...prev,
           fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || prev.fullName,
           email: user.email || prev.email,
+          phone: user.phone || prev.phone,
+          address: user.address || prev.address,
+          position: user.role?.role_name || prev.position,
         }));
       } catch {}
     }
+
+    // Fetch API data
+    fetchData();
   }, []);
 
   const handleChange = (field, value) => {
@@ -239,10 +283,18 @@ const SystemConfiguration = () => {
     setManualUser('');
   };
 
-  const filteredUsers = MOCK_USERS.filter(u =>
-    (userRoleFilter === 'All User'     || u.role     === userRoleFilter) &&
-    (userLocFilter  === 'All Location' || u.location === userLocFilter)
-  );
+// Filter users based on selected role and location
+  const filteredUsers = users.filter(u => {
+    const userRole = u.role?.role_name || '';
+    const userLocation = u.location?.location_name || '';
+    const matchesRole = !userRoleFilter || userRole === userRoleFilter;
+    const matchesLocation = !userLocFilter || userLocation === userLocFilter;
+    return matchesRole && matchesLocation;
+  });
+
+  // Build role options for filter dropdown
+  const roleOptions = roles.map(r => r.role_name).filter(Boolean);
+  const locationOptions = locations.map(l => l.location_name).filter(Boolean);
 
   return (
     <AdminLayout>
@@ -507,13 +559,19 @@ const SystemConfiguration = () => {
                 <p>Manage user roles and permissions</p>
               </div>
               <div className="sc-card-body">
+{loading && <p className="sc-placeholder">Loading users...</p>}
+                {error && <p className="sc-placeholder" style={{ color: 'red' }}>{error}</p>}
+                {!loading && !error && (
+                  <>
                 <div className="sc-um-filter-row">
                   <span className="sc-um-filter-label">Filter by:</span>
                   <select className="sc-um-select" value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)}>
-                    {ALL_USER_ROLES.map(r => <option key={r}>{r}</option>)}
+                    <option value="">All Roles</option>
+                    {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                   <select className="sc-um-select" value={userLocFilter} onChange={e => setUserLocFilter(e.target.value)}>
-                    {ALL_LOCATIONS.map(l => <option key={l}>{l}</option>)}
+                    <option value="">All Locations</option>
+                    {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </div>
                 <table className="sc-um-table">
@@ -529,13 +587,13 @@ const SystemConfiguration = () => {
                   </thead>
                   <tbody>
                     {filteredUsers.map(u => (
-                      <tr key={u.empId} className="sc-um-tr">
-                        <td className="sc-um-td sc-um-td--id">{u.empId}</td>
-                        <td className="sc-um-td sc-um-td--name">{u.name}</td>
-                        <td className="sc-um-td">{u.role}</td>
-                        <td className="sc-um-td">{u.location}</td>
+                      <tr key={u.user_id} className="sc-um-tr">
+                        <td className="sc-um-td sc-um-td--id">{u.username || u.user_id}</td>
+                        <td className="sc-um-td sc-um-td--name">{[u.first_name, u.last_name].filter(Boolean).join(' ') || 'N/A'}</td>
+                        <td className="sc-um-td">{u.role?.role_name || 'N/A'}</td>
+                        <td className="sc-um-td">{u.location?.location_name || 'N/A'}</td>
                         <td className="sc-um-td">
-                          <span className="sc-um-status-badge sc-um-status-badge--active">{u.status}</span>
+                          <span className={`sc-um-status-badge sc-um-status-badge--${u.status?.status_name?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{u.status?.status_name || 'N/A'}</span>
                         </td>
                         <td className="sc-um-td sc-um-td--actions">
                           <button className="sc-um-btn-edit">Edit</button>
@@ -543,8 +601,15 @@ const SystemConfiguration = () => {
                         </td>
                       </tr>
                     ))}
+                    {filteredUsers.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="sc-um-td" style={{ textAlign: 'center' }}>No users found.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
+                  </>
+                )}
               </div>
             </div>
 

@@ -1,34 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
-import { toast } from '../utils/toast';
 import '../styles/login.css';
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [temporaryPassword, setTemporaryPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setTemporaryPassword('');
-    try {
-      const res = await authAPI.forgotPassword(email);
-      const temp = res.temporary_password;
-      setTemporaryPassword(temp || '');
-      toast.success('Temporary password generated. Use it to log in.');
-    } catch (err) {
-      const msg =
-        err?.errors?.email?.[0] ||
-        err.message ||
-        'Failed to reset password.';
-      toast.error(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div className="login-page">
@@ -45,42 +20,21 @@ const ForgotPassword = () => {
 
         <div className="right-side">
           <div className="login-form">
-            <h2>Forgot Password</h2>
-            <p>Enter your registered email to get a temporary password.</p>
-
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  required
-                />
-              </div>
-
-              <button type="submit" className="login-btn" disabled={submitting}>
-                {submitting ? 'Processing...' : 'Generate Temporary Password'}
-              </button>
-
-              {temporaryPassword && (
-                <div className="temp-password-box">
-                  <p>Your temporary password:</p>
-                  <code style={{ fontSize: 16 }}>{temporaryPassword}</code>
-                  <p style={{ marginTop: 8 }}>
-                    Use this password to log in, then ask an admin to change it or update it from your profile screen
-                    if that is available.
-                  </p>
-                </div>
-              )}
-            </form>
+            <h2>Password Reset</h2>
+            <p>
+              For security reasons, password resets must be handled by your
+              <strong> System Administrator</strong>.
+            </p>
+            <p style={{ marginTop: 12, color: '#555' }}>
+              Please contact your System Administrator and request a password reset.
+              You will be issued a temporary password through a secure channel, which
+              you must change immediately upon first login.
+            </p>
 
             <button
               type="button"
-              className="forgot"
-              style={{ marginTop: 16 }}
+              className="login-btn"
+              style={{ marginTop: 24 }}
               onClick={() => navigate('/admin/login')}
             >
               Back to Login
@@ -93,4 +47,3 @@ const ForgotPassword = () => {
 };
 
 export default ForgotPassword;
-
