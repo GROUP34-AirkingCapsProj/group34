@@ -5,7 +5,7 @@ const AuthContext = createContext(null);
 
 const readStoredUser = () => {
   try {
-    return JSON.parse(localStorage.getItem('user') || 'null');
+    return JSON.parse(sessionStorage.getItem('user') || 'null');
   } catch {
     return null;
   }
@@ -17,9 +17,9 @@ export const AuthProvider = ({ children }) => {
   const updateUser = useCallback((userData) => {
     setUser(userData);
     if (userData) {
-      localStorage.setItem('user', JSON.stringify(userData));
+      sessionStorage.setItem('user', JSON.stringify(userData));
     } else {
-      localStorage.removeItem('user');
+      sessionStorage.removeItem('user');
     }
   }, []);
 

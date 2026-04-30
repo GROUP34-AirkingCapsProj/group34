@@ -3,22 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Traits\ApiResponse;  // ← ADD THIS
+use App\Traits\ApiResponse;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;  // ← ADD THIS
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    use ApiResponse;  // ← ADD THIS
-
-    /** Built-in admin account keeps short passwords; all other users use min 8. */
-    private function isPrimaryAdminUsername(?string $username): bool
-    {
-        return strcasecmp((string) $username, 'admin') === 0;
-    }
+    use ApiResponse;
 
     public function index(Request $request)
     {
@@ -60,17 +54,7 @@ class UserController extends Controller
                 'last_name' => 'required|string|max:50',
                 'email' => 'required|email|unique:users|max:100',
                 'username' => 'required|string|unique:users|max:50',
-                'password' => [
-                    'required',
-                    'string',
-                    'max:255',
-                    'confirmed',
-                    Rule::when(
-                        ! $this->isPrimaryAdminUsername($request->input('username')),
-                        ['min:8'],
-                        ['min:4']
-                    ),
-                ],
+                'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
                 'phone' => 'nullable|string|max:20',
                 'role_id' => 'required|exists:roles,role_id',
                 'location_id' => 'nullable|exists:locations,location_id',
@@ -184,17 +168,7 @@ class UserController extends Controller
 
             $validated = $request->validate([
                 'current_password' => 'required_if:self,true|string',
-                'new_password' => [
-                    'required',
-                    'string',
-                    'max:255',
-                    'confirmed',
-                    Rule::when(
-                        ! $this->isPrimaryAdminUsername($user->username),
-                        ['min:8'],
-                        ['min:4']
-                    ),
-                ],
+                'new_password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             ]);
 
             // If user is changing their own password, verify current password
