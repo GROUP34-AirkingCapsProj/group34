@@ -10,9 +10,9 @@ class PurchaseOrderItem extends Model
     protected $table = 'purchase_order_item';
     protected $primaryKey = 'po_item_id';
 
-    protected $fillable = [
+protected $fillable = [
         'po_id',
-        'item_id',
+        'product_id',
         'ordered_quantity',
         'unit_cost',
         'received_quantity',
@@ -29,9 +29,17 @@ class PurchaseOrderItem extends Model
         return $this->belongsTo(PurchaseOrder::class, 'po_id', 'po_id');
     }
 
+    /**
+     * @deprecated Use product() instead - aligned with Product model
+     */
     public function item()
     {
-        return $this->belongsTo(Item::class, 'item_id', 'item_id');
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
     }
 
     // Check if fully received

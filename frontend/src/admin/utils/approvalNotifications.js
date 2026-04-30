@@ -59,6 +59,14 @@ export const mergeApprovalQueuePurchaseOrder = (id, patch) => {
   return next;
 };
 
+/** Remove a queued PO from localStorage (e.g. after it is synced to API or no longer needed). */
+export const removeApprovalQueuePurchaseOrder = (id) => {
+  const current = getApprovalQueuePurchaseOrders();
+  const next = current.filter((po) => String(po.id) !== String(id));
+  saveApprovalQueuePurchaseOrders(next);
+  return next;
+};
+
 export const getSystemNotifications = () => {
   return safeParse(localStorage.getItem(NOTIFICATIONS_KEY), []);
 };

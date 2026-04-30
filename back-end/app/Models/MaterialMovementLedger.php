@@ -11,9 +11,9 @@ class MaterialMovementLedger extends Model
     protected $table = 'material_movement_ledger';
     protected $primaryKey = 'movement_id';
 
-    protected $fillable = [
+protected $fillable = [
         'transaction_type_id',
-        'item_id',
+        'product_id',
         'issuance_context',
         'from_location_id',
         'to_location_id',
@@ -28,9 +28,17 @@ class MaterialMovementLedger extends Model
         'quantity' => 'decimal:2',
     ];
 
+    /**
+     * @deprecated Use product() instead - aligned with Product model
+     */
     public function item()
     {
-        return $this->belongsTo(Item::class, 'item_id', 'item_id');
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
     }
 
     public function fromLocation()

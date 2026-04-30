@@ -52,10 +52,10 @@ const Header = ({ searchPlaceholder = "Search...", onSearch }) => {
       </div>
       <div className="header-right">
         <span className="role-badge">System Admin</span>
-        <button className="icon-btn" onClick={() => alert('You have 3 new notifications')}>
+<button className="icon-btn" onClick={() => navigate('/admin/alerts')}>
           Bell
         </button>
-        <button className="icon-btn" onClick={() => alert('Opening settings...')}>
+        <button className="icon-btn" onClick={() => navigate('/admin/config')}>
           Settings
         </button>
         <div className="user-profile">

@@ -18,7 +18,7 @@ import {
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
-import { getApprovalQueuePurchaseOrders, APPROVAL_QUEUE_STORAGE_KEY } from '../utils/approvalNotifications';
+// NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/barcode_scan.css';
 import '../styles/item_management.css';
@@ -324,34 +324,14 @@ const getReceivePoBlockReason = (po) => {
   return null;
 };
 
-/** Merge API PO list with locally synced approved POs (so Receive PO shows them even if GET lags or misses a row). */
+/** 
+ * NO LONGER USED - LocalStorage merge removed.
+ * Purchase Orders dropdown now shows ONLY real POs from the database (API).
+ * This ensures the Receive PO dropdown reflects actual database records.
+ */
 const mergeSyncedLocalPurchaseOrders = (apiRows) => {
-  const list = Array.isArray(apiRows) ? [...apiRows] : [];
-  const byId = new Map(
-    list
-      .map((r) => [String(r.po_id ?? r.id ?? ''), r])
-      .filter(([k]) => k && k !== 'undefined'),
-  );
-  try {
-    getApprovalQueuePurchaseOrders().forEach((p) => {
-      const st = String(p.status || '').toLowerCase();
-      if (st !== 'authorized' || !p.synced_to_api) return;
-      const bid = p.backend_po_id ?? p.po_id;
-      if (bid == null || bid === '') return;
-      const sid = String(bid);
-      if (byId.has(sid)) return;
-      byId.set(sid, {
-        po_id: Number(bid),
-        po_number: p.po_number,
-        expected_delivery_date: p.expected_delivery_date ?? null,
-        status: { status_name: 'Authorized' },
-        supplier: typeof p.supplier === 'string' ? { supplier_name: p.supplier } : (p.supplier || null),
-      });
-    });
-  } catch {
-    /* ignore */
-  }
-  return Array.from(byId.values());
+  // Return only API POs - no localStorage merge
+  return Array.isArray(apiRows) ? apiRows : [];
 };
 
 const CAMERA_STORAGE_KEY = 'bs_inventory_camera_device_id';
@@ -730,18 +710,9 @@ const BarcodeScan = () => {
       });
   }, []);
 
+// REMOVED: Storage event listener - no longer needed since we only use database POs now
   useEffect(() => {
     loadPurchaseOrders();
-    const onApproval = () => loadPurchaseOrders();
-    window.addEventListener('approval-notifications-updated', onApproval);
-    const onStorage = (e) => {
-      if (e.key === APPROVAL_QUEUE_STORAGE_KEY) loadPurchaseOrders();
-    };
-    window.addEventListener('storage', onStorage);
-    return () => {
-      window.removeEventListener('approval-notifications-updated', onApproval);
-      window.removeEventListener('storage', onStorage);
-    };
   }, [loadPurchaseOrders]);
 
   const effectiveModeKey = (scanMode || MODES[modeIndex])?.key;
