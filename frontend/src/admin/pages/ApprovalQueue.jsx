@@ -6,10 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import { canActOnApprovalQueue, canApprovePendingRegistrations } from '../utils/roles';
 import {
   getApprovalQueuePurchaseOrders,
-  getApprovalQueueRestockRequests,
   updateApprovalQueuePurchaseOrderStatus,
-  updateApprovalQueueRestockRequestStatus,
   mergeApprovalQueuePurchaseOrder,
+  removeApprovalQueuePurchaseOrder,
 } from '../utils/approvalNotifications';
 import { purchaseOrdersAPI, statusAPI, productsAPI, pendingProductsAPI, consumableSupplyAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -17,7 +16,7 @@ import '../styles/approval_queue.css';
 import '../styles/po_recommendation.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 
-const AQ_TABS = ['item-registration', 'restock-requests', 'purchase-orders', 'branch-transfers'];
+const AQ_TABS = ['item-registration', 'purchase-orders', 'branch-transfers'];
 
 const formatYmd = (value) => {
   if (!value) return '—';
@@ -54,12 +53,12 @@ const ApprovalQueue = ({ initialTab } = {}) => {
   const canActOnQueue = useMemo(() => canActOnApprovalQueue(user), [user]);
   const canApproveRegistrations = useMemo(() => canApprovePendingRegistrations(user), [user]);
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window === 'undefined') return 'restock-requests';
+const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === 'undefined') return 'item-registration';
     const q = new URLSearchParams(window.location.search).get('tab');
     if (q && AQ_TABS.includes(q)) return q;
     if (initialTab && AQ_TABS.includes(initialTab)) return initialTab;
-    return 'restock-requests';
+    return 'item-registration';
   });
 
   useEffect(() => {
@@ -136,17 +135,8 @@ const ApprovalQueue = ({ initialTab } = {}) => {
         };
       });
 
-      setPurchaseOrders((prev) => {
-        // Server POs are the canonical source. Drop any localStorage entry whose
-        // backend_po_id already appears in the server response to prevent duplicates
-        // (localStorage IDs like "aq-po-xxx" never match server IDs like "server-1").
-        const serverBackendIds = new Set(serverPOs.map((p) => String(p.backend_po_id)));
-        const localOnlyDrafts = prev.filter((p) => {
-          const bid = String(p.backend_po_id ?? '');
-          return !bid || !serverBackendIds.has(bid);
-        });
-        return [...serverPOs, ...localOnlyDrafts];
-      });
+// Use ONLY server POs - no localStorage merge
+      setPurchaseOrders(serverPOs);
     } catch (err) {
       console.error('Failed to fetch server POs:', err);
     } finally {
@@ -154,10 +144,9 @@ const ApprovalQueue = ({ initialTab } = {}) => {
     }
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
     const hydrateFromStorage = () => {
       const stored = getApprovalQueuePurchaseOrders();
-      const storedRestock = getApprovalQueueRestockRequests();
       if (stored.length) {
         setPurchaseOrders((prev) => {
           const existingIds = new Set(prev.map((po) => String(po.id)));
@@ -174,13 +163,6 @@ const ApprovalQueue = ({ initialTab } = {}) => {
           return [...toAdd, ...prev];
         });
       }
-      if (storedRestock.length) {
-        setRestockRequests((prev) => {
-          const existing = new Set(prev.map((req) => String(req.id)));
-          const merged = [...storedRestock.filter((req) => !existing.has(String(req.id))), ...prev];
-          return merged;
-        });
-      }
     };
 
     hydrateFromStorage();
@@ -193,9 +175,8 @@ const ApprovalQueue = ({ initialTab } = {}) => {
     if (activeTab === 'purchase-orders') {
       fetchServerPOs();
     }
-  }, [activeTab, fetchServerPOs]);
+}, [activeTab, fetchServerPOs]);
 
-  const [restockRequests, setRestockRequests] = useState([]);
   const [branchTransfers] = useState([]);
 
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
@@ -410,11 +391,13 @@ const ApprovalQueue = ({ initialTab } = {}) => {
 
   const handlePOAction = async (id, action) => {
     const nextStatus = action === 'approve' ? 'authorized' : 'rejected';
-    if (action === 'reject') {
+if (action === 'reject') {
       setPurchaseOrders((prev) =>
         prev.map((po) => (po.id === id ? { ...po, status: nextStatus } : po)),
       );
       updateApprovalQueuePurchaseOrderStatus(id, nextStatus);
+      // Clean up localStorage for rejected POs
+      removeApprovalQueuePurchaseOrder(id);
       return;
     }
 
@@ -453,10 +436,12 @@ const patch = {
     ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || null
     : null,  // ← updates UI immediately
 };
-        mergeApprovalQueuePurchaseOrder(id, patch);
+mergeApprovalQueuePurchaseOrder(id, patch);
         setPurchaseOrders((prev) =>
           prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
         );
+        // Clean up localStorage: remove the PO now that it's synced to API
+        removeApprovalQueuePurchaseOrder(id);
         toast.success('PO authorized on the server. It stays in Receive PO; receiving follows expected date rules.');
       } catch (err) {
         if (err?.status === 403) {
@@ -491,10 +476,12 @@ const patch = {
           approved_at: new Date().toISOString(),
           api_create_payload: null,
         };
-        mergeApprovalQueuePurchaseOrder(id, patch);
+mergeApprovalQueuePurchaseOrder(id, patch);
         setPurchaseOrders((prev) =>
           prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
         );
+        // Clean up localStorage: remove the PO now that it's synced to API
+        removeApprovalQueuePurchaseOrder(id);
         toast.success('PO saved to the server. It appears in Receive PO now (merged with your purchase order list).');
       } catch (err) {
         if (err?.status === 403) {
@@ -512,10 +499,12 @@ const patch = {
       return;
     }
 
-    setPurchaseOrders((prev) =>
+setPurchaseOrders((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: nextStatus } : p)),
     );
     updateApprovalQueuePurchaseOrderStatus(id, nextStatus);
+    // Clean up localStorage for locally approved POs
+    removeApprovalQueuePurchaseOrder(id);
     if (!po?.api_create_payload) {
       toast.warning(
         'Approved locally only — not sent to server. Receive PO will not list this unless it was synced (Draft PO with Item Master lines + branch location) or created in the database.',
@@ -523,18 +512,7 @@ const patch = {
     }
   };
 
-  const handleRestockAction = (id, action) => {
-    if (!canActOnQueue) return;
-    const nextStatus = action === 'approve' ? 'approved' : 'denied';
-    setRestockRequests(prev =>
-      prev.map(req =>
-        req.id === id ? { ...req, status: nextStatus } : req
-      )
-    );
-    updateApprovalQueueRestockRequestStatus(id, nextStatus);
-  };
-
-  return (
+return (
     <AdminLayout>
       <div className="aq-content">
         {/* Page Header */}
@@ -576,7 +554,7 @@ const patch = {
 
         {/* Tab Navigation */}
         <div className="aq-tabs">
-          <button
+<button
             type="button"
             className={`aq-tab-btn ${activeTab === 'item-registration' ? 'active' : ''}`}
             onClick={() => setActiveTab('item-registration')}
@@ -588,18 +566,6 @@ const patch = {
               <line x1="9" y1="15" x2="15" y2="15"></line>
             </svg>
             Item registration
-          </button>
-          <button
-            type="button"
-            className={`aq-tab-btn ${activeTab === 'restock-requests' ? 'active' : ''}`}
-            onClick={() => setActiveTab('restock-requests')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <polyline points="1 20 1 14 7 14"></polyline>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-            </svg>
-            Restock requests
           </button>
           <button
             type="button"
@@ -839,66 +805,7 @@ const patch = {
           </div>
         )}
 
-        {/* Restock Requests Tab */}
-        {activeTab === 'restock-requests' && (
-          <div className="aq-list">
-            {restockRequests.length === 0 ? (
-              <div className="aq-empty-state">
-                <div className="aq-empty-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <polyline points="23 4 23 10 17 10"></polyline>
-                    <polyline points="1 20 1 14 7 14"></polyline>
-                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                  </svg>
-                </div>
-                <p>No pending restock requests for approval.</p>
-              </div>
-            ) : (
-              restockRequests.map(req => (
-                <div className="aq-card" key={req.id}>
-                  <div className="aq-card-top">
-                    <div className="aq-card-title">
-                      <h3>Restock: {req.item_name}</h3>
-                      <p>Destination: {req.destination}</p>
-                    </div>
-                  </div>
-                  <div className="aq-card-bottom">
-                    <div className="aq-card-info">
-                      <span className="aq-amount">Quantity: {req.quantity} units</span>
-                      <span className="aq-meta">From: {req.from} • Requested: {req.requested_date}</span>
-                    </div>
-                    <div className="aq-card-actions">
-                      {req.status === 'approved' ? (
-                        <span className="aq-badge authorized">APPROVED</span>
-                      ) : req.status === 'denied' ? (
-                        <span className="aq-badge rejected">DENIED</span>
-                      ) : req.status === 'inactive' ? (
-                        <span className="aq-badge inactive">Inactive</span>
-                      ) : canActOnQueue ? (
-                        <>
-                          <button type="button" className="aq-btn-deny" onClick={() => handleRestockAction(req.id, 'deny')}>
-                            DENY
-                          </button>
-                          <button
-                            type="button"
-                            className="aq-btn-approve-restock"
-                            onClick={() => handleRestockAction(req.id, 'approve')}
-                          >
-                            APPROVE
-                          </button>
-                        </>
-                      ) : (
-                        <span className="aq-badge view-only">PENDING — view only</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Branch Transfers Tab */}
+{/* Branch Transfers Tab */}
         {activeTab === 'branch-transfers' && (
           <div className="aq-list">
             {branchTransfers.length === 0 ? (

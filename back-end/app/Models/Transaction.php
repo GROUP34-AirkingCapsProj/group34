@@ -8,11 +8,11 @@ use App\Traits\Auditable;
 class Transaction extends Model
 {
     use Auditable;
-    protected $fillable = [
+protected $fillable = [
         'transaction_id',
         'transaction_code',
         'branch_id',
-        'item_id',
+        'product_id',
         'item_name',
         'user_id',
         'type',
@@ -35,9 +35,17 @@ class Transaction extends Model
         return $this->belongsTo(Location::class, 'branch_id', 'location_id');
     }
 
+    /**
+     * @deprecated Use product() instead - aligned with Product model
+     */
     public function item()
     {
-        return $this->belongsTo(Item::class);
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
     }
 
     public function user()

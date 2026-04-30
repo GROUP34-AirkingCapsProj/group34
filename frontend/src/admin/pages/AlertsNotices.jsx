@@ -8,8 +8,6 @@ import {
   getSystemNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-  getApprovalQueuePurchaseOrders,
-  getApprovalQueueRestockRequests,
 } from '../utils/approvalNotifications';
 import '../styles/dashboard_air.css';
 import '../styles/alerts_notices.css';
@@ -20,9 +18,7 @@ const AlertsNotices = () => {
   const navigate = useNavigate();
   const [allLowStock, setAllLowStock]       = useState([]);
   const [allAudit, setAllAudit]             = useState([]);
-  const [systemNotifications, setSystemNotifications] = useState([]);
-  const [pendingPoCount, setPendingPoCount]         = useState(0);
-  const [pendingRestockCount, setPendingRestockCount] = useState(0);
+const [systemNotifications, setSystemNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /* pagination pages */
@@ -30,11 +26,7 @@ const AlertsNotices = () => {
   const [stockPage, setStockPage] = useState(1);
   const [auditPage, setAuditPage] = useState(1);
 
-  const refreshLocalQueues = useCallback(() => {
-    const pos     = getApprovalQueuePurchaseOrders();
-    const restocks = getApprovalQueueRestockRequests();
-    setPendingPoCount(pos.filter((p) => String(p.status || '').toLowerCase() === 'pending').length);
-    setPendingRestockCount(restocks.filter((r) => String(r.status || '').toLowerCase() === 'pending').length);
+  const refreshNotifications = useCallback(() => {
     setSystemNotifications(getSystemNotifications());
   }, []);
 
@@ -67,7 +59,7 @@ const AlertsNotices = () => {
             description: `${userName} · ${item?.created_at ? new Date(item.created_at).toLocaleString() : ''}`,
           };
         }));
-        refreshLocalQueues();
+refreshNotifications();
       } catch (e) {
         const message = e.message || 'Failed to load alerts.';
         if (mounted) toast.error(message);
@@ -76,29 +68,29 @@ const AlertsNotices = () => {
       }
     };
 
-    loadAlerts();
+loadAlerts();
     return () => { mounted = false; };
-  }, [refreshLocalQueues]);
+  }, [refreshNotifications]);
 
-  useEffect(() => {
-    const onUpdate = () => refreshLocalQueues();
+useEffect(() => {
+    const onUpdate = () => refreshNotifications();
     window.addEventListener('approval-notifications-updated', onUpdate);
     window.addEventListener('storage', onUpdate);
     return () => {
       window.removeEventListener('approval-notifications-updated', onUpdate);
       window.removeEventListener('storage', onUpdate);
     };
-  }, [refreshLocalQueues]);
+  }, [refreshNotifications]);
 
-  const handleMarkAllRead = () => {
+const handleMarkAllRead = () => {
     markAllNotificationsRead();
-    refreshLocalQueues();
+    refreshNotifications();
     window.dispatchEvent(new CustomEvent('approval-notifications-updated'));
   };
 
   const handleOpenSystemNotification = (n) => {
     markNotificationRead(n.id);
-    refreshLocalQueues();
+    refreshNotifications();
     window.dispatchEvent(new CustomEvent('approval-notifications-updated'));
     if (n.route) navigate(n.route);
   };
@@ -170,18 +162,18 @@ const AlertsNotices = () => {
           />
         </div>
 
-        {/* Pending approvals */}
+{/* Pending approvals */}
         <div className="an-card">
           <div className="an-card-header">
             <h3 className="an-card-title">Pending approvals</h3>
-            <p className="an-card-subtitle">Items waiting in the local approval queue</p>
+            <p className="an-card-subtitle">Items waiting for approval from server</p>
           </div>
           <div className="an-approval-list">
             <div className="an-approval-item an-pending-summary">
               <div className="an-approval-left">
                 <span className="an-approval-title">Purchase orders &amp; restock</span>
                 <span className="an-approval-detail">
-                  &bull; {pendingPoCount} PO(s) pending &nbsp;&bull; {pendingRestockCount} restock request(s) pending
+                  Check the Approval Queue page for pending items from the server.
                 </span>
               </div>
               <div className="an-approval-right">

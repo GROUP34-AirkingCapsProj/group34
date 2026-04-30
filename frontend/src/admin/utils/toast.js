@@ -16,10 +16,10 @@ const Toast = Swal.mixin({
 });
 
 export const toast = {
-  success: (title = 'Your work has been saved') => {
+  success: (title) => {
     Toast.fire({ icon: 'success', title });
   },
-  error: (title = 'Something went wrong') => {
+  error: (title) => {
     Toast.fire({ icon: 'error', title, timer: 2500 });
   },
   info: (title) => {
