@@ -130,3 +130,275 @@
 
 @media (max-width: 1024px) { .inv-stats-row { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .inv-stats-row { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════
+   TAB NAVIGATION
+═══════════════════════════════════════ */
+.inv-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 5px;
+  background: #f3f4f6;
+  border-radius: 10px;
+  width: fit-content;
+}
+.inv-tab-btn {
+  padding: 8px 22px;
+  border-radius: 7px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  color: #6b7280;
+  background: transparent;
+  white-space: nowrap;
+}
+.inv-tab-btn.active {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(220,38,38,.25);
+}
+.inv-tab-btn:not(.active):hover { background: #e5e7eb; color: #374151; }
+
+/* ═══════════════════════════════════════
+   STOCK MOVEMENT TAB — STAT CARDS
+═══════════════════════════════════════ */
+.sm-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.sm-stat-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.sm-stat-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+.sm-stat-value-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sm-stat-value { font-size: 26px; font-weight: 800; color: #111827; line-height: 1.1; }
+.sm-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
+.sm-badge-green         { background: #ecfdf5; color: #059669; }
+.sm-badge-red           { background: #fef2f2; color: #dc2626; }
+.sm-badge-neutral       { background: #f0fdf4; color: #16a34a; }
+.sm-badge-green-outline { background: #ecfdf5; color: #059669; }
+
+/* ═══════════════════════════════════════
+   STOCK MOVEMENT TAB — FILTER ROW
+═══════════════════════════════════════ */
+.sm-filter-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.sm-search {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  transition: border-color .2s;
+}
+.sm-search:focus-within { border-color: #dc2626; background: #fff; }
+.sm-search svg { color: #9ca3af; flex-shrink: 0; }
+.sm-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: #374151;
+  background: transparent;
+}
+.sm-search input::placeholder { color: #9ca3af; }
+.sm-select {
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  outline: none;
+  min-width: 130px;
+}
+.sm-select:focus { border-color: #dc2626; }
+
+/* ═══════════════════════════════════════
+   STOCK MOVEMENT TAB — CHARTS GRID
+═══════════════════════════════════════ */
+.sm-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.sm-right-col { display: flex; flex-direction: column; gap: 12px; }
+
+/* Generic card used across SM tab */
+.sm-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.sm-card-title { font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 2px; }
+.sm-card-sub   { font-size: 12px; color: #9ca3af; margin: 0 0 18px; }
+
+/* Chart */
+.sm-chart-wrap { position: relative; }
+.sm-chart-legend {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.sm-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.sm-legend-dot {
+  width: 20px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ═══════════════════════════════════════
+   CATEGORY PERFORMANCE
+═══════════════════════════════════════ */
+.sm-cat-list { display: flex; flex-direction: column; gap: 14px; }
+.sm-cat-row  { display: flex; flex-direction: column; gap: 5px; }
+.sm-cat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sm-cat-name { font-size: 13px; color: #374151; }
+.sm-cat-rate { font-size: 13px; font-weight: 700; color: #dc2626; }
+.sm-cat-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+.sm-cat-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #dc2626;
+  transition: width .4s ease;
+}
+
+/* ═══════════════════════════════════════
+   FAST / SLOW MOVING CARDS
+═══════════════════════════════════════ */
+.sm-moving-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sm-fast-card, .sm-slow-card {
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sm-fast-card { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.sm-slow-card { background: #fff7ed; border: 1px solid #fed7aa; }
+.sm-moving-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  margin-top: 4px;
+}
+.sm-fast-label { color: #16a34a; }
+.sm-slow-label { color: #ea580c; }
+.sm-moving-count { font-size: 22px; font-weight: 800; }
+.sm-fast-count   { color: #16a34a; }
+.sm-slow-count   { color: #ea580c; }
+
+/* ═══════════════════════════════════════
+   TOP 20 PRODUCTS TABLE
+═══════════════════════════════════════ */
+.sm-products-card { margin-top: 0; }
+.sm-products-header { margin-bottom: 20px; }
+
+.sm-rank-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.sm-rank {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  min-width: 28px;
+}
+.sm-cat-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  background: #f3f4f6;
+  color: #374151;
+  white-space: nowrap;
+}
+.sm-inbound  { font-size: 14px; font-weight: 700; color: #16a34a; text-align: center; }
+.sm-outbound { font-size: 14px; font-weight: 700; color: #dc2626; text-align: center; }
+.sm-turnover { font-size: 14px; font-weight: 700; color: #dc2626; text-align: center; }
+.sm-row-action {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.sm-row-action:hover { color: #374151; }
+
+/* ═══════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .sm-stats-row   { grid-template-columns: repeat(2, 1fr); }
+  .sm-charts-grid { grid-template-columns: 1fr; }
+  .sm-right-col   { flex-direction: row; flex-wrap: wrap; }
+  .sm-right-col > * { flex: 1; min-width: 240px; }
+}
+@media (max-width: 640px) {
+  .sm-stats-row  { grid-template-columns: 1fr 1fr; }
+  .sm-filter-row { flex-direction: column; }
+  .sm-select     { width: 100%; }
+  .sm-moving-grid { grid-template-columns: 1fr 1fr; }
+}

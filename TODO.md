@@ -1,58 +1,28 @@
-# TODO: Remove Fake Data and Make SystemConfiguration Functional
+ # TODO: Add Mark All Read functionality to Alerts - COMPLETED
 
-## Analyze Current Status
-- Frontend: `frontend/src/admin/pages/SystemConfiguration.jsx`
-- Backend: Has API endpoints for users, roles, locations in `routes/api.php`
+## Summary of Changes Made:
 
-## Fake/Hardcoded Data Found:
-1. `MOCK_USERS` - 6 hardcoded user accounts
-2. `MOCK_RESET_REQUESTS` - 2 fake password reset requests  
-3. `MOCK_ACTIVE_CODES` - 1 fake active reset code
-4. `ALL_USER_ROLES` - Hardcoded role list
-5. `ALL_LOCATIONS` - Hardcoded location list
-6. `DEFAULT_SETTINGS` - Hardcoded default security settings
-7. `DEFAULT_PROFILE` - Hardcoded default profile
+### 1. Updated `AlertsNotices.jsx`:
+- Added import for `alertsAPI` from services
+- Added `markingRead` state for loading indicator
+- Added `handleMarkAllRead` function to call `alertsAPI.markAllRead()` 
+- Added "Mark All Read" button in the page header
+- Updates pending approvals after marking all as read
 
-## Plan: Replace Hardcoded Data with API Calls
+### 2. Updated `alerts_notices.css`:
+- Added flex layout styles for `.an-page-header`
+- Added `.an-page-header-content` wrapper for title/subtitle
+- Added `.an-mark-all-read-btn` styles with hover/disabled states
+- Added responsive styles for mobile
 
-### Step 1: Update SystemConfiguration.jsx
-- [ ] Fetch users from `/api/users` endpoint
-- [ ] Fetch roles from `/api/roles` endpoint  
-- [ ] Fetch locations from `/api/locations` endpoint
-- [ ] Fetch current user profile data
-- [ ] Replace MOCK_USERS with API data
-- [ ] Replace ALL_USER_ROLES with API roles data
-- [ ] Replace ALL_LOCATIONS with API locations data
-- [ ] Update profile tab to use localStorage user data
-- [ ] Update save handlers to make API calls
+### 3. Updated `AdminLayout.jsx`:
+- Changed import to include `alertsAPI`
+- Modified unread count sync to fetch from API instead of localStorage
+- Uses `alertsAPI.getUnreadCount()` with fallback to localStorage on error
 
-### Step 2: Add API Endpoints (if needed)
-- [ ] Security settings endpoints (save password policy, session config)
-- [ ] Password reset requests management
-
-## Implementation Notes:
-- The backend already provides `/api/users`, `/api/roles`, `/api/locations` 
-- User data should come from authenticated user in localStorage
-- Security settings currently use localStorage - need to persist to backend eventually
-
-## Status: ✅ COMPLETED
-
-### Implementation Done:
-- [x] Fetch users, roles, locations from API
-- [x] Replace hardcoded user list with API data
-- [x] Replace hardcoded roles with API roles
-- [x] Replace hardcoded locations with API locations
-- [x] Add loading and error handling
-- [x] Update profile tab with localStorage user
-
-### Changes Made to SystemConfiguration.jsx:
-1. Removed: MOCK_USERS, MOCK_RESET_REQUESTS, MOCK_ACTIVE_CODES
-2. Removed: ALL_USER_ROLES, ALL_LOCATIONS (hardcoded arrays)
-3. Added: API fetch logic with auth token
-4. Added: loading/error states for user table
-5. Added: roleOptions and locationOptions from API
-6. Updated: Profile loads from localStorage user
-
-### Remaining (Future Work):
-- Password reset requests API endpoint
-- Security settings persistence to backend
+## How it works:
+1. Header badge shows unread alert count from API (`alertsAPI.getUnreadCount()`)
+2. Alerts & Notices page has "Mark All Read" button
+3. Clicking button calls API to mark all alerts as read
+4. After marking, data refreshes and badge updates automatically
+5. Event listeners trigger sync across all open admin pages

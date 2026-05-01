@@ -275,6 +275,26 @@
   color: #ffffff;
 }
 
+.nav-item-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+.nav-item.active .nav-item-badge {
+  background: #fff;
+  color: #dc2626;
+}
+
 .nav-icon {
   width: 20px;
   height: 20px;
@@ -1022,6 +1042,17 @@
   margin-bottom: 28px;
 }
 
+.charts-section .recent-activity-section {
+  margin-bottom: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.charts-section .recent-activity-section:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
 .quick-actions-header {
   display: flex;
   justify-content: space-between;
@@ -1063,7 +1094,7 @@
 
 .quick-actions-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 16px;
 }
 
@@ -1114,6 +1145,10 @@
   color: var(--text-dark);
   text-align: center;
   line-height: 1.2;
+}
+
+.quick-actions-grid--compact {
+  grid-template-columns: repeat(3, 1fr);
 }
 
 @media (max-width: 1200px) {
@@ -1610,6 +1645,12 @@
 .ra-status--created  { background: rgba(5,150,105,0.1);   color: #059669; }
 .ra-status--deleted  { background: rgba(220,38,38,0.1);   color: #DC2626; }
 .ra-status--info     { background: rgba(37,99,235,0.1);   color: #2563EB; }
+
+.ra-desc--wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
 
 /* ===============================
    LOW STOCK ALERT (dashboard)

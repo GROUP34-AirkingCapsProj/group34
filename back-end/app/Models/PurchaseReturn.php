@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 /**
  * PurchaseReturn (ERD: purchase_return)
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PurchaseReturn extends Model
 {
+    use Auditable;
     protected $table = 'purchase_returns';
     protected $primaryKey = 'purchase_return_id';
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../services/api';
+import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
 import { getUnreadNotificationCount } from '../utils/approvalNotifications';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
@@ -21,6 +21,7 @@ const AdminLayout = ({ children }) => {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState(() => new Set());
 
@@ -59,16 +60,42 @@ const AdminLayout = ({ children }) => {
     return () => { document.body.style.overflow = prev; };
   }, [mobileNavOpen]);
 
-  // Sync unread notification count
+// Sync unread notification count from API
   useEffect(() => {
-    const syncUnread = () => setUnreadNotifications(getUnreadNotificationCount());
+    let mounted = true;
+    const syncUnread = async () => {
+      try {
+        const res = await alertsAPI.getUnreadCount();
+        const count = res?.data?.unread_count ?? res?.data?.data?.unread_count ?? 0;
+        if (mounted) setUnreadNotifications(Number(count));
+      } catch (_) {
+        // Fallback to localStorage count on error
+        if (mounted) setUnreadNotifications(getUnreadNotificationCount());
+      }
+    };
     syncUnread();
     window.addEventListener('approval-notifications-updated', syncUnread);
     window.addEventListener('storage', syncUnread);
     return () => {
+      mounted = false;
       window.removeEventListener('approval-notifications-updated', syncUnread);
       window.removeEventListener('storage', syncUnread);
     };
+  }, []);
+
+  // Poll server for pending approval count (POs + item registrations)
+  useEffect(() => {
+    let mounted = true;
+    const fetchPending = async () => {
+      try {
+        const res = await dashboardAPI.getPendingApprovals();
+        const total = res?.data?.data?.total_pending ?? res?.data?.total_pending ?? 0;
+        if (mounted) setPendingApprovalCount(Number(total));
+      } catch (_) {}
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 120000);
+    return () => { mounted = false; clearInterval(interval); };
   }, []);
 
   // Close profile dropdown on outside click
@@ -217,6 +244,7 @@ const AdminLayout = ({ children }) => {
         roleKey={roleKey}
         roleMeta={roleMeta}
         onLogout={handleLogout}
+        pendingApprovalCount={pendingApprovalCount}
       />
 
       {/* Main Content */}

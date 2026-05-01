@@ -223,6 +223,17 @@ export const dashboardAPI = {
   get: async () => apiRequest('/dashboard'),
   getLowStock: async () => apiRequest('/dashboard/low-stock'),
   getRecentMovements: async () => apiRequest('/dashboard/recent-movements'),
+  getStockMovementTrends: async () => apiRequest('/dashboard/stock-movement-trends'),
+  getPendingApprovals: async () => apiRequest('/dashboard/pending-approvals'),
+};
+
+/* ======================
+   ALERTS API (Mark All Read)
+====================== */
+export const alertsAPI = {
+  getSettings: async () => apiRequest('/alerts/settings'),
+  getUnreadCount: async () => apiRequest('/alerts/settings'),
+  markAllRead: async () => apiRequest('/alerts/mark-all-read', { method: 'POST' }),
 };
 
 /* ======================

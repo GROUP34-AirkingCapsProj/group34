@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 /**
  * IssuanceDetail (ERD: issuance_detail)
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class IssuanceDetail extends Model
 {
+    use Auditable;
     protected $table = 'issuance_details';
     protected $primaryKey = 'issuance_detail_id';
 

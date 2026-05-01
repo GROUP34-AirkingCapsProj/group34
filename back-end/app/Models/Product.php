@@ -5,9 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 class Product extends Model
 {
+    use Auditable;
     protected $table = 'products';
     protected $primaryKey = 'product_id';
 
