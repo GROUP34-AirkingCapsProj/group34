@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 /**
  * PurchaseReturnDetails (ERD: purchase_return_details)
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PurchaseReturnDetails extends Model
 {
+    use Auditable;
     protected $table = 'purchase_return_details';
     protected $primaryKey = 'pr_detail_id';
 

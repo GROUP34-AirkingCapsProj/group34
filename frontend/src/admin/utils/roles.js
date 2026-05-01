@@ -85,7 +85,6 @@ export const ROLE_MENUS = {
     {
       label: 'INVENTORY INTELLIGENCE',
       items: [
-        { name: 'Stock Movement', path: '/admin/inventory', icon: 'movement' },
         { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       ],
     },
@@ -115,7 +114,7 @@ export const ROLE_MENUS = {
     {
       label: 'INVENTORY INTELLIGENCE',
       items: [
-        { name: 'Stock Movement', path: '/admin/inventory', icon: 'movement' },
+        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       ],
     },
     {
@@ -125,12 +124,6 @@ export const ROLE_MENUS = {
         { name: 'Transactions', path: '/admin/transactions', icon: 'globaltransactions' },
         { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
         { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
-      ],
-    },
-    {
-      label: 'SALES & LOGISTICS',
-      items: [
-        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       ],
     },
   ],
@@ -169,7 +162,7 @@ export const ROLE_MENUS = {
     {
       label: 'INVENTORY MOVEMENT',
       items: [
-        { name: 'Stock Movement', path: '/admin/inventory', icon: 'movement' },
+        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       ],
     },
     {
@@ -188,12 +181,17 @@ export const ROLE_MENUS = {
       ],
     },
     {
+      label: 'INVENTORY INTELLIGENCE',
+      items: [
+        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
+      ],
+    },
+    {
       label: 'INVENTORY EXECUTION',
       items: [
         { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
         { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
         { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'barcode' },
-        { name: 'Stock Movement', path: '/admin/inventory', icon: 'movement' },
         { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
         { name: 'Transactions (With Transfers)', path: '/admin/transfers', icon: 'transfer' },
       ],

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 /**
  * ReceivingDetail (ERD: RECEIVING_DETAIL)
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ReceivingDetail extends Model
 {
+    use Auditable;
     protected $table = 'receiving_details';
     protected $primaryKey = 'receiving_detail_id';
 

@@ -12,6 +12,8 @@ use App\Models\Transfer;
 use App\Models\Receiving;
 use App\Models\ActivityLog;
 use App\Models\AuditTrail;
+use App\Models\PurchaseOrder;
+use App\Models\PendingProduct;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -62,24 +64,138 @@ class DashboardController extends Controller
         return response()->json(['success' => true, 'data' => $transfers]);
     }
 
+    public function stockMovementTrends()
+    {
+        $chartDays = 7;
+
+        $inboundRows = DB::table('receivings')
+            ->selectRaw('COALESCE(DATE(receiving_date), DATE(created_at)) as day, SUM(total_quantity_received) as total')
+            ->whereRaw('COALESCE(DATE(receiving_date), DATE(created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
+            ->groupBy('day')
+            ->pluck('total', 'day')
+            ->toArray();
+
+        $outboundRows = DB::table('sales_details as sd')
+            ->join('sales as s', 'sd.sales_id', '=', 's.sales_id')
+            ->selectRaw('COALESCE(s.sale_date, DATE(s.created_at)) as day, SUM(sd.quantity) as total')
+            ->whereRaw('COALESCE(s.sale_date, DATE(s.created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
+            ->groupBy('day')
+            ->pluck('total', 'day')
+            ->toArray();
+
+        $labels = [];
+        $inbound = [];
+        $outbound = [];
+
+        for ($i = $chartDays - 1; $i >= 0; $i--) {
+            $date      = now()->subDays($i)->toDateString();
+            $labels[]  = now()->subDays($i)->format('D');
+            $inbound[]  = (int) ($inboundRows[$date]  ?? 0);
+            $outbound[] = (int) ($outboundRows[$date] ?? 0);
+        }
+
+        // 30-day totals for the stat cards
+        $totalIn = (int) DB::table('receivings')
+            ->whereRaw('COALESCE(DATE(receiving_date), DATE(created_at)) >= ?', [now()->subDays(30)->toDateString()])
+            ->sum('total_quantity_received');
+
+        $totalOut = (int) DB::table('sales_details as sd')
+            ->join('sales as s', 'sd.sales_id', '=', 's.sales_id')
+            ->whereRaw('COALESCE(s.sale_date, DATE(s.created_at)) >= ?', [now()->subDays(30)->toDateString()])
+            ->sum('sd.quantity');
+
+        // Previous 30-day totals for period-over-period badges
+        $prevTotalIn = (int) DB::table('receivings')
+            ->whereRaw('COALESCE(DATE(receiving_date), DATE(created_at)) BETWEEN ? AND ?', [
+                now()->subDays(60)->toDateString(),
+                now()->subDays(31)->toDateString(),
+            ])
+            ->sum('total_quantity_received');
+
+        $prevTotalOut = (int) DB::table('sales_details as sd')
+            ->join('sales as s', 'sd.sales_id', '=', 's.sales_id')
+            ->whereRaw('COALESCE(s.sale_date, DATE(s.created_at)) BETWEEN ? AND ?', [
+                now()->subDays(60)->toDateString(),
+                now()->subDays(31)->toDateString(),
+            ])
+            ->sum('sd.quantity');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'labels'         => $labels,
+                'inbound'        => $inbound,
+                'outbound'       => $outbound,
+                'total_in'       => $totalIn,
+                'total_out'      => $totalOut,
+                'prev_total_in'  => $prevTotalIn,
+                'prev_total_out' => $prevTotalOut,
+            ],
+        ]);
+    }
+
     // ─── Private helpers ──────────────────────────────────────────────────────
+
+    public function pendingApprovals()
+    {
+        $pendingPOs = PurchaseOrder::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))
+            ->with(['supplier', 'createdBy'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn($po) => [
+                'id'           => $po->po_id,
+                'po_number'    => $po->po_number,
+                'supplier'     => $po->supplier?->supplier_name,
+                'total_amount' => (float) ($po->total_amount ?? 0),
+                'order_date'   => $po->order_date?->toDateString(),
+                'created_by'   => trim(($po->createdBy?->first_name ?? '') . ' ' . ($po->createdBy?->last_name ?? '')) ?: 'Unknown',
+                'created_at'   => $po->created_at?->toIso8601String(),
+            ]);
+
+        $pendingProducts = PendingProduct::where('status', 'pending')
+            ->with('category')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn($p) => [
+                'id'                => $p->pending_product_id,
+                'generated_name'    => $p->generated_name,
+                'registration_kind' => $p->registration_kind,
+                'category'          => $p->category?->category_name,
+                'created_at'        => $p->created_at?->toIso8601String(),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'pending_po_count'      => $pendingPOs->count(),
+                'pending_product_count' => $pendingProducts->count(),
+                'total_pending'         => $pendingPOs->count() + $pendingProducts->count(),
+                'pending_pos'           => $pendingPOs->values(),
+                'pending_products'      => $pendingProducts->values(),
+            ],
+        ]);
+    }
 
     private function getStats(): array
     {
-        $pendingTransfers = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))->count();
-        $activeLocations  = Location::count();
-        $totalProducts    = Product::count();
+        $pendingTransfers    = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))->count();
+        $pendingPOs          = PurchaseOrder::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))->count();
+        $pendingRegistrations = PendingProduct::where('status', 'pending')->count();
+        $activeLocations     = Location::count();
+        $totalProducts       = Product::count();
 
         return [
-            'total_users'       => User::count(),
-            'active_locations'  => $activeLocations,
-            'active_branches'   => $activeLocations,
-            'total_products'    => $totalProducts,
-            'total_items'       => $totalProducts,
-            'low_stock'         => Product::whereColumn('quantity', '<=', 'recommended_stocks')->count(),
-            'total_sales'       => Sale::count(),
-            'pending_transfers' => $pendingTransfers,
-            'pending_actions'   => $pendingTransfers,
+            'total_users'          => User::count(),
+            'active_locations'     => $activeLocations,
+            'active_branches'      => $activeLocations,
+            'total_products'       => $totalProducts,
+            'total_items'          => $totalProducts,
+            'low_stock'            => Product::whereColumn('quantity', '<=', 'recommended_stocks')->count(),
+            'total_sales'          => Sale::count(),
+            'pending_transfers'    => $pendingTransfers,
+            'pending_pos'          => $pendingPOs,
+            'pending_registrations' => $pendingRegistrations,
+            'pending_actions'      => $pendingTransfers + $pendingPOs + $pendingRegistrations,
         ];
     }
 
@@ -296,15 +412,57 @@ class DashboardController extends Controller
         } catch (\Throwable $_) {}
 
         try {
+            $tableFriendly = [
+                'sales' => 'Sale', 'sale_details' => 'Sale Item',
+                'products' => 'Product', 'purchase_orders' => 'Purchase Order',
+                'purchase_order_details' => 'PO Item', 'receivings' => 'Receiving',
+                'receiving_details' => 'Receiving Item', 'issuances' => 'Issuance',
+                'issuance_details' => 'Issuance Item', 'adjustments' => 'Adjustment',
+                'adjustment_details' => 'Adjustment Item', 'transfers' => 'Transfer',
+                'transfer_details' => 'Transfer Item', 'purchase_returns' => 'Purchase Return',
+                'delivery_receipts' => 'Delivery Receipt', 'locations' => 'Location',
+                'item_serials' => 'Item Serial', 'users' => 'User',
+            ];
+            $skipFields = ['created_at', 'updated_at', 'deleted_at'];
+
             foreach (AuditTrail::with('user')->orderBy('created_at', 'desc')->limit(5)->get() as $a) {
-                $table  = str_replace('_', ' ', ucfirst($a->table_name ?? 'record'));
+                $tableName   = $a->table_name ?? 'record';
+                $moduleLabel = $tableFriendly[$tableName] ?? ucwords(str_replace('_', ' ', $tableName));
+                $action      = $a->action ?? 'change';
+                $recordId    = $a->record_id;
+                $userName    = trim(($a->user?->first_name ?? '') . ' ' . ($a->user?->last_name ?? ''))
+                    ?: ($a->user?->username ?? 'System');
+
+                if ($action === 'update' && !empty($a->new_values)) {
+                    $changed = array_keys(array_diff_key((array) $a->new_values, array_flip($skipFields)));
+                    $fieldList = implode(', ', array_map(
+                        fn($f) => str_replace(['_id', '_'], ['', ' '], $f),
+                        array_slice($changed, 0, 3)
+                    ));
+                    $more = count($changed) > 3 ? ' +' . (count($changed) - 3) . ' more' : '';
+                    $description = 'Changed: ' . $fieldList . $more;
+                } elseif ($action === 'create' && !empty($a->new_values)) {
+                    $vals  = array_filter((array) $a->new_values, fn($v) => $v !== null && $v !== '');
+                    $vals  = array_diff_key($vals, array_flip($skipFields));
+                    $parts = [];
+                    foreach (array_slice($vals, 0, 2, true) as $k => $v) {
+                        $label   = str_replace(['_id', '_'], ['', ' '], $k);
+                        $display = strlen((string) $v) > 20 ? substr((string) $v, 0, 20) . '…' : $v;
+                        $parts[] = $label . ': ' . $display;
+                    }
+                    $description = $parts ? implode(', ', $parts) : 'New record created';
+                } else {
+                    $description = $recordId ? 'Record #' . $recordId . ' deleted' : 'Record deleted';
+                }
+
+                $actionLabels = ['create' => 'Created', 'update' => 'Updated', 'delete' => 'Deleted'];
                 $rows[] = [
                     'type'        => 'audit',
-                    'label'       => ucfirst($a->action ?? 'Change') . ' — ' . $table,
-                    'description' => 'Record #' . ($a->record_id ?? '?') . ' in ' . $table,
+                    'label'       => ($actionLabels[$action] ?? ucfirst($action)) . ' — ' . $moduleLabel . ($recordId ? ' #' . $recordId : ''),
+                    'description' => $description,
                     'location'    => null,
-                    'user'        => $a->user?->name,
-                    'status'      => ucfirst($a->action ?? 'updated'),
+                    'user'        => $userName,
+                    'status'      => $actionLabels[$action] ?? ucfirst($action),
                     'timestamp'   => $a->created_at?->toIso8601String(),
                 ];
             }

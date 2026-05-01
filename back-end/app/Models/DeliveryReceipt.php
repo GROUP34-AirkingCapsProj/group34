@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 /**
  * DeliveryReceipt (ERD: delivery_receipt)
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class DeliveryReceipt extends Model
 {
+    use Auditable;
     protected $table = 'delivery_receipts';
     protected $primaryKey = 'dr_id';
 

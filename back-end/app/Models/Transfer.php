@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 /**
  * Inventory transfers between locations (ERD: transfer)
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Transfer extends Model
 {
+    use Auditable;
     protected $table = 'transfers';
     protected $primaryKey = 'transfer_id';
 

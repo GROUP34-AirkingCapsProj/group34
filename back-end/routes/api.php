@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\PendingProductController;
 use App\Http\Controllers\Api\StatusLookupController;
 use App\Http\Controllers\Api\UnitLookupController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\AlertSettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -62,7 +63,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope'])->group
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
 
-    /*
+/*
     |--------------------------------------------------------------------------
     | DASHBOARD (DO NOT TOUCH)
     |--------------------------------------------------------------------------
@@ -73,6 +74,16 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope'])->group
     Route::get('/dashboard/low-stock', [DashboardController::class, 'lowStock']);
     Route::get('/dashboard/recent-sales', [DashboardController::class, 'recentSales']);
     Route::get('/dashboard/recent-movements', [DashboardController::class, 'recentMovements']);
+    Route::get('/dashboard/stock-movement-trends', [DashboardController::class, 'stockMovementTrends']);
+    Route::get('/dashboard/pending-approvals', [DashboardController::class, 'pendingApprovals']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | ALERT SETTINGS (Mark All Read)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/alerts/settings', [AlertSettingsController::class, 'index']);
+    Route::post('/alerts/mark-all-read', [AlertSettingsController::class, 'markAllRead']);
 
     /*
     |--------------------------------------------------------------------------
@@ -461,10 +472,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope'])->group
             return $query->paginate($request->get('per_page', 50));
         });
 
-        Route::get('/audit-trail', function () {
+        Route::get('/audit-trail', function (\Illuminate\Http\Request $request) {
             return \App\Models\AuditTrail::with('user')
                 ->orderBy('created_at', 'desc')
-                ->paginate(50);
+                ->paginate($request->get('per_page', 50));
         });
 
         Route::get('/audit-trail/user/{userId}', function ($userId) {

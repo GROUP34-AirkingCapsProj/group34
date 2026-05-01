@@ -4,12 +4,6 @@ import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { canActOnApprovalQueue, canApprovePendingRegistrations } from '../utils/roles';
-import {
-  getApprovalQueuePurchaseOrders,
-  updateApprovalQueuePurchaseOrderStatus,
-  mergeApprovalQueuePurchaseOrder,
-  removeApprovalQueuePurchaseOrder,
-} from '../utils/approvalNotifications';
 import { purchaseOrdersAPI, statusAPI, productsAPI, pendingProductsAPI, consumableSupplyAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/approval_queue.css';
@@ -54,11 +48,11 @@ const ApprovalQueue = ({ initialTab } = {}) => {
   const canApproveRegistrations = useMemo(() => canApprovePendingRegistrations(user), [user]);
   const location = useLocation();
 const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window === 'undefined') return 'item-registration';
+    if (typeof window === 'undefined') return 'purchase-orders';
     const q = new URLSearchParams(window.location.search).get('tab');
     if (q && AQ_TABS.includes(q)) return q;
     if (initialTab && AQ_TABS.includes(initialTab)) return initialTab;
-    return 'item-registration';
+    return 'purchase-orders';
   });
 
   useEffect(() => {
@@ -98,11 +92,11 @@ const [activeTab, setActiveTab] = useState(() => {
           po_number: po.po_number,
           supplier: po.supplier?.supplier_name || po.supplier?.name || '—',
           amount: Number(po.total_amount || po.grand_total || 0),
-          prepared_by: po.createdBy
-            ? `${po.createdBy.first_name || ''} ${po.createdBy.last_name || ''}`.trim()
+          prepared_by: po.created_by && typeof po.created_by === 'object'
+            ? `${po.created_by.first_name || ''} ${po.created_by.last_name || ''}`.trim() || po.created_by.username || po.created_by.email || '—'
             : '—',
-          approved_by_name: po.approvedBy
-            ? `${po.approvedBy.first_name || ''} ${po.approvedBy.last_name || ''}`.trim() || null
+          approved_by_name: po.approved_by && typeof po.approved_by === 'object'
+            ? `${po.approved_by.first_name || ''} ${po.approved_by.last_name || ''}`.trim() || po.approved_by.username || po.approved_by.email || null
             : null,
           date: po.created_at
             ? new Date(po.created_at).toLocaleString('en-PH', {
@@ -117,6 +111,10 @@ const [activeTab, setActiveTab] = useState(() => {
           status: mappedStatus,
           synced_to_api: true,
           backend_po_id: po.po_id,
+          supplier_obj: po.supplier || null,
+          location_obj: po.location || null,
+          approved_by_obj: po.approved_by && typeof po.approved_by === 'object' ? po.approved_by : null,
+          created_by_obj: po.created_by && typeof po.created_by === 'object' ? po.created_by : null,
           line_items_snapshot: Array.isArray(po.details)
             ? po.details.map((d) => ({
                 product: d.product?.product_name || d.product?.name || `Product #${d.product_id}`,
@@ -127,8 +125,8 @@ const [activeTab, setActiveTab] = useState(() => {
                 type: d.product?.product_type || null,
                 brand: d.product?.brand?.brand_name || null,
                 category: d.product?.category?.category_name || null,
-                approved_by: d.approvedBy
-                  ? `${d.approvedBy.first_name || ''} ${d.approvedBy.last_name || ''}`.trim() || null
+                approved_by: d.approved_by && typeof d.approved_by === 'object'
+                  ? `${d.approved_by.first_name || ''} ${d.approved_by.last_name || ''}`.trim() || d.approved_by.username || null
                   : null,
               }))
             : [],
@@ -144,31 +142,6 @@ const [activeTab, setActiveTab] = useState(() => {
     }
   }, []);
 
-useEffect(() => {
-    const hydrateFromStorage = () => {
-      const stored = getApprovalQueuePurchaseOrders();
-      if (stored.length) {
-        setPurchaseOrders((prev) => {
-          const existingIds = new Set(prev.map((po) => String(po.id)));
-          // Also deduplicate by backend_po_id so localStorage items don't stack
-          // on top of server items (which use "server-{id}" ids, not "aq-po-{ts}").
-          const existingBackendIds = new Set(
-            prev.map((po) => String(po.backend_po_id ?? '')).filter(Boolean),
-          );
-          const toAdd = stored.filter((po) => {
-            if (existingIds.has(String(po.id))) return false;
-            const bid = String(po.backend_po_id ?? '');
-            return !bid || !existingBackendIds.has(bid);
-          });
-          return [...toAdd, ...prev];
-        });
-      }
-    };
-
-    hydrateFromStorage();
-    window.addEventListener('approval-notifications-updated', hydrateFromStorage);
-    return () => window.removeEventListener('approval-notifications-updated', hydrateFromStorage);
-  }, []);
 
   // Fetch server POs when purchase-orders tab becomes active
   useEffect(() => {
@@ -197,6 +170,7 @@ useEffect(() => {
   const [poVerifySupplier, setPoVerifySupplier]     = useState(null);
   const [poVerifyLocation, setPoVerifyLocation]     = useState(null);
   const [poVerifyApprovedBy, setPoVerifyApprovedBy] = useState(null);
+  const [poVerifyCreatedBy, setPoVerifyCreatedBy]   = useState(null);
 
   useEffect(() => {
     if (!poVerifyModal) {
@@ -206,12 +180,18 @@ useEffect(() => {
       setPoVerifySupplier(null);
       setPoVerifyLocation(null);
       setPoVerifyApprovedBy(null);
+      setPoVerifyCreatedBy(null);
       return;
     }
+
+    // cancelled = true when this effect re-runs (new PO opened) or modal closes.
+    // Prevents a slow fetch from a previously-opened PO from overwriting the current PO's data.
+    let cancelled = false;
 
     const po = poVerifyModal;
     const fromSnapshot = Array.isArray(po.line_items_snapshot) ? po.line_items_snapshot : [];
     if (fromSnapshot.length) {
+      // Show lines immediately from snapshot — no network wait
       setPoVerifyLines(
         fromSnapshot.map((row, i) => ({
           key: `snap-${i}`,
@@ -227,7 +207,28 @@ useEffect(() => {
         })),
       );
       setPoVerifyLoading(false);
-      return;
+
+      // Seed header fields immediately from list data (instant, no network)
+      if (po.supplier_obj) setPoVerifySupplier(po.supplier_obj);
+      if (po.location_obj) setPoVerifyLocation(po.location_obj);
+      if (po.approved_by_obj) setPoVerifyApprovedBy(po.approved_by_obj);
+      if (po.created_by_obj) setPoVerifyCreatedBy(po.created_by_obj);
+
+      // Background fetch for richer header fields (phone, address, etc.)
+      if (po.backend_po_id != null && po.backend_po_id !== '') {
+        (async () => {
+          try {
+            const res = await purchaseOrdersAPI.getById(String(po.backend_po_id));
+            if (cancelled) return;
+            const data = res?.data;
+            if (data?.supplier) setPoVerifySupplier(data.supplier);
+            if (data?.location) setPoVerifyLocation(data.location);
+            if (data?.approved_by && typeof data.approved_by === 'object') setPoVerifyApprovedBy(data.approved_by);
+            if (data?.created_by && typeof data.created_by === 'object')  setPoVerifyCreatedBy(data.created_by);
+          } catch (_) { /* snapshot already shown — ignore */ }
+        })();
+      }
+      return () => { cancelled = true; };
     }
 
     const payloadDetails = po.api_create_payload?.details;
@@ -257,8 +258,10 @@ useEffect(() => {
               };
             }),
           );
+          if (cancelled) return;
           setPoVerifyLines(rows);
         } catch {
+          if (cancelled) return;
           setPoVerifyError('Could not load product names for this PO.');
           setPoVerifyLines(
             payloadDetails.map((d, i) => ({
@@ -271,10 +274,10 @@ useEffect(() => {
             })),
           );
         } finally {
-          setPoVerifyLoading(false);
+          if (!cancelled) setPoVerifyLoading(false);
         }
       })();
-      return;
+      return () => { cancelled = true; };
     }
 
     const backendId = po.backend_po_id;
@@ -284,15 +287,17 @@ useEffect(() => {
       (async () => {
         try {
           const res = await purchaseOrdersAPI.getById(String(backendId));
+          if (cancelled) return;
           const data = res?.data;
           const details = Array.isArray(data?.details) ? data.details : [];
-          if (data?.supplier)   setPoVerifySupplier(data.supplier);
-          if (data?.location)   setPoVerifyLocation(data.location);
-          if (data?.approvedBy) setPoVerifyApprovedBy(data.approvedBy);
+          if (data?.supplier) setPoVerifySupplier(data.supplier);
+          if (data?.location) setPoVerifyLocation(data.location);
+          if (data?.approved_by && typeof data.approved_by === 'object') setPoVerifyApprovedBy(data.approved_by);
+          if (data?.created_by && typeof data.created_by === 'object')  setPoVerifyCreatedBy(data.created_by);
           setPoVerifyLines(
             details.map((d, i) => {
               const p = d.product || {};
-              const ab = d.approvedBy || d.approved_by || null;
+              const ab = (d.approved_by && typeof d.approved_by === 'object') ? d.approved_by : null;
               return {
                 key: `api-${d.detail_id ?? i}`,
                 name: p.product_name || p.name || `Product #${d.product_id}`,
@@ -307,13 +312,14 @@ useEffect(() => {
             }),
           );
         } catch (err) {
+          if (cancelled) return;
           setPoVerifyError(err?.message || 'Could not load PO lines from the server.');
           setPoVerifyLines([]);
         } finally {
-          setPoVerifyLoading(false);
+          if (!cancelled) setPoVerifyLoading(false);
         }
       })();
-      return;
+      return () => { cancelled = true; };
     }
 
     setPoVerifyLines([]);
@@ -389,60 +395,35 @@ useEffect(() => {
     }
   };
 
-  const handlePOAction = async (id, action) => {
+const handlePOAction = async (id, action) => {
     const nextStatus = action === 'approve' ? 'authorized' : 'rejected';
-if (action === 'reject') {
-      setPurchaseOrders((prev) =>
-        prev.map((po) => (po.id === id ? { ...po, status: nextStatus } : po)),
-      );
-      updateApprovalQueuePurchaseOrderStatus(id, nextStatus);
-      // Clean up localStorage for rejected POs
-      removeApprovalQueuePurchaseOrder(id);
-      return;
-    }
 
-    const po = purchaseOrders.find((p) => p.id === id);
+    // For reject action, also update the server with rejected status
+    if (action === 'reject') {
+      const po = purchaseOrders.find((p) => p.id === id);
+      if (!po?.backend_po_id) return;
 
-    if (po?.synced_to_api && po?.backend_po_id && !po.api_create_payload) {
       setPoActionLoading(id);
       try {
         const stRes = await statusAPI.getAll({ category: 'purchase_order' });
         const stRows = Array.isArray(stRes?.data) ? stRes.data : [];
-        const authorizedId = stRows.find((s) => {
+        const rejectedId = stRows.find((s) => {
           const n = String(s.status_name || '').toLowerCase();
-          return n === 'authorized' || n.includes('authori');
+          return n === 'rejected' || n.includes('reject');
         })?.status_id;
-        if (!authorizedId) {
-          toast.error('No Authorized status for purchase orders. Run backend migrations, then try again.');
+        if (!rejectedId) {
+          toast.error('No Rejected status for purchase orders. Run backend migrations, then try again.');
           return;
         }
-        // Get current user ID for approved_by
-let currentUserId = null;
-try {
-  const rawUser = localStorage.getItem('user');
-  const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-  currentUserId = parsedUser?.user_id ?? parsedUser?.id ?? null;
-} catch (_) { /* non-fatal */ }
-
-await purchaseOrdersAPI.update(String(po.backend_po_id), {
-  status_id: authorizedId,
-  ...(currentUserId ? { approved_by: currentUserId } : {}),  // ← sends approver ID to DB
-});
-
-const patch = {
-  status: 'authorized',
-  approved_at: new Date().toISOString(),
-  approved_by_name: user
-    ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || null
-    : null,  // ← updates UI immediately
-};
-mergeApprovalQueuePurchaseOrder(id, patch);
+        const currentUserId = user?.user_id ?? null;
+        await purchaseOrdersAPI.update(String(po.backend_po_id), {
+          status_id: rejectedId,
+          ...(currentUserId ? { approved_by: currentUserId } : {}),
+        });
         setPurchaseOrders((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+          prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p)),
         );
-        // Clean up localStorage: remove the PO now that it's synced to API
-        removeApprovalQueuePurchaseOrder(id);
-        toast.success('PO authorized on the server. It stays in Receive PO; receiving follows expected date rules.');
+        toast.success('PO rejected on the server.');
       } catch (err) {
         if (err?.status === 403) {
           toast.error('This account cannot update purchase orders on the server.');
@@ -450,65 +431,57 @@ mergeApprovalQueuePurchaseOrder(id, patch);
         }
         const msg = err?.errors
           ? Object.values(err.errors).flat().join(' ')
-          : err?.message || 'Could not authorize this PO on the server.';
+          : err?.message || 'Could not reject this PO on the server.';
         toast.error(msg);
-        return;
       } finally {
         setPoActionLoading(null);
       }
       return;
     }
 
-    if (po?.api_create_payload && !po.synced_to_api) {
-      setPoActionLoading(id);
-      try {
-        const res = await purchaseOrdersAPI.create(po.api_create_payload);
-        const data = res?.data ?? res;
-        const backendId = data?.po_id ?? data?.id;
-        if (backendId == null || backendId === '') {
-          toast.error('Server saved the PO but did not return an ID. Check the network response.');
-          return;
-        }
-        const patch = {
-          status: 'authorized',
-          synced_to_api: true,
-          backend_po_id: backendId,
-          approved_at: new Date().toISOString(),
-          api_create_payload: null,
-        };
-mergeApprovalQueuePurchaseOrder(id, patch);
-        setPurchaseOrders((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-        );
-        // Clean up localStorage: remove the PO now that it's synced to API
-        removeApprovalQueuePurchaseOrder(id);
-        toast.success('PO saved to the server. It appears in Receive PO now (merged with your purchase order list).');
-      } catch (err) {
-        if (err?.status === 403) {
-          toast.error('This account cannot create purchase orders on the server. Use an Admin, Inventory Analyst, or Branch Manager account to approve.');
-          return;
-        }
-        const msg = err?.errors
-          ? Object.values(err.errors).flat().join(' ')
-          : err?.message || 'Could not create this PO on the server.';
-        toast.error(msg);
-        return;
-      } finally {
-        setPoActionLoading(null);
-      }
-      return;
-    }
+    const po = purchaseOrders.find((p) => p.id === id);
+    if (!po?.backend_po_id) return;
 
-setPurchaseOrders((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: nextStatus } : p)),
-    );
-    updateApprovalQueuePurchaseOrderStatus(id, nextStatus);
-    // Clean up localStorage for locally approved POs
-    removeApprovalQueuePurchaseOrder(id);
-    if (!po?.api_create_payload) {
-      toast.warning(
-        'Approved locally only — not sent to server. Receive PO will not list this unless it was synced (Draft PO with Item Master lines + branch location) or created in the database.',
+    setPoActionLoading(id);
+    try {
+      const stRes = await statusAPI.getAll({ category: 'purchase_order' });
+      const stRows = Array.isArray(stRes?.data) ? stRes.data : [];
+      const authorizedId = stRows.find((s) => {
+        const n = String(s.status_name || '').toLowerCase();
+        return n === 'authorized' || n.includes('authori');
+      })?.status_id;
+      if (!authorizedId) {
+        toast.error('No Authorized status for purchase orders. Run backend migrations, then try again.');
+        return;
+      }
+      const currentUserId = user?.user_id ?? null;
+      await purchaseOrdersAPI.update(String(po.backend_po_id), {
+        status_id: authorizedId,
+        ...(currentUserId ? { approved_by: currentUserId } : {}),
+      });
+      const patch = {
+        status: 'authorized',
+        approved_at: new Date().toISOString(),
+        approved_by_name: user
+          ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || null
+          : null,
+        approved_by_obj: user ?? null,
+      };
+      setPurchaseOrders((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
       );
+      toast.success('PO authorized on the server.');
+    } catch (err) {
+      if (err?.status === 403) {
+        toast.error('This account cannot update purchase orders on the server.');
+        return;
+      }
+      const msg = err?.errors
+        ? Object.values(err.errors).flat().join(' ')
+        : err?.message || 'Could not authorize this PO on the server.';
+      toast.error(msg);
+    } finally {
+      setPoActionLoading(null);
     }
   };
 
@@ -554,7 +527,18 @@ return (
 
         {/* Tab Navigation */}
         <div className="aq-tabs">
-<button
+          <button
+            type="button"
+            className={`aq-tab-btn ${activeTab === 'purchase-orders' ? 'active' : ''}`}
+            onClick={() => setActiveTab('purchase-orders')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            Purchase orders
+          </button>
+          <button
             type="button"
             className={`aq-tab-btn ${activeTab === 'item-registration' ? 'active' : ''}`}
             onClick={() => setActiveTab('item-registration')}
@@ -566,17 +550,6 @@ return (
               <line x1="9" y1="15" x2="15" y2="15"></line>
             </svg>
             Item registration
-          </button>
-          <button
-            type="button"
-            className={`aq-tab-btn ${activeTab === 'purchase-orders' ? 'active' : ''}`}
-            onClick={() => setActiveTab('purchase-orders')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-            Purchase orders
           </button>
           <button
             type="button"
@@ -1016,7 +989,11 @@ return (
                 <div className="po-detail-info-grid">
                   <div className="po-detail-info-item">
                     <span className="po-detail-info-label">PREPARED BY</span>
-                    <span className="po-detail-info-value">{po.prepared_by || '—'}</span>
+                    <span className="po-detail-info-value">
+                      {poVerifyCreatedBy
+                        ? `${poVerifyCreatedBy.first_name || ''} ${poVerifyCreatedBy.last_name || ''}`.trim() || poVerifyCreatedBy.username || poVerifyCreatedBy.email || '—'
+                        : po.prepared_by || '—'}
+                    </span>
                   </div>
                   <div className="po-detail-info-item">
                     <span className="po-detail-info-label">DATE</span>
@@ -1030,12 +1007,12 @@ return (
                     <span className="po-detail-info-label">TOTAL AMOUNT</span>
                     <span className="po-detail-info-value" style={{ color: '#dc2626', fontWeight: 800 }}>₱{amount.toLocaleString('en-PH')}</span>
                   </div>
-                  {(poVerifyApprovedBy || po.approved_by_name) && (
+                  {(poVerifyApprovedBy || po.approved_by_name || po.status === 'authorized') && (
                     <div className="po-detail-info-item">
                       <span className="po-detail-info-label">APPROVED BY</span>
                       <span className="po-detail-info-value">
                         {poVerifyApprovedBy
-                          ? `${poVerifyApprovedBy.first_name || ''} ${poVerifyApprovedBy.last_name || ''}`.trim() || po.approved_by_name || '—'
+                          ? `${poVerifyApprovedBy.first_name || ''} ${poVerifyApprovedBy.last_name || ''}`.trim() || poVerifyApprovedBy.username || poVerifyApprovedBy.email || '—'
                           : po.approved_by_name || '—'}
                       </span>
                     </div>

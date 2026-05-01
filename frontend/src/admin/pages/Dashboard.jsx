@@ -302,50 +302,54 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ENTERPRISE QUICK ACTIONS */}
-      <div className="quick-actions-section">
-        <div className="quick-actions-header">
-          <div>
-            <h3 className="quick-actions-title">ENTERPRISE QUICK ACTIONS</h3>
-            <p className="quick-actions-subtitle">Direct access to newly integrated system modules.</p>
-          </div>
-          <button type="button" className="quick-actions-view-all" onClick={() => navigate('/admin/config')}>
-            VIEW ALL INTEGRATIONS &gt;
-          </button>
-        </div>
-        <div className="quick-actions-grid">
-          {[
-            { label: 'CREATE USER', path: '/admin/users', cls: 'red', icon: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></> },
-            { label: 'LOCATIONS', path: '/admin/locations', cls: 'yellow', icon: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></> },
-
-            { label: 'CUSTOMER', path: '/admin/customers', cls: 'green', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></> },
-            { label: 'CLAIM', path: '/admin/warranty', cls: 'purple', icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> },
-            { label: 'TRANSFERS', path: '/admin/inventory', cls: 'grey', icon: <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></> },
-          ].map(({ label, path, cls, icon }) => (
-            <button key={label} type="button" className="quick-action-card" onClick={() => navigate(path)}>
-              <span className={`quick-action-icon quick-action-icon-${cls}`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{icon}</svg>
-              </span>
-              <span className="quick-action-label">{label}</span>
-            </button>
-          ))}
+      {/* TRANSACTION TRENDS */}
+      <div className="chart-card">
+        <h3>Transaction Trends</h3>
+        <div className="chart-wrapper">
+          <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'purchase', data: transactionTrends.values.map((v) => v * 0.6), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'sales', data: transactionTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
         </div>
       </div>
 
-      {/* CHARTS ROW 1 + RECENT ACTIVITY */}
-      <div className="chart-card">
-          <h3>Transaction Trends</h3>
-          <div className="chart-wrapper">
-            <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'purchase', data: transactionTrends.values.map((v) => v * 0.6), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'sales', data: transactionTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+      {/* QUICK ACTIONS + RECENT ACTIVITY */}
+      <div className="charts-section">
+        {/* Quick Actions */}
+        <div className="chart-card">
+          <div className="quick-actions-header">
+            <div>
+              <p className="quick-actions-title">ENTERPRISE QUICK ACTIONS</p>
+              <p className="quick-actions-subtitle">Direct access to newly integrated system modules.</p>
+            </div>
+            <button type="button" className="quick-actions-view-all" onClick={() => navigate('/admin/config')}>
+              VIEW ALL &gt;
+            </button>
           </div>
-        
+          <div className="quick-actions-grid quick-actions-grid--compact">
+            {[
+              { label: 'CREATE USER', path: '/admin/users', cls: 'red', icon: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></> },
+              { label: 'LOCATIONS', path: '/admin/locations', cls: 'yellow', icon: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></> },
+              { label: 'CUSTOMER', path: '/admin/customers', cls: 'green', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></> },
+              { label: 'CLAIM', path: '/admin/warranty', cls: 'purple', icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> },
+              { label: 'TRANSFERS', path: '/admin/inventory', cls: 'grey', icon: <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></> },
+              { label: 'SCAN BARCODE', path: '/admin/inventory-operation', cls: 'blue', icon: <><path d="M4 7V5a2 2 0 0 1 2-2h2"/><path d="M16 3h2a2 2 0 0 1 2 2v2"/><path d="M4 17v2a2 2 0 0 0 2 2h2"/><path d="M16 21h2a2 2 0 0 0 2-2v-2"/><line x1="8" y1="8" x2="8" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></> },
+            ].map(({ label, path, cls, icon }) => (
+              <button key={label} type="button" className="quick-action-card" onClick={() => navigate(path)}>
+                <span className={`quick-action-icon quick-action-icon-${cls}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{icon}</svg>
+                </span>
+                <span className="quick-action-label">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
         <div className="recent-activity-section recent-activity-section--card">
           <div className="recent-activity-header">
             <div>
               <h3 className="recent-activity-title">Recent Activity</h3>
-              <p className="recent-activity-subtitle">Latest sales, transfers, and receivings across all branches.</p>
+              <p className="recent-activity-subtitle">Latest sales, transfers, receivings, and system changes.</p>
             </div>
-            <button type="button" className="recent-activity-view-all" onClick={() => navigate('/admin/inventory')}>
+            <button type="button" className="recent-activity-view-all" onClick={() => navigate('/admin/audit')}>
               VIEW ALL &gt;
             </button>
           </div>
@@ -355,6 +359,7 @@ const AdminDashboard = () => {
             <ul className="recent-activity-list">
               {recentActivity.map((item, idx) => {
                 const meta = activityMeta[item.type] ?? { label: item.type, color: '#6b7280', bg: '#f3f4f6' };
+                const isAudit = item.type === 'audit';
                 return (
                   <li key={idx} className="recent-activity-item">
                     <span className="ra-dot" style={{ background: meta.color }} />
@@ -364,7 +369,7 @@ const AdminDashboard = () => {
                         <span className="ra-name">{item.label}</span>
                         {item.location && <span className="ra-location">{item.location}</span>}
                       </div>
-                      <p className="ra-desc">{item.description}</p>
+                      <p className={`ra-desc${isAudit ? ' ra-desc--wrap' : ''}`}>{item.description}</p>
                       {item.user && <p className="ra-user">by {item.user}</p>}
                     </div>
                     <div className="ra-right">

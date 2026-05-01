@@ -4,9 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 class SaleDetail extends Model
 {
+    use Auditable;
     protected $table = 'sales_details';
     protected $primaryKey = 'sales_detail_id';
 

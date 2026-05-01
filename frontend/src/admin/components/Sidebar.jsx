@@ -76,22 +76,23 @@ const adminMenuSections = [
   {
     label: 'INVENTORY INTELLIGENCE',
     items: [
-      { name: 'Stock Movement', path: '/admin/inventory', icon: 'movement' },
+      { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
     ],
   },
   {
     label: 'SALES & LOGISTICS',
+
     items: [
       { name: 'POS Operations', path: '/admin/transactions', icon: 'transactions' },
       { name: 'Transactions', path: '/admin/transactions', icon: 'globaltransactions' },
       { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
       { name: 'Customer Registry', path: '/admin/customers', icon: 'customers' },
-      { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'inventoryop' },
-      { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
+      { name: 'Scan Barcode', path: '/admin/inventory-operation', icon: 'scan' },
     ],
   },
   {
     label: 'COMPLIANCE & SUPPORT',
+
     items: [
       { name: 'Compliance Review', path: '/admin/compliance', icon: 'compliance' },
       { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
@@ -186,6 +187,18 @@ const renderIcon = (iconType) => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
           <line x1="7" y1="7" x2="7.01" y2="7"></line>
+        </svg>
+      );
+    case 'scan':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 7V5a2 2 0 0 1 2-2h2"/>
+          <path d="M16 3h2a2 2 0 0 1 2 2v2"/>
+          <path d="M4 17v2a2 2 0 0 0 2 2h2"/>
+          <path d="M16 21h2a2 2 0 0 0 2-2v-2"/>
+          <line x1="8" y1="8" x2="8" y2="16"/>
+          <line x1="12" y1="8" x2="12" y2="16"/>
+          <line x1="16" y1="8" x2="16" y2="16"/>
         </svg>
       );
     case 'inventory':
@@ -356,6 +369,7 @@ const Sidebar = ({
   roleKey,
   roleMeta,
   onLogout,
+  pendingApprovalCount = 0,
 }) => {
   const locationLabel = user?.location?.location_name || user?.branch?.branch_name || null;
   const showLocationChip =
@@ -449,6 +463,11 @@ const Sidebar = ({
                   >
                     <span className="nav-icon">{renderIcon(item.icon)}</span>
                     <span className="nav-text">{item.name}</span>
+                    {item.path === '/admin/approval-queue' && pendingApprovalCount > 0 && (
+                      <span className="nav-item-badge">
+                        {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

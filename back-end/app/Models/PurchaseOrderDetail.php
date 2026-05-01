@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 /**
  * PurchaseOrderDetail (ERD: purchase_order_detail)
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PurchaseOrderDetail extends Model
 {
+    use Auditable;
     protected $table = 'purchase_order_details';
     protected $primaryKey = 'po_detail_id';
 
