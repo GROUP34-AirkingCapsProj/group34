@@ -7,7 +7,10 @@ use App\Models\ActivityLog;
 use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
+use App\Models\Receiving;
+use App\Models\ReceivingDetail;
 use App\Models\Transfer;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -33,6 +36,7 @@ class InventoryScanTransactionController extends Controller
                 'to_location_id'     => 'nullable|exists:locations,location_id',
                 'quantity'           => 'nullable|integer|min:1',
                 'po_id'              => 'nullable|exists:purchase_orders,po_id',
+                'po_detail_id'       => 'nullable|exists:purchase_order_details,po_detail_id',
             ]);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
@@ -42,7 +46,18 @@ class InventoryScanTransactionController extends Controller
         $type = $validated['transaction_type'];
         $quantity = max(1, (int) ($validated['quantity'] ?? 1));
 
-        $product = $this->resolveProductByBarcode($barcode);
+        // For PO receiving with a known line item, the scanned value is a serial number —
+        // resolve the product from the PO detail instead of treating the scan as a product lookup.
+        $product = null;
+        if ($type === 'receiving' && ! empty($validated['po_detail_id'])) {
+            $poDetailForLookup = PurchaseOrderDetail::with('product')->find((int) $validated['po_detail_id']);
+            if ($poDetailForLookup?->product) {
+                $product = $poDetailForLookup->product;
+            }
+        }
+        if (! $product) {
+            $product = $this->resolveProductByBarcode($barcode);
+        }
         if (! $product) {
             return $this->success([
                 'action' => 'rejected',
@@ -138,16 +153,113 @@ class InventoryScanTransactionController extends Controller
             ], 'Rejected');
         }
 
-        if (! empty($validated['po_id'])) {
-            $poId = (int) $validated['po_id'];
-            $onPo = PurchaseOrderDetail::query()
-                ->where('po_id', $poId)
-                ->where('product_id', $product->product_id)
-                ->exists();
-            if (! $onPo) {
+        $poId             = ! empty($validated['po_id']) ? (int) $validated['po_id'] : 0;
+        $poDetailIdDirect = ! empty($validated['po_detail_id']) ? (int) $validated['po_detail_id'] : null;
+        $poDetail         = null;
+        $remaining        = null;
+
+        // BUG 2: Validate PO status before allowing receiving
+        if ($poId) {
+            $po         = PurchaseOrder::with('status')->find($poId);
+            $statusName = strtolower($po->status?->status_name ?? '');
+            $goodStatuses = ['approved', 'authorized', 'active', 'confirmed', 'complete', 'received'];
+            $badStatuses  = ['pending', 'draft', 'awaiting', 'submitted', 'rejected', 'cancelled', 'void'];
+
+            $isGood = false;
+            foreach ($goodStatuses as $s) {
+                if (str_contains($statusName, $s)) {
+                    $isGood = true;
+                    break;
+                }
+            }
+
+            if (! $isGood) {
+                $isBad = false;
+                foreach ($badStatuses as $s) {
+                    if (str_contains($statusName, $s)) {
+                        $isBad = true;
+                        break;
+                    }
+                }
+                if ($isBad) {
+                    return $this->success([
+                        'action' => 'rejected',
+                        'reason' => 'This PO is not approved. Status: ' . ($po->status?->status_name ?? 'Unknown'),
+                    ], 'Rejected');
+                }
+            }
+        }
+
+        // PO line-item resolution and over-receiving protection
+        if ($poId) {
+            if ($poDetailIdDirect) {
+                // Serial-number assignment mode: the frontend supplied the exact line-item ID.
+                $poDetail = PurchaseOrderDetail::find($poDetailIdDirect);
+                if (! $poDetail || (int) $poDetail->po_id !== $poId) {
+                    return $this->success([
+                        'action' => 'rejected',
+                        'reason' => 'Line item does not belong to the selected purchase order.',
+                    ], 'Rejected');
+                }
+                // Count received units for this specific line item only.
+                $alreadyReceived = (int) ReceivingDetail::query()
+                    ->where('po_detail_id', $poDetailIdDirect)
+                    ->sum('quantity_amount');
+            } else {
+                // Legacy barcode-lookup path.
+                $onPo = PurchaseOrderDetail::query()
+                    ->where('po_id', $poId)
+                    ->where('product_id', $product->product_id)
+                    ->exists();
+                if (! $onPo) {
+                    return $this->success([
+                        'action' => 'rejected',
+                        'reason' => 'This product is not on the selected purchase order.',
+                    ], 'Rejected');
+                }
+                $poDetail = PurchaseOrderDetail::query()
+                    ->where('po_id', $poId)
+                    ->where('product_id', $product->product_id)
+                    ->first();
+                $alreadyReceived = (int) ReceivingDetail::query()
+                    ->where('product_id', $product->product_id)
+                    ->whereIn('receiving_id', function ($sub) use ($poId) {
+                        $sub->select('receiving_id')->from('receivings')->where('po_id', $poId);
+                    })
+                    ->sum('quantity_amount');
+            }
+
+            $remaining = (int) $poDetail->quantity_ordered - $alreadyReceived;
+
+            if ($remaining <= 0) {
                 return $this->success([
                     'action' => 'rejected',
-                    'reason' => 'This product is not on the selected purchase order.',
+                    'reason' => "All {$poDetail->quantity_ordered} unit(s) already received for this line item.",
+                ], 'Rejected');
+            }
+
+            $quantity = min($quantity, $remaining);
+        }
+
+        // Duplicate serial / barcode guard.
+        // Serial-number mode: serials are globally unique — check across all receipts.
+        // Legacy barcode mode: scope to the PO to avoid false rejections on shared product SKUs.
+        $scannedBarcode = strtolower(trim($validated['barcode']));
+        if ($scannedBarcode !== '') {
+            $dupQuery = ReceivingDetail::query()
+                ->whereNotNull('scanned_barcode')
+                ->whereRaw('LOWER(TRIM(scanned_barcode)) = ?', [$scannedBarcode]);
+
+            if (! $poDetailIdDirect && $poId) {
+                $dupQuery->whereIn('receiving_id', function ($sub) use ($poId) {
+                    $sub->select('receiving_id')->from('receivings')->where('po_id', $poId);
+                });
+            }
+
+            if ($dupQuery->exists()) {
+                return $this->success([
+                    'action' => 'rejected',
+                    'reason' => 'This barcode/serial has already been recorded as received. Duplicate prevented.',
                 ], 'Rejected');
             }
         }
@@ -169,17 +281,65 @@ class InventoryScanTransactionController extends Controller
             $inv->available_quantity = (int) $inv->available_quantity + $quantity;
             $inv->save();
 
+            // BUG 4: Find or create the receivings header row
+            if ($poId) {
+                $receiving = Receiving::where('po_id', $poId)
+                    ->where('location_id', $locationId)
+                    ->first();
+            } else {
+                $receiving = Receiving::whereNull('po_id')
+                    ->where('location_id', $locationId)
+                    ->whereDate('created_at', now()->toDateString())
+                    ->first();
+            }
+
+            if (! $receiving) {
+                $receiving = new Receiving();
+                $receiving->receiving_number        = 'RCV-SCAN-' . str_replace('.', '', uniqid('', true));
+                $receiving->receiving_date          = now()->toDateString();
+                $receiving->received_by             = $request->user()?->user_id;
+                $receiving->total_quantity_received = 0;
+                $receiving->total_quantity_damaged  = 0;
+                $receiving->location_id             = $locationId;
+                if ($poId) {
+                    $receiving->po_id = $poId;
+                }
+                $receiving->save();
+            }
+
+            $receiving->increment('total_quantity_received', $quantity);
+
+            // BUG 3 + BUG 4: Create receiving_details row, storing po_detail_id
+            $receiving->details()->create([
+                'product_id'      => $product->product_id,
+                'po_detail_id'    => $poDetail?->po_detail_id,
+                'quantity_amount' => $quantity,
+                'prod_price'      => $product->cost_price ?? 0,
+                'condition'       => 'Good',
+                'scanned_barcode' => $scannedBarcode ?: null,
+            ]);
+
             DB::commit();
             Product::syncQuantityFromInventory((int) $product->product_id);
+            if ($poId) {
+                $this->syncPoReceivingStatus($poId);
+            }
 
             $fresh = $product->fresh()->load(['category', 'brand', 'model', 'unit', 'status']);
 
-            return $this->success([
-                'action'    => 'applied',
-                'product'   => $fresh,
-                'inventory' => $this->inventoryRowsForProduct((int) $product->product_id),
-                'warnings'  => [],
-            ], 'Receiving posted');
+            $payload = [
+                'action'           => 'applied',
+                'product'          => $fresh,
+                'inventory'        => $this->inventoryRowsForProduct((int) $product->product_id),
+                'warnings'         => [],
+                'receiving_number' => $receiving->receiving_number,
+            ];
+
+            if ($poId && $remaining !== null) {
+                $payload['remaining_after'] = $remaining - $quantity;
+            }
+
+            return $this->success($payload, 'Receiving posted');
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -427,5 +587,39 @@ class InventoryScanTransactionController extends Controller
         return DB::table('status_lookup')
             ->where('status_category', 'transfer')
             ->value('status_id');
+    }
+
+    private function syncPoReceivingStatus(int $poId): void
+    {
+        $details = PurchaseOrderDetail::where('po_id', $poId)
+            ->get(['po_detail_id', 'quantity_ordered']);
+
+        if ($details->isEmpty()) {
+            return;
+        }
+
+        $totalOrdered  = 0;
+        $totalReceived = 0;
+
+        foreach ($details as $d) {
+            $totalOrdered  += (int) $d->quantity_ordered;
+            $totalReceived += (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)
+                ->sum('quantity_amount');
+        }
+
+        if ($totalReceived === 0) {
+            return; // nothing received yet — leave the status as-is
+        }
+
+        $targetName = $totalReceived >= $totalOrdered ? 'Completed' : 'Partially Received';
+
+        $statusId = DB::table('status_lookup')
+            ->where('status_category', 'purchase_order')
+            ->whereRaw('LOWER(TRIM(status_name)) = ?', [strtolower($targetName)])
+            ->value('status_id');
+
+        if ($statusId) {
+            PurchaseOrder::where('po_id', $poId)->update(['status_id' => $statusId]);
+        }
     }
 }
