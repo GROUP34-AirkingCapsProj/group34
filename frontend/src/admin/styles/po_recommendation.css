@@ -2080,6 +2080,18 @@
   border-color: #d1d5db;
 }
 
+.po-status-badge--completed {
+  color: #0e7490;
+  background: #ecfeff;
+  border-color: #a5f3fc;
+}
+
+.po-status-badge--partial {
+  color: #d97706;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
 /* ── Priority badges ── */
 .po-priority-badge {
   display: inline-flex;
@@ -2219,6 +2231,26 @@
 
 .po-status-note--cancelled strong {
   color: #374151;
+}
+
+.po-status-note--completed {
+  background: #ecfeff;
+  border-top-color: #a5f3fc;
+  color: #0e7490;
+}
+
+.po-status-note--completed strong {
+  color: #0e7490;
+}
+
+.po-status-note--partial {
+  background: #fffbeb;
+  border-top-color: #fde68a;
+  color: #d97706;
+}
+
+.po-status-note--partial strong {
+  color: #b45309;
 }
 
 /* ============================================================

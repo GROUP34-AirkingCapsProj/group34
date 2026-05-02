@@ -17,12 +17,14 @@ class Inventory extends Model
         'location_id',
         'product_id',
         'quantity_on_hand',
+        'packages_on_hand',
         'available_quantity',
         'reorder_level',
     ];
 
     protected $casts = [
         'quantity_on_hand'   => 'integer',
+        'packages_on_hand'   => 'integer',
         'available_quantity' => 'integer',
         'reorder_level'      => 'integer',
     ];

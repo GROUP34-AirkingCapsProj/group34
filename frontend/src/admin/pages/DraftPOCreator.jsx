@@ -698,11 +698,12 @@ const DraftPOCreator = () => {
 
   const getStatusConfig = (statusName) => {
     const s = String(statusName || '').toLowerCase();
-    if (s.includes('approv') || s.includes('authoriz') || s.includes('complet'))
-      return { label: 'APPROVED', color: 'approved' };
-    if (s.includes('reject')) return { label: 'REJECTED', color: 'rejected' };
-    if (s.includes('cancel')) return { label: 'CANCELLED', color: 'cancelled' };
-    if (s.includes('pending')) return { label: 'PENDING APPROVAL', color: 'pending' };
+    if (s.includes('complet'))                        return { label: 'COMPLETED',          color: 'completed' };
+    if (s.includes('partial'))                        return { label: 'PARTIALLY RECEIVED', color: 'partial'   };
+    if (s.includes('approv') || s.includes('authoriz')) return { label: 'APPROVED',         color: 'approved'  };
+    if (s.includes('reject'))                         return { label: 'REJECTED',            color: 'rejected'  };
+    if (s.includes('cancel'))                         return { label: 'CANCELLED',           color: 'cancelled' };
+    if (s.includes('pending'))                        return { label: 'PENDING APPROVAL',    color: 'pending'   };
     return { label: String(statusName || 'DRAFT').toUpperCase(), color: 'draft' };
   };
 
@@ -737,6 +738,11 @@ const DraftPOCreator = () => {
                 po.approved_by?.username || 'Admin User'
               : createdByName;
           const actionDate = po.updated_at ? String(po.updated_at).slice(0, 10) : '—';
+          const receivedByName =
+            po.received_by && typeof po.received_by === 'object'
+              ? `${po.received_by?.first_name || ''} ${po.received_by?.last_name || ''}`.trim() ||
+                po.received_by?.username || '—'
+              : '—';
 
           return (
             <div key={po.po_id} className="po-status-card">
@@ -745,6 +751,19 @@ const DraftPOCreator = () => {
                   <div className="po-status-card-header-row">
                     <span className="po-status-card-number">{po.po_number}</span>
                     <span className={`po-status-badge po-status-badge--${statusCfg.color}`}>
+                      {statusCfg.color === 'completed' && (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                          <path d="M9 11l3 3L22 4"></path>
+                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                      )}
+                      {statusCfg.color === 'partial' && (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                      )}
                       {statusCfg.color === 'pending' && (
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
                           <circle cx="12" cy="12" r="10"></circle>
@@ -844,6 +863,31 @@ const DraftPOCreator = () => {
                     <path d="M9 6V4h6v2"></path>
                   </svg>
                   <span><strong>Cancelled by {actorName}</strong> on {actionDate}</span>
+                </div>
+              )}
+              {statusCfg.color === 'completed' && (
+                <div className="po-status-note po-status-note--completed">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                    <path d="M9 11l3 3L22 4"></path>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                  </svg>
+                  <span>
+                    <strong>Fully received{receivedByName !== '—' ? ` by ${receivedByName}` : ''}</strong>
+                    {' '}on {actionDate}
+                  </span>
+                </div>
+              )}
+              {statusCfg.color === 'partial' && (
+                <div className="po-status-note po-status-note--partial">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>
+                    <strong>Partially received{receivedByName !== '—' ? ` by ${receivedByName}` : ''}</strong>
+                    {' '}on {actionDate} — receiving in progress
+                  </span>
                 </div>
               )}
             </div>
