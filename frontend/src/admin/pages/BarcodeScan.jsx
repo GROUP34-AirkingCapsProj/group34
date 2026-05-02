@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/barcode_scan.css';
 import '../styles/item_management.css';
+import '../styles/po_receiving.css';
 
 /** Short UI beep (success vs not found) — Receive PO smart scan. */
 function playScanFeedback(found) {
@@ -473,6 +474,56 @@ async function enumerateVideoInputsWithLabels() {
   }));
 }
 
+/* ── BSR (Barcode Scan Receive) helpers ─────────────── */
+const bsrFmtDate = (v) => {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString('en-PH', { year: 'numeric', month: '2-digit', day: '2-digit' });
+};
+const bsrFmtCurrency = (n) =>
+  `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0 })}`;
+const bsrIsApproved = (po) =>
+  /approv|authorized|active|confirmed|received|partial/.test(
+    String(po?.status?.status_name ?? po?.status_name ?? '').toLowerCase(),
+  );
+const bsrGetSupplierName = (po) =>
+  po?.supplier?.supplier_name || po?.supplier?.name || po?.supplier_name || '—';
+const bsrGetApprovedBy = (po) => {
+  const u = po?.approved_by;
+  if (!u) return '—';
+  if (typeof u === 'object') return `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '—';
+  return String(u);
+};
+const bsrGetDeliveryLocation = (po) =>
+  po?.location?.location_name || po?.delivery_location || po?.location_name || '—';
+const bsrGetItemCount = (po) =>
+  Array.isArray(po?.details) ? po.details.length : '—';
+
+const BsrBarcodeIcon = ({ size = 26, color = '#9810FA' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 5v4"/><path d="M3 15v4"/><path d="M7 5v2"/><path d="M7 17v2"/>
+    <path d="M7 9v6"/><path d="M11 5v14"/><path d="M15 5v2"/><path d="M15 17v2"/>
+    <path d="M15 9v6"/><path d="M19 5v4"/><path d="M19 15v4"/>
+  </svg>
+);
+const BsrSearchIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+);
+const BsrCartIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+  </svg>
+);
+const BsrCheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+
 function pickPreferredCameraDeviceId(devices, savedId) {
   if (!devices?.length) return null;
   const saved = devices.find(
@@ -569,6 +620,18 @@ const BarcodeScan = () => {
   const [receivePoProductIds, setReceivePoProductIds] = useState([]);
   const [receivePoLinesLoading, setReceivePoLinesLoading] = useState(false);
 
+  // BSR dedicated view state
+  const [bsrPoList, setBsrPoList] = useState([]);
+  const [bsrPoLoading, setBsrPoLoading] = useState(false);
+  const [bsrSelectedPo, setBsrSelectedPo] = useState(null);
+  const [bsrProductProgress, setBsrProductProgress] = useState({});
+  const [bsrPoSearchQ, setBsrPoSearchQ] = useState('');
+  const [bsrScannedItems, setBsrScannedItems] = useState([]);
+  const [bsrLocationId, setBsrLocationId] = useState('');
+  const [bsrScanInput, setBsrScanInput] = useState('');
+  const [bsrScanning, setBsrScanning] = useState(false);
+  const [bsrActiveLine, setBsrActiveLine] = useState(null);
+
   const showPricingFields = roleKey === ROLES.ADMIN || roleKey === ROLES.BRANCH_MANAGER;
   const [notFoundPromptOpen, setNotFoundPromptOpen] = useState(false);
   const [pendingRegisterBarcode, setPendingRegisterBarcode] = useState('');
@@ -577,6 +640,15 @@ const BarcodeScan = () => {
   const transferDestinationLocations = useMemo(
     () => sortLocationsCarmenFirst(locations),
     [locations],
+  );
+
+  const bsrFilteredPos = useMemo(
+    () => bsrPoList.filter((po) => {
+      if (!bsrPoSearchQ.trim()) return true;
+      const q = bsrPoSearchQ.toLowerCase();
+      return (po.po_number || '').toLowerCase().includes(q) || bsrGetSupplierName(po).toLowerCase().includes(q);
+    }),
+    [bsrPoList, bsrPoSearchQ],
   );
 
   const cameraSelectValue = useMemo(() => {
@@ -696,6 +768,8 @@ const BarcodeScan = () => {
   const inputScanTimerRef = useRef(null);
   /** Resets Issue Out quantity to 1 only when preview target (barcode + time) changes */
   const issuancePreviewKeyRef = useRef('');
+  const bsrInputRef = useRef(null);
+  const bsrScanTimerRef = useRef(null);
 
   /* ── load filter data ── */
   useEffect(() => {
@@ -720,6 +794,25 @@ const BarcodeScan = () => {
     if (effectiveModeKey !== 'receive-po') return;
     loadPurchaseOrders();
   }, [effectiveModeKey, loadPurchaseOrders]);
+
+  useEffect(() => {
+    if (effectiveModeKey !== 'receive-po') {
+      setBsrSelectedPo(null);
+      setBsrScannedItems([]);
+      setBsrProductProgress({});
+      setBsrPoSearchQ('');
+      return;
+    }
+    setBsrPoLoading(true);
+    purchaseOrdersAPI
+      .getAll({ per_page: 500, with: 'status,supplier,details.product,approved_by,location' })
+      .then((r) => {
+        const rows = Array.isArray(r?.data) ? r.data : [];
+        setBsrPoList(rows.filter(bsrIsApproved));
+      })
+      .catch(() => toast.error('Could not load purchase orders.'))
+      .finally(() => setBsrPoLoading(false));
+  }, [effectiveModeKey]);
 
   /* Load PO line items so scans can be restricted to products on that PO only. */
   useEffect(() => {
@@ -1268,7 +1361,6 @@ const BarcodeScan = () => {
     loadPurchaseOrders,
   ]);
 
-  useEffect(() => { handleScanRef.current = handleScan; }, [handleScan]);
   useEffect(() => { scanningRef.current = scanning; }, [scanning]);
 
   useEffect(
@@ -1515,7 +1607,121 @@ const BarcodeScan = () => {
     setScanMode(null);
     setScanResult(null);
     setBarcodeInput('');
+    setBsrSelectedPo(null);
+    setBsrScannedItems([]);
+    setBsrProductProgress({});
+    setBsrPoSearchQ('');
+    setBsrScanInput('');
+    setBsrActiveLine(null);
   };
+
+  const handleBsrSelectPo = (po) => {
+    setBsrSelectedPo(po);
+    setBsrScannedItems([]);
+    setBsrActiveLine(null);
+    const prog = {};
+    (po?.details || []).forEach((d) => {
+      if (d.po_detail_id) prog[d.po_detail_id] = 0;
+    });
+    setBsrProductProgress(prog);
+    setBsrScanInput('');
+    setTimeout(() => bsrInputRef.current?.focus(), 100);
+  };
+
+  const handleBsrScan = useCallback(async (raw) => {
+    if (!raw.trim() || bsrScanning) return;
+    if (!bsrLocationId) {
+      toast.error('Select a receiving location first.');
+      setBsrScanInput('');
+      return;
+    }
+    if (!bsrActiveLine) {
+      toast.error('Select an item from the left panel first.');
+      setBsrScanInput('');
+      return;
+    }
+    const alreadyScanned = bsrScannedItems.some(
+      (item) => item.barcode.trim().toLowerCase() === raw.trim().toLowerCase(),
+    );
+    if (alreadyScanned) {
+      toast.error(`Serial "${raw.trim()}" was already scanned in this session.`);
+      setBsrScanInput('');
+      return;
+    }
+    setBsrScanning(true);
+    try {
+      const res = await inventoryAPI.scanTransaction({
+        barcode: raw.trim(),
+        transaction_type: 'receiving',
+        location_id: bsrLocationId,
+        po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
+        po_detail_id: bsrActiveLine.po_detail_id,
+        quantity: 1,
+      });
+      const data = res?.data ?? res;
+      const action = data?.action ?? data?.status;
+      if (action === 'rejected') {
+        toast.error(data?.reason || 'Scan rejected.');
+        setBsrScanInput('');
+        setBsrScanning(false);
+        return;
+      }
+      const productName = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
+      const productId = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
+      const poDetailId = bsrActiveLine.po_detail_id;
+      const ordered = Number(bsrActiveLine.quantity_ordered || 0);
+      const prevReceived = bsrProductProgress[poDetailId] || 0;
+      const newReceived = prevReceived + 1;
+
+      setBsrScannedItems((prev) => [
+        { id: Date.now(), barcode: raw.trim(), productName, serial: raw.trim(), productId, poDetailId, at: new Date().toLocaleTimeString() },
+        ...prev,
+      ]);
+      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+
+      if (ordered > 0 && newReceived >= ordered) {
+        toast.success(`${productName}: all ${ordered} unit(s) received!`);
+        const updatedProgress = { ...bsrProductProgress, [poDetailId]: newReceived };
+        const nextLine = (bsrSelectedPo?.details || []).find((d) => {
+          if (d.po_detail_id === poDetailId) return false;
+          const dOrdered = Number(d.quantity_ordered || 0);
+          return dOrdered > 0 && (updatedProgress[d.po_detail_id] || 0) < dOrdered;
+        });
+        setBsrActiveLine(nextLine || null);
+        if (!nextLine) toast.success('All items on this PO are fully received!');
+      } else {
+        toast.success(`Received serial ${raw.trim()} — ${productName} (${newReceived}/${ordered})`);
+      }
+    } catch (e) {
+      toast.error(e?.message || 'Scan failed.');
+    } finally {
+      setBsrScanning(false);
+      setBsrScanInput('');
+      bsrInputRef.current?.focus();
+    }
+  }, [bsrScanning, bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems]);
+
+  const handleBsrInputChange = (e) => {
+    const v = e.target.value;
+    setBsrScanInput(v);
+    if (bsrScanTimerRef.current) clearTimeout(bsrScanTimerRef.current);
+    bsrScanTimerRef.current = setTimeout(() => {
+      const raw = String(bsrInputRef.current?.value ?? '').trim();
+      if (raw.length >= 4) handleBsrScan(raw);
+    }, 200);
+  };
+
+  const handleBsrKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      if (bsrScanTimerRef.current) clearTimeout(bsrScanTimerRef.current);
+      const raw = bsrScanInput.trim();
+      if (raw.length >= 4) handleBsrScan(raw);
+    }
+  };
+
+  useEffect(() => {
+    handleScanRef.current = (scanMode?.key === 'receive-po' && bsrSelectedPo) ? handleBsrScan : handleScan;
+  }, [handleScan, handleBsrScan, scanMode?.key, bsrSelectedPo]);
 
   /* ── helpers ── */
   const qty = (inv) => {
@@ -2170,6 +2376,319 @@ const BarcodeScan = () => {
               </div>
             </div>
           )}
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  /* ─────────────────────────────────────────────
+     RENDER: BSR — PO list view
+  ───────────────────────────────────────────── */
+  if (scanMode?.key === 'receive-po' && !bsrSelectedPo) {
+    return (
+      <AdminLayout>
+        <div className="bsr-page">
+          <div className="bsr-header-card">
+            <button className="bs-topback-btn" onClick={exitScanMode} style={{ marginRight: 12, flexShrink: 0 }} type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+              Back
+            </button>
+            <div className="bsr-header-icon"><BsrBarcodeIcon size={26} color="#9810FA" /></div>
+            <div className="bsr-header-text">
+              <h1>BARCODE SCAN RECEIVE</h1>
+              <p>Scan products from approved purchase orders</p>
+            </div>
+          </div>
+          <div className="bsr-search-card">
+            <div className="bsr-search-inner">
+              <BsrSearchIcon />
+              <input
+                className="bsr-search-input"
+                placeholder="Search by PO ID or supplier..."
+                value={bsrPoSearchQ}
+                onChange={(e) => setBsrPoSearchQ(e.target.value)}
+              />
+            </div>
+          </div>
+          {bsrPoLoading ? (
+            <div className="bsr-empty">Loading purchase orders…</div>
+          ) : bsrFilteredPos.length === 0 ? (
+            <div className="bsr-empty">No approved purchase orders found.</div>
+          ) : bsrFilteredPos.map((po) => {
+            const poId = po.po_id ?? po.id;
+            const totalAmt = Number(po.total_amount || po.grand_total || 0);
+            const statusName = po?.status?.status_name ?? po?.status_name ?? '';
+            const isPartial = /partial/i.test(statusName);
+            const badgeClass = isPartial ? 'bsr-badge--partial' : 'bsr-badge--approved';
+            const badgeLabel = isPartial ? 'PARTIALLY RECEIVED' : statusName.toUpperCase() || 'APPROVED';
+            return (
+              <button key={poId} type="button" className="bsr-po-card" onClick={() => handleBsrSelectPo(po)}>
+                <div className="bsr-po-card-top">
+                  <div className="bsr-po-left">
+                    <span className="bsr-po-number">{po.po_number || `PO #${poId}`}</span>
+                    <span className={`bsr-badge ${badgeClass}`}><BsrCheckIcon /> {badgeLabel}</span>
+                  </div>
+                  <div className="bsr-po-amount">
+                    <span className="bsr-amount-label">TOTAL AMOUNT</span>
+                    <span className="bsr-amount-value">{bsrFmtCurrency(totalAmt)}</span>
+                  </div>
+                </div>
+                <div className="bsr-po-card-meta">
+                  <div className="bsr-meta-col"><span className="bsr-meta-label">SUPPLIER</span><span className="bsr-meta-value">{bsrGetSupplierName(po)}</span></div>
+                  <div className="bsr-meta-col"><span className="bsr-meta-label">APPROVED BY</span><span className="bsr-meta-value">{bsrGetApprovedBy(po)}</span></div>
+                  <div className="bsr-meta-col"><span className="bsr-meta-label">EXPECTED DELIVERY</span><span className="bsr-meta-value">{bsrFmtDate(po.expected_delivery_date)}</span></div>
+                  <div className="bsr-meta-col">
+                    <span className="bsr-meta-label">ITEMS</span>
+                    <span className="bsr-meta-value">{typeof bsrGetItemCount(po) === 'number' ? `${bsrGetItemCount(po)} items` : '—'}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  /* ─────────────────────────────────────────────
+     RENDER: BSR — 2-column scan workflow
+  ───────────────────────────────────────────── */
+  if (scanMode?.key === 'receive-po' && bsrSelectedPo) {
+    const poDetails = bsrSelectedPo?.details || [];
+    const totalScanned = bsrScannedItems.length;
+    return (
+      <AdminLayout>
+        <div className="bsr-page">
+          <div className="bsr-header-card">
+            <div className="bsr-header-icon"><BsrBarcodeIcon size={26} color="#9810FA" /></div>
+            <div className="bsr-header-text">
+              <h1>BARCODE SCAN RECEIVE</h1>
+              <p>Scan products from approved purchase orders</p>
+            </div>
+            <div className="bsr-receiving-badge"><BsrCheckIcon /> Receiving: {bsrSelectedPo?.po_number}</div>
+          </div>
+          <div className="bsr-workflow">
+            <div className="bsr-left">
+              <div className="bsr-card">
+                <div className="bsr-card-head">
+                  <div className="bsr-card-icon bsr-card-icon--doc">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9810FA" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                  </div>
+                  <span className="bsr-card-title">PURCHASE ORDER</span>
+                  <button type="button" className="bsr-close-btn"
+                    onClick={() => { void stopCamera(); setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput(''); setBsrActiveLine(null); }}
+                    title="Back to PO list"
+                  >×</button>
+                </div>
+                <div className="bsr-po-details">
+                  <div className="bsr-detail-row"><span className="bsr-detail-label">PO Number:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrSelectedPo?.po_number}</span></div>
+                  <div className="bsr-detail-row"><span className="bsr-detail-label">Supplier:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrGetSupplierName(bsrSelectedPo)}</span></div>
+                  <div className="bsr-detail-row"><span className="bsr-detail-label">Delivery Location:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrGetDeliveryLocation(bsrSelectedPo)}</span></div>
+                  <div className="bsr-detail-row"><span className="bsr-detail-label">Expected Delivery:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrFmtDate(bsrSelectedPo?.expected_delivery_date)}</span></div>
+                </div>
+              </div>
+              <div className="bsr-card">
+                <div className="bsr-card-head">
+                  <div className="bsr-card-icon bsr-card-icon--box">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9810FA" strokeWidth="2">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                  </div>
+                  <span className="bsr-card-title">ITEMS TO RECEIVE</span>
+                </div>
+                <div className="bsr-items-list">
+                  {poDetails.length === 0 ? (
+                    <p className="bsr-items-empty">No line items found on this PO.</p>
+                  ) : poDetails.map((d, i) => {
+                    const prod = d.product || {};
+                    const pid = d.product_id || prod.product_id;
+                    const detailId = d.po_detail_id;
+                    const name = prod.product_name || prod.name || `Product #${pid}`;
+                    const sku = prod.product_code || prod.barcode || prod.sku || '—';
+                    const ordered = Number(d.quantity_ordered || d.quantity || d.quantity_amount || 0);
+                    const received = bsrProductProgress[detailId] || 0;
+                    const pct = ordered > 0 ? Math.min(100, (received / ordered) * 100) : 0;
+                    const done = received >= ordered && ordered > 0;
+                    const isActive = bsrActiveLine?.po_detail_id === detailId;
+                    return (
+                      <div
+                        key={detailId || pid || i}
+                        className={`bsr-item-row bsr-item-row--clickable${isActive ? ' bsr-item-row--active' : ''}${done ? ' bsr-item-row--done' : ''}`}
+                        onClick={() => !done && setBsrActiveLine(d)}
+                        title={done ? 'Fully received' : 'Click to scan this item'}
+                      >
+                        <div className="bsr-item-info">
+                          <span className="bsr-item-name">{name}</span>
+                          <span className="bsr-item-sku">SKU: {sku}</span>
+                          {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
+                        </div>
+                        <div className="bsr-item-progress-row">
+                          <span className="bsr-item-progress-label">Progress:</span>
+                          <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>{received} / {ordered}</span>
+                        </div>
+                        <div className="bsr-progress-bar-wrap">
+                          <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%` }}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="bsr-right">
+              <div className="bsr-card">
+                <div className="bsr-card-head">
+                  <div className="bsr-card-icon bsr-card-icon--scan"><BsrBarcodeIcon size={18} color="#9810FA" /></div>
+                  <div>
+                    <span className="bsr-card-title">SCAN BARCODE</span>
+                    {bsrActiveLine ? (
+                      <p className="bsr-card-subtitle">
+                        Scanning: <strong>{bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Selected Item'}</strong>
+                      </p>
+                    ) : (
+                      <p className="bsr-card-subtitle bsr-card-subtitle--warn">Select an item from the left panel to begin</p>
+                    )}
+                  </div>
+                </div>
+                <div className="bsr-location-row">
+                  <label className="bsr-location-label">RECEIVING LOCATION</label>
+                  <select className="bsr-location-select" value={bsrLocationId} onChange={(e) => setBsrLocationId(e.target.value)}>
+                    <option value="">Select location…</option>
+                    {locations.map((l) => (
+                      <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>{l.location_name || l.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* camera scanner */}
+                <div className="bs-camera-box" style={{ marginBottom: 12 }}>
+                  <div
+                    id={HTML5_QR_MOUNT_ID}
+                    className="bs-html5qrcode-mount"
+                    style={{ display: cameraActive ? 'block' : 'none' }}
+                  />
+                  {!cameraActive && (
+                    <div className="bs-cam-idle">
+                      <div className="bs-cam-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" width="38" height="38">
+                          <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  <div className="bs-bracket bs-tl"/><div className="bs-bracket bs-tr"/>
+                  <div className="bs-bracket bs-bl"/><div className="bs-bracket bs-br"/>
+                  {cameraActive && <div className="bs-scan-line"/>}
+                  {cameraActive && (
+                    <p className="bs-cam-hint">Position the barcode in the frame — or tap Scan to capture now.</p>
+                  )}
+                  {cameraError && <p className="bs-cam-err">{cameraError}</p>}
+                  {cameraActive && (
+                    <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Scan barcode from current camera frame">
+                      <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">Scan</span>
+                    </button>
+                  )}
+                  {cameraActive
+                    ? <button className="bs-cam-btn bs-cam-stop" onClick={stopCamera} type="button">Stop Camera</button>
+                    : <button className="bs-cam-btn bs-cam-start" onClick={startCamera} type="button">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                          <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                        </svg>
+                        Start Camera
+                      </button>
+                  }
+                </div>
+                {cameraDevices.length > 0 && (
+                  <div className="bs-cam-select-bar" style={{ marginBottom: 10 }}>
+                    <label htmlFor="bs-camera-device" className="bs-cam-select-bar-label">Camera</label>
+                    <select id="bs-camera-device" className="bs-cam-select-bar-input" value={cameraSelectValue} onChange={onCameraDeviceChange}>
+                      {cameraDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}{isLikelyVirtualCameraLabel(d.label) ? ' (virtual)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <input
+                  ref={bsrInputRef}
+                  type="text"
+                  className={`bsr-scan-input${bsrScanning ? ' bsr-scan-input--scanning' : ''}`}
+                  placeholder={bsrActiveLine ? 'Scan or enter serial number...' : 'Select an item from the left panel first...'}
+                  value={bsrScanInput}
+                  onChange={handleBsrInputChange}
+                  onKeyDown={handleBsrKeyDown}
+                  autoComplete="off"
+                  disabled={bsrScanning || !bsrActiveLine}
+                />
+                <div className="bsr-examples-card">
+                  <span className="bsr-examples-label">
+                    {bsrActiveLine ? 'Scanning serial for:' : 'How to scan:'}
+                  </span>
+                  <div className="bsr-examples-list">
+                    {bsrActiveLine ? (
+                      <span className="bsr-example-code">
+                        {bsrActiveLine.product?.product_name || 'Selected Item'} — scan the physical serial number label
+                      </span>
+                    ) : (
+                      <span className="bsr-example-code" style={{ opacity: 0.6 }}>
+                        Click an item on the left, then scan its serial number
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="bsr-card">
+                <div className="bsr-card-head">
+                  <div className="bsr-card-icon bsr-card-icon--cart"><BsrCartIcon size={18} /></div>
+                  <span className="bsr-card-title">SCANNED ITEMS</span>
+                  <span className="bsr-scanned-count">{totalScanned} {totalScanned === 1 ? 'item' : 'items'}</span>
+                </div>
+                {bsrScannedItems.length === 0 ? (
+                  <div className="bsr-scanned-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
+                      <rect x="2" y="5" width="3" height="14" rx="1"/><rect x="7" y="5" width="1.5" height="14" rx="0.5"/>
+                      <rect x="10" y="5" width="3" height="14" rx="1"/><rect x="15" y="5" width="1.5" height="14" rx="0.5"/>
+                      <rect x="18" y="5" width="3" height="14" rx="1"/>
+                    </svg>
+                    <p>No items scanned yet</p>
+                  </div>
+                ) : (
+                  <div className="bsr-scanned-list">
+                    {bsrScannedItems.map((item) => (
+                      <div key={item.id} className="bsr-scanned-item">
+                        <div className="bsr-scanned-item-info">
+                          <span className="bsr-scanned-item-name">{item.productName}</span>
+                          <span className="bsr-scanned-item-serial">{item.serial}</span>
+                        </div>
+                        <span className="bsr-scanned-item-time">{item.at}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="bsr-action-btns">
+                <button type="button" className="bsr-btn-cancel"
+                  onClick={() => { void stopCamera(); setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput(''); setBsrActiveLine(null); }}
+                >Cancel</button>
+                <button type="button"
+                  className={`bsr-btn-complete${totalScanned === 0 ? ' bsr-btn-complete--disabled' : ''}`}
+                  onClick={() => {
+                    if (totalScanned === 0) { toast.error('No items have been scanned yet.'); return; }
+                    toast.success(`Receiving for ${bsrSelectedPo?.po_number} completed — ${totalScanned} item(s) recorded.`);
+                    setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                  }}
+                  disabled={totalScanned === 0}
+                ><BsrCheckIcon /> Complete Receiving</button>
+              </div>
+            </div>
+          </div>
         </div>
       </AdminLayout>
     );

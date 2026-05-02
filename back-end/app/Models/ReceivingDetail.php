@@ -24,6 +24,7 @@ class ReceivingDetail extends Model
         'prod_price',
         'quantity_amount',
         'condition',
+        'scanned_barcode',
     ];
 
     protected $casts = [

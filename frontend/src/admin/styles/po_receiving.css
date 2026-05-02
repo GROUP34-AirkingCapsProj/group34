@@ -332,3 +332,418 @@
   .por-product-header { flex-direction: column; align-items: flex-start; }
   .por-progress-bar-wrap { width: 72px; }
 }
+
+/* =========================================================
+   BSR — Barcode Scan Receive  (2-panel dedicated page)
+   Prefix: bsr-
+========================================================= */
+
+/* ── Page shell ─────────────────────────────────────────── */
+.bsr-page {
+  padding: 24px 28px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Header card ────────────────────────────────────────── */
+.bsr-header-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 18px 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.bsr-header-icon {
+  width: 52px; height: 52px;
+  background: #FAF5FF;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.bsr-header-text { flex: 1; }
+.bsr-header-text h1 {
+  font-size: 20px; font-weight: 800;
+  color: #111827; margin: 0 0 2px;
+  letter-spacing: 0.3px;
+}
+.bsr-header-text p { font-size: 14px; color: #6b7280; margin: 0; }
+.bsr-receiving-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 20px;
+  font-size: 13px; font-weight: 600;
+  color: #16a34a;
+  white-space: nowrap;
+}
+
+/* ── Search card ─────────────────────────────────────────── */
+.bsr-search-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.bsr-search-inner {
+  display: flex; align-items: center; gap: 10px;
+}
+.bsr-search-input {
+  flex: 1;
+  border: none; outline: none;
+  font-size: 15px; color: #374151;
+  background: transparent;
+}
+.bsr-search-input::placeholder { color: #9ca3af; }
+
+/* ── PO cards (list view) ───────────────────────────────── */
+.bsr-po-card {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px 24px;
+  cursor: pointer;
+  transition: box-shadow 0.18s, border-color 0.18s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.bsr-po-card:hover {
+  box-shadow: 0 4px 16px rgba(152,16,250,0.10);
+  border-color: #d8b4fe;
+}
+.bsr-po-card-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+}
+.bsr-po-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bsr-po-number { font-weight: 800; font-size: 16px; color: #111827; }
+.bsr-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+}
+.bsr-badge--approved {
+  background: #f0fdf4; color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+.bsr-badge--partial {
+  background: #fffbeb; color: #d97706;
+  border: 1px solid #fde68a;
+}
+.bsr-po-amount { text-align: right; }
+.bsr-amount-label {
+  display: block; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: #9ca3af; margin-bottom: 2px;
+}
+.bsr-amount-value {
+  display: block; font-size: 22px; font-weight: 800;
+  color: #ef4444;
+}
+.bsr-po-card-meta {
+  display: flex; gap: 32px; flex-wrap: wrap;
+}
+.bsr-meta-col { display: flex; flex-direction: column; gap: 2px; }
+.bsr-meta-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: #9ca3af;
+}
+.bsr-meta-value { font-size: 14px; font-weight: 600; color: #111827; }
+
+/* ── Empty / loading states ─────────────────────────────── */
+.bsr-empty {
+  text-align: center; padding: 60px 24px;
+  color: #6b7280; font-size: 15px;
+}
+
+/* ── Workflow 2-col layout ──────────────────────────────── */
+.bsr-workflow {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Generic card ───────────────────────────────────────── */
+.bsr-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  margin-bottom: 14px;
+}
+.bsr-card:last-child { margin-bottom: 0; }
+
+.bsr-card-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.bsr-card-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.bsr-card-icon--doc  { background: #FAF5FF; }
+.bsr-card-icon--box  { background: #FAF5FF; }
+.bsr-card-icon--scan { background: #FAF5FF; }
+.bsr-card-icon--cart { background: #FAF5FF; color: #9810FA; }
+
+.bsr-card-title {
+  font-size: 13px; font-weight: 800;
+  letter-spacing: 0.5px; color: #111827;
+  flex: 1;
+}
+.bsr-card-subtitle {
+  font-size: 12px; color: #6b7280; margin: 2px 0 0;
+}
+.bsr-card-subtitle--warn { color: #d97706; font-weight: 600; }
+.bsr-close-btn {
+  width: 28px; height: 28px;
+  background: #f3f4f6; border: none;
+  border-radius: 6px; cursor: pointer;
+  font-size: 18px; color: #6b7280;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.bsr-close-btn:hover { background: #e5e7eb; color: #111827; }
+
+/* ── PO details (left panel) ────────────────────────────── */
+.bsr-po-details { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+.bsr-detail-row { display: flex; justify-content: space-between; gap: 12px; }
+.bsr-detail-label { font-size: 13px; color: #6b7280; flex-shrink: 0; }
+.bsr-detail-value { font-size: 13px; color: #111827; text-align: right; }
+.bsr-detail-value--bold { font-weight: 700; }
+
+/* ── Items to receive (left panel) ─────────────────────── */
+.bsr-items-list { padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+.bsr-items-empty { font-size: 14px; color: #9ca3af; text-align: center; padding: 8px 0; }
+
+.bsr-item-row { display: flex; flex-direction: column; gap: 6px; }
+.bsr-item-row--clickable { cursor: pointer; border-radius: 8px; padding: 10px; margin: -10px; transition: background 0.15s; }
+.bsr-item-row--clickable:hover:not(.bsr-item-row--done) { background: #f5f3ff; }
+.bsr-item-row--active { background: #f5f3ff; border-left: 3px solid #9810FA; padding-left: 8px; margin-left: -10px; }
+.bsr-item-row--done { opacity: 0.55; cursor: default; }
+.bsr-item-info { display: flex; flex-direction: column; gap: 2px; }
+.bsr-item-name { font-weight: 700; font-size: 14px; color: #111827; }
+.bsr-item-sku  { font-size: 12px; color: #6b7280; }
+.bsr-serialized-badge {
+  display: inline-block; width: fit-content;
+  padding: 2px 8px; border-radius: 4px;
+  background: #eff6ff; color: #1d4ed8;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  border: 1px solid #bfdbfe;
+}
+.bsr-active-badge {
+  display: inline-block; width: fit-content;
+  padding: 2px 8px; border-radius: 4px;
+  background: #faf5ff; color: #7e22ce;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  border: 1px solid #d8b4fe;
+}
+.bsr-item-progress-row {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.bsr-item-progress-label { font-size: 12px; color: #6b7280; }
+.bsr-item-qty { font-size: 13px; font-weight: 700; }
+.bsr-item-qty--zero { color: #ef4444; }
+.bsr-item-qty--done { color: #16a34a; }
+
+.bsr-progress-bar-wrap {
+  width: 100%; height: 5px;
+  background: #e5e7eb; border-radius: 3px; overflow: hidden;
+}
+.bsr-progress-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: #ef4444;
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+.bsr-progress-bar-fill--done { background: #16a34a; }
+
+/* ── Scan barcode (right panel) ─────────────────────────── */
+.bsr-location-row { padding: 12px 18px 0; }
+.bsr-location-label {
+  display: block; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: #6b7280; margin-bottom: 6px;
+}
+.bsr-location-select {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 14px; color: #374151;
+  background: #fff; outline: none;
+  transition: border-color 0.15s;
+}
+.bsr-location-select:focus { border-color: #9810FA; box-shadow: 0 0 0 3px rgba(152,16,250,0.10); }
+
+.bsr-scan-input {
+  display: block;
+  width: 100%; box-sizing: border-box;
+  margin: 12px 18px 0; width: calc(100% - 36px);
+  padding: 12px 16px;
+  border: 2px solid #E9D5FF;
+  border-radius: 10px;
+  font-size: 15px; color: #374151;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
+  background: #FAFAFF;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bsr-scan-input:focus {
+  border-color: #9810FA;
+  box-shadow: 0 0 0 3px rgba(152,16,250,0.10);
+  background: #fff;
+}
+.bsr-scan-input::placeholder { color: #c084fc; font-family: inherit; letter-spacing: 0; }
+.bsr-scan-input--scanning { opacity: 0.6; cursor: wait; }
+
+.bsr-examples-card {
+  margin: 12px 18px 16px;
+  padding: 12px 14px;
+  background: #FAF5FF;
+  border-radius: 8px;
+  border: 1px solid #E9D5FF;
+}
+.bsr-examples-label {
+  display: block; font-size: 12px; color: #6b7280; margin-bottom: 6px;
+}
+.bsr-examples-list { display: flex; flex-direction: column; gap: 4px; }
+.bsr-example-code {
+  font-size: 13px; font-family: 'Courier New', monospace;
+  color: #7e22ce; font-weight: 600;
+}
+
+/* ── Scanned items (right panel) ────────────────────────── */
+.bsr-scanned-count {
+  padding: 3px 10px;
+  background: #FAF5FF;
+  border-radius: 12px;
+  font-size: 12px; font-weight: 700; color: #9810FA;
+  border: 1px solid #E9D5FF;
+}
+.bsr-scanned-empty {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 40px 24px; gap: 10px;
+  color: #9ca3af; font-size: 14px;
+}
+.bsr-scanned-list { padding: 8px 0; }
+.bsr-scanned-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 18px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.bsr-scanned-item:last-child { border-bottom: none; }
+.bsr-scanned-item-info { display: flex; flex-direction: column; gap: 2px; }
+.bsr-scanned-item-name { font-size: 13px; font-weight: 600; color: #111827; }
+.bsr-scanned-item-serial {
+  font-size: 12px; color: #6b7280;
+  font-family: 'Courier New', monospace;
+}
+.bsr-scanned-item-time { font-size: 12px; color: #9ca3af; white-space: nowrap; }
+
+/* ── Action buttons ─────────────────────────────────────── */
+.bsr-action-btns {
+  display: flex; gap: 12px; margin-top: 4px;
+}
+.bsr-btn-cancel {
+  flex: 1; padding: 13px;
+  background: #f3f4f6; border: 1px solid #d1d5db;
+  border-radius: 10px; font-size: 14px; font-weight: 600;
+  color: #374151; cursor: pointer;
+  transition: background 0.15s;
+}
+.bsr-btn-cancel:hover { background: #e5e7eb; }
+.bsr-btn-complete {
+  flex: 2; padding: 13px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  background: #9810FA; border: none;
+  border-radius: 10px; font-size: 14px; font-weight: 700;
+  color: #fff; cursor: pointer;
+  transition: background 0.15s;
+}
+.bsr-btn-complete:hover { background: #7c0fd4; }
+.bsr-btn-complete--disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
+.bsr-btn-complete--disabled:hover { background: #d1d5db; }
+
+/* ── Left/right columns ─────────────────────────────────── */
+.bsr-left  { display: flex; flex-direction: column; }
+.bsr-right { display: flex; flex-direction: column; }
+
+/* ── Responsive ─────────────────────────────────────────── */
+
+/* Tablet — collapse 2-col to 1-col */
+@media (max-width: 900px) {
+  .bsr-workflow { grid-template-columns: 1fr; }
+  .bsr-page { padding: 16px 14px 40px; }
+}
+
+/* Small tablet / large phone */
+@media (max-width: 640px) {
+  .bsr-page { padding: 12px 10px 32px; gap: 12px; }
+
+  .bsr-header-card {
+    padding: 14px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .bsr-receiving-badge { width: 100%; justify-content: center; }
+
+  .bsr-po-card { padding: 16px; }
+  .bsr-po-card-top { flex-direction: column; gap: 8px; }
+  .bsr-po-amount { text-align: left; }
+  .bsr-amount-value { font-size: 18px; }
+
+  .bsr-po-card-meta {
+    gap: 12px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bsr-card-head { padding: 12px 14px; }
+  .bsr-po-details { padding: 12px 14px; }
+  .bsr-items-list { padding: 12px 14px; }
+  .bsr-location-row { padding: 10px 14px 0; }
+  .bsr-scan-input { margin: 10px 14px 0; width: calc(100% - 28px); }
+  .bsr-examples-card { margin: 10px 14px 12px; }
+  .bsr-scanned-item { padding: 10px 14px; }
+}
+
+/* Phone */
+@media (max-width: 480px) {
+  .bsr-page { padding: 8px 8px 28px; }
+
+  .bsr-header-card { padding: 12px; gap: 10px; }
+  .bsr-header-icon { width: 40px; height: 40px; border-radius: 10px; }
+  .bsr-header-text h1 { font-size: 16px; }
+  .bsr-header-text p  { font-size: 12px; }
+
+  .bsr-po-number { font-size: 14px; }
+  .bsr-amount-value { font-size: 16px; }
+
+  .bsr-po-card-meta { grid-template-columns: 1fr; gap: 8px; }
+
+  .bsr-detail-row {
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+  }
+  .bsr-detail-value { text-align: left; }
+
+  .bsr-action-btns { flex-direction: column; }
+  .bsr-btn-cancel, .bsr-btn-complete { flex: none; width: 100%; }
+
+  .bsr-search-input { font-size: 14px; }
+}
