@@ -319,11 +319,14 @@ class InventoryScanTransactionController extends Controller
                 'scanned_barcode' => $scannedBarcode ?: null,
             ]);
 
+            // Sync PO status (Partially Received / Completed) and received_by
+            // inside the transaction so both writes are atomic.
+            if ($poId) {
+                $this->syncPoReceivingStatus($poId, $request->user()?->user_id);
+            }
+
             DB::commit();
             Product::syncQuantityFromInventory((int) $product->product_id);
-            if ($poId) {
-                $this->syncPoReceivingStatus($poId);
-            }
 
             $fresh = $product->fresh()->load(['category', 'brand', 'model', 'unit', 'status']);
 
@@ -589,7 +592,7 @@ class InventoryScanTransactionController extends Controller
             ->value('status_id');
     }
 
-    private function syncPoReceivingStatus(int $poId): void
+    private function syncPoReceivingStatus(int $poId, $userId = null): void
     {
         $details = PurchaseOrderDetail::where('po_id', $poId)
             ->get(['po_detail_id', 'quantity_ordered']);
@@ -607,19 +610,27 @@ class InventoryScanTransactionController extends Controller
                 ->sum('quantity_amount');
         }
 
-        if ($totalReceived === 0) {
-            return; // nothing received yet — leave the status as-is
+        $updateData = [];
+
+        if ($totalReceived > 0) {
+            $targetName = $totalReceived >= $totalOrdered ? 'Completed' : 'Partially Received';
+
+            $statusId = DB::table('status_lookup')
+                ->where('status_category', 'purchase_order')
+                ->whereRaw('LOWER(TRIM(status_name)) = ?', [strtolower($targetName)])
+                ->value('status_id');
+
+            if ($statusId) {
+                $updateData['status_id'] = (int) $statusId;
+            }
         }
 
-        $targetName = $totalReceived >= $totalOrdered ? 'Completed' : 'Partially Received';
+        if ($userId !== null) {
+            $updateData['received_by'] = $userId;
+        }
 
-        $statusId = DB::table('status_lookup')
-            ->where('status_category', 'purchase_order')
-            ->whereRaw('LOWER(TRIM(status_name)) = ?', [strtolower($targetName)])
-            ->value('status_id');
-
-        if ($statusId) {
-            PurchaseOrder::where('po_id', $poId)->update(['status_id' => $statusId]);
+        if (! empty($updateData)) {
+            PurchaseOrder::where('po_id', $poId)->update($updateData);
         }
     }
 }
