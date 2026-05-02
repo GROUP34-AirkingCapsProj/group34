@@ -153,6 +153,16 @@ class InventoryScanTransactionController extends Controller
             ], 'Rejected');
         }
 
+        // One scan always equals exactly one physical unit:
+        //   Serialized (appliance) → 1 scan = 1 unit (unique serial number).
+        //   Consumable             → 1 scan = 1 package = pieces_per_package individual pieces.
+        // The request quantity field is intentionally ignored here so the frontend
+        // can never accidentally submit more than one package per scan event.
+        $isSerialized     = $product->isAppliance();
+        $piecesPerPackage = max(1, (int) ($product->pieces_per_package ?? 1));
+        $packagesReceived = 1;
+        $quantity         = $isSerialized ? 1 : $piecesPerPackage;
+
         $poId             = ! empty($validated['po_id']) ? (int) $validated['po_id'] : 0;
         $poDetailIdDirect = ! empty($validated['po_detail_id']) ? (int) $validated['po_detail_id'] : null;
         $poDetail         = null;
@@ -229,37 +239,40 @@ class InventoryScanTransactionController extends Controller
                     ->sum('quantity_amount');
             }
 
-            $remaining = (int) $poDetail->quantity_ordered - $alreadyReceived;
+            // quantity_ordered is in packages for consumables, individual units for serialized.
+            // alreadyReceived and $quantity are both in pieces, so convert ordered to pieces.
+            $orderedPieces = $isSerialized
+                ? (int) $poDetail->quantity_ordered
+                : (int) $poDetail->quantity_ordered * $piecesPerPackage;
+            $remaining = $orderedPieces - $alreadyReceived;
 
             if ($remaining <= 0) {
+                $label = $isSerialized
+                    ? "{$poDetail->quantity_ordered} unit(s)"
+                    : "{$poDetail->quantity_ordered} package(s) ({$orderedPieces} pcs)";
                 return $this->success([
                     'action' => 'rejected',
-                    'reason' => "All {$poDetail->quantity_ordered} unit(s) already received for this line item.",
+                    'reason' => "All {$label} already received for this line item.",
                 ], 'Rejected');
             }
 
             $quantity = min($quantity, $remaining);
         }
 
-        // Duplicate serial / barcode guard.
-        // Serial-number mode: serials are globally unique — check across all receipts.
-        // Legacy barcode mode: scope to the PO to avoid false rejections on shared product SKUs.
         $scannedBarcode = strtolower(trim($validated['barcode']));
-        if ($scannedBarcode !== '') {
-            $dupQuery = ReceivingDetail::query()
+
+        // Serialized items have globally unique serial numbers — block any repeat.
+        // Consumable packages share the same product barcode on every physical package,
+        // so duplicate checking by barcode is intentionally skipped for them.
+        if ($isSerialized && $scannedBarcode !== '') {
+            if (ReceivingDetail::query()
                 ->whereNotNull('scanned_barcode')
-                ->whereRaw('LOWER(TRIM(scanned_barcode)) = ?', [$scannedBarcode]);
-
-            if (! $poDetailIdDirect && $poId) {
-                $dupQuery->whereIn('receiving_id', function ($sub) use ($poId) {
-                    $sub->select('receiving_id')->from('receivings')->where('po_id', $poId);
-                });
-            }
-
-            if ($dupQuery->exists()) {
+                ->whereRaw('LOWER(TRIM(scanned_barcode)) = ?', [$scannedBarcode])
+                ->exists()
+            ) {
                 return $this->success([
                     'action' => 'rejected',
-                    'reason' => 'This barcode/serial has already been recorded as received. Duplicate prevented.',
+                    'reason' => 'This serial number has already been recorded as received. Duplicate prevented.',
                 ], 'Rejected');
             }
         }
@@ -273,12 +286,23 @@ class InventoryScanTransactionController extends Controller
                 ],
                 [
                     'quantity_on_hand'   => 0,
+                    'packages_on_hand'   => 0,
                     'available_quantity' => 0,
                     'reorder_level'      => 0,
                 ]
             );
-            $inv->quantity_on_hand = (int) $inv->quantity_on_hand + $quantity;
-            $inv->available_quantity = (int) $inv->available_quantity + $quantity;
+
+            if ($isSerialized) {
+                // Serialized: 1 scan = 1 unit; package concept does not apply.
+                $inv->quantity_on_hand   = (int) $inv->quantity_on_hand + 1;
+                $inv->available_quantity = (int) $inv->available_quantity + 1;
+            } else {
+                // Consumable: 1 scan = 1 physical package.
+                // packages_on_hand is the authoritative count; quantity_on_hand is derived.
+                $inv->packages_on_hand   = (int) $inv->packages_on_hand + $packagesReceived;
+                $inv->quantity_on_hand   = $inv->packages_on_hand * $piecesPerPackage;
+                $inv->available_quantity = $inv->quantity_on_hand;
+            }
             $inv->save();
 
             // BUG 4: Find or create the receivings header row
@@ -331,11 +355,16 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load(['category', 'brand', 'model', 'unit', 'status']);
 
             $payload = [
-                'action'           => 'applied',
-                'product'          => $fresh,
-                'inventory'        => $this->inventoryRowsForProduct((int) $product->product_id),
-                'warnings'         => [],
-                'receiving_number' => $receiving->receiving_number,
+                'action'             => 'applied',
+                'product'            => $fresh,
+                'inventory'          => $this->inventoryRowsForProduct((int) $product->product_id),
+                'warnings'           => [],
+                'receiving_number'   => $receiving->receiving_number,
+                'quantity_received'  => $quantity,          // pieces added this scan
+                'packages_received'  => $isSerialized ? null : $packagesReceived,
+                'packages_on_hand'   => $isSerialized ? null : $inv->packages_on_hand,
+                'pieces_per_package' => $piecesPerPackage,
+                'is_serialized'      => $isSerialized,
             ];
 
             if ($poId && $remaining !== null) {

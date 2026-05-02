@@ -499,6 +499,7 @@ const bsrGetDeliveryLocation = (po) =>
   po?.location?.location_name || po?.delivery_location || po?.location_name || '—';
 const bsrGetItemCount = (po) =>
   Array.isArray(po?.details) ? po.details.length : '—';
+const bsrIsSerialized = (line) => line?.product?.product_type === 'appliance';
 
 const BsrBarcodeIcon = ({ size = 26, color = '#9810FA' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -631,6 +632,7 @@ const BarcodeScan = () => {
   const [bsrScanInput, setBsrScanInput] = useState('');
   const [bsrScanning, setBsrScanning] = useState(false);
   const [bsrActiveLine, setBsrActiveLine] = useState(null);
+  const [bsrScanSuccess, setBsrScanSuccess] = useState(null);
 
   const showPricingFields = roleKey === ROLES.ADMIN || roleKey === ROLES.BRANCH_MANAGER;
   const [notFoundPromptOpen, setNotFoundPromptOpen] = useState(false);
@@ -770,6 +772,7 @@ const BarcodeScan = () => {
   const issuancePreviewKeyRef = useRef('');
   const bsrInputRef = useRef(null);
   const bsrScanTimerRef = useRef(null);
+  const bsrProcessingRef = useRef(false); // synchronous lock — prevents double-fire
 
   /* ── load filter data ── */
   useEffect(() => {
@@ -1629,7 +1632,10 @@ const BarcodeScan = () => {
   };
 
   const handleBsrScan = useCallback(async (raw) => {
-    if (!raw.trim() || bsrScanning) return;
+    // Synchronous ref lock — blocks any second invocation that arrives before
+    // the first one's React state update (bsrScanning) has propagated.
+    if (bsrProcessingRef.current) return;
+    if (!raw.trim()) return;
     if (!bsrLocationId) {
       toast.error('Select a receiving location first.');
       setBsrScanInput('');
@@ -1640,14 +1646,25 @@ const BarcodeScan = () => {
       setBsrScanInput('');
       return;
     }
-    const alreadyScanned = bsrScannedItems.some(
-      (item) => item.barcode.trim().toLowerCase() === raw.trim().toLowerCase(),
-    );
-    if (alreadyScanned) {
-      toast.error(`Serial "${raw.trim()}" was already scanned in this session.`);
-      setBsrScanInput('');
-      return;
+    // Cancel any pending debounce so the timer can't fire a second time.
+    if (bsrScanTimerRef.current) { clearTimeout(bsrScanTimerRef.current); bsrScanTimerRef.current = null; }
+
+    const isSerialized = bsrIsSerialized(bsrActiveLine);
+    if (isSerialized) {
+      const alreadyScanned = bsrScannedItems.some(
+        (item) => item.barcode && item.barcode.trim().toLowerCase() === raw.trim().toLowerCase(),
+      );
+      if (alreadyScanned) {
+        toast.error(`Serial "${raw.trim()}" was already scanned in this session.`);
+        setBsrScanInput('');
+        return;
+      }
     }
+
+    bsrProcessingRef.current = true; // lock — set before any await
+    setBsrScanInput('');
+    const pcs = Number(bsrActiveLine.product?.pieces_per_package) || 1;
+    const pkgs = 1;
     setBsrScanning(true);
     try {
       const res = await inventoryAPI.scanTransaction({
@@ -1656,50 +1673,87 @@ const BarcodeScan = () => {
         location_id: bsrLocationId,
         po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
         po_detail_id: bsrActiveLine.po_detail_id,
-        quantity: 1,
+        quantity: pkgs,
       });
       const data = res?.data ?? res;
       const action = data?.action ?? data?.status;
       if (action === 'rejected') {
         toast.error(data?.reason || 'Scan rejected.');
-        setBsrScanInput('');
-        setBsrScanning(false);
         return;
       }
+      const qtyReceived = data?.quantity_received ?? (isSerialized ? 1 : pkgs * pcs);
       const productName = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
-      const productId = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
-      const poDetailId = bsrActiveLine.po_detail_id;
-      const ordered = Number(bsrActiveLine.quantity_ordered || 0);
+      const productId   = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
+      const poDetailId  = bsrActiveLine.po_detail_id;
+      const ordered     = Number(bsrActiveLine.quantity_ordered || 0);
+      // quantity_ordered is in packages for consumables; convert to pieces for progress tracking
+      const orderedPcs  = isSerialized ? ordered : ordered * pcs;
       const prevReceived = bsrProductProgress[poDetailId] || 0;
-      const newReceived = prevReceived + 1;
+      const newReceived  = prevReceived + qtyReceived;
 
       setBsrScannedItems((prev) => [
-        { id: Date.now(), barcode: raw.trim(), productName, serial: raw.trim(), productId, poDetailId, at: new Date().toLocaleTimeString() },
+        {
+          id: Date.now(), barcode: raw.trim(), productName,
+          serial: isSerialized ? raw.trim() : null,
+          packages: isSerialized ? null : pkgs,
+          qty: isSerialized ? null : qtyReceived,
+          productId, poDetailId, at: new Date().toLocaleTimeString(),
+        },
         ...prev,
       ]);
       setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
 
-      if (ordered > 0 && newReceived >= ordered) {
-        toast.success(`${productName}: all ${ordered} unit(s) received!`);
+      const lineComplete = orderedPcs > 0 && newReceived >= orderedPcs;
+      let nextLine = null;
+      if (lineComplete) {
         const updatedProgress = { ...bsrProductProgress, [poDetailId]: newReceived };
-        const nextLine = (bsrSelectedPo?.details || []).find((d) => {
+        nextLine = (bsrSelectedPo?.details || []).find((d) => {
           if (d.po_detail_id === poDetailId) return false;
           const dOrdered = Number(d.quantity_ordered || 0);
-          return dOrdered > 0 && (updatedProgress[d.po_detail_id] || 0) < dOrdered;
-        });
-        setBsrActiveLine(nextLine || null);
-        if (!nextLine) toast.success('All items on this PO are fully received!');
-      } else {
-        toast.success(`Received serial ${raw.trim()} — ${productName} (${newReceived}/${ordered})`);
+          const dPps = Number(d.product?.pieces_per_package) || 1;
+          const dIsSerialized = d.product?.product_type === 'appliance';
+          const dOrderedPcs = dIsSerialized ? dOrdered : dOrdered * dPps;
+          return dOrderedPcs > 0 && (updatedProgress[d.po_detail_id] || 0) < dOrderedPcs;
+        }) || null;
       }
+
+      // Show success modal — scanning is blocked until user clicks Done.
+      setBsrScanSuccess({
+        productName,
+        barcode: raw.trim(),
+        isSerialized,
+        pkgs,
+        pcs,
+        qtyReceived,
+        newReceived,
+        ordered,
+        orderedPcs,
+        lineComplete,
+        nextLine,
+      });
     } catch (e) {
       toast.error(e?.message || 'Scan failed.');
     } finally {
       setBsrScanning(false);
-      setBsrScanInput('');
-      bsrInputRef.current?.focus();
+      // Do NOT release bsrProcessingRef here — it stays locked until the Done button
+      // is clicked, so the modal stays open and no duplicate scan can slip through.
     }
-  }, [bsrScanning, bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems]);
+  }, [bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems]);
+
+  const handleBsrScanSuccessDone = useCallback(() => {
+    const result = bsrScanSuccess;
+    setBsrScanSuccess(null);
+    bsrProcessingRef.current = false; // release lock — ready for next scan
+    if (result?.lineComplete) {
+      if (result.nextLine) {
+        setBsrActiveLine(result.nextLine);
+      } else {
+        setBsrActiveLine(null);
+        toast.success('All items on this PO are fully received!');
+      }
+    }
+    setTimeout(() => bsrInputRef.current?.focus(), 80);
+  }, [bsrScanSuccess]);
 
   const handleBsrInputChange = (e) => {
     const v = e.target.value;
@@ -2511,9 +2565,12 @@ const BarcodeScan = () => {
                     const name = prod.product_name || prod.name || `Product #${pid}`;
                     const sku = prod.product_code || prod.barcode || prod.sku || '—';
                     const ordered = Number(d.quantity_ordered || d.quantity || d.quantity_amount || 0);
+                    const isSerial = prod.product_type === 'appliance';
+                    const pps = Number(prod.pieces_per_package) || 1;
+                    const orderedPcs = isSerial ? ordered : ordered * pps;
                     const received = bsrProductProgress[detailId] || 0;
-                    const pct = ordered > 0 ? Math.min(100, (received / ordered) * 100) : 0;
-                    const done = received >= ordered && ordered > 0;
+                    const pct = orderedPcs > 0 ? Math.min(100, (received / orderedPcs) * 100) : 0;
+                    const done = received >= orderedPcs && orderedPcs > 0;
                     const isActive = bsrActiveLine?.po_detail_id === detailId;
                     return (
                       <div
@@ -2525,11 +2582,20 @@ const BarcodeScan = () => {
                         <div className="bsr-item-info">
                           <span className="bsr-item-name">{name}</span>
                           <span className="bsr-item-sku">SKU: {sku}</span>
-                          {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
+                          <div className="bsr-item-badges">
+                            {prod.product_type === 'appliance'
+                              ? <span className="bsr-serialized-badge">SERIAL</span>
+                              : <span className="bsr-bulk-badge">BULK</span>}
+                            {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
+                          </div>
                         </div>
                         <div className="bsr-item-progress-row">
                           <span className="bsr-item-progress-label">Progress:</span>
-                          <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>{received} / {ordered}</span>
+                          <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>
+                            {isSerial
+                              ? `${received} / ${ordered} units`
+                              : `${Math.floor(received / pps)} / ${ordered} pkg`}
+                          </span>
                         </div>
                         <div className="bsr-progress-bar-wrap">
                           <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%` }}/>
@@ -2541,6 +2607,63 @@ const BarcodeScan = () => {
               </div>
             </div>
             <div className="bsr-right">
+
+              {/* ── Scan Success overlay ── */}
+              {bsrScanSuccess && (
+                <div className="bsr-success-overlay">
+                  <div className="bsr-success-modal">
+                    <div className="bsr-success-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="40" height="40">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                      </svg>
+                    </div>
+                    <h3 className="bsr-success-title">Scan Successful</h3>
+                    <p className="bsr-success-product">{bsrScanSuccess.productName}</p>
+                    <div className="bsr-success-details">
+                      <div className="bsr-success-row">
+                        <span className="bsr-success-label">Barcode</span>
+                        <span className="bsr-success-value bsr-success-code">{bsrScanSuccess.barcode}</span>
+                      </div>
+                      {bsrScanSuccess.isSerialized ? (
+                        <div className="bsr-success-row">
+                          <span className="bsr-success-label">Unit Received</span>
+                          <span className="bsr-success-value">1 unit</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="bsr-success-row">
+                            <span className="bsr-success-label">Packages</span>
+                            <span className="bsr-success-value">{bsrScanSuccess.pkgs} pkg{bsrScanSuccess.pkgs !== 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="bsr-success-row">
+                            <span className="bsr-success-label">Pcs / Package</span>
+                            <span className="bsr-success-value">{bsrScanSuccess.pcs} pcs</span>
+                          </div>
+                          <div className="bsr-success-row bsr-success-row--total">
+                            <span className="bsr-success-label">Total Added</span>
+                            <span className="bsr-success-value bsr-success-total">+{bsrScanSuccess.qtyReceived} pcs</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="bsr-success-row">
+                        <span className="bsr-success-label">Progress</span>
+                        <span className="bsr-success-value">
+                          {bsrScanSuccess.isSerialized
+                            ? `${bsrScanSuccess.newReceived} / ${bsrScanSuccess.ordered} units`
+                            : `${Math.floor(bsrScanSuccess.newReceived / bsrScanSuccess.pcs)} / ${bsrScanSuccess.ordered} pkg`
+                          }
+                          {bsrScanSuccess.lineComplete && <span className="bsr-success-complete-tag">COMPLETE</span>}
+                        </span>
+                      </div>
+                    </div>
+                    <button type="button" className="bsr-success-done-btn" onClick={handleBsrScanSuccessDone}>
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="bsr-card">
                 <div className="bsr-card-head">
                   <div className="bsr-card-icon bsr-card-icon--scan"><BsrBarcodeIcon size={18} color="#9810FA" /></div>
@@ -2548,7 +2671,7 @@ const BarcodeScan = () => {
                     <span className="bsr-card-title">SCAN BARCODE</span>
                     {bsrActiveLine ? (
                       <p className="bsr-card-subtitle">
-                        Scanning: <strong>{bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Selected Item'}</strong>
+                        <strong>{bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Selected Item'}</strong>
                       </p>
                     ) : (
                       <p className="bsr-card-subtitle bsr-card-subtitle--warn">Select an item from the left panel to begin</p>
@@ -2565,7 +2688,6 @@ const BarcodeScan = () => {
                   </select>
                 </div>
 
-                {/* camera scanner */}
                 <div className="bs-camera-box" style={{ marginBottom: 12 }}>
                   <div
                     id={HTML5_QR_MOUNT_ID}
@@ -2620,28 +2742,42 @@ const BarcodeScan = () => {
                   ref={bsrInputRef}
                   type="text"
                   className={`bsr-scan-input${bsrScanning ? ' bsr-scan-input--scanning' : ''}`}
-                  placeholder={bsrActiveLine ? 'Scan or enter serial number...' : 'Select an item from the left panel first...'}
+                  placeholder={bsrActiveLine ? 'Scan barcode / serial number...' : 'Select an item from the left panel first...'}
                   value={bsrScanInput}
                   onChange={handleBsrInputChange}
                   onKeyDown={handleBsrKeyDown}
                   autoComplete="off"
-                  disabled={bsrScanning || !bsrActiveLine}
+                  disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess}
                 />
                 <div className="bsr-examples-card">
-                  <span className="bsr-examples-label">
-                    {bsrActiveLine ? 'Scanning serial for:' : 'How to scan:'}
-                  </span>
-                  <div className="bsr-examples-list">
-                    {bsrActiveLine ? (
-                      <span className="bsr-example-code">
-                        {bsrActiveLine.product?.product_name || 'Selected Item'} — scan the physical serial number label
-                      </span>
+                  {bsrActiveLine ? (() => {
+                    const isSerialized = bsrIsSerialized(bsrActiveLine);
+                    const pcs = Number(bsrActiveLine.product?.pieces_per_package) || 1;
+                    return isSerialized ? (
+                      <>
+                        <span className="bsr-examples-label">Scan serial number label on the unit</span>
+                        <div className="bsr-examples-list">
+                          <span className="bsr-example-code">{bsrActiveLine.product?.product_name || 'Item'} — 1 scan = 1 unit</span>
+                        </div>
+                      </>
                     ) : (
-                      <span className="bsr-example-code" style={{ opacity: 0.6 }}>
-                        Click an item on the left, then scan its serial number
-                      </span>
-                    )}
-                  </div>
+                      <>
+                        <span className="bsr-examples-label">Scan the package barcode, then submit</span>
+                        <div className="bsr-examples-list">
+                          <span className="bsr-example-code">
+                            {bsrActiveLine.product?.product_name || 'Item'} — {pcs} pcs per package
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })() : (
+                    <>
+                      <span className="bsr-examples-label">How to scan:</span>
+                      <div className="bsr-examples-list">
+                        <span className="bsr-example-code" style={{ opacity: 0.6 }}>Click an item on the left, then scan its barcode</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="bsr-card">
@@ -2665,7 +2801,13 @@ const BarcodeScan = () => {
                       <div key={item.id} className="bsr-scanned-item">
                         <div className="bsr-scanned-item-info">
                           <span className="bsr-scanned-item-name">{item.productName}</span>
-                          <span className="bsr-scanned-item-serial">{item.serial}</span>
+                          <span className="bsr-scanned-item-serial">
+                            {item.serial
+                              ? item.serial
+                              : item.packages != null && item.qty != null
+                                ? `${item.packages} pkg${item.packages !== 1 ? 's' : ''} × ${item.qty / item.packages} pcs = ${item.qty} pcs`
+                                : item.qty != null ? `${item.qty} pcs` : ''}
+                          </span>
                         </div>
                         <span className="bsr-scanned-item-time">{item.at}</span>
                       </div>

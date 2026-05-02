@@ -21,6 +21,7 @@ class PurchaseOrderController extends Controller
         'location',
         'createdBy',
         'approvedBy',
+        'receivedBy',
         'status',
         'details.product',
         'details.approvedBy',

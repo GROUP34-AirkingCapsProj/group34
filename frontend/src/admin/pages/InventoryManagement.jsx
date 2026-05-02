@@ -168,12 +168,12 @@ const InventoryManagement = () => {
   }, [searchTerm]);
 
   /* ── helpers ─── */
-  const getItemName   = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
-  const getItemCode   = (item) => item.product?.product_code || item.item?.code || item.sku || '';
-  const getItemQty    = (item) => item.quantity || item.quantity_on_hand || 0;
-  const getItemReorder = (item) => item.reorder_level || item.item?.reorder_level || 5;
-  const getItemSafety  = (item) => Math.round(getItemReorder(item) * 0.25) || 3;
-  const getItemMax     = (item) => getItemReorder(item) * 4 || 100;
+  const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
+  const getItemCode    = (item) => item.product?.product_code || item.item?.code || item.sku || '';
+  const getItemQty     = (item) => Number(item.quantity_on_hand ?? item.quantity ?? 0);
+  const getItemReorder = (item) => Number(item.product?.recommended_stocks || item.reorder_level || 5);
+  const getItemSafety  = (item) => Number(item.product?.safety_stock) || Math.round(getItemReorder(item) * 0.25) || 1;
+  const getItemMax     = (item) => Number(item.product?.max_stock_level) || getItemReorder(item) * 4 || 100;
   const getBranchName  = (item) => item.location?.location_name || item.branch?.name || item.warehouse_location || 'N/A';
   const getItemCat     = (item) =>
     item.product?.category?.category_name ||
@@ -449,7 +449,7 @@ const InventoryManagement = () => {
                         </td>
                       </tr>
                     ) : top20.map(({ item, rank, inbound, outbound, turnover, cat }) => (
-                      <tr key={item.id}>
+                      <tr key={item.inventory_id}>
                         <td>
                           <div className="sm-rank-cell">
                             <span className="sm-rank">#{String(rank).padStart(2, '0')}</span>
@@ -574,6 +574,7 @@ const InventoryManagement = () => {
                     <tr>
                       <th>PRODUCT &amp; BRANCH</th>
                       <th>CURRENT</th>
+                      <th>PACKAGES</th>
                       <th>SAFETY</th>
                       <th>REORDER</th>
                       <th>MAXIMUM</th>
@@ -584,7 +585,7 @@ const InventoryManagement = () => {
                   <tbody>
                     {inventory.length === 0 ? (
                       <tr>
-                        <td colSpan="7" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                        <td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
                           {loading ? 'Loading...' : 'No items found'}
                         </td>
                       </tr>
@@ -592,7 +593,7 @@ const InventoryManagement = () => {
                       inventory.map((item) => {
                         const status = getItemStatus(item);
                         return (
-                          <tr key={item.id}>
+                          <tr key={item.inventory_id}>
                             <td>
                               <div className="inv-product-cell">
                                 <span className="inv-product-name">{getItemName(item)}</span>
@@ -603,6 +604,11 @@ const InventoryManagement = () => {
                               </div>
                             </td>
                             <td className="inv-cell-qty"><strong>{getItemQty(item)}</strong></td>
+                            <td className="inv-cell-num">
+                              {item.product?.product_type !== 'appliance' && item.product?.pieces_per_package > 1
+                                ? (item.packages_on_hand ?? Math.floor(getItemQty(item) / item.product.pieces_per_package))
+                                : <span style={{ color: '#d1d5db' }}>—</span>}
+                            </td>
                             <td className="inv-cell-num">{getItemSafety(item)}</td>
                             <td className="inv-cell-num">{getItemReorder(item)}</td>
                             <td className="inv-cell-num">{getItemMax(item)}</td>

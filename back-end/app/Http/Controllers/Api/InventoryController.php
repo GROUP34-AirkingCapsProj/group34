@@ -19,7 +19,7 @@ class InventoryController extends Controller
         // Only rows whose product still exists in `products` (same catalog as Item Master).
         $query = Inventory::query()
             ->whereHas('product')
-            ->with(['location.branch'])
+            ->with(['location'])
             ->with(['product' => function ($q) {
                 $q->with(['category', 'brand', 'model', 'status', 'unit'])
                     ->withSum(['inventories as stock_on_hand_total' => function ($sub) {
