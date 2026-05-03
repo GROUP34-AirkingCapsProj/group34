@@ -153,11 +153,13 @@ const [activeTab, setActiveTab] = useState(() => {
     const interval = window.setInterval(fetchServerPOs, 15000);
     window.addEventListener('approval-notifications-updated', fetchServerPOs);
     window.addEventListener('storage', fetchServerPOs);
+    window.addEventListener('inventory-scan-applied', fetchServerPOs);
 
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('approval-notifications-updated', fetchServerPOs);
       window.removeEventListener('storage', fetchServerPOs);
+      window.removeEventListener('inventory-scan-applied', fetchServerPOs);
     };
   }, [activeTab, fetchServerPOs]);
 

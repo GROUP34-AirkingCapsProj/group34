@@ -1196,7 +1196,12 @@ const BarcodeScan = () => {
           queueMicrotask(() => {
             void mergeFreshInventoryForSession(pidMerge, locMerge, code, result.scannedAt);
             reloadRecentMovement();
-            if (engineTransactionType === 'receiving') loadPurchaseOrders();
+            if (engineTransactionType === 'receiving') {
+              loadPurchaseOrders();
+              window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
+                detail: { transaction_type: 'receiving', po_id: body.po_id || null },
+              }));
+            }
             if (engineTransactionType === 'transfer') {
               transfersAPI.getAll({ per_page: 100 }).then((r) => {
                 setInTransitTransfers(Array.isArray(r?.data) ? r.data : []);
@@ -1842,6 +1847,32 @@ const BarcodeScan = () => {
       // Keep the local received-barcodes set in sync so subsequent scans of the
       // same barcode in this session are caught by the pre-check above.
       setBsrPoReceivedBarcodes((prev) => new Set([...prev, normalizedCode]));
+
+      // Immediately reflect the updated PO status (Partially Received / Completed)
+      // in both the BSR list and the selected PO, using the value the server just
+      // persisted — no second network request needed.
+      if (data?.po_status) {
+        const activePo = bsrSelectedPo;
+        const activePoId = activePo?.po_id ?? activePo?.id;
+        setBsrPoList((prev) => prev.map((po) =>
+          (po.po_id ?? po.id) === activePoId
+            ? { ...po, status: { ...(po.status || {}), status_name: data.po_status } }
+            : po,
+        ));
+        setBsrSelectedPo((prev) => prev
+          ? { ...prev, status: { ...(prev.status || {}), status_name: data.po_status } }
+          : prev,
+        );
+      }
+
+      // Broadcast to ApprovalQueue and InventoryManagement so they re-fetch instantly.
+      window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
+        detail: {
+          transaction_type: 'receiving',
+          po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
+          product_id: productId,
+        },
+      }));
 
       const lineComplete = orderedPcs > 0 && newReceived >= orderedPcs;
       let nextLine = null;
