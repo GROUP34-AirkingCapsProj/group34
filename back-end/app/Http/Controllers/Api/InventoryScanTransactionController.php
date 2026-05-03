@@ -623,8 +623,9 @@ class InventoryScanTransactionController extends Controller
 
     private function syncPoReceivingStatus(int $poId, $userId = null): void
     {
-        $details = PurchaseOrderDetail::where('po_id', $poId)
-            ->get(['po_detail_id', 'quantity_ordered']);
+        $details = PurchaseOrderDetail::with('product')
+            ->where('po_id', $poId)
+            ->get(['po_detail_id', 'product_id', 'quantity_ordered']);
 
         if ($details->isEmpty()) {
             return;
@@ -634,7 +635,15 @@ class InventoryScanTransactionController extends Controller
         $totalReceived = 0;
 
         foreach ($details as $d) {
-            $totalOrdered  += (int) $d->quantity_ordered;
+            // quantity_ordered is in packages for consumables, units for serialized.
+            // quantity_amount is always stored in pieces — normalise both to pieces.
+            $isSerialized  = $d->product?->isAppliance() ?? false;
+            $pcsPerPackage = max(1, (int) ($d->product?->pieces_per_package ?? 1));
+            $orderedPieces = $isSerialized
+                ? (int) $d->quantity_ordered
+                : (int) $d->quantity_ordered * $pcsPerPackage;
+
+            $totalOrdered  += $orderedPieces;
             $totalReceived += (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)
                 ->sum('quantity_amount');
         }

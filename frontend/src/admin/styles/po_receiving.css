@@ -596,6 +596,13 @@
 }
 .bsr-location-select:focus { border-color: #9810FA; box-shadow: 0 0 0 3px rgba(152,16,250,0.10); }
 
+.bsr-scan-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 12px 18px 0;
+}
+
 .bsr-scan-input {
   display: block;
   width: 100%; box-sizing: border-box;
@@ -610,6 +617,11 @@
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
+.bsr-scan-row .bsr-scan-input {
+  margin: 0;
+  width: auto;
+  flex: 1 1 0;
+}
 .bsr-scan-input:focus {
   border-color: #9810FA;
   box-shadow: 0 0 0 3px rgba(152,16,250,0.10);
@@ -617,6 +629,27 @@
 }
 .bsr-scan-input::placeholder { color: #c084fc; font-family: inherit; letter-spacing: 0; }
 .bsr-scan-input--scanning { opacity: 0.6; cursor: wait; }
+
+.bsr-capture-btn {
+  flex-shrink: 0;
+  padding: 0 20px;
+  border: 2px solid #9810FA;
+  border-radius: 10px;
+  background: #9810FA;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.bsr-capture-btn:hover:not(:disabled) { background: #7c0fd4; border-color: #7c0fd4; }
+.bsr-capture-btn:disabled {
+  background: #d1d5db;
+  border-color: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
 
 .bsr-examples-card {
   margin: 12px 18px 16px;
@@ -957,6 +990,8 @@
   .bsr-po-details { padding: 12px 14px; }
   .bsr-items-list { padding: 12px 14px; }
   .bsr-location-row { padding: 10px 14px 0; }
+  .bsr-scan-row { margin: 10px 14px 0; }
+  .bsr-scan-row .bsr-scan-input { margin: 0; width: auto; }
   .bsr-scan-input { margin: 10px 14px 0; width: calc(100% - 28px); }
   .bsr-examples-card { margin: 10px 14px 12px; }
   .bsr-scanned-item { padding: 10px 14px; }

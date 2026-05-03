@@ -2339,11 +2339,13 @@
   white-space: nowrap;
 }
 
-.po-detail-status-pill--pending  { background: #fef9c3; color: #a16207; }
-.po-detail-status-pill--approved { background: #dcfce7; color: #15803d; }
-.po-detail-status-pill--rejected { background: #fee2e2; color: #dc2626; }
-.po-detail-status-pill--cancelled{ background: #f3f4f6; color: #6b7280; }
-.po-detail-status-pill--draft    { background: rgba(255,255,255,0.2); color: #fff; }
+.po-detail-status-pill--pending   { background: #fef9c3; color: #a16207; }
+.po-detail-status-pill--approved  { background: #dcfce7; color: #15803d; }
+.po-detail-status-pill--partial   { background: #fff7ed; color: #c2410c; }
+.po-detail-status-pill--completed { background: #dcfce7; color: #15803d; }
+.po-detail-status-pill--rejected  { background: #fee2e2; color: #dc2626; }
+.po-detail-status-pill--cancelled { background: #f3f4f6; color: #6b7280; }
+.po-detail-status-pill--draft     { background: rgba(255,255,255,0.2); color: #fff; }
 
 .po-detail-priority-pill {
   display: inline-flex;
@@ -2392,11 +2394,13 @@
   font-weight: 500;
 }
 
-.po-detail-strip--pending  { background: #fffbeb; color: #92400e; border-bottom: 1px solid #fde68a; }
-.po-detail-strip--approved { background: #f0fdf4; color: #15803d; border-bottom: 1px solid #bbf7d0; }
-.po-detail-strip--rejected { background: #fef2f2; color: #dc2626; border-bottom: 1px solid #fecaca; }
-.po-detail-strip--cancelled{ background: #f9fafb; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
-.po-detail-strip--draft    { background: #f3f4f6; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+.po-detail-strip--pending   { background: #fffbeb; color: #92400e; border-bottom: 1px solid #fde68a; }
+.po-detail-strip--approved  { background: #f0fdf4; color: #15803d; border-bottom: 1px solid #bbf7d0; }
+.po-detail-strip--partial   { background: #fff7ed; color: #c2410c; border-bottom: 1px solid #fed7aa; }
+.po-detail-strip--completed { background: #f0fdf4; color: #15803d; border-bottom: 1px solid #bbf7d0; }
+.po-detail-strip--rejected  { background: #fef2f2; color: #dc2626; border-bottom: 1px solid #fecaca; }
+.po-detail-strip--cancelled { background: #f9fafb; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+.po-detail-strip--draft     { background: #f3f4f6; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
 
 .po-detail-strip strong { font-weight: 700; }
 
