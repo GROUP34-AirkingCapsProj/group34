@@ -777,6 +777,9 @@ const BarcodeScan = () => {
   const bsrInputRef = useRef(null);
   const bsrScanTimerRef = useRef(null);
   const bsrProcessingRef = useRef(false); // synchronous lock — prevents double-fire
+  // True while a PO is selected in BSR mode — used by applyDecodedBarcode to block
+  // continuous camera auto-scan; only the manual Scan (circular) button fires scans.
+  const bsrModeActiveRef = useRef(false);
 
   /* ── load filter data ── */
   useEffect(() => {
@@ -1396,6 +1399,8 @@ const BarcodeScan = () => {
 
   const applyDecodedBarcode = useCallback((decodedText) => {
     if (scanningRef.current) return;
+    // In BSR mode the circular Scan button is the only trigger — block auto-scan.
+    if (bsrModeActiveRef.current) return;
     const code = String(decodedText || '').replace(/\s+/g, '').trim();
     if (!code) return;
     const now = Date.now();
@@ -1555,6 +1560,8 @@ const BarcodeScan = () => {
       toast.info('Start the camera and wait until you see a live preview.');
       return;
     }
+    // In BSR mode block the circular button while a scan or modal is already active.
+    if (bsrModeActiveRef.current && bsrProcessingRef.current) return;
     if (scanningRef.current) {
       toast.info('Still processing the previous scan — try again in a moment.');
       return;
@@ -1900,13 +1907,13 @@ const BarcodeScan = () => {
   }, []);
 
   const handleBsrInputChange = (e) => {
-    const v = e.target.value;
-    setBsrScanInput(v);
-    if (bsrScanTimerRef.current) clearTimeout(bsrScanTimerRef.current);
-    bsrScanTimerRef.current = setTimeout(() => {
-      const raw = String(bsrInputRef.current?.value ?? '').trim();
-      if (raw.length >= 4) handleBsrScan(raw);
-    }, 200);
+    setBsrScanInput(e.target.value);
+  };
+
+  const handleBsrCaptureClick = () => {
+    if (bsrScanTimerRef.current) { clearTimeout(bsrScanTimerRef.current); bsrScanTimerRef.current = null; }
+    const raw = bsrScanInput.trim();
+    if (raw.length >= 4) handleBsrScan(raw);
   };
 
   const handleBsrKeyDown = (e) => {
@@ -1920,6 +1927,10 @@ const BarcodeScan = () => {
   useEffect(() => {
     handleScanRef.current = (scanMode?.key === 'receive-po' && bsrSelectedPo) ? handleBsrScan : handleScan;
   }, [handleScan, handleBsrScan, scanMode?.key, bsrSelectedPo]);
+
+  useEffect(() => {
+    bsrModeActiveRef.current = (scanMode?.key === 'receive-po' && !!bsrSelectedPo);
+  }, [scanMode?.key, bsrSelectedPo]);
 
   /* ── helpers ── */
   const qty = (inv) => {
@@ -2918,7 +2929,7 @@ const BarcodeScan = () => {
                   <div className="bs-bracket bs-bl"/><div className="bs-bracket bs-br"/>
                   {cameraActive && <div className="bs-scan-line"/>}
                   {cameraActive && (
-                    <p className="bs-cam-hint">Position the barcode in the frame — or tap Scan to capture now.</p>
+                    <p className="bs-cam-hint">Position the barcode in the frame and tap <strong>Scan</strong> — auto-capture is disabled; only the button triggers a scan.</p>
                   )}
                   {cameraError && <p className="bs-cam-err">{cameraError}</p>}
                   {cameraActive && (
@@ -2949,17 +2960,28 @@ const BarcodeScan = () => {
                   </div>
                 )}
 
-                <input
-                  ref={bsrInputRef}
-                  type="text"
-                  className={`bsr-scan-input${bsrScanning ? ' bsr-scan-input--scanning' : ''}`}
-                  placeholder={bsrActiveLine ? 'Scan barcode / serial number...' : 'Select an item from the left panel first...'}
-                  value={bsrScanInput}
-                  onChange={handleBsrInputChange}
-                  onKeyDown={handleBsrKeyDown}
-                  autoComplete="off"
-                  disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
-                />
+                <div className="bsr-scan-row">
+                  <input
+                    ref={bsrInputRef}
+                    type="text"
+                    className={`bsr-scan-input${bsrScanning ? ' bsr-scan-input--scanning' : ''}`}
+                    placeholder={bsrActiveLine ? 'Scan or type barcode / serial...' : 'Select an item from the left panel first...'}
+                    value={bsrScanInput}
+                    onChange={handleBsrInputChange}
+                    onKeyDown={handleBsrKeyDown}
+                    autoComplete="off"
+                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
+                  />
+                  <button
+                    type="button"
+                    className="bsr-capture-btn"
+                    onClick={handleBsrCaptureClick}
+                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrScanInput.trim().length < 4}
+                    aria-label="Submit barcode"
+                  >
+                    {bsrScanning ? 'Scanning…' : 'Submit'}
+                  </button>
+                </div>
                 <div className="bsr-examples-card">
                   {bsrActiveLine ? (() => {
                     const isSerialized = bsrIsSerialized(bsrActiveLine);

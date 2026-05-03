@@ -85,6 +85,8 @@ const [activeTab, setActiveTab] = useState(() => {
           ? 'cancelled'
           : serverStatus.includes('complet')
           ? 'completed'
+          : serverStatus.includes('partial')
+          ? 'partial'
           : 'pending';
 
         return {
@@ -753,6 +755,10 @@ return (
   <span className="aq-badge completed">COMPLETED</span>
 )}
 
+{po.status === 'partial' && (
+  <span className="aq-badge partial">PARTIALLY RECEIVED</span>
+)}
+
 {/* ✅ ONLY PENDING HAS ACTIONS */}
 {po.status === 'pending' && (
   canActOnQueue ? (
@@ -853,11 +859,12 @@ return (
       {poVerifyModal && (() => {
         const po = poVerifyModal;
         const statusMap = {
-          pending:    { label: 'PENDING APPROVAL', color: 'pending' },
-          authorized: { label: 'APPROVED',         color: 'approved' },
-          completed:  { label: 'APPROVED',         color: 'approved' },
-          rejected:   { label: 'REJECTED',         color: 'rejected' },
-          cancelled:  { label: 'CANCELLED',        color: 'cancelled' },
+          pending:    { label: 'PENDING APPROVAL',   color: 'pending' },
+          authorized: { label: 'APPROVED',           color: 'approved' },
+          partial:    { label: 'PARTIALLY RECEIVED', color: 'partial' },
+          completed:  { label: 'COMPLETED',          color: 'completed' },
+          rejected:   { label: 'REJECTED',           color: 'rejected' },
+          cancelled:  { label: 'CANCELLED',          color: 'cancelled' },
         };
         const statusCfg = statusMap[po.status] || { label: (po.status || 'DRAFT').toUpperCase(), color: 'draft' };
         const amount = Number(po.amount || 0);
@@ -897,6 +904,8 @@ return (
               <div className={`po-detail-strip po-detail-strip--${statusCfg.color}`}>
                 {statusCfg.color === 'pending'   && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
                 {statusCfg.color === 'approved'  && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
+                {statusCfg.color === 'partial'   && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10"/><polyline points="12 6 12 12 16 14"/><path d="M16 16h6v6"/></svg>}
+                {statusCfg.color === 'completed' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
                 {statusCfg.color === 'rejected'  && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>}
                 {statusCfg.color === 'cancelled' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>}
                 <span><strong>{statusCfg.label}</strong></span>

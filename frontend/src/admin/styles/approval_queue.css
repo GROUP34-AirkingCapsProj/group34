@@ -221,6 +221,16 @@
   border: 1px solid #e2e8f0;
 }
 
+.aq-badge.partial {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.aq-badge.completed {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
 /* ===============================
    ACTION BUTTONS - PURCHASE ORDERS
 ================================ */
