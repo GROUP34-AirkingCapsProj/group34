@@ -371,6 +371,14 @@ class InventoryScanTransactionController extends Controller
                 $payload['remaining_after'] = $remaining - $quantity;
             }
 
+            if ($poId) {
+                $freshPo = PurchaseOrder::with('status')->find($poId);
+                if ($freshPo) {
+                    $payload['po_status']    = $freshPo->status?->status_name;
+                    $payload['po_status_id'] = $freshPo->status_id;
+                }
+            }
+
             return $this->success($payload, 'Receiving posted');
         } catch (\Exception $e) {
             DB::rollBack();

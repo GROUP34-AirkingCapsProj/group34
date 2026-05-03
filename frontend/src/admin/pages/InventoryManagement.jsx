@@ -161,6 +161,13 @@ const InventoryManagement = () => {
 
   useEffect(() => { fetchInventory(currentPage); }, [currentPage, fetchInventory]);
 
+  // Re-fetch when a barcode scan transaction is confirmed anywhere in the app.
+  useEffect(() => {
+    const onScanApplied = () => fetchInventory(currentPage);
+    window.addEventListener('inventory-scan-applied', onScanApplied);
+    return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
+  }, [fetchInventory, currentPage]);
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setCurrentPage(1), 400);
