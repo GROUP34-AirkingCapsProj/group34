@@ -261,10 +261,10 @@ class InventoryScanTransactionController extends Controller
 
         $scannedBarcode = strtolower(trim($validated['barcode']));
 
-        // Serialized items have globally unique serial numbers — block any repeat.
-        // Consumable packages share the same product barcode on every physical package,
-        // so duplicate checking by barcode is intentionally skipped for them.
-        if ($isSerialized && $scannedBarcode !== '') {
+        // Global barcode uniqueness: every scanned barcode is a one-time-use identifier.
+        // Once received anywhere (any PO, any line, any session), the barcode is locked
+        // and cannot be assigned to a different inventory slot.
+        if ($scannedBarcode !== '') {
             if (ReceivingDetail::query()
                 ->whereNotNull('scanned_barcode')
                 ->whereRaw('LOWER(TRIM(scanned_barcode)) = ?', [$scannedBarcode])
@@ -272,7 +272,7 @@ class InventoryScanTransactionController extends Controller
             ) {
                 return $this->success([
                     'action' => 'rejected',
-                    'reason' => 'This serial number has already been recorded as received. Duplicate prevented.',
+                    'reason' => 'This barcode has already been received and is locked to its assigned inventory slot. Each barcode is a one-time-use unique identifier.',
                 ], 'Rejected');
             }
         }

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 30, 2026 at 12:53 AM
+-- Generation Time: May 03, 2026 at 08:20 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.30
 
@@ -81,68 +81,6 @@ CREATE TABLE `audit_trail` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `audit_trail`
---
-
-INSERT INTO `audit_trail` (`audit_id`, `user_id`, `action`, `table_name`, `record_id`, `old_values`, `new_values`, `ip_address`, `user_agent`, `created_at`, `updated_at`) VALUES
-(1, 2, 'login', NULL, NULL, NULL, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-22 15:18:10', '2026-04-22 15:18:10'),
-(2, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-22 23:50:19', '2026-04-22 23:50:19'),
-(3, 2, 'login', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 03:15:34', '2026-04-24 03:15:34'),
-(4, 2, 'login', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:08:31', '2026-04-24 04:08:31'),
-(5, 2, 'create', 'users', 3, NULL, '{\"first_name\":\"Inventory\",\"last_name\":\"Analyst\",\"email\":\"IA@airking.com\",\"username\":\"Inventory Analyst\",\"phone\":\"0975543453466\",\"role_id\":2,\"location_id\":1,\"status_id\":1,\"password_hash\":\"$2y$12$rEMek7CtkHO3FBWoC8MtI.C0Lo0YduK2A4MJ1A04VWbuW1uFbLoAa\",\"updated_at\":\"2026-04-24 12:11:24\",\"created_at\":\"2026-04-24 12:11:24\",\"user_id\":3}', '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:11:24', '2026-04-24 04:11:24'),
-(6, 2, 'login', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:42:16', '2026-04-24 04:42:16'),
-(7, 2, 'create', 'users', 4, NULL, '{\"first_name\":\"Branch\",\"last_name\":\"Manager\",\"email\":\"branch@airking.com\",\"username\":\"Branch Manager\",\"phone\":\"093343566454\",\"role_id\":3,\"location_id\":1,\"status_id\":1,\"password_hash\":\"$2y$12$RosWC5qVOpPjHLo1u\\/keY.sXncNJ728kepa448m8TzySbHXuz4.TW\",\"updated_at\":\"2026-04-24 12:43:44\",\"created_at\":\"2026-04-24 12:43:44\",\"user_id\":4}', '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:43:44', '2026-04-24 04:43:44'),
-(8, 2, 'logout', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:58:14', '2026-04-24 04:58:14'),
-(9, 4, 'login', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:58:35', '2026-04-24 04:58:35'),
-(10, 4, 'logout', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:58:56', '2026-04-24 04:58:56'),
-(11, 3, 'login', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 04:59:24', '2026-04-24 04:59:24'),
-(12, 3, 'logout', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 05:00:00', '2026-04-24 05:00:00'),
-(13, 2, 'login', NULL, NULL, NULL, NULL, '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 05:00:04', '2026-04-24 05:00:04'),
-(14, 2, 'create', 'users', 5, NULL, '{\"first_name\":\"Admin\",\"last_name\":\"Ibong\",\"email\":\"adminibong@gmail.com\",\"username\":\"Admin Ibong\",\"phone\":\"09752267355\",\"role_id\":1,\"location_id\":1,\"status_id\":1,\"password_hash\":\"$2y$12$tlHaN.\\/20TxxEl0zykV1o.sn2vadx12vJQEw2w78N2g9h0mNLITgu\",\"updated_at\":\"2026-04-24 13:02:02\",\"created_at\":\"2026-04-24 13:02:02\",\"user_id\":5}', '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 05:02:02', '2026-04-24 05:02:02'),
-(15, 2, 'update', 'users', 5, '{\"user_id\":5,\"first_name\":\"Admin\",\"last_name\":\"Ibong\",\"username\":\"Admin Ibong\",\"email\":\"adminibong@gmail.com\",\"phone\":\"09752267355\",\"role_id\":1,\"location_id\":1,\"status_id\":1,\"email_verified_at\":null,\"password_hash\":\"$2y$12$tlHaN.\\/20TxxEl0zykV1o.sn2vadx12vJQEw2w78N2g9h0mNLITgu\",\"remember_token\":null,\"assigned_location_ids\":null,\"allowed_panels\":null,\"created_at\":\"2026-04-24T13:02:02.000000Z\",\"updated_at\":\"2026-04-24T13:02:02.000000Z\"}', '{\"location_id\":2,\"updated_at\":\"2026-04-24 13:03:59\"}', '10.0.2.189', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 05:03:59', '2026-04-24 05:03:59'),
-(16, 2, 'login', NULL, NULL, NULL, NULL, '172.20.10.2', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-24 11:14:10', '2026-04-24 11:14:10'),
-(17, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:12:09', '2026-04-24 22:12:09'),
-(18, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:18:41', '2026-04-24 22:18:41'),
-(19, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:21:39', '2026-04-24 22:21:39'),
-(20, 2, 'login', NULL, NULL, NULL, NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:24:34', '2026-04-24 22:24:34'),
-(21, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:36:58', '2026-04-24 22:36:58'),
-(22, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:40:02', '2026-04-24 22:40:02'),
-(23, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:42:44', '2026-04-24 22:42:44'),
-(24, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-24 22:59:38', '2026-04-24 22:59:38'),
-(25, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 00:27:07', '2026-04-25 00:27:07'),
-(26, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 02:34:24', '2026-04-25 02:34:24'),
-(27, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 02:38:14', '2026-04-25 02:38:14'),
-(28, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 04:34:30', '2026-04-25 04:34:30'),
-(29, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 06:50:18', '2026-04-25 06:50:18'),
-(30, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 11:44:28', '2026-04-25 11:44:28'),
-(31, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 12:39:13', '2026-04-25 12:39:13'),
-(32, 2, 'create', 'suppliers', 1, NULL, '{\"supplier_name\":\"Supplier China\",\"contact_person\":\"Xijin Ping\",\"contact_number\":\"093343566453\",\"email\":\"supplier@gmail.com\",\"address\":\"China\",\"origin\":\"Local\",\"region\":null,\"tin\":\"2222\",\"status_id\":\"5\",\"notes\":\"Supplier\",\"updated_at\":\"2026-04-25 20:47:51\",\"created_at\":\"2026-04-25 20:47:51\",\"supplier_id\":1}', '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 12:47:51', '2026-04-25 12:47:51'),
-(33, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 15:24:36', '2026-04-25 15:24:36'),
-(34, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 17:08:13', '2026-04-25 17:08:13'),
-(35, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 18:04:21', '2026-04-25 18:04:21'),
-(36, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 21:02:37', '2026-04-25 21:02:37'),
-(37, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-25 22:23:40', '2026-04-25 22:23:40'),
-(38, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 00:00:29', '2026-04-26 00:00:29'),
-(39, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 01:12:18', '2026-04-26 01:12:18'),
-(40, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.52', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-04-26 11:47:35', '2026-04-26 11:47:35'),
-(41, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 11:57:19', '2026-04-26 11:57:19'),
-(42, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 12:44:23', '2026-04-26 12:44:23'),
-(43, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 12:51:41', '2026-04-26 12:51:41'),
-(44, 2, 'create', 'users', 6, NULL, '{\"first_name\":\"Warehouse\",\"last_name\":\"Personnel\",\"email\":\"warehouse@airking.com\",\"username\":\"WarehouseMan\",\"phone\":\"0912345654\",\"role_id\":4,\"location_id\":1,\"status_id\":1,\"password_hash\":\"$2y$12$InbdYmphQnA\\/7cNrEAhOfOQmvkap6rtTxl4xpAmvvNk4.RfD5Gg6q\",\"updated_at\":\"2026-04-26 21:20:13\",\"created_at\":\"2026-04-26 21:20:13\",\"user_id\":6}', '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 13:20:13', '2026-04-26 13:20:13'),
-(45, 2, 'create', 'users', 7, NULL, '{\"first_name\":\"Auditor\",\"last_name\":\"Yan\",\"email\":\"auditor@airking.com\",\"username\":\"auditor@airking.com\",\"phone\":\"092345463423\",\"role_id\":5,\"location_id\":2,\"status_id\":1,\"password_hash\":\"$2y$12$bpRoo39Tui.8208x5exnGObnTaUb22WvGkadcZEVbTiriSO\\/9LO6e\",\"updated_at\":\"2026-04-26 21:21:50\",\"created_at\":\"2026-04-26 21:21:50\",\"user_id\":7}', '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 13:21:50', '2026-04-26 13:21:50'),
-(46, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 16:07:27', '2026-04-26 16:07:27'),
-(47, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 18:23:21', '2026-04-26 18:23:21'),
-(48, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 19:44:45', '2026-04-26 19:44:45'),
-(49, 2, 'login', NULL, NULL, NULL, NULL, '10.191.89.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 21:08:15', '2026-04-26 21:08:15'),
-(50, 2, 'login', NULL, NULL, NULL, NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-26 21:38:03', '2026-04-26 21:38:03'),
-(51, 2, 'login', NULL, NULL, NULL, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-28 06:40:42', '2026-04-28 06:40:42'),
-(52, 2, 'login', NULL, NULL, NULL, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-28 15:40:14', '2026-04-28 15:40:14'),
-(53, 2, 'login', NULL, NULL, NULL, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-28 16:27:28', '2026-04-28 16:27:28'),
-(54, 2, 'login', NULL, NULL, NULL, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 12:47:38', '2026-04-29 12:47:38'),
-(55, 2, 'login', NULL, NULL, NULL, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 13:19:10', '2026-04-29 13:19:10'),
-(56, 2, 'login', NULL, NULL, NULL, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 13:20:10', '2026-04-29 13:20:10');
-
 -- --------------------------------------------------------
 
 --
@@ -208,18 +146,10 @@ CREATE TABLE `cache` (
 --
 
 INSERT INTO `cache` (`key`, `value`, `expiration`) VALUES
-('laravel-cache-0e149a6905dc00c0e0b5426c8df98f48ed212e25', 'i:3;', 1777058106),
-('laravel-cache-0e149a6905dc00c0e0b5426c8df98f48ed212e25:timer', 'i:1777058106;', 1777058106),
-('laravel-cache-27e7817c1190e83116f0b67f610ec1b804e35fad', 'i:3;', 1777232876),
-('laravel-cache-27e7817c1190e83116f0b67f610ec1b804e35fad:timer', 'i:1777232876;', 1777232876),
-('laravel-cache-2ca85596fe4e3ad3b9848e5c0129db30e293899a', 'i:1;', 1777497670),
-('laravel-cache-2ca85596fe4e3ad3b9848e5c0129db30e293899a:timer', 'i:1777497670;', 1777497670),
-('laravel-cache-45eb5791ed6770e26250221a7bfcc45a40a8e70b', 'i:3;', 1777266544),
-('laravel-cache-45eb5791ed6770e26250221a7bfcc45a40a8e70b:timer', 'i:1777266544;', 1777266544),
-('laravel-cache-5c785c036466adea360111aa28563bfd556b5fba', 'i:3;', 1777268338),
-('laravel-cache-5c785c036466adea360111aa28563bfd556b5fba:timer', 'i:1777268338;', 1777268338),
-('laravel-cache-5cbed02ce0680383420902e4f2a27ba3f8dd4ea1', 'i:4;', 1777035624),
-('laravel-cache-5cbed02ce0680383420902e4f2a27ba3f8dd4ea1:timer', 'i:1777035624;', 1777035624);
+('laravel-cache-97fb9d442a54e03e3bec9d57e2061744ef0b7383', 'i:3;', 1777780665),
+('laravel-cache-97fb9d442a54e03e3bec9d57e2061744ef0b7383:timer', 'i:1777780665;', 1777780665),
+('laravel-cache-e9326848414a53f4899e944998f940f28b8ad016', 'i:3;', 1777787422),
+('laravel-cache-e9326848414a53f4899e944998f940f28b8ad016:timer', 'i:1777787421;', 1777787422);
 
 -- --------------------------------------------------------
 
@@ -335,6 +265,7 @@ CREATE TABLE `inventory` (
   `product_id` bigint(20) UNSIGNED NOT NULL,
   `status_id` bigint(20) UNSIGNED DEFAULT NULL,
   `quantity_on_hand` int(11) NOT NULL DEFAULT 0,
+  `packages_on_hand` int(10) UNSIGNED NOT NULL DEFAULT 0,
   `available_quantity` int(11) NOT NULL DEFAULT 0,
   `reorder_level` int(11) NOT NULL DEFAULT 0,
   `condition` varchar(50) DEFAULT NULL,
@@ -472,6 +403,7 @@ CREATE TABLE `locations` (
   `parent_location_id` bigint(20) UNSIGNED DEFAULT NULL COMMENT 'Self-ref for sub-locations',
   `location_code` varchar(20) NOT NULL,
   `location_name` varchar(255) NOT NULL,
+  `code` varchar(50) DEFAULT NULL,
   `location_type` enum('warehouse','showroom','branch_office') NOT NULL DEFAULT 'warehouse',
   `address` text DEFAULT NULL,
   `city` varchar(100) DEFAULT NULL,
@@ -484,16 +416,18 @@ CREATE TABLE `locations` (
   `opening_date` date DEFAULT NULL,
   `status_id` bigint(20) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `manager` varchar(255) DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `locations`
 --
 
-INSERT INTO `locations` (`location_id`, `parent_location_id`, `location_code`, `location_name`, `location_type`, `address`, `city`, `province`, `region`, `contact_number`, `email`, `manager_name`, `capacity`, `opening_date`, `status_id`, `created_at`, `updated_at`) VALUES
-(1, NULL, 'CDO105', 'CDO Warehouse A', 'warehouse', 'Zone 5, Bulua CDO Mis.Or', 'Cagayan de Oro', 'Misamis Oriental', 'Region X', '0934324564', 'cdoairking@gmail.com', 'Maam Abegail', 5000, '2026-04-24', 5, '2026-04-24 03:18:22', '2026-04-24 03:18:36'),
-(2, NULL, 'CDO102', 'CDO Main Showroom', 'showroom', 'JR Borja', 'Cagayan de Oro', 'Misamis Oriental', 'Region X', '0934324564', 'cdoairking@gmail.com', 'Maam Abegail', 5000, '2026-04-24', NULL, '2026-04-24 05:03:39', '2026-04-24 05:03:39');
+INSERT INTO `locations` (`location_id`, `parent_location_id`, `location_code`, `location_name`, `code`, `location_type`, `address`, `city`, `province`, `region`, `contact_number`, `email`, `manager_name`, `capacity`, `opening_date`, `status_id`, `created_at`, `updated_at`, `manager`, `is_active`) VALUES
+(1, NULL, 'CDO105', 'CDO Warehouse A', NULL, 'warehouse', 'Zone 5, Bulua CDO Mis.Or', 'Cagayan de Oro', 'Misamis Oriental', 'Region X', '0934324564', 'cdoairking@gmail.com', 'Maam Abegail', 5000, '2026-04-24', 5, '2026-04-24 03:18:22', '2026-04-24 03:18:36', NULL, 1),
+(2, NULL, 'CDO102', 'CDO Main Showroom', NULL, 'showroom', 'JR Borja', 'Cagayan de Oro', 'Misamis Oriental', 'Region X', '0934324564', 'cdoairking@gmail.com', 'Maam Abegail', 5000, '2026-04-24', NULL, '2026-04-24 05:03:39', '2026-04-24 05:03:39', NULL, 1);
 
 -- --------------------------------------------------------
 
@@ -572,7 +506,35 @@ INSERT INTO `login_activities` (`id`, `user_id`, `username_attempt`, `success`, 
 (53, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-28 16:27:28'),
 (54, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 12:47:38'),
 (55, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 13:19:10'),
-(56, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 13:20:10');
+(56, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 13:20:10'),
+(57, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 15:13:34'),
+(58, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 15:45:24'),
+(59, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 20:19:51'),
+(60, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-29 23:04:23'),
+(61, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-30 03:04:58'),
+(62, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-30 16:55:25'),
+(63, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-30 21:54:36'),
+(64, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-01 02:33:37'),
+(65, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-01 16:41:41'),
+(66, NULL, 'adminchu@gmail.com', 0, 'Invalid credentials.', '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 17:53:37'),
+(67, NULL, 'adminchu@gmail.com', 0, 'Invalid credentials.', '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 17:53:55'),
+(68, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 17:54:26'),
+(69, 2, 'adminchu@airking.com', 0, 'Invalid credentials.', '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 18:07:58'),
+(70, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 18:08:13'),
+(71, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 18:09:45'),
+(72, 2, 'adminchu@airking.com', 0, 'Invalid credentials.', '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 18:40:48'),
+(73, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 18:41:06'),
+(74, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-01 22:45:26'),
+(75, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.42', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-01 22:54:59'),
+(76, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-01 23:01:02'),
+(77, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-02 02:46:38'),
+(78, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.38', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-02 05:58:07'),
+(79, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-02 05:58:53'),
+(80, NULL, 'adminchu@airking.com', 0, 'Invalid CAPTCHA.', '10.0.0.38', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-02 16:39:39'),
+(81, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.38', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-02 16:39:50'),
+(82, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.83', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36', '2026-05-02 17:27:11'),
+(83, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.38', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-02 19:57:18'),
+(84, 2, 'adminchu@airking.com', 1, NULL, '10.0.0.39', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-02 21:49:28');
 
 -- --------------------------------------------------------
 
@@ -592,7 +554,11 @@ CREATE TABLE `migrations` (
 
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (1, '2025_01_20_000000_add_approved_by_to_purchase_order_details', 1),
-(2, '2026_04_27_000000_add_scan_fields_to_item_serial', 2);
+(2, '2026_04_27_000000_add_scan_fields_to_item_serial', 2),
+(3, '2025_01_15_000000_update_locations_unified', 3),
+(4, '2026_05_02_000000_add_scanned_barcode_to_receiving_details', 4),
+(5, '2026_05_02_000001_add_po_receiving_statuses', 5),
+(6, '2026_05_02_000003_add_packages_on_hand_to_inventory', 6);
 
 -- --------------------------------------------------------
 
@@ -679,49 +645,15 @@ CREATE TABLE `personal_access_tokens` (
 --
 
 INSERT INTO `personal_access_tokens` (`id`, `tokenable_type`, `tokenable_id`, `name`, `token`, `abilities`, `last_used_at`, `expires_at`, `created_at`, `updated_at`) VALUES
-(1, 'App\\Models\\User', 2, 'auth-token', '5059cf881b3ceb21a5ae6f559c54722cd7c70c9d59c8f005fd9f17625324f947', '[\"*\"]', '2026-04-22 15:18:11', NULL, '2026-04-22 15:18:10', '2026-04-22 15:18:11'),
-(2, 'App\\Models\\User', 2, 'auth-token', '8cfd91a1bb2f93c63ec34b81456fce838a35e3925f6266ff9960ce2cc415b4c3', '[\"*\"]', '2026-04-24 00:44:11', NULL, '2026-04-22 23:50:19', '2026-04-24 00:44:11'),
-(3, 'App\\Models\\User', 2, 'auth-token', '229ec9ed3dec3cc696998b2e81fa5974856a2940220e2c58334a0e224c7d93b0', '[\"*\"]', '2026-04-24 03:24:27', NULL, '2026-04-24 03:15:34', '2026-04-24 03:24:27'),
-(4, 'App\\Models\\User', 2, 'auth-token', 'ba66a3a69bf0a482f097a475c5e0102d8119ee4e454c2cfb42c5a9a087d93eb9', '[\"*\"]', '2026-04-24 04:35:48', NULL, '2026-04-24 04:08:31', '2026-04-24 04:35:48'),
-(8, 'App\\Models\\User', 2, 'auth-token', 'effadfbd7efcc5a07d7db02f414cc98d2c60677dc5c6290e2ce9fa43907b0878', '[\"*\"]', '2026-04-24 05:29:54', NULL, '2026-04-24 05:00:04', '2026-04-24 05:29:54'),
-(9, 'App\\Models\\User', 2, 'auth-token', '28ec6ad3b8d2f12eabb78be4be27e98bad86be46fb55dab1ac5303ba85e624d9', '[\"*\"]', '2026-04-24 14:34:44', NULL, '2026-04-24 11:14:10', '2026-04-24 14:34:44'),
-(10, 'App\\Models\\User', 2, 'auth-token', '7527818b15aad702ce65b45a80180cd6678734cb5c26cf8dd5d8b30cd3f518ea', '[\"*\"]', '2026-04-24 22:13:28', NULL, '2026-04-24 22:12:09', '2026-04-24 22:13:28'),
-(11, 'App\\Models\\User', 2, 'auth-token', '30ff813842f1996520194472d6ed376bd2193170d4063cc4c595299e8b2b9561', '[\"*\"]', NULL, NULL, '2026-04-24 22:18:41', '2026-04-24 22:18:41'),
-(12, 'App\\Models\\User', 2, 'auth-token', 'a40fe31e194ba4822676e022f4fdaae03ee35126a46ed0321412c46bb789db8e', '[\"*\"]', '2026-04-24 22:21:45', NULL, '2026-04-24 22:21:39', '2026-04-24 22:21:45'),
-(13, 'App\\Models\\User', 2, 'auth-token', '57c3b0354b73733c8ba9df5d5e583cdf75abdd3cabd2ce7d9f43a06102ae8817', '[\"*\"]', '2026-04-24 22:24:50', NULL, '2026-04-24 22:24:34', '2026-04-24 22:24:50'),
-(14, 'App\\Models\\User', 2, 'auth-token', '61a7409824e7084b23702a145ca69b1c41cd6aa75e359f995ed23f8b30bf3828', '[\"*\"]', '2026-04-24 22:39:34', NULL, '2026-04-24 22:36:58', '2026-04-24 22:39:34'),
-(15, 'App\\Models\\User', 2, 'auth-token', '4d0262d0f5b309db845eef6d69c6e2a8031a3ba8488074556dfd46fac4959bb0', '[\"*\"]', NULL, NULL, '2026-04-24 22:40:02', '2026-04-24 22:40:02'),
-(16, 'App\\Models\\User', 2, 'auth-token', 'e5d2edb2a1b32147a84fc9945a8ee38b824e7304d2587829887663fe74ccd6ab', '[\"*\"]', NULL, NULL, '2026-04-24 22:42:44', '2026-04-24 22:42:44'),
-(17, 'App\\Models\\User', 2, 'auth-token', '3f1fd776394b6698382cdca237f87682713694fc749e939595c4c0850c16bb89', '[\"*\"]', '2026-04-24 23:50:29', NULL, '2026-04-24 22:59:38', '2026-04-24 23:50:29'),
-(18, 'App\\Models\\User', 2, 'auth-token', '006eebe6c1a976573bee9b4bd684c59c142305c0934777f274c9ba7bebc4fd70', '[\"*\"]', '2026-04-25 02:32:51', NULL, '2026-04-25 00:27:07', '2026-04-25 02:32:51'),
-(19, 'App\\Models\\User', 2, 'auth-token', '9fd4c97b87c1be6a36d0607e148ea797cb6b48c24cb3ae375c1159a4ff460591', '[\"*\"]', '2026-04-25 02:34:49', NULL, '2026-04-25 02:34:24', '2026-04-25 02:34:49'),
-(20, 'App\\Models\\User', 2, 'auth-token', 'c4619d5b137d6d77c0a5adf3a042531c0871e7aa18bf48166f2d071da326af23', '[\"*\"]', '2026-04-25 04:29:46', NULL, '2026-04-25 02:38:14', '2026-04-25 04:29:46'),
-(21, 'App\\Models\\User', 2, 'auth-token', 'f9fd677bcf0bcf702759a2c2f4fafb965185b9790bdea3dd4dff60c1b6a200c5', '[\"*\"]', '2026-04-25 04:59:08', NULL, '2026-04-25 04:34:30', '2026-04-25 04:59:08'),
-(22, 'App\\Models\\User', 2, 'auth-token', 'c4731391e3eeae0ff982a236c9f4f2ce80569cef52f567a367a6cc486bba5e12', '[\"*\"]', '2026-04-25 07:49:21', NULL, '2026-04-25 06:50:18', '2026-04-25 07:49:21'),
-(23, 'App\\Models\\User', 2, 'auth-token', '7eef0b9d30fd0f30ce704d3ee5534aaaa4c322942bd88ff51624a0857cd8f1c2', '[\"*\"]', '2026-04-25 11:48:41', NULL, '2026-04-25 11:44:28', '2026-04-25 11:48:41'),
-(24, 'App\\Models\\User', 2, 'auth-token', 'ebc7e28fca47b0f9f47e241ed39f9b12cbb17c8ff9f5a8ea2235e4eab6153933', '[\"*\"]', '2026-04-25 14:46:45', NULL, '2026-04-25 12:39:13', '2026-04-25 14:46:45'),
-(25, 'App\\Models\\User', 2, 'auth-token', '4c2dcb7cef47d0285841392be2e3d06dd2b1e586763a2cf0627a071322224052', '[\"*\"]', '2026-04-25 16:20:29', NULL, '2026-04-25 15:24:36', '2026-04-25 16:20:29'),
-(26, 'App\\Models\\User', 2, 'auth-token', '61a637dde8d6cbf0fa9afd868ca2b89847069c0ab685c0a2ee148baeda627e56', '[\"*\"]', '2026-04-25 18:04:08', NULL, '2026-04-25 17:08:13', '2026-04-25 18:04:08'),
-(27, 'App\\Models\\User', 2, 'auth-token', 'f65a97b28a26373151d412a9a0eff66d18dc53f5727245ce96de92ab5f57666b', '[\"*\"]', '2026-04-25 20:03:09', NULL, '2026-04-25 18:04:21', '2026-04-25 20:03:09'),
-(28, 'App\\Models\\User', 2, 'auth-token', '01320879003527c07090add3847dde64c3dad0209a772880b91f43d4d23744fc', '[\"*\"]', '2026-04-25 22:23:33', NULL, '2026-04-25 21:02:37', '2026-04-25 22:23:33'),
-(29, 'App\\Models\\User', 2, 'auth-token', '9f35ca5427365ff121da8788937054d36196c807c06c5c17d040817ceaa1584b', '[\"*\"]', '2026-04-25 23:13:46', NULL, '2026-04-25 22:23:40', '2026-04-25 23:13:46'),
-(30, 'App\\Models\\User', 2, 'auth-token', 'cac69378d59eecb211250979e279557e69a8b5ab09e048493e7e1c3b62291dc6', '[\"*\"]', '2026-04-26 01:03:22', NULL, '2026-04-26 00:00:29', '2026-04-26 01:03:22'),
-(31, 'App\\Models\\User', 2, 'auth-token', '03b7e3331373cc7ea2bf0848e71340ee1fbacd42b3b93823201748bc09d8bb28', '[\"*\"]', '2026-04-26 02:34:35', NULL, '2026-04-26 01:12:18', '2026-04-26 02:34:35'),
-(32, 'App\\Models\\User', 2, 'auth-token', 'a88e6b289d7f317e46c21939ca4868847b33be599c25d465635e16615da5ad0b', '[\"*\"]', '2026-04-26 11:52:24', NULL, '2026-04-26 11:47:35', '2026-04-26 11:52:24'),
-(33, 'App\\Models\\User', 2, 'auth-token', 'fc43e7ba272f42c760284bde9a7b47363dca813f7fdcff52b7cf9eb87cad3dec', '[\"*\"]', '2026-04-26 12:43:21', NULL, '2026-04-26 11:57:19', '2026-04-26 12:43:21'),
-(34, 'App\\Models\\User', 2, 'auth-token', 'd5aceeeafd41d3642d49552ad0219357180ccf3159b16020afd74458a8b653c1', '[\"*\"]', '2026-04-26 12:50:56', NULL, '2026-04-26 12:44:23', '2026-04-26 12:50:56'),
-(35, 'App\\Models\\User', 2, 'auth-token', '60d6a9f09c610e253127750208c1b7b4537afc844482592fa8bbdc238ed994a4', '[\"*\"]', '2026-04-26 13:21:50', NULL, '2026-04-26 12:51:41', '2026-04-26 13:21:50'),
-(36, 'App\\Models\\User', 2, 'auth-token', 'a9717ef6f27cf84c967a644327bd3743e16706a87564f5154af18ad1183b21e5', '[\"*\"]', '2026-04-26 18:22:13', NULL, '2026-04-26 16:07:27', '2026-04-26 18:22:13'),
-(37, 'App\\Models\\User', 2, 'auth-token', 'f85418a1d356edc743e544edbbc2c24649f1329c349f9729b773bcc17d7927a6', '[\"*\"]', '2026-04-26 19:31:32', NULL, '2026-04-26 18:23:21', '2026-04-26 19:31:32'),
-(38, 'App\\Models\\User', 2, 'auth-token', '0c4f41578bb6faf7c18fd9f3e1f509aa79cba555ec7c70002e73405f5c8f3581', '[\"*\"]', '2026-04-26 21:08:08', NULL, '2026-04-26 19:44:45', '2026-04-26 21:08:08'),
-(39, 'App\\Models\\User', 2, 'auth-token', '0907449846c60e7537dfdf0c3658180ad1fa43848bbc7d4a478f676fa0974516', '[\"*\"]', '2026-04-26 21:09:05', NULL, '2026-04-26 21:08:15', '2026-04-26 21:09:05'),
-(40, 'App\\Models\\User', 2, 'auth-token', 'd4868f1d234a33105eb59db42e83ea32daee3f7fc0c2ecd1762cb2870b8c1cae', '[\"*\"]', '2026-04-27 00:31:34', NULL, '2026-04-26 21:38:03', '2026-04-27 00:31:34'),
-(41, 'App\\Models\\User', 2, 'auth-token', '5cd25218f81cf9bd42f9a99607a293878fbeaf128e423e6f34299912294df0cb', '[\"*\"]', '2026-04-28 08:00:32', NULL, '2026-04-28 06:40:42', '2026-04-28 08:00:32'),
-(42, 'App\\Models\\User', 2, 'auth-token', 'c3aebd7e5d438601232845c1c904798ea4f24e68e96e41f06d76502a29d0e088', '[\"*\"]', '2026-04-28 16:26:06', NULL, '2026-04-28 15:40:14', '2026-04-28 16:26:06'),
-(43, 'App\\Models\\User', 2, 'auth-token', 'f9a21ebd795abd1e540bfc6763ffc00effd1afd2c2a5c7430140b654bc2fa161', '[\"*\"]', '2026-04-28 17:47:11', NULL, '2026-04-28 16:27:28', '2026-04-28 17:47:11'),
-(44, 'App\\Models\\User', 2, 'auth-token', '1e318c0e7ffc0c7524ab41840c14db56713308828399fbe065dbdc2866427823', '[\"*\"]', '2026-04-29 13:18:33', NULL, '2026-04-29 12:47:38', '2026-04-29 13:18:33'),
-(45, 'App\\Models\\User', 2, 'auth-token', '3469fa3c691db6d278bcf3d15c29889385fdfeac4968549b77aa4fe82557eadc', '[\"*\"]', '2026-04-29 13:19:11', NULL, '2026-04-29 13:19:10', '2026-04-29 13:19:11'),
-(46, 'App\\Models\\User', 2, 'auth-token', '1a095111cc2eda5a8976325400e1e433eeefcd2dacd894c0c8673c653aff0042', '[\"*\"]', '2026-04-29 14:24:11', NULL, '2026-04-29 13:20:10', '2026-04-29 14:24:11');
+(61, 'App\\Models\\User', 2, 'auth-token', '96637d7ec6c2633c09b3212373b55b623526f3c85a42dce620c893eb187fd17c', '[\"*\"]', '2026-05-02 04:32:25', NULL, '2026-05-01 22:54:59', '2026-05-02 04:32:25'),
+(62, 'App\\Models\\User', 2, 'auth-token', 'd3830cbdd93c7731b431febd5b69e78cef3937ca4c441cbfc1e99e14b3f27ee2', '[\"*\"]', '2026-05-02 01:04:17', NULL, '2026-05-01 23:01:02', '2026-05-02 01:04:17'),
+(63, 'App\\Models\\User', 2, 'auth-token', 'ba749b5c7a2be10bd635e88007358daf1fa4768b91558ec39ed2848ba5b903e5', '[\"*\"]', '2026-05-02 03:37:17', NULL, '2026-05-02 02:46:38', '2026-05-02 03:37:17'),
+(64, 'App\\Models\\User', 2, 'auth-token', '9070dc96e407561272505205dea086d471c473ea2063f917c6bd7a01e3bf15a1', '[\"*\"]', '2026-05-02 09:22:09', NULL, '2026-05-02 05:58:07', '2026-05-02 09:22:09'),
+(65, 'App\\Models\\User', 2, 'auth-token', 'a1d3ea70b65f3193609bf9deed563aa610e0ae22a22771ae0e7ff470b2a0835d', '[\"*\"]', '2026-05-02 09:22:11', NULL, '2026-05-02 05:58:53', '2026-05-02 09:22:11'),
+(66, 'App\\Models\\User', 2, 'auth-token', '4619c4c8cc41ce6452259f2b54a1ef44f488ccc22a2c66f0884e9a68339ac1cc', '[\"*\"]', '2026-05-02 18:37:58', NULL, '2026-05-02 16:39:50', '2026-05-02 18:37:58'),
+(67, 'App\\Models\\User', 2, 'auth-token', 'f4956a97d7c596dcbf3b9c45c8915d3005ba96a53396dadb772aa3cafa9d9b70', '[\"*\"]', '2026-05-02 18:38:43', NULL, '2026-05-02 17:27:10', '2026-05-02 18:38:43'),
+(68, 'App\\Models\\User', 2, 'auth-token', 'e5985b246d392a17063d2250d9abd9a59052c661e6a355f2a801798cad02b341', '[\"*\"]', '2026-05-02 20:32:06', NULL, '2026-05-02 19:57:18', '2026-05-02 20:32:06'),
+(69, 'App\\Models\\User', 2, 'auth-token', '1b6b2deb036f98f431bd7e079803cc24a34c11f80d2c6aa8775603cf24dd1e6c', '[\"*\"]', '2026-05-02 22:19:51', NULL, '2026-05-02 21:49:28', '2026-05-02 22:19:51');
 
 -- --------------------------------------------------------
 
@@ -760,9 +692,9 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`product_id`, `unit_id`, `category_id`, `brand_id`, `model_id`, `barcode`, `product_code`, `product_name`, `product_type`, `capacity_rating`, `variant`, `description`, `pieces_per_package`, `unit_price`, `cost_price`, `warranty_period_months`, `recommended_stocks`, `safety_stock`, `max_stock_level`, `quantity`, `status_id`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 3, NULL, NULL, 'ABC123', 'LG 1HP Inverter Aircon', 'appliance', '1HP', NULL, NULL, NULL, 12000.00, 10000.00, 0, 0, NULL, NULL, 0, NULL, '2026-04-25 00:42:30', '2026-04-25 00:42:30'),
-(2, 2, 6, NULL, NULL, NULL, 'PROD-F1C9B4F8', 'Solvent', 'consumable', NULL, NULL, 'solvent??', 50, 40.00, 37.00, 0, 55, 5, 80, 0, 3, '2026-04-25 04:49:39', '2026-04-25 04:49:39'),
-(3, 1, 1, 7, NULL, NULL, 'HAHA123', 'adswadw', 'appliance', '3HP', 'Inverter', NULL, NULL, 23333.00, 23000.00, 24, 20, 15, 50, 0, 3, '2026-04-25 04:54:41', '2026-04-25 04:54:41');
+(1, 1, 1, 3, NULL, NULL, 'ABC123', 'LG 1HP Inverter Aircon', 'appliance', '1HP', NULL, NULL, NULL, 12000.00, 10000.00, 0, 0, NULL, NULL, 5, NULL, '2026-04-25 00:42:30', '2026-05-02 22:15:14'),
+(2, 2, 6, NULL, NULL, NULL, 'PROD-F1C9B4F8', 'Solvent', 'consumable', NULL, NULL, 'solvent??', 50, 40.00, 37.00, 0, 55, 5, 80, 550, 3, '2026-04-25 04:49:39', '2026-05-02 22:17:35'),
+(3, 1, 1, 7, NULL, NULL, 'HAHA123', 'adswadw', 'appliance', '3HP', 'Inverter', NULL, NULL, 23333.00, 23000.00, 24, 20, 15, 50, 4, 3, '2026-04-25 04:54:41', '2026-05-02 22:17:28');
 
 -- --------------------------------------------------------
 
@@ -812,16 +744,6 @@ CREATE TABLE `purchase_orders` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `purchase_orders`
---
-
-INSERT INTO `purchase_orders` (`po_id`, `supplier_id`, `location_id`, `po_number`, `order_date`, `expected_delivery_date`, `total_amount`, `grand_total`, `status_id`, `ordered_by`, `created_by`, `approved_by`, `approval_notes`, `received_by`, `created_at`, `updated_at`) VALUES
-(14, 1, 1, 'PO-20260426-140', '2026-04-26', '2026-04-29', 56000.00, 56000.00, 11, NULL, 2, NULL, NULL, NULL, '2026-04-26 01:35:23', '2026-04-26 01:36:25'),
-(15, 1, 2, 'PO-20260426-212', '2026-04-26', '2026-04-29', 10000.00, 10000.00, 11, NULL, 2, NULL, NULL, NULL, '2026-04-26 01:51:31', '2026-04-26 01:53:47'),
-(16, 1, 2, 'PO-20260426-969', '2026-04-26', '2026-04-29', 23000.00, 23000.00, 11, NULL, 2, NULL, NULL, NULL, '2026-04-26 02:07:57', '2026-04-26 02:08:03'),
-(17, 1, 2, 'PO-20260426-220', '2026-04-26', '2026-04-29', 10000.00, 10000.00, 11, NULL, 2, 2, NULL, NULL, '2026-04-26 02:15:15', '2026-04-26 02:15:26');
-
 -- --------------------------------------------------------
 
 --
@@ -839,17 +761,6 @@ CREATE TABLE `purchase_order_details` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `purchase_order_details`
---
-
-INSERT INTO `purchase_order_details` (`po_detail_id`, `po_id`, `product_id`, `quantity_ordered`, `unit_price`, `subtotal`, `approved_by`, `created_at`, `updated_at`) VALUES
-(13, 14, 3, 2, 23000.00, 46000.00, NULL, '2026-04-26 01:35:23', '2026-04-26 01:35:23'),
-(14, 14, 1, 1, 10000.00, 10000.00, NULL, '2026-04-26 01:35:23', '2026-04-26 01:35:23'),
-(15, 15, 1, 1, 10000.00, 10000.00, NULL, '2026-04-26 01:51:31', '2026-04-26 01:51:31'),
-(16, 16, 3, 1, 23000.00, 23000.00, NULL, '2026-04-26 02:07:57', '2026-04-26 02:07:57'),
-(17, 17, 1, 1, 10000.00, 10000.00, NULL, '2026-04-26 02:15:15', '2026-04-26 02:15:15');
 
 -- --------------------------------------------------------
 
@@ -926,6 +837,7 @@ CREATE TABLE `receiving_details` (
   `quantity_amount` int(11) NOT NULL DEFAULT 0,
   `prod_price` decimal(10,2) NOT NULL DEFAULT 0.00,
   `condition` varchar(100) DEFAULT NULL,
+  `scanned_barcode` varchar(191) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1079,7 +991,9 @@ INSERT INTO `status_lookup` (`status_id`, `status_name`, `status_category`, `is_
 (20, 'Inactive', 'supplier', 1, '2026-04-22 21:50:17', '2026-04-22 21:50:17'),
 (21, 'In Stock', 'inventory', 1, '2026-04-22 21:50:17', '2026-04-22 21:50:17'),
 (22, 'Low Stock', 'inventory', 1, '2026-04-22 21:50:17', '2026-04-22 21:50:17'),
-(23, 'Out of Stock', 'inventory', 1, '2026-04-22 21:50:17', '2026-04-22 21:50:17');
+(23, 'Out of Stock', 'inventory', 1, '2026-04-22 21:50:17', '2026-04-22 21:50:17'),
+(24, 'Completed', 'purchase_order', 1, '2026-05-01 18:51:20', '2026-05-01 18:51:20'),
+(25, 'Partially Received', 'purchase_order', 1, '2026-05-01 18:51:20', '2026-05-01 18:51:20');
 
 -- --------------------------------------------------------
 
@@ -1295,6 +1209,27 @@ INSERT INTO `users` (`user_id`, `first_name`, `last_name`, `username`, `email`, 
 (5, 'Admin', 'Ibong', 'Admin Ibong', 'adminibong@gmail.com', '09752267355', 1, 2, 1, NULL, '$2y$12$tlHaN./20TxxEl0zykV1o.sn2vadx12vJQEw2w78N2g9h0mNLITgu', NULL, NULL, NULL, '2026-04-24 05:02:02', '2026-04-24 05:03:59'),
 (6, 'Warehouse', 'Personnel', 'WarehouseMan', 'warehouse@airking.com', '0912345654', 4, 1, 1, NULL, '$2y$12$InbdYmphQnA/7cNrEAhOfOQmvkap6rtTxl4xpAmvvNk4.RfD5Gg6q', NULL, NULL, NULL, '2026-04-26 13:20:13', '2026-04-26 13:20:13'),
 (7, 'Auditor', 'Yan', 'auditor@airking.com', 'auditor@airking.com', '092345463423', 5, 2, 1, NULL, '$2y$12$bpRoo39Tui.8208x5exnGObnTaUb22WvGkadcZEVbTiriSO/9LO6e', NULL, NULL, NULL, '2026-04-26 13:21:50', '2026-04-26 13:21:50');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_alert_settings`
+--
+
+CREATE TABLE `user_alert_settings` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `user_id` bigint(20) UNSIGNED NOT NULL,
+  `pending_approvals_last_seen_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `user_alert_settings`
+--
+
+INSERT INTO `user_alert_settings` (`id`, `user_id`, `pending_approvals_last_seen_at`, `created_at`, `updated_at`) VALUES
+(1, 2, '2026-05-01 00:09:11', '2026-04-30 23:07:24', '2026-05-01 00:09:11');
 
 --
 -- Indexes for dumped tables
@@ -1600,7 +1535,8 @@ ALTER TABLE `receiving_details`
   ADD PRIMARY KEY (`receiving_detail_id`),
   ADD KEY `receiving_details_receiving_id_foreign` (`receiving_id`),
   ADD KEY `receiving_details_po_detail_id_foreign` (`po_detail_id`),
-  ADD KEY `receiving_details_product_id_foreign` (`product_id`);
+  ADD KEY `receiving_details_product_id_foreign` (`product_id`),
+  ADD KEY `rd_scanned_barcode_idx` (`scanned_barcode`);
 
 --
 -- Indexes for table `restock_recommendations`
@@ -1730,6 +1666,12 @@ ALTER TABLE `users`
   ADD KEY `users_location_id_foreign` (`location_id`);
 
 --
+-- Indexes for table `user_alert_settings`
+--
+ALTER TABLE `user_alert_settings`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -1749,7 +1691,7 @@ ALTER TABLE `adjustment_details`
 -- AUTO_INCREMENT for table `audit_trail`
 --
 ALTER TABLE `audit_trail`
-  MODIFY `audit_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
+  MODIFY `audit_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=474;
 
 --
 -- AUTO_INCREMENT for table `barcode_scans`
@@ -1791,7 +1733,7 @@ ALTER TABLE `failed_jobs`
 -- AUTO_INCREMENT for table `inventory`
 --
 ALTER TABLE `inventory`
-  MODIFY `inventory_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `inventory_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `inventory_scan_events`
@@ -1833,13 +1775,13 @@ ALTER TABLE `locations`
 -- AUTO_INCREMENT for table `login_activities`
 --
 ALTER TABLE `login_activities`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
 
 --
 -- AUTO_INCREMENT for table `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `model_lookup`
@@ -1857,7 +1799,7 @@ ALTER TABLE `pending_products`
 -- AUTO_INCREMENT for table `personal_access_tokens`
 --
 ALTER TABLE `personal_access_tokens`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=70;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -1875,13 +1817,13 @@ ALTER TABLE `profit_loss`
 -- AUTO_INCREMENT for table `purchase_orders`
 --
 ALTER TABLE `purchase_orders`
-  MODIFY `po_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `po_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
 
 --
 -- AUTO_INCREMENT for table `purchase_order_details`
 --
 ALTER TABLE `purchase_order_details`
-  MODIFY `po_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `po_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
 
 --
 -- AUTO_INCREMENT for table `purchase_returns`
@@ -1899,13 +1841,13 @@ ALTER TABLE `purchase_return_details`
 -- AUTO_INCREMENT for table `receivings`
 --
 ALTER TABLE `receivings`
-  MODIFY `receiving_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `receiving_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `receiving_details`
 --
 ALTER TABLE `receiving_details`
-  MODIFY `receiving_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `receiving_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=67;
 
 --
 -- AUTO_INCREMENT for table `restock_recommendations`
@@ -1935,7 +1877,7 @@ ALTER TABLE `sales_details`
 -- AUTO_INCREMENT for table `status_lookup`
 --
 ALTER TABLE `status_lookup`
-  MODIFY `status_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `status_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `subcategory_lookup`
@@ -1990,6 +1932,12 @@ ALTER TABLE `unit_lookup`
 --
 ALTER TABLE `users`
   MODIFY `user_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `user_alert_settings`
+--
+ALTER TABLE `user_alert_settings`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- Constraints for dumped tables

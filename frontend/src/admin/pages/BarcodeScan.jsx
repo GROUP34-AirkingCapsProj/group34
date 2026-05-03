@@ -633,6 +633,10 @@ const BarcodeScan = () => {
   const [bsrScanning, setBsrScanning] = useState(false);
   const [bsrActiveLine, setBsrActiveLine] = useState(null);
   const [bsrScanSuccess, setBsrScanSuccess] = useState(null);
+  const [bsrAlertModal, setBsrAlertModal] = useState(null);
+  /** Set of lowercase-trimmed scanned_barcode values already in the DB for the active PO. */
+  const [bsrPoReceivedBarcodes, setBsrPoReceivedBarcodes] = useState(new Set());
+  const [bsrPoStatusLoading, setBsrPoStatusLoading] = useState(false);
 
   const showPricingFields = roleKey === ROLES.ADMIN || roleKey === ROLES.BRANCH_MANAGER;
   const [notFoundPromptOpen, setNotFoundPromptOpen] = useState(false);
@@ -1618,18 +1622,90 @@ const BarcodeScan = () => {
     setBsrActiveLine(null);
   };
 
-  const handleBsrSelectPo = (po) => {
+  const handleBsrSelectPo = async (po) => {
+    const poId = po?.po_id ?? po?.id;
+
+    // Reset all scan state immediately so the UI is responsive before the DB call.
     setBsrSelectedPo(po);
     setBsrScannedItems([]);
     setBsrActiveLine(null);
+    setBsrScanInput('');
+    setBsrPoReceivedBarcodes(new Set());
+    // Explicitly clear the camera same-code debounce buffer on PO transition
+    // so the camera cannot re-fire the previous PO's last scanned code.
+    lastCodeRef.current = '';
+    lastTimeRef.current = 0;
+
     const prog = {};
     (po?.details || []).forEach((d) => {
       if (d.po_detail_id) prog[d.po_detail_id] = 0;
     });
     setBsrProductProgress(prog);
-    setBsrScanInput('');
+
+    // Load existing receiving data for this PO from the database so that:
+    // 1. Progress bars start at actual received quantities, not zero.
+    // 2. Previously received barcodes/serials are known before the first scan.
+    // 3. The scanned-items list is restored so the session appears seamlessly resumed.
+    if (poId) {
+      setBsrPoStatusLoading(true);
+      try {
+        const res = await receivingsAPI.poScanStatus(poId);
+        const lines = Array.isArray(res?.data?.lines) ? res.data.lines : [];
+        const history = Array.isArray(res?.data?.scan_history) ? res.data.scan_history : [];
+
+        const receivedBarcodes = new Set();
+        const updatedProg = { ...prog };
+        lines.forEach((line) => {
+          if (line.po_detail_id != null && line.already_received > 0) {
+            updatedProg[line.po_detail_id] = line.already_received;
+          }
+          (line.scanned_barcodes || []).forEach((bc) => {
+            if (bc) receivedBarcodes.add(bc.trim().toLowerCase());
+          });
+        });
+        setBsrProductProgress(updatedProg);
+        setBsrPoReceivedBarcodes(receivedBarcodes);
+
+        // Restore the scanned-items list from the DB history (newest first).
+        const restoredItems = history
+          .slice()
+          .reverse()
+          .map((entry, idx) => ({
+            id: entry.receiving_detail_id ?? Date.now() + idx,
+            barcode: entry.scanned_barcode ?? '',
+            productName: entry.product_name ?? 'Unknown',
+            serial: entry.is_serialized ? (entry.scanned_barcode ?? null) : null,
+            packages: entry.is_serialized ? null : 1,
+            qty: entry.is_serialized ? null : entry.quantity_amount,
+            productId: entry.product_id,
+            poDetailId: entry.po_detail_id,
+            at: entry.created_at ? new Date(entry.created_at).toLocaleTimeString() : '–',
+          }));
+        setBsrScannedItems(restoredItems);
+      } catch {
+        // Non-fatal: progress falls back to zeros; the backend still guards duplicates.
+      } finally {
+        setBsrPoStatusLoading(false);
+      }
+    }
+
     setTimeout(() => bsrInputRef.current?.focus(), 100);
   };
+
+  // Clear the scan input buffer and cancel any pending debounce whenever the
+  // active line changes. Prevents a serial number typed for one product from
+  // leaking into the next product's scan when the user switches lines.
+  useEffect(() => {
+    setBsrScanInput('');
+    if (bsrScanTimerRef.current) {
+      clearTimeout(bsrScanTimerRef.current);
+      bsrScanTimerRef.current = null;
+    }
+    // Reset the camera's same-code debounce so the old code doesn't re-fire
+    // against the new product context if the camera is still aimed at it.
+    lastCodeRef.current = '';
+    lastTimeRef.current = 0;
+  }, [bsrActiveLine?.po_detail_id]);
 
   const handleBsrScan = useCallback(async (raw) => {
     // Synchronous ref lock — blocks any second invocation that arrives before
@@ -1637,12 +1713,14 @@ const BarcodeScan = () => {
     if (bsrProcessingRef.current) return;
     if (!raw.trim()) return;
     if (!bsrLocationId) {
-      toast.error('Select a receiving location first.');
+      bsrProcessingRef.current = true;
+      setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
       setBsrScanInput('');
       return;
     }
     if (!bsrActiveLine) {
-      toast.error('Select an item from the left panel first.');
+      bsrProcessingRef.current = true;
+      setBsrAlertModal({ type: 'error', title: 'No Item Selected', message: 'Select an item from the left panel first.' });
       setBsrScanInput('');
       return;
     }
@@ -1650,12 +1728,60 @@ const BarcodeScan = () => {
     if (bsrScanTimerRef.current) { clearTimeout(bsrScanTimerRef.current); bsrScanTimerRef.current = null; }
 
     const isSerialized = bsrIsSerialized(bsrActiveLine);
-    if (isSerialized) {
-      const alreadyScanned = bsrScannedItems.some(
-        (item) => item.barcode && item.barcode.trim().toLowerCase() === raw.trim().toLowerCase(),
-      );
-      if (alreadyScanned) {
-        toast.error(`Serial "${raw.trim()}" was already scanned in this session.`);
+    // Pre-compute here so they are available for both pre-checks and the scan body.
+    const pcs = Number(bsrActiveLine.product?.pieces_per_package) || 1;
+    const pkgs = 1;
+
+    // ── Duplicate / already-received pre-checks (all run before any API call) ──
+
+    const normalizedCode = raw.trim().toLowerCase();
+
+    // Global barcode uniqueness pre-check — applies to every product type.
+    // Every barcode is a one-time-use identifier; the backend enforces this at the DB level,
+    // but these checks give instant modal feedback before the round-trip.
+
+    // 1. Check the current scan session.
+    const inSession = bsrScannedItems.some(
+      (item) => item.barcode && item.barcode.trim().toLowerCase() === normalizedCode,
+    );
+    if (inSession) {
+      bsrProcessingRef.current = true;
+      setBsrAlertModal({
+        type: 'error',
+        title: 'Barcode Already Scanned',
+        message: `Barcode "${raw.trim()}" was already scanned in this session. Each barcode is a one-time-use identifier — check the label.`,
+      });
+      setBsrScanInput('');
+      return;
+    }
+
+    // 2. Check DB-loaded received barcodes for the current PO.
+    if (bsrPoReceivedBarcodes.has(normalizedCode)) {
+      bsrProcessingRef.current = true;
+      setBsrAlertModal({
+        type: 'error',
+        title: 'Barcode Already Received',
+        message: `Barcode "${raw.trim()}" has already been recorded as received. Each barcode is a one-time-use identifier — check the label.`,
+      });
+      setBsrScanInput('');
+      return;
+    }
+
+    // 2. Pre-check: is this PO line already fully received according to local progress?
+    //    This catches both DB-initialised progress and within-session progress,
+    //    avoiding a full round-trip just to get a rejection back from the server.
+    {
+      const ordered    = Number(bsrActiveLine.quantity_ordered || 0);
+      const orderedPcs = isSerialized ? ordered : ordered * pcs;
+      const prevReceived = bsrProductProgress[bsrActiveLine.po_detail_id] || 0;
+      if (orderedPcs > 0 && prevReceived >= orderedPcs) {
+        bsrProcessingRef.current = true;
+        const label = isSerialized ? `${ordered} unit(s)` : `${ordered} package(s) (${orderedPcs} pcs)`;
+        setBsrAlertModal({
+          type: 'error',
+          title: 'Already Fully Received',
+          message: `All ${label} for this line item have already been received.`,
+        });
         setBsrScanInput('');
         return;
       }
@@ -1663,8 +1789,6 @@ const BarcodeScan = () => {
 
     bsrProcessingRef.current = true; // lock — set before any await
     setBsrScanInput('');
-    const pcs = Number(bsrActiveLine.product?.pieces_per_package) || 1;
-    const pkgs = 1;
     setBsrScanning(true);
     try {
       const res = await inventoryAPI.scanTransaction({
@@ -1678,7 +1802,13 @@ const BarcodeScan = () => {
       const data = res?.data ?? res;
       const action = data?.action ?? data?.status;
       if (action === 'rejected') {
-        toast.error(data?.reason || 'Scan rejected.');
+        // Match both "already received" and "already been recorded as received / Duplicate prevented"
+        const isAlreadyReceived = /already.*received|duplicate.*prevented/i.test(data?.reason || '');
+        setBsrAlertModal({
+          type: 'error',
+          title: isAlreadyReceived ? 'Barcode Already Received' : 'Scan Rejected',
+          message: data?.reason || 'Scan rejected.',
+        });
         return;
       }
       const qtyReceived = data?.quantity_received ?? (isSerialized ? 1 : pkgs * pcs);
@@ -1702,6 +1832,9 @@ const BarcodeScan = () => {
         ...prev,
       ]);
       setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+      // Keep the local received-barcodes set in sync so subsequent scans of the
+      // same barcode in this session are caught by the pre-check above.
+      setBsrPoReceivedBarcodes((prev) => new Set([...prev, normalizedCode]));
 
       const lineComplete = orderedPcs > 0 && newReceived >= orderedPcs;
       let nextLine = null;
@@ -1732,13 +1865,13 @@ const BarcodeScan = () => {
         nextLine,
       });
     } catch (e) {
-      toast.error(e?.message || 'Scan failed.');
+      setBsrAlertModal({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
     } finally {
       setBsrScanning(false);
-      // Do NOT release bsrProcessingRef here — it stays locked until the Done button
-      // is clicked, so the modal stays open and no duplicate scan can slip through.
+      // Do NOT release bsrProcessingRef here — it stays locked until the modal
+      // is dismissed, so no duplicate scan can slip through.
     }
-  }, [bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems]);
+  }, [bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes]);
 
   const handleBsrScanSuccessDone = useCallback(() => {
     const result = bsrScanSuccess;
@@ -1747,13 +1880,24 @@ const BarcodeScan = () => {
     if (result?.lineComplete) {
       if (result.nextLine) {
         setBsrActiveLine(result.nextLine);
+        setTimeout(() => bsrInputRef.current?.focus(), 80);
       } else {
         setBsrActiveLine(null);
-        toast.success('All items on this PO are fully received!');
+        setBsrAlertModal({ type: 'success', title: 'All Items Received!', message: 'All items on this PO are fully received!' });
       }
+    } else {
+      setTimeout(() => bsrInputRef.current?.focus(), 80);
     }
-    setTimeout(() => bsrInputRef.current?.focus(), 80);
   }, [bsrScanSuccess]);
+
+  const handleBsrAlertDismiss = useCallback(() => {
+    setBsrAlertModal((current) => {
+      if (current?.onDismiss) current.onDismiss();
+      return null;
+    });
+    bsrProcessingRef.current = false;
+    setTimeout(() => bsrInputRef.current?.focus(), 80);
+  }, []);
 
   const handleBsrInputChange = (e) => {
     const v = e.target.value;
@@ -2510,6 +2654,36 @@ const BarcodeScan = () => {
   if (scanMode?.key === 'receive-po' && bsrSelectedPo) {
     const poDetails = bsrSelectedPo?.details || [];
     const totalScanned = bsrScannedItems.length;
+
+    // True only when every ordered line has been fully received.
+    const isFullyReceived = poDetails.length > 0 && poDetails.every((d) => {
+      if (!d.po_detail_id) return true;
+      const dIsSer = d.product?.product_type === 'appliance';
+      const dPps   = Number(d.product?.pieces_per_package) || 1;
+      const dOrd   = Number(d.quantity_ordered || 0);
+      const dOrdPcs = dIsSer ? dOrd : dOrd * dPps;
+      return dOrdPcs === 0 || (bsrProductProgress[d.po_detail_id] || 0) >= dOrdPcs;
+    });
+
+    const handleBsrSaveExit = () => {
+      const hasScans = Object.values(bsrProductProgress).some((v) => v > 0);
+      const doExit = () => {
+        void stopCamera();
+        setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({});
+        setBsrScanInput(''); setBsrActiveLine(null);
+      };
+      if (hasScans) {
+        bsrProcessingRef.current = true;
+        setBsrAlertModal({
+          type: 'warning',
+          title: 'Progress Saved',
+          message: `Your scans for ${bsrSelectedPo?.po_number} have been saved. The PO is marked as "Partially Received" and can be resumed at any time.`,
+          onDismiss: doExit,
+        });
+      } else {
+        doExit();
+      }
+    };
     return (
       <AdminLayout>
         <div className="bsr-page">
@@ -2521,6 +2695,43 @@ const BarcodeScan = () => {
             </div>
             <div className="bsr-receiving-badge"><BsrCheckIcon /> Receiving: {bsrSelectedPo?.po_number}</div>
           </div>
+          {/* ── Alert / validation modal (centered, blocks all input) ── */}
+          {bsrAlertModal && (
+            <div className="bsr-alert-overlay" role="dialog" aria-modal="true">
+              <div className={`bsr-alert-modal bsr-alert-modal--${bsrAlertModal.type}`}>
+                <div className="bsr-alert-icon">
+                  {bsrAlertModal.type === 'success' ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="36" height="36">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                  ) : bsrAlertModal.type === 'warning' ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" width="36" height="36">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" width="36" height="36">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                  )}
+                </div>
+                <h3 className="bsr-alert-title">{bsrAlertModal.title}</h3>
+                <p className="bsr-alert-message">{bsrAlertModal.message}</p>
+                <button
+                  type="button"
+                  className={`bsr-alert-dismiss-btn bsr-alert-dismiss-btn--${bsrAlertModal.type}`}
+                  onClick={handleBsrAlertDismiss}
+                  autoFocus
+                >
+                  {bsrAlertModal.type === 'success' ? 'OK' : 'Dismiss'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bsr-workflow">
             <div className="bsr-left">
               <div className="bsr-card">
@@ -2534,8 +2745,8 @@ const BarcodeScan = () => {
                   </div>
                   <span className="bsr-card-title">PURCHASE ORDER</span>
                   <button type="button" className="bsr-close-btn"
-                    onClick={() => { void stopCamera(); setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput(''); setBsrActiveLine(null); }}
-                    title="Back to PO list"
+                    onClick={handleBsrSaveExit}
+                    title="Save & exit to PO list"
                   >×</button>
                 </div>
                 <div className="bsr-po-details">
@@ -2747,7 +2958,7 @@ const BarcodeScan = () => {
                   onChange={handleBsrInputChange}
                   onKeyDown={handleBsrKeyDown}
                   autoComplete="off"
-                  disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess}
+                  disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
                 />
                 <div className="bsr-examples-card">
                   {bsrActiveLine ? (() => {
@@ -2817,17 +3028,41 @@ const BarcodeScan = () => {
               </div>
               <div className="bsr-action-btns">
                 <button type="button" className="bsr-btn-cancel"
-                  onClick={() => { void stopCamera(); setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput(''); setBsrActiveLine(null); }}
-                >Cancel</button>
+                  onClick={handleBsrSaveExit}
+                >Save &amp; Exit</button>
                 <button type="button"
-                  className={`bsr-btn-complete${totalScanned === 0 ? ' bsr-btn-complete--disabled' : ''}`}
+                  className={`bsr-btn-complete${(!isFullyReceived && totalScanned === 0) ? ' bsr-btn-complete--disabled' : ''}`}
                   onClick={() => {
-                    if (totalScanned === 0) { toast.error('No items have been scanned yet.'); return; }
-                    toast.success(`Receiving for ${bsrSelectedPo?.po_number} completed — ${totalScanned} item(s) recorded.`);
-                    setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                    if (totalScanned === 0 && !isFullyReceived) {
+                      setBsrAlertModal({ type: 'error', title: 'Nothing Scanned', message: 'No items have been scanned yet.' });
+                      return;
+                    }
+                    const poNum = bsrSelectedPo?.po_number;
+                    const count = totalScanned;
+                    if (isFullyReceived) {
+                      bsrProcessingRef.current = true;
+                      setBsrAlertModal({
+                        type: 'success',
+                        title: 'Receiving Complete',
+                        message: `All ordered items for ${poNum} have been received. The PO has been marked as Completed.`,
+                        onDismiss: () => {
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                        },
+                      });
+                    } else {
+                      bsrProcessingRef.current = true;
+                      setBsrAlertModal({
+                        type: 'warning',
+                        title: 'Partial Receiving Saved',
+                        message: `${count} item(s) recorded for ${poNum}. Not all quantities have been received — this PO remains as "Partially Received". You can resume scanning at any time.`,
+                        onDismiss: () => {
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                        },
+                      });
+                    }
                   }}
-                  disabled={totalScanned === 0}
-                ><BsrCheckIcon /> Complete Receiving</button>
+                  disabled={totalScanned === 0 && !isFullyReceived}
+                ><BsrCheckIcon /> {isFullyReceived ? 'Complete Receiving' : 'Save & Exit'}</button>
               </div>
             </div>
           </div>

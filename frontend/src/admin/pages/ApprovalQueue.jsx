@@ -143,12 +143,21 @@ const [activeTab, setActiveTab] = useState(() => {
   }, []);
 
 
-  // Fetch server POs when purchase-orders tab becomes active
+  // Keep server POs fresh while the purchase-orders tab is visible.
   useEffect(() => {
-    if (activeTab === 'purchase-orders') {
-      fetchServerPOs();
-    }
-}, [activeTab, fetchServerPOs]);
+    if (activeTab !== 'purchase-orders') return undefined;
+
+    fetchServerPOs();
+    const interval = window.setInterval(fetchServerPOs, 15000);
+    window.addEventListener('approval-notifications-updated', fetchServerPOs);
+    window.addEventListener('storage', fetchServerPOs);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('approval-notifications-updated', fetchServerPOs);
+      window.removeEventListener('storage', fetchServerPOs);
+    };
+  }, [activeTab, fetchServerPOs]);
 
   const [branchTransfers] = useState([]);
 
