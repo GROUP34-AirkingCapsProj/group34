@@ -8,6 +8,7 @@ use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\PurchaseOrderDetail;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -149,6 +150,81 @@ class ReceivingController extends Controller
             return $this->success(null, 'Receiving deleted successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to delete receiving: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Return per-line receiving status for a PO: already-received piece counts
+     * and all scanned barcodes stored against each line. Used by the BSR frontend
+     * to initialise progress bars from real DB values and perform pre-scan
+     * duplicate checks without a full transaction round-trip.
+     */
+    public function poScanStatus(int $poId)
+    {
+        try {
+            $details = PurchaseOrderDetail::with('product')
+                ->where('po_id', $poId)
+                ->get(['po_detail_id', 'product_id', 'quantity_ordered']);
+
+            if ($details->isEmpty()) {
+                return $this->success(['lines' => [], 'scan_history' => []], 'No line items found for this PO');
+            }
+
+            $detailIds = $details->pluck('po_detail_id')->all();
+
+            // Sum received pieces per PO detail line
+            $receivedSums = ReceivingDetail::whereIn('po_detail_id', $detailIds)
+                ->groupBy('po_detail_id')
+                ->selectRaw('po_detail_id, SUM(quantity_amount) as total_received')
+                ->pluck('total_received', 'po_detail_id');
+
+            // Collect all distinct non-null scanned_barcodes per line
+            $scannedByLine = ReceivingDetail::whereIn('po_detail_id', $detailIds)
+                ->whereNotNull('scanned_barcode')
+                ->where('scanned_barcode', '!=', '')
+                ->select('po_detail_id', 'scanned_barcode')
+                ->get()
+                ->groupBy('po_detail_id')
+                ->map(fn ($rows) => $rows->pluck('scanned_barcode')->unique()->values()->all());
+
+            $lines = $details->map(fn ($d) => [
+                'po_detail_id'     => $d->po_detail_id,
+                'product_id'       => $d->product_id,
+                'already_received' => (int) ($receivedSums[$d->po_detail_id] ?? 0),
+                'scanned_barcodes' => $scannedByLine[$d->po_detail_id] ?? [],
+            ])->all();
+
+            // Build a lookup: product_id → { name, type, pieces_per_package }
+            $productInfo = $details->keyBy('product_id')->map(fn ($d) => [
+                'name' => $d->product?->product_name ?? 'Unknown',
+                'type' => $d->product?->product_type ?? 'consumable',
+                'pcs'  => (int) ($d->product?->pieces_per_package ?? 1),
+            ]);
+
+            // Full scan history ordered oldest-first so the frontend can reverse for newest-first display.
+            $scanHistory = ReceivingDetail::whereIn('po_detail_id', $detailIds)
+                ->select(['receiving_detail_id', 'po_detail_id', 'product_id', 'quantity_amount', 'scanned_barcode', 'created_at'])
+                ->orderBy('created_at', 'asc')
+                ->get()
+                ->map(function ($rd) use ($productInfo) {
+                    $info = $productInfo[$rd->product_id] ?? ['name' => 'Unknown', 'type' => 'consumable', 'pcs' => 1];
+                    return [
+                        'receiving_detail_id' => $rd->receiving_detail_id,
+                        'po_detail_id'        => $rd->po_detail_id,
+                        'product_id'          => $rd->product_id,
+                        'product_name'        => $info['name'],
+                        'is_serialized'       => $info['type'] === 'appliance',
+                        'scanned_barcode'     => $rd->scanned_barcode,
+                        'quantity_amount'     => (int) $rd->quantity_amount,
+                        'pieces_per_package'  => $info['pcs'],
+                        'created_at'          => $rd->created_at?->toISOString(),
+                    ];
+                })
+                ->all();
+
+            return $this->success(['lines' => $lines, 'scan_history' => $scanHistory], 'PO scan status retrieved');
+        } catch (\Exception $e) {
+            return $this->error('Failed to retrieve PO scan status: ' . $e->getMessage(), 500);
         }
     }
 }

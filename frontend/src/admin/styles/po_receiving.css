@@ -856,6 +856,69 @@
 }
 .bsr-success-done-btn:hover { background: #7c0fd4; }
 
+/* ── Alert / validation modal (centered fixed overlay) ─────────────────── */
+.bsr-alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+}
+.bsr-alert-modal {
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px 28px 24px;
+  width: min(380px, 92vw);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: bsrAlertPop 0.18s ease-out;
+}
+@keyframes bsrAlertPop {
+  from { transform: scale(0.88); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+.bsr-alert-icon {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 4px;
+}
+.bsr-alert-modal--error   .bsr-alert-icon { background: #fef2f2; }
+.bsr-alert-modal--warning .bsr-alert-icon { background: #fffbeb; }
+.bsr-alert-modal--success .bsr-alert-icon { background: #f0fdf4; }
+.bsr-alert-title {
+  font-size: 18px; font-weight: 800;
+  margin: 0; text-align: center;
+}
+.bsr-alert-modal--error   .bsr-alert-title { color: #dc2626; }
+.bsr-alert-modal--warning .bsr-alert-title { color: #d97706; }
+.bsr-alert-modal--success .bsr-alert-title { color: #16a34a; }
+.bsr-alert-message {
+  font-size: 14px; color: #374151;
+  margin: 4px 0 14px; text-align: center;
+  line-height: 1.55;
+}
+.bsr-alert-dismiss-btn {
+  width: 100%; padding: 13px;
+  border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700;
+  color: #fff; cursor: pointer;
+  transition: background 0.15s;
+  margin-top: 4px;
+}
+.bsr-alert-dismiss-btn--error   { background: #dc2626; }
+.bsr-alert-dismiss-btn--error:hover   { background: #b91c1c; }
+.bsr-alert-dismiss-btn--warning { background: #d97706; }
+.bsr-alert-dismiss-btn--warning:hover { background: #b45309; }
+.bsr-alert-dismiss-btn--success { background: #16a34a; }
+.bsr-alert-dismiss-btn--success:hover { background: #15803d; }
+
 /* ── Left/right columns ─────────────────────────────────── */
 .bsr-left  { display: flex; flex-direction: column; }
 .bsr-right { display: flex; flex-direction: column; position: relative; }

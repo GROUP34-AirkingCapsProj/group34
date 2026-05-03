@@ -335,6 +335,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope'])->group
     |--------------------------------------------------------------------------
     */
     Route::get('/receivings', [ReceivingController::class, 'index']);
+    Route::get('/receivings/po-scan-status/{poId}', [ReceivingController::class, 'poScanStatus']);
     Route::get('/receivings/{id}', [ReceivingController::class, 'show']);
     Route::middleware('role:admin,warehouse_personnel,branch_manager')->group(function () {
         Route::post('/receivings', [ReceivingController::class, 'store']);
