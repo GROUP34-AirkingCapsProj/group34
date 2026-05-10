@@ -246,6 +246,25 @@
   cursor: not-allowed;
 }
 
+.login-back-link {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.login-back-link:hover {
+  text-decoration: underline;
+}
+
 /* ===============================
    ERROR MESSAGE
 ================================ */
@@ -259,6 +278,14 @@
   border-radius: 8px;
   border: 1px solid var(--login-error-border);
   font-weight: 500;
+}
+
+.login-attempts-hint {
+  margin-top: 10px;
+  font-size: 14px;
+  text-align: center;
+  color: #b45309;
+  font-weight: 600;
 }
 
 /* ===============================
@@ -441,4 +468,51 @@
     min-width: 48px;
     height: 34px;
   }
+}
+
+/* OTP step */
+.login-otp-hint {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted, #71717a);
+  margin-bottom: 16px;
+}
+
+.login-otp-hint strong {
+  color: var(--text-primary, #18181b);
+  word-break: break-all;
+}
+
+input.login-otp-input {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.login-otp-back {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.login-otp-back:hover:not(:disabled) {
+  color: var(--primary-dark, #b91c1c);
+}
+
+.login-otp-back:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

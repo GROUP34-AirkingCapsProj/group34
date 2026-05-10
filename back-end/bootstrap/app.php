@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'log.activity' => \App\Http\Middleware\LogActivity::class,
             'auditor.readonly' => \App\Http\Middleware\AuditorReadOnly::class,
             'location.scope' => \App\Http\Middleware\EnsureAssignedLocationAccess::class,
+            'extend.sanctum.session' => \App\Http\Middleware\ExtendSanctumTokenExpiration::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

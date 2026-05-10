@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { toast } from '../utils/toast';
+import { getApiBaseUrl, getToken, systemSettingsAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
 import '../styles/system_configuration.css';
-
-// API Base URL - should match the backend API URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 const LockIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -137,7 +135,7 @@ const DEFAULT_SETTINGS = {
   passwordExpiry: '90',
   sessionTimeout: '30',
   maxLoginAttempts: '5',
-  twoFactorAuth: false,
+  twoFactorAuth: true,
   resetCodeExpiry: '24',
   allowSelfServiceReset: true,
 };
@@ -151,8 +149,14 @@ const DEFAULT_PROFILE = {
   position: 'System Administrator',
 };
 
-// Helper function to get auth token
-const getAuthToken = () => localStorage.getItem('token');
+function formatResetCodeDate(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return iso;
+  }
+}
 
 const SystemConfiguration = () => {
   const [activeTab, setActiveTab] = useState('security');
@@ -171,13 +175,38 @@ const SystemConfiguration = () => {
   const [userLocFilter, setUserLocFilter]  = useState('');
   const [resetRequests, setResetRequests]  = useState([]);
   const [activeCodes, setActiveCodes]      = useState([]);
+  const [activeCodesLoading, setActiveCodesLoading] = useState(false);
   const [manualUser, setManualUser]        = useState('');
+
+  const fetchActiveResetCodes = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setActiveCodesLoading(true);
+    try {
+      const res = await passwordResetAPI.listActive();
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      setActiveCodes(
+        rows.map((r) => ({
+          id: r.id,
+          name: r.name || 'User',
+          email: r.email || '',
+          code: r.code || '—',
+          generated: formatResetCodeDate(r.generated_at),
+          expires: formatResetCodeDate(r.expires_at),
+        }))
+      );
+    } catch {
+      setActiveCodes([]);
+    } finally {
+      setActiveCodesLoading(false);
+    }
+  }, []);
 
   // Fetch data from API
   const fetchData = async () => {
     setLoading(true);
     setError(null);
-    const token = getAuthToken();
+    const token = getToken();
     
     if (!token) {
       setError('Authentication required. Please log in.');
@@ -193,9 +222,9 @@ const SystemConfiguration = () => {
 
       // Fetch users, roles, and locations in parallel
       const [usersRes, rolesRes, locationsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/users?per_page=100`, { headers }),
-        fetch(`${API_BASE_URL}/roles`, { headers }),
-        fetch(`${API_BASE_URL}/locations?per_page=100`, { headers }),
+        fetch(`${getApiBaseUrl()}/users?per_page=100`, { headers }),
+        fetch(`${getApiBaseUrl()}/roles`, { headers }),
+        fetch(`${getApiBaseUrl()}/locations?per_page=100`, { headers }),
       ]);
 
       const usersData = usersRes.ok ? await usersRes.json() : { data: [] };
@@ -232,7 +261,36 @@ const SystemConfiguration = () => {
 
     // Fetch API data
     fetchData();
+
+    const loadSessionTimeout = async () => {
+      const token = getToken();
+      if (!token) return;
+      try {
+        const data = await systemSettingsAPI.getSession();
+        if (data?.session_timeout_minutes != null) {
+          setSettings((prev) => ({
+            ...prev,
+            sessionTimeout: String(data.session_timeout_minutes),
+            ...(data.max_login_attempts != null
+              ? { maxLoginAttempts: String(data.max_login_attempts) }
+              : {}),
+            ...(data.two_factor_auth_enabled !== undefined
+              ? { twoFactorAuth: Boolean(data.two_factor_auth_enabled) }
+              : {}),
+          }));
+          setSessionTimeoutMinutes(data.session_timeout_minutes);
+        }
+      } catch {
+        // Keep defaults if endpoint unavailable
+      }
+    };
+    loadSessionTimeout();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'users') return;
+    fetchActiveResetCodes();
+  }, [activeTab, fetchActiveResetCodes]);
 
   const handleChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
@@ -246,8 +304,29 @@ const SystemConfiguration = () => {
     setSettings(DEFAULT_SETTINGS);
   };
 
-  const handleSave = () => {
-    toast.success('Settings saved successfully!');
+  const handleSave = async () => {
+    const token = getToken();
+    if (!token) {
+      toast.error('Authentication required. Please log in.');
+      return;
+    }
+    const minutes = parseInt(settings.sessionTimeout, 10);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 10080) {
+      toast.error('Session timeout must be between 1 and 10080 minutes.');
+      return;
+    }
+    const maxAttempts = parseInt(settings.maxLoginAttempts, 10);
+    if (!Number.isFinite(maxAttempts) || maxAttempts < 3 || maxAttempts > 50) {
+      toast.error('Max login attempts must be between 3 and 50.');
+      return;
+    }
+    try {
+      await systemSettingsAPI.updateSession(minutes, maxAttempts, settings.twoFactorAuth);
+      setSessionTimeoutMinutes(minutes);
+      toast.success('Settings saved successfully!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save session settings.');
+    }
   };
 
   const handleProfileChange = (field, value) => {
@@ -258,9 +337,19 @@ const SystemConfiguration = () => {
     toast.success('Profile updated successfully!');
   };
 
-  const handleGenerateCode = (id) => {
-    toast.success('Reset code generated and shared with user.');
-    setResetRequests(prev => prev.filter(r => r.id !== id));
+  const handleGenerateCode = async (req) => {
+    if (!req?.user_id) {
+      toast.error('Invalid reset request.');
+      return;
+    }
+    try {
+      await passwordResetAPI.issue(Number(req.user_id));
+      setResetRequests((prev) => prev.filter((r) => r.id !== req.id));
+      toast.success(`Reset code generated for ${req.name || 'user'}.`);
+      await fetchActiveResetCodes();
+    } catch (err) {
+      toast.error(err.message || 'Failed to issue reset code.');
+    }
   };
 
   const handleDenyRequest = (id) => {
@@ -268,20 +357,67 @@ const SystemConfiguration = () => {
     toast.success('Request denied.');
   };
 
-  const handleRevoke = (id) => {
-    setActiveCodes(prev => prev.filter(c => c.id !== id));
-    toast.success('Reset code revoked.');
+  const handleRevoke = async (id) => {
+    try {
+      await passwordResetAPI.revoke(id);
+      toast.success('Reset code revoked.');
+      await fetchActiveResetCodes();
+    } catch (err) {
+      toast.error(err.message || 'Failed to revoke code.');
+    }
   };
 
   const handleCopyCode = (code) => {
     navigator.clipboard?.writeText(code).then(() => toast.success('Code copied!'));
   };
 
-  const handleManualGenerate = () => {
-    if (!manualUser.trim()) { toast.error('Please select a user.'); return; }
-    toast.success(`Reset code generated for ${manualUser}.`);
-    setManualUser('');
+  const handleManualGenerate = async () => {
+    if (!manualUser) {
+      toast.error('Please select a user.');
+      return;
+    }
+    const token = getToken();
+    if (!token) {
+      toast.error('Authentication required.');
+      return;
+    }
+    const u = users.find((x) => String(x.user_id) === String(manualUser));
+    const label = u
+      ? [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || u.email || 'User'
+      : manualUser;
+    try {
+      const data = await passwordResetAPI.issue(Number(manualUser));
+      const plain = data?.code;
+      if (plain) {
+        let copied = false;
+        if (navigator.clipboard?.writeText) {
+          try {
+            await navigator.clipboard.writeText(plain);
+            copied = true;
+          } catch {
+            copied = false;
+          }
+        }
+        if (copied) {
+          toast.success(`Code copied for ${label}. Valid 24 hours.`);
+        } else {
+          toast.warning(`Code for ${label}: ${plain} (valid 24h)`);
+        }
+      } else {
+        toast.success(`Reset code generated for ${label}.`);
+      }
+      setManualUser('');
+      await fetchActiveResetCodes();
+    } catch (err) {
+      toast.error(err.message || 'Failed to issue reset code.');
+    }
   };
+
+  const manualResetUserOptions = [...users].sort((a, b) => {
+    const na = [a.first_name, a.last_name].filter(Boolean).join(' ') || a.username || a.email || '';
+    const nb = [b.first_name, b.last_name].filter(Boolean).join(' ') || b.username || b.email || '';
+    return na.localeCompare(nb, undefined, { sensitivity: 'base' });
+  });
 
 // Filter users based on selected role and location
   const filteredUsers = users.filter(u => {
@@ -381,7 +517,7 @@ const SystemConfiguration = () => {
                   <input type="checkbox" id="twoFactorAuth" checked={settings.twoFactorAuth} onChange={() => handleToggle('twoFactorAuth')} />
                   <label htmlFor="twoFactorAuth">
                     <span className="sc-checkbox-label">Enable Two-Factor Authentication (2FA)</span>
-                    <span className="sc-checkbox-desc">Require SMS or authenticator app verification at login</span>
+                    <span className="sc-checkbox-desc">Require a one-time code sent to the user&apos;s email at login</span>
                   </label>
                 </div>
               </div>
@@ -634,10 +770,10 @@ const SystemConfiguration = () => {
                       <span className="sc-um-request-time">Requested: {req.requested}</span>
                     </div>
                     <div className="sc-um-request-actions">
-                      <button className="sc-um-btn-generate" onClick={() => handleGenerateCode(req.id)}>
+                      <button type="button" className="sc-um-btn-generate" onClick={() => handleGenerateCode(req)}>
                         <CheckCircleIcon /> Generate Code
                       </button>
-                      <button className="sc-um-btn-deny" onClick={() => handleDenyRequest(req.id)}>
+                      <button type="button" className="sc-um-btn-deny" onClick={() => handleDenyRequest(req.id)}>
                         <XCircleIcon /> Deny
                       </button>
                     </div>
@@ -653,10 +789,13 @@ const SystemConfiguration = () => {
                 <p>View and manage active password reset codes</p>
               </div>
               <div className="sc-card-body">
-                {activeCodes.length === 0 && (
+                {activeCodesLoading && (
+                  <p className="sc-placeholder" style={{ padding: '16px 0' }}>Loading reset codes…</p>
+                )}
+                {!activeCodesLoading && activeCodes.length === 0 && (
                   <p className="sc-placeholder" style={{ padding: '16px 0' }}>No active reset codes.</p>
                 )}
-                {activeCodes.map(c => (
+                {!activeCodesLoading && activeCodes.map(c => (
                   <div key={c.id} className="sc-um-code-item">
                     <div className="sc-um-code-left">
                       <span className="sc-um-code-name">{c.name}</span>
@@ -673,7 +812,7 @@ const SystemConfiguration = () => {
                         <span><strong>Expires</strong><br />{c.expires}</span>
                       </div>
                     </div>
-                    <button className="sc-um-btn-revoke" onClick={() => handleRevoke(c.id)}>
+                    <button type="button" className="sc-um-btn-revoke" onClick={() => handleRevoke(c.id)}>
                       <XCircleIcon /> Revoke
                     </button>
                   </div>
@@ -691,16 +830,27 @@ const SystemConfiguration = () => {
                 <p className="sc-um-manual-desc">
                   Select a user and generate a password reset code manually. The code will be valid for 24 hours.
                 </p>
-                <label className="sc-um-manual-label">Select User</label>
+                <label className="sc-um-manual-label" htmlFor="sc-manual-reset-user">Select User</label>
                 <div className="sc-um-manual-row">
-                  <input
-                    type="text"
-                    className="sc-um-manual-input"
-                    placeholder=""
+                  <select
+                    id="sc-manual-reset-user"
+                    className="sc-um-manual-input sc-um-manual-select"
                     value={manualUser}
-                    onChange={e => setManualUser(e.target.value)}
-                  />
-                  <button className="sc-um-btn-generate-code" onClick={handleManualGenerate}>
+                    onChange={(e) => setManualUser(e.target.value)}
+                    disabled={loading || users.length === 0}
+                  >
+                    <option value="">{loading ? 'Loading users…' : users.length === 0 ? 'No users available' : 'Select a user…'}</option>
+                    {manualResetUserOptions.map((u) => {
+                      const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'User';
+                      const suffix = u.email ? ` — ${u.email}` : '';
+                      return (
+                        <option key={u.user_id} value={String(u.user_id)}>
+                          {name}{suffix}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <button type="button" className="sc-um-btn-generate-code" onClick={handleManualGenerate}>
                     <KeyOutlineIcon /> Generate Reset Code
                   </button>
                 </div>

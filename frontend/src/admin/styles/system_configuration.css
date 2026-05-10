@@ -832,6 +832,19 @@
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.08);
 }
 
+.sc-um-manual-select {
+  min-width: 0;
+  cursor: pointer;
+  background: #fff;
+  appearance: auto;
+}
+
+.sc-um-manual-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+  background: #f9fafb;
+}
+
 .sc-um-btn-generate-code {
   display: inline-flex;
   align-items: center;

@@ -47,7 +47,8 @@ return [
     |
     */
 
-    'expiration' => 480,
+    // null = honor each token's expires_at (issued at login from system session timeout).
+    'expiration' => null,
 
     /*
     |--------------------------------------------------------------------------

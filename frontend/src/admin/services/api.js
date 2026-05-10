@@ -59,6 +59,28 @@ export const getApiBaseUrl = () => {
 
 const TOKEN_KEY = 'token';
 
+/** Synced from login and system settings; drives client idle logout. */
+export const SESSION_TIMEOUT_MINUTES_KEY = 'session_timeout_minutes';
+
+/** Fired when the stored timeout changes so the idle timer can reschedule immediately. */
+export const SESSION_TIMEOUT_CHANGED_EVENT = 'airking:session-timeout-changed';
+
+export const getSessionTimeoutMinutes = () => {
+  const raw = localStorage.getItem(SESSION_TIMEOUT_MINUTES_KEY);
+  const n = parseInt(raw, 10);
+  if (Number.isFinite(n) && n >= 1) return n;
+  return 30;
+};
+
+export const setSessionTimeoutMinutes = (minutes) => {
+  if (minutes == null || !Number.isFinite(Number(minutes))) return;
+  const n = Math.max(1, Math.min(10080, Math.floor(Number(minutes))));
+  localStorage.setItem(SESSION_TIMEOUT_MINUTES_KEY, String(n));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_TIMEOUT_CHANGED_EVENT));
+  }
+};
+
 /**
  * Check if the backend API is reachable (no auth required). Use for connection troubleshooting.
  * @returns {Promise<{ ok: boolean, message?: string }>}
@@ -94,7 +116,10 @@ export const checkApiHealth = async () => {
 ====================== */
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
-export const removeToken = () => localStorage.removeItem(TOKEN_KEY);
+export const removeToken = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(SESSION_TIMEOUT_MINUTES_KEY);
+};
 
 /* ======================
    API REQUEST HELPER
@@ -154,6 +179,9 @@ const apiRequest = async (endpoint, options = {}) => {
     const err = new Error(data.message || 'API request failed');
     err.status = response.status;
     err.errors = data.errors || null;
+    if (data.login_attempts_remaining !== undefined && data.login_attempts_remaining !== null) {
+      err.login_attempts_remaining = data.login_attempts_remaining;
+    }
     throw err;
   }
 
@@ -169,19 +197,48 @@ export const authAPI = {
     return apiRequest('/login/challenge');
   },
 
-  login: async (email, password, captchaToken, captchaAnswer) => {
+  /**
+   * @param {string} email
+   * @param {string} password
+   * @param {{ captcha_token: string, captcha_answer: string }} captchaPayload
+   */
+  login: async (email, password, captchaPayload) => {
+    const body = {
+      email,
+      password,
+      captcha_token: captchaPayload?.captcha_token ?? '',
+      captcha_answer: String(captchaPayload?.captcha_answer ?? ''),
+    };
     const data = await apiRequest('/login', {
       method: 'POST',
-      body: JSON.stringify({
-        email,
-        password,
-        captcha_token: captchaToken,
-        captcha_answer: String(captchaAnswer ?? ''),
-      }),
+      body: JSON.stringify(body),
     });
 
     if (data.token) setToken(data.token);
     if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
+    if (data.session_timeout_minutes != null) {
+      setSessionTimeoutMinutes(data.session_timeout_minutes);
+    }
+    return data;
+  },
+
+  /**
+   * @param {string} email
+   * @param {string|number} otp
+   */
+  verifyOtp: async (email, otp) => {
+    const data = await apiRequest('/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+        otp: String(otp ?? '').replace(/\s/g, ''),
+      }),
+    });
+    if (data.token) setToken(data.token);
+    if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
+    if (data.session_timeout_minutes != null) {
+      setSessionTimeoutMinutes(data.session_timeout_minutes);
+    }
     return data;
   },
 
@@ -198,6 +255,30 @@ export const authAPI = {
   },
 
   getUser: async () => apiRequest('/user'),
+};
+
+/** Admin-issued code (auth) + public reset completion (no auth). */
+export const passwordResetAPI = {
+  issue: async (userId) =>
+    apiRequest('/password-reset/issue', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    }),
+  listActive: async () => apiRequest('/password-reset/active'),
+  revoke: async (id) =>
+    apiRequest(`/password-reset/active/${id}/revoke`, {
+      method: 'POST',
+    }),
+  complete: async ({ email, code, password, password_confirmation }) =>
+    apiRequest('/password-reset/complete', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        code: String(code || '').trim(),
+        password,
+        password_confirmation,
+      }),
+    }),
 };
 
 /* ======================
@@ -234,6 +315,25 @@ export const alertsAPI = {
   getSettings: async () => apiRequest('/alerts/settings'),
   getUnreadCount: async () => apiRequest('/alerts/settings'),
   markAllRead: async () => apiRequest('/alerts/mark-all-read', { method: 'POST' }),
+};
+
+/** Session timeout from system_settings (GET any auth user; PUT admin only). */
+export const systemSettingsAPI = {
+  getSession: async () => apiRequest('/system/session-settings'),
+  /**
+   * @param {number} sessionTimeoutMinutes
+   * @param {number} maxLoginAttempts
+   * @param {boolean} twoFactorAuthEnabled
+   */
+  updateSession: async (sessionTimeoutMinutes, maxLoginAttempts, twoFactorAuthEnabled) =>
+    apiRequest('/system/session-settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        session_timeout_minutes: sessionTimeoutMinutes,
+        max_login_attempts: maxLoginAttempts,
+        two_factor_auth_enabled: Boolean(twoFactorAuthEnabled),
+      }),
+    }),
 };
 
 /* ======================

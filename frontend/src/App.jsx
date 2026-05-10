@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
+import SessionIdleGuard from './admin/components/SessionIdleGuard';
 import './App.css';
 
 // Core
@@ -64,6 +65,7 @@ function App() {
     <AuthProvider>
     <SupabaseAuthProvider>
     <Router>
+      <SessionIdleGuard />
       <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-muted)' }}>Loading...</div>}>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />

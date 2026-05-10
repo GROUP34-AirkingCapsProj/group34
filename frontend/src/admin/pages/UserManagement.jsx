@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import PasswordFieldWithToggle from '../components/PasswordFieldWithToggle';
 import { usersAPI, authAPI, batchAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
@@ -484,16 +485,32 @@ const UserManagement = () => {
                 {formErrors.username && <span className="um-field-error">{formErrors.username}</span>}
               </div>
               <div className="form-group">
-                <label>{editingUser ? 'New Password (leave blank to keep current)' : 'Password'} {!editingUser && <span className="required">*</span>}</label>
-                <input type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} placeholder={editingUser ? 'Leave blank to keep current' : 'Minimum 8 characters'} />
+                <label htmlFor="um-modal-password">{editingUser ? 'New Password (leave blank to keep current)' : 'Password'} {!editingUser && <span className="required">*</span>}</label>
+                <PasswordFieldWithToggle
+                  id="um-modal-password"
+                  name="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder={editingUser ? 'Leave blank to keep current' : 'Minimum 8 characters'}
+                  autoComplete="new-password"
+                  required={!editingUser}
+                />
                 {formErrors.password && <span className="um-field-error">{formErrors.password}</span>}
               </div>
             </div>
             {(formData.password || !editingUser) && (
               <div className="form-row">
                 <div className="form-group">
-                  <label>Confirm Password {!editingUser && <span className="required">*</span>}</label>
-                  <input type="password" value={formData.password_confirmation} onChange={(e) => setFormData({...formData, password_confirmation: e.target.value})} placeholder="Re-enter password" />
+                  <label htmlFor="um-modal-password-confirm">Confirm Password {!editingUser && <span className="required">*</span>}</label>
+                  <PasswordFieldWithToggle
+                    id="um-modal-password-confirm"
+                    name="password_confirmation"
+                    value={formData.password_confirmation}
+                    onChange={(e) => setFormData({ ...formData, password_confirmation: e.target.value })}
+                    placeholder="Re-enter password"
+                    autoComplete="new-password"
+                    required={!editingUser}
+                  />
                   {formErrors.password_confirmation && <span className="um-field-error">{formErrors.password_confirmation}</span>}
                 </div>
                 <div className="form-group"></div>
