@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\StatusLookupController;
 use App\Http\Controllers\Api\UnitLookupController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\AlertSettingsController;
+use App\Http\Controllers\Api\SystemSessionSettingsController;
+use App\Http\Controllers\Api\PasswordResetController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,10 +51,13 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:12,1');
+Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:12,1');
 Route::get('/login/challenge', [AuthController::class, 'loginChallenge'])->middleware('throttle:30,1');
 Route::post('/register', [AuthController::class, 'register']);
 
-Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope'])->group(function () {
+Route::post('/password-reset/complete', [PasswordResetController::class, 'complete'])->middleware('throttle:12,1');
+
+Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
@@ -84,6 +89,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope'])->group
     */
     Route::get('/alerts/settings', [AlertSettingsController::class, 'index']);
     Route::post('/alerts/mark-all-read', [AlertSettingsController::class, 'markAllRead']);
+
+    Route::get('/system/session-settings', [SystemSessionSettingsController::class, 'show']);
+    Route::middleware('role:admin')->put('/system/session-settings', [SystemSessionSettingsController::class, 'update']);
+    Route::middleware(['role:admin', 'throttle:30,1'])->post('/password-reset/issue', [PasswordResetController::class, 'issue']);
+    Route::middleware(['role:admin', 'throttle:60,1'])->get('/password-reset/active', [PasswordResetController::class, 'active']);
+    Route::middleware(['role:admin', 'throttle:60,1'])->post('/password-reset/active/{passwordResetCode}/revoke', [PasswordResetController::class, 'revoke']);
 
     /*
     |--------------------------------------------------------------------------

@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+
+use App\Mail\SendOTPMail;
+use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\Controller;
 use App\Models\LoginActivity;
 use App\Models\User;
 use App\Models\AuditTrail;
+use App\Models\SystemSetting;
 use App\Services\LoginCaptchaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -17,13 +21,23 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
-    private const LOGIN_MAX_ATTEMPTS = 5;
-
     private const LOGIN_DECAY_SECONDS = 900;
 
-    private function loginThrottleKey(Request $request): string
+    private function issueAuthToken(User $user): string
     {
-        return 'login:' . sha1(strtolower((string) $request->input('email')) . '|' . $request->ip());
+        $minutes = SystemSetting::sessionTimeoutMinutes();
+
+        return $user->createToken('auth-token', ['*'], now()->addMinutes($minutes))->plainTextToken;
+    }
+
+    private function loginCredentialsThrottleKey(Request $request): string
+    {
+        return 'login-credentials:' . sha1(strtolower((string) $request->input('email')) . '|' . $request->ip());
+    }
+
+    private function loginCaptchaThrottleKey(Request $request): string
+    {
+        return 'login-captcha:' . sha1(strtolower((string) $request->input('email')) . '|' . $request->ip());
     }
 
     private function logLoginAttempt(Request $request, ?User $user, bool $success, ?string $failureReason = null): void
@@ -68,7 +82,7 @@ class AuthController extends Controller
             'status_id' => 1,
         ]);
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = $this->issueAuthToken($user);
 
         AuditTrail::create([
             'user_id' => $user->user_id,
@@ -83,6 +97,7 @@ class AuthController extends Controller
             'message' => 'User registered successfully',
             'user' => $user->load('role', 'status'),
             'token' => $token,
+            'session_timeout_minutes' => SystemSetting::sessionTimeoutMinutes(),
         ], 201);
     }
 
@@ -94,6 +109,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data' => $captcha->createChallenge(),
+            'max_login_attempts' => SystemSetting::maxLoginAttempts(),
         ]);
     }
 
@@ -109,9 +125,11 @@ class AuthController extends Controller
             'captcha_answer' => 'required|string|max:10',
         ]);
 
-        $throttleKey = $this->loginThrottleKey($request);
-        if (RateLimiter::tooManyAttempts($throttleKey, self::LOGIN_MAX_ATTEMPTS)) {
-            $seconds = RateLimiter::availableIn($throttleKey);
+        $credentialsKey = $this->loginCredentialsThrottleKey($request);
+        $captchaKey = $this->loginCaptchaThrottleKey($request);
+        $maxAttempts = SystemSetting::maxLoginAttempts();
+        if (RateLimiter::tooManyAttempts($credentialsKey, $maxAttempts)) {
+            $seconds = RateLimiter::availableIn($credentialsKey);
             $this->logLoginAttempt($request, null, false, 'Account temporarily locked (too many attempts).');
 
             throw ValidationException::withMessages([
@@ -122,7 +140,7 @@ class AuthController extends Controller
         }
 
         if (! $captcha->verify($request->input('captcha_token'), $request->input('captcha_answer'))) {
-            RateLimiter::hit($throttleKey, self::LOGIN_DECAY_SECONDS);
+            RateLimiter::hit($captchaKey, self::LOGIN_DECAY_SECONDS);
             $this->logLoginAttempt($request, null, false, 'Invalid CAPTCHA.');
 
             throw ValidationException::withMessages([
@@ -133,16 +151,23 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password_hash)) {
-            RateLimiter::hit($throttleKey, self::LOGIN_DECAY_SECONDS);
+            RateLimiter::hit($credentialsKey, self::LOGIN_DECAY_SECONDS);
             $this->logLoginAttempt($request, $user, false, 'Invalid credentials.');
 
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
+            $attemptsAfter = RateLimiter::attempts($credentialsKey);
+            $remaining = max(0, $maxAttempts - $attemptsAfter);
+
+            return response()->json([
+                'message' => 'The provided credentials are incorrect.',
+                'errors' => [
+                    'email' => ['Invalid email or password.'],
+                ],
+                'login_attempts_remaining' => $remaining,
+            ], 422);
         }
 
         if ($user->status_id !== 1) {
-            RateLimiter::hit($throttleKey, self::LOGIN_DECAY_SECONDS);
+            RateLimiter::hit($credentialsKey, self::LOGIN_DECAY_SECONDS);
             $this->logLoginAttempt($request, $user, false, 'Inactive account.');
 
             throw ValidationException::withMessages([
@@ -150,8 +175,27 @@ class AuthController extends Controller
             ]);
         }
 
-        RateLimiter::clear($throttleKey);
-        $token = $user->createToken('auth-token')->plainTextToken;
+        RateLimiter::clear($credentialsKey);
+        RateLimiter::clear($captchaKey);
+
+        if (SystemSetting::twoFactorAuthEnabled()) {
+            $otp = (string) random_int(100000, 999999);
+
+            $user->update([
+                'otp_code' => $otp,
+                'otp_expires_at' => now()->addMinutes(10),
+            ]);
+
+            Mail::to($user->email)->send(new SendOTPMail($otp));
+
+            return response()->json([
+                'requires_otp' => true,
+                'email' => $user->email,
+                'message' => 'OTP has been sent to your email.',
+            ]);
+        }
+
+        $token = $this->issueAuthToken($user);
 
         $this->logLoginAttempt($request, $user, true, null);
 
@@ -166,6 +210,46 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'user' => $user->load('role', 'status'),
             'token' => $token,
+            'session_timeout_minutes' => SystemSetting::sessionTimeoutMinutes(),
+            'requires_otp' => false,
+        ]);
+    }
+
+    public function verifyOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required|numeric',
+        ]);
+
+        $otp = (string) $request->input('otp');
+
+        $user = User::where('email', $request->email)
+            ->where('otp_code', $otp)
+            ->where('otp_expires_at', '>', now())
+            ->first();
+
+        if (! $user) {
+            return response()->json(['message' => 'Invalid or expired OTP.'], 422);
+        }
+
+        $user->update(['otp_code' => null, 'otp_expires_at' => null]);
+
+        $token = $this->issueAuthToken($user);
+        $this->logLoginAttempt($request, $user, true);
+
+        AuditTrail::create([
+            'user_id' => $user->user_id,
+            'action' => 'login',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'token' => $token,
+            'user' => $user->load('role', 'status'),
+            'session_timeout_minutes' => SystemSetting::sessionTimeoutMinutes(),
         ]);
     }
 
@@ -205,10 +289,11 @@ class AuthController extends Controller
     {
         $user = $request->user();
         $request->user()->currentAccessToken()->delete();
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = $this->issueAuthToken($user);
 
         return response()->json([
             'token' => $token,
+            'session_timeout_minutes' => SystemSetting::sessionTimeoutMinutes(),
         ]);
     }
 

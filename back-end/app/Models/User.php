@@ -39,6 +39,8 @@ class User extends Authenticatable
         'status_id',
         'assigned_location_ids',
         'allowed_panels',
+        'otp_code',
+        'otp_expires_at',
     ];
 
     protected $hidden = [
