@@ -7,8 +7,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * When users.assigned_location_ids is set, restrict top-level location_id on mutating requests.
- * null = full access (default). Non-empty array = whitelist of location_id values.
+ * Restricts mutating requests to locations assigned via the user_locations pivot.
+ * null/empty pivot rows = full access (admin equivalent). Non-empty rows = whitelist.
  */
 class EnsureAssignedLocationAccess
 {
@@ -24,17 +24,12 @@ class EnsureAssignedLocationAccess
             return $next($request);
         }
 
-        $allowed = $user->assigned_location_ids;
-        if ($allowed === null) {
-            return $next($request);
-        }
+        // Load assigned locations from pivot (cached on the model for this request)
+        $assignedLocations = $user->locations()->pluck('locations.location_id')->all();
 
-        $ids = array_values(array_unique(array_map('intval', (array) $allowed)));
-        if ($ids === []) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Your account has no assigned locations. Contact an administrator.',
-            ], 403);
+        // No pivot rows = unrestricted access (admin / newly created users)
+        if (empty($assignedLocations)) {
+            return $next($request);
         }
 
         if (! $request->has('location_id')) {
@@ -42,7 +37,7 @@ class EnsureAssignedLocationAccess
         }
 
         $lid = (int) $request->input('location_id');
-        if ($lid > 0 && ! in_array($lid, $ids, true)) {
+        if ($lid > 0 && ! in_array($lid, $assignedLocations, true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'You are not authorized for this warehouse/location.',

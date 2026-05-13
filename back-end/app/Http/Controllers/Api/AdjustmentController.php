@@ -99,9 +99,6 @@ class AdjustmentController extends Controller
 
             DB::commit();
 
-            $productIds = array_map(fn ($d) => (int) $d['product_id'], $validated['details']);
-            Product::syncQuantityFromInventoryMany($productIds);
-
             return $this->success($adjustment->load(['location', 'createdBy', 'details.product']), 'Adjustment created successfully', 201);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());

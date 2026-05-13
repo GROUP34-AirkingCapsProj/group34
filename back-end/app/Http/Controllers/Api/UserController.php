@@ -59,8 +59,8 @@ class UserController extends Controller
                 'role_id' => 'required|exists:roles,role_id',
                 'location_id' => 'nullable|exists:locations,location_id',
                 'status_id' => 'required|exists:status_lookup,status_id',
-                'assigned_location_ids' => 'nullable|array',
-                'assigned_location_ids.*' => 'integer|exists:locations,location_id',
+                'location_ids' => 'nullable|array',
+                'location_ids.*' => 'integer|exists:locations,location_id',
             ]);
 
             // Ensure integer IDs (request may send strings)
@@ -72,11 +72,18 @@ class UserController extends Controller
             unset($validated['password']);
             unset($validated['password_confirmation']);
 
+            $locationIds = $validated['location_ids'] ?? null;
+            unset($validated['location_ids']);
+
             $user = User::create($validated);
 
-            // ✅ USING ApiResponse trait
+            // Sync location assignments via user_locations pivot
+            if ($locationIds !== null) {
+                $user->locations()->sync($locationIds);
+            }
+
             return $this->success(
-                $user->load(['role', 'status', 'location']),
+                $user->load(['role', 'status', 'location', 'locations']),
                 'User created successfully',
                 201
             );
@@ -90,7 +97,7 @@ class UserController extends Controller
 
     public function show(User $user)
     {
-        $user->load(['role', 'status', 'location']);
+        $user->load(['role', 'status', 'location', 'locations']);
 
         // ✅ USING ApiResponse trait
         return $this->success($user, 'User retrieved successfully');
@@ -115,15 +122,22 @@ class UserController extends Controller
                 'role_id' => 'sometimes|required|exists:roles,role_id',
                 'location_id' => 'nullable|exists:locations,location_id',
                 'status_id' => 'sometimes|required|exists:status_lookup,status_id',
-                'assigned_location_ids' => 'nullable|array',
-                'assigned_location_ids.*' => 'integer|exists:locations,location_id',
+                'location_ids' => 'nullable|array',
+                'location_ids.*' => 'integer|exists:locations,location_id',
             ]);
+
+            $locationIds = array_key_exists('location_ids', $validated) ? $validated['location_ids'] : false;
+            unset($validated['location_ids']);
 
             $user->update($validated);
 
-            // ✅ USING ApiResponse trait
+            // Sync location assignments via user_locations pivot
+            if ($locationIds !== false) {
+                $user->locations()->sync($locationIds ?? []);
+            }
+
             return $this->success(
-                $user->fresh()->load(['role', 'status', 'location']),
+                $user->fresh()->load(['role', 'status', 'location', 'locations']),
                 'User updated successfully'
             );
 

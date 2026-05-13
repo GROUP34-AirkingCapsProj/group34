@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
+use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class PurchaseOrderController extends Controller
         'approvedBy',
         'receivedBy',
         'status',
+        'purchaseRequest',
         'details.product',
         'details.approvedBy',
     ];
@@ -186,7 +188,21 @@ class PurchaseOrderController extends Controller
 
             $header = Arr::except($validated, ['details']);
             if (!empty($header)) {
+                $wasCompleted = $po->status_id !== 11
+                    && isset($validated['status_id'])
+                    && (int) $validated['status_id'] === 11;
+
                 $po->update($header);
+
+                if ($wasCompleted && $po->pr_id) {
+                    $pr = $po->purchaseRequest;
+                    if ($pr && $pr->budget_id) {
+                        BudgetAllocation::where('budget_id', $pr->budget_id)
+                            ->increment('spent', $po->total_amount);
+                        BudgetAllocation::where('budget_id', $pr->budget_id)
+                            ->decrement('committed', $po->total_amount);
+                    }
+                }
             }
 
             if (isset($validated['details'])) {

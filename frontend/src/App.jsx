@@ -47,7 +47,9 @@ const ApprovalQueue = lazy(() => import('./admin/pages/ApprovalQueue'));
 const SystemConfiguration = lazy(() => import('./admin/pages/SystemConfiguration'));
 const ArchiveManagement = lazy(() => import('./admin/pages/ArchiveManagement'));
 const PORecommendation = lazy(() => import('./admin/pages/PORecommendation'));
-const DraftPOCreator = lazy(() => import('./admin/pages/DraftPOCreator'));
+const BudgetManagementPage = lazy(() => import('./admin/pages/BudgetManagementPage'));
+const PurchaseRequestPage = lazy(() => import('./admin/pages/PurchaseRequestPage'));
+const PurchaseOrderPage = lazy(() => import('./admin/pages/PurchaseOrderPage'));
 const ComplianceReview = lazy(() => import('./admin/pages/ComplianceReview'));
 const AlertsNotices = lazy(() => import('./admin/pages/AlertsNotices'));
 const WarrantyManagement = lazy(() => import('./admin/pages/WarrantyManagement'));
@@ -105,7 +107,9 @@ function App() {
           <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
           <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
           <Route path="/admin/purchase-orders" element={<RoleRoute><ApprovalQueue initialTab="purchase-orders" /></RoleRoute>} />
-          <Route path="/admin/draft-po-creator" element={<RoleRoute><DraftPOCreator /></RoleRoute>} />
+          <Route path="/admin/budget-management" element={<RoleRoute><BudgetManagementPage /></RoleRoute>} />
+          <Route path="/admin/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
+          <Route path="/admin/draft-po-creator" element={<RoleRoute><PurchaseOrderPage /></RoleRoute>} />
           <Route path="/admin/receivings" element={<RoleRoute><ReceivingManagement /></RoleRoute>} />
 
           {/* Inventory */}

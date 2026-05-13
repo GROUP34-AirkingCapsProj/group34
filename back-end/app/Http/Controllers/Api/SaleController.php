@@ -7,6 +7,7 @@ use App\Traits\ApiResponse;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 
@@ -68,7 +69,7 @@ class SaleController extends Controller
 
             DB::beginTransaction();
 
-            $sale = Sale::create(array_except($validated, ['details']));
+            $sale = Sale::create(Arr::except($validated, ['details']));
 
             $totalAmount = 0;
             foreach ($validated['details'] as $detail) {

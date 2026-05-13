@@ -74,9 +74,9 @@ export const ROLE_MENUS = {
           to: '/admin/approval-queue?tab=item-registration',
           icon: 'approval',
         },
-        { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
+        { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: 'approval' },
+        { name: 'Purchase Orders', path: '/admin/draft-po-creator', icon: 'procurement' },
         { name: 'PO Recommendation', path: '/admin/po-recommendations', icon: 'po' },
-        { name: 'Draft PO Creator', path: '/admin/draft-po-creator', icon: 'procurement' },
         { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
         { name: 'Item Master', path: '/admin/items', icon: 'items' },
         { name: 'Categories & Brands', path: '/admin/categories', icon: 'category' },
@@ -247,6 +247,8 @@ export const ROUTE_ACCESS = {
 
   // Procurement & restocking
   '/admin/suppliers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/admin/budget-management': [ROLES.ADMIN],
+  '/admin/purchase-requests': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST],
   '/admin/po-recommendations': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/draft-po-creator': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/purchase-returns': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],

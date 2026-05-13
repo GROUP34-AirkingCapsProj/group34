@@ -22,7 +22,7 @@ class PurchaseReturn extends Model
         'po_id',
         'supplier_id',
         'receiving_id',
-        'pr_number',
+        'return_number',
         'return_date',
         'reason',
         'total_amount',

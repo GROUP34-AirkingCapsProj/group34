@@ -144,9 +144,6 @@ class TransferController extends Controller
 
             DB::commit();
 
-            $productIds = array_map(fn ($d) => (int) $d['product_id'], $validated['details']);
-            Product::syncQuantityFromInventoryMany($productIds);
-
             return $this->success($transfer->load(['fromLocation', 'toLocation', 'details.product']), 'Transfer created successfully', 201);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
@@ -288,11 +285,7 @@ class TransferController extends Controller
 
             DB::commit();
 
-            $transfer->refresh()->load('details');
-            $pids = $transfer->details->pluck('product_id')->map(fn ($x) => (int) $x)->unique()->values()->all();
-            Product::syncQuantityFromInventoryMany($pids);
-
-            return $this->success($transfer->load(['fromLocation', 'toLocation', 'details.product']), 'Transfer updated successfully');
+            return $this->success($transfer->fresh()->load(['fromLocation', 'toLocation', 'details.product']), 'Transfer updated successfully');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
         } catch (\Exception $e) {
@@ -342,8 +335,6 @@ class TransferController extends Controller
             $transfer->delete();
 
             DB::commit();
-
-            Product::syncQuantityFromInventoryMany($productIds);
 
             return $this->success(null, 'Transfer deleted successfully');
         } catch (\Exception $e) {
@@ -455,8 +446,6 @@ class TransferController extends Controller
             $transfer->save();
 
             DB::commit();
-
-            Product::syncQuantityFromInventoryMany([(int) $detail->product_id]);
 
             $transfer->refresh()->load(['fromLocation', 'toLocation', 'receivedBy', 'status', 'details.product']);
 

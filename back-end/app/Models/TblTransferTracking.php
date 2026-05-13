@@ -6,11 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * ERD: tbl_transfer_tracking
+ * ERD: transfer_tracking
  */
 class TblTransferTracking extends Model
 {
-    protected $table = 'tbl_transfer_tracking';
+    protected $table = 'transfer_tracking';
     protected $primaryKey = 'tracking_id';
 
     protected $fillable = [

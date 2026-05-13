@@ -14,30 +14,18 @@ class Product extends Model
     protected $primaryKey = 'product_id';
 
     protected $fillable = [
-        'unit_id',
         'category_id',
-        'brand_id',
-        'model_id',
         'barcode',
         'product_code',
         'product_name',
-        // Product class discriminator
-        'product_type',       // 'appliance' | 'consumable'
-        // Appliance-specific
-        'capacity_rating',    // e.g. '1HP', '1.5HP', '2HP', '2.5HP', '3HP', '5HP'
-        'variant',            // e.g. 'Non-Inverter', 'Inverter'
-        // Consumable-specific
-        'description',        // descriptive attributes for bulk supplies
-        'pieces_per_package', // packaging quantity (pieces per box/roll/pack)
-        // Shared pricing & operational fields
+        'product_type',
+        'description',
         'unit_price',
         'cost_price',
-        'warranty_period_months',
         'status_id',
         'recommended_stocks',
         'safety_stock',
         'max_stock_level',
-        'quantity',
     ];
 
     public function getRouteKeyName(): string
@@ -46,14 +34,11 @@ class Product extends Model
     }
 
     protected $casts = [
-        'cost_price'             => 'decimal:2',
-        'unit_price'             => 'decimal:2',
-        'warranty_period_months' => 'integer',
-        'recommended_stocks'     => 'integer',
-        'safety_stock'           => 'integer',
-        'max_stock_level'        => 'integer',
-        'quantity'               => 'integer',
-        'pieces_per_package'     => 'integer',
+        'cost_price'         => 'decimal:2',
+        'unit_price'         => 'decimal:2',
+        'recommended_stocks' => 'integer',
+        'safety_stock'       => 'integer',
+        'max_stock_level'    => 'integer',
     ];
 
     // -----------------------------------------------------------------------
@@ -76,36 +61,36 @@ class Product extends Model
     // Helpers
     // -----------------------------------------------------------------------
 
-    /** Returns true when this product is a durable appliance. */
     public function isAppliance(): bool
     {
         return $this->product_type === 'appliance';
     }
 
-    /** Returns true when this product is a consumable supply. */
     public function isConsumable(): bool
     {
         return $this->product_type === 'consumable';
     }
 
-    public function unit(): BelongsTo
+    public function isSerialized(): bool
     {
-        return $this->belongsTo(UnitLookup::class, 'unit_id', 'unit_id');
+        if ($this->isAppliance())  return (bool) optional($this->applianceDetail)->is_serialized;
+        if ($this->isConsumable()) return (bool) optional($this->consumableDetail)->is_serialized;
+        return false;
+    }
+
+    public function applianceDetail()
+    {
+        return $this->hasOne(ApplianceDetail::class, 'product_id', 'product_id');
+    }
+
+    public function consumableDetail()
+    {
+        return $this->hasOne(ConsumableDetail::class, 'product_id', 'product_id');
     }
 
     public function category(): BelongsTo
     {
         return $this->belongsTo(CategoryLookup::class, 'category_id', 'category_id');
-    }
-
-    public function brand(): BelongsTo
-    {
-        return $this->belongsTo(BrandLookup::class, 'brand_id', 'brand_id');
-    }
-
-    public function model(): BelongsTo
-    {
-        return $this->belongsTo(ModelLookup::class, 'model_id', 'model_id');
     }
 
     public function status(): BelongsTo
@@ -152,20 +137,14 @@ class Product extends Model
     }
 
     /**
-     * Keep products.quantity equal to the sum of quantity_on_hand across all inventory rows.
+     * Delegate pieces_per_package to consumable_details.
+     * Called automatically when code reads $product->pieces_per_package,
+     * so existing scan/receiving code keeps working without changes.
      */
-    public static function syncQuantityFromInventory(int $productId): void
+    public function getPiecesPerPackageAttribute($value): int
     {
-        $sum = (int) Inventory::where('product_id', $productId)->sum('quantity_on_hand');
-        static::where('product_id', $productId)->update(['quantity' => $sum]);
+        if ($value !== null) return (int) $value;
+        return (int) ($this->consumableDetail?->pieces_per_package ?? 1);
     }
 
-    /** @param int[] $productIds */
-    public static function syncQuantityFromInventoryMany(array $productIds): void
-    {
-        $ids = array_values(array_unique(array_filter($productIds)));
-        foreach ($ids as $pid) {
-            self::syncQuantityFromInventory((int) $pid);
-        }
-    }
 }

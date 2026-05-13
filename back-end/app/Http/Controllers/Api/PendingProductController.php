@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApplianceDetail;
+use App\Models\ConsumableDetail;
 use App\Models\Inventory;
 use App\Models\PendingProduct;
 use App\Models\Product;
@@ -228,9 +230,7 @@ class PendingProductController extends Controller
             return $this->error('Approval failed: '.$e->getMessage(), 500);
         }
 
-        Product::syncQuantityFromInventory((int) $product->product_id);
-
-        $product->load(['category', 'brand', 'model', 'status', 'unit']);
+        $product->load(['category', 'status', 'applianceDetail.brand', 'consumableDetail.unit']);
 
         return $this->success($product, 'Product approved and added to Item Master');
     }
@@ -250,19 +250,22 @@ class PendingProductController extends Controller
         }
 
         $product = Product::create([
-            'product_code'           => $productCode,
-            'product_name'           => $finalName,
-            'product_type'           => 'consumable',
-            'barcode'                => $pending->barcode,
-            'category_id'            => $pending->category_id,
-            'brand_id'               => $pending->brand_id,
-            'description'            => $description,
-            'pieces_per_package'     => $pending->quantity_per_package,
-            'unit_price'             => $pending->unit_price,
-            'cost_price'             => $pending->cost_price,
-            'capacity_rating'        => null,
-            'unit_id'                => null,
-            'warranty_period_months' => null,
+            'product_code' => $productCode,
+            'product_name' => $finalName,
+            'product_type' => 'consumable',
+            'barcode'      => $pending->barcode,
+            'category_id'  => $pending->category_id,
+            'description'  => $description,
+            'unit_price'   => $pending->unit_price,
+            'cost_price'   => $pending->cost_price,
+        ]);
+
+        ConsumableDetail::create([
+            'product_id'         => $product->product_id,
+            'unit_id'            => null,
+            'pieces_per_package' => $pending->quantity_per_package,
+            'package_unit'       => $pending->packaging_unit,
+            'is_serialized'      => 0,
         ]);
 
         $this->ensureOpeningStock($product->product_id, (int) $pending->opening_location_id, max(1, (int) $pending->opening_quantity));
@@ -287,18 +290,23 @@ class PendingProductController extends Controller
         }
 
         $product = Product::create([
-            'product_code'           => $code,
-            'product_name'           => $finalName,
-            'product_type'           => 'appliance',
-            'barcode'                => $pending->barcode,
-            'category_id'            => (int) ($snap['category_id'] ?? $pending->category_id),
-            'brand_id'               => (int) ($snap['brand_id'] ?? $pending->brand_id),
-            'unit_id'                => (int) ($snap['unit_id'] ?? 0) ?: null,
+            'product_code' => $code,
+            'product_name' => $finalName,
+            'product_type' => 'appliance',
+            'barcode'      => $pending->barcode,
+            'category_id'  => (int) ($snap['category_id'] ?? $pending->category_id),
+            'unit_price'   => $pending->unit_price,
+            'cost_price'   => $pending->cost_price,
+        ]);
+
+        ApplianceDetail::create([
+            'product_id'             => $product->product_id,
+            'brand_id'               => (int) ($snap['brand_id'] ?? $pending->brand_id) ?: null,
+            'model_id'               => null,
             'capacity_rating'        => $snap['capacity_rating'] ?? null,
-            'description'            => isset($snap['variant']) ? (string) $snap['variant'] : null,
-            'warranty_period_months' => isset($snap['warranty_period_months']) ? (int) $snap['warranty_period_months'] : null,
-            'unit_price'             => $pending->unit_price,
-            'cost_price'             => $pending->cost_price,
+            'variant'                => $snap['variant'] ?? null,
+            'warranty_period_months' => isset($snap['warranty_period_months']) ? (int) $snap['warranty_period_months'] : 0,
+            'is_serialized'          => 1,
         ]);
 
         $locId = (int) ($snap['initial_location_id'] ?? $pending->opening_location_id);

@@ -856,6 +856,102 @@ export const pendingProductsAPI = {
 };
 
 /* ======================
+   PURCHASE REQUESTS API  (PR → PO workflow)
+====================== */
+export const purchaseRequestsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/purchase-requests?${query}` : '/purchase-requests');
+  },
+
+  getById: async (id) => apiRequest(`/purchase-requests/${id}`),
+
+  create: async (data) =>
+    apiRequest('/purchase-requests', { method: 'POST', body: JSON.stringify(data) }),
+
+  update: async (id, data) =>
+    apiRequest(`/purchase-requests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  getPending: async () => apiRequest('/purchase-requests/pending/list'),
+
+  approve: async (id) =>
+    apiRequest(`/purchase-requests/${id}/approve`, {
+      method: 'PATCH',
+      body: JSON.stringify({}),
+    }),
+
+  reject: async (id, data) =>
+    apiRequest(`/purchase-requests/${id}/reject`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  getConvertForm: async (id) => apiRequest(`/purchase-requests/${id}/convert`),
+
+  convertToPO: async (id, data) =>
+    apiRequest(`/purchase-requests/${id}/convert`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Smart reorder check — returns open PR lines (not yet fully ordered)
+   * for a given product across all pending/approved PRs.
+   * Response: array of { pr_id, pr_number, status, quantity_requested,
+   *                      quantity_ordered, quantity_remaining, needed_by_date }
+   */
+  getOpenLinesForProduct: async (productId) => {
+    const query = new URLSearchParams({
+      product_id: productId,
+      open_only:  1,
+      per_page:   50,
+    }).toString();
+    return apiRequest(`/purchase-requests?${query}`);
+  },
+};
+
+/* ======================
+   BUDGET ALLOCATIONS API
+====================== */
+export const budgetAllocationsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/budget-allocations?${query}` : '/budget-allocations');
+  },
+
+  getById: async (id) => apiRequest(`/budget-allocations/${id}`),
+
+  /**
+   * Returns { budget_id, total_budget, committed, spent, available }
+   * Use this to show remaining headroom on the PR create form.
+   */
+  getAvailable: async (budgetId) =>
+    apiRequest(`/budget-allocations/${budgetId}/available`),
+
+  /**
+   * Find the most relevant budget for a location.
+   * Tries active period first; if none, returns the most recently started budget.
+   * Does NOT pass active=1 so a budget just created for a future/past period still appears.
+   */
+  getForLocation: async (locationId) => {
+    const query = new URLSearchParams({
+      location_id: locationId,
+      per_page:    5,
+    }).toString();
+    return apiRequest(`/budget-allocations?${query}`);
+  },
+
+  create: async (data) =>
+    apiRequest('/budget-allocations', { method: 'POST', body: JSON.stringify(data) }),
+
+  update: async (id, data) =>
+    apiRequest(`/budget-allocations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  delete: async (id) =>
+    apiRequest(`/budget-allocations/${id}`, { method: 'DELETE' }),
+};
+
+/* ======================
    BARCODE SCAN API
 ====================== */
 export const barcodeScanAPI = {
