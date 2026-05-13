@@ -10,6 +10,7 @@ use App\Models\ItemSerial;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
+use App\Models\PurchaseRequest;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Models\Transfer;
@@ -81,48 +82,64 @@ class InventoryScanTransactionController extends Controller
 
     private function resolveProductByBarcode(string $raw): ?Product
     {
-        $digitsOnly = preg_replace('/\D/', '', $raw);
-        $variants = array_values(array_unique(array_filter([
-            $raw,
-            strtoupper($raw),
-            strtolower($raw),
-            preg_replace('/\s+/', '', $raw),
-            $digitsOnly !== '' ? $digitsOnly : null,
-        ])));
+        $raw     = trim($raw);
+        $lower   = strtolower($raw);
+        $upper   = strtoupper($raw);
+        $noSpace = preg_replace('/\s+/', '', $raw) ?? '';
+        $digits  = preg_replace('/\D/', '', $raw)   ?? '';
 
-        foreach ($variants as $v) {
-            $norm = strtolower(trim($v));
-            if ($norm === '') {
-                continue;
-            }
+        $candidates = array_values(array_unique(array_filter(
+            [$raw, $lower, $upper, $noSpace, $digits],
+            fn($v) => $v !== ''
+        )));
+
+        // 1. Search products.barcode and products.product_code
+        foreach ($candidates as $c) {
+            $norm = strtolower(trim($c));
             $p = Product::query()
                 ->where(function ($q) use ($norm) {
-                    $q->whereRaw('LOWER(TRIM(COALESCE(barcode, \'\'))) = ?', [$norm])
-                        ->orWhereRaw('LOWER(TRIM(COALESCE(product_code, \'\'))) = ?', [$norm]);
+                    $q->whereRaw("LOWER(TRIM(COALESCE(barcode,''))) = ?",       [$norm])
+                      ->orWhereRaw("LOWER(TRIM(COALESCE(product_code,''))) = ?", [$norm]);
                 })
+                ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                        'consumableDetail.unit'])
                 ->first();
             if ($p) {
                 return $p;
             }
         }
 
-        foreach ($variants as $v) {
+        // 2. Search item_serials.serial_number (for appliance units already received)
+        foreach ($candidates as $c) {
             $serial = ItemSerial::query()
-                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($v))])
+                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($c))])
                 ->first();
             if ($serial && $serial->product_id) {
-                return Product::query()->where('product_id', $serial->product_id)->first();
+                $p = Product::query()
+                    ->where('product_id', $serial->product_id)
+                    ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                            'consumableDetail.unit'])
+                    ->first();
+                if ($p) {
+                    return $p;
+                }
             }
         }
 
-        if (strlen($digitsOnly) === 12 && ctype_digit($digitsOnly)) {
-            $ean = $this->ean13From12($digitsOnly);
+        // 3. EAN-13 check digit fallback
+        if (strlen($digits) === 12 && ctype_digit($digits)) {
+            $ean = $this->ean13From12($digits);
             if ($ean) {
-                return Product::query()
+                $p = Product::query()
                     ->where(function ($q) use ($ean) {
                         $q->where('barcode', $ean)->orWhere('product_code', $ean);
                     })
+                    ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                            'consumableDetail.unit'])
                     ->first();
+                if ($p) {
+                    return $p;
+                }
             }
         }
 
@@ -159,8 +176,17 @@ class InventoryScanTransactionController extends Controller
         //   Consumable             → 1 scan = 1 package = pieces_per_package individual pieces.
         // The request quantity field is intentionally ignored here so the frontend
         // can never accidentally submit more than one package per scan event.
-        $isSerialized     = $product->isAppliance();
-        $piecesPerPackage = max(1, (int) ($product->pieces_per_package ?? 1));
+
+        // Ensure V5 extension tables are loaded before calling isSerialized / getPiecesPerPackage.
+        if (! $product->relationLoaded('applianceDetail')) {
+            $product->load('applianceDetail');
+        }
+        if (! $product->relationLoaded('consumableDetail')) {
+            $product->load('consumableDetail');
+        }
+
+        $isSerialized     = $product->isSerialized();
+        $piecesPerPackage = $product->getPiecesPerPackage();
         $packagesReceived = 1;
         $quantity         = $isSerialized ? 1 : $piecesPerPackage;
 
@@ -169,35 +195,27 @@ class InventoryScanTransactionController extends Controller
         $poDetail         = null;
         $remaining        = null;
 
-        // BUG 2: Validate PO status before allowing receiving
+        // Validate PO status before allowing receiving.
+        // V5 status IDs: 8 = Approved, 10 = Authorized, 12 = Partially Received.
+        // 12 must be allowed because syncPoReceivingStatus() sets it after the very
+        // first scan — blocking status 12 would prevent all scans after the first one.
         if ($poId) {
-            $po         = PurchaseOrder::with('status')->find($poId);
-            $statusName = strtolower($po->status?->status_name ?? '');
-            $goodStatuses = ['approved', 'authorized', 'active', 'confirmed', 'complete', 'received'];
-            $badStatuses  = ['pending', 'draft', 'awaiting', 'submitted', 'rejected', 'cancelled', 'void'];
-
-            $isGood = false;
-            foreach ($goodStatuses as $s) {
-                if (str_contains($statusName, $s)) {
-                    $isGood = true;
-                    break;
-                }
+            $po = PurchaseOrder::with(['status', 'purchaseRequest.budget'])->find($poId);
+            if (! $po) {
+                return $this->success([
+                    'action' => 'rejected',
+                    'reason' => 'Purchase order not found.',
+                ], 'Rejected');
             }
 
-            if (! $isGood) {
-                $isBad = false;
-                foreach ($badStatuses as $s) {
-                    if (str_contains($statusName, $s)) {
-                        $isBad = true;
-                        break;
-                    }
-                }
-                if ($isBad) {
-                    return $this->success([
-                        'action' => 'rejected',
-                        'reason' => 'This PO is not approved. Status: ' . ($po->status?->status_name ?? 'Unknown'),
-                    ], 'Rejected');
-                }
+            $receivableStatusIds = [8, 10, 12]; // Approved, Authorized, Partially Received
+            if (! in_array((int) $po->status_id, $receivableStatusIds, true)) {
+                $statusName = $po->status?->status_name ?? 'Unknown';
+                return $this->success([
+                    'action' => 'rejected',
+                    'reason' => "This PO cannot be received. Current status: {$statusName}. "
+                              . 'PO must be Approved, Authorized, or Partially Received.',
+                ], 'Rejected');
             }
         }
 
@@ -365,7 +383,13 @@ class InventoryScanTransactionController extends Controller
 
             DB::commit();
 
-            $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
+            $fresh = $product->fresh()->load([
+                'category',
+                'status',
+                'applianceDetail.brand',
+                'applianceDetail.modelLookup',
+                'consumableDetail.unit',
+            ]);
 
             $payload = [
                 'action'             => 'applied',
@@ -497,7 +521,13 @@ class InventoryScanTransactionController extends Controller
 
             DB::commit();
 
-            $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
+            $fresh = $product->fresh()->load([
+                'category',
+                'status',
+                'applianceDetail.brand',
+                'applianceDetail.modelLookup',
+                'consumableDetail.unit',
+            ]);
 
             return $this->success([
                 'action'    => 'applied',
@@ -541,7 +571,13 @@ class InventoryScanTransactionController extends Controller
             ]);
         }
 
-        $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
+        $fresh = $product->fresh()->load([
+            'category',
+            'status',
+            'applianceDetail.brand',
+            'applianceDetail.modelLookup',
+            'consumableDetail.unit',
+        ]);
 
         return $this->success([
             'action' => 'applied',
@@ -598,7 +634,13 @@ class InventoryScanTransactionController extends Controller
 
             DB::commit();
 
-            $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
+            $fresh = $product->fresh()->load([
+                'category',
+                'status',
+                'applianceDetail.brand',
+                'applianceDetail.modelLookup',
+                'consumableDetail.unit',
+            ]);
 
             return $this->success([
                 'action'    => 'applied',
@@ -642,7 +684,7 @@ class InventoryScanTransactionController extends Controller
 
     private function syncPoReceivingStatus(int $poId, $userId = null): void
     {
-        $details = PurchaseOrderDetail::with('product')
+        $details = PurchaseOrderDetail::with('product.consumableDetail')
             ->where('po_id', $poId)
             ->get(['po_detail_id', 'product_id', 'quantity_ordered']);
 
@@ -654,51 +696,66 @@ class InventoryScanTransactionController extends Controller
         $totalReceived = 0;
 
         foreach ($details as $d) {
-            // quantity_ordered is in packages for consumables, units for serialized.
-            // quantity_amount is always stored in pieces — normalise both to pieces.
-            $isSerialized  = $d->product?->isAppliance() ?? false;
-            $pcsPerPackage = max(1, (int) ($d->product?->pieces_per_package ?? 1));
+            $product = $d->product;
+            if (! $product) {
+                continue;
+            }
+
+            // Ensure extension tables are loaded before calling V5 helpers.
+            if (! $product->relationLoaded('applianceDetail')) {
+                $product->load('applianceDetail');
+            }
+            if (! $product->relationLoaded('consumableDetail')) {
+                $product->load('consumableDetail');
+            }
+
+            $isSerialized  = $product->isSerialized();
+            $pcsPerPackage = $product->getPiecesPerPackage();
+
+            // quantity_ordered is in units for appliances, packages for consumables.
+            // quantity_amount is always stored in pieces — convert ordered to pieces.
             $orderedPieces = $isSerialized
                 ? (int) $d->quantity_ordered
                 : (int) $d->quantity_ordered * $pcsPerPackage;
 
-            $totalOrdered  += $orderedPieces;
-            $totalReceived += (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)
+            $receivedPieces = (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)
                 ->sum('quantity_amount');
+
+            $totalOrdered  += $orderedPieces;
+            $totalReceived += $receivedPieces;
         }
 
         $updateData = [];
-        $targetName = '';
 
         if ($totalReceived > 0) {
-            $targetName = $totalReceived >= $totalOrdered ? 'Completed' : 'Partially Received';
+            // V5 status IDs — hardcoded; no DB string lookup needed.
+            // 11 = Completed, 12 = Partially Received
+            $newStatusId             = ($totalReceived >= $totalOrdered) ? 11 : 12;
+            $updateData['status_id'] = $newStatusId;
 
-            $statusId = DB::table('status_lookup')
-                ->where('status_category', 'purchase_order')
-                ->whereRaw('LOWER(TRIM(status_name)) = ?', [strtolower($targetName)])
-                ->value('status_id');
-
-            if ($statusId) {
-                $updateData['status_id'] = (int) $statusId;
+            if ($userId !== null) {
+                $updateData['received_by'] = $userId;
             }
-        }
 
-        if ($userId !== null) {
-            $updateData['received_by'] = $userId;
-        }
-
-        if (! empty($updateData)) {
             PurchaseOrder::where('po_id', $poId)->update($updateData);
 
-            // When PO transitions to Completed, move budget from committed → spent
-            if (isset($updateData['status_id']) && $targetName === 'Completed') {
-                $po = PurchaseOrder::with('purchaseRequest')->find($poId);
-                if ($po && $po->pr_id && $po->purchaseRequest?->budget_id) {
-                    $budgetId = $po->purchaseRequest->budget_id;
-                    BudgetAllocation::where('budget_id', $budgetId)->increment('spent', $po->total_amount);
-                    BudgetAllocation::where('budget_id', $budgetId)->decrement('committed', $po->total_amount);
+            // When PO is fully completed: move budget from committed → spent.
+            // Only applies to POs sourced from a PR that has a budget_id.
+            if ($newStatusId === 11) {
+                $po = PurchaseOrder::with('purchaseRequest.budget')->find($poId);
+                if ($po && $po->pr_id && $po->purchaseRequest) {
+                    $pr = $po->purchaseRequest;
+                    if ($pr->budget_id) {
+                        BudgetAllocation::where('budget_id', $pr->budget_id)
+                            ->increment('spent',     $po->total_amount);
+                        BudgetAllocation::where('budget_id', $pr->budget_id)
+                            ->decrement('committed', $po->total_amount);
+                    }
                 }
             }
+        } elseif ($userId !== null) {
+            // No items received yet — still stamp received_by on the PO.
+            PurchaseOrder::where('po_id', $poId)->update(['received_by' => $userId]);
         }
     }
 }

@@ -51,11 +51,26 @@ class BarcodeScanController extends Controller
 
             $product = $this->findProductByBarcodeCandidates($candidates);
             if ($product) {
-                $product->load(['category', 'brand', 'model', 'unit', 'status']);
+                $product->load([
+                    'category',
+                    'status',
+                    'applianceDetail.brand',
+                    'applianceDetail.modelLookup',
+                    'consumableDetail.unit',
+                ]);
 
                 return $this->success([
-                    'status'  => 'FOUND',
-                    'product' => $product,
+                    'status'             => 'FOUND',
+                    'product'            => $product,
+                    // V5 helper fields for the frontend receiving screen
+                    'product_type'       => $product->product_type,
+                    'is_serialized'      => $product->isSerialized(),
+                    'pieces_per_package' => $product->getPiecesPerPackage(),
+                    'brand_name'         => $product->applianceDetail?->brand?->brand_name   ?? null,
+                    'capacity'           => $product->applianceDetail?->capacity_rating       ?? null,
+                    'variant'            => $product->applianceDetail?->variant               ?? null,
+                    'unit_name'          => $product->consumableDetail?->unit?->unit_name     ?? null,
+                    'unit_abbr'          => $product->consumableDetail?->unit?->unit_abbreviation ?? null,
                 ], 'Product found');
             }
 
@@ -213,7 +228,13 @@ class BarcodeScanController extends Controller
             ]);
 
             return $this->success(
-                $scan->load(['user', 'product']),
+                $scan->load([
+                    'user',
+                    'product.category',
+                    'product.status',
+                    'product.applianceDetail.brand',
+                    'product.consumableDetail.unit',
+                ]),
                 'Barcode scan recorded successfully',
                 201
             );

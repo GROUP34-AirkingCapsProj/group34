@@ -3566,7 +3566,8 @@ const BarcodeScan = () => {
                   <div className="bs-result-cell">
                     <span className="bs-rk">Brand</span>
                     <span className="bs-rv">
-                      {scanResult.item.brand?.brand_name
+                      {scanResult.item.applianceDetail?.brand?.brand_name
+                        || scanResult.item.brand?.brand_name
                         || scanResult.item.brand_name
                         || '—'}
                     </span>
