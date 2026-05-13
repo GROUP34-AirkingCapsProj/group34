@@ -201,19 +201,22 @@ class DashboardController extends Controller
 
     private function getLowStockItems(): array
     {
-        return Product::with(['category', 'brand'])
-            ->whereColumn('quantity', '<=', 'recommended_stocks')
-            ->orderByRaw('(recommended_stocks - quantity) DESC')
+        $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
+
+        return Product::with(['category', 'applianceDetail.brand'])
+            ->selectRaw("products.*, {$sub} AS total_qty")
+            ->whereRaw("{$sub} <= recommended_stocks")
+            ->orderByRaw("(recommended_stocks - ({$sub})) DESC")
             ->limit(20)
             ->get()
             ->map(fn($p) => [
                 'product_id'         => $p->product_id,
                 'product_name'       => $p->product_name,
                 'category'           => $p->category?->category_name,
-                'brand'              => $p->brand?->brand_name,
-                'quantity'           => (int) $p->quantity,
+                'brand'              => $p->applianceDetail?->brand?->brand_name,
+                'quantity'           => (int) ($p->total_qty ?? 0),
                 'recommended_stocks' => (int) $p->recommended_stocks,
-                'deficiency'         => max(0, (int) $p->recommended_stocks - (int) $p->quantity),
+                'deficiency'         => max(0, (int) $p->recommended_stocks - (int) ($p->total_qty ?? 0)),
             ])
             ->values()
             ->all();

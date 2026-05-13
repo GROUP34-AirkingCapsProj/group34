@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\SerialController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\ModelLookupController;
 use App\Http\Controllers\Api\SubcategoryLookupController;
+use App\Http\Controllers\Api\BudgetAllocationController;
+use App\Http\Controllers\Api\PurchaseRequestController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\ReceivingController;
 use App\Http\Controllers\Api\PurchaseReturnController;
@@ -342,6 +344,48 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | BUDGET ALLOCATIONS
+    | Read: admin + inventory_analyst (IA needs to see budget on PR create form)
+    | Write: admin only
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin,inventory_analyst')->group(function () {
+        Route::get('/budget-allocations', [BudgetAllocationController::class, 'index']);
+        Route::get('/budget-allocations/{id}', [BudgetAllocationController::class, 'show']);
+        Route::get('/budget-allocations/{id}/available', [BudgetAllocationController::class, 'available']);
+    });
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/budget-allocations', [BudgetAllocationController::class, 'store']);
+        Route::put('/budget-allocations/{id}', [BudgetAllocationController::class, 'update']);
+        Route::delete('/budget-allocations/{id}', [BudgetAllocationController::class, 'destroy']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | PURCHASE REQUESTS (PR → PO workflow)
+    |--------------------------------------------------------------------------
+    */
+
+    // Any authenticated user can view a single PR
+    Route::get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
+
+    // Admin actions
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/purchase-requests/pending/list', [PurchaseRequestController::class, 'pending']);
+        Route::patch('/purchase-requests/{id}/approve', [PurchaseRequestController::class, 'approve']);
+        Route::patch('/purchase-requests/{id}/reject', [PurchaseRequestController::class, 'reject']);
+    });
+
+    // IA actions
+    Route::middleware('role:admin,inventory_analyst')->group(function () {
+        Route::get('/purchase-requests', [PurchaseRequestController::class, 'index']);
+        Route::post('/purchase-requests', [PurchaseRequestController::class, 'store']);
+        Route::get('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convert']);
+        Route::post('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convertStore']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | ERD: RECEIVING (RECEIVING)
     |--------------------------------------------------------------------------
     */
@@ -539,17 +583,18 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::prefix('reports')->group(function () {
         Route::get('/inventory-valuation', function () {
-            $products = \App\Models\Product::with(['category', 'brand'])
-                ->select('products.*')
+            $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
+            $products = \App\Models\Product::with(['category', 'applianceDetail.brand'])
+                ->selectRaw("products.*, {$sub} AS total_qty")
                 ->get()
                 ->map(fn($p) => [
                     'product_id'   => $p->product_id,
                     'product_name' => $p->product_name,
                     'category'     => $p->category?->category_name,
-                    'brand'        => $p->brand?->brand_name,
-                    'quantity'     => $p->quantity,
+                    'brand'        => $p->applianceDetail?->brand?->brand_name,
+                    'quantity'     => (int) ($p->total_qty ?? 0),
                     'cost_price'   => $p->cost_price,
-                    'total_value'  => $p->quantity * $p->cost_price,
+                    'total_value'  => ($p->total_qty ?? 0) * $p->cost_price,
                 ]);
             return response()->json(['success' => true, 'data' => $products]);
         });
@@ -567,8 +612,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
             return response()->json(['success' => true, 'data' => \App\Models\Transfer::with(['fromLocation', 'toLocation'])->orderBy('created_at', 'desc')->paginate(50)]);
         });
         Route::get('/low-stock-report', function () {
-            $products = \App\Models\Product::whereColumn('quantity', '<=', 'recommended_stocks')
-                ->with(['category', 'brand'])
+            $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
+            $products = \App\Models\Product::with(['category', 'applianceDetail.brand'])
+                ->selectRaw("products.*, {$sub} AS total_qty")
+                ->whereRaw("{$sub} <= recommended_stocks")
                 ->get();
             return response()->json(['success' => true, 'data' => $products]);
         });

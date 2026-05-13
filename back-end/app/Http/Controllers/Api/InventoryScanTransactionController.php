@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\BudgetAllocation;
 use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\Product;
@@ -333,7 +334,7 @@ class InventoryScanTransactionController extends Controller
 
             $receiving->increment('total_quantity_received', $quantity);
 
-            // BUG 3 + BUG 4: Create receiving_details row, storing po_detail_id
+            // Create receiving_details row, storing po_detail_id
             $receiving->details()->create([
                 'product_id'      => $product->product_id,
                 'po_detail_id'    => $poDetail?->po_detail_id,
@@ -343,6 +344,19 @@ class InventoryScanTransactionController extends Controller
                 'scanned_barcode' => $scannedBarcode ?: null,
             ]);
 
+            // Register serial number for appliance units
+            if ($isSerialized && $scannedBarcode !== '') {
+                ItemSerial::create([
+                    'product_id'    => $product->product_id,
+                    'location_id'   => $locationId,
+                    'receiving_id'  => $receiving->receiving_id,
+                    'scanned_by'    => $request->user()?->user_id,
+                    'serial_number' => $scannedBarcode,
+                    'serial_type'   => 'received',
+                    'status_id'     => 26,
+                ]);
+            }
+
             // Sync PO status (Partially Received / Completed) and received_by
             // inside the transaction so both writes are atomic.
             if ($poId) {
@@ -350,9 +364,8 @@ class InventoryScanTransactionController extends Controller
             }
 
             DB::commit();
-            Product::syncQuantityFromInventory((int) $product->product_id);
 
-            $fresh = $product->fresh()->load(['category', 'brand', 'model', 'unit', 'status']);
+            $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
 
             $payload = [
                 'action'             => 'applied',
@@ -483,9 +496,8 @@ class InventoryScanTransactionController extends Controller
             }
 
             DB::commit();
-            Product::syncQuantityFromInventory((int) $product->product_id);
 
-            $fresh = $product->fresh()->load(['category', 'brand', 'model', 'unit', 'status']);
+            $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
 
             return $this->success([
                 'action'    => 'applied',
@@ -529,7 +541,7 @@ class InventoryScanTransactionController extends Controller
             ]);
         }
 
-        $fresh = $product->fresh()->load(['category', 'brand', 'model', 'unit', 'status']);
+        $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
 
         return $this->success([
             'action' => 'applied',
@@ -585,9 +597,8 @@ class InventoryScanTransactionController extends Controller
             $fromInventory->save();
 
             DB::commit();
-            Product::syncQuantityFromInventory((int) $product->product_id);
 
-            $fresh = $product->fresh()->load(['category', 'brand', 'model', 'unit', 'status']);
+            $fresh = $product->fresh()->load(['category', 'status', 'applianceDetail.brand', 'applianceDetail.model', 'consumableDetail.unit']);
 
             return $this->success([
                 'action'    => 'applied',
@@ -657,6 +668,7 @@ class InventoryScanTransactionController extends Controller
         }
 
         $updateData = [];
+        $targetName = '';
 
         if ($totalReceived > 0) {
             $targetName = $totalReceived >= $totalOrdered ? 'Completed' : 'Partially Received';
@@ -677,6 +689,16 @@ class InventoryScanTransactionController extends Controller
 
         if (! empty($updateData)) {
             PurchaseOrder::where('po_id', $poId)->update($updateData);
+
+            // When PO transitions to Completed, move budget from committed → spent
+            if (isset($updateData['status_id']) && $targetName === 'Completed') {
+                $po = PurchaseOrder::with('purchaseRequest')->find($poId);
+                if ($po && $po->pr_id && $po->purchaseRequest?->budget_id) {
+                    $budgetId = $po->purchaseRequest->budget_id;
+                    BudgetAllocation::where('budget_id', $budgetId)->increment('spent', $po->total_amount);
+                    BudgetAllocation::where('budget_id', $budgetId)->decrement('committed', $po->total_amount);
+                }
+            }
         }
     }
 }

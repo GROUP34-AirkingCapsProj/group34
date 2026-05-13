@@ -137,7 +137,7 @@ class SupplierController extends Controller
             return $this->notFound('Supplier not found');
         }
 
-        $products = $supplier->products()->with(['category', 'brand'])->get()->map(function ($p) {
+        $products = $supplier->products()->with(['category', 'applianceDetail.brand'])->get()->map(function ($p) {
             $statusName = null;
             if ($p->pivot->status_id) {
                 $status = \App\Models\StatusLookup::find($p->pivot->status_id);
@@ -149,7 +149,7 @@ class SupplierController extends Controller
                 'product_name'     => $p->product_name,
                 'product_code'     => $p->product_code,
                 'category'         => $p->category?->category_name,
-                'brand'            => $p->brand?->brand_name,
+                'brand'            => $p->applianceDetail?->brand?->brand_name,
                 'product_price'    => $p->pivot->product_price,
                 'currency'         => $p->pivot->currency,
                 'status_id'        => $p->pivot->status_id,

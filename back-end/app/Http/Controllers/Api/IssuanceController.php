@@ -93,9 +93,6 @@ class IssuanceController extends Controller
 
             DB::commit();
 
-            $productIds = array_map(fn ($d) => (int) $d['product_id'], $validated['details']);
-            Product::syncQuantityFromInventoryMany($productIds);
-
             return $this->success($issuance->load(['location', 'issuedToUser', 'details.product']), 'Issuance created successfully', 201);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());

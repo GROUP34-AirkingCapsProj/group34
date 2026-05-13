@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Models\PurchaseReturn;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 
@@ -25,7 +26,7 @@ class PurchaseReturnController extends Controller
                 $query->where('status_id', $request->status_id);
             }
             if ($request->has('search')) {
-                $query->where('pr_number', 'like', '%' . $request->search . '%');
+                $query->where('return_number', 'like', '%' . $request->search . '%');
             }
 
             $perPage = $request->get('per_page', 20);
@@ -42,7 +43,7 @@ class PurchaseReturnController extends Controller
                 'pc_id'        => 'required|exists:purchase_orders,po_id',
                 'supplier_id'  => 'required|exists:suppliers,id',
                 'receiving_id' => 'nullable|exists:receivings,receiving_id',
-                'pr_number'    => 'required|string|max:50|unique:purchase_returns,pr_number',
+                'return_number' => 'required|string|max:50|unique:purchase_returns,return_number',
                 'return_date'  => 'required|date',
                 'reason'       => 'nullable|string',
                 'total_amount' => 'nullable|numeric|min:0',
@@ -60,7 +61,7 @@ class PurchaseReturnController extends Controller
 
             DB::beginTransaction();
 
-            $return = PurchaseReturn::create(array_except($validated, ['details']));
+            $return = PurchaseReturn::create(Arr::except($validated, ['details']));
 
             $totalAmount = 0;
             foreach ($validated['details'] as $detail) {

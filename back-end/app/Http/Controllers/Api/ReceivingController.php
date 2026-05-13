@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Traits\ApiResponse;
+use App\Models\BudgetAllocation;
+use App\Models\Inventory;
+use App\Models\ItemSerial;
+use App\Models\Product;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
-use App\Models\Inventory;
-use App\Models\Product;
-use App\Models\PurchaseOrderDetail;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
+use Illuminate\Validation\ValidationException;
 
 class ReceivingController extends Controller
 {
@@ -44,22 +47,27 @@ class ReceivingController extends Controller
     {
         try {
             $validated = $request->validate([
-                'pc_id'                   => 'required|exists:purchase_orders,po_id',
-                'location_id'             => 'required|exists:locations,location_id',
-                'receiving_number'        => 'required|string|max:50|unique:receivings,receiving_number',
-                'receiving_date'          => 'required|date',
-                'received_by'             => 'nullable|exists:users,user_id',
-                'total_quantity_received' => 'nullable|integer|min:0',
-                'total_quantity_damaged'  => 'nullable|integer|min:0',
-                'profit_loss_id'          => 'nullable|exists:profit_loss,profit_loss_id',
-                'status_id'               => 'nullable|exists:status_lookup,status_id',
-                'details'                 => 'required|array|min:1',
-                'details.*.po_detail_id'  => 'nullable|exists:purchase_order_details,po_detail_id',
-                'details.*.product_id'    => 'required|exists:products,product_id',
-                'details.*.prod_price'    => 'nullable|numeric|min:0',
-                'details.*.quantity_amount' => 'required|integer|min:0',
-                'details.*.condition'     => 'nullable|string|max:100',
+                'pc_id'                          => 'required|exists:purchase_orders,po_id',
+                'location_id'                    => 'required|exists:locations,location_id',
+                'receiving_number'               => 'required|string|max:50|unique:receivings,receiving_number',
+                'receiving_date'                 => 'required|date',
+                'received_by'                    => 'nullable|exists:users,user_id',
+                'total_quantity_received'        => 'nullable|integer|min:0',
+                'total_quantity_damaged'         => 'nullable|integer|min:0',
+                'profit_loss_id'                 => 'nullable|exists:profit_loss,profit_loss_id',
+                'status_id'                      => 'nullable|exists:status_lookup,status_id',
+                'details'                        => 'required|array|min:1',
+                'details.*.po_detail_id'         => 'nullable|exists:purchase_order_details,po_detail_id',
+                'details.*.product_id'           => 'required|exists:products,product_id',
+                'details.*.prod_price'           => 'nullable|numeric|min:0',
+                'details.*.quantity_amount'      => 'required|integer|min:0',
+                'details.*.condition'            => 'nullable|string|max:100',
+                'details.*.scanned_barcode'      => 'nullable|string|max:191',
             ]);
+
+            $poId       = (int) $validated['pc_id'];
+            $locationId = (int) $validated['location_id'];
+            $uid        = $request->user()?->user_id;
 
             DB::beginTransaction();
 
@@ -67,39 +75,78 @@ class ReceivingController extends Controller
 
             $totalReceived = 0;
             foreach ($validated['details'] as $detail) {
-                $receiving->details()->create($detail);
-                $qty = (int) ($detail['quantity_amount'] ?? 0);
-                $totalReceived += $qty;
+                $productId = (int) $detail['product_id'];
+                $qty       = (int) ($detail['quantity_amount'] ?? 0);
+                $scannedBarcode = $detail['scanned_barcode'] ?? null;
 
-                // Increase inventory at receiving location
+                $product = Product::with(['applianceDetail', 'consumableDetail'])->find($productId);
+                $isSerialized = $product ? $product->isSerialized() : false;
+
+                ReceivingDetail::create([
+                    'receiving_id'    => $receiving->receiving_id,
+                    'po_detail_id'    => $detail['po_detail_id'] ?? null,
+                    'product_id'      => $productId,
+                    'quantity_amount' => $qty,
+                    'prod_price'      => $detail['prod_price'] ?? 0,
+                    'condition'       => $detail['condition'] ?? 'Good',
+                    'scanned_barcode' => $scannedBarcode,
+                ]);
+
+                if ($isSerialized && $scannedBarcode) {
+                    ItemSerial::create([
+                        'product_id'    => $productId,
+                        'location_id'   => $locationId,
+                        'receiving_id'  => $receiving->receiving_id,
+                        'scanned_by'    => $uid,
+                        'serial_number' => $scannedBarcode,
+                        'serial_type'   => 'received',
+                        'status_id'     => 26,
+                    ]);
+                }
+
+                // Update inventory at receiving location
                 $inventory = Inventory::firstOrCreate(
-                    [
-                        'location_id' => $validated['location_id'],
-                        'product_id' => $detail['product_id'],
-                    ],
-                    [
-                        'quantity_on_hand' => 0,
-                        'available_quantity' => 0,
-                        'reorder_level' => 0,
-                    ]
+                    ['location_id' => $locationId, 'product_id' => $productId],
+                    ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
                 );
-
-                $inventory->quantity_on_hand = max(0, (int) $inventory->quantity_on_hand + $qty);
+                $inventory->quantity_on_hand   = max(0, (int) $inventory->quantity_on_hand + $qty);
                 $inventory->available_quantity = max(0, (int) $inventory->available_quantity + $qty);
                 $inventory->save();
+
+                $totalReceived += $qty;
             }
 
-            // Update totals if not explicitly provided
             if (!isset($validated['total_quantity_received'])) {
                 $receiving->update(['total_quantity_received' => $totalReceived]);
             }
 
+            // Update PO status: Completed (11) or Partially Received (12)
+            $totalOrdered  = PurchaseOrderDetail::where('po_id', $poId)->sum('quantity_ordered');
+            $totalReceivedForPO = ReceivingDetail::whereIn(
+                'receiving_id',
+                Receiving::where('pc_id', $poId)->pluck('receiving_id')
+            )->sum('quantity_amount');
+
+            $newPoStatus = ($totalReceivedForPO >= $totalOrdered) ? 11 : 12;
+            PurchaseOrder::where('po_id', $poId)->update(['status_id' => $newPoStatus]);
+
+            // Finalize budget when PO is fully received
+            if ($newPoStatus === 11) {
+                $po = PurchaseOrder::with('purchaseRequest')->find($poId);
+                if ($po && $po->pr_id && $po->purchaseRequest?->budget_id) {
+                    $budgetId = $po->purchaseRequest->budget_id;
+                    BudgetAllocation::where('budget_id', $budgetId)->increment('spent', $po->total_amount);
+                    BudgetAllocation::where('budget_id', $budgetId)->decrement('committed', $po->total_amount);
+                }
+            }
+
             DB::commit();
 
-            $productIds = array_map(fn ($d) => (int) $d['product_id'], $validated['details']);
-            Product::syncQuantityFromInventoryMany($productIds);
-
-            return $this->success($receiving->load(['purchaseOrder', 'location', 'details.product']), 'Receiving created successfully', 201);
+            return $this->success(
+                $receiving->load(['purchaseOrder', 'location', 'details.product']),
+                'Receiving created successfully',
+                201
+            );
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
         } catch (\Exception $e) {
@@ -155,9 +202,7 @@ class ReceivingController extends Controller
 
     /**
      * Return per-line receiving status for a PO: already-received piece counts
-     * and all scanned barcodes stored against each line. Used by the BSR frontend
-     * to initialise progress bars from real DB values and perform pre-scan
-     * duplicate checks without a full transaction round-trip.
+     * and all scanned barcodes stored against each line.
      */
     public function poScanStatus(int $poId)
     {
@@ -172,36 +217,32 @@ class ReceivingController extends Controller
 
             $detailIds = $details->pluck('po_detail_id')->all();
 
-            // Sum received pieces per PO detail line
             $receivedSums = ReceivingDetail::whereIn('po_detail_id', $detailIds)
                 ->groupBy('po_detail_id')
                 ->selectRaw('po_detail_id, SUM(quantity_amount) as total_received')
                 ->pluck('total_received', 'po_detail_id');
 
-            // Collect all distinct non-null scanned_barcodes per line
             $scannedByLine = ReceivingDetail::whereIn('po_detail_id', $detailIds)
                 ->whereNotNull('scanned_barcode')
                 ->where('scanned_barcode', '!=', '')
                 ->select('po_detail_id', 'scanned_barcode')
                 ->get()
                 ->groupBy('po_detail_id')
-                ->map(fn ($rows) => $rows->pluck('scanned_barcode')->unique()->values()->all());
+                ->map(fn($rows) => $rows->pluck('scanned_barcode')->unique()->values()->all());
 
-            $lines = $details->map(fn ($d) => [
+            $lines = $details->map(fn($d) => [
                 'po_detail_id'     => $d->po_detail_id,
                 'product_id'       => $d->product_id,
                 'already_received' => (int) ($receivedSums[$d->po_detail_id] ?? 0),
                 'scanned_barcodes' => $scannedByLine[$d->po_detail_id] ?? [],
             ])->all();
 
-            // Build a lookup: product_id → { name, type, pieces_per_package }
-            $productInfo = $details->keyBy('product_id')->map(fn ($d) => [
+            $productInfo = $details->keyBy('product_id')->map(fn($d) => [
                 'name' => $d->product?->product_name ?? 'Unknown',
                 'type' => $d->product?->product_type ?? 'consumable',
                 'pcs'  => (int) ($d->product?->pieces_per_package ?? 1),
             ]);
 
-            // Full scan history ordered oldest-first so the frontend can reverse for newest-first display.
             $scanHistory = ReceivingDetail::whereIn('po_detail_id', $detailIds)
                 ->select(['receiving_detail_id', 'po_detail_id', 'product_id', 'quantity_amount', 'scanned_barcode', 'created_at'])
                 ->orderBy('created_at', 'asc')

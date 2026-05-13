@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApplianceDetail;
 use App\Models\BrandLookup;
-use App\Models\Product;
 use App\Models\Inventory;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -20,7 +20,7 @@ class BrandLookupController extends Controller
     {
         $brands = BrandLookup::orderBy('brand_name')->get();
         $result = $brands->map(function ($brand) {
-            $productIds = Product::where('brand_id', $brand->brand_id)->pluck('product_id');
+            $productIds = ApplianceDetail::where('brand_id', $brand->brand_id)->pluck('product_id');
             $totalUnits = 0;
             $totalValue = 0;
             if ($productIds->isNotEmpty()) {

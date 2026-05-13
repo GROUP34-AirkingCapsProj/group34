@@ -37,8 +37,6 @@ class User extends Authenticatable
         'role_id',
         'location_id',
         'status_id',
-        'assigned_location_ids',
-        'allowed_panels',
         'otp_code',
         'otp_expires_at',
     ];
@@ -50,14 +48,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'assigned_location_ids' => 'array',
     ];
-
-    /** null = unrestricted locations; non-empty array = whitelist (warehouse/branch scoping). */
-    public function hasFullLocationAccess(): bool
-    {
-        return $this->assigned_location_ids === null;
-    }
 
     /**
      * Get the password attribute for authentication.
@@ -89,5 +80,15 @@ class User extends Authenticatable
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class, 'location_id', 'location_id');
+    }
+
+    public function locations()
+    {
+        return $this->belongsToMany(
+            Location::class,
+            'user_locations',
+            'user_id',
+            'location_id'
+        );
     }
 }

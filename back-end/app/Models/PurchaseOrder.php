@@ -14,6 +14,7 @@ class PurchaseOrder extends Model
     protected $primaryKey = 'po_id';
 
     protected $fillable = [
+        'pr_id',
         'supplier_id',
         'location_id',
         'po_number',
@@ -33,6 +34,11 @@ class PurchaseOrder extends Model
         'total_amount'           => 'decimal:2',
         'grand_total'            => 'decimal:2',
     ];
+
+    public function purchaseRequest(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseRequest::class, 'pr_id', 'pr_id');
+    }
 
     public function supplier(): BelongsTo
     {

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\User;
 use App\Traits\Auditable;
 
 /**
@@ -24,7 +25,6 @@ class PurchaseOrderDetail extends Model
         'quantity_ordered',
         'unit_price',
         'subtotal',
-        'approved_by',
     ];
 
     protected $casts = [
@@ -52,4 +52,5 @@ class PurchaseOrderDetail extends Model
     {
         return $this->belongsTo(User::class, 'approved_by', 'user_id');
     }
+
 }
