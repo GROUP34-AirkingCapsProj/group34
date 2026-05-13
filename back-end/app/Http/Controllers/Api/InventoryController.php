@@ -7,7 +7,6 @@ use App\Traits\ApiResponse;
 use App\Models\Inventory;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InventoryController extends Controller
@@ -51,10 +50,10 @@ class InventoryController extends Controller
         }
 
         if ($request->has('low_stock') && $request->low_stock) {
-            $query->whereColumn('quantity_on_hand', '<=', DB::raw('(SELECT recommended_stocks FROM products WHERE products.product_id = inventory.product_id)'));
+            $query->whereRaw('quantity_on_hand <= (SELECT recommended_stocks FROM products WHERE products.product_id = inventory.product_id)');
         }
 
-        $perPage = $request->get('per_page', 15);
+        $perPage = $request->input('per_page', 15);
         return $this->paginated($query->paginate($perPage), 'Inventory retrieved successfully');
     }
 

@@ -10,7 +10,7 @@ use App\Traits\Auditable;
 /**
  * Receiving (ERD: RECEIVING)
  * Table: receivings
- * Fields: receiving_id, pc_id FK, supplier_id FK, location_id FK,
+ * Fields: receiving_id, po_id FK, supplier_id FK, location_id FK,
  *         receiving_number, receiving_date, received_by FK,
  *         total_quantity_received, total_quantity_damaged
  */
@@ -21,7 +21,7 @@ class Receiving extends Model
     protected $primaryKey = 'receiving_id';
 
     protected $fillable = [
-        'pc_id',
+        'po_id',
         'supplier_id',
         'location_id',
         'receiving_number',
@@ -39,7 +39,7 @@ class Receiving extends Model
 
     public function purchaseOrder(): BelongsTo
     {
-        return $this->belongsTo(PurchaseOrder::class, 'pc_id', 'po_id');
+        return $this->belongsTo(PurchaseOrder::class, 'po_id', 'po_id');
     }
 
     public function supplier(): BelongsTo

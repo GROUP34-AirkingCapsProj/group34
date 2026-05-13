@@ -968,3 +968,36 @@ export const barcodeScanAPI = {
       body: JSON.stringify({ barcode: String(barcode || '').trim() }),
     }),
 };
+
+/* ======================
+   BARCODE ADJUSTMENT API
+====================== */
+export const barcodeAdjustmentAPI = {
+  /** GET /adjustments/receiving-history/{po_id} */
+  getReceivingHistory: async (poId) =>
+    apiRequest(`/adjustments/receiving-history/${poId}`),
+
+  /** POST /adjustments/preview */
+  preview: async (data) =>
+    apiRequest('/adjustments/preview', { method: 'POST', body: JSON.stringify(data) }),
+
+  /** POST /adjustments/submit */
+  submit: async (data) =>
+    apiRequest('/adjustments/submit', { method: 'POST', body: JSON.stringify(data) }),
+
+  /** GET /adjustments/correction-history */
+  getCorrectionHistory: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/adjustments/correction-history?${query}` : '/adjustments/correction-history');
+  },
+
+  /** GET /adjustments/corrections/{correction_id} */
+  getCorrection: async (correctionId) =>
+    apiRequest(`/adjustments/corrections/${correctionId}`),
+
+  /** GET /compliance/logs */
+  getComplianceLogs: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/compliance/logs?${query}` : '/compliance/logs');
+  },
+};

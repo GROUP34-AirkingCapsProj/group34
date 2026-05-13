@@ -77,7 +77,7 @@ class PurchaseOrder extends Model
 
     public function receivings(): HasMany
     {
-        return $this->hasMany(Receiving::class, 'pc_id', 'po_id');
+        return $this->hasMany(Receiving::class, 'po_id', 'po_id');
     }
 
     public function purchaseReturns(): HasMany

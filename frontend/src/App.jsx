@@ -28,6 +28,7 @@ const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferMa
 const TransferScanWorkflow = lazy(() => import('./admin/pages/TransferScanWorkflow'));
 const IssuanceManagement = lazy(() => import('./admin/pages/IssuanceManagement'));
 const AdjustmentManagement = lazy(() => import('./admin/pages/AdjustmentManagement'));
+const BarcodeAdjustmentPage = lazy(() => import('./admin/pages/BarcodeAdjustmentPage'));
 
 // Sales & Logistics
 const BarcodeScan = lazy(() => import('./admin/pages/BarcodeScan'));
@@ -118,6 +119,7 @@ function App() {
           <Route path="/admin/transfer-scan" element={<RoleRoute><TransferScanWorkflow /></RoleRoute>} />
           <Route path="/admin/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
           <Route path="/admin/adjustments" element={<RoleRoute><AdjustmentManagement /></RoleRoute>} />
+          <Route path="/admin/barcode-adjustment" element={<RoleRoute><BarcodeAdjustmentPage /></RoleRoute>} />
 
           {/* Sales & Logistics */}
           <Route path="/admin/scan" element={<RoleRoute><BarcodeScan /></RoleRoute>} />

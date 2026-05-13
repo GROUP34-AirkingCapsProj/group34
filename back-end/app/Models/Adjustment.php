@@ -7,39 +7,61 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\Auditable;
 
-/**
- * Adjustment (ERD: adjustment)
- * Table: adjustments
- * Fields: adjustment_id, location_id FK, created_by FK, approved_by FK,
- *         adjustment_number, date, adjustment_type, adjusted_by (varchar)
- */
 class Adjustment extends Model
 {
     use Auditable;
-    protected $table = 'adjustments';
+
+    protected $table      = 'adjustments';
     protected $primaryKey = 'adjustment_id';
 
     protected $fillable = [
         'location_id',
+        'po_id',
+        'receiving_id',
         'created_by',
+        'adjusted_by',
         'approved_by',
         'adjustment_number',
-        'adjustment_date',   // ERD column name (was 'date' after a prior migration)
+        'adjustment_date',
         'adjustment_type',
-        'adjusted_by',
+        'total_variance_positive',
+        'total_variance_negative',
+        'notes',
         'status_id',
     ];
 
     protected $casts = [
-        'adjustment_date' => 'date',
+        'adjustment_date'         => 'date',
+        'total_variance_positive' => 'integer',
+        'total_variance_negative' => 'integer',
     ];
+
+    public function details(): HasMany
+    {
+        return $this->hasMany(AdjustmentDetail::class, 'adjustment_id', 'adjustment_id');
+    }
+
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(ScanCorrection::class, 'adjustment_id', 'adjustment_id');
+    }
 
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class, 'location_id', 'location_id');
     }
 
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(StatusLookup::class, 'status_id', 'status_id');
+    }
+
     public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by', 'user_id');
+    }
+
+    public function createdByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by', 'user_id');
     }
@@ -49,13 +71,13 @@ class Adjustment extends Model
         return $this->belongsTo(User::class, 'approved_by', 'user_id');
     }
 
-    public function status(): BelongsTo
+    public function approvedByUser(): BelongsTo
     {
-        return $this->belongsTo(StatusLookup::class, 'status_id', 'status_id');
+        return $this->belongsTo(User::class, 'approved_by', 'user_id');
     }
 
-    public function details(): HasMany
+    public function purchaseOrder(): BelongsTo
     {
-        return $this->hasMany(AdjustmentDetail::class, 'adjustment_id', 'adjustment_id');
+        return $this->belongsTo(PurchaseOrder::class, 'po_id', 'po_id');
     }
 }

@@ -9,7 +9,8 @@ use App\Traits\Auditable;
 class AdjustmentDetail extends Model
 {
     use Auditable;
-    protected $table = 'adjustment_details';
+
+    protected $table      = 'adjustment_details';
     protected $primaryKey = 'adjustment_detail_id';
 
     protected $fillable = [
@@ -17,6 +18,7 @@ class AdjustmentDetail extends Model
         'product_id',
         'add_quantity',
         'deduct_quantity',
+        'reason',
     ];
 
     protected $casts = [
@@ -31,6 +33,7 @@ class AdjustmentDetail extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'product_id', 'product_id');
+        return $this->belongsTo(Product::class, 'product_id', 'product_id')
+                    ->with(['applianceDetail.brand', 'consumableDetail.unit']);
     }
 }

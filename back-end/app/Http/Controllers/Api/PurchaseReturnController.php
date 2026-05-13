@@ -61,7 +61,10 @@ class PurchaseReturnController extends Controller
 
             DB::beginTransaction();
 
-            $return = PurchaseReturn::create(Arr::except($validated, ['details']));
+            $returnData = Arr::except($validated, ['details']);
+            $returnData['po_id'] = $returnData['pc_id'];
+            unset($returnData['pc_id']);
+            $return = PurchaseReturn::create($returnData);
 
             $totalAmount = 0;
             foreach ($validated['details'] as $detail) {
