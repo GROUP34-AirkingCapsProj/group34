@@ -71,7 +71,10 @@ class ReceivingController extends Controller
 
             DB::beginTransaction();
 
-            $receiving = Receiving::create(Arr::except($validated, ['details']));
+            $receivingData = Arr::except($validated, ['details']);
+            $receivingData['po_id'] = $receivingData['pc_id'];
+            unset($receivingData['pc_id']);
+            $receiving = Receiving::create($receivingData);
 
             $totalReceived = 0;
             foreach ($validated['details'] as $detail) {
@@ -124,7 +127,7 @@ class ReceivingController extends Controller
             $totalOrdered  = PurchaseOrderDetail::where('po_id', $poId)->sum('quantity_ordered');
             $totalReceivedForPO = ReceivingDetail::whereIn(
                 'receiving_id',
-                Receiving::where('pc_id', $poId)->pluck('receiving_id')
+                Receiving::where('po_id', $poId)->pluck('receiving_id')
             )->sum('quantity_amount');
 
             $newPoStatus = ($totalReceivedForPO >= $totalOrdered) ? 11 : 12;

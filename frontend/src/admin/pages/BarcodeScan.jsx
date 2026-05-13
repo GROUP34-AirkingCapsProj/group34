@@ -1613,6 +1613,10 @@ const BarcodeScan = () => {
 
   /* ── select a mode and enter scan view ── */
   const selectMode = (mode, idx) => {
+    if (mode.key === 'adjust') {
+      navigate('/admin/barcode-adjustment');
+      return;
+    }
     setScanMode(mode);
     setModeIndex(idx);
     setScanResult(null);

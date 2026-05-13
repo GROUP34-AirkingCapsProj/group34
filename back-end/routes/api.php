@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\DeliveryReceiptController;
 use App\Http\Controllers\Api\IssuanceController;
 use App\Http\Controllers\Api\TransferController;
 use App\Http\Controllers\Api\AdjustmentController;
+use App\Http\Controllers\Api\BarcodeAdjustmentController;
 use App\Http\Controllers\Api\ProfitLossController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\BarcodeScanController;
@@ -487,6 +488,21 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::get('/adjustments', [AdjustmentController::class, 'index']);
+
+    // Barcode Adjustment Module — specific routes BEFORE the {id} wildcard
+    Route::middleware('role:admin,warehouse_personnel,branch_manager')->group(function () {
+        Route::get('/adjustments/receiving-history/{po_id}',
+            [BarcodeAdjustmentController::class, 'getReceivingHistory']);
+        Route::get('/adjustments/correction-history',
+            [BarcodeAdjustmentController::class, 'getAdjustmentHistory']);
+        Route::get('/adjustments/corrections/{correction_id}',
+            [BarcodeAdjustmentController::class, 'getScanCorrectionDetail']);
+        Route::post('/adjustments/preview',
+            [BarcodeAdjustmentController::class, 'previewCorrection']);
+        Route::post('/adjustments/submit',
+            [BarcodeAdjustmentController::class, 'submitCorrection']);
+    });
+
     Route::get('/adjustments/{id}', [AdjustmentController::class, 'show']);
     Route::middleware('role:admin,warehouse_personnel')->group(function () {
         Route::post('/adjustments', [AdjustmentController::class, 'store']);
@@ -494,6 +510,16 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/adjustments/{id}', [AdjustmentController::class, 'destroy']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | COMPLIANCE REVIEW
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin,auditor,branch_manager')->group(function () {
+        Route::get('/compliance/logs',
+            [BarcodeAdjustmentController::class, 'getComplianceLogs']);
     });
 
     /*
