@@ -40,4 +40,10 @@ class ApplianceDetail extends Model
     {
         return $this->belongsTo(ModelLookup::class, 'model_id', 'model_id');
     }
+
+    // Alias used by eager-load chains (applianceDetail.modelLookup)
+    public function modelLookup(): BelongsTo
+    {
+        return $this->model();
+    }
 }

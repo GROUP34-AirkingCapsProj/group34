@@ -21,7 +21,12 @@ class InventoryController extends Controller
             ->whereHas('product')
             ->with(['location'])
             ->with(['product' => function ($q) {
-                $q->with(['category', 'brand', 'model', 'status', 'unit'])
+                $q->with([
+                        'category',
+                        'status',
+                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'model']),
+                        'consumableDetail' => fn($cq) => $cq->with('unit'),
+                    ])
                     ->withSum(['inventories as stock_on_hand_total' => function ($sub) {
                         // all locations — same basis as Item Master QTY
                     }], 'quantity_on_hand');
@@ -55,7 +60,14 @@ class InventoryController extends Controller
 
     public function show($id)
     {
-        $inventory = Inventory::with(['product', 'location'])->find($id);
+        $inventory = Inventory::with([
+            'location',
+            'product.category',
+            'product.status',
+            'product.applianceDetail.brand',
+            'product.applianceDetail.model',
+            'product.consumableDetail.unit',
+        ])->find($id);
 
         if (!$inventory) {
             return $this->notFound('Inventory not found');
@@ -67,7 +79,13 @@ class InventoryController extends Controller
     public function byLocation($locationId)
     {
         $inventory = Inventory::where('location_id', $locationId)
-            ->with(['product'])
+            ->with([
+                'product.category',
+                'product.status',
+                'product.applianceDetail.brand',
+                'product.applianceDetail.model',
+                'product.consumableDetail.unit',
+            ])
             ->get();
 
         return $this->success($inventory, 'Location inventory retrieved successfully');
@@ -91,40 +109,103 @@ class InventoryController extends Controller
                 'location_id' => 'nullable|exists:locations,location_id',
             ]);
 
-            $raw = trim($validated['barcode']);
-            $digitsOnly = preg_replace('/\D/', '', $raw);
-            $variants = array_values(array_unique(array_filter([
-                $raw,
-                strtoupper($raw),
-                $digitsOnly !== '' ? $digitsOnly : null,
-            ])));
-            if ($variants === []) {
-                $variants = [$raw];
+            $raw     = trim($validated['barcode']);
+            $lower   = strtolower($raw);
+            $upper   = strtoupper($raw);
+            $digits  = preg_replace('/\D/', '', $raw) ?? '';
+            $noSpace = preg_replace('/\s+/', '', $raw) ?? '';
+
+            $candidates = array_values(array_unique(array_filter(
+                [$raw, $lower, $upper, $noSpace, $digits],
+                fn($v) => $v !== ''
+            )));
+
+            // Pass 1 — search products.barcode and products.product_code
+            $product = null;
+            foreach ($candidates as $c) {
+                $norm = strtolower(trim($c));
+                $product = Product::query()
+                    ->where(function ($q) use ($norm) {
+                        $q->whereRaw("LOWER(TRIM(COALESCE(barcode,''))) = ?",       [$norm])
+                          ->orWhereRaw("LOWER(TRIM(COALESCE(product_code,''))) = ?", [$norm]);
+                    })
+                    ->with([
+                        'category', 'status',
+                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'model']),
+                        'consumableDetail' => fn($cq) => $cq->with('unit'),
+                    ])
+                    ->first();
+                if ($product) {
+                    break;
+                }
             }
 
-            $product = Product::query()
-                ->where(function ($q) use ($variants) {
-                    foreach ($variants as $v) {
-                        $q->orWhere('product_code', $v)->orWhere('barcode', $v);
+            // Pass 2 — search item_serials.serial_number (appliance units)
+            if (! $product) {
+                foreach ($candidates as $c) {
+                    $serial = \App\Models\ItemSerial::query()
+                        ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($c))])
+                        ->first();
+                    if ($serial && $serial->product_id) {
+                        $product = Product::query()
+                            ->where('product_id', $serial->product_id)
+                            ->with([
+                                'category', 'status',
+                                'applianceDetail' => fn($aq) => $aq->with(['brand', 'model']),
+                                'consumableDetail' => fn($cq) => $cq->with('unit'),
+                            ])
+                            ->first();
+                        if ($product) {
+                            break;
+                        }
                     }
-                })
-                ->with(['category', 'brand', 'unit', 'status'])
-                ->first();
+                }
+            }
 
-            if (!$product) {
+            if (! $product) {
                 return $this->notFound('Product not found with this barcode');
+            }
+
+            // Expose extension-table fields at the product level for backward-compat
+            // (same shim pattern used by ProductController)
+            if ($product->applianceDetail) {
+                $ad = $product->applianceDetail;
+                $product->setAttribute('brand_id',               $ad->brand_id);
+                $product->setAttribute('capacity_rating',        $ad->capacity_rating);
+                $product->setAttribute('variant',                $ad->variant);
+                $product->setAttribute('warranty_period_months', $ad->warranty_period_months);
+                $product->setAttribute('is_serialized',          $ad->is_serialized);
+                $product->setRelation('brand', $ad->brand);
+                $product->setRelation('model', $ad->model);
+            }
+            if ($product->consumableDetail) {
+                $cd = $product->consumableDetail;
+                $product->setAttribute('unit_id',            $cd->unit_id);
+                $product->setAttribute('pieces_per_package', $cd->pieces_per_package);
+                $product->setAttribute('package_unit',       $cd->package_unit);
+                $product->setAttribute('is_serialized',      $cd->is_serialized);
+                $product->setRelation('unit', $cd->unit);
             }
 
             $inventoryQuery = Inventory::where('product_id', $product->product_id)
                 ->with(['location.branch']);
 
-            if (isset($validated['location_id'])) {
+            if (! empty($validated['location_id'])) {
                 $inventoryQuery->where('location_id', $validated['location_id']);
             }
 
             return $this->success([
-                'product'   => $product,
-                'inventory' => $inventoryQuery->get(),
+                'product'            => $product,
+                'inventory'          => $inventoryQuery->get(),
+                // V5 helper fields for the frontend
+                'product_type'       => $product->product_type,
+                'is_serialized'      => $product->isSerialized(),
+                'pieces_per_package' => $product->getPiecesPerPackage(),
+                'brand_name'         => $product->applianceDetail?->brand?->brand_name   ?? null,
+                'capacity'           => $product->applianceDetail?->capacity_rating       ?? null,
+                'variant'            => $product->applianceDetail?->variant               ?? null,
+                'unit_name'          => $product->consumableDetail?->unit?->unit_name     ?? null,
+                'unit_abbr'          => $product->consumableDetail?->unit?->unit_abbreviation ?? null,
             ], 'Barcode scanned successfully');
 
         } catch (ValidationException $e) {

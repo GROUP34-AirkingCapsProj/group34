@@ -33,6 +33,10 @@ class Product extends Model
         return 'product_id';
     }
 
+    // Serialize the pieces_per_package accessor so API responses always include it.
+    // Reads from consumable_details; returns 1 for appliances.
+    protected $appends = ['pieces_per_package'];
+
     protected $casts = [
         'cost_price'         => 'decimal:2',
         'unit_price'         => 'decimal:2',
@@ -63,19 +67,40 @@ class Product extends Model
 
     public function isAppliance(): bool
     {
-        return $this->product_type === 'appliance';
+        return strtolower($this->product_type ?? '') === 'appliance';
     }
 
     public function isConsumable(): bool
     {
-        return $this->product_type === 'consumable';
+        return strtolower($this->product_type ?? '') === 'consumable';
     }
 
     public function isSerialized(): bool
     {
-        if ($this->isAppliance())  return (bool) optional($this->applianceDetail)->is_serialized;
-        if ($this->isConsumable()) return (bool) optional($this->consumableDetail)->is_serialized;
+        if ($this->isAppliance()) {
+            $detail = $this->relationLoaded('applianceDetail')
+                ? $this->applianceDetail
+                : $this->load('applianceDetail')->applianceDetail;
+            return (bool) ($detail->is_serialized ?? true);
+        }
+        if ($this->isConsumable()) {
+            $detail = $this->relationLoaded('consumableDetail')
+                ? $this->consumableDetail
+                : $this->load('consumableDetail')->consumableDetail;
+            return (bool) ($detail->is_serialized ?? false);
+        }
         return false;
+    }
+
+    public function getPiecesPerPackage(): int
+    {
+        if ($this->isConsumable()) {
+            $detail = $this->relationLoaded('consumableDetail')
+                ? $this->consumableDetail
+                : $this->load('consumableDetail')->consumableDetail;
+            return max(1, (int) ($detail->pieces_per_package ?? 1));
+        }
+        return 1;
     }
 
     public function applianceDetail()
