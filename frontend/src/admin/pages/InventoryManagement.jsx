@@ -98,7 +98,10 @@ const InventoryManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, last_page: 1 });
   const [viewingItem, setViewingItem] = useState(null);
-  const [editingItem, setEditingItem] = useState(null);
+  const [historyData, setHistoryData] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+  const [detailTab, setDetailTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
@@ -158,6 +161,23 @@ const InventoryManagement = () => {
       setLoading(false);
     }
   }, [searchTerm, rowsPerPage]);
+
+  const loadInventoryHistory = useCallback(async (inventoryId) => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const data = await inventoryAPI.getHistory(inventoryId);
+      if (data.success) {
+        setHistoryData(data.data);
+      } else {
+        setHistoryError('Could not load stock history.');
+      }
+    } catch {
+      setHistoryError('Network error loading stock history.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
   useEffect(() => { fetchInventory(currentPage); }, [currentPage, fetchInventory]);
 
@@ -626,8 +646,7 @@ const InventoryManagement = () => {
                             </td>
                             <td>
                               <div className="inv-cell-actions">
-                                <button className="inv-action-link" onClick={() => setViewingItem(item)}>View</button>
-                                <button className="inv-action-link inv-action-edit" onClick={() => setEditingItem(item)}>Edit</button>
+                                <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); loadInventoryHistory(item.inventory_id); }}>View</button>
                               </div>
                             </td>
                           </tr>
@@ -653,33 +672,328 @@ const InventoryManagement = () => {
 
         {/* ── Modals ── */}
         {viewingItem && (
-          <Modal isOpen={!!viewingItem} onClose={() => setViewingItem(null)} title="Inventory Details">
+          <Modal
+            isOpen={!!viewingItem}
+            onClose={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); }}
+            title={getItemName(viewingItem)}
+            maxWidth={920}
+          >
             <div className="inv-view-details">
-              <div className="inv-view-row">
-                <div className="inv-view-field"><label>Item Name</label><p>{getItemName(viewingItem)}</p></div>
-                <div className="inv-view-field"><label>SKU/Code</label><p>{getItemCode(viewingItem)}</p></div>
-              </div>
-              <div className="inv-view-row">
-                <div className="inv-view-field"><label>Branch</label><p>{getBranchName(viewingItem)}</p></div>
-                <div className="inv-view-field"><label>Current Qty</label><p>{getItemQty(viewingItem)}</p></div>
-              </div>
-              <div className="inv-view-row">
-                <div className="inv-view-field"><label>Reorder Level</label><p>{getItemReorder(viewingItem)}</p></div>
-                <div className="inv-view-field"><label>Status</label><p><span className={`inv-status-badge ${getItemStatus(viewingItem).className}`}>{getItemStatus(viewingItem).label}</span></p></div>
-              </div>
-              <div className="inv-modal-footer">
-                <button className="inv-modal-btn-cancel" onClick={() => setViewingItem(null)}>Close</button>
-              </div>
-            </div>
-          </Modal>
-        )}
 
-        {editingItem && (
-          <Modal isOpen={!!editingItem} onClose={() => setEditingItem(null)} title="Edit Inventory">
-            <div className="inv-view-details">
-              <p style={{ color: '#6b7280', fontSize: 13 }}>Edit functionality for <strong>{getItemName(editingItem)}</strong> coming soon.</p>
+              {/* ── Tab navigation ── */}
+              <div className="invd-tabs">
+                <button className={`invd-tab-btn${detailTab === 'overview' ? ' active' : ''}`} onClick={() => setDetailTab('overview')}>
+                  Overview
+                </button>
+                <button className={`invd-tab-btn${detailTab === 'history' ? ' active' : ''}`} onClick={() => setDetailTab('history')}>
+                  Stock-In History
+                  {historyData && <span className="invd-tab-count">{historyData.summary.total_receive_events}</span>}
+                </button>
+                {historyData?.product?.is_serialized && (
+                  <button className={`invd-tab-btn${detailTab === 'serials' ? ' active' : ''}`} onClick={() => setDetailTab('serials')}>
+                    Serial Numbers
+                    <span className="invd-tab-count">{historyData.summary.serial_count}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* ── Loading / error ── */}
+              {historyLoading && <div className="invd-loading">Loading stock history…</div>}
+              {historyError && <div className="invd-error-msg">{historyError}</div>}
+
+              {/* ══════════════════════════════
+                  TAB: OVERVIEW
+              ══════════════════════════════ */}
+              {detailTab === 'overview' && (
+                <div className="invd-panel">
+
+                  <div className="invd-section">
+                    <div className="invd-section-title">Product Information</div>
+                    <div className="invd-grid">
+                      <div className="invd-field">
+                        <span className="invd-label">Product Name</span>
+                        <span className="invd-value">{historyData?.product?.product_name ?? getItemName(viewingItem)}</span>
+                      </div>
+                      <div className="invd-field">
+                        <span className="invd-label">Product Code</span>
+                        <span className="invd-value invd-mono">{historyData?.product?.product_code ?? getItemCode(viewingItem)}</span>
+                      </div>
+                      <div className="invd-field">
+                        <span className="invd-label">Type</span>
+                        <span className={`invd-type-badge ${historyData?.product?.product_type === 'appliance' ? 'invd-type-appliance' : 'invd-type-consumable'}`}>
+                          {historyData?.product?.product_type === 'appliance' ? 'Appliance' : 'Consumable'}
+                        </span>
+                      </div>
+                      <div className="invd-field">
+                        <span className="invd-label">Category</span>
+                        <span className="invd-value">{historyData?.product?.category_name ?? getItemCat(viewingItem)}</span>
+                      </div>
+                      {historyData?.product?.brand_name && (
+                        <div className="invd-field">
+                          <span className="invd-label">Brand</span>
+                          <span className="invd-value">{historyData.product.brand_name}</span>
+                        </div>
+                      )}
+                      {historyData?.product?.capacity_rating && (
+                        <div className="invd-field">
+                          <span className="invd-label">Capacity</span>
+                          <span className="invd-value">{historyData.product.capacity_rating}</span>
+                        </div>
+                      )}
+                      {historyData?.product?.variant && (
+                        <div className="invd-field">
+                          <span className="invd-label">Variant</span>
+                          <span className="invd-value">{historyData.product.variant}</span>
+                        </div>
+                      )}
+                      {historyData?.product?.warranty_months && (
+                        <div className="invd-field">
+                          <span className="invd-label">Warranty</span>
+                          <span className="invd-value">{historyData.product.warranty_months} months</span>
+                        </div>
+                      )}
+                      {historyData?.product?.unit_name && (
+                        <div className="invd-field">
+                          <span className="invd-label">Unit</span>
+                          <span className="invd-value">
+                            {historyData.product.unit_name}
+                            {historyData.product.unit_abbr ? ` (${historyData.product.unit_abbr})` : ''}
+                          </span>
+                        </div>
+                      )}
+                      {historyData?.product?.pieces_per_package > 1 && (
+                        <div className="invd-field">
+                          <span className="invd-label">Pieces / Package</span>
+                          <span className="invd-value">{historyData.product.pieces_per_package}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="invd-section">
+                    <div className="invd-section-title">Stock Information</div>
+                    <div className="invd-grid">
+                      <div className="invd-field">
+                        <span className="invd-label">Location</span>
+                        <span className="invd-value">{historyData?.inventory?.location_name ?? getBranchName(viewingItem)}</span>
+                      </div>
+                      {historyData?.inventory?.location_type && (
+                        <div className="invd-field">
+                          <span className="invd-label">Location Type</span>
+                          <span className="invd-value invd-cap">{historyData.inventory.location_type.replace(/_/g, ' ')}</span>
+                        </div>
+                      )}
+                      <div className="invd-field">
+                        <span className="invd-label">Qty on Hand</span>
+                        <span className="invd-value invd-qty">{historyData?.inventory?.quantity_on_hand ?? getItemQty(viewingItem)}</span>
+                      </div>
+                      {historyData?.product?.is_serialized === false && (
+                        <div className="invd-field">
+                          <span className="invd-label">Packages on Hand</span>
+                          <span className="invd-value">{historyData?.inventory?.packages_on_hand ?? '—'}</span>
+                        </div>
+                      )}
+                      <div className="invd-field">
+                        <span className="invd-label">Available Qty</span>
+                        <span className="invd-value">{historyData?.inventory?.available_quantity ?? '—'}</span>
+                      </div>
+                      <div className="invd-field">
+                        <span className="invd-label">Reorder Level</span>
+                        <span className="invd-value">{historyData?.inventory?.reorder_level ?? getItemReorder(viewingItem)}</span>
+                      </div>
+                      <div className="invd-field">
+                        <span className="invd-label">Stock Status</span>
+                        <span className={`inv-status-badge ${getItemStatus(viewingItem).className}`}>{getItemStatus(viewingItem).label}</span>
+                      </div>
+                      {historyData?.inventory?.last_updated && (
+                        <div className="invd-field">
+                          <span className="invd-label">Last Updated</span>
+                          <span className="invd-value">
+                            {new Date(historyData.inventory.last_updated).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {historyData && (
+                    <div className="invd-section">
+                      <div className="invd-section-title">Cost Summary</div>
+                      <div className="invd-grid">
+                        <div className="invd-field">
+                          <span className="invd-label">Cost Price</span>
+                          <span className="invd-value invd-currency">
+                            ₱{parseFloat(historyData.product.cost_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="invd-field">
+                          <span className="invd-label">Avg Received Cost</span>
+                          <span className="invd-value invd-currency">
+                            ₱{parseFloat(historyData.summary.avg_cost_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="invd-field">
+                          <span className="invd-label">Total Stock Value</span>
+                          <span className="invd-value invd-currency invd-bold">
+                            ₱{(parseFloat(historyData.product.cost_price || 0) * (historyData.inventory.quantity_on_hand || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        {historyData.summary.last_stocked_at && (
+                          <div className="invd-field">
+                            <span className="invd-label">Last Stocked</span>
+                            <span className="invd-value">
+                              {new Date(historyData.summary.last_stocked_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                        )}
+                        {historyData.summary.latest_po_number && (
+                          <div className="invd-field">
+                            <span className="invd-label">Latest PO</span>
+                            <span className="invd-value invd-mono">{historyData.summary.latest_po_number}</span>
+                          </div>
+                        )}
+                        {historyData.summary.latest_supplier && (
+                          <div className="invd-field">
+                            <span className="invd-label">Latest Supplier</span>
+                            <span className="invd-value">{historyData.summary.latest_supplier}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════
+                  TAB: STOCK-IN HISTORY
+              ══════════════════════════════ */}
+              {detailTab === 'history' && !historyLoading && (
+                <div className="invd-panel">
+                  {!historyData || historyData.receiving_history.length === 0 ? (
+                    <div className="invd-empty">No stock-in records found for this product at this location.</div>
+                  ) : (
+                    <div className="invd-table-wrap">
+                      <table className="invd-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Date Received</th>
+                            <th>Barcode / Package</th>
+                            <th>Qty</th>
+                            <th>Cost Price</th>
+                            <th>Received By</th>
+                            <th>PO Number</th>
+                            <th>Supplier</th>
+                            <th>Condition</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {historyData.receiving_history.map((rd, index) => (
+                            <tr key={rd.receiving_detail_id}>
+                              <td className="invd-cell-num">{index + 1}</td>
+                              <td>
+                                <span className="invd-date">
+                                  {rd.receiving_date
+                                    ? new Date(rd.receiving_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                                    : '—'}
+                                </span>
+                                {rd.receiving_number && <span className="invd-sub">{rd.receiving_number}</span>}
+                              </td>
+                              <td>
+                                {rd.scanned_barcode
+                                  ? <span className="invd-mono">{rd.scanned_barcode}</span>
+                                  : <span className="invd-muted">—</span>}
+                              </td>
+                              <td className="invd-cell-num invd-bold">{rd.quantity_amount}</td>
+                              <td className="invd-cell-currency">
+                                ₱{parseFloat(rd.prod_price).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td>{rd.received_by_name ?? '—'}</td>
+                              <td>
+                                {rd.po_number
+                                  ? <span className="invd-mono invd-small">{rd.po_number}</span>
+                                  : <span className="invd-muted">—</span>}
+                                {rd.po_date && <span className="invd-sub">{new Date(rd.po_date).toLocaleDateString('en-PH')}</span>}
+                              </td>
+                              <td>
+                                <span>{rd.supplier_name ?? '—'}</span>
+                                {rd.supplier_contact && <span className="invd-sub">{rd.supplier_contact}</span>}
+                              </td>
+                              <td>
+                                <span className={`invd-cond-badge${rd.condition === 'Good' ? ' invd-cond-good' : rd.condition ? ' invd-cond-warn' : ''}`}>
+                                  {rd.condition ?? '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════
+                  TAB: SERIAL NUMBERS
+              ══════════════════════════════ */}
+              {detailTab === 'serials' && !historyLoading && historyData?.product?.is_serialized && (
+                <div className="invd-panel">
+                  {!historyData.serial_records || historyData.serial_records.length === 0 ? (
+                    <div className="invd-empty">No serial numbers recorded for this product at this location.</div>
+                  ) : (
+                    <div className="invd-table-wrap">
+                      <table className="invd-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Serial Number</th>
+                            <th>Status</th>
+                            <th>Scanned By</th>
+                            <th>Date Scanned</th>
+                            <th>PO Number</th>
+                            <th>Supplier</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {historyData.serial_records.map((s, index) => (
+                            <tr key={s.serial_id ?? index}>
+                              <td className="invd-cell-num">{index + 1}</td>
+                              <td><span className="invd-mono invd-bold">{s.serial_number}</span></td>
+                              <td>
+                                <span className={`invd-status-pill${
+                                  s.serial_status === 'In Stock' ? ' invd-pill-green'
+                                  : s.serial_status === 'Issued' ? ' invd-pill-orange'
+                                  : ' invd-pill-gray'
+                                }`}>
+                                  {s.serial_status ?? 'Active'}
+                                </span>
+                              </td>
+                              <td>{s.scanned_by_name ?? '—'}</td>
+                              <td>
+                                {s.scanned_at
+                                  ? new Date(s.scanned_at).toLocaleString('en-PH', {
+                                      year: 'numeric', month: 'short', day: 'numeric',
+                                      hour: '2-digit', minute: '2-digit',
+                                    })
+                                  : '—'}
+                              </td>
+                              <td>
+                                {s.po_number
+                                  ? <span className="invd-mono invd-small">{s.po_number}</span>
+                                  : '—'}
+                              </td>
+                              <td>{s.supplier_name ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="inv-modal-footer">
-                <button className="inv-modal-btn-cancel" onClick={() => setEditingItem(null)}>Close</button>
+                <button className="inv-modal-btn-cancel" onClick={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); }}>Close</button>
               </div>
             </div>
           </Modal>

@@ -38,4 +38,9 @@ class Inventory extends Model
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
     }
+
+    public function status()
+    {
+        return $this->belongsTo(StatusLookup::class, 'status_id', 'status_id');
+    }
 }

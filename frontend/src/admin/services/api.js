@@ -440,6 +440,8 @@ export const inventoryAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  getHistory: async (inventoryId) =>
+    apiRequest(`/inventory/${inventoryId}/history`),
 };
 
 /* ======================
@@ -984,6 +986,10 @@ export const barcodeAdjustmentAPI = {
   /** POST /adjustments/submit */
   submit: async (data) =>
     apiRequest('/adjustments/submit', { method: 'POST', body: JSON.stringify(data) }),
+
+  /** GET /adjustments/lookup-barcode?barcode=XXX */
+  lookupBarcode: async (barcode) =>
+    apiRequest(`/adjustments/lookup-barcode?barcode=${encodeURIComponent(barcode)}`),
 
   /** GET /adjustments/correction-history */
   getCorrectionHistory: async (params = {}) => {

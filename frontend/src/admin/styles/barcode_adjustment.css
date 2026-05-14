@@ -1,0 +1,483 @@
+/* ================================================================
+   BARCODE ADJUSTMENT PAGE — design tokens mirroring BSR (po_receiving.css)
+   Primary color: #DC143C (crimson) vs BSR's #9810FA (purple)
+   ================================================================ */
+
+/* ── Page shell (same as bsr-page) ─────────────────────────── */
+.baj-page {
+  padding: 24px 28px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Header card (same as bsr-header-card) ──────────────────── */
+.baj-header-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 18px 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  margin-bottom: 4px;
+}
+.baj-header-icon {
+  width: 52px; height: 52px;
+  background: #FFF0F2;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.baj-header-text { flex: 1; }
+.baj-header-text h1 {
+  font-size: 20px; font-weight: 800;
+  color: #111827; margin: 0 0 2px;
+  letter-spacing: 0.3px;
+}
+.baj-header-text p { font-size: 14px; color: #6b7280; margin: 0; }
+
+/* Back button */
+.baj-back-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 8px; padding: 7px 14px;
+  font-size: 13px; font-weight: 600; color: #374151;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: background 0.15s;
+}
+.baj-back-btn:hover { background: #f9fafb; }
+
+/* Last-correction badge */
+.baj-last-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 20px;
+  font-size: 13px; font-weight: 600;
+  color: #16a34a;
+  white-space: nowrap;
+}
+
+/* ── Generic card (same as bsr-card) ────────────────────────── */
+.baj-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.baj-card--active {
+  border-color: #DC143C;
+  box-shadow: 0 2px 16px rgba(220,20,60,0.10);
+}
+
+/* ── Card head (same as bsr-card-head) ──────────────────────── */
+.baj-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.baj-card-head--active {
+  background: #FFF9FA;
+  border-bottom-color: #FECDD3;
+}
+
+/* ── Card icon (same as bsr-card-icon but crimson tint) ─────── */
+.baj-card-icon {
+  width: 34px; height: 34px;
+  background: #FFF0F2;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── Card title (same as bsr-card-title) ────────────────────── */
+.baj-card-title {
+  font-size: 13px; font-weight: 800;
+  letter-spacing: 0.5px; color: #111827;
+  flex: 1;
+}
+
+/* ── Card subtitle (same as bsr-card-subtitle) ──────────────── */
+.baj-card-subtitle {
+  font-size: 12px; color: #6b7280;
+  margin: 2px 0 0;
+}
+.baj-card-subtitle--warn { color: #d97706; font-weight: 600; }
+
+/* ── Card body padding ──────────────────────────────────────── */
+.baj-card-body {
+  padding: 14px 18px;
+}
+
+/* ── Label (same as bsr-location-label) ─────────────────────── */
+.baj-label {
+  display: block;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: #6b7280; margin-bottom: 6px;
+}
+
+/* ── Select (same as bsr-location-select) ───────────────────── */
+.baj-select {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 14px; color: #374151;
+  background: #fff; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box; cursor: pointer;
+}
+.baj-select:focus {
+  border-color: #DC143C;
+  box-shadow: 0 0 0 3px rgba(220,20,60,0.10);
+}
+
+/* ── Text input ──────────────────────────────────────────────── */
+.baj-input {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 14px; color: #374151;
+  background: #fff; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+.baj-input:focus {
+  border-color: #DC143C;
+  box-shadow: 0 0 0 3px rgba(220,20,60,0.10);
+}
+.baj-input::placeholder { color: #9ca3af; }
+.baj-input[disabled], .baj-input:disabled { background: #f9fafb; color: #9ca3af; cursor: not-allowed; }
+.baj-input--readonly { background: #f9fafb; color: #6b7280; cursor: default; }
+
+/* ── Barcode scan input (same as bsr-scan-input but crimson) ── */
+.baj-scan-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #FECDD3;
+  border-radius: 10px;
+  font-size: 15px; color: #374151;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
+  background: #FFF9FA;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.baj-scan-input:focus {
+  border-color: #DC143C;
+  box-shadow: 0 0 0 3px rgba(220,20,60,0.10);
+  background: #fff;
+}
+.baj-scan-input::placeholder { color: #FDA4AF; font-family: inherit; letter-spacing: 0; }
+
+/* ── Scan row (same as bsr-scan-row) ────────────────────────── */
+.baj-scan-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px 18px 0;
+}
+
+/* ── Capture / Lookup button (same as bsr-capture-btn crimson) ─ */
+.baj-capture-btn {
+  flex-shrink: 0;
+  padding: 0 20px;
+  border: 2px solid #DC143C;
+  border-radius: 10px;
+  background: #DC143C;
+  color: #fff;
+  font-size: 14px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.baj-capture-btn:hover:not(:disabled) { background: #a01028; border-color: #a01028; }
+.baj-capture-btn:disabled {
+  background: #d1d5db; border-color: #d1d5db;
+  color: #9ca3af; cursor: not-allowed;
+}
+
+/* ── Scan result feedback (same position as bsr-examples-card) ─ */
+.baj-scan-result {
+  margin: 6px 18px 0;
+  font-size: 12px; font-weight: 600;
+}
+.baj-scan-result--ok  { color: #065f46; }
+.baj-scan-result--err { color: #dc2626; }
+
+/* ── Hint card (same as bsr-examples-card but crimson) ─────── */
+.baj-hint-card {
+  margin: 10px 18px 0;
+  padding: 12px 14px;
+  background: #FFF0F2;
+  border-radius: 8px;
+  border: 1px solid #FECDD3;
+}
+.baj-hint-label {
+  display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;
+}
+.baj-hint-text {
+  font-size: 13px; color: #9f1239; font-weight: 600;
+}
+
+/* ── PO list (same as bsr items-list style) ─────────────────── */
+.baj-po-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  max-height: 210px;
+  overflow-y: auto;
+  background: #fff;
+}
+.baj-po-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.12s;
+}
+.baj-po-item:last-child { border-bottom: none; }
+.baj-po-item:hover { background: #FFF0F2; }
+.baj-po-item--selected { background: #FFF0F2; }
+.baj-po-item-number {
+  font-weight: 700; font-size: 13px; color: #111827;
+}
+.baj-po-item--selected .baj-po-item-number { color: #DC143C; }
+.baj-po-item-meta { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+
+/* PO selected badge (same as bsr-receiving-badge) */
+.baj-po-badge {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px; padding: 8px 12px;
+  background: #FFF0F2;
+  border: 1px solid #DC143C;
+  border-radius: 10px;
+}
+.baj-po-badge-info { flex: 1; }
+.baj-po-badge-number { font-weight: 700; font-size: 13px; color: #111827; }
+.baj-po-badge-supplier { font-size: 11px; color: #6b7280; }
+.baj-po-badge-clear {
+  background: none; border: none; cursor: pointer;
+  color: #9ca3af; font-size: 20px; line-height: 1;
+  padding: 0 2px;
+}
+.baj-po-badge-clear:hover { color: #374151; }
+
+/* PO status line */
+.baj-po-status {
+  margin-top: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 600;
+}
+.baj-po-status--ok  { background: #f0fdf4; color: #065f46; }
+.baj-po-status--err { color: #dc2626; font-size: 12px; margin-top: 6px; }
+.baj-po-status--loading { color: #6b7280; font-size: 12px; margin-top: 6px; }
+
+/* Search input wrapper */
+.baj-search-wrap {
+  position: relative; margin-bottom: 6px;
+}
+.baj-search-icon {
+  position: absolute; left: 10px;
+  top: 50%; transform: translateY(-50%);
+  pointer-events: none;
+}
+.baj-search-input {
+  width: 100%; padding: 9px 12px 9px 30px;
+  border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 13px; color: #374151;
+  background: #fff; outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.baj-search-input:focus { border-color: #DC143C; box-shadow: 0 0 0 3px rgba(220,20,60,0.10); }
+.baj-search-input::placeholder { color: #9ca3af; }
+
+/* ── Row divider inside card body ───────────────────────────── */
+.baj-divider {
+  border: none;
+  border-top: 1px solid #f3f4f6;
+  margin: 16px 0;
+}
+
+/* ── Read-only field ─────────────────────────────────────────── */
+.baj-readonly {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid #e5e7eb; border-radius: 8px;
+  font-size: 14px; color: #6b7280;
+  background: #f9fafb;
+  box-sizing: border-box;
+}
+
+/* ── Textarea ────────────────────────────────────────────────── */
+.baj-textarea {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 14px; color: #374151;
+  background: #fff; outline: none;
+  resize: vertical; box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.baj-textarea:focus { border-color: #DC143C; box-shadow: 0 0 0 3px rgba(220,20,60,0.10); }
+.baj-textarea--err { border-color: #dc2626; }
+
+/* ── Preset reason chips ─────────────────────────────────────── */
+.baj-chip {
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb; color: #6b7280;
+  transition: all 0.12s;
+}
+.baj-chip--active {
+  background: #FFF0F2; border-color: #DC143C; color: #DC143C;
+}
+
+/* ── Preview/submit block ────────────────────────────────────── */
+.baj-preview-card {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-top: 4px;
+}
+.baj-preview-head {
+  font-weight: 800; font-size: 12px; color: #92400e;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.baj-preview-before {
+  background: #fef2f2; border-radius: 8px; padding: 10px 12px;
+}
+.baj-preview-after {
+  background: #f0fdf4; border-radius: 8px; padding: 10px 12px;
+}
+.baj-preview-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.baj-preview-badge--rm  { color: #dc2626; }
+.baj-preview-badge--add { color: #059669; }
+
+/* Primary action button */
+.baj-btn-primary {
+  padding: 12px 28px;
+  background: #DC143C; color: #fff;
+  border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.baj-btn-primary:hover:not(:disabled) { background: #a01028; }
+.baj-btn-primary:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
+
+/* Secondary action button */
+.baj-btn-secondary {
+  padding: 12px 24px;
+  background: #2563eb; color: #fff;
+  border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.baj-btn-secondary:hover:not(:disabled) { background: #1d4ed8; }
+.baj-btn-secondary:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
+
+/* ── Adjustment camera: compact on all screens ────────────────
+   Overrides barcode_scan.css .bs-camera-box 768px portrait rule.
+   Higher specificity (.ba-adj-camera.bs-camera-box) wins.
+   ─────────────────────────────────────────────────────────── */
+.ba-adj-camera.bs-camera-box {
+  aspect-ratio: 16 / 9;
+  max-height: 420px;
+}
+@media (max-width: 900px) {
+  .ba-adj-camera.bs-camera-box { max-height: 380px; }
+}
+@media (max-width: 768px) {
+  .ba-adj-camera.bs-camera-box {
+    aspect-ratio: 4 / 3;
+    max-height: 340px;
+  }
+}
+@media (max-width: 480px) {
+  .ba-adj-camera.bs-camera-box {
+    aspect-ratio: 4 / 3;
+    max-height: 280px;
+  }
+}
+
+/* ── Product picker dropdown ─────────────────────────────────── */
+.ba-picker-panel {
+  position: absolute;
+  top: calc(100% + 6px); left: 0; right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 100;
+  min-width: 420px;
+}
+
+/* ── Two-column grids ────────────────────────────────────────── */
+.ba-grid-2    { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.ba-grid-2-sm { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.ba-preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+
+/* Submit row */
+.ba-submit-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Header row */
+.ba-header-row {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 12px; flex-wrap: wrap;
+}
+
+/* ── Tablet (≤900px) ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .baj-page { padding: 16px 14px 40px; }
+  .baj-card-body { padding: 12px 16px; }
+}
+
+/* ── Mobile (≤640px) ─────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .bs-page { padding: 12px; padding-bottom: max(16px, calc(12px + env(safe-area-inset-bottom,0px))); }
+  .baj-page { padding: 12px 10px 32px; gap: 12px; }
+
+  .baj-header-card { padding: 14px 16px; flex-wrap: wrap; gap: 12px; }
+  .baj-last-badge { width: 100%; justify-content: center; }
+
+  .baj-card-head { padding: 12px 14px; }
+  .baj-card-body { padding: 12px 14px; }
+  .baj-scan-row { padding: 10px 14px 0; }
+  .baj-scan-result { margin: 6px 14px 0; }
+  .baj-hint-card { margin: 10px 14px 0; }
+
+  .ba-grid-2, .ba-grid-2-sm, .ba-preview-grid { grid-template-columns: 1fr; gap: 12px; }
+  .ba-header-row { flex-direction: column; align-items: stretch; }
+  .ba-submit-row { flex-direction: column; align-items: stretch; }
+  .ba-submit-row > button, .ba-submit-row > span { width: 100%; box-sizing: border-box; text-align: center; }
+  .ba-picker-panel { min-width: unset; max-width: 100%; }
+
+  .baj-btn-primary, .baj-btn-secondary { width: 100%; }
+}
+
+/* ── Phone (≤480px) ──────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .baj-page { padding: 8px 8px 28px; }
+  .baj-header-card { padding: 12px; gap: 10px; }
+  .baj-header-icon { width: 40px; height: 40px; border-radius: 10px; }
+  .baj-header-text h1 { font-size: 16px; }
+  .baj-header-text p  { font-size: 12px; }
+}

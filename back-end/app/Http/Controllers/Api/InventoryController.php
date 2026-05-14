@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\ReceivingDetail;
+use App\Models\ItemSerial;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InventoryController extends Controller
@@ -23,7 +26,7 @@ class InventoryController extends Controller
                 $q->with([
                         'category',
                         'status',
-                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'model']),
+                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'modelLookup']),
                         'consumableDetail' => fn($cq) => $cq->with('unit'),
                     ])
                     ->withSum(['inventories as stock_on_hand_total' => function ($sub) {
@@ -64,7 +67,7 @@ class InventoryController extends Controller
             'product.category',
             'product.status',
             'product.applianceDetail.brand',
-            'product.applianceDetail.model',
+            'product.applianceDetail.modelLookup',
             'product.consumableDetail.unit',
         ])->find($id);
 
@@ -82,7 +85,7 @@ class InventoryController extends Controller
                 'product.category',
                 'product.status',
                 'product.applianceDetail.brand',
-                'product.applianceDetail.model',
+                'product.applianceDetail.modelLookup',
                 'product.consumableDetail.unit',
             ])
             ->get();
@@ -98,6 +101,159 @@ class InventoryController extends Controller
             ->get();
 
         return $this->success($inventory, 'Product inventory retrieved successfully');
+    }
+
+    /**
+     * GET /api/inventory/{inventory}/history
+     *
+     * Returns the full stock-in history for one inventory row
+     * (one product at one location). Used by the View detail panel.
+     */
+    public function stockHistory($id)
+    {
+        $inventory = Inventory::with([
+            'location',
+            'status',
+            'product.category',
+            'product.status',
+            'product.applianceDetail.brand',
+            'product.applianceDetail.modelLookup',
+            'product.consumableDetail.unit',
+        ])->find($id);
+
+        if (! $inventory) {
+            return $this->notFound('Inventory record not found');
+        }
+
+        $product    = $inventory->product;
+        $productId  = $inventory->product_id;
+        $locationId = $inventory->location_id;
+
+        if ($product && ! $product->relationLoaded('applianceDetail')) {
+            $product->load('applianceDetail', 'consumableDetail');
+        }
+
+        $isSerialized     = $product?->isSerialized()        ?? false;
+        $piecesPerPackage = $product?->getPiecesPerPackage() ?? 1;
+
+        // ── Receiving history ─────────────────────────────────────────────
+        $receivingDetails = ReceivingDetail::query()
+            ->where('receiving_details.product_id', $productId)
+            ->join('receivings', 'receivings.receiving_id', '=', 'receiving_details.receiving_id')
+            ->where('receivings.location_id', $locationId)
+            ->leftJoin('purchase_orders', 'purchase_orders.po_id', '=', 'receivings.po_id')
+            ->leftJoin('suppliers', 'suppliers.supplier_id', '=', 'purchase_orders.supplier_id')
+            ->leftJoin('users', 'users.user_id', '=', 'receivings.received_by')
+            ->select([
+                'receiving_details.receiving_detail_id',
+                'receiving_details.receiving_id',
+                'receiving_details.scanned_barcode',
+                'receiving_details.quantity_amount',
+                'receiving_details.prod_price',
+                'receiving_details.condition',
+                'receiving_details.created_at as received_at',
+                'receiving_details.updated_at',
+                'receivings.receiving_number',
+                'receivings.receiving_date',
+                'receivings.po_id',
+                DB::raw("CONCAT(users.first_name, ' ', users.last_name) AS received_by_name"),
+                'purchase_orders.po_number',
+                'purchase_orders.order_date as po_date',
+                'suppliers.supplier_name',
+                'suppliers.contact_person as supplier_contact',
+                'suppliers.contact_number as supplier_phone',
+            ])
+            ->orderBy('receiving_details.created_at', 'desc')
+            ->get();
+
+        // ── Serial records (appliances only) ──────────────────────────────
+        $serials = collect();
+        if ($isSerialized) {
+            $serials = ItemSerial::query()
+                ->where('item_serial.product_id', $productId)
+                ->where('item_serial.location_id', $locationId)
+                ->leftJoin('users as scanner', 'scanner.user_id', '=', 'item_serial.scanned_by')
+                ->leftJoin('receivings', 'receivings.receiving_id', '=', 'item_serial.receiving_id')
+                ->leftJoin('purchase_orders', 'purchase_orders.po_id', '=', 'receivings.po_id')
+                ->leftJoin('suppliers', 'suppliers.supplier_id', '=', 'purchase_orders.supplier_id')
+                ->leftJoin('status_lookup', 'status_lookup.status_id', '=', 'item_serial.status_id')
+                ->select([
+                    'item_serial.serial_id',
+                    'item_serial.serial_number',
+                    'item_serial.serial_type',
+                    'item_serial.created_at as scanned_at',
+                    DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
+                    'status_lookup.status_name as serial_status',
+                    'receivings.receiving_number',
+                    'receivings.receiving_date',
+                    'purchase_orders.po_number',
+                    'purchase_orders.order_date as po_date',
+                    'suppliers.supplier_name',
+                ])
+                ->orderBy('item_serial.created_at', 'desc')
+                ->get();
+        }
+
+        // ── Summary stats ─────────────────────────────────────────────────
+        $totalCostValue = $receivingDetails->sum(
+            fn($rd) => (float) $rd->prod_price * (int) $rd->quantity_amount
+        );
+        $totalPieces  = $receivingDetails->sum('quantity_amount');
+        $avgCostPrice = $totalPieces > 0
+            ? round($totalCostValue / $totalPieces, 2)
+            : ($product?->cost_price ?? 0);
+
+        $latestReceiving = $receivingDetails->first();
+
+        return $this->success([
+            'inventory' => [
+                'inventory_id'       => $inventory->inventory_id,
+                'location_id'        => $inventory->location_id,
+                'location_name'      => $inventory->location?->location_name,
+                'location_type'      => $inventory->location?->location_type,
+                'product_id'         => $inventory->product_id,
+                'quantity_on_hand'   => $inventory->quantity_on_hand,
+                'packages_on_hand'   => $inventory->packages_on_hand,
+                'available_quantity' => $inventory->available_quantity,
+                'reorder_level'      => $inventory->reorder_level,
+                'last_updated'       => $inventory->last_updated ?? $inventory->updated_at,
+                'status_name'        => $inventory->status?->status_name ?? 'Active',
+                'created_at'         => $inventory->created_at,
+                'updated_at'         => $inventory->updated_at,
+            ],
+            'product' => [
+                'product_id'         => $product?->product_id,
+                'product_code'       => $product?->product_code,
+                'product_name'       => $product?->product_name,
+                'product_type'       => $product?->product_type,
+                'is_serialized'      => $isSerialized,
+                'pieces_per_package' => $piecesPerPackage,
+                'cost_price'         => $product?->cost_price,
+                'unit_price'         => $product?->unit_price,
+                'category_name'      => $product?->category?->category_name,
+                'description'        => $product?->description,
+                'brand_name'         => $product?->applianceDetail?->brand?->brand_name ?? null,
+                'model_name'         => $product?->applianceDetail?->modelLookup?->model_name ?? null,
+                'capacity_rating'    => $product?->applianceDetail?->capacity_rating ?? null,
+                'variant'            => $product?->applianceDetail?->variant ?? null,
+                'warranty_months'    => $product?->applianceDetail?->warranty_period_months ?? null,
+                'unit_name'          => $product?->consumableDetail?->unit?->unit_name ?? null,
+                'unit_abbr'          => $product?->consumableDetail?->unit?->unit_abbreviation ?? null,
+                'package_unit'       => $product?->consumableDetail?->package_unit ?? null,
+            ],
+            'receiving_history' => $receivingDetails,
+            'serial_records'    => $serials,
+            'summary' => [
+                'total_receive_events'  => $receivingDetails->count(),
+                'total_pieces_received' => $totalPieces,
+                'total_cost_value'      => round($totalCostValue, 2),
+                'avg_cost_price'        => $avgCostPrice,
+                'last_stocked_at'       => $latestReceiving?->received_at ?? null,
+                'latest_po_number'      => $latestReceiving?->po_number ?? null,
+                'latest_supplier'       => $latestReceiving?->supplier_name ?? null,
+                'serial_count'          => $serials->count(),
+            ],
+        ], 'Inventory history retrieved successfully');
     }
 
     public function scanBarcode(Request $request)
@@ -130,7 +286,7 @@ class InventoryController extends Controller
                     })
                     ->with([
                         'category', 'status',
-                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'model']),
+                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'modelLookup']),
                         'consumableDetail' => fn($cq) => $cq->with('unit'),
                     ])
                     ->first();
@@ -150,7 +306,7 @@ class InventoryController extends Controller
                             ->where('product_id', $serial->product_id)
                             ->with([
                                 'category', 'status',
-                                'applianceDetail' => fn($aq) => $aq->with(['brand', 'model']),
+                                'applianceDetail' => fn($aq) => $aq->with(['brand', 'modelLookup']),
                                 'consumableDetail' => fn($cq) => $cq->with('unit'),
                             ])
                             ->first();
