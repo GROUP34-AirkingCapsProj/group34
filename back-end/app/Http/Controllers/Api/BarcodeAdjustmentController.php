@@ -221,9 +221,14 @@ class BarcodeAdjustmentController extends Controller
                 $originalProduct->load('applianceDetail', 'consumableDetail');
             }
 
+            /** @var Product|null $correctedProduct */
             $correctedProduct = Product::with(['applianceDetail', 'consumableDetail'])
                 ->lockForUpdate()
                 ->find($validated['corrected_product_id']);
+
+            if (! $correctedProduct) {
+                return response()->json(['success' => false, 'message' => 'Corrected product not found.'], 404);
+            }
 
             // Capture original state BEFORE any updates
             $originalBarcode = $rd->scanned_barcode;
@@ -318,11 +323,20 @@ class BarcodeAdjustmentController extends Controller
             $serialRecord?->delete();
 
             // ── 8. Update receiving_detail to the corrected product ──────────
-            $rd->update([
-                'product_id'      => $correctedProduct->product_id,
-                'scanned_barcode' => $correctedBarcode,
-                'quantity_amount' => $correctedQty,
-            ]);
+            if ($rd instanceof ReceivingDetail) {
+                $rd->update([
+                    'product_id'      => $correctedProduct->product_id,
+                    'scanned_barcode' => $correctedBarcode,
+                    'quantity_amount' => $correctedQty,
+                ]);
+            } else {
+                ReceivingDetail::where('receiving_detail_id', $validated['receiving_detail_id'])
+                    ->update([
+                        'product_id'      => $correctedProduct->product_id,
+                        'scanned_barcode' => $correctedBarcode,
+                        'quantity_amount' => $correctedQty,
+                    ]);
+            }
 
             // ── 9. Increment inventory for corrected product ─────────────────
             $invCorr = Inventory::firstOrCreate(
@@ -498,6 +512,63 @@ class BarcodeAdjustmentController extends Controller
     // =========================================================================
     // PRIVATE: syncPoReceivingStatus
     // Re-evaluates PO completion after a correction.
+    // =========================================================================
+    // METHOD 7: lookupBarcode
+    // Finds which PO received a given scanned barcode so the user can skip
+    // manual PO lookup — just scan the wrong item to find everything.
+    // GET /api/adjustments/lookup-barcode?barcode=XXX
+    // =========================================================================
+    public function lookupBarcode(Request $request): JsonResponse
+    {
+        $barcode = trim($request->string('barcode'));
+
+        if ($barcode === '') {
+            return response()->json(['success' => false, 'message' => 'Barcode is required.'], 422);
+        }
+
+        // Search receiving_details by scanned_barcode
+        $rd = ReceivingDetail::with([
+            'product.applianceDetail.brand',
+            'product.consumableDetail.unit',
+            'receiving',
+        ])
+        ->where('scanned_barcode', $barcode)
+        ->latest()
+        ->first();
+
+        // Fallback: search item_serial by serial_number
+        if (! $rd) {
+            $serial = ItemSerial::with(['receiving.details.product.applianceDetail.brand'])->where('serial_number', $barcode)->latest()->first();
+            if ($serial?->receiving) {
+                $rd = $serial->receiving->details->first();
+            }
+        }
+
+        if (! $rd || ! $rd->receiving) {
+            return response()->json(['success' => false, 'message' => "No received item found for barcode \"{$barcode}\"."], 404);
+        }
+
+        $poId = $rd->receiving->po_id;
+        $po   = PurchaseOrder::find($poId);
+
+        if (! $po) {
+            return response()->json(['success' => false, 'message' => 'Associated PO not found.'], 404);
+        }
+
+        $product = $rd->product;
+
+        return response()->json([
+            'success'             => true,
+            'po_id'               => $poId,
+            'po_number'           => $po->po_number,
+            'receiving_detail_id' => $rd->receiving_detail_id,
+            'product_name'        => $product?->product_name,
+            'product_type'        => $product?->product_type,
+            'scanned_barcode'     => $rd->scanned_barcode,
+            'quantity_amount'     => $rd->quantity_amount,
+        ]);
+    }
+
     // =========================================================================
     private function syncPoReceivingStatus(int $poId): void
     {

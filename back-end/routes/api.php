@@ -493,6 +493,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('role:admin,warehouse_personnel,branch_manager')->group(function () {
         Route::get('/adjustments/receiving-history/{po_id}',
             [BarcodeAdjustmentController::class, 'getReceivingHistory']);
+        Route::get('/adjustments/lookup-barcode',
+            [BarcodeAdjustmentController::class, 'lookupBarcode']);
         Route::get('/adjustments/correction-history',
             [BarcodeAdjustmentController::class, 'getAdjustmentHistory']);
         Route::get('/adjustments/corrections/{correction_id}',
@@ -585,6 +587,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::get('/inventory', [InventoryController::class, 'index']);
+    Route::get('/inventory/{inventory}/history', [InventoryController::class, 'stockHistory']);
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
     Route::get('/inventory/location/{location}', [InventoryController::class, 'byLocation']);
     Route::get('/inventory/product/{product}', [InventoryController::class, 'byItem']);
