@@ -246,6 +246,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/export', [ProductController::class, 'export']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::middleware('role:admin,inventory_analyst')->group(function () {
         Route::post('/products', [ProductController::class, 'store']);
@@ -332,6 +333,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
+    // Specific routes before {id} wildcard
+    Route::middleware('role:admin,inventory_analyst,branch_manager')->group(function () {
+        Route::get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
+        Route::get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
+    });
     Route::get('/purchase-orders/{id}', [PurchaseOrderController::class, 'show']);
     Route::middleware('role:admin,inventory_analyst,branch_manager')->group(function () {
         Route::post('/purchase-orders', [PurchaseOrderController::class, 'store']);
@@ -366,6 +372,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | PURCHASE REQUESTS (PR → PO workflow)
     |--------------------------------------------------------------------------
     */
+
+    // Export (before {id} wildcard)
+    Route::middleware('role:admin,inventory_analyst')->group(function () {
+        Route::get('/purchase-requests/export', [PurchaseRequestController::class, 'export']);
+    });
 
     // Any authenticated user can view a single PR
     Route::get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
