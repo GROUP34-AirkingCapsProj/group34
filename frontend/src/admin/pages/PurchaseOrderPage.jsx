@@ -6,6 +6,8 @@ import {
   suppliersAPI,
   purchaseOrdersAPI,
   purchaseRequestsAPI,
+  getToken,
+  getApiBaseUrl,
 } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
@@ -35,7 +37,18 @@ const getPriorityFromAmount = (total, itemCount) => {
   return { label: 'LOW', color: 'low' };
 };
 
-const lineTypeLabel = (type) => (type === 'PART' ? 'PART' : 'APPLIANCE');
+// V5 product detail label for PO line items (snake_case backend fields)
+const poLineLabel = (item) => {
+  if (item.product_type === 'consumable') {
+    const u   = item.unit_name;
+    const ppp = item.pieces_per_package;
+    const pkg = item.package_unit;
+    if (u && ppp && pkg) return `${u} · ${ppp}pcs/${pkg}`;
+    if (u && ppp)         return `${u} · ${ppp}pcs`;
+    return u || '—';
+  }
+  return [item.brand_name, item.capacity_rating, item.variant].filter(Boolean).join(' ') || '—';
+};
 
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -142,19 +155,23 @@ const PurchaseOrderPage = () => {
     const details = Array.isArray(pr.details) ? pr.details : [];
     setLineItems(details.map(d => {
       const prQty     = Number(d.quantity || 0);
-      const unitPrice = Number(d.estimated_unit_price ?? d.unit_price ?? 0);
+      const unitPrice = Number(d.estimated_unit_price ?? d.unit_price ?? d.estimated_price ?? 0);
       return {
-        id:               `pr-line-${d.pr_detail_id ?? d.id ?? Math.random()}`,
-        product_id:       d.product_id,
-        product:          d.product?.product_name || `Product ${d.product_id}`,
-        type:             (d.product?.product_type || '').toLowerCase() === 'consumable' ? 'PART' : 'APPLIANCES',
-        unitName:         d.product?.unit?.unit_name
-          ? `${d.product.unit.unit_name}${d.product.unit.unit_abbreviation ? ` (${d.product.unit.unit_abbreviation})` : ''}`
-          : '—',
-        pr_qty:           prQty,
-        quantity_ordered: prQty,
-        unit_price:       unitPrice,
-        subtotal:         prQty * unitPrice,
+        id:                `pr-line-${d.pr_detail_id ?? d.id ?? Math.random()}`,
+        product_id:        d.product_id,
+        product:           d.product_name || d.product?.product_name || `Product ${d.product_id}`,
+        product_code:      d.product_code || d.product?.product_code || '',
+        product_type:      d.product_type || d.product?.product_type || '',
+        brand_name:        d.brand_name ?? null,
+        capacity_rating:   d.capacity_rating ?? null,
+        variant:           d.variant ?? null,
+        unit_name:         d.unit_name ?? null,
+        pieces_per_package: d.pieces_per_package ?? null,
+        package_unit:      d.package_unit ?? null,
+        pr_qty:            prQty,
+        quantity_ordered:  prQty,
+        unit_price:        unitPrice,
+        subtotal:          prQty * unitPrice,
       };
     }));
     // Fetch open demand for each product (excluding this PR) to show informational notes
@@ -213,6 +230,27 @@ const PurchaseOrderPage = () => {
     const found = suppliers.find(s => String(s.supplier_id ?? s.id) === String(selectedSupplierId));
     return found?.supplier_name ?? found?.name ?? '—';
   }, [suppliers, selectedSupplierId]);
+
+  // ── Export PO list ─────────────────────────────────────────────────────────
+  const handleExport = useCallback(async () => {
+    try {
+      const token = getToken();
+      const base  = getApiBaseUrl();
+      const res   = await fetch(`${base}/purchase-orders/export`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+      });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `purchase-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Export failed: ' + err.message);
+    }
+  }, []);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmitPO = useCallback(async () => {
@@ -393,8 +431,8 @@ const PurchaseOrderPage = () => {
                 const estTotal  = Array.isArray(pr.details)
                   ? pr.details.reduce((s, d) => s + Number(d.quantity || 0) * Number(d.estimated_unit_price ?? d.unit_price ?? 0), 0)
                   : 0;
-                const reqBy = pr.requested_by
-                  ? `${pr.requested_by.first_name || ''} ${pr.requested_by.last_name || ''}`.trim() || pr.requested_by.username || '—'
+                const reqBy = (pr.requester || pr.requested_by)
+                  ? `${(pr.requester || pr.requested_by).first_name || ''} ${(pr.requester || pr.requested_by).last_name || ''}`.trim() || (pr.requester || pr.requested_by).username || '—'
                   : '—';
                 return (
                   <div key={pr.pr_id} className="po-status-card" style={{ padding: '14px 18px' }}>
@@ -501,7 +539,7 @@ const PurchaseOrderPage = () => {
                       <tr>
                         <th>PRODUCT</th>
                         <th>TYPE</th>
-                        <th>UNIT</th>
+                        <th>DETAILS</th>
                         <th>PR QTY</th>
                         <th>ORDER QTY</th>
                         <th>UNIT PRICE (₱)</th>
@@ -517,13 +555,16 @@ const PurchaseOrderPage = () => {
                         return (
                           <React.Fragment key={li.id}>
                             <tr className={isPartial ? 'pr-item-remaining' : ''}>
-                              <td><strong>{li.product}</strong></td>
                               <td>
-                                <span className={`po-type-badge ${li.type === 'PART' ? 'po-type-part' : 'po-type-appliance'}`}>
-                                  {lineTypeLabel(li.type)}
+                                <strong>{li.product}</strong>
+                                {li.product_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.product_code}</div>}
+                              </td>
+                              <td>
+                                <span className={`po-type-badge ${li.product_type === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`}>
+                                  {li.product_type === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
                                 </span>
                               </td>
-                              <td style={{ fontSize: 12, color: '#64748b' }}>{li.unitName}</td>
+                              <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(li)}</td>
                               <td style={{ color: '#64748b', fontWeight: 500 }}>{li.pr_qty}</td>
                               <td>
                                 <input
@@ -646,6 +687,18 @@ const PurchaseOrderPage = () => {
                 <h1 className="po-page-title">PURCHASE ORDERS</h1>
                 <p className="po-page-subtitle">Convert approved Purchase Requests into Purchase Orders</p>
               </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={handleExport}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                EXPORT CSV
+              </button>
             </div>
           </div>
         </div>
@@ -782,23 +835,29 @@ const PurchaseOrderPage = () => {
                   ) : (
                     <table className="po-detail-table">
                       <thead>
-                        <tr><th>#</th><th>PRODUCT</th><th>UNIT</th><th>QTY</th><th>UNIT PRICE</th><th>SUBTOTAL</th></tr>
+                        <tr><th>#</th><th>PRODUCT</th><th>TYPE</th><th>DETAILS</th><th>QTY</th><th>UNIT PRICE</th><th>SUBTOTAL</th></tr>
                       </thead>
                       <tbody>
                         {details.map((item, idx) => {
                           const ab = item.approvedBy || item.approved_by || null;
                           const detailApprovedBy = ab ? `${ab.first_name || ''} ${ab.last_name || ''}`.trim() || ab.username || '—' : '—';
-                          const unitDisplay = item.product?.unit?.unit_name
-                            ? `${item.product.unit.unit_name}${item.product.unit.unit_abbreviation ? ` (${item.product.unit.unit_abbreviation})` : ''}`
-                            : '—';
+                          const pType = item.product_type || item.product?.product_type || '';
                           return (
                             <tr key={item.po_detail_id ?? idx}>
                               <td className="po-detail-table-idx">{idx + 1}</td>
                               <td>
-                                {item.product?.product_name || item.product?.name || `Item ${idx + 1}`}
+                                <div>{item.product_name || item.product?.product_name || `Item ${idx + 1}`}</div>
+                                {(item.product_code || item.product?.product_code) && (
+                                  <small style={{ color: '#94a3b8' }}>{item.product_code || item.product?.product_code}</small>
+                                )}
                                 {ab && <span style={{ display: 'block', fontSize: 11, color: '#15803d' }}>✓ Approved by: {detailApprovedBy}</span>}
                               </td>
-                              <td style={{ fontSize: 12, color: '#64748b' }}>{unitDisplay}</td>
+                              <td style={{ fontSize: 11 }}>
+                                <span className={`po-type-badge ${pType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                  {pType === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(item)}</td>
                               <td>{item.quantity_ordered}</td>
                               <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
                               <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
@@ -826,7 +885,7 @@ const PurchaseOrderPage = () => {
                   approved_by:            actorName !== '—' ? actorName : null,
                   order_date:             d.order_date ? String(d.order_date).slice(0, 10) : '—',
                   expected_delivery_date: d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—',
-                  items: details.map(item => ({ name: item.product?.product_name || item.product?.name || '—', unit: item.product?.unit?.unit_name || '—', qty: item.quantity_ordered, unit_price: item.unit_price, subtotal: item.subtotal })),
+                  items: details.map(item => ({ name: item.product_name || item.product?.product_name || '—', unit: item.unit_name || item.product?.unit?.unit_name || '—', qty: item.quantity_ordered, unit_price: item.unit_price, subtotal: item.subtotal })),
                   total_amount: amount,
                 };
                 return (

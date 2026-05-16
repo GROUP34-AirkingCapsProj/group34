@@ -26,7 +26,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::with(['category', 'status'])
-            ->with(['applianceDetail' => fn($q) => $q->with(['brand', 'model'])])
+            ->with(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
             ->with(['consumableDetail' => fn($q) => $q->with('unit')])
             ->withSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -74,7 +74,7 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         $product->load(['category', 'status'])
-                ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'model'])])
+                ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
                 ->load(['consumableDetail' => fn($q) => $q->with('unit')])
                 ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -117,6 +117,16 @@ class ProductController extends Controller
             if (empty($input['brand_id']) && !empty($input['brand'])) {
                 $brand = BrandLookup::firstOrCreate(['brand_name' => trim($input['brand'])]);
                 $input['brand_id'] = $brand->brand_id;
+            }
+
+            // Resolve model_code free-text → model_id via model_lookup
+            if (empty($input['model_id']) && !empty($input['model_code'])) {
+                $modelData = ['model_code' => trim($input['model_code'])];
+                if (!empty($input['brand_id'])) {
+                    $modelData['brand_id'] = $input['brand_id'];
+                }
+                $model = \App\Models\ModelLookup::firstOrCreate($modelData);
+                $input['model_id'] = $model->model_id;
             }
 
             $request->merge($input);
@@ -168,7 +178,7 @@ class ProductController extends Controller
             });
 
             $product->load(['category', 'status'])
-                    ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'model'])])
+                    ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
                     ->load(['consumableDetail' => fn($q) => $q->with('unit')]);
 
             $product->setAttribute('quantity', 0);
@@ -192,6 +202,15 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         try {
+            // Resolve model_code free-text → model_id
+            if (!$request->has('model_id') && $request->filled('model_code')) {
+                $modelData = ['model_code' => trim($request->input('model_code'))];
+                $brandId = $request->input('brand_id');
+                if ($brandId) $modelData['brand_id'] = $brandId;
+                $model = \App\Models\ModelLookup::firstOrCreate($modelData);
+                $request->merge(['model_id' => $model->model_id]);
+            }
+
             $sharedValidated = $request->validate([
                 'product_name'       => 'sometimes|string|max:255',
                 'description'        => 'nullable|string',
@@ -236,7 +255,7 @@ class ProductController extends Controller
 
             $fresh = $product->fresh();
             $fresh->load(['category', 'status'])
-                  ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'model'])])
+                  ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
                   ->load(['consumableDetail' => fn($q) => $q->with('unit')])
                   ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -268,28 +287,106 @@ class ProductController extends Controller
      * Promote extension-table fields up to the product level so the API
      * response shape stays backward-compatible with the frontend.
      */
+    // -----------------------------------------------------------------------
+    // EXPORT
+    // -----------------------------------------------------------------------
+
+    public function export(Request $request)
+    {
+        $products = Product::with([
+            'category',
+            'status',
+            'applianceDetail.brand',
+            'applianceDetail.modelLookup',
+            'consumableDetail.unit',
+        ])->orderBy('product_id')->get();
+
+        $filename = 'item-master-' . now()->format('Ymd-His') . '.csv';
+        $headers  = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $columns = [
+            'Product Code', 'Product Name', 'Type', 'Category', 'Status',
+            'Brand', 'Model', 'Capacity', 'Variant', 'Color', 'Warranty (Months)',
+            'Unit', 'Unit Abbreviation', 'Pieces/Package', 'Package Unit',
+            'Cost Price', 'Unit Price',
+            'Recommended Stock', 'Safety Stock', 'Max Stock Level',
+            'Barcode', 'Description',
+            'Created At', 'Updated At',
+        ];
+
+        $callback = function () use ($products, $columns) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $columns);
+
+            foreach ($products as $p) {
+                $ad = $p->applianceDetail;
+                $cd = $p->consumableDetail;
+
+                fputcsv($handle, [
+                    $p->product_code,
+                    $p->product_name,
+                    ucfirst($p->product_type),
+                    $p->category?->category_name   ?? '',
+                    $p->status?->status_name        ?? '',
+                    $ad?->brand?->brand_name                   ?? '',
+                    $ad?->modelLookup?->model_code             ?? '',
+                    $ad?->capacity_rating                       ?? '',
+                    $ad?->variant                               ?? '',
+                    $ad?->color                                 ?? '',
+                    $ad?->warranty_period_months                ?? '',
+                    $cd?->unit?->unit_name                      ?? '',
+                    $cd?->unit?->unit_abbreviation              ?? '',
+                    $cd?->pieces_per_package                    ?? '',
+                    $cd?->package_unit                          ?? '',
+                    number_format((float) $p->cost_price, 2),
+                    number_format((float) $p->unit_price, 2),
+                    $p->recommended_stocks,
+                    $p->safety_stock      ?? '',
+                    $p->max_stock_level   ?? '',
+                    $p->barcode           ?? '',
+                    $p->description       ?? '',
+                    $p->created_at?->format('Y-m-d H:i:s') ?? '',
+                    $p->updated_at?->format('Y-m-d H:i:s') ?? '',
+                ]);
+            }
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    // -----------------------------------------------------------------------
+    // HELPERS
+    // -----------------------------------------------------------------------
+
     private function flattenExtension(Product $p): void
     {
         if ($p->applianceDetail) {
             $ad = $p->applianceDetail;
-            $p->setAttribute('brand_id', $ad->brand_id);
-            $p->setAttribute('model_id', $ad->model_id);
-            $p->setAttribute('capacity_rating', $ad->capacity_rating);
-            $p->setAttribute('variant', $ad->variant);
-            $p->setAttribute('color', $ad->color);
+            $p->setAttribute('brand_id',               $ad->brand_id);
+            $p->setAttribute('brand_name',             $ad->brand?->brand_name);
+            $p->setAttribute('model_id',               $ad->model_id);
+            $p->setAttribute('model_name',             $ad->modelLookup?->model_code);
+            $p->setAttribute('capacity_rating',        $ad->capacity_rating);
+            $p->setAttribute('variant',                $ad->variant);
+            $p->setAttribute('color',                  $ad->color);
             $p->setAttribute('warranty_period_months', $ad->warranty_period_months);
-            $p->setAttribute('is_serialized', $ad->is_serialized);
-            // Expose relations at the product level (serialises as brand:{...})
-            $p->setRelation('brand', $ad->brand);
-            $p->setRelation('model', $ad->model);
+            $p->setAttribute('is_serialized',          (bool) $ad->is_serialized);
+            $p->setRelation('brand',       $ad->brand);
+            $p->setRelation('modelLookup', $ad->modelLookup);
         }
 
         if ($p->consumableDetail) {
             $cd = $p->consumableDetail;
-            $p->setAttribute('unit_id', $cd->unit_id);
+            $p->setAttribute('unit_id',            $cd->unit_id);
+            $p->setAttribute('unit_name',          $cd->unit?->unit_name);
+            $p->setAttribute('unit_abbreviation',  $cd->unit?->unit_abbreviation);
             $p->setAttribute('pieces_per_package', $cd->pieces_per_package);
-            $p->setAttribute('package_unit', $cd->package_unit);
-            $p->setAttribute('is_serialized', $cd->is_serialized);
+            $p->setAttribute('package_unit',       $cd->package_unit);
+            $p->setAttribute('is_serialized',      (bool) $cd->is_serialized);
             $p->setRelation('unit', $cd->unit);
         }
     }

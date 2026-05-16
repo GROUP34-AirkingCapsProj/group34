@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import Barcode from 'react-barcode';
-import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI } from '../services/api';
+import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI, getToken, getApiBaseUrl } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -44,17 +44,18 @@ const ItemManagement = () => {
     barcode: '',
     category_id: '',
     brand_id: '',
-    model_id: '',
+    model_code: '',
     unit_id: '',
     unit_price: '',
     cost_price: '',
     warranty_period_months: '',
     status_id: '',
     variant: '',
-    measurement: '',
+    color: '',
     capacity_rating: '',
     description: '',
     pieces_per_package: '',
+    package_unit: '',
     recommended_stocks: '',
     safety_stock: '',
     max_stock_level: '',
@@ -82,10 +83,11 @@ const ItemManagement = () => {
         console.error('Fallback fetch also failed:', fallbackErr);
       }
     }
-    // Fetch statuses individually — batch API does not include them
+    // Statuses — filter to product category only (3=Active, 4=Inactive)
     try {
       const statusRes = await statusAPI.getAll();
-      setStatuses(Array.isArray(statusRes?.data) ? statusRes.data : []);
+      const all = Array.isArray(statusRes?.data) ? statusRes.data : [];
+      setStatuses(all.filter(s => s.status_category === 'product'));
     } catch (statusErr) {
       console.error('Failed to fetch statuses:', statusErr);
       setStatuses([]);
@@ -170,10 +172,10 @@ const ItemManagement = () => {
 
   const resetForm = () => {
     setFormData({
-      name: '', code: '', barcode: '', category_id: '', brand_id: '', model_id: '', unit_id: '',
+      name: '', code: '', barcode: '', category_id: '', brand_id: '', model_code: '', unit_id: '',
       unit_price: '', cost_price: '', warranty_period_months: '', status_id: '',
-      variant: '', measurement: '',
-      capacity_rating: '', description: '', pieces_per_package: '',
+      variant: '', color: '',
+      capacity_rating: '', description: '', pieces_per_package: '', package_unit: '',
       recommended_stocks: '', safety_stock: '', max_stock_level: '',
     });
     setProductType('appliance');
@@ -209,18 +211,20 @@ const ItemManagement = () => {
       code: item.product_code || item.code || '',
       barcode: item.barcode || '',
       category_id: item.category_id ?? item.category?.category_id ?? '',
-      brand_id: item.brand_id ?? item.brand?.brand_id ?? '',
-      model_id: item.model_id ?? item.model?.model_id ?? '',
-      unit_id: item.unit_id ?? item.unit?.unit_id ?? '',
+      // V5 flat shim fields — set directly on product object by backend
+      brand_id: item.brand_id ?? '',
+      model_code: item.model_name || '',
+      unit_id: item.unit_id ?? '',
       unit_price: item.unit_price ?? item.price ?? '',
       cost_price: item.cost_price ?? item.unit_price ?? item.price ?? '',
       warranty_period_months: item.warranty_period_months ?? '',
       status_id: item.status_id ?? '',
-      variant: item.variant || item.description || '',
-      measurement: item.unit?.unit_name || 'Unit',
+      variant: item.variant || '',
+      color: item.color || '',
       capacity_rating: item.capacity_rating || '',
       description: item.description || '',
       pieces_per_package: item.pieces_per_package ?? '',
+      package_unit: item.package_unit || '',
       recommended_stocks: item.recommended_stocks ?? '',
       safety_stock: item.safety_stock ?? '',
       max_stock_level: item.max_stock_level ?? '',
@@ -302,6 +306,27 @@ const ItemManagement = () => {
   const getBarcodeFormat = (value) =>
     /^\d{13}$/.test(String(value || '')) ? 'EAN13' : 'CODE128';
 
+  const handleExport = async () => {
+    try {
+      const token = getToken();
+      const base  = getApiBaseUrl();
+      const res   = await fetch(`${base}/products/export`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+      });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob   = await res.blob();
+      const url    = URL.createObjectURL(blob);
+      const a      = document.createElement('a');
+      a.href       = url;
+      a.download   = `item-master-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Export downloaded.');
+    } catch (err) {
+      toast.error('Export failed: ' + err.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     if (isInventoryAnalystViewOnly) {
       toast.info('Saving items is disabled for Inventory Analyst.');
@@ -314,26 +339,34 @@ const ItemManagement = () => {
       return;
     }
     const payload = {
-      product_code: formData.code || undefined,
-      product_name: formData.name,
-      product_type: productType,
-      capacity_rating: isAppliance ? (formData.capacity_rating || null) : null,
-      variant: isAppliance ? (formData.variant || null) : null,
-      warranty_period_months: Number(formData.warranty_period_months) || 0,
-      description: !isAppliance ? (formData.description || null) : null,
-      pieces_per_package: !isAppliance ? (Number(formData.pieces_per_package) || null) : null,
-      // Shared
-      barcode: formData.barcode || null,
-      category_id: formData.category_id || null,
-      brand_id: formData.brand_id || null,
-      model_id: formData.model_id || null,
-      unit_id: formData.unit_id || null,
-      unit_price: Number(formData.unit_price) || 0,
-      cost_price: Number(formData.cost_price) || Number(formData.unit_price) || 0,
-      status_id: formData.status_id || null,
+      // Shared fields
+      product_code:       formData.code || undefined,
+      product_name:       formData.name,
+      product_type:       productType,
+      barcode:            formData.barcode || null,
+      category_id:        formData.category_id || null,
+      description:        formData.description || null,
+      unit_price:         Number(formData.unit_price) || 0,
+      cost_price:         Number(formData.cost_price) || Number(formData.unit_price) || 0,
+      status_id:          formData.status_id || null,
       recommended_stocks: formData.recommended_stocks !== '' ? Number(formData.recommended_stocks) : null,
-      safety_stock: formData.safety_stock !== '' ? Number(formData.safety_stock) : null,
-      max_stock_level: formData.max_stock_level !== '' ? Number(formData.max_stock_level) : null,
+      safety_stock:       formData.safety_stock !== '' ? Number(formData.safety_stock) : null,
+      max_stock_level:    formData.max_stock_level !== '' ? Number(formData.max_stock_level) : null,
+      // Appliance-specific
+      ...(isAppliance ? {
+        brand_id:               formData.brand_id || null,
+        model_code:             formData.model_code || null,
+        capacity_rating:        formData.capacity_rating || null,
+        variant:                formData.variant || null,
+        color:                  formData.color || null,
+        warranty_period_months: Number(formData.warranty_period_months) || 0,
+      } : {}),
+      // Consumable-specific
+      ...(!isAppliance ? {
+        unit_id:            formData.unit_id || null,
+        pieces_per_package: formData.pieces_per_package ? Number(formData.pieces_per_package) : null,
+        package_unit:       formData.package_unit || null,
+      } : {}),
     };
     try {
       if (editingItem) {
@@ -451,6 +484,14 @@ const ItemManagement = () => {
                 ))}
               </select>
             </div>
+            <button className="im-btn-export" onClick={handleExport} title="Download CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              EXPORT CSV
+            </button>
             {!isInventoryAnalystViewOnly && (
               <button className="im-btn-create" onClick={handleAdd}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
@@ -580,72 +621,61 @@ const ItemManagement = () => {
             <table className="im-table">
               <thead>
                 <tr>
-                  <th>{activeTab === 'consumable' ? 'NAME' : 'MODEL / NAME'}</th>
-                  {activeTab !== 'consumable' && (
-                    <th>{activeTab === 'appliance' ? 'CAPACITY' : 'CAPACITY / DESCRIPTION'}</th>
-                  )}
+                  <th>PRODUCT</th>
                   <th>TYPE</th>
-                  <th>BARCODE</th>
-                  <th title="Total on-hand from inventory (same basis as PO Recommendation)">QTY</th>
+                  <th>CATEGORY</th>
+                  <th>DETAILS</th>
+                  <th>COST PRICE</th>
                   <th>UNIT PRICE</th>
-                  <th>UNIT / PKG</th>
+                  <th title="Total on-hand quantity across all locations">STOCK</th>
+                  <th>STATUS</th>
                   <th>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'consumable' ? 7 : 8} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
                       {loading ? 'Loading...' : 'No products found'}
                     </td>
                   </tr>
                 ) : (
                   filteredItems.map((item) => {
                     const typeBadge = getTypeBadge(item);
-                    const qty = Number(item.quantity ?? 0);
+                    const qty       = Number(item.quantity ?? 0);
+                    const itemType  = resolveType(item);
+
+                    // V5-aware Details cell
+                    const detailsText = itemType === 'appliance'
+                      ? [item.brand_name, item.capacity_rating, item.variant].filter(Boolean).join(' ') || '—'
+                      : (() => {
+                          const unit = item.unit_name;
+                          const ppp  = item.pieces_per_package;
+                          const pkg  = item.package_unit;
+                          if (unit && ppp && pkg) return `${unit} | ${ppp} pcs/${pkg}`;
+                          if (unit && ppp)         return `${unit} | ${ppp} pcs`;
+                          return unit || '—';
+                        })();
+
                     return (
                       <tr key={item.product_id ?? item.id}>
                         <td>
                           <div className="im-product-cell">
                             <span className="im-product-code">{item.product_code || item.code}</span>
                             <span className="im-product-name">{item.product_name || item.name}</span>
-                            <div className="im-product-tags">
-                              {item.category?.category_name && (
-                                <span className="im-tag im-tag-category">{item.category.category_name}</span>
-                              )}
-                              {item.brand?.brand_name && (
-                                <span className="im-tag im-tag-brand">{item.brand.brand_name}</span>
-                              )}
-                            </div>
                           </div>
                         </td>
-                        {activeTab !== 'consumable' && (
-                          <td className="im-cell-variant">
-                            {resolveType(item) === 'appliance'
-                              ? (
-                                  <>
-                                    {item.capacity_rating
-                                      ? <span className="im-capacity-badge">{item.capacity_rating}</span>
-                                      : '—'}
-                                    {item.variant && (
-                                      <span className="im-variant-text">
-                                        {typeof item.variant === 'string' ? ` • ${item.variant}` : ''}
-                                      </span>
-                                    )}
-                                  </>
-                                )
-                              : '—'}
-                          </td>
-                        )}
                         <td>
                           <span className={`im-type-badge ${typeBadge.className}`}>
                             {typeBadge.label}
                           </span>
                         </td>
-                        <td className="im-cell-barcode">{item.barcode || '—'}</td>
-                        <td className="im-cell-qty">{Number.isFinite(qty) ? qty.toLocaleString() : '0'}</td>
+                        <td className="im-cell-category">{item.category?.category_name || '—'}</td>
+                        <td className="im-cell-details">{detailsText}</td>
+                        <td className="im-cell-price">₱{Number(item.cost_price ?? 0).toLocaleString()}</td>
                         <td className="im-cell-price">₱{Number(item.unit_price ?? item.price ?? 0).toLocaleString()}</td>
-                        <td className="im-cell-measurement">{item.unit?.unit_name || 'UNIT'}</td>
+                        <td className="im-cell-qty">{Number.isFinite(qty) ? qty.toLocaleString() : '0'}</td>
+                        <td className="im-cell-status">{item.status?.status_name || '—'}</td>
                         <td>
                           <div className="im-cell-actions">
                             <button className="im-action-btn im-action-view" onClick={() => handleView(item)} title="View">
@@ -756,11 +786,11 @@ const ItemManagement = () => {
                 <div className="im-view-row">
                   <div className="im-view-field">
                     <label>Packaging Unit</label>
-                    <p>{viewingItem.unit?.unit_name || '—'}</p>
+                    <p>{viewingItem.unit_name || '—'}</p>
                   </div>
                   <div className="im-view-field">
                     <label>Pieces per Package</label>
-                    <p>{viewingItem.pieces_per_package ?? '—'}</p>
+                    <p>{viewingItem.pieces_per_package ?? '—'}{viewingItem.package_unit ? ` / ${viewingItem.package_unit}` : ''}</p>
                   </div>
                 </div>
               </>
@@ -773,7 +803,7 @@ const ItemManagement = () => {
               </div>
               <div className="im-view-field">
                 <label>Brand</label>
-                <p>{viewingItem.brand?.brand_name || '—'}</p>
+                <p>{viewingItem.brand_name || '—'}</p>
               </div>
             </div>
             <div className="im-view-row">
@@ -854,7 +884,13 @@ const ItemManagement = () => {
           <div className="im-type-toggle">
             <button
               className={`im-type-toggle-btn ${productType === 'appliance' ? 'active' : ''}`}
-              onClick={() => setProductType('appliance')}
+              onClick={() => {
+                setProductType('appliance');
+                setFormData(prev => ({
+                  ...prev,
+                  unit_id: '', pieces_per_package: '', package_unit: '',
+                }));
+              }}
               type="button"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
@@ -865,7 +901,14 @@ const ItemManagement = () => {
             </button>
             <button
               className={`im-type-toggle-btn ${productType === 'consumable' ? 'active' : ''}`}
-              onClick={() => setProductType('consumable')}
+              onClick={() => {
+                setProductType('consumable');
+                setFormData(prev => ({
+                  ...prev,
+                  brand_id: '', model_code: '', capacity_rating: '',
+                  variant: '', color: '', warranty_period_months: '',
+                }));
+              }}
               type="button"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
@@ -893,13 +936,12 @@ const ItemManagement = () => {
                     />
                   </div>
                   <div className="im-form-field">
-                    <label>CAPACITY RATING *</label>
+                    <label>CAPACITY RATING</label>
                     <select
                       value={formData.capacity_rating}
                       onChange={(e) => setFormData({ ...formData, capacity_rating: e.target.value })}
-                      required
                     >
-                      <option value="">Select Capacity</option>
+                      <option value="">Select Capacity (optional)</option>
                       <option value="1HP">1HP</option>
                       <option value="1.5HP">1.5HP</option>
                       <option value="2HP">2HP</option>
@@ -918,7 +960,7 @@ const ItemManagement = () => {
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                       >
                         <option value="">Select Category</option>
-                        {categories.map((c) => (
+                        {categories.filter(c => !c.category_type || c.category_type === 'appliance').map((c) => (
                           <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                         ))}
                       </select>
@@ -957,6 +999,15 @@ const ItemManagement = () => {
                 </div>
                 <div className="im-form-row">
                   <div className="im-form-field">
+                    <label>MODEL CODE</label>
+                    <input
+                      type="text"
+                      value={formData.model_code}
+                      onChange={(e) => setFormData({ ...formData, model_code: e.target.value })}
+                      placeholder="e.g. AMNB12AAJLH5 (optional)"
+                    />
+                  </div>
+                  <div className="im-form-field">
                     <label>STATUS</label>
                     <select
                       value={formData.status_id}
@@ -980,6 +1031,17 @@ const ItemManagement = () => {
                     />
                   </div>
                   <div className="im-form-field">
+                    <label>COLOR</label>
+                    <input
+                      type="text"
+                      value={formData.color}
+                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                      placeholder="e.g. White"
+                    />
+                  </div>
+                </div>
+                <div className="im-form-row">
+                  <div className="im-form-field">
                     <label>WARRANTY (MONTHS)</label>
                     <input
                       type="number"
@@ -1002,16 +1064,14 @@ const ItemManagement = () => {
                 </div>
                 <div className="im-form-row">
                   <div className="im-form-field">
-                    <label>UNIT</label>
-                    <select
-                      value={formData.unit_id}
-                      onChange={(e) => setFormData({ ...formData, unit_id: e.target.value })}
-                    >
-                      <option value="">Select Unit</option>
-                      {units.map((u) => (
-                        <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
-                      ))}
-                    </select>
+                    <label>DESCRIPTION</label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Optional product notes"
+                      rows={2}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #e5e7eb', resize: 'vertical' }}
+                    />
                   </div>
                   <div className="im-form-field">
                     <label>BARCODE</label>
@@ -1155,6 +1215,17 @@ const ItemManagement = () => {
                       placeholder="e.g. 50"
                     />
                   </div>
+                  <div className="im-form-field">
+                    <label>PACKAGE UNIT</label>
+                    <input
+                      type="text"
+                      value={formData.package_unit}
+                      onChange={(e) => setFormData({ ...formData, package_unit: e.target.value })}
+                      placeholder="e.g. Box, Drum, Carton"
+                    />
+                  </div>
+                </div>
+                <div className="im-form-row">
                   <div className="im-form-field">
                     <label>BARCODE</label>
                     <div className="im-barcode-field">

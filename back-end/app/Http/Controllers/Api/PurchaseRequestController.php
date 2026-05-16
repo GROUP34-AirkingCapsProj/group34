@@ -26,7 +26,9 @@ class PurchaseRequestController extends Controller
         'approver',
         'budget',
         'convertedPO',
-        'details.product',
+        'details.product.applianceDetail.brand',
+        'details.product.applianceDetail.modelLookup',
+        'details.product.consumableDetail.unit',
     ];
 
     /**
@@ -51,7 +53,12 @@ class PurchaseRequestController extends Controller
             $query->where('status_id', $request->input('status_id'));
         }
 
-        return $this->paginated($query->paginate($perPage), 'Purchase requests retrieved');
+        $paginated = $query->paginate($perPage);
+        $paginated->getCollection()->each(function ($pr) {
+            $pr->details->transform(fn ($d) => $this->transformPrDetail($d));
+        });
+
+        return $this->paginated($paginated, 'Purchase requests retrieved');
     }
 
     /**
@@ -107,12 +114,17 @@ class PurchaseRequestController extends Controller
             ->where('status_id', 13)
             ->orderBy('created_at', 'desc');
 
-        return $this->paginated($query->paginate($perPage), 'Pending purchase requests retrieved');
+        $paginated = $query->paginate($perPage);
+        $paginated->getCollection()->each(function ($pr) {
+            $pr->details->transform(fn ($d) => $this->transformPrDetail($d));
+        });
+
+        return $this->paginated($paginated, 'Pending purchase requests retrieved');
     }
 
     /**
      * Any authenticated user can view a PR detail.
-     * Each detail line includes quantity_ordered_in_po + quantity_remaining.
+     * Each detail line includes V5 product fields + quantity_ordered_in_po/remaining.
      */
     public function show($id)
     {
@@ -122,15 +134,137 @@ class PurchaseRequestController extends Controller
         }
 
         $prId = $pr->pr_id;
-        $pr->details->each(function ($detail) use ($prId) {
+        $pr->details->transform(function ($detail) use ($prId) {
             $ordered = (int) PurchaseOrderDetail::where('product_id', $detail->product_id)
                 ->whereHas('purchaseOrder', fn ($q) => $q->where('pr_id', $prId))
                 ->sum('quantity_ordered');
-            $detail->quantity_ordered_in_po = $ordered;
-            $detail->quantity_remaining     = max(0, $detail->quantity - $ordered);
+
+            $row = $this->transformPrDetail($detail);
+            $row['quantity_ordered_in_po'] = $ordered;
+            $row['quantity_remaining']     = max(0, $detail->quantity - $ordered);
+            return $row;
         });
 
         return $this->success($pr, 'Purchase request retrieved');
+    }
+
+    public function export(Request $request)
+    {
+        $prs = PurchaseRequest::with([
+            'details.product.applianceDetail.brand',
+            'details.product.consumableDetail.unit',
+            'location',
+            'status',
+            'requester',
+            'approver',
+            'budget',
+        ])->orderBy('created_at', 'desc')->get();
+
+        $filename = 'purchase-requests-' . now()->format('Ymd-His') . '.csv';
+        $headers  = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $csvColumns = [
+            'PR Number', 'Request Date', 'Needed By', 'Location',
+            'Purpose', 'Status', 'Requested By', 'Approved By', 'Budget Period',
+            'Line #', 'Product Code', 'Product Name', 'Type',
+            'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
+            'Quantity', 'Estimated Price', 'Subtotal', 'Notes',
+            'Estimated Total',
+        ];
+
+        $callback = function () use ($prs, $csvColumns) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $csvColumns);
+
+            foreach ($prs as $pr) {
+                $requestedBy = $pr->requester
+                    ? trim($pr->requester->first_name . ' ' . $pr->requester->last_name) : '';
+                $approvedBy  = $pr->approver
+                    ? trim($pr->approver->first_name . ' ' . $pr->approver->last_name)  : '';
+
+                if ($pr->details->isEmpty()) {
+                    fputcsv($handle, [
+                        $pr->pr_number,
+                        $pr->request_date,
+                        $pr->needed_by_date ?? '',
+                        $pr->location?->location_name ?? '',
+                        $pr->purpose ?? '',
+                        $pr->status?->status_name ?? '',
+                        $requestedBy, $approvedBy,
+                        $pr->budget?->period_label ?? '',
+                        '', '', '', '', '', '', '', '', '', '', '',
+                        number_format((float) $pr->estimated_total, 2),
+                    ]);
+                    continue;
+                }
+
+                foreach ($pr->details as $i => $d) {
+                    $p  = $d->product;
+                    $ad = $p?->applianceDetail;
+                    $cd = $p?->consumableDetail;
+
+                    fputcsv($handle, [
+                        $pr->pr_number,
+                        $pr->request_date,
+                        $pr->needed_by_date ?? '',
+                        $pr->location?->location_name ?? '',
+                        $pr->purpose ?? '',
+                        $pr->status?->status_name ?? '',
+                        $requestedBy, $approvedBy,
+                        $pr->budget?->period_label ?? '',
+                        $i + 1,
+                        $p?->product_code ?? '',
+                        $p?->product_name ?? '',
+                        $p ? ucfirst($p->product_type) : '',
+                        $ad?->brand?->brand_name ?? $cd?->unit?->unit_name   ?? '',
+                        $ad?->capacity_rating    ?? $cd?->package_unit       ?? '',
+                        $cd?->pieces_per_package ?? '',
+                        $d->quantity,
+                        number_format((float) $d->estimated_price, 2),
+                        number_format((float) $d->subtotal, 2),
+                        $d->notes ?? '',
+                        $i === 0 ? number_format((float) $pr->estimated_total, 2) : '',
+                    ]);
+                }
+            }
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    private function transformPrDetail($detail): array
+    {
+        $p  = $detail->product;
+        $ad = $p?->applianceDetail;
+        $cd = $p?->consumableDetail;
+
+        return [
+            'pr_detail_id'       => $detail->pr_detail_id,
+            'pr_id'              => $detail->pr_id,
+            'product_id'         => $detail->product_id,
+            'quantity'           => $detail->quantity,
+            'estimated_price'    => $detail->estimated_price,
+            'subtotal'           => $detail->subtotal,
+            'notes'              => $detail->notes,
+            // Product shared
+            'product_code'       => $p?->product_code,
+            'product_name'       => $p?->product_name,
+            'product_type'       => $p?->product_type,
+            'is_serialized'      => $p?->isSerialized() ?? false,
+            // Appliance (null for consumables)
+            'brand_name'         => $ad?->brand?->brand_name,
+            'capacity_rating'    => $ad?->capacity_rating,
+            'variant'            => $ad?->variant,
+            // Consumable (null for appliances)
+            'unit_name'          => $cd?->unit?->unit_name,
+            'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
+            'pieces_per_package' => $cd?->pieces_per_package,
+            'package_unit'       => $cd?->package_unit,
+        ];
     }
 
     /**
@@ -263,7 +397,13 @@ class PurchaseRequestController extends Controller
      */
     public function convert($id)
     {
-        $pr = PurchaseRequest::with(['details.product', 'location', 'budget'])->find($id);
+        $pr = PurchaseRequest::with([
+            'details.product.applianceDetail.brand',
+            'details.product.applianceDetail.modelLookup',
+            'details.product.consumableDetail.unit',
+            'location',
+            'budget',
+        ])->find($id);
         if (!$pr) {
             return $this->notFound('Purchase request not found');
         }
@@ -281,9 +421,23 @@ class PurchaseRequestController extends Controller
                 ->whereHas('purchaseOrder', fn ($q) => $q->where('pr_id', $prId))
                 ->sum('quantity_ordered');
 
+            $p  = $d->product;
+            $ad = $p?->applianceDetail;
+            $cd = $p?->consumableDetail;
+
             return [
                 'product_id'               => $d->product_id,
-                'product_name'             => $d->product?->product_name,
+                'product_code'             => $p?->product_code,
+                'product_name'             => $p?->product_name,
+                'product_type'             => $p?->product_type,
+                'is_serialized'            => $p?->isSerialized() ?? false,
+                'brand_name'               => $ad?->brand?->brand_name,
+                'capacity_rating'          => $ad?->capacity_rating,
+                'variant'                  => $ad?->variant,
+                'unit_name'                => $cd?->unit?->unit_name,
+                'unit_abbreviation'        => $cd?->unit?->unit_abbreviation,
+                'pieces_per_package'       => $cd?->pieces_per_package,
+                'package_unit'             => $cd?->package_unit,
                 'quantity_ordered'         => $d->quantity,
                 'unit_price'               => $d->estimated_price,
                 'subtotal'                 => $d->subtotal,
@@ -377,7 +531,12 @@ class PurchaseRequestController extends Controller
                 return $po;
             });
 
-            $po->load(['supplier', 'location', 'status', 'details.product', 'purchaseRequest']);
+            $po->load([
+                'supplier', 'location', 'status', 'purchaseRequest',
+                'details.product.applianceDetail.brand',
+                'details.product.applianceDetail.modelLookup',
+                'details.product.consumableDetail.unit',
+            ]);
             return $this->success($po, 'Purchase request converted to purchase order', 201);
         } catch (\Throwable $e) {
             return $this->error('Conversion failed: ' . $e->getMessage(), 500);

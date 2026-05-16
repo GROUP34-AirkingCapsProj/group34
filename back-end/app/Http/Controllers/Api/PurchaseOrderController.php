@@ -25,7 +25,9 @@ class PurchaseOrderController extends Controller
         'receivedBy',
         'status',
         'purchaseRequest',
-        'details.product',
+        'details.product.applianceDetail.brand',
+        'details.product.applianceDetail.modelLookup',
+        'details.product.consumableDetail.unit',
         'details.approvedBy',
     ];
 
@@ -47,11 +49,13 @@ class PurchaseOrderController extends Controller
                 $query->where('po_number', 'like', '%' . $request->search . '%');
             }
 
-            $perPage = $request->get('per_page', 20);
-            return $this->paginated(
-                $query->orderBy('created_at', 'desc')->paginate($perPage),
-                'Purchase orders retrieved successfully'
-            );
+            $perPage   = $request->get('per_page', 20);
+            $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
+            $paginated->getCollection()->each(function ($po) {
+                $po->details->transform(fn ($d) => $this->transformPoDetail($d));
+            });
+
+            return $this->paginated($paginated, 'Purchase orders retrieved successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to retrieve purchase orders: ' . $e->getMessage(), 500);
         }
@@ -149,6 +153,9 @@ class PurchaseOrderController extends Controller
             $po = PurchaseOrder::with(
                 array_merge(self::WITH_RELATIONS, ['receivings', 'purchaseReturns'])
             )->findOrFail($id);
+
+            $po->details->transform(fn ($d) => $this->transformPoDetail($d));
+
             return $this->success($po, 'Purchase order retrieved successfully');
         } catch (\Exception $e) {
             return $this->error('Purchase order not found', 404);
@@ -245,5 +252,169 @@ class PurchaseOrderController extends Controller
         } catch (\Exception $e) {
             return $this->error('Failed to delete purchase order: ' . $e->getMessage(), 500);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // PRODUCTS BY SUPPLIER (powers PO create form supplier → product dropdown)
+    // -----------------------------------------------------------------------
+
+    public function productsBySupplier(int $supplierId)
+    {
+        $products = \App\Models\Product::query()
+            ->join('supplier_product', 'supplier_product.product_id', '=', 'products.product_id')
+            ->where('supplier_product.supplier_id', $supplierId)
+            ->with([
+                'applianceDetail.brand',
+                'applianceDetail.modelLookup',
+                'consumableDetail.unit',
+            ])
+            ->select('products.*')
+            ->get()
+            ->map(fn ($p) => [
+                'product_id'         => $p->product_id,
+                'product_code'       => $p->product_code,
+                'product_name'       => $p->product_name,
+                'product_type'       => $p->product_type,
+                'is_serialized'      => $p->isSerialized(),
+                'cost_price'         => $p->cost_price,
+                'unit_price'         => $p->unit_price,
+                'brand_name'         => $p->applianceDetail?->brand?->brand_name,
+                'capacity_rating'    => $p->applianceDetail?->capacity_rating,
+                'variant'            => $p->applianceDetail?->variant,
+                'unit_name'          => $p->consumableDetail?->unit?->unit_name,
+                'unit_abbreviation'  => $p->consumableDetail?->unit?->unit_abbreviation,
+                'pieces_per_package' => $p->consumableDetail?->pieces_per_package,
+                'package_unit'       => $p->consumableDetail?->package_unit,
+            ]);
+
+        return response()->json(['success' => true, 'data' => $products]);
+    }
+
+    // -----------------------------------------------------------------------
+    // EXPORT
+    // -----------------------------------------------------------------------
+
+    public function export(Request $request)
+    {
+        $pos = PurchaseOrder::with([
+            'details.product.applianceDetail.brand',
+            'details.product.consumableDetail.unit',
+            'supplier', 'location', 'status',
+            'purchaseRequest',
+            'createdBy', 'approvedBy', 'receivedBy',
+        ])->orderBy('created_at', 'desc')->get();
+
+        $filename = 'purchase-orders-' . now()->format('Ymd-His') . '.csv';
+        $headers  = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $csvColumns = [
+            'PO Number', 'PR Number', 'Order Date', 'Expected Delivery',
+            'Location', 'Supplier', 'Status',
+            'Created By', 'Approved By', 'Received By',
+            'Line #', 'Product Code', 'Product Name', 'Type',
+            'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
+            'Qty Ordered', 'Unit Price', 'Subtotal',
+            'Total Amount', 'Grand Total',
+        ];
+
+        $callback = function () use ($pos, $csvColumns) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $csvColumns);
+
+            foreach ($pos as $po) {
+                $createdBy  = $po->createdBy
+                    ? trim($po->createdBy->first_name  . ' ' . $po->createdBy->last_name)  : '';
+                $approvedBy = $po->approvedBy
+                    ? trim($po->approvedBy->first_name . ' ' . $po->approvedBy->last_name) : '';
+                $receivedBy = $po->receivedBy
+                    ? trim($po->receivedBy->first_name . ' ' . $po->receivedBy->last_name) : '';
+
+                if ($po->details->isEmpty()) {
+                    fputcsv($handle, [
+                        $po->po_number,
+                        $po->purchaseRequest?->pr_number ?? '',
+                        $po->order_date,
+                        $po->expected_delivery_date ?? '',
+                        $po->location?->location_name  ?? '',
+                        $po->supplier?->supplier_name  ?? '',
+                        $po->status?->status_name      ?? '',
+                        $createdBy, $approvedBy, $receivedBy,
+                        '', '', '', '', '', '', '', '', '', '',
+                        number_format((float) $po->total_amount, 2),
+                        number_format((float) $po->grand_total,  2),
+                    ]);
+                    continue;
+                }
+
+                foreach ($po->details as $i => $d) {
+                    $p  = $d->product;
+                    $ad = $p?->applianceDetail;
+                    $cd = $p?->consumableDetail;
+
+                    fputcsv($handle, [
+                        $po->po_number,
+                        $po->purchaseRequest?->pr_number ?? '',
+                        $po->order_date,
+                        $po->expected_delivery_date ?? '',
+                        $po->location?->location_name  ?? '',
+                        $po->supplier?->supplier_name  ?? '',
+                        $po->status?->status_name      ?? '',
+                        $createdBy, $approvedBy, $receivedBy,
+                        $i + 1,
+                        $p?->product_code ?? '',
+                        $p?->product_name ?? '',
+                        $p ? ucfirst($p->product_type) : '',
+                        $ad?->brand?->brand_name ?? $cd?->unit?->unit_name ?? '',
+                        $ad?->capacity_rating    ?? $cd?->package_unit     ?? '',
+                        $cd?->pieces_per_package ?? '',
+                        $d->quantity_ordered,
+                        number_format((float) $d->unit_price, 2),
+                        number_format((float) $d->subtotal,   2),
+                        $i === 0 ? number_format((float) $po->total_amount, 2) : '',
+                        $i === 0 ? number_format((float) $po->grand_total,  2) : '',
+                    ]);
+                }
+            }
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    // -----------------------------------------------------------------------
+    // HELPERS
+    // -----------------------------------------------------------------------
+
+    private function transformPoDetail($detail): array
+    {
+        $p  = $detail->product;
+        $ad = $p?->applianceDetail;
+        $cd = $p?->consumableDetail;
+
+        return [
+            'po_detail_id'       => $detail->po_detail_id,
+            'po_id'              => $detail->po_id,
+            'product_id'         => $detail->product_id,
+            'quantity_ordered'   => $detail->quantity_ordered,
+            'unit_price'         => $detail->unit_price,
+            'subtotal'           => $detail->subtotal,
+            // Product shared
+            'product_code'       => $p?->product_code,
+            'product_name'       => $p?->product_name,
+            'product_type'       => $p?->product_type,
+            'is_serialized'      => $p?->isSerialized() ?? false,
+            // Appliance (null for consumables)
+            'brand_name'         => $ad?->brand?->brand_name,
+            'capacity_rating'    => $ad?->capacity_rating,
+            'variant'            => $ad?->variant,
+            // Consumable (null for appliances)
+            'unit_name'          => $cd?->unit?->unit_name,
+            'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
+            'pieces_per_package' => $cd?->pieces_per_package,
+            'package_unit'       => $cd?->package_unit,
+        ];
     }
 }

@@ -7,6 +7,8 @@ import {
   itemsAPI,
   purchaseRequestsAPI,
   budgetAllocationsAPI,
+  getToken,
+  getApiBaseUrl,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -44,6 +46,36 @@ const budgetColor = (available, total) => {
   return '#dc2626';
 };
 
+// ─── V5 product display helpers ──────────────────────────────────────────────
+
+// For line items in the create form (camelCase state fields)
+const productLabel = (item) => {
+  if (item.productType === 'appliance') {
+    return [item.brandName, item.capacityRating, item.variant].filter(Boolean).join(' ') || '—';
+  }
+  if (item.unitName) {
+    const ppp = item.piecesPerPackage;
+    const pkg = item.packageUnit;
+    if (ppp && pkg) return `${item.unitName} · ${ppp}pcs/${pkg}`;
+    if (ppp)         return `${item.unitName} · ${ppp}pcs`;
+    return item.unitName;
+  }
+  return '—';
+};
+
+// For detail rows from the backend (snake_case flat fields from transformPrDetail)
+const detailLabel = (d) => {
+  if (d.product_type === 'appliance') {
+    return [d.brand_name, d.capacity_rating, d.variant].filter(Boolean).join(' ') || '—';
+  }
+  const u   = d.unit_name;
+  const ppp = d.pieces_per_package;
+  const pkg = d.package_unit;
+  if (u && ppp && pkg) return `${u} · ${ppp}pcs/${pkg}`;
+  if (u && ppp)         return `${u} · ${ppp}pcs`;
+  return u || '—';
+};
+
 // ─── new line item factory ────────────────────────────────────────────────────
 
 const newLine = () => ({
@@ -53,6 +85,11 @@ const newLine = () => ({
   productType:         '',
   unitId:              '',
   unitName:            '',
+  brandName:           '',
+  capacityRating:      '',
+  variant:             '',
+  piecesPerPackage:    null,
+  packageUnit:         '',
   qty:                 1,
   estPrice:            0,
   subtotal:            0,
@@ -87,6 +124,8 @@ const PurchaseRequestPage = () => {
   const [purpose,   setPurpose]   = useState('');
   const [products,  setProducts]  = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [filterCat,  setFilterCat]  = useState('');
+  const [filterBrand, setFilterBrand] = useState('');
   const [lineItems, setLineItems] = useState([newLine()]);
   const [submitting,  setSubmitting]  = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -130,14 +169,22 @@ const PurchaseRequestPage = () => {
         if (!ok) return;
         const rows = Array.isArray(res?.data) ? res.data : [];
         setProducts(rows.map(p => ({
-          id:        String(p.product_id ?? p.id ?? ''),
-          name:      p.product_name || p.name || '',
-          code:      p.product_code || p.code || '',
-          type:      p.product_type || '',
-          unitId:    String(p.unit_id ?? p.unit?.unit_id ?? ''),
-          unitName:  p.unit?.unit_name || p.unit_name || '',
-          unitAbbr:  p.unit?.unit_abbreviation || '',
-          costPrice: Number(p.cost_price ?? p.unit_price ?? 0),
+          id:              String(p.product_id ?? p.id ?? ''),
+          name:            p.product_name || p.name || '',
+          code:            p.product_code || p.code || '',
+          type:            p.product_type || '',
+          categoryId:      String(p.category_id ?? ''),
+          categoryName:    p.category?.category_name || '',
+          brandId:         String(p.brand_id ?? ''),
+          brandName:       p.brand_name || '',
+          unitId:          String(p.unit_id ?? ''),
+          unitName:        p.unit_name || p.unit?.unit_name || '',
+          unitAbbr:        p.unit_abbreviation || p.unit?.unit_abbreviation || '',
+          capacityRating:  p.capacity_rating || '',
+          variant:         p.variant || '',
+          piecesPerPackage: p.pieces_per_package ?? null,
+          packageUnit:     p.package_unit || '',
+          costPrice:       Number(p.cost_price ?? p.unit_price ?? 0),
         })));
       })
       .catch(console.error)
@@ -221,7 +268,6 @@ const PurchaseRequestPage = () => {
     const prod = products.find(p => p.id === productId);
     if (!prod) return;
 
-    const unitLabel = prod.unitName ? `${prod.unitName}${prod.unitAbbr ? ` (${prod.unitAbbr})` : ''}` : '';
     setLineItems(p => p.map(li =>
       li.id === lineId ? {
         ...li,
@@ -229,7 +275,12 @@ const PurchaseRequestPage = () => {
         productName:         prod.name,
         productType:         prod.type,
         unitId:              prod.unitId,
-        unitName:            unitLabel,
+        unitName:            prod.unitName,
+        brandName:           prod.brandName,
+        capacityRating:      prod.capacityRating,
+        variant:             prod.variant,
+        piecesPerPackage:    prod.piecesPerPackage,
+        packageUnit:         prod.packageUnit,
         estPrice:            prod.costPrice,
         subtotal:            Math.max(1, li.qty) * prod.costPrice,
         reorderWarning:      null,
@@ -254,6 +305,27 @@ const PurchaseRequestPage = () => {
       li.id === lineId ? { ...li, warningAcknowledged: true } : li
     )), []);
 
+  // ── Product filter derived lists ──────────────────────────────────────────
+  const categoryOptions = useMemo(() => {
+    const seen = new Map();
+    products.forEach(p => { if (p.categoryId && !seen.has(p.categoryId)) seen.set(p.categoryId, p.categoryName || p.categoryId); });
+    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
+
+  const brandOptions = useMemo(() => {
+    const seen = new Map();
+    products
+      .filter(p => !filterCat || p.categoryId === filterCat)
+      .forEach(p => { if (p.brandId && !seen.has(p.brandId)) seen.set(p.brandId, p.brandName || p.brandId); });
+    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, filterCat]);
+
+  const filteredProducts = useMemo(() =>
+    products.filter(p =>
+      (!filterCat   || p.categoryId === filterCat) &&
+      (!filterBrand || p.brandId    === filterBrand)
+    ), [products, filterCat, filterBrand]);
+
   // ── Computed totals ───────────────────────────────────────────────────────
   const estimatedTotal = useMemo(
     () => lineItems.reduce((s, li) => s + Number(li.subtotal || 0), 0),
@@ -261,6 +333,27 @@ const PurchaseRequestPage = () => {
   );
   const budgetAvailable = budget ? Number(budget.available ?? 0) : null;
   const overBudget      = budgetAvailable !== null && estimatedTotal > budgetAvailable;
+
+  // ── Export PR list ────────────────────────────────────────────────────────
+  const handleExport = useCallback(async () => {
+    try {
+      const token = getToken();
+      const base  = getApiBaseUrl();
+      const res   = await fetch(`${base}/purchase-requests/export`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+      });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `purchase-requests-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Export failed: ' + err.message);
+    }
+  }, []);
 
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
@@ -472,6 +565,45 @@ const PurchaseRequestPage = () => {
           </button>
         </div>
 
+        {/* Product filter bar */}
+        <div style={{ display: 'flex', gap: 10, padding: '10px 16px 0', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>FILTER PRODUCTS:</span>
+          <select
+            className="po-select"
+            style={{ fontSize: 12, flex: '1 1 160px', maxWidth: 220 }}
+            value={filterCat}
+            onChange={e => { setFilterCat(e.target.value); setFilterBrand(''); }}
+          >
+            <option value="">All Categories</option>
+            {categoryOptions.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <select
+            className="po-select"
+            style={{ fontSize: 12, flex: '1 1 140px', maxWidth: 200 }}
+            value={filterBrand}
+            onChange={e => setFilterBrand(e.target.value)}
+          >
+            <option value="">All Brands</option>
+            {brandOptions.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          {(filterCat || filterBrand) && (
+            <button
+              type="button"
+              style={{ fontSize: 11, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+              onClick={() => { setFilterCat(''); setFilterBrand(''); }}
+            >
+              ✕ Clear
+            </button>
+          )}
+          <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 4 }}>
+            {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
         <div className="po-table-wrapper">
           <table className="po-table">
             <thead>
@@ -479,7 +611,7 @@ const PurchaseRequestPage = () => {
                 <th>#</th>
                 <th>PRODUCT</th>
                 <th>TYPE</th>
-                <th>UNIT</th>
+                <th>DETAILS</th>
                 <th>QTY</th>
                 <th>EST. PRICE</th>
                 <th>SUBTOTAL</th>
@@ -500,10 +632,11 @@ const PurchaseRequestPage = () => {
                         disabled={loadingProducts}
                       >
                         <option value="">{loadingProducts ? 'Loading…' : 'Select product…'}</option>
-                        {products.map(p => (
+                        {filteredProducts.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.code ? `${p.code} — ` : ''}{p.name}
-                            {p.type ? ` (${p.type})` : ''}
+                            {p.code ? `[${p.code}] ` : ''}{p.name}
+                            {p.brandName ? ` — ${p.brandName}` : ''}
+                            {p.capacityRating ? ` ${p.capacityRating}` : ''}
                           </option>
                         ))}
                       </select>
@@ -515,7 +648,7 @@ const PurchaseRequestPage = () => {
                         </span>
                       ) : '—'}
                     </td>
-                    <td style={{ fontSize: 12, color: '#64748b' }}>{li.unitName || '—'}</td>
+                    <td style={{ fontSize: 12, color: '#64748b' }}>{productLabel(li)}</td>
                     <td>
                       <input
                         type="number" min="1"
@@ -848,13 +981,24 @@ const PurchaseRequestPage = () => {
                       <table className="po-table" style={{ fontSize: 12 }}>
                         <thead>
                           <tr>
-                            <th>PRODUCT</th><th>QTY</th><th>EST. PRICE</th><th>SUBTOTAL</th>
+                            <th>PRODUCT</th><th>TYPE</th><th>DETAILS</th><th>QTY</th><th>EST. PRICE</th><th>SUBTOTAL</th>
                           </tr>
                         </thead>
                         <tbody>
                           {pr.details.map((d, di) => (
                             <tr key={d.pr_detail_id ?? di}>
-                              <td>{d.product?.product_name || `Item ${di + 1}`}</td>
+                              <td>
+                                <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
+                                {(d.product_code || d.product?.product_code) && (
+                                  <small style={{ color: '#94a3b8' }}>{d.product_code || d.product?.product_code}</small>
+                                )}
+                              </td>
+                              <td>
+                                <span className={`po-type-badge ${(d.product_type || d.product?.product_type) === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                  {(d.product_type || d.product?.product_type) === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                                </span>
+                              </td>
+                              <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
                               <td>{d.quantity}</td>
                               <td>{fmtPeso(d.estimated_price)}</td>
                               <td>{fmtPeso(d.subtotal)}</td>
@@ -1022,7 +1166,7 @@ const PurchaseRequestPage = () => {
                       <th>#</th>
                       <th>PRODUCT</th>
                       <th>TYPE</th>
-                      <th>UNIT</th>
+                      <th>DETAILS</th>
                       <th>REQUESTED</th>
                       <th>IN PO</th>
                       <th>REMAINING</th>
@@ -1031,20 +1175,26 @@ const PurchaseRequestPage = () => {
                   </thead>
                   <tbody>
                     {details.map((d, di) => {
-                      const remaining = d.quantity_remaining ?? (d.quantity - (d.quantity_ordered_in_po ?? 0));
+                      const remaining   = d.quantity_remaining ?? (d.quantity - (d.quantity_ordered_in_po ?? 0));
                       const orderedInPO = d.quantity_ordered_in_po ?? 0;
-                      const hasOpen = remaining > 0 && (pr.status_id === PR_STATUS.APPROVED || pr.status_id === PR_STATUS.PARTIAL);
+                      const hasOpen     = remaining > 0 && (pr.status_id === PR_STATUS.APPROVED || pr.status_id === PR_STATUS.PARTIAL);
+                      const pType       = d.product_type || d.product?.product_type || '';
                       return (
                         <tr key={d.pr_detail_id ?? di}
                           style={hasOpen ? { background: '#fffbeb' } : {}}>
                           <td className="po-detail-table-idx">{di + 1}</td>
-                          <td>{d.product?.product_name || `Item ${di + 1}`}</td>
-                          <td style={{ fontSize: 11 }}>{d.product?.product_type || '—'}</td>
-                          <td style={{ fontSize: 11, color: '#64748b' }}>
-                            {d.product?.unit?.unit_name
-                              ? `${d.product.unit.unit_name}${d.product.unit.unit_abbreviation ? ` (${d.product.unit.unit_abbreviation})` : ''}`
-                              : '—'}
+                          <td>
+                            <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
+                            {(d.product_code || d.product?.product_code) && (
+                              <small style={{ color: '#94a3b8' }}>{d.product_code || d.product?.product_code}</small>
+                            )}
                           </td>
+                          <td style={{ fontSize: 11 }}>
+                            <span className={`po-type-badge ${pType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                              {pType === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>
                           <td>{d.quantity}</td>
                           <td style={{ color: orderedInPO > 0 ? '#16a34a' : '#94a3b8' }}>{orderedInPO}</td>
                           <td>
@@ -1140,6 +1290,18 @@ const PurchaseRequestPage = () => {
                   {'Submit, review, and track purchase requests'}
                 </p>
               </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={handleExport}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                EXPORT CSV
+              </button>
             </div>
           </div>
         </div>
