@@ -7,8 +7,6 @@ import {
   itemsAPI,
   purchaseRequestsAPI,
   budgetAllocationsAPI,
-  getToken,
-  getApiBaseUrl,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -334,27 +332,6 @@ const PurchaseRequestPage = () => {
   const budgetAvailable = budget ? Number(budget.available ?? 0) : null;
   const overBudget      = budgetAvailable !== null && estimatedTotal > budgetAvailable;
 
-  // ── Export PR list ────────────────────────────────────────────────────────
-  const handleExport = useCallback(async () => {
-    try {
-      const token = getToken();
-      const base  = getApiBaseUrl();
-      const res   = await fetch(`${base}/purchase-requests/export`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      });
-      if (!res.ok) throw new Error(`Export failed (${res.status})`);
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `purchase-requests-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('Export failed: ' + err.message);
-    }
-  }, []);
-
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
     setSubmitError('');
@@ -437,17 +414,21 @@ const PurchaseRequestPage = () => {
 
     if (loadingBudget) {
       return (
-        <div className="pr-budget-card">
-          <div style={{ color: '#64748b', fontSize: 13 }}>Loading budget for {locName}…</div>
+        <div className="pr-budget-card pr-budget-card--loading">
+          <div style={{ color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Loading budget for {locName}…
+          </div>
         </div>
       );
     }
     if (!budget) {
       return (
-        <div className="pr-budget-card" style={{ background: '#fff7ed', borderColor: '#fed7aa' }}>
+        <div className="pr-budget-card pr-budget-card--empty">
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0, marginTop: 1 }}>
-              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             <div>
               <div style={{ fontWeight: 700, color: '#92400e', fontSize: 13 }}>No budget found for {locName}</div>
@@ -467,11 +448,9 @@ const PurchaseRequestPage = () => {
 
     return (
       <div className="pr-budget-card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>
-            Budget — {locName}
-          </div>
-          <div style={{ fontSize: 11, color: '#64748b' }}>{budget.period_label || 'Current Period'}</div>
+        <div className="pr-budget-card-header">
+          <span className="pr-budget-card-title">Budget — {locName}</span>
+          <span className="pr-budget-card-period">{budget.period_label || 'Current Period'}</span>
         </div>
         <div className="pr-budget-grid">
           {[
@@ -492,20 +471,22 @@ const PurchaseRequestPage = () => {
 
   // ── Tab 1: Create Request ─────────────────────────────────────────────────
   const renderCreateTab = () => (
-    <div className="po-content-layout" style={{ flexDirection: 'column', maxWidth: 900 }}>
+    <div className="pr-create-form-layout">
       {submitSuccess && (
         <div className="po-success-banner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           <strong>{createdPRNum}</strong> submitted! Waiting for Admin approval.
-          <button type="button" className="po-success-close" onClick={() => setSubmitSuccess(false)}>✕</button>
+          <button type="button" className="po-success-close" onClick={() => setSubmitSuccess(false)} aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       )}
 
-      {/* Budget info */}
-      <div className="po-details-card" style={{ marginBottom: 0 }}>
-        <div className="po-details-grid">
+      {/* Request details card */}
+      <div className="po-details-card">
+        <div className="pr-form-grid">
           <div className="po-field">
             <label className="po-field-label">LOCATION / BRANCH</label>
             <select
@@ -566,11 +547,10 @@ const PurchaseRequestPage = () => {
         </div>
 
         {/* Product filter bar */}
-        <div style={{ display: 'flex', gap: 10, padding: '10px 16px 0', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>FILTER PRODUCTS:</span>
+        <div className="pr-filter-bar">
+          <span className="pr-filter-label">FILTER:</span>
           <select
-            className="po-select"
-            style={{ fontSize: 12, flex: '1 1 160px', maxWidth: 220 }}
+            className="po-select pr-filter-select"
             value={filterCat}
             onChange={e => { setFilterCat(e.target.value); setFilterBrand(''); }}
           >
@@ -580,8 +560,7 @@ const PurchaseRequestPage = () => {
             ))}
           </select>
           <select
-            className="po-select"
-            style={{ fontSize: 12, flex: '1 1 140px', maxWidth: 200 }}
+            className="po-select pr-filter-select"
             value={filterBrand}
             onChange={e => setFilterBrand(e.target.value)}
           >
@@ -591,15 +570,12 @@ const PurchaseRequestPage = () => {
             ))}
           </select>
           {(filterCat || filterBrand) && (
-            <button
-              type="button"
-              style={{ fontSize: 11, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
-              onClick={() => { setFilterCat(''); setFilterBrand(''); }}
-            >
-              ✕ Clear
+            <button type="button" className="pr-filter-clear-btn" onClick={() => { setFilterCat(''); setFilterBrand(''); }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="11" height="11"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
             </button>
           )}
-          <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 4 }}>
+          <span className="pr-filter-count">
             {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -729,8 +705,9 @@ const PurchaseRequestPage = () => {
                   {li.reorderWarning && li.reorderWarning.length > 0 && li.warningAcknowledged && (
                     <tr>
                       <td colSpan={8} style={{ padding: '0 8px 8px' }}>
-                        <div style={{ background: '#fef9c3', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: '#713f12' }}>
-                          ⚠ Note: {li.reorderWarning.reduce((t, w) => t + (w.quantity_remaining || 0), 0)} unit(s) of {li.productName} already have open demand on other PRs.
+                        <div style={{ background: '#fef9c3', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: '#713f12', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                          <span>Note: {li.reorderWarning.reduce((t, w) => t + (w.quantity_remaining || 0), 0)} unit(s) of {li.productName} already have open demand on other PRs.</span>
                         </div>
                       </td>
                     </tr>
@@ -852,7 +829,8 @@ const PurchaseRequestPage = () => {
                       className="pr-convert-btn"
                       onClick={() => navigate('/admin/draft-po-creator', { state: { prId: pr.pr_id, prNumber: pr.pr_number } })}
                     >
-                      Convert to PO →
+                      Convert to PO
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginLeft: 5 }}><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                     </button>
                   )}
                 </div>
@@ -1199,7 +1177,10 @@ const PurchaseRequestPage = () => {
                           <td style={{ color: orderedInPO > 0 ? '#16a34a' : '#94a3b8' }}>{orderedInPO}</td>
                           <td>
                             {hasOpen ? (
-                              <span style={{ color: '#d97706', fontWeight: 700 }}>{remaining} ⚠</span>
+                              <span style={{ color: '#d97706', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                {remaining}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                              </span>
                             ) : (
                               <span style={{ color: '#94a3b8' }}>{remaining}</span>
                             )}
@@ -1291,18 +1272,6 @@ const PurchaseRequestPage = () => {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={handleExport}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                EXPORT CSV
-              </button>
-            </div>
           </div>
         </div>
 
@@ -1314,6 +1283,9 @@ const PurchaseRequestPage = () => {
               className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`}
               onClick={() => setActiveTab('create')}
             >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
               Create Request
             </button>
           )}
@@ -1322,6 +1294,10 @@ const PurchaseRequestPage = () => {
             className={`po-tab-btn${activeTab === 'my-requests' ? ' po-tab-btn--active' : ''}`}
             onClick={() => setActiveTab('my-requests')}
           >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
             My Requests
           </button>
           {isAdmin && (
@@ -1330,6 +1306,9 @@ const PurchaseRequestPage = () => {
               className={`po-tab-btn${activeTab === 'approvals' ? ' po-tab-btn--active' : ''}`}
               onClick={() => setActiveTab('approvals')}
             >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
               Pending Approvals
               {pendingPRs.length > 0 && activeTab !== 'approvals' && (
                 <span className="pr-pending-badge">{pendingPRs.length}</span>

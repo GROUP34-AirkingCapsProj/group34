@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { toast } from '../utils/toast';
-import { getApiBaseUrl, getToken, systemSettingsAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
+import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
 import '../styles/system_configuration.css';
 
 const LockIcon = () => (
@@ -119,6 +119,12 @@ const KeyOutlineIcon = () => (
   </svg>
 );
 
+const BuildingIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/>
+  </svg>
+);
+
 // NOTE: Fake data has been removed. Data is now fetched from the API.
 // - Users are fetched from /api/users
 // - Roles are fetched from /api/roles
@@ -128,6 +134,7 @@ const TABS = [
   { id: 'security', label: 'Security', icon: <LockIcon /> },
   { id: 'profile', label: 'Profile Settings', icon: <PersonIcon /> },
   { id: 'users', label: 'User Management', icon: <PersonAddIcon />, badge: 2 },
+  { id: 'company', label: 'Company Settings', icon: <BuildingIcon /> },
 ];
 
 const DEFAULT_SETTINGS = {
@@ -177,6 +184,11 @@ const SystemConfiguration = () => {
   const [activeCodes, setActiveCodes]      = useState([]);
   const [activeCodesLoading, setActiveCodesLoading] = useState(false);
   const [manualUser, setManualUser]        = useState('');
+
+  // Company settings state
+  const [companyForm, setCompanyForm] = useState({ company_name: '', company_address: '', company_email: '', company_phone: '' });
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companyLoading, setCompanyLoading] = useState(false);
 
   const fetchActiveResetCodes = useCallback(async () => {
     const token = getToken();
@@ -262,6 +274,24 @@ const SystemConfiguration = () => {
     // Fetch API data
     fetchData();
 
+    const loadCompanySettings = async () => {
+      setCompanyLoading(true);
+      try {
+        const data = await companySettingsAPI.get();
+        setCompanyForm({
+          company_name:    data.company_name    || '',
+          company_address: data.company_address || '',
+          company_email:   data.company_email   || '',
+          company_phone:   data.company_phone   || '',
+        });
+      } catch {
+        // Keep empty defaults
+      } finally {
+        setCompanyLoading(false);
+      }
+    };
+    loadCompanySettings();
+
     const loadSessionTimeout = async () => {
       const token = getToken();
       if (!token) return;
@@ -335,6 +365,25 @@ const SystemConfiguration = () => {
 
   const handleProfileSave = () => {
     toast.success('Profile updated successfully!');
+  };
+
+  const handleCompanyChange = (field, value) =>
+    setCompanyForm(prev => ({ ...prev, [field]: value }));
+
+  const handleCompanySave = async () => {
+    if (!companyForm.company_name.trim()) {
+      toast.error('Company name is required.');
+      return;
+    }
+    setCompanySaving(true);
+    try {
+      await companySettingsAPI.update(companyForm);
+      toast.success('Company settings saved successfully!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save company settings.');
+    } finally {
+      setCompanySaving(false);
+    }
   };
 
   const handleGenerateCode = async (req) => {
@@ -859,11 +908,120 @@ const SystemConfiguration = () => {
           </div>
         )}
 
-        {(activeTab === 'security' || activeTab === 'users') && (
+        {activeTab === 'company' && (
+          <div className="sc-tab-content">
+            <div className="sc-card">
+              <div className="sc-card-header">
+                <h3>Company Information</h3>
+                <p>This information appears on the header of all exported Purchase Order documents.</p>
+              </div>
+              <div className="sc-card-body">
+                {companyLoading ? (
+                  <p className="sc-placeholder">Loading company settings…</p>
+                ) : (
+                  <>
+                    <div className="sc-field-row">
+                      <div className="sc-field">
+                        <label>Company Name</label>
+                        <input
+                          type="text"
+                          value={companyForm.company_name}
+                          onChange={e => handleCompanyChange('company_name', e.target.value)}
+                          placeholder="e.g. Airking Air Conditioning"
+                        />
+                        <span className="sc-field-hint">Shown bold and large at the top of the PO document.</span>
+                      </div>
+                      <div className="sc-field">
+                        <label>Company Email</label>
+                        <div className="sc-input-with-icon">
+                          <span className="sc-input-icon"><MailIcon /></span>
+                          <input
+                            type="email"
+                            value={companyForm.company_email}
+                            onChange={e => handleCompanyChange('company_email', e.target.value)}
+                            placeholder="e.g. cdoairking@gmail.com"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="sc-field-row">
+                      <div className="sc-field">
+                        <label>Company Phone</label>
+                        <div className="sc-input-with-icon">
+                          <span className="sc-input-icon"><PhoneIcon /></span>
+                          <input
+                            type="tel"
+                            value={companyForm.company_phone}
+                            onChange={e => handleCompanyChange('company_phone', e.target.value)}
+                            placeholder="e.g. 0934324564"
+                          />
+                        </div>
+                      </div>
+                      <div className="sc-field">
+                        <label>Company Address</label>
+                        <div className="sc-input-with-icon">
+                          <span className="sc-input-icon"><MapPinIcon /></span>
+                          <input
+                            type="text"
+                            value={companyForm.company_address}
+                            onChange={e => handleCompanyChange('company_address', e.target.value)}
+                            placeholder="e.g. CDO Warehouse A, Cagayan de Oro"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* PO Header Preview */}
+            <div className="sc-card">
+              <div className="sc-card-header">
+                <h3>PO Document Header Preview</h3>
+                <p>Live preview of how the company header will appear on exported Purchase Orders.</p>
+              </div>
+              <div className="sc-card-body">
+                <div style={{ fontFamily: "'Times New Roman', serif", background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '20px 24px' }}>
+                  <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: 12, marginBottom: 12 }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, textTransform: 'uppercase', marginBottom: 4 }}>
+                      {companyForm.company_name || 'COMPANY NAME'}
+                    </div>
+                    {companyForm.company_address && (
+                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_address}</div>
+                    )}
+                    {companyForm.company_email && (
+                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_email}</div>
+                    )}
+                    {companyForm.company_phone && (
+                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_phone}</div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>PURCHASE ORDER #PO-XXXX</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(activeTab === 'security' || activeTab === 'users' || activeTab === 'company') && (
           <div className="sc-footer">
-            <button className="sc-btn-reset" onClick={handleResetDefaults}>Reset to Defaults</button>
-            <button className="sc-btn-save" onClick={activeTab === 'security' ? handleSave : () => toast.success('User settings saved!')}>
-              <SaveIcon /> {activeTab === 'security' ? 'Save Security Settings' : 'Save User Settings'}
+            <button className="sc-btn-reset" onClick={handleResetDefaults} style={{ visibility: activeTab === 'company' ? 'hidden' : 'visible' }}>Reset to Defaults</button>
+            <button
+              className="sc-btn-save"
+              disabled={activeTab === 'company' && companySaving}
+              onClick={
+                activeTab === 'security' ? handleSave :
+                activeTab === 'company' ? handleCompanySave :
+                () => toast.success('User settings saved!')
+              }
+            >
+              <SaveIcon />
+              {activeTab === 'security' ? 'Save Security Settings' :
+               activeTab === 'company' ? (companySaving ? 'Saving…' : 'Save Company Settings') :
+               'Save User Settings'}
             </button>
           </div>
         )}

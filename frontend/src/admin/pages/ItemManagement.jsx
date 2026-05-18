@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import Barcode from 'react-barcode';
-import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI, getToken, getApiBaseUrl } from '../services/api';
+import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -306,26 +306,7 @@ const ItemManagement = () => {
   const getBarcodeFormat = (value) =>
     /^\d{13}$/.test(String(value || '')) ? 'EAN13' : 'CODE128';
 
-  const handleExport = async () => {
-    try {
-      const token = getToken();
-      const base  = getApiBaseUrl();
-      const res   = await fetch(`${base}/products/export`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      });
-      if (!res.ok) throw new Error(`Export failed (${res.status})`);
-      const blob   = await res.blob();
-      const url    = URL.createObjectURL(blob);
-      const a      = document.createElement('a');
-      a.href       = url;
-      a.download   = `item-master-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Export downloaded.');
-    } catch (err) {
-      toast.error('Export failed: ' + err.message);
-    }
-  };
+
 
   const handleSubmit = async (e) => {
     if (isInventoryAnalystViewOnly) {
@@ -484,14 +465,6 @@ const ItemManagement = () => {
                 ))}
               </select>
             </div>
-            <button className="im-btn-export" onClick={handleExport} title="Download CSV">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              EXPORT CSV
-            </button>
             {!isInventoryAnalystViewOnly && (
               <button className="im-btn-create" onClick={handleAdd}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">

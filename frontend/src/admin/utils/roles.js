@@ -263,6 +263,7 @@ export const ROUTE_ACCESS = {
   '/admin/branches': [ROLES.ADMIN],
   '/admin/warehouses': [ROLES.ADMIN],
   '/admin/warranty': [ROLES.ADMIN],
+
 };
 
 export const canAccessRoute = (user, path) => {

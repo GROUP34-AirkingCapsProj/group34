@@ -336,6 +336,16 @@ export const systemSettingsAPI = {
     }),
 };
 
+/** Company letterhead settings (GET any auth user; PUT admin only). */
+export const companySettingsAPI = {
+  get: async () => apiRequest('/system/company-settings'),
+  update: async (data) =>
+    apiRequest('/system/company-settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+};
+
 /* ======================
    AUDIT API
 ====================== */
@@ -710,6 +720,23 @@ export const statusAPI = {
   update: async (id, data) =>
     apiRequest(`/status-lookup/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/status-lookup/${id}`, { method: 'DELETE' }),
+};
+
+/* ======================
+   TRANSACTION TYPE LOOKUP API
+====================== */
+export const transactionTypesAPI = {
+  getAll: async () => apiRequest('/transaction-type-lookup'),
+};
+
+/* ======================
+   INVENTORY SCAN EVENTS API
+====================== */
+export const scanEventsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/scan-events?${query}` : '/scan-events');
+  },
 };
 
 /* ======================

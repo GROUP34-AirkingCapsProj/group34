@@ -1932,6 +1932,7 @@
 .po-tab-btn {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 8px 18px;
   border: none;
   border-radius: 8px;
@@ -2693,13 +2694,122 @@
 @keyframes pr-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 /* ── Purchase Request: Budget Card ── */
-.pr-budget-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.pr-budget-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.pr-budget-card--empty {
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+.pr-budget-card--loading {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.pr-budget-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.pr-budget-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.pr-budget-card-period {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
 .pr-budget-stat { display: flex; flex-direction: column; gap: 2px; }
 .pr-budget-stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
 .pr-budget-stat-value { font-size: 18px; font-weight: 700; color: #1e293b; }
 .pr-budget-stat-value--green { color: #16a34a; }
 .pr-budget-stat-value--amber { color: #d97706; }
 .pr-budget-stat-value--red { color: #dc2626; }
+
+/* ── Purchase Request: Create form layout ── */
+.pr-create-form-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 900px;
+}
+.pr-create-form-layout > .po-details-card,
+.pr-create-form-layout > .pr-budget-card,
+.pr-create-form-layout > .po-line-items-card {
+  margin-bottom: 16px;
+}
+
+/* ── Purchase Request: 2-column form grid ── */
+.pr-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: end;
+}
+@media (max-width: 600px) {
+  .pr-form-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Purchase Request: Filter Bar ── */
+.pr-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  background: #f8fafc;
+  border-radius: 0 0 0 0;
+}
+.pr-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pr-filter-select {
+  font-size: 12px;
+  flex: 1 1 150px;
+  max-width: 220px;
+  height: 34px;
+  padding: 5px 10px;
+}
+.pr-filter-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #6b7280;
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 10px;
+  transition: background 0.15s;
+}
+.pr-filter-clear-btn:hover {
+  background: #f1f5f9;
+  color: #374151;
+}
+.pr-filter-count {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+  white-space: nowrap;
+}
 
 /* ── Purchase Request: Reorder Warning ── */
 .pr-reorder-warning { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
@@ -2735,7 +2845,7 @@
 .pr-badge--partial { background: #ffedd5; color: #7c2d12; }
 
 @media (max-width: 600px) {
-  .pr-budget-card { grid-template-columns: repeat(2, 1fr); }
+  .pr-budget-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ── Purchase Request: Reorder warning buttons ── */
@@ -2841,4 +2951,380 @@
 @media (max-width: 640px) {
   .budget-grid { grid-template-columns: repeat(2, 1fr); }
   .budget-summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============================================================
+   RESPONSIVE — Comprehensive breakpoints
+   ============================================================ */
+
+/* ── 900px: details grid collapses to 2 columns ── */
+@media (max-width: 900px) {
+  .po-details-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .po-details-card {
+    padding: 16px 18px;
+  }
+  .po-creator-header-card {
+    padding: 20px 18px;
+  }
+}
+
+/* ── 768px: additional stacking and tab overflow ── */
+@media (max-width: 768px) {
+  /* Tab bar scrolls horizontally instead of wrapping */
+  .po-tab-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 8px 10px;
+    gap: 2px;
+  }
+  .po-tab-nav::-webkit-scrollbar { display: none; }
+  .po-tab-btn {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+
+  /* Meta row tighter gap */
+  .po-status-card-meta {
+    gap: 16px;
+  }
+
+  /* Header card */
+  .po-creator-header-grid {
+    flex-direction: column;
+  }
+  .po-creator-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Card body already stacks, just ensure right-section is clean */
+  .po-status-card-body {
+    flex-direction: column;
+  }
+  .po-status-card-right {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 12px;
+    margin-top: 4px;
+    width: 100%;
+  }
+}
+
+/* ── 600px: narrow layout adjustments ── */
+@media (max-width: 600px) {
+  /* Details grid single column */
+  .po-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Budget grids */
+  .pr-budget-grid { grid-template-columns: repeat(2, 1fr); }
+  .pr-form-grid { grid-template-columns: 1fr; }
+
+  /* Details card padding */
+  .po-details-card {
+    padding: 14px 14px;
+  }
+
+  /* Line items card header wraps */
+  .po-line-items-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Status card reduced padding */
+  .po-status-card {
+    border-radius: 8px;
+  }
+  .po-status-card-body {
+    padding: 12px 14px;
+  }
+
+  /* Meta items stack on very small screens */
+  .po-status-card-meta {
+    gap: 10px;
+  }
+  .po-status-meta-item {
+    min-width: 70px;
+  }
+
+  /* Summary sidebar full width */
+  .po-summary-sidebar {
+    width: 100%;
+  }
+
+  /* Progress bar labels smaller */
+  .pr-progress-label {
+    font-size: 9px;
+  }
+  .pr-progress-line {
+    min-width: 24px;
+  }
+
+  /* Page title row */
+  .po-creator-header-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* Table cells smaller on narrow screens */
+  .po-table thead th,
+  .po-table tbody td {
+    padding: 8px 8px;
+    font-size: 12px;
+  }
+
+  /* Modal detail tables */
+  .po-detail-table th,
+  .po-detail-table td {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  /* Detail address grid stacks */
+  .po-detail-address-grid {
+    grid-template-columns: 1fr;
+  }
+  .po-detail-address-block:first-child {
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+}
+
+/* ── 480px: very narrow (small phones) ── */
+@media (max-width: 480px) {
+  /* Header export/action buttons stack */
+  .po-creator-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .po-creator-header-actions .po-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Budget grid 2-column on small phones */
+  .pr-budget-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Meta items two per row using grid */
+  .po-status-card-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+  }
+
+  /* Line items filter bar stacks */
+  .po-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .po-filter-bar select {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Tab button font smaller */
+  .po-tab-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  /* PO detail modal */
+  .po-detail-info-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ============================================================
+   PO DOCUMENT PREVIEW
+   ============================================================ */
+
+.po-textarea {
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #fff;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.po-textarea:focus {
+  outline: none;
+  border-color: #dc2626;
+}
+
+.po-field-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.po-preview-panel {
+  margin-top: 20px;
+  border-top: 2px dashed #e2e8f0;
+  padding-top: 16px;
+}
+
+.po-preview-toggle {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: background 0.15s;
+}
+.po-preview-toggle:hover {
+  background: #f1f5f9;
+}
+
+.po-doc-preview {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 40px;
+  max-width: 800px;
+  margin: 0 auto;
+  font-family: 'Times New Roman', serif;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.po-doc-company-header {
+  text-align: center;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #1e293b;
+  padding-bottom: 12px;
+}
+.po-doc-company-header h2 {
+  font-size: 24px;
+  font-weight: 900;
+  margin: 0 0 4px;
+  color: #1e293b;
+  text-transform: uppercase;
+}
+.po-doc-company-header p {
+  font-size: 12px;
+  color: #475569;
+  margin: 2px 0;
+}
+
+.po-doc-header-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.po-doc-supplier {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.po-doc-supplier strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.po-doc-reference {
+  text-align: right;
+}
+.po-doc-reference h3 {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+.po-doc-ref-table {
+  margin-left: auto;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+.po-doc-ref-table td {
+  padding: 2px 8px;
+}
+.po-doc-ref-table td:first-child {
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.po-doc-details-label {
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.po-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+.po-doc-table th {
+  border-bottom: 2px solid #1e293b;
+  border-top: 1px solid #1e293b;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 700;
+  background: #f8fafc;
+}
+.po-doc-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.po-doc-table tfoot td {
+  border-top: 2px solid #1e293b;
+  border-bottom: none;
+  font-weight: 700;
+  text-align: right;
+  padding: 8px;
+}
+
+.po-doc-notes {
+  font-size: 13px;
+  margin: 12px 0 24px;
+  line-height: 2;
+}
+.po-doc-notes div {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+}
+
+.po-doc-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-top: 32px;
+}
+
+.po-doc-sig-block {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.po-doc-sig-label {
+  font-weight: 700;
+  font-size: 13px;
+}
+.po-doc-sig-name {
+  font-weight: 700;
+  font-size: 13px;
+  border-bottom: 2px solid #1e293b;
+  padding-bottom: 4px;
+  min-width: 150px;
+  min-height: 20px;
 }

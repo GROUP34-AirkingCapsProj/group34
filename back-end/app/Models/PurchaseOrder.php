@@ -20,11 +20,17 @@ class PurchaseOrder extends Model
         'po_number',
         'order_date',
         'expected_delivery_date',
+        'payment_terms',
         'total_amount',
         'grand_total',
+        'notes',
+        'references_note',
         'status_id',
         'created_by',
         'approved_by',
+        'verified_by',
+        'ship_to_name',
+        'ship_to_address',
         'received_by',
     ];
 
@@ -58,6 +64,11 @@ class PurchaseOrder extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by', 'user_id');
+    }
+
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by', 'user_id');
     }
 
     public function receivedBy(): BelongsTo

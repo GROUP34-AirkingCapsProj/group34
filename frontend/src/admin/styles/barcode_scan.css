@@ -123,6 +123,14 @@
   border-bottom: 1px solid #f9fafb;
 }
 .bs-movement-item:last-child { border-bottom: none; }
+.bs-movement-number {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #9ca3af;
+  min-width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
 .bs-movement-dot {
   width: 10px;
   height: 10px;

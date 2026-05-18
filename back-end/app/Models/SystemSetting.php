@@ -12,6 +12,11 @@ class SystemSetting extends Model
 
     public const KEY_TWO_FACTOR_AUTH_ENABLED = 'two_factor_auth_enabled';
 
+    public const KEY_COMPANY_NAME    = 'company_name';
+    public const KEY_COMPANY_ADDRESS = 'company_address';
+    public const KEY_COMPANY_EMAIL   = 'company_email';
+    public const KEY_COMPANY_PHONE   = 'company_phone';
+
     protected $fillable = ['key', 'value'];
 
     public static function sessionTimeoutMinutes(): int
@@ -66,5 +71,42 @@ class SystemSetting extends Model
         $row = static::query()->firstOrNew(['key' => self::KEY_TWO_FACTOR_AUTH_ENABLED]);
         $row->value = $enabled ? '1' : '0';
         $row->save();
+    }
+
+    public static function companyName(): string
+    {
+        return (string) (static::query()->where('key', self::KEY_COMPANY_NAME)->value('value') ?? 'Airking Air Conditioning');
+    }
+
+    public static function companyAddress(): string
+    {
+        return (string) (static::query()->where('key', self::KEY_COMPANY_ADDRESS)->value('value') ?? '');
+    }
+
+    public static function companyEmail(): string
+    {
+        return (string) (static::query()->where('key', self::KEY_COMPANY_EMAIL)->value('value') ?? '');
+    }
+
+    public static function companyPhone(): string
+    {
+        return (string) (static::query()->where('key', self::KEY_COMPANY_PHONE)->value('value') ?? '');
+    }
+
+    public static function setCompany(array $data): void
+    {
+        $map = [
+            'company_name'    => self::KEY_COMPANY_NAME,
+            'company_address' => self::KEY_COMPANY_ADDRESS,
+            'company_email'   => self::KEY_COMPANY_EMAIL,
+            'company_phone'   => self::KEY_COMPANY_PHONE,
+        ];
+        foreach ($map as $field => $key) {
+            if (array_key_exists($field, $data)) {
+                $row = static::query()->firstOrNew(['key' => $key]);
+                $row->value = (string) $data[$field];
+                $row->save();
+            }
+        }
     }
 }

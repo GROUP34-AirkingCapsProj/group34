@@ -1,257 +1,367 @@
 import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 /**
- * Normalized PO payload shape used by both export functions:
+ * Payload shape expected by both export functions:
  * {
- *   po_number, status,
- *   supplier: { name, address, origin, region, contact_person, contact_number, email, tin },
- *   ship_to:  { name, address, contact_number, email, manager_name },
- *   prepared_by, approved_by, order_date, expected_delivery_date,
- *   items: [{ name, qty, unit_price, subtotal }],
+ *   po_number, order_date, payment_terms, status,
+ *   company:    { name, address, email },
+ *   supplier:   { name, address },
+ *   ship_to:    { name, address },
+ *   prepared_by, verified_by, approved_by,   ← all resolved name strings
+ *   notes, references,
+ *   items: [{
+ *     product_code, name, unit, qty, unit_price, subtotal,
+ *     product_type, brand_name, capacity_rating, variant,
+ *     pieces_per_package, package_unit,
+ *   }],
  *   total_amount,
  * }
  */
 
-const BRAND_RED = [220, 38, 38];
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 
-// ─── Excel ───────────────────────────────────────────────────────────────────
+/**
+ * Build the description string for a line item.
+ * Appliance  → "PRODUCT NAME BRAND CAPACITY VARIANT"
+ * Consumable → "PRODUCT NAME (50pcs/Box)"
+ */
+function buildDescription(item) {
+  const base = (item.name || '').toUpperCase();
+  if (item.product_type === 'appliance') {
+    return [base, item.brand_name, item.capacity_rating, item.variant]
+      .filter(Boolean).join(' ').trim();
+  }
+  if (item.product_type === 'consumable' && item.pieces_per_package) {
+    const pkg = item.package_unit || 'Box';
+    return `${base} (${item.pieces_per_package}pcs/${pkg})`;
+  }
+  return base;
+}
+
+function fmtDate(raw) {
+  if (!raw) return new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+  const d = new Date(raw);
+  return isNaN(d) ? String(raw) : d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
+
+// ─── Document (HTML print window) ────────────────────────────────────────────
+
+export function exportPOToDocument(payload) {
+  const company  = payload.company  || {};
+  const supplier = payload.supplier || {};
+  const shipTo   = payload.ship_to  || {};
+
+  const companyName    = company.name    || 'Airking Air Conditioning';
+  const companyAddress = company.address || '';
+  const companyEmail   = company.email   || '';
+
+  const supplierName = (supplier.name || '').toUpperCase();
+  const supplierAddr = supplier.address || '';
+
+  const shipToName    = shipTo.name    || supplierName;
+  const shipToAddress = shipTo.address || supplierAddr;
+
+  const dateStr      = fmtDate(payload.order_date);
+  const paymentTerms = payload.payment_terms || 'Net 30';
+  const total        = Number(payload.total_amount || 0);
+  const notes        = payload.notes      || '';
+  const refs         = payload.references || '';
+  const prepBy       = payload.prepared_by || '';
+  const verBy        = payload.verified_by || '';
+  const appBy        = payload.approved_by || '';
+
+  const items = Array.isArray(payload.items) ? payload.items : [];
+
+  const rowsHtml = items.map(item => {
+    const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
+    const price  = Number(item.unit_price || 0);
+    const amount = Number(item.subtotal   || qty * price || 0);
+    const unit   = item.unit || 'pc';
+    const code   = item.product_code || '—';
+    const desc   = buildDescription(item);
+
+    const priceStr  = price  === 0 ? 'Free' : price.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    const amountStr = amount === 0 ? '0.00' : amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+    return `
+      <tr>
+        <td style="text-align:center">${qty}</td>
+        <td style="text-align:center">${unit}</td>
+        <td>${code}</td>
+        <td>${desc}</td>
+        <td style="text-align:right">${priceStr}</td>
+        <td style="text-align:right">${amountStr}</td>
+      </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Purchase Order - ${payload.po_number || 'PO'}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 13px;
+      color: #000;
+      padding: 40px;
+      max-width: 850px;
+      margin: 0 auto;
+    }
+    .company-header {
+      text-align: center;
+      border-bottom: 2px solid #000;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .company-header h1 {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    .company-header p { font-size: 11px; color: #333; margin: 2px 0; }
+    .header-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .supplier-block { font-size: 13px; line-height: 1.7; }
+    .supplier-block strong { font-size: 14px; font-weight: 900; display: block; margin-bottom: 2px; }
+    .po-ref-block { text-align: right; }
+    .po-ref-block h2 { font-size: 20px; font-weight: 900; margin-bottom: 8px; }
+    .po-ref-table { margin-left: auto; border-collapse: collapse; font-size: 13px; }
+    .po-ref-table td { padding: 2px 6px; }
+    .po-ref-table td:first-child { font-weight: 700; text-align: right; white-space: nowrap; }
+    .ship-to { font-size: 12px; line-height: 1.6; margin-bottom: 16px; }
+    .ship-to strong { display: block; }
+    .details-label { font-size: 15px; font-weight: 900; margin-bottom: 4px; }
+    .items-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
+    .items-table th {
+      border-top: 1.5px solid #000;
+      border-bottom: 1.5px solid #000;
+      padding: 5px 8px;
+      font-weight: 700;
+      text-align: left;
+    }
+    .items-table td { padding: 5px 8px; border-bottom: 0.5px solid #ddd; }
+    .items-table tfoot td {
+      border-top: 1.5px solid #000;
+      border-bottom: 1.5px solid #000;
+      font-weight: 700;
+      padding: 6px 8px;
+    }
+    .notes-section { font-size: 13px; line-height: 2.4; margin: 12px 0 32px; }
+    .notes-section div { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 4px; }
+    .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 32px; }
+    .sig-block { display: flex; flex-direction: column; gap: 36px; }
+    .sig-label { font-weight: 900; font-size: 13px; }
+    .sig-name {
+      font-weight: 900;
+      font-size: 13px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 4px;
+      min-height: 24px;
+      text-decoration: underline;
+    }
+    @media print {
+      body { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="company-header">
+    <h1>${companyName}</h1>
+    ${companyAddress ? `<p>${companyAddress}</p>` : ''}
+    ${companyEmail   ? `<p>${companyEmail}</p>`   : ''}
+  </div>
+
+  <div class="header-grid">
+    <div class="supplier-block">
+      <strong>${supplierName}</strong>
+      ${supplierAddr}
+    </div>
+    <div class="po-ref-block">
+      <h2>Purchase Order</h2>
+      <table class="po-ref-table">
+        <tr><td>Date:</td><td>${dateStr}</td></tr>
+        <tr><td>Reference #:</td><td>${payload.po_number || ''}</td></tr>
+        <tr><td>Payment Terms:</td><td>${paymentTerms}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  ${(shipToName && shipToName !== supplierName) || shipToAddress ? `
+  <div class="ship-to">
+    <strong>SHIP TO: ${shipToName}</strong>
+    ${shipToAddress}
+  </div>` : ''}
+
+  <div class="details-label">Details</div>
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th style="text-align:center;width:65px">Quantity</th>
+        <th style="text-align:center;width:55px">Unit</th>
+        <th style="width:130px">Item Code</th>
+        <th>Description</th>
+        <th style="text-align:right;width:95px">Unit Price</th>
+        <th style="text-align:right;width:95px">Amount</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5" style="text-align:right">Total Amount &rarr;</td>
+        <td style="text-align:right">&#8369;${total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="notes-section">
+    <div>Notes: ${notes}</div>
+    <div>References: ${refs}</div>
+  </div>
+
+  <div class="signatures">
+    <div class="sig-block">
+      <div class="sig-label">Prepared By:</div>
+      <div class="sig-name">${prepBy}</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-label">Verified By:</div>
+      <div class="sig-name">${verBy}</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-label">Approved By:</div>
+      <div class="sig-name">${appBy}</div>
+    </div>
+  </div>
+
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=920,height=720');
+  if (!win) {
+    alert('Please allow pop-ups to export the PO document.');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 600);
+}
+
+// ─── Excel ────────────────────────────────────────────────────────────────────
 
 export function exportPOToExcel(payload) {
-  const wb = XLSX.utils.book_new();
-  const rows = [];
+  const company  = payload.company  || {};
+  const supplier = payload.supplier || {};
+  const shipTo   = payload.ship_to  || {};
 
-  const push = (label, value) => rows.push([label, value ?? '—']);
-  const gap  = ()             => rows.push(['', '']);
+  const companyName    = company.name    || 'Airking Air Conditioning';
+  const companyAddress = company.address || '';
+  const companyEmail   = company.email   || '';
 
-  rows.push(['PURCHASE ORDER', payload.po_number]);
-  rows.push(['Status', payload.status || '—']);
-  gap();
+  const supplierName = (supplier.name || '').toUpperCase();
+  const supplierAddr = supplier.address || '';
+  const shipToName   = shipTo.name    || supplierName;
+  const shipToAddr   = shipTo.address || supplierAddr;
 
-  rows.push(['── SUPPLIER / VENDOR ──', '']);
-  push('Name',           payload.supplier?.name);
-  push('Address',        payload.supplier?.address);
-  if (payload.supplier?.origin || payload.supplier?.region)
-    push('Origin / Region', [payload.supplier.origin, payload.supplier.region].filter(Boolean).join(', '));
-  push('Contact Person', payload.supplier?.contact_person);
-  push('Phone',          payload.supplier?.contact_number);
-  push('Email',          payload.supplier?.email);
-  push('TIN',            payload.supplier?.tin);
-  gap();
+  const dateStr      = fmtDate(payload.order_date);
+  const paymentTerms = payload.payment_terms || 'Net 30';
+  const total        = Number(payload.total_amount || 0);
+  const notes        = payload.notes      || '';
+  const refs         = payload.references || '';
+  const prepBy       = payload.prepared_by || '';
+  const verBy        = payload.verified_by || '';
+  const appBy        = payload.approved_by || '';
 
-  rows.push(['── SHIP TO / DELIVER TO ──', '']);
-  push('Branch / Location', payload.ship_to?.name);
-  push('Address',           payload.ship_to?.address);
-  push('Phone',             payload.ship_to?.contact_number);
-  push('Email',             payload.ship_to?.email);
-  push('Manager',           payload.ship_to?.manager_name);
-  gap();
+  const items = Array.isArray(payload.items) ? payload.items : [];
 
-  rows.push(['── ORDER DETAILS ──', '']);
-  push('Prepared By',        payload.prepared_by);
-  push('Order Date',         payload.order_date);
-  push('Expected Delivery',  payload.expected_delivery_date);
-  push('Approved By',        payload.approved_by || '—');
-  gap();
+  // Build rows as array-of-arrays (aoa)
+  const aoa = [];
 
-  rows.push(['── LINE ITEMS ──', '', '', '', '']);
-  rows.push(['#', 'Product', 'Qty', 'Unit Price', 'Subtotal']);
+  // ── Company header ──
+  aoa.push([companyName]);
+  if (companyAddress) aoa.push([companyAddress]);
+  if (companyEmail)   aoa.push([companyEmail]);
+  aoa.push([]);
 
-  payload.items.forEach((item, i) => {
-    rows.push([
-      i + 1,
-      item.name,
-      item.qty,
-      Number(item.unit_price || 0),
-      Number(item.subtotal || 0),
+  // ── Supplier (col A) + PO reference (col D+) ──
+  aoa.push([supplierName,    '', '', 'Purchase Order']);
+  aoa.push([supplierAddr,    '', '', 'Date:',           dateStr]);
+  aoa.push(['',              '', '', 'Reference #:',    payload.po_number || '']);
+  aoa.push(['',              '', '', 'Payment Terms:',  paymentTerms]);
+  if (shipToName && shipToName !== supplierName) {
+    aoa.push([`Ship To: ${shipToName}`, '', '', '', '']);
+    if (shipToAddr) aoa.push([shipToAddr, '', '', '', '']);
+  }
+  aoa.push([]);
+
+  // ── Column headers ──
+  const COL_HEADERS = ['Quantity', 'Unit', 'Item Code', 'Description', 'Unit Price', 'Amount'];
+  aoa.push(COL_HEADERS);
+  const headerRowIdx = aoa.length; // 1-based after push
+
+  // ── Line item rows ──
+  items.forEach(item => {
+    const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
+    const price  = Number(item.unit_price || 0);
+    const amount = Number(item.subtotal   || qty * price || 0);
+    aoa.push([
+      qty,
+      item.unit || 'pc',
+      item.product_code || '—',
+      buildDescription(item),
+      price,
+      amount,
     ]);
   });
 
-  gap();
-  rows.push(['', '', '', 'TOTAL', Number(payload.total_amount || 0)]);
+  aoa.push([]);
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // ── Total row ──
+  aoa.push(['', '', '', '', 'TOTAL AMOUNT', total]);
 
-  // Column widths
-  ws['!cols'] = [{ wch: 22 }, { wch: 40 }, { wch: 8 }, { wch: 14 }, { wch: 14 }];
+  aoa.push([]);
 
+  // ── Signature row ──
+  aoa.push(['Prepared By:', '', 'Verified By:', '', 'Approved By:', '']);
+  aoa.push([prepBy,         '', verBy,          '', appBy,          '']);
+
+  if (notes) { aoa.push([]); aoa.push([`Notes: ${notes}`]); }
+  if (refs)  { aoa.push([`References: ${refs}`]); }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // ── Column widths ──
+  ws['!cols'] = [
+    { wch: 12 }, // Quantity / Supplier
+    { wch: 10 }, // Unit
+    { wch: 18 }, // Item Code
+    { wch: 48 }, // Description
+    { wch: 14 }, // Unit Price
+    { wch: 14 }, // Amount
+  ];
+
+  // ── Style the company name row (row 0 = bold, large) ──
+  const companyCell = XLSX.utils.encode_cell({ r: 0, c: 0 });
+  if (!ws[companyCell]) ws[companyCell] = { v: companyName, t: 's' };
+  ws[companyCell].s = { font: { bold: true, sz: 16 } };
+
+  // ── Bold the column header row ──
+  const headerR = headerRowIdx - 1;
+  COL_HEADERS.forEach((_, ci) => {
+    const addr = XLSX.utils.encode_cell({ r: headerR, c: ci });
+    if (ws[addr]) ws[addr].s = { font: { bold: true } };
+  });
+
+  const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Purchase Order');
   XLSX.writeFile(wb, `${payload.po_number || 'PO'}.xlsx`);
-}
-
-// ─── PDF ─────────────────────────────────────────────────────────────────────
-
-const safe = (v) => String(v ?? '-').replace(/—/g, '-').replace(/₱/g, 'PHP ');
-
-export function exportPOToDocument(payload) {
-  const doc   = new jsPDF('p', 'mm', 'a4');
-  const W     = doc.internal.pageSize.getWidth();
-  const mL    = 15;
-  const mR    = 15;
-  const cW    = W - mL - mR;
-  let   y     = 0;
-
-  // ── Red header bar ──
-  doc.setFillColor(...BRAND_RED);
-  doc.rect(0, 0, W, 28, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.text('PURCHASE ORDER', mL, 12);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(payload.po_number || '', mL, 20);
-
-  // Status pill (right side of header)
-  const statusLabel = (payload.status || 'APPROVED').toUpperCase();
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  const statusW = doc.getTextWidth(statusLabel) + 8;
-  doc.setFillColor(255, 255, 255);
-  doc.roundedRect(W - mR - statusW, 8, statusW, 8, 2, 2, 'F');
-  doc.setTextColor(...BRAND_RED);
-  doc.text(statusLabel, W - mR - statusW + 4, 13.5);
-
-  y = 36;
-
-  // ── Address blocks ──
-  const half = cW / 2 - 3;
-
-  const drawAddressBlock = (title, lines, x, startY) => {
-    // Title
-    doc.setFillColor(248, 250, 252);
-    doc.rect(x, startY, half, 7, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(156, 163, 175);
-    doc.text(title.toUpperCase(), x + 3, startY + 4.5);
-
-    let iy = startY + 10;
-    lines.forEach(({ label, value }) => {
-      if (!value) return;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(156, 163, 175);
-      doc.text(label.toUpperCase(), x + 3, iy);
-      iy += 4;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(17, 24, 39);
-      const wrapped = doc.splitTextToSize(safe(value), half - 6);
-      doc.text(wrapped, x + 3, iy);
-      iy += wrapped.length * 4.5 + 1;
-    });
-    return iy;
-  };
-
-  const supplierLines = [
-    { label: 'Name',           value: payload.supplier?.name },
-    { label: 'Address',        value: payload.supplier?.address },
-    { label: 'Origin / Region',value: [payload.supplier?.origin, payload.supplier?.region].filter(Boolean).join(', ') || null },
-    { label: 'Contact Person', value: payload.supplier?.contact_person },
-    { label: 'Phone',          value: payload.supplier?.contact_number },
-    { label: 'Email',          value: payload.supplier?.email },
-    { label: 'TIN',            value: payload.supplier?.tin },
-  ];
-
-  const shipToLines = [
-    { label: 'Branch / Location', value: payload.ship_to?.name },
-    { label: 'Address',           value: payload.ship_to?.address },
-    { label: 'Phone',             value: payload.ship_to?.contact_number },
-    { label: 'Email',             value: payload.ship_to?.email },
-    { label: 'Manager',           value: payload.ship_to?.manager_name },
-  ];
-
-  // Border around both blocks
-  doc.setDrawColor(229, 231, 235);
-  doc.setLineWidth(0.3);
-  doc.rect(mL, y, cW, 1, 'S'); // top border placeholder — we'll draw after content
-
-  const leftBottom  = drawAddressBlock('Supplier / Vendor', supplierLines, mL, y);
-  const rightBottom = drawAddressBlock('Ship To / Deliver To', shipToLines, mL + half + 6, y);
-  const blockBottom = Math.max(leftBottom, rightBottom) + 4;
-
-  // Borders
-  doc.setDrawColor(229, 231, 235);
-  doc.rect(mL, y, cW, blockBottom - y, 'S');
-  doc.line(mL + half + 3, y, mL + half + 3, blockBottom);
-
-  y = blockBottom + 6;
-
-  // ── Meta grid ──
-  const metaItems = [
-    { label: 'PREPARED BY',       value: payload.prepared_by },
-    { label: 'ORDER DATE',        value: payload.order_date },
-    { label: 'EXPECTED DELIVERY', value: payload.expected_delivery_date },
-    { label: 'APPROVED BY',       value: payload.approved_by || '—' },
-  ];
-  const colW = cW / metaItems.length;
-  metaItems.forEach((m, i) => {
-    const mx = mL + i * colW;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(156, 163, 175);
-    doc.text(m.label, mx, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(17, 24, 39);
-    doc.text(safe(m.value || '-'), mx, y + 5);
-  });
-
-  y += 14;
-
-  // ── Line items table ──
-  autoTable(doc, {
-    startY:   y,
-    margin:   { left: mL, right: mR },
-    head: [['#', 'Product', 'Qty', 'Unit Price', 'Subtotal']],
-    body: payload.items.map((item, i) => [
-      i + 1,
-      item.name || '-',
-      item.qty,
-      `PHP ${Number(item.unit_price || 0).toLocaleString('en-PH')}`,
-      `PHP ${Number(item.subtotal   || 0).toLocaleString('en-PH')}`,
-    ]),
-    headStyles: {
-      fillColor:  BRAND_RED,
-      textColor:  [255, 255, 255],
-      fontStyle:  'bold',
-      fontSize:   8,
-    },
-    bodyStyles:     { fontSize: 8, textColor: [17, 24, 39] },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
-    columnStyles: {
-      0: { cellWidth: 10,  halign: 'center' },
-      2: { cellWidth: 14,  halign: 'center' },
-      3: { cellWidth: 28,  halign: 'right' },
-      4: { cellWidth: 28,  halign: 'right' },
-    },
-  });
-
-  y = doc.lastAutoTable.finalY + 4;
-
-  // ── Total ──
-  doc.setFillColor(254, 242, 242);
-  doc.rect(mL, y, cW, 10, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(156, 163, 175);
-  doc.text('TOTAL ESTIMATED VALUE', mL + 3, y + 6.5);
-  doc.setFontSize(11);
-  doc.setTextColor(...BRAND_RED);
-  const totalStr = safe(`PHP ${Number(payload.total_amount || 0).toLocaleString('en-PH')}`);
-  doc.text(totalStr, mL + cW - 3, y + 6.5, { align: 'right' });
-
-  y += 18;
-
-  // ── Footer ──
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(156, 163, 175);
-  doc.text(`Generated: ${new Date().toLocaleString('en-PH')}   ·   ${payload.po_number}`, mL, y);
-
-  doc.save(`${payload.po_number || 'PO'}.pdf`);
 }
