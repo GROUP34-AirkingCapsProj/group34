@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
-import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI } from '../services/api';
+import { useLocation } from 'react-router-dom';
+import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/inventory_management.css';
 
@@ -86,8 +87,11 @@ const TrendChart = ({ data, loading }) => {
 };
 
 /* ── Main component ──────────────────────────────────────────────────── */
+
 const InventoryManagement = () => {
-  const [activeTab, setActiveTab] = useState('stock-movement');
+  const routerLocation = useLocation();
+  const initialTab = new URLSearchParams(routerLocation.search).get('tab') || 'stock-movement';
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Inventory state
   const [inventory, setInventory] = useState([]);
@@ -109,6 +113,13 @@ const InventoryManagement = () => {
   const rowsPerPage = 10;
   const debounceRef = useRef(null);
 
+  // Activity log state
+  const [activityLog, setActivityLog] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityTypeFilter, setActivityTypeFilter] = useState('');
+  const [transactionTypes, setTransactionTypes] = useState([]);
+
   useEffect(() => {
     const fetchLookups = async () => {
       try {
@@ -127,6 +138,10 @@ const InventoryManagement = () => {
           setCategories(Array.isArray(catRes?.data) ? catRes.data : []);
         } catch (e) { console.error('Fallback fetch failed:', e); }
       }
+      try {
+        const ttRes = await transactionTypesAPI.getAll();
+        setTransactionTypes(Array.isArray(ttRes?.data) ? ttRes.data : []);
+      } catch (e) { console.error('Transaction types fetch failed:', e); }
     };
     fetchLookups();
   }, []);
@@ -193,6 +208,25 @@ const InventoryManagement = () => {
     debounceRef.current = setTimeout(() => setCurrentPage(1), 400);
     return () => clearTimeout(debounceRef.current);
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (activeTab !== 'activity') return;
+    let cancelled = false;
+    const fetchActivity = async () => {
+      setActivityLoading(true);
+      try {
+        const res = await scanEventsAPI.getAll({ per_page: 200 });
+        if (cancelled) return;
+        setActivityLog(Array.isArray(res?.data) ? res.data : []);
+      } catch (err) {
+        console.error('Activity log fetch failed:', err);
+      } finally {
+        if (!cancelled) setActivityLoading(false);
+      }
+    };
+    fetchActivity();
+    return () => { cancelled = true; };
+  }, [activeTab]);
 
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
@@ -308,6 +342,8 @@ const InventoryManagement = () => {
             <p className="inv-page-subtitle">
               {activeTab === 'stock-movement'
                 ? 'Comprehensive stock in/out analysis and inventory velocity'
+                : activeTab === 'activity'
+                ? 'Complete audit trail of all stock movements — receivings, issuances, transfers, and adjustments'
                 : 'Real-time inventory levels and safety stock tracking across all Mindanao locations'}
             </p>
           </div>
@@ -326,6 +362,12 @@ const InventoryManagement = () => {
             onClick={() => setActiveTab('inventory')}
           >
             Inventory
+          </button>
+          <button
+            className={`inv-tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
+            onClick={() => setActiveTab('activity')}
+          >
+            Activity Log
           </button>
         </div>
 
@@ -669,6 +711,166 @@ const InventoryManagement = () => {
             </div>
           </>
         )}
+
+        {/* ════════════════════════════════════════════════
+            ACTIVITY LOG TAB
+        ════════════════════════════════════════════════ */}
+        {activeTab === 'activity' && (() => {
+          // Colour map keyed on inventory_scan_events.transaction_type (varchar)
+          const SCAN_COLORS = { receiving: '#16a34a', issuance: '#dc2626', transfer: '#2563eb', audit: '#d97706' };
+
+          const term = activitySearch.toLowerCase();
+          const filtered = activityLog.filter(r => {
+            if (activityTypeFilter && r.transaction_type !== activityTypeFilter) return false;
+            if (!term) return true;
+            const ref  = (r.meta?.receiving_number || r.meta?.transfer_number || r.barcode || '').toLowerCase();
+            const loc  = (r.location?.location_name || '').toLowerCase();
+            const toLoc= (r.to_location?.location_name || '').toLowerCase();
+            const by   = (r.user ? `${r.user.first_name || ''} ${r.user.last_name || ''}`.trim() + ' ' + (r.user.username || '') : '').toLowerCase();
+            const prod = (r.product?.product_name || r.product?.product_code || '').toLowerCase();
+            return ref.includes(term) || loc.includes(term) || toLoc.includes(term) || by.includes(term) || prod.includes(term);
+          });
+
+          const formatDate = (d) => d
+            ? new Date(d).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : '—';
+
+          const getLoc = (r) => {
+            if (r.transaction_type === 'transfer') {
+              const from = r.location?.location_name || '';
+              const to   = r.to_location?.location_name || '';
+              return from && to ? `${from} → ${to}` : from || to || '—';
+            }
+            return r.location?.location_name || '—';
+          };
+
+          const getBy = (r) => r.user
+            ? `${r.user.first_name || ''} ${r.user.last_name || ''}`.trim() || r.user.username || '—'
+            : '—';
+
+          const getRef = (r) => r.meta?.receiving_number || r.meta?.transfer_number || r.barcode || '—';
+
+          const qtyDisplay = (r) => {
+            const q = r.quantity_delta;
+            if (!q && q !== 0) return '—';
+            if (r.transaction_type === 'issuance') return `-${Math.abs(q)}`;
+            if (r.transaction_type === 'audit') return String(q);
+            return `+${Math.abs(q)}`;
+          };
+
+          // Unique transaction types present in data for filter dropdown
+          const presentTypes = [...new Set(activityLog.map(r => r.transaction_type))];
+
+          return (
+            <>
+              {/* Filters */}
+              <div className="sm-filter-row" style={{ marginBottom: 12 }}>
+                <div className="sm-search">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search product, barcode, location, user..."
+                    value={activitySearch}
+                    onChange={(e) => setActivitySearch(e.target.value)}
+                  />
+                </div>
+                <select
+                  className="sm-select"
+                  value={activityTypeFilter}
+                  onChange={(e) => setActivityTypeFilter(e.target.value)}
+                >
+                  <option value="">All Types</option>
+                  {presentTypes.map(type => {
+                    const typeId = { receiving: 1, issuance: 2, transfer: 3, audit: 4 }[type];
+                    const entry  = typeId ? transactionTypes.find(t => t.transaction_type_id === typeId) : null;
+                    return (
+                      <option key={type} value={type}>
+                        {entry?.transaction_name || type}
+                      </option>
+                    );
+                  })}
+                </select>
+                <span style={{ fontSize: 12, color: '#9ca3af', alignSelf: 'center' }}>
+                  {activityLoading ? 'Loading…' : `${filtered.length} record${filtered.length !== 1 ? 's' : ''}`}
+                </span>
+              </div>
+
+              {/* Table */}
+              <div className="sm-card sm-products-card" style={{ padding: 0 }}>
+                <div className="sm-products-header" style={{ padding: '16px 20px 12px' }}>
+                  <h3 className="sm-card-title">Stock Movement Audit Trail</h3>
+                  <p className="sm-card-sub">Every barcode scan that changed inventory — receiving, issuance, transfer, audit</p>
+                </div>
+
+                {activityLoading && <div className="inv-loading" style={{ padding: '40px', textAlign: 'center' }}>Loading activity log…</div>}
+
+                {!activityLoading && (
+                  <div className="inv-table-wrapper">
+                    <table className="inv-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 40 }}>#</th>
+                          <th>DATE / TIME</th>
+                          <th>TYPE</th>
+                          <th>PRODUCT</th>
+                          <th>BARCODE / REF</th>
+                          <th>LOCATION</th>
+                          <th style={{ textAlign: 'right' }}>QTY</th>
+                          <th>BY</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                              {activityLog.length === 0
+                                ? 'No scan events recorded yet. Events will appear here after the first barcode scan.'
+                                : 'No records match your filters.'}
+                            </td>
+                          </tr>
+                        ) : filtered.map((r, idx) => {
+                          const color = SCAN_COLORS[r.transaction_type] || '#6b7280';
+                          const label = r.transaction_type_name || r.transaction_type || '—';
+                          const qtyColor = r.transaction_type === 'issuance' ? '#dc2626'
+                            : r.transaction_type === 'transfer' ? '#2563eb'
+                            : r.transaction_type === 'audit' ? '#d97706'
+                            : '#16a34a';
+                          return (
+                            <tr key={r.id}>
+                              <td className="inv-cell-num" style={{ color: '#9ca3af', fontSize: 11 }}>{idx + 1}</td>
+                              <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{formatDate(r.created_at)}</td>
+                              <td>
+                                <span style={{
+                                  display: 'inline-block', fontSize: 10, fontWeight: 700,
+                                  letterSpacing: '0.04em', padding: '2px 8px', borderRadius: 4,
+                                  background: color + '18', color, border: `1px solid ${color}40`,
+                                }}>
+                                  {label.toUpperCase()}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{r.product?.product_name || '—'}</div>
+                                {r.product?.product_code && <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.product.product_code}</div>}
+                              </td>
+                              <td><span className="invd-mono invd-small">{getRef(r)}</span></td>
+                              <td style={{ fontSize: 12, color: '#374151' }}>{getLoc(r)}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: qtyColor }}>
+                                {qtyDisplay(r)}
+                              </td>
+                              <td style={{ fontSize: 12, color: '#6b7280' }}>{getBy(r)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        })()}
 
         {/* ── Modals ── */}
         {viewingItem && (

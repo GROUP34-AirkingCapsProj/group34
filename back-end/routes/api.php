@@ -32,11 +32,14 @@ use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\BarcodeScanController;
 use App\Http\Controllers\Api\InventoryScanTransactionController;
 use App\Http\Controllers\Api\PendingProductController;
+use App\Http\Controllers\Api\InventoryScanEventController;
 use App\Http\Controllers\Api\StatusLookupController;
+use App\Http\Controllers\Api\TransactionTypeLookupController;
 use App\Http\Controllers\Api\UnitLookupController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\AlertSettingsController;
 use App\Http\Controllers\Api\SystemSessionSettingsController;
+use App\Http\Controllers\Api\CompanySettingsController;
 use App\Http\Controllers\Api\PasswordResetController;
 
 /*
@@ -95,6 +98,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     Route::get('/system/session-settings', [SystemSessionSettingsController::class, 'show']);
     Route::middleware('role:admin')->put('/system/session-settings', [SystemSessionSettingsController::class, 'update']);
+    Route::get('/system/company-settings', [CompanySettingsController::class, 'show']);
+    Route::middleware('role:admin')->put('/system/company-settings', [CompanySettingsController::class, 'update']);
     Route::middleware(['role:admin', 'throttle:30,1'])->post('/password-reset/issue', [PasswordResetController::class, 'issue']);
     Route::middleware(['role:admin', 'throttle:60,1'])->get('/password-reset/active', [PasswordResetController::class, 'active']);
     Route::middleware(['role:admin', 'throttle:60,1'])->post('/password-reset/active/{passwordResetCode}/revoke', [PasswordResetController::class, 'revoke']);
@@ -136,6 +141,20 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::put('/status-lookup/{id}', [StatusLookupController::class, 'update']);
         Route::delete('/status-lookup/{id}', [StatusLookupController::class, 'destroy']);
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | ERD: TRANSACTION TYPE (transaction_type_lookup)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/transaction-type-lookup', [TransactionTypeLookupController::class, 'index']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | INVENTORY SCAN EVENTS (audit trail)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/scan-events', [InventoryScanEventController::class, 'index']);
 
     /*
     |--------------------------------------------------------------------------

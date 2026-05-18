@@ -2597,17 +2597,18 @@ const BarcodeScan = () => {
             <div className="bs-home-card">
               <div className="bs-home-card-head">
                 <span className="bs-home-card-title">Recent Movement</span>
-                <button className="bs-viewall" type="button">VIEW ALL</button>
+                <button className="bs-viewall" type="button" onClick={() => navigate('/admin/inventory?tab=activity')}>VIEW ALL</button>
               </div>
               <div className="bs-movement-list">
                 {recentMovement.map((m, i) => {
-                  const ref = m.receiving_code || m.issuance_code || m.transfer_code || m.reference_number || `#${m.id || i}`;
+                  const ref = m.receiving_code || m.issuance_code || m.transfer_code || m.reference_number || `#${m.id || i + 1}`;
                   const label = `${m._type} ${ref}`.trim();
                   const when  = m.created_at
                     ? new Date(m.created_at).toLocaleString()
                     : m.transaction_date || '';
                   return (
                     <div key={i} className="bs-movement-item">
+                      <span className="bs-movement-number">{i + 1}</span>
                       <span className="bs-movement-dot" style={{ background: movementColor(m._type) }} />
                       <div className="bs-movement-info">
                         <span className="bs-movement-label">{label}</span>
@@ -2661,10 +2662,11 @@ const BarcodeScan = () => {
           ) : bsrFilteredPos.map((po) => {
             const poId = po.po_id ?? po.id;
             const totalAmt = Number(po.total_amount || po.grand_total || 0);
-            const statusName = po?.status?.status_name ?? po?.status_name ?? '';
-            const isPartial = /partial/i.test(statusName);
-            const badgeClass = isPartial ? 'bsr-badge--partial' : 'bsr-badge--approved';
-            const badgeLabel = isPartial ? 'PARTIALLY RECEIVED' : statusName.toUpperCase() || 'APPROVED';
+            const statusName  = po?.status?.status_name ?? po?.status_name ?? '';
+            const isPartial   = /partial/i.test(statusName);
+            const isCompleted = /complet/i.test(statusName);
+            const badgeClass  = isCompleted ? 'bsr-badge--completed' : isPartial ? 'bsr-badge--partial' : 'bsr-badge--approved';
+            const badgeLabel  = isCompleted ? 'COMPLETED' : isPartial ? 'PARTIALLY RECEIVED' : statusName.toUpperCase() || 'APPROVED';
             return (
               <button key={poId} type="button" className="bsr-po-card" onClick={() => handleBsrSelectPo(po)}>
                 <div className="bsr-po-card-top">

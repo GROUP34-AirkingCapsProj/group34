@@ -6,9 +6,11 @@ import {
   suppliersAPI,
   purchaseOrdersAPI,
   purchaseRequestsAPI,
-  getToken,
-  getApiBaseUrl,
+  locationsAPI,
+  usersAPI,
+  companySettingsAPI,
 } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
@@ -37,6 +39,31 @@ const getPriorityFromAmount = (total, itemCount) => {
   return { label: 'LOW', color: 'low' };
 };
 
+// Returns the unit abbreviation to display in the printed PO document
+const getUnitForExport = (lineItem) => {
+  if (lineItem.unit_abbreviation) return lineItem.unit_abbreviation;
+  if (lineItem.product_type === 'appliance') return 'unit';
+  if (lineItem.unit_name) return lineItem.unit_name;
+  return 'pc';
+};
+
+// Returns the full description for the printed PO document
+const getDescriptionForExport = (lineItem) => {
+  const name = lineItem.product || lineItem.product_name || '';
+  if (lineItem.product_type === 'appliance') {
+    return [name, lineItem.brand_name, lineItem.capacity_rating, lineItem.variant]
+      .filter(Boolean).join(' ').toUpperCase();
+  }
+  if (lineItem.product_type === 'consumable') {
+    let desc = name.toUpperCase();
+    if (lineItem.pieces_per_package) {
+      desc += ` (${lineItem.pieces_per_package}pcs/${lineItem.package_unit || 'Box'})`;
+    }
+    return desc;
+  }
+  return name.toUpperCase();
+};
+
 // V5 product detail label for PO line items (snake_case backend fields)
 const poLineLabel = (item) => {
   if (item.product_type === 'consumable') {
@@ -55,6 +82,7 @@ const poLineLabel = (item) => {
 
 const PurchaseOrderPage = () => {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');
@@ -63,6 +91,20 @@ const PurchaseOrderPage = () => {
   const [suppliers,          setSuppliers]          = useState([]);
   const [loadingSuppliers,   setLoadingSuppliers]   = useState(true);
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
+
+  // New PO form fields
+  const [paymentTerms,    setPaymentTerms]    = useState('Net 30');
+  const [notes,           setNotes]           = useState('');
+  const [referencesNote,  setReferencesNote]  = useState('');
+  const [verifiedById,    setVerifiedById]    = useState('');
+  const [shipToName,      setShipToName]      = useState('');
+  const [shipToAddress,   setShipToAddress]   = useState('');
+  const [showPreview,     setShowPreview]     = useState(false);
+
+  // Reference data for new fields
+  const [allUsers,         setAllUsers]         = useState([]);
+  const [locations,        setLocations]        = useState([]);
+  const [companySettings,  setCompanySettings]  = useState({});
 
   // Expected delivery
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(() => {
@@ -105,6 +147,21 @@ const PurchaseOrderPage = () => {
       .catch(() => {})
       .finally(() => { if (mounted) setLoadingSuppliers(false); });
     return () => { mounted = false; };
+  }, []);
+
+  // ── Load users, locations, and company settings once ──────────────────────
+  useEffect(() => {
+    usersAPI.getAll({ per_page: 200 })
+      .then(res => setAllUsers(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => {});
+
+    locationsAPI.getAll({ per_page: 100 })
+      .then(res => setLocations(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => {});
+
+    companySettingsAPI.get()
+      .then(res => setCompanySettings(res || {}))
+      .catch(() => {});
   }, []);
 
   // ── Load approved PRs when on create tab ──────────────────────────────────
@@ -195,6 +252,13 @@ const PurchaseOrderPage = () => {
     setLineItems([]);
     setSubmitError('');
     setReorderNotes({});
+    setPaymentTerms('Net 30');
+    setNotes('');
+    setReferencesNote('');
+    setVerifiedById('');
+    setShipToName('');
+    setShipToAddress('');
+    setShowPreview(false);
   }, []);
 
   // ── Line item editing ──────────────────────────────────────────────────────
@@ -231,27 +295,6 @@ const PurchaseOrderPage = () => {
     return found?.supplier_name ?? found?.name ?? '—';
   }, [suppliers, selectedSupplierId]);
 
-  // ── Export PO list ─────────────────────────────────────────────────────────
-  const handleExport = useCallback(async () => {
-    try {
-      const token = getToken();
-      const base  = getApiBaseUrl();
-      const res   = await fetch(`${base}/purchase-orders/export`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      });
-      if (!res.ok) throw new Error(`Export failed (${res.status})`);
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `purchase-orders-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('Export failed: ' + err.message);
-    }
-  }, []);
-
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmitPO = useCallback(async () => {
     setSubmitError('');
@@ -272,6 +315,12 @@ const PurchaseOrderPage = () => {
       const payload = {
         supplier_id:            Number(selectedSupplierId),
         expected_delivery_date: expectedDeliveryDate || null,
+        payment_terms:          paymentTerms,
+        notes:                  notes.trim()          || null,
+        references_note:        referencesNote.trim() || null,
+        verified_by:            verifiedById ? Number(verifiedById) : null,
+        ship_to_name:           shipToName.trim()     || null,
+        ship_to_address:        shipToAddress.trim()  || null,
         details: lineItems.map(li => ({
           product_id:       li.product_id,
           quantity_ordered: li.quantity_ordered,
@@ -294,7 +343,7 @@ const PurchaseOrderPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems]);
+  }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, verifiedById, shipToName, shipToAddress]);
 
   // ── PO Status renderer ─────────────────────────────────────────────────────
   const renderPoStatusView = () => {
@@ -323,8 +372,9 @@ const PurchaseOrderPage = () => {
           return (
             <div key={po.po_id} className="po-status-card">
               {po.purchase_request && (
-                <div style={{ background: '#eff6ff', borderBottom: '1px solid #bfdbfe', padding: '6px 16px', fontSize: 12, color: '#1d4ed8', borderRadius: '10px 10px 0 0' }}>
-                  📋 From PR:{' '}
+                <div style={{ background: '#eff6ff', borderBottom: '1px solid #bfdbfe', padding: '6px 16px', fontSize: 12, color: '#1d4ed8', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  From PR:{' '}
                   <button
                     type="button"
                     style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', fontSize: 12, padding: 0 }}
@@ -417,8 +467,9 @@ const PurchaseOrderPage = () => {
               <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
                 Create a Purchase Request first and get it approved by Admin.
               </p>
-              <button type="button" className="po-btn po-btn-add-product" onClick={() => navigate('/admin/purchase-requests')}>
-                Go to Purchase Requests →
+              <button type="button" className="po-btn po-btn-add-product" onClick={() => navigate('/admin/purchase-requests')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                Go to Purchase Requests
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
               </button>
             </div>
           )}
@@ -443,7 +494,12 @@ const PurchaseOrderPage = () => {
                           <span className="pr-badge pr-badge--approved">APPROVED</span>
                         </div>
                         <div style={{ fontSize: 13, color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                          {pr.location?.location_name && <span>📍 {pr.location.location_name}</span>}
+                          {pr.location?.location_name && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                              {pr.location.location_name}
+                            </span>
+                          )}
                           <span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
                           {neededBy && <span>Needed by: {neededBy}</span>}
                           <span>Requested by: {reqBy}</span>
@@ -453,10 +509,11 @@ const PurchaseOrderPage = () => {
                       <button
                         type="button"
                         className="po-btn po-btn-final-submission"
-                        style={{ whiteSpace: 'nowrap', fontSize: 13, padding: '8px 16px' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', fontSize: 13, padding: '8px 16px' }}
                         onClick={() => handleSelectPR(pr)}
                       >
-                        SELECT →
+                        SELECT
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                       </button>
                     </div>
                   </div>
@@ -475,7 +532,10 @@ const PurchaseOrderPage = () => {
       <div>
         {/* PR info banner */}
         <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>📋 Creating PO from Purchase Request: <strong>{selectedPR.pr_number}</strong></span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Creating PO from Purchase Request: <strong style={{ marginLeft: 3 }}>{selectedPR.pr_number}</strong>
+          </span>
           <button type="button" style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', fontSize: 13, textDecoration: 'underline', padding: 0 }} onClick={handleDeselectPR}>
             ← Change PR
           </button>
@@ -516,6 +576,101 @@ const PurchaseOrderPage = () => {
                 <div className="po-field">
                   <label className="po-field-label">EXPECTED DELIVERY DATE</label>
                   <input type="date" className="po-input" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} />
+                </div>
+                <div className="po-field">
+                  <label className="po-field-label">PAYMENT TERMS</label>
+                  <select className="po-select" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}>
+                    <option value="Net 30">Net 30</option>
+                    <option value="Net 15">Net 15</option>
+                    <option value="Net 60">Net 60</option>
+                    <option value="Net 90">Net 90</option>
+                    <option value="COD">COD</option>
+                    <option value="Upon Delivery">Upon Delivery</option>
+                  </select>
+                </div>
+                <div className="po-field">
+                  <label className="po-field-label">VERIFIED BY</label>
+                  <select className="po-select" value={verifiedById} onChange={e => setVerifiedById(e.target.value)}>
+                    <option value="">Select verifier (optional)</option>
+                    {allUsers.map(u => (
+                      <option key={u.user_id} value={String(u.user_id)}>
+                        {u.first_name} {u.last_name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="po-field-hint">Appears as "Verified By" on the printed PO document.</span>
+                </div>
+              </div>
+
+              {/* Ship To overrides */}
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                  SHIP TO / DELIVERY ADDRESS
+                  <span style={{ fontWeight: 400, marginLeft: 6 }}>(shown on printed PO — leave blank to use location defaults)</span>
+                </div>
+                <div className="po-details-grid">
+                  <div className="po-field">
+                    <label className="po-field-label">SHIP TO — COMPANY / NAME</label>
+                    <input
+                      type="text"
+                      className="po-input"
+                      placeholder="e.g. Airking Air Conditioning CDO Branch"
+                      value={shipToName}
+                      onChange={e => setShipToName(e.target.value)}
+                    />
+                  </div>
+                  <div className="po-field">
+                    <label className="po-field-label">SHIP TO — ADDRESS</label>
+                    <textarea
+                      className="po-textarea"
+                      rows={2}
+                      placeholder="e.g. Zone 5, Bulua, Cagayan de Oro"
+                      value={shipToAddress}
+                      onChange={e => setShipToAddress(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {locations.length > 0 && (
+                  <div className="budget-quick-period-btns" style={{ marginTop: 6 }}>
+                    <span style={{ fontSize: 12, color: '#64748b', marginRight: 6 }}>Quick fill:</span>
+                    {locations.map(loc => (
+                      <button
+                        key={loc.location_id ?? loc.id}
+                        type="button"
+                        className="budget-quick-btn"
+                        onClick={() => {
+                          setShipToName(loc.location_name);
+                          setShipToAddress([loc.address, loc.city, loc.province, loc.region].filter(Boolean).join(', '));
+                        }}
+                      >
+                        {loc.location_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Notes and References */}
+              <div className="po-details-grid" style={{ marginTop: 16 }}>
+                <div className="po-field" style={{ gridColumn: 'span 2' }}>
+                  <label className="po-field-label">NOTES</label>
+                  <textarea
+                    className="po-textarea"
+                    rows={2}
+                    placeholder="Any special instructions or notes…"
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                  />
+                </div>
+                <div className="po-field" style={{ gridColumn: 'span 2' }}>
+                  <label className="po-field-label">REFERENCES</label>
+                  <textarea
+                    className="po-textarea"
+                    rows={2}
+                    placeholder="Reference documents or quotation numbers…"
+                    value={referencesNote}
+                    onChange={e => setReferencesNote(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
@@ -590,8 +745,8 @@ const PurchaseOrderPage = () => {
                               <td><strong>{fmtPeso(li.subtotal)}</strong></td>
                               <td style={{ fontSize: 12 }}>
                                 {isPartial
-                                  ? <span style={{ color: '#d97706' }}>⚠ Partial — {remaining} remaining</span>
-                                  : <span style={{ color: '#16a34a' }}>✓ Full</span>
+                                  ? <span style={{ color: '#d97706', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Partial — {remaining} remaining</span>
+                                  : <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>Full</span>
                                 }
                               </td>
                             </tr>
@@ -602,7 +757,7 @@ const PurchaseOrderPage = () => {
                                     <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0 }}>
                                       <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                                     </svg>
-                                    ℹ {openDemand} more unit(s) of <strong style={{ marginLeft: 3 }}>{li.product}</strong> on open demand from other PRs.
+                                    {openDemand} more unit(s) of <strong style={{ marginLeft: 3 }}>{li.product}</strong> on open demand from other PRs.
                                   </div>
                                 </td>
                               </tr>
@@ -614,6 +769,131 @@ const PurchaseOrderPage = () => {
                   </table>
                 </div>
               )}
+            </div>
+
+            {/* Document Preview */}
+            <div className="po-preview-panel">
+              <button type="button" className="po-preview-toggle" onClick={() => setShowPreview(p => !p)}>
+                {showPreview ? '▲ Hide Document Preview' : '▼ Preview Document'}
+              </button>
+
+              {showPreview && (() => {
+                const previewSupplier = suppliers.find(s => String(s.supplier_id ?? s.id) === String(selectedSupplierId));
+                const verifierUser    = allUsers.find(u => String(u.user_id) === String(verifiedById));
+                const preparedByName  = authUser
+                  ? `${authUser.first_name || ''} ${authUser.last_name || ''}`.trim() || authUser.username || ''
+                  : '';
+                const verifiedByName  = verifierUser
+                  ? `${verifierUser.first_name || ''} ${verifierUser.last_name || ''}`.trim()
+                  : '';
+                // Approved By = whoever approved the PR (not the PO approval-queue step)
+                const approvedByName  = (() => {
+                  const apr = selectedPR?.approver;
+                  if (apr && typeof apr === 'object') {
+                    return `${apr.first_name || ''} ${apr.last_name || ''}`.trim() || apr.username || '';
+                  }
+                  const apId = selectedPR?.approved_by;
+                  if (apId) {
+                    const u = allUsers.find(u => String(u.user_id) === String(apId));
+                    return u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || '' : '';
+                  }
+                  return '';
+                })();
+                const todayStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+                return (
+                  <div className="po-doc-preview">
+                    {/* Company Header */}
+                    <div className="po-doc-company-header">
+                      <h2>{companySettings.company_name || 'Airking Air Conditioning'}</h2>
+                      {companySettings.company_address && <p>{companySettings.company_address}</p>}
+                      {companySettings.company_email   && <p>{companySettings.company_email}</p>}
+                    </div>
+
+                    {/* Supplier + PO reference */}
+                    <div className="po-doc-header-grid">
+                      <div className="po-doc-supplier">
+                        <strong>{(previewSupplier?.supplier_name || '[SUPPLIER NAME]').toUpperCase()}</strong>
+                        {previewSupplier?.address && <span>{previewSupplier.address}</span>}
+                      </div>
+                      <div className="po-doc-reference">
+                        <h3>Purchase Order</h3>
+                        <table className="po-doc-ref-table">
+                          <tbody>
+                            <tr><td>Date:</td><td>{todayStr}</td></tr>
+                            <tr><td>Reference #:</td><td>[Auto-generated]</td></tr>
+                            <tr><td>Payment Terms:</td><td>{paymentTerms}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Ship To */}
+                    {(shipToName || shipToAddress) && (
+                      <div style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
+                        <strong style={{ display: 'block', marginBottom: 2 }}>SHIP TO:</strong>
+                        {shipToName    && <div>{shipToName}</div>}
+                        {shipToAddress && <div>{shipToAddress}</div>}
+                      </div>
+                    )}
+
+                    {/* Line Items */}
+                    <div className="po-doc-details-label">Details</div>
+                    <table className="po-doc-table">
+                      <thead>
+                        <tr>
+                          <th>Quantity</th>
+                          <th>Unit</th>
+                          <th>Item Code</th>
+                          <th>Description</th>
+                          <th>Unit Price</th>
+                          <th>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lineItems.map((li, idx) => (
+                          <tr key={idx}>
+                            <td>{li.quantity_ordered}</td>
+                            <td>{getUnitForExport(li)}</td>
+                            <td>{li.product_code || '—'}</td>
+                            <td>{getDescriptionForExport(li)}</td>
+                            <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
+                            <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'right' }}>Total Amount {'→'}</td>
+                          <td><strong>₱{poTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+
+                    {/* Notes / References */}
+                    <div className="po-doc-notes">
+                      <div><strong>Notes:</strong> {notes || ''}</div>
+                      <div><strong>References:</strong> {referencesNote || ''}</div>
+                    </div>
+
+                    {/* Signatures */}
+                    <div className="po-doc-signatures">
+                      <div className="po-doc-sig-block">
+                        <div className="po-doc-sig-label">Prepared By:</div>
+                        <div className="po-doc-sig-name">{preparedByName}</div>
+                      </div>
+                      <div className="po-doc-sig-block">
+                        <div className="po-doc-sig-label">Verified By:</div>
+                        <div className="po-doc-sig-name">{verifiedByName}</div>
+                      </div>
+                      <div className="po-doc-sig-block">
+                        <div className="po-doc-sig-label">Approved By:</div>
+                        <div className="po-doc-sig-name">{approvedByName}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -630,8 +910,9 @@ const PurchaseOrderPage = () => {
                 <span className={`po-summary-value${hasPartialLines ? ' po-summary-vat' : ''}`}>{fmtPeso(poTotal)}</span>
               </div>
               {hasPartialLines && (
-                <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: '#92400e', marginTop: 8 }}>
-                  ⚠ This PO is {fmtPeso(prEstimatedTotal - poTotal)} less than the PR. PR will be Partially Converted.
+                <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: '#92400e', marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span>This PO is {fmtPeso(prEstimatedTotal - poTotal)} less than the PR. PR will be Partially Converted.</span>
                 </div>
               )}
               <div className="po-summary-total" style={{ marginTop: 12 }}>
@@ -667,7 +948,9 @@ const PurchaseOrderPage = () => {
           <div className="po-success-banner">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
             <strong>{convertSuccess.po_number}</strong> created from <strong>{convertSuccess.pr_number}</strong>! Waiting for Admin approval.
-            <button type="button" className="po-success-close" onClick={() => setConvertSuccess(null)}>✕</button>
+            <button type="button" className="po-success-close" onClick={() => setConvertSuccess(null)} aria-label="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
         )}
 
@@ -688,26 +971,22 @@ const PurchaseOrderPage = () => {
                 <p className="po-page-subtitle">Convert approved Purchase Requests into Purchase Orders</p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={handleExport}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                EXPORT CSV
-              </button>
-            </div>
           </div>
         </div>
 
         <div className="po-tab-nav">
           <button type="button" className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('create')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              <path d="M8 13h8M8 17h5"/>
+            </svg>
             Convert PR to PO
           </button>
           <button type="button" className={`po-tab-btn${activeTab === 'status' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('status')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+              <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
             PO Status
           </button>
         </div>
@@ -850,7 +1129,7 @@ const PurchaseOrderPage = () => {
                                 {(item.product_code || item.product?.product_code) && (
                                   <small style={{ color: '#94a3b8' }}>{item.product_code || item.product?.product_code}</small>
                                 )}
-                                {ab && <span style={{ display: 'block', fontSize: 11, color: '#15803d' }}>✓ Approved by: {detailApprovedBy}</span>}
+                                {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
                               </td>
                               <td style={{ fontSize: 11 }}>
                                 <span className={`po-type-badge ${pType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
@@ -876,16 +1155,56 @@ const PurchaseOrderPage = () => {
               </div>
 
               {(() => {
+                // Resolve a user value that may be a user object (eager-loaded relation)
+                // or a raw integer FK — falls back to allUsers lookup.
+                const resolveUserName = (val) => {
+                  if (!val) return null;
+                  if (typeof val === 'object') {
+                    return `${val.first_name || ''} ${val.last_name || ''}`.trim() || val.username || null;
+                  }
+                  const u = allUsers.find(u => String(u.user_id) === String(val));
+                  return u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || null : null;
+                };
+
                 const poPayload = {
-                  po_number: d.po_number,
-                  status:    statusCfg.label,
+                  po_number:     d.po_number,
+                  status:        statusCfg.label,
+                  payment_terms: d.payment_terms || 'Net 30',
+                  notes:         d.notes         || '',
+                  references:    d.references_note || '',
+                  company: {
+                    name:    companySettings.company_name    || 'Airking Air Conditioning',
+                    address: companySettings.company_address || '',
+                    email:   companySettings.company_email   || '',
+                  },
                   supplier: { name: d.supplier?.supplier_name, address: d.supplier?.address, origin: d.supplier?.origin, region: d.supplier?.region, contact_person: d.supplier?.contact_person, contact_number: d.supplier?.contact_number, email: d.supplier?.email, tin: d.supplier?.tin },
-                  ship_to:  { name: d.location?.location_name, address: [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || null, contact_number: d.location?.contact_number, email: d.location?.email, manager_name: d.location?.manager_name },
-                  prepared_by:            createdByName,
-                  approved_by:            actorName !== '—' ? actorName : null,
+                  ship_to: {
+                    name:    d.ship_to_name    || d.location?.location_name,
+                    address: d.ship_to_address || [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || null,
+                    contact_number: d.location?.contact_number,
+                    email:          d.location?.email,
+                    manager_name:   d.location?.manager_name,
+                  },
+                  prepared_by: createdByName,
+                  verified_by: resolveUserName(d.verified_by),
+                  // Approved By on the document = whoever approved the PR, not the PO approval-queue step
+                  approved_by: resolveUserName(d.purchase_request?.approved_by),
                   order_date:             d.order_date ? String(d.order_date).slice(0, 10) : '—',
                   expected_delivery_date: d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—',
-                  items: details.map(item => ({ name: item.product_name || item.product?.product_name || '—', unit: item.unit_name || item.product?.unit?.unit_name || '—', qty: item.quantity_ordered, unit_price: item.unit_price, subtotal: item.subtotal })),
+                  items: details.map(item => ({
+                    product_code:      item.product_code || '—',
+                    name:              item.product_name || '—',
+                    unit:              item.unit_abbreviation || (item.product_type === 'appliance' ? 'unit' : item.unit_name || 'pc'),
+                    qty:               item.quantity_ordered,
+                    unit_price:        item.unit_price,
+                    subtotal:          item.subtotal,
+                    product_type:      item.product_type,
+                    brand_name:        item.brand_name,
+                    capacity_rating:   item.capacity_rating,
+                    variant:           item.variant,
+                    pieces_per_package: item.pieces_per_package,
+                    package_unit:      item.package_unit,
+                  })),
                   total_amount: amount,
                 };
                 return (

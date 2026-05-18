@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\BudgetAllocation;
 use App\Models\Inventory;
+use App\Models\InventoryScanEvent;
 use App\Models\ItemSerial;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -383,6 +384,11 @@ class InventoryScanTransactionController extends Controller
 
             DB::commit();
 
+            $this->logScanEvent($request, 'receiving', 'applied', $product, $validated, $quantity, null, [
+                'receiving_number' => $receiving->receiving_number,
+                'is_serialized'    => $isSerialized,
+            ]);
+
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
@@ -521,6 +527,10 @@ class InventoryScanTransactionController extends Controller
 
             DB::commit();
 
+            $this->logScanEvent($request, 'transfer', 'applied', $product, $validated, $quantity, null, [
+                'transfer_number' => $transferNumber,
+            ]);
+
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
@@ -570,6 +580,10 @@ class InventoryScanTransactionController extends Controller
                 'description'   => sprintf('Audit scan barcode=%s product_id=%s location_id=%s stock=%s', $barcode, $product->product_id, $locationId ?: '—', $stock),
             ]);
         }
+
+        $this->logScanEvent($request, 'audit', 'applied', $product,
+            ['barcode' => $barcode, 'location_id' => $locationId],
+            0, null, ['stock_on_hand' => $stock]);
 
         $fresh = $product->fresh()->load([
             'category',
@@ -634,6 +648,8 @@ class InventoryScanTransactionController extends Controller
 
             DB::commit();
 
+            $this->logScanEvent($request, 'issuance', 'applied', $product, $validated, $quantity);
+
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
@@ -680,6 +696,29 @@ class InventoryScanTransactionController extends Controller
         return DB::table('status_lookup')
             ->where('status_category', 'transfer')
             ->value('status_id');
+    }
+
+    private function logScanEvent(Request $request, string $type, string $action, Product $product, array $validated, int $quantityDelta = 0, ?string $reason = null, array $meta = []): void
+    {
+        try {
+            InventoryScanEvent::create([
+                'user_id'          => $request->user()?->user_id,
+                'transaction_type' => $type,
+                'action'           => $action,
+                'reason'           => $reason,
+                'barcode'          => $validated['barcode'] ?? null,
+                'product_id'       => $product->product_id,
+                'po_id'            => !empty($validated['po_id']) ? (int) $validated['po_id'] : null,
+                'location_id'      => !empty($validated['location_id']) ? (int) $validated['location_id']
+                                    : (!empty($validated['from_location_id']) ? (int) $validated['from_location_id'] : null),
+                'to_location_id'   => !empty($validated['to_location_id']) ? (int) $validated['to_location_id'] : null,
+                'quantity_delta'   => $quantityDelta,
+                'serial_number'    => !empty($validated['barcode']) && $type === 'receiving' ? $validated['barcode'] : null,
+                'meta'             => empty($meta) ? null : $meta,
+            ]);
+        } catch (\Throwable) {
+            // Non-critical — never let logging break the main transaction
+        }
     }
 
     private function syncPoReceivingStatus(int $poId, $userId = null): void
