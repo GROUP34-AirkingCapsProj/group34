@@ -384,6 +384,32 @@ class InventoryScanTransactionController extends Controller
 
             DB::commit();
 
+            // Summary audit entry — ties together who received, which PO, which product, which serial
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'barcode_received',
+                    'table_name' => 'receiving_details',
+                    'record_id'  => $receiving->receiving_id,
+                    'old_values' => null,
+                    'new_values' => [
+                        'receiving_number'  => $receiving->receiving_number,
+                        'product_id'        => $product->product_id,
+                        'product_name'      => $product->product_name,
+                        'product_type'      => $product->product_type,
+                        'scanned_barcode'   => $scannedBarcode ?: null,
+                        'quantity_received' => $quantity,
+                        'po_id'             => $poId ?: null,
+                        'location_id'       => $locationId,
+                        'is_serialized'     => $isSerialized,
+                    ],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
             $this->logScanEvent($request, 'receiving', 'applied', $product, $validated, $quantity, null, [
                 'receiving_number' => $receiving->receiving_number,
                 'is_serialized'    => $isSerialized,
@@ -526,6 +552,27 @@ class InventoryScanTransactionController extends Controller
             }
 
             DB::commit();
+
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'stock_transferred',
+                    'table_name' => 'transfers',
+                    'record_id'  => $transfer->transfer_id,
+                    'old_values' => null,
+                    'new_values' => [
+                        'transfer_number'  => $transferNumber,
+                        'from_location_id' => $fromLocationId,
+                        'to_location_id'   => $toLocationId,
+                        'product_name'     => $product->product_name,
+                        'total_quantity'   => $quantity,
+                    ],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
             $this->logScanEvent($request, 'transfer', 'applied', $product, $validated, $quantity, null, [
                 'transfer_number' => $transferNumber,

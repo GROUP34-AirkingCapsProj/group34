@@ -144,6 +144,26 @@ class TransferController extends Controller
 
             DB::commit();
 
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'stock_transferred',
+                    'table_name' => 'transfers',
+                    'record_id'  => $transfer->transfer_id,
+                    'old_values' => null,
+                    'new_values' => [
+                        'transfer_number'  => $transfer->transfer_number,
+                        'from_location_id' => $validated['from_location_id'] ?? null,
+                        'to_location_id'   => $validated['to_location_id'] ?? null,
+                        'total_quantity'   => $total,
+                    ],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
             return $this->success($transfer->load(['fromLocation', 'toLocation', 'details.product']), 'Transfer created successfully', 201);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());

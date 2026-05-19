@@ -1,9 +1,9 @@
-import React, { useEffect, useState, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../admin/components/AdminLayout';
 import { useAuth } from '../../admin/context/AuthContext';
 import { getRoleKey, ROLES } from '../../admin/utils/roles';
-import { batchAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
+import { batchAPI, dashboardAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -45,6 +45,38 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
 
+  // ── Chart filters ──
+  const todayStr = () => new Date().toISOString().split('T')[0];
+  const daysAgoStr = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; };
+
+  const PERIODS = [
+    { key: 'today',     label: 'Today' },
+    { key: 'yesterday', label: 'Yesterday' },
+    { key: '7d',        label: 'Last 7D' },
+    { key: '30d',       label: 'Last 30D' },
+    { key: '90d',       label: 'Last 90D' },
+    { key: 'year',      label: 'This Year' },
+  ];
+  const PERIOD_RANGES = {
+    today:     () => [todayStr(), todayStr()],
+    yesterday: () => [daysAgoStr(1), daysAgoStr(1)],
+    '7d':      () => [daysAgoStr(6), todayStr()],
+    '30d':     () => [daysAgoStr(29), todayStr()],
+    '90d':     () => [daysAgoStr(89), todayStr()],
+    year:      () => [new Date().getFullYear() + '-01-01', todayStr()],
+  };
+
+  const [filterPeriod,    setFilterPeriod]    = useState('7d');
+  const [filterDateFrom,  setFilterDateFrom]  = useState(daysAgoStr(6));
+  const [filterDateTo,    setFilterDateTo]    = useState(todayStr());
+  const [filterCatId,     setFilterCatId]     = useState('');
+  const [filterBrandId,   setFilterBrandId]   = useState('');
+  const [filterProductId, setFilterProductId] = useState('');
+  const [filterOptions,   setFilterOptions]   = useState({ categories: [], brands: [], products: [] });
+  const [chartData,       setChartData]       = useState(null);
+  const [chartLoading,    setChartLoading]    = useState(false);
+  const chartDebounce = useRef(null);
+
   const loadDashboard = async () => {
     setConnectionError(null);
     setLoading(true);
@@ -81,6 +113,55 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  // Load filter options once
+  useEffect(() => {
+    dashboardAPI.getFilterOptions().then(res => {
+      const d = res?.data ?? {};
+      setFilterOptions({
+        categories: d.categories ?? [],
+        brands:     d.brands     ?? [],
+        products:   d.products   ?? [],
+      });
+    }).catch(() => {});
+  }, []);
+
+  // Re-fetch chart data whenever filters change (debounced 350ms)
+  useEffect(() => {
+    clearTimeout(chartDebounce.current);
+    chartDebounce.current = setTimeout(async () => {
+      setChartLoading(true);
+      try {
+        const params = { date_from: filterDateFrom, date_to: filterDateTo };
+        if (filterCatId)     params.category_id = filterCatId;
+        if (filterBrandId)   params.brand_id    = filterBrandId;
+        if (filterProductId) params.product_id  = filterProductId;
+        const res = await dashboardAPI.getCharts(params);
+        setChartData(res?.data ?? null);
+      } catch (_) {
+        setChartData(null);
+      } finally {
+        setChartLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(chartDebounce.current);
+  }, [filterDateFrom, filterDateTo, filterCatId, filterBrandId, filterProductId]);
+
+  const applyPeriod = (key) => {
+    setFilterPeriod(key);
+    const [from, to] = PERIOD_RANGES[key]();
+    setFilterDateFrom(from);
+    setFilterDateTo(to);
+  };
+
+  const clearChartFilters = () => {
+    setFilterPeriod('7d');
+    setFilterDateFrom(daysAgoStr(6));
+    setFilterDateTo(todayStr());
+    setFilterCatId('');
+    setFilterBrandId('');
+    setFilterProductId('');
+  };
 
   if (connectionError) {
     return (
@@ -157,13 +238,15 @@ const AdminDashboard = () => {
 
   const stats = data?.stats ?? {};
   const pendingActions        = stats.pending_actions ?? 0;
-  const lowStockItems         = data?.low_stock_items           ?? [];
-  const inventoryByCategory   = data?.inventory_by_category    ?? { labels: [], values: [] };
-  const stockStatusByLocation = data?.stock_status_by_location  ?? { labels: [], inStock: [], lowStock: [] };
-  const warehouseCapacity     = data?.warehouse_capacity        ?? { labels: [], capacity: [], occupancy: [] };
-  const stockTrends           = data?.stock_trends              ?? { labels: [], values: [] };
-  const transactionTrends     = data?.transaction_trends        ?? { labels: [], values: [] };
-  const recentActivity        = data?.recent_activity           ?? [];
+  const lowStockItems         = data?.low_stock_items ?? [];
+  const recentActivity        = data?.recent_activity ?? [];
+  // Charts use filtered data when available, otherwise the initial batch data
+  const cd = chartData;
+  const inventoryByCategory   = cd?.inventory_by_category    ?? data?.inventory_by_category    ?? { labels: [], values: [] };
+  const stockStatusByLocation = cd?.stock_status_by_location ?? data?.stock_status_by_location ?? { labels: [], inStock: [], lowStock: [] };
+  const warehouseCapacity     = cd?.warehouse_capacity       ?? data?.warehouse_capacity       ?? { labels: [], capacity: [], occupancy: [] };
+  const stockTrends           = cd?.stock_trends             ?? data?.stock_trends             ?? { labels: [], values: [], reorder_level: 0 };
+  const transactionTrends     = cd?.transaction_trends       ?? data?.transaction_trends       ?? { labels: [], values: [], purchase_values: [] };
 
   const timeAgo = (iso) => {
     if (!iso) return '';
@@ -301,14 +384,7 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
-
-      {/* TRANSACTION TRENDS */}
-      <div className="chart-card">
-        <h3>Transaction Trends</h3>
-        <div className="chart-wrapper">
-          <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'purchase', data: transactionTrends.values.map((v) => v * 0.6), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'sales', data: transactionTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
-        </div>
-      </div>
+      
 
       {/* QUICK ACTIONS + RECENT ACTIVITY */}
       <div className="charts-section">
@@ -329,10 +405,10 @@ const AdminDashboard = () => {
               { label: 'LOCATIONS', path: '/admin/locations', cls: 'yellow', icon: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></> },
               { label: 'CUSTOMER', path: '/admin/customers', cls: 'green', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></> },
               { label: 'CLAIM', path: '/admin/warranty', cls: 'purple', icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> },
-              { label: 'TRANSFERS', path: '/admin/inventory', cls: 'grey', icon: <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></> },
+              { label: 'CREATE PR', path: '/admin/purchase-requests', state: { tab: 'create' }, cls: 'grey', icon: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></> },
               { label: 'SCAN BARCODE', path: '/admin/inventory-operation', cls: 'blue', icon: <><path d="M4 7V5a2 2 0 0 1 2-2h2"/><path d="M16 3h2a2 2 0 0 1 2 2v2"/><path d="M4 17v2a2 2 0 0 0 2 2h2"/><path d="M16 21h2a2 2 0 0 0 2-2v-2"/><line x1="8" y1="8" x2="8" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></> },
-            ].map(({ label, path, cls, icon }) => (
-              <button key={label} type="button" className="quick-action-card" onClick={() => navigate(path)}>
+            ].map(({ label, path, state, cls, icon }) => (
+              <button key={label} type="button" className="quick-action-card" onClick={() => navigate(path, state ? { state } : undefined)}>
                 <span className={`quick-action-icon quick-action-icon-${cls}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{icon}</svg>
                 </span>
@@ -384,6 +460,101 @@ const AdminDashboard = () => {
         </div>
       </div>
 
+      {/* CHART FILTERS */}
+      <div className="dash-filter-bar">
+        <div className="dash-filter-row">
+          <div className="dash-filter-group">
+            <span className="dash-filter-label">Period</span>
+            <div className="dash-period-btns">
+              {PERIODS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`dash-period-btn${filterPeriod === key ? ' dash-period-btn--active' : ''}`}
+                  onClick={() => applyPeriod(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="dash-filter-group">
+            <span className="dash-filter-label">Date Range</span>
+            <div className="dash-filter-dates">
+              <input
+                type="date"
+                className="dash-filter-date"
+                value={filterDateFrom}
+                max={filterDateTo}
+                onChange={e => { setFilterDateFrom(e.target.value); setFilterPeriod('custom'); }}
+              />
+              <span className="dash-filter-date-sep">—</span>
+              <input
+                type="date"
+                className="dash-filter-date"
+                value={filterDateTo}
+                min={filterDateFrom}
+                onChange={e => { setFilterDateTo(e.target.value); setFilterPeriod('custom'); }}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="dash-filter-row">
+          <div className="dash-filter-group">
+            <span className="dash-filter-label">Filter By</span>
+            <div className="dash-filter-dims">
+              <select
+                className="dash-filter-select"
+                value={filterCatId}
+                onChange={e => { setFilterCatId(e.target.value); setFilterProductId(''); }}
+              >
+                <option value="">All Categories</option>
+                {filterOptions.categories.map(c => (
+                  <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
+                ))}
+              </select>
+              <select
+                className="dash-filter-select"
+                value={filterBrandId}
+                onChange={e => setFilterBrandId(e.target.value)}
+              >
+                <option value="">All Brands</option>
+                {filterOptions.brands.map(b => (
+                  <option key={b.brand_id} value={b.brand_id}>{b.brand_name}</option>
+                ))}
+              </select>
+              <select
+                className="dash-filter-select"
+                value={filterProductId}
+                onChange={e => setFilterProductId(e.target.value)}
+              >
+                <option value="">All Products</option>
+                {filterOptions.products.map(p => (
+                  <option key={p.product_id} value={p.product_id}>{p.product_name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="dash-filter-actions">
+            {chartLoading && <span className="dash-filter-updating">Updating...</span>}
+            <button type="button" className="dash-filter-clear-btn" onClick={clearChartFilters}>
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* TRANSACTION TRENDS */}
+      <div className="charts-section charts-section--single">
+        <div className="chart-card">
+          <h3>Transaction Trends</h3>
+          <div className="chart-wrapper">
+            <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Sales', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+          </div>
+        </div>
+      </div>
+      
+
       {/* CHARTS ROW 2 */}
       <div className="charts-section">
         <div className="chart-card">
@@ -392,10 +563,11 @@ const AdminDashboard = () => {
             <Bar data={{ labels: stockStatusByLocation.labels, datasets: [{ label: 'In Stock', data: stockStatusByLocation.inStock, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 50 }, { label: 'Low Stock', data: stockStatusByLocation.lowStock, backgroundColor: '#F59E0B', borderRadius: 4, barThickness: 50 }] }} options={groupedBarOptions} />
           </div>
         </div>
-        <div className="chart-card">
-          <h3>Warehouse Capacity</h3>
+
+                <div className="chart-card">
+          <h3>Inventory by Category</h3>
           <div className="chart-wrapper">
-            <Bar data={{ labels: warehouseCapacity.labels, datasets: [{ label: 'Capacity', data: warehouseCapacity.capacity, backgroundColor: '#D1D5DB', borderRadius: 4, barThickness: 80 }, { label: 'Occupancy', data: warehouseCapacity.occupancy, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 80 }] }} options={groupedBarOptions} />
+            <Bar data={{ labels: inventoryByCategory.labels, datasets: [{ data: inventoryByCategory.values, backgroundColor: '#DC2626', borderRadius: 6, maxBarThickness: 72 }] }} options={barOptions} />
           </div>
         </div>
       </div>
@@ -405,18 +577,18 @@ const AdminDashboard = () => {
         <div className="chart-card">
           <h3>Stock Level Trends</h3>
           <div className="chart-wrapper">
-            <Line data={{ labels: stockTrends.labels, datasets: [{ label: 'reorder-level', data: stockTrends.labels.map(() => 140), borderColor: '#F59E0B', backgroundColor: 'transparent', borderWidth: 2, borderDash: [8, 4], pointRadius: 0, pointHoverRadius: 0 }, { label: 'stock', data: stockTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.1)', fill: true, tension: 0.4, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#DC2626', pointBorderColor: '#ffffff', pointBorderWidth: 2 }] }} options={lineOptions} />
+            <Line data={{ labels: stockTrends.labels, datasets: [{ label: 'Reorder Level', data: stockTrends.labels.map(() => stockTrends.reorder_level ?? 0), borderColor: '#F59E0B', backgroundColor: 'transparent', borderWidth: 2, borderDash: [8, 4], pointRadius: 0, pointHoverRadius: 0 }, { label: 'Avg Stock', data: stockTrends.values, borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.1)', fill: true, tension: 0.4, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#DC2626', pointBorderColor: '#ffffff', pointBorderWidth: 2 }] }} options={lineOptions} />
           </div>
         </div>
-      
-        <div className="chart-card">
-          <h3>Inventory by Category</h3>
+
+                <div className="chart-card">
+          <h3>Warehouse Capacity</h3>
           <div className="chart-wrapper">
-            <Bar data={{ labels: inventoryByCategory.labels, datasets: [{ data: inventoryByCategory.values, backgroundColor: '#DC2626', borderRadius: 6, maxBarThickness: 72 }] }} options={barOptions} />
+            <Bar data={{ labels: warehouseCapacity.labels, datasets: [{ label: 'Capacity', data: warehouseCapacity.capacity, backgroundColor: '#D1D5DB', borderRadius: 4, barThickness: 80 }, { label: 'Occupancy', data: warehouseCapacity.occupancy, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 80 }] }} options={groupedBarOptions} />
           </div>
         </div>
       </div>
-
+      
     </AdminLayout>
 
   );

@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ConsumableDetail extends Model
 {
+    use Auditable;
     protected $table = 'consumable_details';
     protected $primaryKey = 'consumable_detail_id';
 
