@@ -302,10 +302,16 @@ export const batchAPI = {
 ====================== */
 export const dashboardAPI = {
   get: async () => apiRequest('/dashboard'),
+  getStats: async () => apiRequest('/dashboard/stats'),
   getLowStock: async () => apiRequest('/dashboard/low-stock'),
   getRecentMovements: async () => apiRequest('/dashboard/recent-movements'),
   getStockMovementTrends: async () => apiRequest('/dashboard/stock-movement-trends'),
   getPendingApprovals: async () => apiRequest('/dashboard/pending-approvals'),
+  getCharts: async (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString();
+    return apiRequest(`/dashboard/charts${qs ? '?' + qs : ''}`);
+  },
+  getFilterOptions: async () => apiRequest('/dashboard/filter-options'),
 };
 
 /* ======================
@@ -354,6 +360,12 @@ export const auditAPI = {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/audit-trail?${query}` : '/audit-trail');
   },
+  getTrailV2: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/audit-trail/v2?${query}` : '/audit-trail/v2');
+  },
+  getFilterOptions: async () => apiRequest('/audit-trail/v2/filter-options'),
+  getEntry: async (id) => apiRequest(`/audit-trail/v2/${id}`),
   getLog: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/audit-log?${query}` : '/audit-log');

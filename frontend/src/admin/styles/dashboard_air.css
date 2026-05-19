@@ -1249,6 +1249,133 @@
 }
 
 /* ===============================
+   CHART FILTER BAR
+================================ */
+.dash-filter-bar {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.dash-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.dash-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dash-filter-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #9ca3af;
+}
+
+/* Period quick-select buttons */
+.dash-period-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dash-period-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  background: var(--bg-hover);
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.dash-period-btn:hover { background: #e5e7eb; color: #374151; }
+.dash-period-btn--active {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  color: #fff;
+}
+.dash-period-btn--active:hover { background: #1e40af; }
+
+/* Manual date range */
+.dash-filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-filter-date {
+  padding: 5px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #374151;
+  background: #fff;
+  height: 32px;
+  outline: none;
+}
+.dash-filter-date:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.12); }
+.dash-filter-date-sep { font-size: 13px; color: #9ca3af; }
+
+/* Dimension selects */
+.dash-filter-dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dash-filter-select {
+  padding: 5px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #374151;
+  background: #fff;
+  height: 32px;
+  outline: none;
+  min-width: 140px;
+}
+.dash-filter-select:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.12); }
+
+/* Actions row (updating label + clear button) */
+.dash-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.dash-filter-updating {
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+.dash-filter-clear-btn {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #374151;
+  cursor: pointer;
+  height: 32px;
+  transition: background 0.15s;
+}
+.dash-filter-clear-btn:hover { background: #f3f4f6; }
+
+/* ===============================
    RESPONSIVE
 ================================ */
 @media (max-width: 1200px) {
@@ -1259,6 +1386,20 @@
   .charts-section {
     grid-template-columns: 1fr;
   }
+
+  .dash-filter-row { gap: 14px; }
+  .dash-filter-actions { margin-left: 0; }
+}
+
+@media (max-width: 640px) {
+  .dash-filter-bar { padding: 14px 16px; }
+  .dash-filter-row { flex-direction: column; gap: 12px; }
+  .dash-filter-dates { flex-wrap: wrap; }
+  .dash-filter-date { width: 100%; }
+  .dash-filter-dims { flex-direction: column; }
+  .dash-filter-select { min-width: 0; width: 100%; }
+  .dash-filter-actions { width: 100%; justify-content: space-between; }
+  .dash-filter-clear-btn { flex: 1; text-align: center; }
 }
 
 @media (max-width: 768px) {

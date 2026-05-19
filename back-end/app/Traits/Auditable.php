@@ -7,6 +7,24 @@ use Carbon\Carbon;
 
 trait Auditable
 {
+    protected static array $skipAuditKeys = [
+        // Auth / security — never log these
+        'password',
+        'password_hash',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'api_token',
+        'otp_code',
+        'otp_expires_at',
+        'email_verified_at',
+        // Timestamps — not useful in audit context
+        'created_at',
+        'updated_at',
+        'deleted_at',
+        // Internal Laravel field
+        'laravel_through_key',
+    ];
     protected static function bootAuditable(): void
     {
         static::created(function ($model) {
@@ -73,6 +91,9 @@ trait Auditable
     {
         $normalized = [];
         foreach ($values as $key => $value) {
+            if (\in_array($key, static::$skipAuditKeys, true)) {
+                continue;
+            }
             $normalized[$key] = static::resolveAuditValue($key, $value);
         }
         return $normalized;
@@ -133,6 +154,67 @@ trait Auditable
                 $row = \App\Models\Product::find($id);
                 return $row ? $row->product_name : $value;
             }
+
+            // budget_id → period label
+            if ($key === 'budget_id') {
+                $row = \App\Models\BudgetAllocation::find($id);
+                return $row ? $row->period_label : $value;
+            }
+
+            // pr_id → PR number
+            if ($key === 'pr_id') {
+                $row = \App\Models\PurchaseRequest::find($id);
+                return $row ? $row->pr_number : $value;
+            }
+
+            // po_id → PO number
+            if ($key === 'po_id') {
+                $row = \App\Models\PurchaseOrder::find($id);
+                return $row ? $row->po_number : $value;
+            }
+
+            // receiving_id → receiving number
+            if ($key === 'receiving_id') {
+                $row = \App\Models\Receiving::find($id);
+                return $row ? $row->receiving_number : $value;
+            }
+
+            // issuance_id → issuance identifier
+            if ($key === 'issuance_id') {
+                $row = \App\Models\Issuance::find($id);
+                return $row ? "Issuance #{$id}" : $value;
+            }
+
+            // customer_id → customer name
+            if ($key === 'customer_id') {
+                $row = \App\Models\Customer::find($id);
+                return $row ? $row->customer_name : $value;
+            }
+
+            // adjustment_id → adjustment number
+            if ($key === 'adjustment_id') {
+                $row = \App\Models\Adjustment::find($id);
+                return $row ? ($row->adjustment_number ?? "Adjustment #{$id}") : $value;
+            }
+
+            // category_id → category name
+            if ($key === 'category_id') {
+                $row = \App\Models\CategoryLookup::find($id);
+                return $row ? $row->category_name : $value;
+            }
+
+            // brand_id → brand name
+            if ($key === 'brand_id') {
+                $row = \App\Models\BrandLookup::find($id);
+                return $row ? $row->brand_name : $value;
+            }
+
+            // unit_id → unit name
+            if ($key === 'unit_id') {
+                $row = \App\Models\UnitLookup::find($id);
+                return $row ? $row->unit_name : $value;
+            }
+
         } catch (\Throwable $e) {
             report($e);
         }

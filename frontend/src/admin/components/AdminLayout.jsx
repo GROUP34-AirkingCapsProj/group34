@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
-import { getUnreadNotificationCount } from '../utils/approvalNotifications';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import '../styles/dashboard_air.css';
 
@@ -66,11 +65,16 @@ const AdminLayout = ({ children }) => {
     const syncUnread = async () => {
       try {
         const res = await alertsAPI.getUnreadCount();
-        const count = res?.data?.unread_count ?? res?.data?.data?.unread_count ?? 0;
+        // apiRequest returns the parsed body directly; res.data is the payload object
+        const count = res?.data?.badge_count
+                   ?? res?.data?.unread_count
+                   ?? res?.data?.data?.badge_count
+                   ?? res?.data?.data?.unread_count
+                   ?? 0;
         if (mounted) setUnreadNotifications(Number(count));
       } catch (_) {
-        // Fallback to localStorage count on error
-        if (mounted) setUnreadNotifications(getUnreadNotificationCount());
+        // API unreachable — keep existing count rather than falling back to stale localStorage
+        if (mounted) setUnreadNotifications(prev => prev);
       }
     };
     syncUnread();
@@ -94,7 +98,7 @@ const AdminLayout = ({ children }) => {
       } catch (_) {}
     };
     fetchPending();
-    const interval = setInterval(fetchPending, 120000);
+    const interval = setInterval(fetchPending, 60000);
     return () => { mounted = false; clearInterval(interval); };
   }, []);
 
@@ -273,7 +277,9 @@ const AdminLayout = ({ children }) => {
           </div>
 
           <div className="header-actions">
-            {roleKey === ROLES.ADMIN && (
+            {(roleKey === ROLES.ADMIN
+              || roleKey === ROLES.BRANCH_MANAGER
+              || roleKey === ROLES.INVENTORY_ANALYST) && (
               <button
                 type="button"
                 className="notification-btn"

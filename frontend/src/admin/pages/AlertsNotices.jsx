@@ -14,7 +14,8 @@ const TABLE_LABELS = {
   sales: 'Sale', sale_details: 'Sale Item',
   products: 'Product',
   purchase_orders: 'Purchase Order', purchase_order_details: 'PO Item',
-  receivings: 'Receiving', receiving_details: 'Receiving Item',
+  purchase_requests: 'Purchase Request', purchase_request_details: 'PR Line Item',
+  receivings: 'Receiving Session', receiving_details: 'Receiving Item',
   issuances: 'Issuance', issuance_details: 'Issuance Item',
   adjustments: 'Adjustment', adjustment_details: 'Adjustment Item',
   transfers: 'Transfer', transfer_details: 'Transfer Item',
@@ -22,10 +23,43 @@ const TABLE_LABELS = {
   delivery_receipts: 'Delivery Receipt',
   locations: 'Location', item_serials: 'Item Serial',
   users: 'User', inventory: 'Inventory',
+  scan_corrections: 'Barcode Correction',
+  warranty_records: 'Warranty Record',
+  budget_allocations: 'Budget Allocation',
+  customers: 'Customer',
 };
 
 const SKIP_FIELDS = new Set(['created_at', 'updated_at', 'deleted_at']);
-const ACTION_LABELS = { create: 'Created', update: 'Updated', delete: 'Deleted' };
+
+const ACTION_LABELS = {
+  create:               'Created',
+  update:               'Updated',
+  delete:               'Deleted',
+  login:                'Login',
+  logout:               'Logout',
+  register:             'Registered',
+  barcode_correction:   'Barcode Correction',
+  receiving:            'Stock Received',
+  issuance_completed:   'Issuance Completed',
+  inventory_adjustment: 'Inventory Adjusted',
+  stock_transfer:       'Stock Transferred',
+};
+
+const BADGE_VARIANT = {
+  create:               'create',
+  update:               'update',
+  delete:               'delete',
+  login:                'info',
+  logout:               'info',
+  register:             'info',
+  barcode_correction:   'warning',
+  receiving:            'create',
+  issuance_completed:   'create',
+  inventory_adjustment: 'warning',
+  stock_transfer:       'update',
+};
+
+const badgeVariant = (action) => BADGE_VARIANT[action] || 'info';
 
 const DETAIL_TABLE_MAP = {
   purchase_order_details: 'purchase_orders',
@@ -123,11 +157,13 @@ const Chevron = ({ open }) => (
 const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
   const id = item?.audit_id ?? item?.id;
   const userName =
+    item?.user_full_name ||
     `${item?.user?.first_name || ''} ${item?.user?.last_name || ''}`.trim() ||
     item?.user?.username || 'System';
   const action = item?.action || 'activity';
-  const table = item?.table_name || 'system';
-  const moduleLabel = TABLE_LABELS[table] || table.replace(/_/g, ' ');
+  const table = item?.table_name || '';
+  const moduleLabel = item?.module_label || TABLE_LABELS[table] || (table ? table.replace(/_/g, ' ') : 'System');
+  const actionLabel = item?.action_label || ACTION_LABELS[action] || action.replace(/_/g, ' ');
   const newVals = item?.new_values;
   const oldVals = item?.old_values;
 
@@ -159,8 +195,8 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
           aria-expanded={isExpanded}
         >
           <div className="an-entry-header-left">
-            <span className={`an-audit-badge an-audit-badge--${action}`}>
-              {ACTION_LABELS[action] || action}
+            <span className={`an-audit-badge an-audit-badge--${badgeVariant(action)}`}>
+              {actionLabel}
             </span>
             <span className="an-audit-module">
               {moduleLabel}{item?.record_id != null ? ` #${item.record_id}` : ''}
@@ -181,6 +217,11 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
             <><span className="an-audit-sep">·</span><span className="an-audit-ip">{item.ip_address}</span></>
           )}
         </div>
+
+        {/* Pre-computed change summary from v2 endpoint */}
+        {item?.change_summary && (
+          <div className="an-audit-summary">{item.change_summary}</div>
+        )}
 
         {/* Collapsible body */}
         {isExpanded && (
@@ -225,6 +266,7 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
 const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle }) => {
   const id = primary?.audit_id ?? primary?.id;
   const userName =
+    primary?.user_full_name ||
     `${primary?.user?.first_name || ''} ${primary?.user?.last_name || ''}`.trim() ||
     primary?.user?.username || 'System';
   const table = primary?.table_name || 'system';
@@ -312,6 +354,7 @@ const AlertsNotices = () => {
   const [allLowStock, setAllLowStock] = useState([]);
   const [allAudit, setAllAudit] = useState([]);
   const [pendingPOs, setPendingPOs] = useState([]);
+  const [pendingPRs, setPendingPRs] = useState([]);
   const [pendingProducts, setPendingProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [markingRead, setMarkingRead] = useState(false);
@@ -319,6 +362,9 @@ const AlertsNotices = () => {
   const [auditPage, setAuditPage] = useState(1);
   const [lastSeenMs, setLastSeenMs] = useState(0);
   const [expandedIds, setExpandedIds] = useState(new Set());
+  const [auditActionFilter, setAuditActionFilter] = useState('');
+  const [auditDateFrom, setAuditDateFrom] = useState('');
+  const [auditDateTo, setAuditDateTo] = useState('');
 
   // Load last-seen timestamp; update it after 5 s so next visit clears highlights
   useEffect(() => {
@@ -337,18 +383,22 @@ const AlertsNotices = () => {
       try {
         const [lowStockRes, auditRes, pendingRes] = await Promise.all([
           dashboardAPI.getLowStock(),
-          auditAPI.getTrail({ per_page: 200 }),
+          auditAPI.getTrailV2({ per_page: 100 }),
           dashboardAPI.getPendingApprovals(),
         ]);
+        // getLowStock returns { success, data: [...] }
         const stockPayload = Array.isArray(lowStockRes?.data) ? lowStockRes.data : [];
-        const auditPayload = Array.isArray(auditRes?.data?.data)
-          ? auditRes.data.data
-          : Array.isArray(auditRes?.data) ? auditRes.data : [];
+        // v2 returns { success, data: [...], pagination } — data is the items array directly
+        const auditPayload = Array.isArray(auditRes?.data)
+          ? auditRes.data
+          : Array.isArray(auditRes?.data?.data) ? auditRes.data.data : [];
+        // pendingApprovals returns { success, data: { pending_pos, pending_prs, pending_products, ... } }
         const pendingData = pendingRes?.data?.data ?? pendingRes?.data ?? {};
         if (!mounted) return;
         setAllLowStock(stockPayload);
         setAllAudit(auditPayload);
         setPendingPOs(Array.isArray(pendingData.pending_pos) ? pendingData.pending_pos : []);
+        setPendingPRs(Array.isArray(pendingData.pending_prs) ? pendingData.pending_prs : []);
         setPendingProducts(Array.isArray(pendingData.pending_products) ? pendingData.pending_products : []);
       } catch (e) {
         if (mounted) toast.error(e.message || 'Failed to load alerts.');
@@ -361,6 +411,16 @@ const AlertsNotices = () => {
   }, []);
 
   const groupedAudit = useMemo(() => groupRawAuditLogs(allAudit), [allAudit]);
+
+  const filteredAudit = useMemo(() => {
+    return groupedAudit.filter(g => {
+      const p = g.primary;
+      if (auditActionFilter && p?.action !== auditActionFilter) return false;
+      if (auditDateFrom && p?.created_at < auditDateFrom) return false;
+      if (auditDateTo && p?.created_at > auditDateTo + 'T23:59:59') return false;
+      return true;
+    });
+  }, [groupedAudit, auditActionFilter, auditDateFrom, auditDateTo]);
 
   const isUnread = useCallback(
     (createdAt) => lastSeenMs > 0 && new Date(createdAt).getTime() > lastSeenMs,
@@ -402,6 +462,7 @@ const AlertsNotices = () => {
       const pendingRes = await dashboardAPI.getPendingApprovals();
       const pendingData = pendingRes?.data?.data ?? pendingRes?.data ?? {};
       setPendingPOs(Array.isArray(pendingData.pending_pos) ? pendingData.pending_pos : []);
+      setPendingPRs(Array.isArray(pendingData.pending_prs) ? pendingData.pending_prs : []);
       setPendingProducts(Array.isArray(pendingData.pending_products) ? pendingData.pending_products : []);
     } catch (e) {
       toast.error(e.message || 'Failed to mark alerts as read');
@@ -414,9 +475,11 @@ const AlertsNotices = () => {
   const stockTotalPages = Math.ceil(stockTotal / PAGE_SIZE) || 1;
   const stockVisible = allLowStock.slice((stockPage - 1) * PAGE_SIZE, stockPage * PAGE_SIZE);
 
-  const auditTotal = groupedAudit.length;
+  const auditTotal = filteredAudit.length;
   const auditTotalPages = Math.ceil(auditTotal / PAGE_SIZE) || 1;
-  const auditVisible = groupedAudit.slice((auditPage - 1) * PAGE_SIZE, auditPage * PAGE_SIZE);
+  const auditVisible = filteredAudit.slice((auditPage - 1) * PAGE_SIZE, auditPage * PAGE_SIZE);
+
+  const pendingTotal = pendingPOs.length + pendingPRs.length + pendingProducts.length;
 
   return (
     <AdminLayout>
@@ -432,7 +495,7 @@ const AlertsNotices = () => {
             type="button"
             className="an-mark-all-read-btn"
             onClick={handleMarkAllRead}
-            disabled={markingRead || (pendingPOs.length + pendingProducts.length + unreadCount) === 0}
+            disabled={markingRead || (pendingTotal + unreadCount) === 0}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden>
               <polyline points="20 6 9 17 4 12" />
@@ -447,8 +510,8 @@ const AlertsNotices = () => {
             <div>
               <h3 className="an-card-title">
                 Pending approvals
-                {!loading && (pendingPOs.length + pendingProducts.length) > 0 && (
-                  <span className="an-pending-badge">{pendingPOs.length + pendingProducts.length}</span>
+                {!loading && pendingTotal > 0 && (
+                  <span className="an-pending-badge">{pendingTotal}</span>
                 )}
               </h3>
               <p className="an-card-subtitle">Items waiting for your approval</p>
@@ -458,14 +521,14 @@ const AlertsNotices = () => {
             </button>
           </div>
 
-          {!loading && (pendingPOs.length + pendingProducts.length) > 0 && (
+          {!loading && pendingTotal > 0 && (
             <div className="an-alert-banner">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
               <span>
-                <strong>{pendingPOs.length + pendingProducts.length} item{(pendingPOs.length + pendingProducts.length) !== 1 ? 's' : ''}</strong> require your approval.
+                <strong>{pendingTotal} item{pendingTotal !== 1 ? 's' : ''}</strong> require your approval.
                 Review and act on them as soon as possible.
               </span>
             </div>
@@ -474,7 +537,7 @@ const AlertsNotices = () => {
           <div className="an-approval-list">
             {loading ? (
               <div className="an-empty">Loading pending approvals...</div>
-            ) : pendingPOs.length === 0 && pendingProducts.length === 0 ? (
+            ) : pendingTotal === 0 ? (
               <div className="an-empty">No pending approvals at this time</div>
             ) : (
               <>
@@ -488,12 +551,37 @@ const AlertsNotices = () => {
                         <div className="an-approval-left">
                           <span className="an-approval-title">
                             {po.po_number || `PO #${po.id}`}
-                            {po.supplier && <span className="an-approval-supplier"> — {po.supplier}</span>}
+                            {po.supplier && <span className="an-approval-supplier"> &mdash; {po.supplier}</span>}
                           </span>
                           <span className="an-approval-detail">
                             {po.order_date && <>Order date: {po.order_date} &bull; </>}
-                            {po.total_amount > 0 && <>Amount: ₱{Number(po.total_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })} &bull; </>}
+                            {po.total_amount > 0 && <>Amount: &#8369;{Number(po.total_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })} &bull; </>}
                             Submitted by: {po.created_by}
+                          </span>
+                        </div>
+                        <div className="an-approval-right">
+                          <span className="an-approval-status">Awaiting approval</span>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {pendingPRs.length > 0 && (
+                  <>
+                    <div className="an-approval-group-label">
+                      Purchase Requests <span className="an-approval-group-count">{pendingPRs.length}</span>
+                    </div>
+                    {pendingPRs.map((pr) => (
+                      <div className="an-approval-item an-approval-item--urgent" key={`pr-${pr.id}`}>
+                        <div className="an-approval-left">
+                          <span className="an-approval-title">
+                            {pr.pr_number || `PR #${pr.id}`}
+                            {pr.location_name && <span className="an-approval-supplier"> &mdash; {pr.location_name}</span>}
+                          </span>
+                          <span className="an-approval-detail">
+                            {pr.request_date && <>Request date: {pr.request_date} &bull; </>}
+                            {pr.estimated_total > 0 && <>Amount: &#8369;{Number(pr.estimated_total).toLocaleString('en-PH', { minimumFractionDigits: 2 })} &bull; </>}
+                            Requested by: {pr.requested_by}
                           </span>
                         </div>
                         <div className="an-approval-right">
@@ -514,7 +602,6 @@ const AlertsNotices = () => {
                           <span className="an-approval-title">{p.generated_name || `Registration #${p.id}`}</span>
                           <span className="an-approval-detail">
                             {p.registration_kind && <>Type: {p.registration_kind}</>}
-                            {p.category && <> &bull; Category: {p.category}</>}
                           </span>
                         </div>
                         <div className="an-approval-right">
@@ -542,14 +629,21 @@ const AlertsNotices = () => {
               <div className="an-empty">No low-stock alerts at the moment</div>
             ) : (
               stockVisible.map((item, idx) => (
-                <div className="an-approval-item" key={item.product_id || item.id || idx}>
+                <div className="an-approval-item" key={item.product_id || item.inventory_id || idx}>
                   <div className="an-approval-left">
                     <span className="an-approval-title">
-                      {item.product_name || item.name || item.product?.product_name || `Item ${idx + 1}`}
+                      {item.product_name || `Item ${idx + 1}`}
+                      {item.brand && (
+                        <span className="an-approval-supplier"> &mdash; {item.brand}</span>
+                      )}
                     </span>
                     <span className="an-approval-detail">
-                      &bull; On hand: {Number(item.quantity_on_hand ?? item.quantity ?? 0).toLocaleString('en-PH')}
-                      &nbsp;&bull; Reorder level: {Number(item.recommended_stocks ?? item.reorder_level ?? 0).toLocaleString('en-PH')}
+                      {item.category && <>{item.category} &bull; </>}
+                      On hand: {Number(item.quantity ?? item.quantity_on_hand ?? 0).toLocaleString('en-PH')}
+                      {' '}&bull; Reorder level: {Number(item.recommended_stocks ?? item.safety_stock ?? 0).toLocaleString('en-PH')}
+                      {(item.deficiency ?? item.shortage) > 0 && (
+                        <> &bull; <strong>Short by {Number(item.deficiency ?? item.shortage).toLocaleString('en-PH')}</strong></>
+                      )}
                     </span>
                   </div>
                   <div className="an-approval-right">
@@ -574,11 +668,54 @@ const AlertsNotices = () => {
             </h3>
             <p className="an-card-subtitle">Click any entry to expand or collapse details</p>
           </div>
+
+          {/* Filter bar */}
+          <div className="an-audit-filters">
+            <select
+              value={auditActionFilter}
+              onChange={e => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
+              className="an-filter-select"
+            >
+              <option value="">All actions</option>
+              {Object.entries(ACTION_LABELS).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={auditDateFrom}
+              onChange={e => { setAuditDateFrom(e.target.value); setAuditPage(1); }}
+              className="an-filter-date"
+              aria-label="Filter from date"
+            />
+            <input
+              type="date"
+              value={auditDateTo}
+              onChange={e => { setAuditDateTo(e.target.value); setAuditPage(1); }}
+              className="an-filter-date"
+              aria-label="Filter to date"
+            />
+            {(auditActionFilter || auditDateFrom || auditDateTo) && (
+              <button
+                type="button"
+                className="an-filter-clear"
+                onClick={() => { setAuditActionFilter(''); setAuditDateFrom(''); setAuditDateTo(''); setAuditPage(1); }}
+              >
+                Clear
+              </button>
+            )}
+            <span className="an-filter-count">
+              {filteredAudit.length} {filteredAudit.length === 1 ? 'entry' : 'entries'}
+            </span>
+          </div>
+
           <div className="an-approval-list">
             {loading ? (
               <div className="an-empty">Loading...</div>
             ) : groupedAudit.length === 0 ? (
               <div className="an-empty">No audit entries yet</div>
+            ) : filteredAudit.length === 0 ? (
+              <div className="an-empty">No entries match the selected filters</div>
             ) : (
               auditVisible.map((group, idx) => {
                 const gId = group.primary?.audit_id ?? group.primary?.id ?? idx;

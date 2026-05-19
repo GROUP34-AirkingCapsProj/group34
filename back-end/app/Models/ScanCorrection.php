@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScanCorrection extends Model
 {
+    use Auditable;
     protected $table      = 'scan_corrections';
     protected $primaryKey = 'correction_id';
 

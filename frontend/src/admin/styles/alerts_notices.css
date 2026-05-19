@@ -169,9 +169,12 @@
   padding: 3px 8px; border-radius: 4px;
   text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0;
 }
-.an-audit-badge--create { background: #d1fae5; color: #065f46; }
-.an-audit-badge--update { background: #dbeafe; color: #1e40af; }
-.an-audit-badge--delete { background: #fee2e2; color: #991b1b; }
+.an-audit-badge--create  { background: #d1fae5; color: #065f46; }
+.an-audit-badge--update  { background: #dbeafe; color: #1e40af; }
+.an-audit-badge--delete  { background: #fee2e2; color: #991b1b; }
+.an-audit-badge--info    { background: #e0f0ff; color: #1a6fa8; }
+.an-audit-badge--warning { background: #fff4e0; color: #a06800; }
+.an-audit-badge--danger  { background: #ffeaea; color: #b91c1c; }
 
 .an-audit-meta {
   display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
@@ -218,6 +221,64 @@
 }
 .an-detail-item:last-child { border-bottom: none; }
 
+/* Audit filter bar */
+.an-audit-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 12px;
+  flex-wrap: wrap;
+}
+
+.an-filter-select,
+.an-filter-date {
+  padding: 5px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: #374151;
+  height: 32px;
+  outline: none;
+}
+.an-filter-select:focus,
+.an-filter-date:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.12);
+}
+
+.an-filter-clear {
+  padding: 5px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #f9fafb;
+  color: #374151;
+  cursor: pointer;
+  height: 32px;
+}
+.an-filter-clear:hover { background: #f3f4f6; }
+
+.an-filter-count {
+  font-size: 12px;
+  color: #6b7280;
+  margin-left: 4px;
+}
+
+/* Pre-computed change summary from v2 endpoint */
+.an-audit-summary {
+  font-size: 12px;
+  color: #4b5563;
+  margin-top: 2px;
+  padding: 4px 8px;
+  background: #f9fafb;
+  border-left: 2px solid #d1d5db;
+  border-radius: 0 4px 4px 0;
+}
+
 @media (max-width: 640px) {
   .an-approval-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .an-audit-filters { gap: 6px; }
+  .an-filter-select,
+  .an-filter-date { font-size: 12px; }
 }

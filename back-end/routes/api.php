@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\TransactionTypeLookupController;
 use App\Http\Controllers\Api\UnitLookupController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\AlertSettingsController;
+use App\Http\Controllers\Api\AuditTrailController;
 use App\Http\Controllers\Api\SystemSessionSettingsController;
 use App\Http\Controllers\Api\CompanySettingsController;
 use App\Http\Controllers\Api\PasswordResetController;
@@ -87,6 +88,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/dashboard/recent-movements', [DashboardController::class, 'recentMovements']);
     Route::get('/dashboard/stock-movement-trends', [DashboardController::class, 'stockMovementTrends']);
     Route::get('/dashboard/pending-approvals', [DashboardController::class, 'pendingApprovals']);
+    Route::get('/dashboard/charts', [DashboardController::class, 'filteredCharts']);
+    Route::get('/dashboard/filter-options', [DashboardController::class, 'filterOptions']);
 
     /*
     |--------------------------------------------------------------------------
@@ -583,13 +586,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
             if ($request->has('action')) {
                 $query->where('action', $request->action);
             }
-            return $query->paginate($request->get('per_page', 50));
+            return $query->paginate($request->input('per_page', 50));
         });
 
         Route::get('/audit-trail', function (\Illuminate\Http\Request $request) {
             return \App\Models\AuditTrail::with('user')
                 ->orderBy('created_at', 'desc')
-                ->paginate($request->get('per_page', 50));
+                ->paginate($request->input('per_page', 50));
         });
 
         Route::get('/audit-trail/user/{userId}', function ($userId) {
@@ -597,6 +600,17 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
                 ->orderBy('created_at', 'desc')
                 ->paginate(50);
         });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | AUDIT TRAIL v2 (structured, filterable, with labels)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin,auditor,branch_manager')->group(function () {
+        Route::get('/audit-trail/v2', [AuditTrailController::class, 'index']);
+        Route::get('/audit-trail/v2/filter-options', [AuditTrailController::class, 'filterOptions']);
+        Route::get('/audit-trail/v2/{audit_id}', [AuditTrailController::class, 'show']);
     });
 
     /*

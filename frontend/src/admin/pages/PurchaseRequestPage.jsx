@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import {
@@ -101,13 +101,15 @@ const newLine = () => ({
 
 const PurchaseRequestPage = () => {
   const navigate  = useNavigate();
+  const location  = useLocation();
   const { user }  = useAuth();
   const roleKey   = getRoleKey(user);
   const isAdmin   = roleKey === ROLES.ADMIN;
   const isIA      = roleKey === ROLES.INVENTORY_ANALYST;
   const canCreate = isAdmin || isIA;  // both roles can submit PRs and convert to PO
 
-  const [activeTab, setActiveTab] = useState(isAdmin ? 'approvals' : 'create');
+  const initialTab = location.state?.tab ?? (isAdmin ? 'approvals' : 'create');
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // ── Tab 1: Create ─────────────────────────────────────────────────────────
   const [locations,        setLocations]        = useState([]);
