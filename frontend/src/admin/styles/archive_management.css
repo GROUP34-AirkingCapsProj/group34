@@ -24,6 +24,41 @@
   margin: 0;
 }
 
+/* Page-level navigation tabs (Archive Records / Archive Settings) */
+.am-page-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0;
+}
+
+.am-page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 6px 6px 0 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.am-page-tab:hover {
+  color: #111827;
+  background: #f9fafb;
+}
+
+.am-page-tab--active {
+  color: #111827;
+  border-bottom-color: #111827;
+  background: transparent;
+}
+
 /* ===============================
    STAT CARDS
 ================================ */
@@ -467,4 +502,384 @@
     align-items: flex-start;
     margin-right: 0;
   }
+}
+
+/* ===============================
+   MODULE TABS
+================================ */
+.archive-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0;
+  margin-bottom: 16px;
+}
+
+.archive-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s;
+}
+
+.archive-tab:hover {
+  color: #1f2937;
+}
+
+.archive-tab--active {
+  color: #1e3a5f;
+  border-bottom-color: #1e3a5f;
+  font-weight: 600;
+}
+
+.archive-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 9px;
+}
+
+/* ===============================
+   FILTER BAR
+================================ */
+.archive-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.archive-search-input {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 200px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.archive-search-input:focus {
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.08);
+}
+
+.archive-date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.archive-date-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.archive-date-input:focus {
+  border-color: #1e3a5f;
+}
+
+.archive-record-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.archive-clear-filters {
+  font-size: 12px;
+  color: #6b7280;
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.archive-clear-filters:hover {
+  background: #f3f4f6;
+}
+
+/* ===============================
+   RESTORE ALL BUTTON
+================================ */
+.archive-restore-all-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e3a5f;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: background 0.15s;
+}
+
+.archive-restore-all-btn:hover {
+  background: #dbeafe;
+}
+
+/* ===============================
+   RECORDS TABLE
+================================ */
+.archive-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.archive-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #374151;
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.archive-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.archive-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.archive-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.archive-record-name {
+  font-weight: 500;
+  color: #111827;
+}
+
+.archive-record-code {
+  font-family: monospace;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.archive-record-date {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+/* ===============================
+   ROW ACTION BUTTONS
+================================ */
+.archive-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.archive-restore-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #065f46;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.archive-restore-btn:hover {
+  background: #d1fae5;
+}
+
+.archive-force-delete-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #991b1b;
+  background: transparent;
+  border: 1px solid #fecaca;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.archive-force-delete-btn:hover {
+  background: #fef2f2;
+}
+
+/* ===============================
+   EMPTY STATE
+================================ */
+.archive-empty {
+  padding: 48px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+/* ===============================
+   PAGINATION
+================================ */
+.archive-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px 0 4px;
+}
+
+.archive-page-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.archive-page-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.archive-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.archive-page-info {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ===============================
+   ARCHIVE BUTTON (inline, per-row)
+================================ */
+.archive-btn {
+  padding: 4px 12px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1.4;
+}
+
+.archive-btn:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fb923c;
+}
+
+.archive-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.archive-btn--md {
+  padding: 7px 16px;
+  font-size: 13px;
+}
+
+/* Inline confirm strip */
+.archive-confirm-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.archive-confirm-msg {
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.archive-confirm-yes {
+  padding: 3px 10px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.archive-confirm-yes:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.archive-confirm-yes:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.archive-confirm-no {
+  padding: 3px 10px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.archive-confirm-no:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.archive-confirm-no:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

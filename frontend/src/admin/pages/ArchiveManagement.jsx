@@ -1,229 +1,417 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import { getApiBaseUrl, getToken } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { getRoleKey, ROLES } from '../utils/roles';
 import { toast } from '../utils/toast';
 import '../styles/archive_management.css';
+import '../styles/archive_settings.css';
+
+const MODULES = [
+  { key: 'products',           label: 'Products' },
+  { key: 'locations',          label: 'Locations' },
+  { key: 'users',              label: 'Users' },
+  { key: 'customers',          label: 'Customers' },
+  { key: 'suppliers',          label: 'Suppliers' },
+  { key: 'brands',             label: 'Brands' },
+  { key: 'categories',         label: 'Categories' },
+  { key: 'models',             label: 'Models' },
+  { key: 'units',              label: 'Units' },
+  { key: 'purchase_orders',    label: 'Purchase Orders' },
+  { key: 'purchase_requests',  label: 'Purchase Requests' },
+  { key: 'transfers',          label: 'Transfers' },
+  { key: 'adjustments',        label: 'Adjustments' },
+  { key: 'issuances',          label: 'Issuances' },
+  { key: 'budget_allocations', label: 'Budget Allocations' },
+];
+
+const PER_PAGE = 15;
 
 const ArchiveManagement = () => {
-  const [searchCode, setSearchCode] = useState('');
-  const [searchType, setSearchType] = useState('');
-  const [archiveSettings, setArchiveSettings] = useState({
-    autoArchiveDays: '365',
-    retentionYears: '',
-    compressArchives: true,
-    backupArchives: true,
-  });
+  const { user } = useAuth();
+  const roleKey = getRoleKey(user || {});
+  const isAdmin = roleKey === ROLES.ADMIN;
 
-  const stats = {
-    archivedTransactions: 0,
-    archivedUsers: 0,
-    archiveSize: '0 MB',
+  const [summary, setSummary]         = useState({});
+  const [activeModule, setActiveModule] = useState('products');
+  const [records, setRecords]         = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [page, setPage]               = useState(1);
+  const [totalPages, setTotalPages]   = useState(1);
+  const [totalItems, setTotalItems]   = useState(0);
+  const [search, setSearch]           = useState('');
+  const [deletedFrom, setDeletedFrom] = useState('');
+  const [deletedTo, setDeletedTo]     = useState('');
+
+  const searchRef = useRef(null);
+
+  const authHeaders = useCallback(() => {
+    const token = getToken();
+    return {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  }, []);
+
+  const apiUrl = (path) => `${getApiBaseUrl()}${path}`;
+
+  // ── Summary ───────────────────────────────────────────────────────────────
+  const loadSummary = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/archive/summary'), { headers: authHeaders() });
+      const data = await res.json();
+      setSummary(data.data?.modules ?? {});
+    } catch {
+      // silently ignore — badges simply won't appear
+    }
+  }, [authHeaders]);
+
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+
+  // ── Records ───────────────────────────────────────────────────────────────
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), per_page: String(PER_PAGE) });
+      if (search)      params.append('search',       search);
+      if (deletedFrom) params.append('deleted_from', deletedFrom);
+      if (deletedTo)   params.append('deleted_to',   deletedTo);
+
+      const res = await fetch(apiUrl(`/archive/${activeModule}?${params}`), { headers: authHeaders() });
+      const data = await res.json();
+      setRecords(Array.isArray(data.data) ? data.data : []);
+      setTotalPages(data.pagination?.last_page ?? 1);
+      setTotalItems(data.pagination?.total ?? 0);
+    } catch (e) {
+      toast.error('Failed to load archived records.');
+    } finally {
+      setLoading(false);
+    }
+  }, [activeModule, page, search, deletedFrom, deletedTo, authHeaders]);
+
+  useEffect(() => { loadRecords(); }, [loadRecords]);
+
+  // ── Restore ───────────────────────────────────────────────────────────────
+  const handleRestore = async (module, id) => {
+    if (!window.confirm('Restore this record? It will become active again.')) return;
+    try {
+      const res = await fetch(
+        apiUrl(`/archive/${module}/${id}/restore`),
+        { method: 'POST', headers: authHeaders() }
+      );
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'Record restored.');
+        loadRecords();
+        setSummary(prev => ({
+          ...prev,
+          [module]: { ...prev[module], count: Math.max(0, (prev[module]?.count ?? 1) - 1) },
+        }));
+      } else {
+        toast.error(data.message ?? 'Restore failed.');
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    }
   };
 
-  const archivedTransactions = [];
+  // ── Force delete ──────────────────────────────────────────────────────────
+  const handleForceDelete = async (module, id) => {
+    if (!window.confirm(
+      'PERMANENTLY DELETE this record?\n\nThis action cannot be undone. The record will be completely removed from the database and cannot be recovered.'
+    )) return;
+    if (!window.confirm('Are you absolutely sure? This is permanent.')) return;
 
-  const archivedUsers = [];
-
-  const handleSettingsChange = (field, value) => {
-    setArchiveSettings(prev => ({ ...prev, [field]: value }));
+    try {
+      const res = await fetch(
+        apiUrl(`/archive/${module}/${id}/force`),
+        { method: 'DELETE', headers: authHeaders() }
+      );
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Record permanently deleted.');
+        loadRecords();
+        setSummary(prev => ({
+          ...prev,
+          [module]: { ...prev[module], count: Math.max(0, (prev[module]?.count ?? 1) - 1) },
+        }));
+      } else {
+        toast.error(data.message ?? 'Permanent delete failed.');
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    }
   };
 
-  const handleToggle = (field) => {
-    setArchiveSettings(prev => ({ ...prev, [field]: !prev[field] }));
+  // ── Restore all ───────────────────────────────────────────────────────────
+  const handleRestoreAll = async () => {
+    if (!window.confirm(`Restore all ${totalItems} archived ${activeModule} records?`)) return;
+    try {
+      const res = await fetch(
+        apiUrl(`/archive/${activeModule}/restore-all`),
+        { method: 'POST', headers: authHeaders() }
+      );
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'All records restored.');
+        loadRecords();
+        loadSummary();
+      } else {
+        toast.error(data.message ?? 'Restore all failed.');
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    }
   };
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const totalArchived = Object.values(summary).reduce((s, m) => s + (m?.count ?? 0), 0);
+
+  const switchModule = (key) => {
+    setActiveModule(key);
+    setPage(1);
+    setSearch('');
+    setDeletedFrom('');
+    setDeletedTo('');
+    if (searchRef.current) searchRef.current.value = '';
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setDeletedFrom('');
+    setDeletedTo('');
+    setPage(1);
+  };
+
+  const activeLabel = MODULES.find(m => m.key === activeModule)?.label ?? '';
 
   return (
     <AdminLayout>
       <div className="am-content">
+
         {/* Page Header */}
         <div className="am-page-header">
           <h1>Archive Management</h1>
-          <p>Historical records and archived data for long-term record keeping</p>
+          <p>Browse, restore, or permanently remove soft-deleted records across all modules</p>
         </div>
 
-        {/* Stat Cards */}
+        {/* Page-level navigation tabs */}
+        <div className="am-page-tabs">
+          <Link
+            to="/admin/archive"
+            className="am-page-tab am-page-tab--active"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" />
+              <line x1="10" y1="12" x2="14" y2="12" />
+            </svg>
+            Archive Records
+          </Link>
+          {isAdmin && (
+            <Link
+              to="/admin/archive-settings"
+              className="am-page-tab"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              Archive Settings
+            </Link>
+          )}
+        </div>
+
+        {/* Summary stat cards */}
         <div className="am-stats-grid">
           <div className="am-stat-card">
             <div className="am-stat-icon blue">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="21 8 21 21 3 21 3 8"></polyline>
-                <rect x="1" y="3" width="22" height="5"></rect>
-                <line x1="10" y1="12" x2="14" y2="12"></line>
+                <polyline points="21 8 21 21 3 21 3 8" />
+                <rect x="1" y="3" width="22" height="5" />
+                <line x1="10" y1="12" x2="14" y2="12" />
               </svg>
             </div>
             <div className="am-stat-details">
-              <span className="am-stat-label">Archived Transactions</span>
-              <span className="am-stat-value">{stats.archivedTransactions.toLocaleString()}</span>
+              <span className="am-stat-label">Total Archived Records</span>
+              <span className="am-stat-value">{totalArchived.toLocaleString()}</span>
             </div>
           </div>
           <div className="am-stat-card">
             <div className="am-stat-icon red">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
             </div>
             <div className="am-stat-details">
               <span className="am-stat-label">Archived Users</span>
-              <span className="am-stat-value">{stats.archivedUsers}</span>
+              <span className="am-stat-value">{summary.users?.count ?? 0}</span>
             </div>
           </div>
           <div className="am-stat-card">
             <div className="am-stat-icon purple">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
               </svg>
             </div>
             <div className="am-stat-details">
-              <span className="am-stat-label">Archive Size</span>
-              <span className="am-stat-value">{stats.archiveSize}</span>
+              <span className="am-stat-label">Active Modules</span>
+              <span className="am-stat-value">{Object.values(summary).filter(m => (m?.count ?? 0) > 0).length} / {MODULES.length}</span>
             </div>
           </div>
         </div>
 
-        {/* Archived Transactions */}
-        <div className="am-section">
-          <div className="am-section-header">
-            <h2>Archived Transactions</h2>
-            <p>Historical transaction records</p>
-          </div>
-
-          <div className="am-search-bar">
-            <input
-              type="text"
-              placeholder="Search by code..."
-              value={searchCode}
-              onChange={(e) => setSearchCode(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Filter by type..."
-              value={searchType}
-              onChange={(e) => setSearchType(e.target.value)}
-            />
-            <button className="am-btn-search">Search Archive</button>
-          </div>
-
-          <div className="am-archive-list">
-            {archivedTransactions.map((archive) => (
-              <div className="am-archive-row" key={archive.id}>
-                <div className="am-archive-info">
-                  <span className="am-archive-id">{archive.id}</span>
-                  <span className="am-archive-desc">{archive.name} • {archive.records} records</span>
-                </div>
-                <div className="am-archive-meta">
-                  <span className="am-archive-date">{archive.date}</span>
-                  <span className="am-archive-size">{archive.size}</span>
-                </div>
-                <div className="am-archive-actions">
-                  <button className="am-btn-action view">View</button>
-                  <button className="am-btn-action restore">Restore</button>
-                  <button className="am-btn-action delete">Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Module tabs */}
+        <div className="archive-tabs">
+          {MODULES.map(m => (
+            <button
+              key={m.key}
+              type="button"
+              className={`archive-tab${activeModule === m.key ? ' archive-tab--active' : ''}`}
+              onClick={() => switchModule(m.key)}
+            >
+              {m.label}
+              {(summary[m.key]?.count ?? 0) > 0 && (
+                <span className="archive-tab-count">{summary[m.key].count}</span>
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* Archived Users */}
-        <div className="am-section">
-          <div className="am-section-header">
-            <h2>Archived Users</h2>
-            <p>Inactive and deleted user accounts</p>
+        {/* Filter bar */}
+        <div className="archive-filter-bar">
+          <input
+            ref={searchRef}
+            type="text"
+            defaultValue={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            placeholder={`Search ${activeLabel}…`}
+            className="archive-search-input"
+          />
+          <div className="archive-date-range">
+            <label>Archived from:</label>
+            <input
+              type="date"
+              value={deletedFrom}
+              onChange={e => { setDeletedFrom(e.target.value); setPage(1); }}
+              className="archive-date-input"
+            />
+            <label>to:</label>
+            <input
+              type="date"
+              value={deletedTo}
+              onChange={e => { setDeletedTo(e.target.value); setPage(1); }}
+              className="archive-date-input"
+            />
           </div>
+          {(search || deletedFrom || deletedTo) && (
+            <button type="button" className="archive-clear-filters" onClick={clearFilters}>
+              Clear filters
+            </button>
+          )}
+          <span className="archive-record-count">
+            {totalItems} archived record{totalItems !== 1 ? 's' : ''}
+          </span>
+        </div>
 
-          <div className="am-table-wrapper">
-            <table className="am-table">
-              <thead>
-                <tr>
-                  <th>EMPLOYEE ID</th>
-                  <th>NAME</th>
-                  <th>ROLE</th>
-                  <th>BRANCH</th>
-                  <th>ARCHIVED DATE</th>
-                  <th>ACTIONS</th>
+        {/* Restore All */}
+        {isAdmin && totalItems > 0 && (
+          <button type="button" className="archive-restore-all-btn" onClick={handleRestoreAll}>
+            Restore All ({totalItems})
+          </button>
+        )}
+
+        {/* Records table */}
+        {loading ? (
+          <div className="archive-empty">Loading…</div>
+        ) : records.length === 0 ? (
+          <div className="archive-empty">
+            No archived {activeLabel} records found.
+          </div>
+        ) : (
+          <table className="archive-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name / Reference</th>
+                <th>Code / ID</th>
+                <th>Archived On</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((item, idx) => (
+                <tr key={item.id}>
+                  <td>{(page - 1) * PER_PAGE + idx + 1}</td>
+                  <td>
+                    <span className="archive-record-name">{item.display_name}</span>
+                  </td>
+                  <td className="archive-record-code">
+                    {item.display_code ?? '—'}
+                  </td>
+                  <td className="archive-record-date">
+                    {item.deleted_at
+                      ? new Date(item.deleted_at).toLocaleDateString('en-PH', {
+                          year: 'numeric', month: 'short',
+                          day: 'numeric', hour: '2-digit', minute: '2-digit',
+                        })
+                      : '—'}
+                  </td>
+                  <td>
+                    <div className="archive-actions">
+                      <button
+                        type="button"
+                        className="archive-restore-btn"
+                        onClick={() => handleRestore(item.module, item.id)}
+                      >
+                        Restore
+                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="archive-force-delete-btn"
+                          onClick={() => handleForceDelete(item.module, item.id)}
+                        >
+                          Delete Permanently
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {archivedUsers.map((user) => (
-                  <tr key={user.employeeId}>
-                    <td>{user.employeeId}</td>
-                    <td>{user.name}</td>
-                    <td>{user.role}</td>
-                    <td>{user.branch}</td>
-                    <td>{user.archivedDate}</td>
-                    <td>
-                      <button className="am-btn-action restore">Restore</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              ))}
+            </tbody>
+          </table>
+        )}
 
-        {/* Archive Settings */}
-        <div className="am-section">
-          <div className="am-section-header">
-            <h2>Archive Settings</h2>
-            <p>Configure archive retention policies</p>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="archive-pagination">
+            <button
+              type="button"
+              className="archive-page-btn"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </button>
+            <span className="archive-page-info">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              className="archive-page-btn"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+            </button>
           </div>
+        )}
 
-          <div className="am-settings-grid">
-            <div className="am-settings-left">
-              <div className="am-field">
-                <label>Auto-Archive After (Days)</label>
-                <input
-                  type="number"
-                  value={archiveSettings.autoArchiveDays}
-                  onChange={(e) => handleSettingsChange('autoArchiveDays', e.target.value)}
-                />
-                <span className="am-field-hint">Records older than this will be automatically archived</span>
-              </div>
-              <div className="am-field">
-                <label>Retention Period (Years)</label>
-                <input
-                  type="number"
-                  value={archiveSettings.retentionYears}
-                  onChange={(e) => handleSettingsChange('retentionYears', e.target.value)}
-                  placeholder=""
-                />
-                <span className="am-field-hint">How long to keep archived data</span>
-              </div>
-            </div>
-            <div className="am-settings-right">
-              <div className="am-toggle-row">
-                <div className="am-toggle-info">
-                  <span className="am-toggle-label">Compress Archives</span>
-                  <span className="am-toggle-desc">Save storage space</span>
-                </div>
-                <button
-                  className={`am-toggle ${archiveSettings.compressArchives ? 'active' : ''}`}
-                  onClick={() => handleToggle('compressArchives')}
-                >
-                  <span className="am-toggle-knob"></span>
-                </button>
-              </div>
-              <div className="am-toggle-row">
-                <div className="am-toggle-info">
-                  <span className="am-toggle-label">Backup Archives</span>
-                  <span className="am-toggle-desc">Create external backups</span>
-                </div>
-                <button
-                  className={`am-toggle ${archiveSettings.backupArchives ? 'active' : ''}`}
-                  onClick={() => handleToggle('backupArchives')}
-                >
-                  <span className="am-toggle-knob"></span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="am-settings-footer">
-            <button className="am-btn-save" onClick={() => toast.success('Archive settings saved!')}>Save Archive Settings</button>
-          </div>
-        </div>
       </div>
     </AdminLayout>
   );

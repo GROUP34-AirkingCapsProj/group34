@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import PasswordFieldWithToggle from '../components/PasswordFieldWithToggle';
+import ArchiveButton from '../components/ArchiveButton';
 import { usersAPI, authAPI, batchAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/user_management.css';
+import '../styles/archive_management.css';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -140,6 +142,15 @@ const UserManagement = () => {
     setFormErrors({});
     setSubmitError('');
     setIsModalOpen(true);
+  };
+
+  const handleArchiveUser = async (user) => {
+    const id = user.user_id || user.id;
+    try {
+      await usersAPI.delete(id);
+      toast.success(`User ${getUserName(user)} archived.`);
+      await fetchUsers(currentPage);
+    } catch (err) { toast.error(err.message || 'Failed to archive user.'); }
   };
 
   const handleDeactivate = async (user) => {
@@ -407,6 +418,10 @@ const UserManagement = () => {
                             ? (getUserStatus(user) === 'Active' ? 'Deactivating...' : 'Activating...')
                             : (getUserStatus(user) === 'Active' ? 'Deactivate' : 'Activate')}
                         </button>
+                        <ArchiveButton
+                          onArchive={() => handleArchiveUser(user)}
+                          disabled={currentUserId != null && Number(currentUserId) === Number(user.user_id || user.id)}
+                        />
                       </div>
                     </td>
                   </tr>

@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import { transfersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { getTransferWorkflow, transferShippedQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
+import '../styles/archive_management.css';
 
 const emptyDetail = () => ({ product_id: '', quantity_transferred: 1 });
 const emptyForm = () => ({
@@ -261,13 +263,12 @@ const StockTransferManagement = () => {
     } catch (err) { toast.error(err.message || 'Failed to save.'); } finally { setSubmitting(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this transfer record?')) return;
+  const handleArchive = async (id) => {
     try {
       await transfersAPI.delete(id);
-      toast.success('Deleted.');
+      toast.success('Transfer archived.');
       fetchTransfers();
-    } catch (err) { toast.error(err.message || 'Failed to delete.'); }
+    } catch (err) { toast.error(err.message || 'Failed to archive.'); }
   };
 
   const addDetailRow = () => setFormData((f) => ({ ...f, details: [...f.details, emptyDetail()] }));
@@ -387,7 +388,10 @@ const StockTransferManagement = () => {
                         <button type="button" className="txn-btn-view" onClick={() => setViewingTransfer(t)}>View</button>
                         <button type="button" className="txn-btn-view" style={{ color: '#059669' }} onClick={() => printTransfer(t)}>Print</button>
                         <button type="button" className="txn-btn-edit" onClick={() => openEditModal(t)}>Edit</button>
-                        <button type="button" className="txn-btn-delete" onClick={() => handleDelete(t.transfer_id)}>Delete</button>
+                        <ArchiveButton
+                          onArchive={() => handleArchive(t.transfer_id)}
+                          disabled={wf.key !== 'done'}
+                        />
                       </div>
                     </div>
                     <div className="txn-feed-right">

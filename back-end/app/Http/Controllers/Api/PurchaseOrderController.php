@@ -261,10 +261,44 @@ class PurchaseOrderController extends Controller
         try {
             $po = PurchaseOrder::findOrFail($id);
             $po->delete();
-            return $this->success(null, 'Purchase order deleted successfully');
+            return $this->success(null, 'Purchase order archived successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to delete purchase order: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function archived(Request $request)
+    {
+        $query = PurchaseOrder::onlyTrashed()->with(self::WITH_RELATIONS);
+
+        if ($request->filled('search')) {
+            $query->where('po_number', 'like', '%' . $request->search . '%');
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived purchase orders retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $po = PurchaseOrder::onlyTrashed()->find($id);
+        if (! $po) {
+            return $this->notFound('Archived purchase order not found');
+        }
+        $po->restore();
+        return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $po = PurchaseOrder::onlyTrashed()->find($id);
+        if (! $po) {
+            return $this->notFound('Archived purchase order not found');
+        }
+        $po->forceDelete();
+        return $this->success(null, 'Purchase order permanently deleted');
     }
 
     // -----------------------------------------------------------------------

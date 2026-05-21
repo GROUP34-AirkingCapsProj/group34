@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import {
   suppliersAPI,
   purchaseOrdersAPI,
@@ -13,6 +14,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
+import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
 
@@ -345,6 +347,13 @@ const PurchaseOrderPage = () => {
     }
   }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, verifiedById, shipToName, shipToAddress]);
 
+  // ── Archive PO ───────────────────────────────────────────────────────────────
+  const handleArchivePO = useCallback(async (poId) => {
+    await purchaseOrdersAPI.delete(poId);
+    const res = await purchaseOrdersAPI.getAll({ per_page: 100 });
+    setPoStatusList(Array.isArray(res?.data) ? res.data : []);
+  }, []);
+
   // ── PO Status renderer ─────────────────────────────────────────────────────
   const renderPoStatusView = () => {
     if (loadingPOStatus) return <div className="po-status-loading">Loading purchase orders…</div>;
@@ -425,6 +434,10 @@ const PurchaseOrderPage = () => {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                     VIEW DETAILS
                   </button>
+                  <ArchiveButton
+                    onArchive={() => handleArchivePO(po.po_id)}
+                    disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
+                  />
                 </div>
               </div>
               {statusCfg.color === 'approved'  && <div className="po-status-note po-status-note--approved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><span><strong>Approved by {actorName}</strong> on {actionDate}</span></div>}

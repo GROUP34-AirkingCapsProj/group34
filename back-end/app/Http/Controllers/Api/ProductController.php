@@ -306,7 +306,46 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         $product->delete();
-        return $this->success(null, 'Product deleted successfully');
+        return $this->success(null, 'Product archived successfully');
+    }
+
+    public function archived(Request $request)
+    {
+        $query = Product::onlyTrashed()
+            ->with(['category', 'applianceDetail.brand', 'consumableDetail.unit']);
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('product_name', 'like', "%{$s}%")
+                  ->orWhere('product_code', 'like', "%{$s}%");
+            });
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived products retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $product = Product::onlyTrashed()->find($id);
+        if (! $product) {
+            return $this->notFound('Archived product not found');
+        }
+        $product->restore();
+        return $this->success($product->fresh(), 'Product restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $product = Product::onlyTrashed()->find($id);
+        if (! $product) {
+            return $this->notFound('Archived product not found');
+        }
+        $product->forceDelete();
+        return $this->success(null, 'Product permanently deleted');
     }
 
     // -----------------------------------------------------------------------

@@ -95,4 +95,12 @@ class BrandLookupController extends Controller
         $b->restore();
         return $this->success($b, 'Brand restored');
     }
+
+    public function forceDestroy($brand)
+    {
+        $b = BrandLookup::onlyTrashed()->find($brand);
+        if (!$b) return $this->notFound('Archived brand not found');
+        $b->forceDelete();
+        return $this->success(null, 'Brand permanently deleted');
+    }
 }

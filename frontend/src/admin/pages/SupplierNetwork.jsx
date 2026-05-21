@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import { suppliersAPI, itemsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/supplier_network.css';
+import '../styles/archive_management.css';
 
 
 const EMPTY_FORM = {
@@ -169,15 +171,10 @@ const SupplierNetwork = () => {
     }
   };
 
-  const handleDelete = async (s) => {
-    if (isInventoryAnalystViewOnly) {
-      toast.info('Deleting suppliers is disabled for Inventory Analyst.');
-      return;
-    }
-    if (!window.confirm(`Delete supplier "${s.supplier_name}"? This cannot be undone.`)) return;
+  const handleArchive = async (s) => {
     try {
       await suppliersAPI.delete(s.supplier_id);
-      toast.success('Supplier deleted');
+      toast.success('Supplier archived');
       fetchSuppliers();
     } catch (err) {
       toast.error(err.message || 'Failed to delete supplier');
@@ -488,19 +485,7 @@ const SupplierNetwork = () => {
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                         </svg>
                       </button>
-                      <button
-                        className="sn-action-btn sn-action-delete"
-                        onClick={() => handleDelete(s)}
-                        title="Delete"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                          <path d="M10 11v6" />
-                          <path d="M14 11v6" />
-                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                        </svg>
-                      </button>
+                      <ArchiveButton onArchive={() => handleArchive(s)} disabled={isInventoryAnalystViewOnly} />
                     </div>
                   )}
                 </div>
@@ -564,19 +549,7 @@ const SupplierNetwork = () => {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </button>
-                            <button
-                              className="sn-action-btn sn-action-delete"
-                              onClick={() => handleDelete(s)}
-                              title="Delete"
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                <path d="M10 11v6" />
-                                <path d="M14 11v6" />
-                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
-                            </button>
+                            <ArchiveButton onArchive={() => handleArchive(s)} disabled={isInventoryAnalystViewOnly} />
                           </div>
                         )}
                       </td>

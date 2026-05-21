@@ -146,9 +146,43 @@ class AdjustmentController extends Controller
         try {
             $adjustment = Adjustment::findOrFail($id);
             $adjustment->delete();
-            return $this->success(null, 'Adjustment deleted successfully');
+            return $this->success(null, 'Adjustment archived successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to delete adjustment: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function archived(Request $request)
+    {
+        $query = Adjustment::onlyTrashed()->with(['location', 'createdBy', 'status']);
+
+        if ($request->filled('search')) {
+            $query->where('adjustment_number', 'like', '%' . $request->search . '%');
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived adjustments retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $adjustment = Adjustment::onlyTrashed()->find($id);
+        if (! $adjustment) {
+            return $this->notFound('Archived adjustment not found');
+        }
+        $adjustment->restore();
+        return $this->success($adjustment->fresh()->load(['location', 'createdBy', 'status']), 'Adjustment restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $adjustment = Adjustment::onlyTrashed()->find($id);
+        if (! $adjustment) {
+            return $this->notFound('Archived adjustment not found');
+        }
+        $adjustment->forceDelete();
+        return $this->success(null, 'Adjustment permanently deleted');
     }
 }

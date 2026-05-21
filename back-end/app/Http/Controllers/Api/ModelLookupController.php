@@ -90,9 +90,43 @@ class ModelLookupController extends Controller
         try {
             $model = ModelLookup::findOrFail($id);
             $model->delete();
-            return $this->success(null, 'Model deleted successfully');
+            return $this->success(null, 'Model archived successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to delete model: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function archived(Request $request)
+    {
+        $query = ModelLookup::onlyTrashed()->with(['brand', 'status']);
+
+        if ($request->filled('search')) {
+            $query->where('model_code', 'like', '%' . $request->search . '%');
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived models retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $model = ModelLookup::onlyTrashed()->find($id);
+        if (! $model) {
+            return $this->notFound('Archived model not found');
+        }
+        $model->restore();
+        return $this->success($model->fresh()->load('brand'), 'Model restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $model = ModelLookup::onlyTrashed()->find($id);
+        if (! $model) {
+            return $this->notFound('Archived model not found');
+        }
+        $model->forceDelete();
+        return $this->success(null, 'Model permanently deleted');
     }
 }

@@ -124,7 +124,45 @@ class SupplierController extends Controller
         }
 
         $supplier->delete();
-        return $this->success(null, 'Supplier deleted successfully');
+        return $this->success(null, 'Supplier archived successfully');
+    }
+
+    public function archived(Request $request)
+    {
+        $query = Supplier::onlyTrashed()->with(['status']);
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('supplier_name', 'like', "%{$s}%")
+                  ->orWhere('contact_person', 'like', "%{$s}%");
+            });
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived suppliers retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $supplier = Supplier::onlyTrashed()->find($id);
+        if (! $supplier) {
+            return $this->notFound('Archived supplier not found');
+        }
+        $supplier->restore();
+        return $this->success($supplier->fresh()->load('status'), 'Supplier restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $supplier = Supplier::onlyTrashed()->find($id);
+        if (! $supplier) {
+            return $this->notFound('Archived supplier not found');
+        }
+        $supplier->forceDelete();
+        return $this->success(null, 'Supplier permanently deleted');
     }
 
     /**

@@ -44,6 +44,8 @@ use App\Http\Controllers\Api\CompanySettingsController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\IssuanceScanController;
+use App\Http\Controllers\Api\ArchiveController;
+use App\Http\Controllers\Api\ArchiveSettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -118,6 +120,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
         Route::put('/users/{user}/status', [UserController::class, 'updateStatus']);
         Route::get('/users/by-location/{locationId}', [UserController::class, 'byLocation']);
+        Route::get('/users/archived', [UserController::class, 'archived']);
+        Route::post('/users/{id}/restore', [UserController::class, 'restore']);
+        Route::delete('/users/{id}/force', [UserController::class, 'forceDestroy']);
         Route::apiResource('users', UserController::class);
     });
 
@@ -163,6 +168,36 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | ARCHIVE MANAGEMENT — unified endpoints
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('archive')->middleware('role:admin,branch_manager')->group(function () {
+        Route::get('/summary',                    [ArchiveController::class, 'summary']);
+        Route::get('/{module}',                   [ArchiveController::class, 'index']);
+        Route::post('/{module}/{id}/restore',     [ArchiveController::class, 'restore']);
+        Route::middleware('role:admin')->delete('/{module}/{id}/force',   [ArchiveController::class, 'forceDestroy']);
+        Route::middleware('role:admin')->post('/{module}/restore-all',    [ArchiveController::class, 'restoreAll']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | ARCHIVE SETTINGS — configuration, scheduler, run history
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin')
+         ->prefix('archive-settings')
+         ->group(function () {
+             Route::get('/',                  [ArchiveSettingsController::class, 'index']);
+             Route::put('/module/{module}',   [ArchiveSettingsController::class, 'updateModule']);
+             Route::put('/schedule',          [ArchiveSettingsController::class, 'updateSchedule']);
+             Route::post('/preview',          [ArchiveSettingsController::class, 'preview']);
+             Route::post('/run-now',          [ArchiveSettingsController::class, 'runNow']);
+             Route::post('/run-cleanup',      [ArchiveSettingsController::class, 'runCleanup']);
+             Route::get('/logs',              [ArchiveSettingsController::class, 'logs']);
+         });
+
+    /*
+    |--------------------------------------------------------------------------
     | ERD: CATEGORY (category_lookup)
     |--------------------------------------------------------------------------
     */
@@ -175,6 +210,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::put('/categories/{category}', [CategoryLookupController::class, 'update']);
         Route::delete('/categories/{category}', [CategoryLookupController::class, 'destroy']);
         Route::post('/categories/{category}/restore', [CategoryLookupController::class, 'restore']);
+        Route::delete('/categories/{category}/force', [CategoryLookupController::class, 'forceDestroy']);
     });
 
     /*
@@ -205,6 +241,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::put('/brands/{brand}', [BrandLookupController::class, 'update']);
         Route::delete('/brands/{brand}', [BrandLookupController::class, 'destroy']);
         Route::post('/brands/{brand}/restore', [BrandLookupController::class, 'restore']);
+        Route::delete('/brands/{brand}/force', [BrandLookupController::class, 'forceDestroy']);
     });
 
     /*
@@ -212,6 +249,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: MODEL LOOKUP (model_lookup)
     |--------------------------------------------------------------------------
     */
+    Route::get('/models/archived', [ModelLookupController::class, 'archived']);
     Route::get('/models', [ModelLookupController::class, 'index']);
     Route::get('/models/{id}', [ModelLookupController::class, 'show']);
     Route::middleware('role:admin,inventory_analyst')->group(function () {
@@ -220,6 +258,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/models/{id}', [ModelLookupController::class, 'destroy']);
+        Route::post('/models/{id}/restore', [ModelLookupController::class, 'restore']);
+        Route::delete('/models/{id}/force', [ModelLookupController::class, 'forceDestroy']);
     });
 
     /*
@@ -227,12 +267,15 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: UNIT LOOKUP (unit_lookup)
     |--------------------------------------------------------------------------
     */
+    Route::get('/units/archived', [UnitLookupController::class, 'archived']);
     Route::get('/units', [UnitLookupController::class, 'index']);
     Route::get('/units/{id}', [UnitLookupController::class, 'show']);
     Route::middleware('role:admin,inventory_analyst')->group(function () {
         Route::post('/units', [UnitLookupController::class, 'store']);
         Route::put('/units/{id}', [UnitLookupController::class, 'update']);
         Route::delete('/units/{id}', [UnitLookupController::class, 'destroy']);
+        Route::post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
+        Route::delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
     });
 
     /*
@@ -240,6 +283,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: LOCATION (location) — unified physical places
     |--------------------------------------------------------------------------
     */
+    Route::get('/locations/archived', [LocationController::class, 'archived']);
     Route::get('/locations', [LocationController::class, 'index']);
     Route::get('/locations/{location}', [LocationController::class, 'show']);
     Route::middleware('role:admin,branch_manager')->group(function () {
@@ -248,6 +292,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/locations/{location}', [LocationController::class, 'destroy']);
+        Route::post('/locations/{id}/restore', [LocationController::class, 'restore']);
+        Route::delete('/locations/{id}/force', [LocationController::class, 'forceDestroy']);
     });
 
     /*
@@ -269,6 +315,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: PRODUCT (Product table)
     |--------------------------------------------------------------------------
     */
+    Route::get('/products/archived', [ProductController::class, 'archived']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/export', [ProductController::class, 'export']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
@@ -278,6 +325,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+        Route::post('/products/{id}/restore', [ProductController::class, 'restore']);
+        Route::delete('/products/{id}/force', [ProductController::class, 'forceDestroy']);
     });
 
     // Legacy alias: /items → products
@@ -325,6 +374,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: SUPPLIER (supplier)
     |--------------------------------------------------------------------------
     */
+    Route::get('/suppliers/archived', [SupplierController::class, 'archived']);
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::get('/suppliers/{id}', [SupplierController::class, 'show']);
     Route::get('/suppliers/{id}/products', [SupplierController::class, 'products']);
@@ -337,6 +387,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/suppliers/{id}', [SupplierController::class, 'destroy']);
+        Route::post('/suppliers/{id}/restore', [SupplierController::class, 'restore']);
+        Route::delete('/suppliers/{id}/force', [SupplierController::class, 'forceDestroy']);
     });
 
     /*
@@ -346,6 +398,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/customers/export',          [CustomerController::class, 'export']);
     Route::get('/customers/search',          [CustomerController::class, 'search']);
+    Route::get('/customers/archived',        [CustomerController::class, 'archived']);
     Route::get('/customers/{id}/history',    [CustomerController::class, 'history']);
     Route::get('/customers',                 [CustomerController::class, 'index']);
     Route::get('/customers/{id}',            [CustomerController::class, 'show']);
@@ -353,6 +406,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::put('/customers/{id}',            [CustomerController::class, 'update']);
     Route::delete('/customers/{id}',         [CustomerController::class, 'destroy']);
     Route::post('/customers/{id}/restore',   [CustomerController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/customers/{id}/force', [CustomerController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -390,6 +444,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: PURCHASE_ORDER (purchase_order)
     |--------------------------------------------------------------------------
     */
+    Route::get('/purchase-orders/archived', [PurchaseOrderController::class, 'archived']);
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     // Specific routes before {id} wildcard
     Route::middleware('role:admin,inventory_analyst,branch_manager')->group(function () {
@@ -405,6 +460,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
+        Route::post('/purchase-orders/{id}/restore', [PurchaseOrderController::class, 'restore']);
+        Route::delete('/purchase-orders/{id}/force', [PurchaseOrderController::class, 'forceDestroy']);
     });
 
     /*
@@ -414,6 +471,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | Write: admin only
     |--------------------------------------------------------------------------
     */
+    Route::get('/budget-allocations/archived', [BudgetAllocationController::class, 'archived']);
     Route::middleware('role:admin,inventory_analyst')->group(function () {
         Route::get('/budget-allocations', [BudgetAllocationController::class, 'index']);
         Route::get('/budget-allocations/{id}', [BudgetAllocationController::class, 'show']);
@@ -423,6 +481,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/budget-allocations', [BudgetAllocationController::class, 'store']);
         Route::put('/budget-allocations/{id}', [BudgetAllocationController::class, 'update']);
         Route::delete('/budget-allocations/{id}', [BudgetAllocationController::class, 'destroy']);
+        Route::post('/budget-allocations/{id}/restore', [BudgetAllocationController::class, 'restore']);
+        Route::delete('/budget-allocations/{id}/force', [BudgetAllocationController::class, 'forceDestroy']);
     });
 
     /*
@@ -431,7 +491,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
 
-    // Export (before {id} wildcard)
+    // Export and archive (before {id} wildcard)
+    Route::get('/purchase-requests/archived', [PurchaseRequestController::class, 'archived']);
     Route::middleware('role:admin,inventory_analyst')->group(function () {
         Route::get('/purchase-requests/export', [PurchaseRequestController::class, 'export']);
     });
@@ -452,6 +513,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/purchase-requests', [PurchaseRequestController::class, 'store']);
         Route::get('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convert']);
         Route::post('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convertStore']);
+    });
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/purchase-requests/{id}/restore', [PurchaseRequestController::class, 'restore']);
+        Route::delete('/purchase-requests/{id}/force', [PurchaseRequestController::class, 'forceDestroy']);
     });
 
     /*
@@ -524,6 +589,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: ISSUANCE (issuance)
     |--------------------------------------------------------------------------
     */
+    Route::get('/issuances/archived', [IssuanceController::class, 'archived']);
     Route::get('/issuances', [IssuanceController::class, 'index']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
     Route::middleware('role:admin,warehouse_personnel')->group(function () {
@@ -532,6 +598,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/issuances/{id}', [IssuanceController::class, 'destroy']);
+        Route::post('/issuances/{id}/restore', [IssuanceController::class, 'restore']);
+        Route::delete('/issuances/{id}/force', [IssuanceController::class, 'forceDestroy']);
     });
 
     /*
@@ -539,6 +607,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: TRANSFER (transfer)
     |--------------------------------------------------------------------------
     */
+    Route::get('/transfers/archived', [TransferController::class, 'archived']);
     Route::get('/transfers', [TransferController::class, 'index']);
     Route::get('/transfers/{id}', [TransferController::class, 'show']);
     Route::middleware('role:admin,branch_manager,warehouse_personnel')->group(function () {
@@ -549,6 +618,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/transfers/{id}', [TransferController::class, 'destroy']);
+        Route::post('/transfers/{id}/restore', [TransferController::class, 'restore']);
+        Route::delete('/transfers/{id}/force', [TransferController::class, 'forceDestroy']);
     });
 
     /*
@@ -556,6 +627,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: ADJUSTMENT (adjustment)
     |--------------------------------------------------------------------------
     */
+    Route::get('/adjustments/archived', [AdjustmentController::class, 'archived']);
     Route::get('/adjustments', [AdjustmentController::class, 'index']);
 
     // Barcode Adjustment Module — specific routes BEFORE the {id} wildcard
@@ -581,6 +653,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('role:admin')->group(function () {
         Route::delete('/adjustments/{id}', [AdjustmentController::class, 'destroy']);
+        Route::post('/adjustments/{id}/restore', [AdjustmentController::class, 'restore']);
+        Route::delete('/adjustments/{id}/force', [AdjustmentController::class, 'forceDestroy']);
     });
 
     /*

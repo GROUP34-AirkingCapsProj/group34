@@ -80,9 +80,43 @@ class UnitLookupController extends Controller
         try {
             $unit = UnitLookup::findOrFail($id);
             $unit->delete();
-            return $this->success(null, 'Unit deleted successfully');
+            return $this->success(null, 'Unit archived successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to delete unit: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function archived(Request $request)
+    {
+        $query = UnitLookup::onlyTrashed();
+
+        if ($request->filled('search')) {
+            $query->where('unit_name', 'like', '%' . $request->search . '%');
+        }
+
+        return $this->success(
+            $query->orderBy('deleted_at', 'desc')->get(),
+            'Archived units retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $unit = UnitLookup::onlyTrashed()->find($id);
+        if (! $unit) {
+            return $this->notFound('Archived unit not found');
+        }
+        $unit->restore();
+        return $this->success($unit->fresh(), 'Unit restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $unit = UnitLookup::onlyTrashed()->find($id);
+        if (! $unit) {
+            return $this->notFound('Archived unit not found');
+        }
+        $unit->forceDelete();
+        return $this->success(null, 'Unit permanently deleted');
     }
 }

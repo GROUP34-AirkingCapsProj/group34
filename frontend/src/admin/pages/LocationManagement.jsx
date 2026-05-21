@@ -1,10 +1,12 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import { locationsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/branch_management.css';
+import '../styles/archive_management.css';
 
 const REGION_CITIES = {
   'NCR': [
@@ -148,6 +150,14 @@ const LocationManagement = () => {
   const isLocActive = (loc) => (loc.status?.status_name || 'Active').toLowerCase() === 'active';
   const getStatusClass = (loc) => isLocActive(loc) ? 'status-active' : 'status-inactive';
 
+  const handleArchive = async (loc) => {
+    try {
+      await locationsAPI.delete(loc.location_id ?? loc.id);
+      toast.success('Location archived.');
+      fetchLocations(currentPage, searchTerm, typeFilter);
+    } catch (err) { toast.error(err.message || 'Failed to archive.'); }
+  };
+
   const handleToggleStatus = async (loc) => {
     const active = isLocActive(loc);
     const newId = active ? statusIds.inactive : statusIds.active;
@@ -278,6 +288,7 @@ const LocationManagement = () => {
                   >
                     {isLocActive(loc) ? 'Deactivate' : 'Activate'}
                   </button>
+                  <ArchiveButton onArchive={() => handleArchive(loc)} />
                 </div>
               </div>
             </div>
@@ -326,6 +337,7 @@ const LocationManagement = () => {
                           >
                             {isLocActive(loc) ? 'Deactivate' : 'Activate'}
                           </button>
+                          <ArchiveButton onArchive={() => handleArchive(loc)} />
                         </div>
                       </td>
                     </tr>

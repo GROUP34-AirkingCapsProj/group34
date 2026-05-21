@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import {
   budgetAllocationsAPI,
   locationsAPI,
@@ -10,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
+import '../styles/archive_management.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,9 +133,6 @@ const BudgetManagementPage = () => {
   const [editSaving,   setEditSaving]   = useState(false);
   const [editError,    setEditError]    = useState('');
 
-  // Delete confirm
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting,     setDeleting]     = useState(false);
 
   // ── Load budgets ────────────────────────────────────────────────────────────
   const loadBudgets = useCallback(async () => {
@@ -280,20 +279,15 @@ const BudgetManagementPage = () => {
     }
   }, [editBudget, editForm, loadBudgets]);
 
-  // ── Delete ───────────────────────────────────────────────────────────────────
-  const handleDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
+  // ── Archive ──────────────────────────────────────────────────────────────────
+  const handleArchive = useCallback(async (budgetId) => {
     try {
-      await budgetAllocationsAPI.delete(deleteTarget.budget_id);
-      setDeleteTarget(null);
+      await budgetAllocationsAPI.delete(budgetId);
       await loadBudgets();
     } catch (err) {
       alert(err?.message || 'Failed to delete budget.');
-    } finally {
-      setDeleting(false);
     }
-  }, [deleteTarget, loadBudgets]);
+  }, [loadBudgets]);
 
   // ── Shared form renderer ─────────────────────────────────────────────────────
   const renderFormFields = (f, setFn, errors, isEdit = false) => {
@@ -587,15 +581,7 @@ const BudgetManagementPage = () => {
             </svg>
             EDIT
           </button>
-          <button type="button" className="budget-delete-btn" onClick={() => setDeleteTarget(b)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginRight: 5 }}>
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6" /><path d="M14 11v6" />
-              <path d="M9 6V4h6v2" />
-            </svg>
-            DELETE
-          </button>
+          <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />
         </div>
       </div>
     );
@@ -803,44 +789,6 @@ const BudgetManagementPage = () => {
         )}
       </Modal>
 
-      {/* ── Delete Confirm Modal ────────────────────────────────────────────── */}
-      <Modal
-        isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        title="Delete Budget Allocation"
-        maxWidth={440}
-      >
-        {deleteTarget && (
-          <div style={{ paddingTop: 4 }}>
-            <p style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>
-              Are you sure you want to delete the budget for{' '}
-              <strong>{deleteTarget.location?.location_name}</strong> ({deleteTarget.period_label})?
-            </p>
-            <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 20 }}>
-              This will remove all committed and spent tracking.
-            </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, cursor: 'pointer', color: '#475569' }}
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
-              >
-                CANCEL
-              </button>
-              <button
-                type="button"
-                className="budget-delete-btn"
-                style={{ padding: '8px 20px', fontSize: 13 }}
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? 'DELETING…' : 'DELETE'}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </AdminLayout>
   );
 };

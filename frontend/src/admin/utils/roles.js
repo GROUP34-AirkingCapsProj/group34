@@ -220,6 +220,7 @@ export const ROUTE_ACCESS = {
   '/admin/roles': [ROLES.ADMIN],
   '/admin/config': [ROLES.ADMIN],
   '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
+  '/admin/archive-settings': [ROLES.ADMIN],
   // Approval Queue: analysts approve item registration; auditors read-only; PO/restock actions: admin & branch manager (canActOnApprovalQueue).
   '/admin/approval-queue': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.AUDITOR, ROLES.INVENTORY_ANALYST],
 

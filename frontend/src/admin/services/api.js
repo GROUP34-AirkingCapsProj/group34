@@ -349,6 +349,31 @@ export const systemSettingsAPI = {
     }),
 };
 
+/** Archive configuration settings (admin only). */
+export const archiveSettingsAPI = {
+  get: async () => apiRequest('/archive-settings'),
+  updateModule: async (module, data) =>
+    apiRequest(`/archive-settings/module/${module}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  updateSchedule: async (data) =>
+    apiRequest('/archive-settings/schedule', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  preview: async () =>
+    apiRequest('/archive-settings/preview', { method: 'POST' }),
+  runNow: async () =>
+    apiRequest('/archive-settings/run-now', { method: 'POST' }),
+  runCleanup: async () =>
+    apiRequest('/archive-settings/run-cleanup', { method: 'POST' }),
+  getLogs: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/archive-settings/logs?${query}` : '/archive-settings/logs');
+  },
+};
+
 /** Company letterhead settings (GET any auth user; PUT admin only). */
 export const companySettingsAPI = {
   get: async () => apiRequest('/system/company-settings'),
@@ -394,6 +419,12 @@ export const locationsAPI = {
     apiRequest(`/locations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) =>
     apiRequest(`/locations/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/locations/archived?${query}` : '/locations/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/locations/${id}/restore`, { method: 'POST' }),
 };
 
 /* Backward-compat: branches & warehouses are now location_type filters on locations */
@@ -501,6 +532,10 @@ export const customersAPI = {
     apiRequest(`/customers/${id}`, { method: 'DELETE' }),
   restore: async (id) =>
     apiRequest(`/customers/${id}/restore`, { method: 'POST' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/customers/archived?${query}` : '/customers/archived');
+  },
   exportCsv: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return `/customers/export${query ? '?' + query : ''}`;
@@ -542,6 +577,12 @@ export const purchaseOrdersAPI = {
     apiRequest(`/purchase-orders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) =>
     apiRequest(`/purchase-orders/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/purchase-orders/archived?${query}` : '/purchase-orders/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/purchase-orders/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -603,6 +644,12 @@ export const issuancesAPI = {
     apiRequest(`/issuances/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) =>
     apiRequest(`/issuances/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/issuances/archived?${query}` : '/issuances/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/issuances/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -620,6 +667,12 @@ export const adjustmentsAPI = {
     apiRequest(`/adjustments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) =>
     apiRequest(`/adjustments/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/adjustments/archived?${query}` : '/adjustments/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/adjustments/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -639,6 +692,12 @@ export const transfersAPI = {
     apiRequest(`/transfers/${id}/receive`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
   delete: async (id) =>
     apiRequest(`/transfers/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/transfers/archived?${query}` : '/transfers/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/transfers/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -765,6 +824,12 @@ export const unitsAPI = {
   update: async (id, data) =>
     apiRequest(`/units/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/units/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/units/archived?${query}` : '/units/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/units/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -828,6 +893,12 @@ export const suppliersAPI = {
   update: async (id, data) =>
     apiRequest(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/suppliers/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/suppliers/archived?${query}` : '/suppliers/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/suppliers/${id}/restore`, { method: 'POST' }),
   getProducts: async (id) => apiRequest(`/suppliers/${id}/products`),
   addProduct: async (id, data) =>
     apiRequest(`/suppliers/${id}/products`, { method: 'POST', body: JSON.stringify(data) }),
@@ -874,6 +945,12 @@ export const productsAPI = {
     }),
   delete: async (id) =>
     apiRequest(`/products/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/products/archived?${query}` : '/products/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/products/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -902,6 +979,12 @@ export const usersAPI = {
     }),
   delete: async (id) =>
     apiRequest(`/users/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/users/archived?${query}` : '/users/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/users/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -934,6 +1017,12 @@ export const modelsAPI = {
   update: async (id, data) =>
     apiRequest(`/models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/models/${id}`, { method: 'DELETE' }),
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/models/archived?${query}` : '/models/archived');
+  },
+  restore: async (id) =>
+    apiRequest(`/models/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -976,6 +1065,9 @@ export const purchaseRequestsAPI = {
   update: async (id, data) =>
     apiRequest(`/purchase-requests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
+  delete: async (id) =>
+    apiRequest(`/purchase-requests/${id}`, { method: 'DELETE' }),
+
   getPending: async () => apiRequest('/purchase-requests/pending/list'),
 
   approve: async (id) =>
@@ -997,6 +1089,14 @@ export const purchaseRequestsAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/purchase-requests/archived?${query}` : '/purchase-requests/archived');
+  },
+
+  restore: async (id) =>
+    apiRequest(`/purchase-requests/${id}/restore`, { method: 'POST' }),
 
   /**
    * Smart reorder check — returns open PR lines (not yet fully ordered)
@@ -1053,6 +1153,14 @@ export const budgetAllocationsAPI = {
 
   delete: async (id) =>
     apiRequest(`/budget-allocations/${id}`, { method: 'DELETE' }),
+
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/budget-allocations/archived?${query}` : '/budget-allocations/archived');
+  },
+
+  restore: async (id) =>
+    apiRequest(`/budget-allocations/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================

@@ -114,9 +114,47 @@ class LocationController extends Controller
     {
         try {
             $location->delete();
-            return $this->success(null, 'Location deleted successfully');
+            return $this->success(null, 'Location archived successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to delete location: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function archived(Request $request)
+    {
+        $query = Location::onlyTrashed()->with(['status', 'parent']);
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('location_name', 'like', "%{$s}%")
+                  ->orWhere('location_code', 'like', "%{$s}%");
+            });
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived locations retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $location = Location::onlyTrashed()->find($id);
+        if (! $location) {
+            return $this->notFound('Archived location not found');
+        }
+        $location->restore();
+        return $this->success($location->fresh()->load(['status', 'parent']), 'Location restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $location = Location::onlyTrashed()->find($id);
+        if (! $location) {
+            return $this->notFound('Archived location not found');
+        }
+        $location->forceDelete();
+        return $this->success(null, 'Location permanently deleted');
     }
 }

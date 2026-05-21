@@ -5,10 +5,11 @@ namespace App\Models;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BudgetAllocation extends Model
 {
-    use Auditable;
+    use SoftDeletes, Auditable;
     protected $table = 'budget_allocations';
     protected $primaryKey = 'budget_id';
 

@@ -3,21 +3,68 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class SystemSetting extends Model
 {
     public const KEY_SESSION_TIMEOUT_MINUTES = 'session_timeout_minutes';
-
-    public const KEY_MAX_LOGIN_ATTEMPTS = 'max_login_attempts';
-
+    public const KEY_MAX_LOGIN_ATTEMPTS      = 'max_login_attempts';
     public const KEY_TWO_FACTOR_AUTH_ENABLED = 'two_factor_auth_enabled';
-
-    public const KEY_COMPANY_NAME    = 'company_name';
-    public const KEY_COMPANY_ADDRESS = 'company_address';
-    public const KEY_COMPANY_EMAIL   = 'company_email';
-    public const KEY_COMPANY_PHONE   = 'company_phone';
+    public const KEY_COMPANY_NAME            = 'company_name';
+    public const KEY_COMPANY_ADDRESS         = 'company_address';
+    public const KEY_COMPANY_EMAIL           = 'company_email';
+    public const KEY_COMPANY_PHONE           = 'company_phone';
+    public const KEY_ARCHIVE_CONFIG          = 'archive_config';
+    public const KEY_ARCHIVE_SCHEDULE        = 'archive_schedule';
+    public const KEY_ARCHIVE_NOTIFICATIONS   = 'archive_notifications';
+    public const KEY_ARCHIVE_LAST_RUN        = 'archive_last_run';
 
     protected $fillable = ['key', 'value'];
+
+    // ── Generic get/set ───────────────────────────────────────
+
+    public static function getValue(string $key, mixed $default = null): mixed
+    {
+        $row = static::where('key', $key)->first();
+        if (! $row) {
+            return $default;
+        }
+        $raw     = $row->value;
+        $decoded = json_decode($raw, true);
+        return (json_last_error() === JSON_ERROR_NONE) ? $decoded : $raw;
+    }
+
+    public static function setValue(string $key, mixed $value): void
+    {
+        $stored = (is_array($value) || is_object($value))
+            ? json_encode($value, JSON_UNESCAPED_UNICODE)
+            : (string) $value;
+
+        static::updateOrCreate(['key' => $key], ['value' => $stored]);
+        Cache::forget("system_setting_{$key}");
+    }
+
+    // ── Archive config helpers ────────────────────────────────
+
+    public static function getArchiveConfig(string $module): array
+    {
+        $all = static::getValue(self::KEY_ARCHIVE_CONFIG, []);
+        return $all[$module] ?? [
+            'auto_archive_enabled' => false,
+            'archive_after_days'   => null,
+            'archivable_statuses'  => [],
+            'retention_days'       => null,
+            'require_reason'       => false,
+            'pinnable'             => false,
+        ];
+    }
+
+    public static function setArchiveConfig(string $module, array $config): void
+    {
+        $all            = static::getValue(self::KEY_ARCHIVE_CONFIG, []);
+        $all[$module]   = array_merge($all[$module] ?? [], $config);
+        static::setValue(self::KEY_ARCHIVE_CONFIG, $all);
+    }
 
     public static function sessionTimeoutMinutes(): int
     {

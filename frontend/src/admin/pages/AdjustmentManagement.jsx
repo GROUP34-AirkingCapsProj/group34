@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import { adjustmentsAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../../admin/styles/dashboard_air.css';
+import '../styles/archive_management.css';
 
 const ADJUSTMENT_TYPES = ['Stock Count', 'Damage Write-off', 'Theft Loss', 'Found Stock', 'Expiry', 'Other'];
 const emptyDetail = () => ({ product_id: '', add_quantity: 0, deduct_quantity: 0 });
@@ -101,10 +103,9 @@ const AdjustmentManagement = () => {
     } catch (e) { toast.error(e.message || 'Failed to save.'); } finally { setSubmitting(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this adjustment record?')) return;
-    try { await adjustmentsAPI.delete(id); toast.success('Deleted.'); fetchAdjustments(currentPage); }
-    catch (e) { toast.error(e.message || 'Failed to delete.'); }
+  const handleArchive = async (id) => {
+    try { await adjustmentsAPI.delete(id); toast.success('Adjustment archived.'); fetchAdjustments(currentPage); }
+    catch (e) { toast.error(e.message || 'Failed to archive.'); }
   };
 
   const addDetailRow = () => setFormData(f => ({ ...f, details: [...f.details, emptyDetail()] }));
@@ -184,7 +185,10 @@ const AdjustmentManagement = () => {
                           <div className="action-btns">
                             <button className="btn-action btn-view" onClick={() => setViewingAdj(adj)}>View</button>
                             <button className="btn-action btn-edit" onClick={() => openEditModal(adj)}>Edit</button>
-                            <button className="btn-action btn-delete" onClick={() => handleDelete(adj.adjustment_id)}>Delete</button>
+                            <ArchiveButton
+                              onArchive={() => handleArchive(adj.adjustment_id)}
+                              disabled={String(adj.status?.status_name || '').toLowerCase() !== 'approved'}
+                            />
                           </div>
                         </td>
                       </tr>
