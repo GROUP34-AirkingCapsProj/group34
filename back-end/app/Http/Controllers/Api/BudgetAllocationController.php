@@ -130,6 +130,40 @@ class BudgetAllocationController extends Controller
         return $this->success(null, 'Budget allocation deleted');
     }
 
+    public function archived(Request $request)
+    {
+        $query = BudgetAllocation::onlyTrashed()->with(['location', 'category', 'creator']);
+
+        if ($request->filled('search')) {
+            $query->where('period_label', 'like', '%' . $request->input('search') . '%');
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived budget allocations retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $budget = BudgetAllocation::onlyTrashed()->find($id);
+        if (! $budget) {
+            return $this->notFound('Archived budget allocation not found');
+        }
+        $budget->restore();
+        return $this->success($this->withAvailable($budget->fresh()->load(['location', 'category', 'creator'])), 'Budget allocation restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $budget = BudgetAllocation::onlyTrashed()->find($id);
+        if (! $budget) {
+            return $this->notFound('Archived budget allocation not found');
+        }
+        $budget->forceDelete();
+        return $this->success(null, 'Budget allocation permanently deleted');
+    }
+
     private function withAvailable(BudgetAllocation $b): array
     {
         $data = $b->toArray();

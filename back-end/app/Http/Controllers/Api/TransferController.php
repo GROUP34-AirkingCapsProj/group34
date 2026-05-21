@@ -363,6 +363,40 @@ class TransferController extends Controller
         }
     }
 
+    public function archived(Request $request)
+    {
+        $query = Transfer::onlyTrashed()->with(['fromLocation', 'toLocation', 'status']);
+
+        if ($request->filled('search')) {
+            $query->where('transfer_number', 'like', '%' . $request->search . '%');
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived transfers retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $transfer = Transfer::onlyTrashed()->find($id);
+        if (! $transfer) {
+            return $this->notFound('Archived transfer not found');
+        }
+        $transfer->restore();
+        return $this->success($transfer->fresh()->load(['fromLocation', 'toLocation', 'status']), 'Transfer restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $transfer = Transfer::onlyTrashed()->find($id);
+        if (! $transfer) {
+            return $this->notFound('Archived transfer not found');
+        }
+        $transfer->forceDelete();
+        return $this->success(null, 'Transfer permanently deleted');
+    }
+
     /**
      * Record receipt at destination (showroom) for a ship-first transfer. Increments destination inventory.
      */

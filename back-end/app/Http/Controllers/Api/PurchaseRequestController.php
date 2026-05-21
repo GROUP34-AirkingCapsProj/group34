@@ -460,6 +460,40 @@ class PurchaseRequestController extends Controller
     /**
      * POST — Create a PO from an approved PR.
      */
+    public function archived(Request $request)
+    {
+        $query = PurchaseRequest::onlyTrashed()->with(self::WITH_RELATIONS);
+
+        if ($request->filled('search')) {
+            $query->where('pr_number', 'like', '%' . $request->search . '%');
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived purchase requests retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $pr = PurchaseRequest::onlyTrashed()->find($id);
+        if (! $pr) {
+            return $this->notFound('Archived purchase request not found');
+        }
+        $pr->restore();
+        return $this->success($pr->fresh()->load(self::WITH_RELATIONS), 'Purchase request restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $pr = PurchaseRequest::onlyTrashed()->find($id);
+        if (! $pr) {
+            return $this->notFound('Archived purchase request not found');
+        }
+        $pr->forceDelete();
+        return $this->success(null, 'Purchase request permanently deleted');
+    }
+
     public function convertStore(Request $request, $id)
     {
         $pr = PurchaseRequest::with('details')->find($id);

@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
+import ArchiveButton from '../components/ArchiveButton';
 import { customersAPI, getApiBaseUrl, getToken } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/customer_registry.css';
+import '../styles/archive_management.css';
 
 const PAGE_SIZE = 15;
 
@@ -123,7 +125,6 @@ const CustomerManagement = () => {
   };
 
   const handleArchive = async (id) => {
-    if (!window.confirm('Archive this customer?')) return;
     try {
       await customersAPI.delete(id);
       fetchCustomers(currentPage);
@@ -527,9 +528,7 @@ const CustomerManagement = () => {
                               <button type="button" className="cr-btn-edit" onClick={() => openEditModal(c)}>
                                 Edit
                               </button>
-                              <button type="button" className="cr-btn-archive" onClick={() => handleArchive(c.customer_id)}>
-                                Archive
-                              </button>
+                              <ArchiveButton onArchive={() => handleArchive(c.customer_id)} />
                             </>
                           )}
                           {c.deleted_at && (

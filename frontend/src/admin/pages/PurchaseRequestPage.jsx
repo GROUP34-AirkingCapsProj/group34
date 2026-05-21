@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import {
   locationsAPI,
   itemsAPI,
@@ -13,6 +14,7 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import PRProgressBar, { getPRStatusText } from '../components/PRProgressBar';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
+import '../styles/archive_management.css';
 
 // ─── formatters ──────────────────────────────────────────────────────────────
 
@@ -375,6 +377,13 @@ const PurchaseRequestPage = () => {
       setSubmitting(false);
     }
   }, [selectedLocId, neededByDate, purpose, lineItems, budget]);
+
+  // ── Archive PR ────────────────────────────────────────────────────────────
+  const handleArchivePR = useCallback(async (prId) => {
+    await purchaseRequestsAPI.delete(prId);
+    setMyPRs(p => p.filter(pr => pr.pr_id !== prId));
+    if (selectedPR?.pr_id === prId) setSelectedPR(null);
+  }, [selectedPR]);
 
   // ── Approve / Reject ──────────────────────────────────────────────────────
   const handleApprove = useCallback(async (prId) => {
@@ -845,6 +854,10 @@ const PurchaseRequestPage = () => {
                     </svg>
                     VIEW DETAILS
                   </button>
+                  <ArchiveButton
+                    onArchive={() => handleArchivePR(pr.pr_id)}
+                    disabled={![PR_STATUS.APPROVED, PR_STATUS.REJECTED, PR_STATUS.PARTIAL].includes(pr.status_id)}
+                  />
                 </div>
               </div>
             </div>

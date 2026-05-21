@@ -132,4 +132,12 @@ class CategoryLookupController extends Controller
         $cat->restore();
         return $this->success($cat, 'Category restored');
     }
+
+    public function forceDestroy($category)
+    {
+        $cat = CategoryLookup::onlyTrashed()->find($category);
+        if (!$cat) return $this->notFound('Archived category not found');
+        $cat->forceDelete();
+        return $this->success(null, 'Category permanently deleted');
+    }
 }

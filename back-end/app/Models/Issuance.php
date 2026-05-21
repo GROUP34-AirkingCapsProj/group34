@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Auditable;
 
 class Issuance extends Model
 {
-    use Auditable;
+    use SoftDeletes, Auditable;
 
     protected $table      = 'issuances';
     protected $primaryKey = 'issuance_id';

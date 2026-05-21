@@ -280,6 +280,26 @@ class CustomerController extends Controller
         return $this->success(null, 'Customer archived');
     }
 
+    // GET /api/customers/archived
+    public function archived(Request $request)
+    {
+        $query = Customer::onlyTrashed()->with('status');
+
+        if ($request->filled('search')) {
+            $s = $request->string('search');
+            $query->where(function ($q) use ($s) {
+                $q->where('customer_name',   'like', "%{$s}%")
+                  ->orWhere('customer_code', 'like', "%{$s}%")
+                  ->orWhere('email',         'like', "%{$s}%");
+            });
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived customers retrieved'
+        );
+    }
+
     // POST /api/customers/{id}/restore
     public function restore($id)
     {
@@ -289,6 +309,17 @@ class CustomerController extends Controller
         }
         $customer->restore();
         return $this->success($customer, 'Customer restored');
+    }
+
+    // DELETE /api/customers/{id}/force
+    public function forceDestroy($id)
+    {
+        $customer = Customer::onlyTrashed()->find($id);
+        if (! $customer) {
+            return $this->notFound('Archived customer not found');
+        }
+        $customer->forceDelete();
+        return $this->success(null, 'Customer permanently deleted');
     }
 
     // GET /api/customers/export

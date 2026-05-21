@@ -234,6 +234,46 @@ class UserController extends Controller
         }
     }
 
+    public function archived(Request $request)
+    {
+        $query = User::onlyTrashed()->with(['role', 'status', 'location']);
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('first_name', 'like', "%{$s}%")
+                  ->orWhere('last_name', 'like', "%{$s}%")
+                  ->orWhere('username', 'like', "%{$s}%")
+                  ->orWhere('email', 'like', "%{$s}%");
+            });
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived users retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $user = User::onlyTrashed()->find($id);
+        if (! $user) {
+            return $this->notFound('Archived user not found');
+        }
+        $user->restore();
+        return $this->success($user->fresh()->load(['role', 'status', 'location']), 'User restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $user = User::onlyTrashed()->find($id);
+        if (! $user) {
+            return $this->notFound('Archived user not found');
+        }
+        $user->forceDelete();
+        return $this->success(null, 'User permanently deleted');
+    }
+
     /**
      * Get users by location
      */

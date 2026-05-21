@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Auditable;
 
 class Product extends Model
 {
-    use Auditable;
+    use SoftDeletes, Auditable;
     protected $table = 'products';
     protected $primaryKey = 'product_id';
 

@@ -145,9 +145,43 @@ class IssuanceController extends Controller
         try {
             $issuance = Issuance::findOrFail($id);
             $issuance->delete();
-            return $this->success(null, 'Issuance deleted successfully');
+            return $this->success(null, 'Issuance archived successfully');
         } catch (\Exception $e) {
             return $this->error('Failed to delete issuance: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function archived(Request $request)
+    {
+        $query = Issuance::onlyTrashed()->with(['location', 'customer', 'status']);
+
+        if ($request->filled('search')) {
+            $query->where('dr_number', 'like', '%' . $request->search . '%');
+        }
+
+        return $this->paginated(
+            $query->orderBy('deleted_at', 'desc')->paginate($request->integer('per_page', 15)),
+            'Archived issuances retrieved'
+        );
+    }
+
+    public function restore($id)
+    {
+        $issuance = Issuance::onlyTrashed()->find($id);
+        if (! $issuance) {
+            return $this->notFound('Archived issuance not found');
+        }
+        $issuance->restore();
+        return $this->success($issuance->fresh()->load(['location', 'customer', 'status']), 'Issuance restored successfully');
+    }
+
+    public function forceDestroy($id)
+    {
+        $issuance = Issuance::onlyTrashed()->find($id);
+        if (! $issuance) {
+            return $this->notFound('Archived issuance not found');
+        }
+        $issuance->forceDelete();
+        return $this->success(null, 'Issuance permanently deleted');
     }
 }

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import { categoriesAPI, brandsAPI, batchAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/category_brand_management.css';
+import '../styles/archive_management.css';
 
 const CATEGORY_ICONS = {
   'Air Conditioning': 'ac',
@@ -200,11 +202,6 @@ const CategoryBrandManagement = () => {
   };
 
   const handleArchiveCategory = async (c) => {
-    if (isInventoryAnalystViewOnly) {
-      toast.info('Archiving categories is disabled for Inventory Analyst.');
-      return;
-    }
-    if (!window.confirm(`Archive category "${c.category_name}"? You can restore it later.`)) return;
     try {
       await categoriesAPI.delete(c.category_id);
       toast.success(`Category "${c.category_name}" archived.`);
@@ -215,11 +212,6 @@ const CategoryBrandManagement = () => {
   };
 
   const handleArchiveBrand = async (b) => {
-    if (isInventoryAnalystViewOnly) {
-      toast.info('Archiving brands is disabled for Inventory Analyst.');
-      return;
-    }
-    if (!window.confirm(`Archive brand "${b.brand_name}"? You can restore it later.`)) return;
     try {
       await brandsAPI.delete(b.brand_id);
       toast.success(`Brand "${b.brand_name}" archived.`);
@@ -331,7 +323,7 @@ const CategoryBrandManagement = () => {
                         {!isInventoryAnalystViewOnly && (
                           <div className="cb-card-actions">
                             <button type="button" className="cb-btn-edit" onClick={() => openEditCategory(c)}>Edit</button>
-                            <button type="button" className="cb-btn-delete" onClick={() => handleArchiveCategory(c)}>Delete</button>
+                            <ArchiveButton onArchive={() => handleArchiveCategory(c)} />
                           </div>
                         )}
                       </li>
@@ -370,7 +362,7 @@ const CategoryBrandManagement = () => {
                         {!isInventoryAnalystViewOnly && (
                           <div className="cb-card-actions">
                             <button type="button" className="cb-btn-edit" onClick={() => openEditBrand(b)}>Edit</button>
-                            <button type="button" className="cb-btn-delete" onClick={() => handleArchiveBrand(b)}>Delete</button>
+                            <ArchiveButton onArchive={() => handleArchiveBrand(b)} />
                           </div>
                         )}
                       </li>

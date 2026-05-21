@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import ArchiveButton from '../components/ArchiveButton';
 import { issuancesAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { getIssuanceDisplay, issuanceLineQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
+import '../styles/archive_management.css';
 
 const ISSUANCE_TYPES = ['Internal', 'Maintenance', 'Operations', 'Office Use', 'Other'];
 const emptyDetail = () => ({ product_id: '', quantity_issued: 1, condition_issued: 'Good' });
@@ -129,11 +131,10 @@ const IssuanceManagement = () => {
     } catch (err) { toast.error(err.message || 'Failed to save.'); } finally { setSubmitting(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this issuance record?')) return;
+  const handleArchive = async (id) => {
     try {
       await issuancesAPI.delete(id);
-      toast.success('Deleted.');
+      toast.success('Issuance archived.');
       fetchIssuances();
     } catch (err) { toast.error(err.message || 'Failed to delete.'); }
   };
@@ -246,7 +247,10 @@ const IssuanceManagement = () => {
                       <div className="txn-feed-actions">
                         <button type="button" className="txn-btn-view" onClick={() => setViewingIssuance(iss)}>View</button>
                         <button type="button" className="txn-btn-edit" onClick={() => openEditModal(iss)}>Edit</button>
-                        <button type="button" className="txn-btn-delete" onClick={() => handleDelete(iss.issuance_id)}>Delete</button>
+                        <ArchiveButton
+                          onArchive={() => handleArchive(iss.issuance_id)}
+                          disabled={!['complete', 'posted'].some((k) => String(iss.status?.status_name || '').toLowerCase().includes(k))}
+                        />
                       </div>
                     </div>
                     <div className="txn-feed-right">
