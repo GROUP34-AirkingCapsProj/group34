@@ -42,6 +42,8 @@ const routePrefetchMap = {
   '/admin/reports': () => import('../pages/SystemReports'),
   '/admin/audit': () => import('../pages/AuditTrail'),
   '/admin/profit-loss': () => import('../pages/ProfitLossManagement'),
+  '/admin/issuance-scan': () => import('../pages/IssuanceScanPage'),
+  '/admin/warranties': () => import('../pages/WarrantyManagement'),
 };
 
 const prefetchedRoutes = new Set();
@@ -100,6 +102,7 @@ const adminMenuSections = [
     items: [
       { name: 'Compliance Review', path: '/admin/compliance', icon: 'compliance' },
       { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
+      { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
       { name: 'Warranty Hub', path: '/admin/warranty', icon: 'warranty' },
       { name: 'Alerts & Notices', path: '/admin/alerts', icon: 'notifications' },
       { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
@@ -203,6 +206,17 @@ const renderIcon = (iconType) => {
           <line x1="8" y1="8" x2="8" y2="16"/>
           <line x1="12" y1="8" x2="12" y2="16"/>
           <line x1="16" y1="8" x2="16" y2="16"/>
+        </svg>
+      );
+    case 'issuance-scan':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8M12 17v4"/>
+          <line x1="7" y1="8" x2="7" y2="12"/>
+          <line x1="10" y1="7" x2="10" y2="13"/>
+          <line x1="13" y1="8" x2="13" y2="12"/>
+          <line x1="16" y1="7" x2="16" y2="13"/>
         </svg>
       );
     case 'inventory':

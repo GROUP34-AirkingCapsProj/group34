@@ -48,7 +48,8 @@ const ItemManagement = () => {
     unit_id: '',
     unit_price: '',
     cost_price: '',
-    warranty_period_months: '',
+    warranty_value: '',
+    warranty_unit: 'month',
     status_id: '',
     variant: '',
     color: '',
@@ -173,7 +174,7 @@ const ItemManagement = () => {
   const resetForm = () => {
     setFormData({
       name: '', code: '', barcode: '', category_id: '', brand_id: '', model_code: '', unit_id: '',
-      unit_price: '', cost_price: '', warranty_period_months: '', status_id: '',
+      unit_price: '', cost_price: '', warranty_value: 0, warranty_unit: 'month', status_id: '',
       variant: '', color: '',
       capacity_rating: '', description: '', pieces_per_package: '', package_unit: '',
       recommended_stocks: '', safety_stock: '', max_stock_level: '',
@@ -217,7 +218,15 @@ const ItemManagement = () => {
       unit_id: item.unit_id ?? '',
       unit_price: item.unit_price ?? item.price ?? '',
       cost_price: item.cost_price ?? item.unit_price ?? item.price ?? '',
-      warranty_period_months: item.warranty_period_months ?? '',
+      warranty_value: item.warranty_value != null ? item.warranty_value : (() => {
+        const m = item.warranty_period_months ?? 0;
+        if (m > 0 && m % 12 === 0) return m / 12;
+        return m > 0 ? m : 0;
+      })(),
+      warranty_unit: item.warranty_unit ?? (() => {
+        const m = item.warranty_period_months ?? 0;
+        return (m > 0 && m % 12 === 0) ? 'year' : 'month';
+      })(),
       status_id: item.status_id ?? '',
       variant: item.variant || '',
       color: item.color || '',
@@ -335,18 +344,21 @@ const ItemManagement = () => {
       max_stock_level:    formData.max_stock_level !== '' ? Number(formData.max_stock_level) : null,
       // Appliance-specific
       ...(isAppliance ? {
-        brand_id:               formData.brand_id || null,
-        model_code:             formData.model_code || null,
-        capacity_rating:        formData.capacity_rating || null,
-        variant:                formData.variant || null,
-        color:                  formData.color || null,
-        warranty_period_months: Number(formData.warranty_period_months) || 0,
+        brand_id:        formData.brand_id || null,
+        model_code:      formData.model_code || null,
+        capacity_rating: formData.capacity_rating || null,
+        variant:         formData.variant || null,
+        color:           formData.color || null,
+        warranty_value:  Number(formData.warranty_value) || 0,
+        warranty_unit:   formData.warranty_unit || 'month',
       } : {}),
       // Consumable-specific
       ...(!isAppliance ? {
         unit_id:            formData.unit_id || null,
         pieces_per_package: formData.pieces_per_package ? Number(formData.pieces_per_package) : null,
         package_unit:       formData.package_unit || null,
+        warranty_value:     Number(formData.warranty_value) || 0,
+        warranty_unit:      formData.warranty_unit || 'month',
       } : {}),
     };
     try {
@@ -598,6 +610,7 @@ const ItemManagement = () => {
                   <th>TYPE</th>
                   <th>CATEGORY</th>
                   <th>DETAILS</th>
+                  <th>WARRANTY</th>
                   <th>COST PRICE</th>
                   <th>UNIT PRICE</th>
                   <th title="Total on-hand quantity across all locations">STOCK</th>
@@ -608,7 +621,7 @@ const ItemManagement = () => {
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
                       {loading ? 'Loading...' : 'No products found'}
                     </td>
                   </tr>
@@ -645,6 +658,11 @@ const ItemManagement = () => {
                         </td>
                         <td className="im-cell-category">{item.category?.category_name || '—'}</td>
                         <td className="im-cell-details">{detailsText}</td>
+                        <td className="im-cell-warranty">
+                          {item.warranty_display && item.warranty_display !== 'No Warranty'
+                            ? item.warranty_display
+                            : '—'}
+                        </td>
                         <td className="im-cell-price">₱{Number(item.cost_price ?? 0).toLocaleString()}</td>
                         <td className="im-cell-price">₱{Number(item.unit_price ?? item.price ?? 0).toLocaleString()}</td>
                         <td className="im-cell-qty">{Number.isFinite(qty) ? qty.toLocaleString() : '0'}</td>
@@ -746,8 +764,9 @@ const ItemManagement = () => {
                 <div className="im-view-row">
                   <div className="im-view-field">
                     <label>Warranty</label>
-                    <p>{viewingItem.warranty_period_months
-                        ? `${viewingItem.warranty_period_months} month(s)` : '—'}</p>
+                    <p>{viewingItem.warranty_display && viewingItem.warranty_display !== 'No Warranty'
+                        ? viewingItem.warranty_display
+                        : '—'}</p>
                   </div>
                 </div>
               </>
@@ -764,6 +783,14 @@ const ItemManagement = () => {
                   <div className="im-view-field">
                     <label>Pieces per Package</label>
                     <p>{viewingItem.pieces_per_package ?? '—'}{viewingItem.package_unit ? ` / ${viewingItem.package_unit}` : ''}</p>
+                  </div>
+                </div>
+                <div className="im-view-row">
+                  <div className="im-view-field">
+                    <label>Warranty</label>
+                    <p>{viewingItem.warranty_display && viewingItem.warranty_display !== 'No Warranty'
+                        ? viewingItem.warranty_display
+                        : '—'}</p>
                   </div>
                 </div>
               </>
@@ -879,7 +906,7 @@ const ItemManagement = () => {
                 setFormData(prev => ({
                   ...prev,
                   brand_id: '', model_code: '', capacity_rating: '',
-                  variant: '', color: '', warranty_period_months: '',
+                  variant: '', color: '',
                 }));
               }}
               type="button"
@@ -1015,14 +1042,35 @@ const ItemManagement = () => {
                 </div>
                 <div className="im-form-row">
                   <div className="im-form-field">
-                    <label>WARRANTY (MONTHS)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.warranty_period_months}
-                      onChange={(e) => setFormData({ ...formData, warranty_period_months: e.target.value })}
-                      placeholder="e.g. 12"
-                    />
+                    <label>WARRANTY</label>
+                    <div className="im-warranty-row">
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        className="im-warranty-value-input"
+                        value={formData.warranty_value}
+                        onChange={(e) => setFormData({ ...formData, warranty_value: parseInt(e.target.value) || 0 })}
+                        placeholder="0"
+                      />
+                      <select
+                        className="im-warranty-unit-select"
+                        value={formData.warranty_unit}
+                        onChange={(e) => setFormData({ ...formData, warranty_unit: e.target.value })}
+                        disabled={!Number(formData.warranty_value)}
+                      >
+                        <option value="month">Month(s)</option>
+                        <option value="year">Year(s)</option>
+                      </select>
+                    </div>
+                    <small className="im-warranty-preview">
+                      {!Number(formData.warranty_value)
+                        ? 'No warranty'
+                        : Number(formData.warranty_value) === 1
+                          ? `1 ${formData.warranty_unit === 'year' ? 'Year' : 'Month'}`
+                          : `${formData.warranty_value} ${formData.warranty_unit === 'year' ? 'Years' : 'Months'}`
+                      }
+                    </small>
                   </div>
                 </div>
                 <div className="im-form-field">
@@ -1196,6 +1244,39 @@ const ItemManagement = () => {
                       onChange={(e) => setFormData({ ...formData, package_unit: e.target.value })}
                       placeholder="e.g. Box, Drum, Carton"
                     />
+                  </div>
+                </div>
+                <div className="im-form-row">
+                  <div className="im-form-field">
+                    <label>WARRANTY</label>
+                    <div className="im-warranty-row">
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        className="im-warranty-value-input"
+                        value={formData.warranty_value}
+                        onChange={(e) => setFormData({ ...formData, warranty_value: parseInt(e.target.value) || 0 })}
+                        placeholder="0"
+                      />
+                      <select
+                        className="im-warranty-unit-select"
+                        value={formData.warranty_unit}
+                        onChange={(e) => setFormData({ ...formData, warranty_unit: e.target.value })}
+                        disabled={!Number(formData.warranty_value)}
+                      >
+                        <option value="month">Month(s)</option>
+                        <option value="year">Year(s)</option>
+                      </select>
+                    </div>
+                    <small className="im-warranty-preview">
+                      {!Number(formData.warranty_value)
+                        ? 'No warranty'
+                        : Number(formData.warranty_value) === 1
+                          ? `1 ${formData.warranty_unit === 'year' ? 'Year' : 'Month'}`
+                          : `${formData.warranty_value} ${formData.warranty_unit === 'year' ? 'Years' : 'Months'}`
+                      }
+                    </small>
                   </div>
                 </div>
                 <div className="im-form-row">

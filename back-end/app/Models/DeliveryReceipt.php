@@ -6,27 +6,44 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\Auditable;
 
-/**
- * DeliveryReceipt (ERD: delivery_receipt)
- * Table: delivery_receipts
- * Fields: dr_id, dr_number, sales_id FK, issued_by FK, status_id FK
- */
 class DeliveryReceipt extends Model
 {
     use Auditable;
-    protected $table = 'delivery_receipts';
+
+    protected $table      = 'delivery_receipts';
     protected $primaryKey = 'dr_id';
 
     protected $fillable = [
         'dr_number',
         'sales_id',
+        'issuance_id',
+        'customer_id',
+        'location_id',
+        'dr_date',
+        'total_amount',
         'issued_by',
         'status_id',
+        'notes',
+    ];
+
+    protected $casts = [
+        'dr_date'      => 'date',
+        'total_amount' => 'decimal:2',
     ];
 
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class, 'sales_id', 'sales_id');
+    }
+
+    public function issuance(): BelongsTo
+    {
+        return $this->belongsTo(Issuance::class, 'issuance_id', 'issuance_id');
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
     }
 
     public function issuedBy(): BelongsTo

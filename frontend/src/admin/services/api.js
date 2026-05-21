@@ -176,6 +176,13 @@ const apiRequest = async (endpoint, options = {}) => {
   console.log(`[API] ${method} ${url} → ${response.status}`, response.ok ? 'OK' : { message: data.message, errors: data.errors });
 
   if (!response.ok) {
+    // Token expired or missing — clear storage and bounce to login
+    if (response.status === 401) {
+      removeToken();
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/admin/login';
+      }
+    }
     const err = new Error(data.message || 'API request failed');
     err.status = response.status;
     err.errors = data.errors || null;
@@ -479,6 +486,7 @@ export const customersAPI = {
     return apiRequest(`/customers/search?${query}`);
   },
   getById: async (id) => apiRequest(`/customers/${id}`),
+  getHistory: async (id) => apiRequest(`/customers/${id}/history`),
   create: async (data) =>
     apiRequest('/customers', {
       method: 'POST',
@@ -491,6 +499,12 @@ export const customersAPI = {
     }),
   delete: async (id) =>
     apiRequest(`/customers/${id}`, { method: 'DELETE' }),
+  restore: async (id) =>
+    apiRequest(`/customers/${id}/restore`, { method: 'POST' }),
+  exportCsv: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return `/customers/export${query ? '?' + query : ''}`;
+  },
 };
 
 /* ======================
@@ -671,6 +685,55 @@ export const warrantyClaimsAPI = {
   create: async () => { throw new Error('Warranty claims are not available in this version.'); },
   update: async () => { throw new Error('Warranty claims are not available in this version.'); },
   delete: async () => { throw new Error('Warranty claims are not available in this version.'); },
+};
+
+/* ======================
+   WARRANTIES API (Phase 2 — real warranty_records)
+====================== */
+export const warrantiesAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/warranties?${query}` : '/warranties');
+  },
+  getById: async (id) => apiRequest(`/warranties/${id}`),
+  lookupBySerial: async (serial) =>
+    apiRequest(`/warranties/lookup/${encodeURIComponent(serial)}`),
+  markClaimed: async (id, data = {}) =>
+    apiRequest(`/warranties/${id}/claim`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  exportCsv: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return `/warranties/export${query ? '?' + query : ''}`;
+  },
+};
+
+/* ======================
+   ISSUANCE SCAN API (Phase 3 — barcode-driven issuance)
+====================== */
+export const issuanceScanAPI = {
+  initSession: async (data) =>
+    apiRequest('/issuance-scan/init', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  scanItem: async (data) =>
+    apiRequest('/issuance-scan/scan', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  removeItem: async (detailId) =>
+    apiRequest(`/issuance-scan/item/${detailId}`, { method: 'DELETE' }),
+  getSession: async (issuanceId) =>
+    apiRequest(`/issuance-scan/session/${issuanceId}`),
+  complete: async (issuanceId) =>
+    apiRequest(`/issuance-scan/complete/${issuanceId}`, { method: 'POST' }),
+  drCsvUrl: (issuanceId) => {
+    const base = getApiBaseUrl();
+    const token = getToken();
+    return `${base}/issuance-scan/delivery-receipt/${issuanceId}/csv${token ? '?token=' + token : ''}`;
+  },
 };
 
 /* ======================

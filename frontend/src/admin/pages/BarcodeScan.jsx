@@ -1617,6 +1617,10 @@ const BarcodeScan = () => {
       navigate('/admin/barcode-adjustment');
       return;
     }
+    if (mode.key === 'issue-out') {
+      navigate('/admin/issuance-scan');
+      return;
+    }
     setScanMode(mode);
     setModeIndex(idx);
     setScanResult(null);

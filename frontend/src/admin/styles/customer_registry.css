@@ -531,3 +531,273 @@
     overflow-x: scroll;
   }
 }
+
+/* ── Type badges ── */
+.cr-type-registered {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.cr-type-walk-in {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* ── Status ── */
+.cr-status-archived {
+  color: #9ca3af;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+/* ── Table helpers ── */
+.cr-row-archived td {
+  opacity: 0.6;
+}
+
+.cr-td-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.cr-td-mono {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.cr-empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 32px;
+}
+
+/* ── Action buttons ── */
+.cr-btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f9fafb;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cr-btn-export:hover { background: #f3f4f6; }
+
+.cr-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.cr-btn-edit {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cr-btn-edit:hover { background: #e5e7eb; }
+
+.cr-btn-archive {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cr-btn-archive:hover { background: #fee2e2; }
+
+.cr-btn-restore {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cr-btn-restore:hover { background: #dcfce7; }
+
+.cr-btn-history {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cr-btn-history:hover { background: #dbeafe; }
+
+/* ── Toolbar helpers ── */
+.cr-archived-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ── Form row ── */
+.cr-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.cr-form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  resize: vertical;
+}
+
+/* ── View modal ── */
+.cr-view-row-full {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.cr-view-row-full span:first-child {
+  margin-bottom: 2px;
+}
+
+/* ── History modal ── */
+.cr-history-modal {
+  min-width: 620px;
+}
+
+.cr-history-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.cr-history-tab {
+  padding: 8px 18px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.cr-history-tab:hover { color: #374151; }
+
+.cr-history-tab-active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
+}
+
+.cr-history-pane {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.cr-history-loading,
+.cr-history-error,
+.cr-history-empty {
+  padding: 24px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.cr-history-error { color: #dc2626; }
+
+.cr-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cr-history-table th {
+  text-align: left;
+  padding: 8px 12px;
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+}
+
+.cr-history-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.cr-history-row-click {
+  cursor: pointer;
+}
+
+.cr-history-row-click:hover td {
+  background: #f0f9ff;
+}
+
+.cr-expand-cell {
+  color: #9ca3af;
+  font-size: 11px;
+  text-align: center;
+}
+
+.cr-history-items-td {
+  padding: 0 !important;
+  background: #f8faff;
+}
+
+.cr-history-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cr-history-items-table th {
+  padding: 6px 12px;
+  background: #eff6ff;
+  color: #374151;
+  font-weight: 600;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.cr-history-items-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #e0eaff;
+  color: #111827;
+}
+
+/* ── Warranty status chips (in history) ── */
+.cr-war-active   { color: #15803d; font-weight: 500; font-size: 12px; }
+.cr-war-expired  { color: #b91c1c; font-weight: 500; font-size: 12px; }
+.cr-war-claimed  { color: #374151; font-weight: 500; font-size: 12px; }
+.cr-war-expiring { color: #d97706; font-weight: 500; font-size: 12px; }

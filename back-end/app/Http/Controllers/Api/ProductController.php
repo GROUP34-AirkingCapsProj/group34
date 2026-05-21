@@ -146,6 +146,8 @@ class ProductController extends Controller
                 'safety_stock'       => 'nullable|integer|min:0',
                 'max_stock_level'    => 'nullable|integer|min:0',
                 'status_id'          => 'nullable|exists:status_lookup,status_id',
+                'warranty_value'     => 'nullable|integer|min:0|max:99',
+                'warranty_unit'      => ['nullable', \Illuminate\Validation\Rule::in(['year', 'month'])],
             ]);
 
             $sharedValidated['product_type'] = $type;
@@ -154,6 +156,11 @@ class ProductController extends Controller
                 $product = Product::create($sharedValidated);
 
                 if ($type === 'appliance') {
+                    $wValue = (int) ($request->input('warranty_value') ?? 0);
+                    $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
+                        ? $request->input('warranty_unit') : 'month';
+                    $wMonths = $wUnit === 'year' ? $wValue * 12 : $wValue;
+
                     ApplianceDetail::create([
                         'product_id'             => $product->product_id,
                         'brand_id'               => $request->input('brand_id') ?: null,
@@ -161,16 +168,24 @@ class ProductController extends Controller
                         'capacity_rating'        => $request->input('capacity_rating') ?: null,
                         'variant'                => $request->input('variant') ?: null,
                         'color'                  => $request->input('color') ?: null,
-                        'warranty_period_months' => (int) ($request->input('warranty_period_months') ?? 0),
+                        'warranty_value'         => $wValue,
+                        'warranty_unit'          => $wUnit,
+                        'warranty_period_months' => $wMonths,
                         'is_serialized'          => 1,
                     ]);
                 } else {
+                    $wValue = (int) ($request->input('warranty_value') ?? 0);
+                    $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
+                        ? $request->input('warranty_unit') : 'month';
+
                     ConsumableDetail::create([
                         'product_id'         => $product->product_id,
                         'unit_id'            => $request->input('unit_id') ?: null,
                         'pieces_per_package' => $request->input('pieces_per_package') ? (int) $request->input('pieces_per_package') : null,
                         'package_unit'       => $request->input('package_unit') ?: null,
                         'is_serialized'      => 0,
+                        'warranty_value'     => $wValue,
+                        'warranty_unit'      => $wUnit,
                     ]);
                 }
 
@@ -222,12 +237,19 @@ class ProductController extends Controller
                 'safety_stock'       => 'nullable|integer|min:0',
                 'max_stock_level'    => 'nullable|integer|min:0',
                 'status_id'          => 'nullable|exists:status_lookup,status_id',
+                'warranty_value'     => 'nullable|integer|min:0|max:99',
+                'warranty_unit'      => ['nullable', \Illuminate\Validation\Rule::in(['year', 'month'])],
             ]);
 
             DB::transaction(function () use ($request, $product, $sharedValidated) {
                 $product->update($sharedValidated);
 
                 if ($product->product_type === 'appliance') {
+                    $wValue = (int) ($request->input('warranty_value') ?? 0);
+                    $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
+                        ? $request->input('warranty_unit') : 'month';
+                    $wMonths = $wUnit === 'year' ? $wValue * 12 : $wValue;
+
                     $product->applianceDetail()->updateOrCreate(
                         ['product_id' => $product->product_id],
                         [
@@ -236,11 +258,17 @@ class ProductController extends Controller
                             'capacity_rating'        => $request->input('capacity_rating') ?: null,
                             'variant'                => $request->input('variant') ?: null,
                             'color'                  => $request->input('color') ?: null,
-                            'warranty_period_months' => (int) ($request->input('warranty_period_months') ?? 0),
+                            'warranty_value'         => $wValue,
+                            'warranty_unit'          => $wUnit,
+                            'warranty_period_months' => $wMonths,
                             'is_serialized'          => 1,
                         ]
                     );
                 } else {
+                    $wValue = (int) ($request->input('warranty_value') ?? 0);
+                    $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
+                        ? $request->input('warranty_unit') : 'month';
+
                     $product->consumableDetail()->updateOrCreate(
                         ['product_id' => $product->product_id],
                         [
@@ -248,6 +276,8 @@ class ProductController extends Controller
                             'pieces_per_package' => $request->input('pieces_per_package') ? (int) $request->input('pieces_per_package') : null,
                             'package_unit'       => $request->input('package_unit') ?: null,
                             'is_serialized'      => 0,
+                            'warranty_value'     => $wValue,
+                            'warranty_unit'      => $wUnit,
                         ]
                     );
                 }
@@ -309,7 +339,7 @@ class ProductController extends Controller
 
         $columns = [
             'Product Code', 'Product Name', 'Type', 'Category', 'Status',
-            'Brand', 'Model', 'Capacity', 'Variant', 'Color', 'Warranty (Months)',
+            'Brand', 'Model', 'Capacity', 'Variant', 'Color', 'Warranty',
             'Unit', 'Unit Abbreviation', 'Pieces/Package', 'Package Unit',
             'Cost Price', 'Unit Price',
             'Recommended Stock', 'Safety Stock', 'Max Stock Level',
@@ -336,7 +366,7 @@ class ProductController extends Controller
                     $ad?->capacity_rating                       ?? '',
                     $ad?->variant                               ?? '',
                     $ad?->color                                 ?? '',
-                    $ad?->warranty_period_months                ?? '',
+                    $ad?->warranty_display ?? ($cd?->warranty_display ?? 'No Warranty'),
                     $cd?->unit?->unit_name                      ?? '',
                     $cd?->unit?->unit_abbreviation              ?? '',
                     $cd?->pieces_per_package                    ?? '',
@@ -374,6 +404,9 @@ class ProductController extends Controller
             $p->setAttribute('variant',                $ad->variant);
             $p->setAttribute('color',                  $ad->color);
             $p->setAttribute('warranty_period_months', $ad->warranty_period_months);
+            $p->setAttribute('warranty_value',         $ad->warranty_value);
+            $p->setAttribute('warranty_unit',          $ad->warranty_unit ?? 'month');
+            $p->setAttribute('warranty_display',       $ad->warranty_display);
             $p->setAttribute('is_serialized',          (bool) $ad->is_serialized);
             $p->setRelation('brand',       $ad->brand);
             $p->setRelation('modelLookup', $ad->modelLookup);
@@ -386,7 +419,10 @@ class ProductController extends Controller
             $p->setAttribute('unit_abbreviation',  $cd->unit?->unit_abbreviation);
             $p->setAttribute('pieces_per_package', $cd->pieces_per_package);
             $p->setAttribute('package_unit',       $cd->package_unit);
-            $p->setAttribute('is_serialized',      (bool) $cd->is_serialized);
+            $p->setAttribute('warranty_value',   $cd->warranty_value);
+            $p->setAttribute('warranty_unit',    $cd->warranty_unit ?? 'month');
+            $p->setAttribute('warranty_display', $cd->warranty_display);
+            $p->setAttribute('is_serialized',    (bool) $cd->is_serialized);
             $p->setRelation('unit', $cd->unit);
         }
     }

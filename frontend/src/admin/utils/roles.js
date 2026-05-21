@@ -155,6 +155,7 @@ export const ROLE_MENUS = {
       items: [
         { name: 'POS Operations', path: '/admin/transactions', icon: 'transactions' },
         { name: 'Customer Registry', path: '/admin/customers', icon: 'customers' },
+        { name: 'Issuance Scan', path: '/admin/issuance-scan', icon: 'issuance-scan' },
         { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'inventoryop' },
         { name: 'Transactions', path: '/admin/transfers', icon: 'transfer' },
       ],
@@ -191,6 +192,7 @@ export const ROLE_MENUS = {
       items: [
         { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
         { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
+        { name: 'Issuance Scan', path: '/admin/issuance-scan', icon: 'issuance-scan' },
         { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'barcode' },
         { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
         { name: 'Transactions (With Transfers)', path: '/admin/transfers', icon: 'transfer' },
@@ -258,6 +260,12 @@ export const ROUTE_ACCESS = {
   '/admin/transactions': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
   '/admin/delivery-receipts': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
   '/admin/profit-loss': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+
+  // Issuance scan (barcode-driven issuance)
+  '/admin/issuance-scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+
+  // Warranties
+  '/admin/warranties': Object.values(ROLES),
 
   // Legacy pages
   '/admin/branches': [ROLES.ADMIN],
