@@ -42,6 +42,8 @@ use App\Http\Controllers\Api\AuditTrailController;
 use App\Http\Controllers\Api\SystemSessionSettingsController;
 use App\Http\Controllers\Api\CompanySettingsController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\WarrantyController;
+use App\Http\Controllers\Api\IssuanceScanController;
 
 /*
 |--------------------------------------------------------------------------
@@ -339,15 +341,49 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | ERD: CUSTOMER (customer)
+    | Customer Management
     |--------------------------------------------------------------------------
     */
-    Route::get('/customers', [CustomerController::class, 'index']);
-    Route::get('/customers/search', [CustomerController::class, 'search']);
-    Route::get('/customers/{customer}', [CustomerController::class, 'show']);
-    Route::post('/customers', [CustomerController::class, 'store']);
-    Route::put('/customers/{customer}', [CustomerController::class, 'update']);
-    Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+    Route::get('/customers/export',          [CustomerController::class, 'export']);
+    Route::get('/customers/search',          [CustomerController::class, 'search']);
+    Route::get('/customers/{id}/history',    [CustomerController::class, 'history']);
+    Route::get('/customers',                 [CustomerController::class, 'index']);
+    Route::get('/customers/{id}',            [CustomerController::class, 'show']);
+    Route::post('/customers',                [CustomerController::class, 'store']);
+    Route::put('/customers/{id}',            [CustomerController::class, 'update']);
+    Route::delete('/customers/{id}',         [CustomerController::class, 'destroy']);
+    Route::post('/customers/{id}/restore',   [CustomerController::class, 'restore']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Warranty Management
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/warranties/export',             [WarrantyController::class, 'export']);
+    Route::get('/warranties/lookup/{serial}',    [WarrantyController::class, 'lookupBySerial']);
+    Route::get('/warranties',                    [WarrantyController::class, 'index']);
+    Route::get('/warranties/{id}',               [WarrantyController::class, 'show']);
+    Route::put('/warranties/{id}/claim',         [WarrantyController::class, 'markClaimed']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Issuance Scan (barcode-driven issuance flow)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')
+         ->prefix('issuance-scan')
+         ->group(function () {
+             Route::post('/init',
+                 [IssuanceScanController::class, 'initSession']);
+             Route::post('/scan',
+                 [IssuanceScanController::class, 'scanItem']);
+             Route::delete('/item/{detail_id}',
+                 [IssuanceScanController::class, 'removeItem']);
+             Route::post('/complete/{issuance_id}',
+                 [IssuanceScanController::class, 'completeIssuance']);
+             Route::get('/session/{issuance_id}',
+                 [IssuanceScanController::class, 'getSessionStatus']);
+         });
 
     /*
     |--------------------------------------------------------------------------
@@ -719,3 +755,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         });
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Download endpoints — token passed as ?token= query param (browser download)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth.query.token', 'role:admin,branch_manager,warehouse_personnel'])
+     ->get('/issuance-scan/delivery-receipt/{issuance_id}/csv',
+         [IssuanceScanController::class, 'downloadDeliveryReceipt']);

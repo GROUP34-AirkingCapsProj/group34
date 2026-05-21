@@ -811,3 +811,70 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ========================================
+   Warranty Input Row
+   ======================================== */
+
+.im-warranty-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.im-warranty-value-input {
+  width: 80px;
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.im-warranty-value-input:focus {
+  border-color: #dc2626;
+}
+
+.im-warranty-unit-select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.im-warranty-unit-select:focus {
+  border-color: #dc2626;
+}
+
+.im-warranty-unit-select:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.im-warranty-preview {
+  display: block;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+/* ========================================
+   Warranty Table Column
+   ======================================== */
+
+.im-cell-warranty {
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
+}

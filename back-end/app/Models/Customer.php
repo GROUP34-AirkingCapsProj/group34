@@ -16,27 +16,14 @@ class Customer extends Model
     protected $primaryKey = 'customer_id';
 
     protected $fillable = [
-        'customer_type',
-        'customer_name',
-        'customer_code',
-        'contact_number',
-        'email',
-        'company_name',
-        'address',
-        'city',
-        'province',
-        'region',
-        'tin',
-        'notes',
-        'is_active',
-        'status_id',
-        'credit_limit',
-        'outstanding_balance',
+        'customer_code', 'customer_type', 'customer_name',
+        'contact_number', 'email', 'company_name', 'address',
+        'city', 'province', 'region', 'tin', 'notes',
+        'credit_limit', 'outstanding_balance', 'status_id',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
-        'credit_limit' => 'decimal:2',
+        'credit_limit'        => 'decimal:2',
         'outstanding_balance' => 'decimal:2',
     ];
 
@@ -45,15 +32,28 @@ class Customer extends Model
         return 'customer_id';
     }
 
-    // Relationships
+    public function status()
+    {
+        return $this->belongsTo(StatusLookup::class, 'status_id', 'status_id');
+    }
+
+    public function issuances(): HasMany
+    {
+        return $this->hasMany(Issuance::class, 'customer_id', 'customer_id')
+                    ->orderBy('issuance_date', 'desc');
+    }
+
+    public function warrantyRecords(): HasMany
+    {
+        return $this->hasMany(WarrantyRecord::class, 'customer_id', 'customer_id')
+                    ->orderBy('created_at', 'desc');
+    }
+
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class, 'customer_id', 'customer_id');
     }
 
-    /**
-     * Delivery receipts linked through customer's sales records.
-     */
     public function posDeliveryReceipts(): HasManyThrough
     {
         return $this->hasManyThrough(
@@ -66,4 +66,23 @@ class Customer extends Model
         );
     }
 
+    public function scopeActive($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    public function scopeRegistered($query)
+    {
+        return $query->where('customer_type', 'registered');
+    }
+
+    public function scopeWalkIn($query)
+    {
+        return $query->where('customer_type', 'walk_in');
+    }
+
+    public function scopeOfType($query, string $type)
+    {
+        return $query->where('customer_type', $type);
+    }
 }

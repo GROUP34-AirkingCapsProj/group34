@@ -20,13 +20,52 @@ class ApplianceDetail extends Model
         'variant',
         'color',
         'warranty_period_months',
+        'warranty_value',
+        'warranty_unit',
         'is_serialized',
     ];
 
     protected $casts = [
         'warranty_period_months' => 'integer',
+        'warranty_value'         => 'integer',
         'is_serialized'          => 'boolean',
     ];
+
+    protected $appends = ['warranty_display'];
+
+    /**
+     * Returns a human-readable warranty string.
+     * Examples: "2 Years", "6 Months", "No Warranty"
+     */
+    public function getWarrantyDisplayAttribute(): string
+    {
+        $value = (int) ($this->warranty_value ?? 0);
+        $unit  = $this->warranty_unit ?? 'month';
+
+        if ($value <= 0) {
+            return 'No Warranty';
+        }
+
+        $label = ucfirst($unit);
+        if ($value > 1) {
+            $label .= 's';
+        }
+
+        return "{$value} {$label}";
+    }
+
+    /**
+     * Computes warranty_period_months from value + unit.
+     * Call this before saving when warranty fields change.
+     */
+    public function computeWarrantyMonths(): int
+    {
+        $value = (int) ($this->warranty_value ?? 0);
+        $unit  = $this->warranty_unit ?? 'month';
+
+        if ($value <= 0) return 0;
+        return $unit === 'year' ? $value * 12 : $value;
+    }
 
     public function product(): BelongsTo
     {

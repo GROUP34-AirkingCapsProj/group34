@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auditor.readonly' => \App\Http\Middleware\AuditorReadOnly::class,
             'location.scope' => \App\Http\Middleware\EnsureAssignedLocationAccess::class,
             'extend.sanctum.session' => \App\Http\Middleware\ExtendSanctumTokenExpiration::class,
+            'auth.query.token'       => \App\Http\Middleware\AuthenticateFromQueryToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

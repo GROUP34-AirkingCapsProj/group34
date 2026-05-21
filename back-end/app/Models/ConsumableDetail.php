@@ -18,12 +18,38 @@ class ConsumableDetail extends Model
         'pieces_per_package',
         'package_unit',
         'is_serialized',
+        'warranty_value',
+        'warranty_unit',
     ];
 
     protected $casts = [
         'pieces_per_package' => 'integer',
+        'warranty_value'     => 'integer',
         'is_serialized'      => 'boolean',
     ];
+
+    protected $appends = ['warranty_display'];
+
+    /**
+     * Returns a human-readable warranty string.
+     * Examples: "1 Year", "6 Months", "No Warranty"
+     */
+    public function getWarrantyDisplayAttribute(): string
+    {
+        $value = (int) ($this->warranty_value ?? 0);
+        $unit  = $this->warranty_unit ?? 'month';
+
+        if ($value <= 0) {
+            return 'No Warranty';
+        }
+
+        $label = ucfirst($unit);
+        if ($value > 1) {
+            $label .= 's';
+        }
+
+        return "{$value} {$label}";
+    }
 
     public function product(): BelongsTo
     {

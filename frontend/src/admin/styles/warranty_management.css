@@ -335,6 +335,59 @@
     color: #6b7280;
 }
 
+/* Warranty record status variants */
+.war-status-active {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.war-status-expired {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.war-status-claimed {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* Days-remaining chips */
+.war-days {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.war-days-ok {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.war-days-warn {
+    background: #fef9c3;
+    color: #854d0e;
+}
+
+.war-days-expired {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.war-days-claimed {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* Serial cell */
+.war-cell-serial {
+    font-family: monospace;
+    font-size: 12px;
+}
+
 /* Action Buttons */
 .war-cell-actions {
     display: flex;
@@ -909,3 +962,30 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Days danger chip (0-30 days) */
+.war-days-danger {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+/* Toggle label */
+.war-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    padding: 9px 0;
+    white-space: nowrap;
+}
+
+/* Customer cell */
+.war-cell-item {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+

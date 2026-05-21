@@ -5,36 +5,33 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Traits\Auditable;
 
-/**
- * Issuance (ERD: issuance)
- * Table: issuances
- * Tracks the issuance of products to users/departments.
- */
 class Issuance extends Model
 {
     use Auditable;
-    protected $table = 'issuances';
+
+    protected $table      = 'issuances';
     protected $primaryKey = 'issuance_id';
 
     protected $fillable = [
-        'location_id',
-        'issuance_date',
-        'issuance_type',
-        'purpose',
-        'issued_to_user_id',
-        'expected_return_date',
-        'actual_return_date',
-        'issued_by',
-        'approved_by',
-        'status_id',
+        'location_id', 'customer_id', 'issuance_date',
+        'issuance_type', 'dr_number', 'discount_type',
+        'discount_percent', 'subtotal', 'discount_amount',
+        'total_amount', 'purpose', 'issued_to_user_id',
+        'expected_return_date', 'actual_return_date',
+        'issued_by', 'approved_by', 'status_id', 'notes',
     ];
 
     protected $casts = [
         'issuance_date'        => 'date',
         'expected_return_date' => 'date',
         'actual_return_date'   => 'date',
+        'discount_percent'     => 'decimal:2',
+        'subtotal'             => 'decimal:2',
+        'discount_amount'      => 'decimal:2',
+        'total_amount'         => 'decimal:2',
     ];
 
     public function location(): BelongsTo
@@ -42,12 +39,17 @@ class Issuance extends Model
         return $this->belongsTo(Location::class, 'location_id', 'location_id');
     }
 
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
+    }
+
     public function issuedToUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'issued_to_user_id', 'user_id');
     }
 
-    public function issuedBy(): BelongsTo
+    public function issuedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'issued_by', 'user_id');
     }
@@ -65,5 +67,15 @@ class Issuance extends Model
     public function details(): HasMany
     {
         return $this->hasMany(IssuanceDetail::class, 'issuance_id', 'issuance_id');
+    }
+
+    public function warrantyRecords(): HasMany
+    {
+        return $this->hasMany(WarrantyRecord::class, 'issuance_id', 'issuance_id');
+    }
+
+    public function deliveryReceipt(): HasOne
+    {
+        return $this->hasOne(DeliveryReceipt::class, 'issuance_id', 'issuance_id');
     }
 }

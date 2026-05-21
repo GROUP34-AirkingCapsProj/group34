@@ -394,29 +394,7 @@
 .baj-btn-secondary:hover:not(:disabled) { background: #1d4ed8; }
 .baj-btn-secondary:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
 
-/* ── Adjustment camera: compact on all screens ────────────────
-   Overrides barcode_scan.css .bs-camera-box 768px portrait rule.
-   Higher specificity (.ba-adj-camera.bs-camera-box) wins.
-   ─────────────────────────────────────────────────────────── */
-.ba-adj-camera.bs-camera-box {
-  aspect-ratio: 16 / 9;
-  max-height: 420px;
-}
-@media (max-width: 900px) {
-  .ba-adj-camera.bs-camera-box { max-height: 380px; }
-}
-@media (max-width: 768px) {
-  .ba-adj-camera.bs-camera-box {
-    aspect-ratio: 4 / 3;
-    max-height: 340px;
-  }
-}
-@media (max-width: 480px) {
-  .ba-adj-camera.bs-camera-box {
-    aspect-ratio: 4 / 3;
-    max-height: 280px;
-  }
-}
+/* Camera box sizing is now defined in barcode_scan.css .bs-camera-box — no override needed. */
 
 /* ── Product picker dropdown ─────────────────────────────────── */
 .ba-picker-panel {
