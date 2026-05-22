@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
+import { useAuth, useUserLocation } from '../context/AuthContext';
+import LocationBadge    from '../components/LocationBadge';
+import LocationSelector from '../components/LocationSelector';
 import {
   BinaryBitmap,
   DecodeHintType,
@@ -328,6 +331,9 @@ function QuickAddModal({ onSave, onClose }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IssuanceScanPage() {
+  const { refreshUser } = useAuth();
+  const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations } = useUserLocation();
+
   const [step, setStep]               = useState(STEPS.SETUP);
   const [form, setForm]               = useState({ ...EMPTY_FORM });
   const [locations, setLocations]     = useState([]);
@@ -361,10 +367,28 @@ export default function IssuanceScanPage() {
   });
 
   // ── Consumable quantity panel ────────────────────────────────
-  const [pendingScan, setPendingScan]   = useState(null);
-  const [qtyValue, setQtyValue]         = useState('1');
-  const [selectedUnit, setSelectedUnit] = useState('');
-  const qtyInputRef                     = useRef(null);
+  const [pendingScan, setPendingScan]       = useState(null);
+  const [selectedAction, setSelectedAction] = useState(null);
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customQty, setCustomQty]           = useState('');
+  const [customUnit, setCustomUnit]         = useState('');
+  const customQtyRef                        = useRef(null);
+
+  const computedPieces = useMemo(() => {
+    if (selectedAction?.quantity_in_pieces != null) return selectedAction.quantity_in_pieces;
+    const qty = parseFloat(customQty) || 0;
+    if (!qty || !pendingScan) return 0;
+    const unitName = customUnit || pendingScan.base_unit_name;
+    const match = (pendingScan.quick_actions ?? [])
+      .find(a => a.unit_name === unitName && !a.is_custom);
+    if (match) return Math.max(1, Math.ceil(qty * (match.conversion_factor ?? 1)));
+    return Math.max(1, Math.ceil(qty));
+  }, [selectedAction, customQty, customUnit, pendingScan]);
+
+  const computedSubtotal = useMemo(() => {
+    if (!pendingScan) return 0;
+    return Math.round(pendingScan.price_per_piece * computedPieces * 100) / 100;
+  }, [pendingScan, computedPieces]);
 
   // ── Units for dropdown ───────────────────────────────────────
   const [units, setUnits] = useState([]);
@@ -382,16 +406,15 @@ export default function IssuanceScanPage() {
   const lastTimeRef   = useRef(0);
   const handleScanRef = useRef(null);
 
-  // ── Load locations ───────────────────────────────────────────
+  // Hydrate full location data (enforced_location_id, allowed_locations, etc.)
+  useEffect(() => { refreshUser(); }, [refreshUser]);
+
+  // ── Load locations (still needed for admin/BM fallback if allowedLocations is empty) ──
   useEffect(() => {
     locationsAPI.getAll({ per_page: 200 }).then((res) => {
       const list = Array.isArray(res?.data) ? res.data : [];
       setLocations(list);
-      if (list.length && !form.location_id) {
-        setForm((f) => ({ ...f, location_id: String(list[0].location_id ?? list[0].id ?? '') }));
-      }
     }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Load units for consumable qty dropdown ───────────────────
@@ -455,13 +478,6 @@ export default function IssuanceScanPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanFeedback]);
 
-  // ── Auto-focus quantity input when panel appears ─────────────
-  useEffect(() => {
-    if (pendingScan && qtyInputRef.current) {
-      qtyInputRef.current.focus();
-    }
-  }, [pendingScan]);
-
   // ── Camera cleanup on unmount ────────────────────────────────
   useEffect(() => () => {
     const h = html5QrRef.current;
@@ -514,7 +530,10 @@ export default function IssuanceScanPage() {
     if (isOneTime && !walkInName.trim()) {
       toast.error('Enter the walk-in customer name.'); return;
     }
-    if (!form.location_id) { toast.error('Select a location.'); return; }
+    const effectiveLocationId = isStrictLocation
+      ? (enforcedLocationId ?? null)
+      : (form.location_id ? parseInt(form.location_id, 10) : null);
+    if (!effectiveLocationId) { toast.error('Select a location.'); return; }
 
     setSetupSaving(true);
     try {
@@ -527,7 +546,7 @@ export default function IssuanceScanPage() {
         issuance_type:    form.issuance_type,
         discount_type:    form.discount_type || 'none',
         discount_percent: form.issuance_type === 'business' ? parseFloat(form.discount_percent) || 0 : 0,
-        location_id:      parseInt(form.location_id),
+        location_id:      effectiveLocationId,
         notes:            notesVal || null,
       };
       if (!isOneTime) payload.customer_id = parseInt(form.customer_id);
@@ -640,20 +659,25 @@ export default function IssuanceScanPage() {
       const packageUnit = cd.package_unit ?? ld.unit_name ?? '';
       const unitName    = ld.unit_name ?? cd.unit?.unit_name ?? 'Piece';
 
+      setSelectedAction(null);
+      setShowCustomInput(false);
+      setCustomQty('');
+      setCustomUnit('');
       setPendingScan({
         barcode:            trimmed,
         product_id:         product.product_id,
         product_name:       product.product_name,
         product_code:       product.product_code,
-        unit_name:          unitName,
-        unit_abbreviation:  ld.unit_abbr ?? cd.unit?.unit_abbreviation ?? 'pc',
+        base_unit_name:     ld.base_unit_name  ?? unitName,
+        base_unit_abbr:     ld.base_unit_abbr  ?? ld.unit_abbr ?? cd.unit?.unit_abbreviation ?? 'pc',
         pieces_per_package: piecesPerPackage,
-        package_unit:       packageUnit,
-        package_price:      packagePrice,
-        price_per_piece:    pricePerPiece,
+        package_unit:       ld.package_unit    ?? packageUnit ?? 'package',
+        package_price:      ld.package_price   ?? packagePrice,
+        price_per_piece:    ld.price_per_piece ?? pricePerPiece,
+        quick_actions:      ld.quick_actions      ?? [],
+        dropdown_units:     ld.dropdown_units     ?? [],
+        has_issuable_units: ld.has_issuable_units ?? false,
       });
-      setQtyValue('1');
-      setSelectedUnit(unitName);
 
     } catch (err) {
       playScanFeedback(false);
@@ -829,25 +853,47 @@ export default function IssuanceScanPage() {
   }, [cameraActive]);
 
   // ── applyConsumableScan ──────────────────────────────────────
-  const applyConsumableScan = async () => {
+  const applyConsumableScan = useCallback(async () => {
     if (!pendingScan) return;
-    const qty = parseFloat(qtyValue);
-    if (isNaN(qty) || qty <= 0) {
-      qtyInputRef.current?.focus();
+
+    let finalUnitName, finalPieces;
+
+    if (selectedAction && !selectedAction.is_custom) {
+      // Quick action — use pre-computed values from the API
+      finalUnitName = selectedAction.unit_name;
+      finalPieces   = selectedAction.quantity_in_pieces
+        ?? Math.max(1, Math.ceil(selectedAction.conversion_factor ?? 1));
+    } else if (showCustomInput && parseFloat(customQty) > 0) {
+      // Custom entry — qty is in the selected unit; derive pieces via conversion_factor
+      const enteredQty = parseFloat(customQty);
+      finalUnitName = customUnit || pendingScan.base_unit_name;
+      const match = (pendingScan.quick_actions ?? [])
+        .find(a => a.unit_name === finalUnitName && !a.is_custom);
+      if (match) {
+        finalPieces = Math.max(1, Math.ceil(enteredQty * (match.conversion_factor ?? 1)));
+      } else {
+        finalPieces = Math.max(1, Math.ceil(enteredQty));
+      }
+    } else {
+      customQtyRef.current?.focus();
       return;
     }
 
     setScanProcessing(true);
+    const capturedBarcode = pendingScan.barcode;
     try {
       const res = await issuanceScanAPI.scanItem({
         issuance_id:   session.issuance_id,
-        barcode:       pendingScan.barcode,
-        quantity:      qty,
-        quantity_unit: selectedUnit,
+        barcode:       capturedBarcode,
+        quantity:      finalPieces,
+        quantity_unit: finalUnitName,
         location_id:   parseInt(form.location_id),
       });
-      const capturedBarcode = pendingScan.barcode;
       setPendingScan(null);
+      setSelectedAction(null);
+      setShowCustomInput(false);
+      setCustomQty('');
+      setCustomUnit('');
       handleScanResponse(res, capturedBarcode);
     } catch (err) {
       playScanFeedback(false);
@@ -859,7 +905,8 @@ export default function IssuanceScanPage() {
     } finally {
       setScanProcessing(false);
     }
-  };
+  }, [pendingScan, selectedAction, showCustomInput, customQty, customUnit,
+      session, form.location_id, handleScanResponse]);
 
   // ── Remove item ──────────────────────────────────────────────
   const handleRemoveItem = async (detailId, productName) => {
@@ -900,6 +947,10 @@ export default function IssuanceScanPage() {
     setScanValue('');
     setScanFeedback({ type: null, message: '' });
     setPendingScan(null);
+    setSelectedAction(null);
+    setShowCustomInput(false);
+    setCustomQty('');
+    setCustomUnit('');
     setReceipt(null);
     setCameraError('');
     setCameraDevices([]);
@@ -922,10 +973,6 @@ export default function IssuanceScanPage() {
 
   const warrantyItems = (receipt?.items ?? []).filter((it) => it.warranty);
   const customerName  = session?.customer?.customer_name ?? form.customer?.customer_name ?? '—';
-
-  const liveQtyTotal = pendingScan
-    ? pendingScan.price_per_piece * (parseFloat(qtyValue) || 0)
-    : 0;
 
   const cameraSelectValue = cameraDevices.length > 0
     ? (cameraDevices.some((d) => d.deviceId === selectedCameraId) ? selectedCameraId : cameraDevices[0].deviceId)
@@ -1108,14 +1155,20 @@ export default function IssuanceScanPage() {
                 </div>
                 <div className="isp-form-group">
                   <label>Location *</label>
-                  <select value={form.location_id} onChange={(e) => setForm((f) => ({ ...f, location_id: e.target.value }))}>
-                    <option value="">Select location...</option>
-                    {locations.map((l) => (
-                      <option key={l.location_id ?? l.id} value={l.location_id ?? l.id}>
-                        {l.location_name ?? l.name}
-                      </option>
-                    ))}
-                  </select>
+                  {isStrictLocation ? (
+                    <LocationBadge locationName={locationName} locationType={locationType} />
+                  ) : (
+                    <LocationSelector
+                      value={form.location_id ? Number(form.location_id) : null}
+                      onChange={(val) => setForm((f) => ({ ...f, location_id: val != null ? String(val) : '' }))}
+                      allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({
+                        location_id:   l.location_id ?? l.id,
+                        location_name: l.location_name ?? l.name,
+                        location_type: l.location_type ?? '',
+                        location_code: l.location_code ?? '',
+                      }))}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1325,102 +1378,172 @@ export default function IssuanceScanPage() {
               {/* Consumable quantity panel */}
               {pendingScan && (
                 <div className="qty-panel">
+
+                  {/* ── Panel header ── */}
                   <div className="qty-panel-header">
-                    <span className="qty-panel-product">{pendingScan.product_name}</span>
-                    <span className="qty-panel-code">{pendingScan.product_code}</span>
+                    <div className="qty-panel-product-info">
+                      <span className="qty-panel-product-name">{pendingScan.product_name}</span>
+                      {pendingScan.product_code && (
+                        <span className="qty-panel-product-code">{pendingScan.product_code}</span>
+                      )}
+                    </div>
                     <button
                       type="button"
-                      className="qty-panel-cancel"
-                      onClick={() => { setPendingScan(null); setScanValue(''); }}
-                      aria-label="Cancel quantity entry"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-
-                  <div className="qty-pricing-breakdown">
-                    <span>
-                      Package price: {fmt(pendingScan.package_price)}
-                      {pendingScan.package_unit ? ` per ${pendingScan.package_unit}` : ''}
-                    </span>
-                    <span className="qty-pricing-divider">÷</span>
-                    <span>
-                      {pendingScan.pieces_per_package} {pendingScan.unit_name}s per package
-                    </span>
-                    <span className="qty-pricing-divider">=</span>
-                    <span className="qty-unit-price">
-                      {'₱'}{pendingScan.price_per_piece.toFixed(4)} per {pendingScan.unit_name}
-                    </span>
-                  </div>
-
-                  <div className="qty-input-row">
-                    <label htmlFor="qty-input">Quantity to issue:</label>
-                    <input
-                      id="qty-input"
-                      ref={qtyInputRef}
-                      type="number"
-                      min="0.001"
-                      step="0.5"
-                      value={qtyValue}
-                      onChange={(e) => setQtyValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          applyConsumableScan();
-                        }
+                      className="qty-panel-close"
+                      onClick={() => {
+                        setPendingScan(null);
+                        setScanValue('');
+                        setSelectedAction(null);
+                        setShowCustomInput(false);
+                        setCustomQty('');
+                        setCustomUnit('');
                       }}
-                      className="qty-input"
-                    />
-                    <select
-                      value={selectedUnit}
-                      onChange={(e) => setSelectedUnit(e.target.value)}
-                      className="qty-unit-select"
-                    >
-                      {units.length > 0
-                        ? units.map((u) => (
-                            <option key={u.unit_id} value={u.unit_name}>
-                              {u.unit_name} ({u.unit_abbreviation})
-                            </option>
-                          ))
-                        : (
-                            <option value={pendingScan.unit_name}>
-                              {pendingScan.unit_name} ({pendingScan.unit_abbreviation})
-                            </option>
-                          )
-                      }
-                    </select>
-                  </div>
-
-                  <div className="qty-total-preview">
-                    <span>Total:</span>
-                    <span className="qty-total-amount">
-                      {'₱'}{liveQtyTotal.toLocaleString('en-PH', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                    <span className="qty-total-note">
-                      = {'₱'}{pendingScan.price_per_piece.toFixed(4)} {'×'} {qtyValue || '0'} {selectedUnit}
-                    </span>
-                  </div>
-
-                  <div className="qty-actions">
-                    <button
-                      type="button"
-                      className="qty-confirm-btn"
-                      onClick={applyConsumableScan}
-                      disabled={scanProcessing || !qtyValue || parseFloat(qtyValue) <= 0}
-                    >
-                      {scanProcessing ? 'Applying...' : 'Add to Issuance'}
-                    </button>
-                    <button
-                      type="button"
-                      className="qty-cancel-btn"
-                      onClick={() => { setPendingScan(null); setScanValue(''); }}
+                      aria-label="Cancel"
                     >
                       Cancel
                     </button>
                   </div>
+
+                  {/* ── Pricing reference row ── */}
+                  <div className="qty-pricing-ref">
+                    <span className="qty-pricing-ref-item">
+                      Package price:
+                      <strong>
+                        {' '}&#8369;{Number(pendingScan.package_price)
+                          .toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        {' '}/ {pendingScan.package_unit ?? 'package'}
+                      </strong>
+                    </span>
+                    <span className="qty-pricing-sep">—</span>
+                    <span className="qty-pricing-ref-item">
+                      Per {pendingScan.base_unit_name}:
+                      <strong>
+                        {' '}&#8369;{Number(pendingScan.price_per_piece).toFixed(4)}
+                      </strong>
+                    </span>
+                  </div>
+
+                  {/* ── Quick-action buttons ── */}
+                  <div className="qty-quick-section-label">Select quantity:</div>
+                  <div className="qty-quick-grid">
+                    {(pendingScan.quick_actions ?? [])
+                      .filter(a => a.show_as_quick_action)
+                      .map((action, idx) => {
+                        const isSelected = action.is_custom
+                          ? showCustomInput
+                          : selectedAction?.label === action.label;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            className={[
+                              'qty-quick-btn',
+                              isSelected              ? 'qty-quick-btn--selected' : '',
+                              action.is_whole_package ? 'qty-quick-btn--bulk'     : '',
+                              action.is_custom        ? 'qty-quick-btn--custom'   : '',
+                            ].filter(Boolean).join(' ')}
+                            disabled={scanProcessing}
+                            onClick={() => {
+                              if (action.is_custom) {
+                                setSelectedAction(null);
+                                setShowCustomInput(true);
+                                setCustomQty('');
+                                setTimeout(() => customQtyRef.current?.focus(), 50);
+                              } else {
+                                setSelectedAction(action);
+                                setShowCustomInput(false);
+                                setCustomQty('');
+                              }
+                            }}
+                          >
+                            <span className="qty-quick-btn-label">{action.label}</span>
+                            {action.price_preview && (
+                              <span className="qty-quick-btn-price">{action.price_preview}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+
+                  {/* ── Custom input row ── */}
+                  {showCustomInput && (
+                    <div className="qty-custom-row">
+                      <label className="qty-custom-label">Enter quantity:</label>
+                      <input
+                        ref={customQtyRef}
+                        type="number"
+                        min="0.001"
+                        step="1"
+                        value={customQty}
+                        onChange={(e) => setCustomQty(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && parseFloat(customQty) > 0) {
+                            e.preventDefault();
+                            applyConsumableScan();
+                          }
+                        }}
+                        placeholder="0"
+                        className="qty-custom-input"
+                      />
+                      <select
+                        value={customUnit || pendingScan.base_unit_name}
+                        onChange={(e) => setCustomUnit(e.target.value)}
+                        className="qty-custom-unit-select"
+                      >
+                        {(pendingScan.dropdown_units?.length > 0
+                          ? pendingScan.dropdown_units
+                          : units
+                        ).map((u) => (
+                          <option key={u.unit_id} value={u.unit_name}>
+                            {u.unit_name} ({u.unit_abbreviation})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* ── Live total preview ── */}
+                  {(selectedAction || (showCustomInput && parseFloat(customQty) > 0)) && (
+                    <div className="qty-total-preview">
+                      <div className="qty-total-preview-row">
+                        <span className="qty-total-label">Quantity:</span>
+                        <span className="qty-total-value">
+                          {selectedAction
+                            ? selectedAction.label
+                            : `${customQty} ${customUnit || pendingScan.base_unit_name}`}
+                        </span>
+                      </div>
+                      <div className="qty-total-preview-row">
+                        <span className="qty-total-label">Pieces to deduct:</span>
+                        <span className="qty-total-value">
+                          {computedPieces} {pendingScan.base_unit_name}
+                          {computedPieces !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="qty-total-preview-row qty-total-preview-row--total">
+                        <span className="qty-total-label">Total:</span>
+                        <span className="qty-total-amount">
+                          &#8369;{computedSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Add button ── */}
+                  <div className="qty-panel-actions">
+                    <button
+                      type="button"
+                      className="qty-add-btn"
+                      disabled={
+                        scanProcessing ||
+                        (!selectedAction && (!customQty || parseFloat(customQty) <= 0))
+                      }
+                      onClick={applyConsumableScan}
+                    >
+                      {scanProcessing ? 'Adding...' : 'Add to Issuance'}
+                    </button>
+                  </div>
+
                 </div>
               )}
             </div>

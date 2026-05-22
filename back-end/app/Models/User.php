@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class User extends Authenticatable
 {
@@ -90,6 +91,77 @@ class User extends Authenticatable
             'user_locations',
             'user_id',
             'location_id'
-        );
+        )->where('is_active', 1);
+    }
+
+    /**
+     * Returns the enforced location_id for this user, or null for admins.
+     *
+     * Admin (role_id=1) has no location restriction — returns null.
+     * All other roles return their primary users.location_id.
+     */
+    public function getEnforcedLocationId(): ?int
+    {
+        if ((int) $this->role_id === 1) {
+            return null;
+        }
+
+        return $this->location_id ? (int) $this->location_id : null;
+    }
+
+    /**
+     * Returns all location_ids this user is permitted to transact in.
+     *
+     * Admin        → all active location IDs (no restriction)
+     * Branch manager (3) → primary + any rows in user_locations pivot
+     * All others   → primary location only
+     */
+    public function getAllowedLocationIds(): array
+    {
+        $roleId = (int) $this->role_id;
+
+        if ($roleId === 1) {
+            return Location::where('is_active', 1)
+                ->pluck('location_id')
+                ->map(fn ($id) => (int) $id)
+                ->toArray();
+        }
+
+        if ($roleId === 3) {
+            $ids = [];
+            if ($this->location_id) {
+                $ids[] = (int) $this->location_id;
+            }
+            $pivot = DB::table('user_locations')
+                ->where('user_id', $this->user_id)
+                ->pluck('location_id');
+            foreach ($pivot as $id) {
+                $ids[] = (int) $id;
+            }
+            return array_values(array_unique($ids));
+        }
+
+        return $this->location_id ? [(int) $this->location_id] : [];
+    }
+
+    /**
+     * Returns true if the user is permitted to transact at the given location.
+     */
+    public function canTransactAt(int $locationId): bool
+    {
+        if ((int) $this->role_id === 1) {
+            return true;
+        }
+
+        return in_array($locationId, $this->getAllowedLocationIds(), true);
+    }
+
+    /**
+     * Returns true for roles that must use a single enforced location
+     * with no override allowed (inventory_analyst=2, warehouse_personnel=4).
+     */
+    public function hasStrictLocation(): bool
+    {
+        return in_array((int) $this->role_id, [2, 4], true);
     }
 }

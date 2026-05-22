@@ -92,7 +92,7 @@ const UserManagement = () => {
 
   useEffect(() => {
     authAPI.getUser().then((res) => {
-      const uid = res?.user?.user_id ?? res?.user?.id;
+      const uid = res?.data?.user_id ?? res?.data?.id ?? res?.user?.user_id ?? res?.user?.id;
       if (uid != null) setCurrentUserId(uid);
     }).catch(() => {});
   }, []);

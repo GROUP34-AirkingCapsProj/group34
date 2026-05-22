@@ -318,9 +318,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/products/archived', [ProductController::class, 'archived']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/export', [ProductController::class, 'export']);
+    // Issuable units — must be BEFORE /{product} wildcard
+    Route::get('/products/{id}/issuable-units', [ProductController::class, 'issuableUnits']);
+    Route::put('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'updateIssuableUnit']);
+    Route::delete('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'destroyIssuableUnit']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::middleware('role:admin,inventory_analyst')->group(function () {
         Route::post('/products', [ProductController::class, 'store']);
+        Route::post('/products/{id}/issuable-units', [ProductController::class, 'storeIssuableUnit']);
         Route::put('/products/{product}', [ProductController::class, 'update']);
     });
     Route::middleware('role:admin')->group(function () {

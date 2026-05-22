@@ -13,6 +13,7 @@ use App\Models\ItemSerial;
 use App\Models\Product;
 use App\Models\WarrantyRecord;
 use App\Traits\ApiResponse;
+use App\Traits\NormalizesBarcode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,8 @@ use Illuminate\Validation\Rule;
 class IssuanceScanController extends Controller
 {
     use ApiResponse;
+    use \App\Traits\ResolvesUserLocation;
+    use NormalizesBarcode;
 
     // Status ID constants — verified against status_lookup 2026-05-20
     private const STATUS_ISSUANCE_PENDING   = 30;
@@ -41,9 +44,14 @@ class IssuanceScanController extends Controller
             'issuance_type'    => ['required', Rule::in(['business', 'individual', 'warranty'])],
             'discount_type'    => ['nullable', Rule::in(['none', 'business', 'senior', 'custom'])],
             'discount_percent' => 'nullable|numeric|min:0|max:100',
-            'location_id'      => 'required|integer|exists:locations,location_id',
+            'location_id'      => 'nullable|integer|exists:locations,location_id',
             'notes'            => 'nullable|string|max:1000',
         ]);
+
+        $resolvedLocationId = $this->resolveLocationId($request);
+        if ($resolvedLocationId === null) {
+            return $this->locationErrorResponse();
+        }
 
         $userId = Auth::id();
 
@@ -62,7 +70,7 @@ class IssuanceScanController extends Controller
                    . strtoupper(substr(uniqid(), -5));
 
         $issuance = Issuance::create([
-            'location_id'      => $validated['location_id'],
+            'location_id'      => $resolvedLocationId,
             'customer_id'      => $validated['customer_id'],
             'issuance_date'    => now()->toDateString(),
             'issuance_type'    => $validated['issuance_type'],
@@ -106,10 +114,13 @@ class IssuanceScanController extends Controller
     // =========================================================
     public function scanItem(Request $request): JsonResponse
     {
-        // Normalize quantity_unit to lowercase before validation so unit names
-        // from the units table (e.g. "Meter", "Roll") pass the whitelist check.
+        // Normalize quantity_unit: lowercase + spaces → underscores so that
+        // unit_name values from the dropdown (e.g. "Quarter Roll", "3/8 Roll",
+        // "Kilogram") all match the whitelist entries below.
         if ($request->has('quantity_unit') && is_string($request->quantity_unit)) {
-            $request->merge(['quantity_unit' => strtolower($request->quantity_unit)]);
+            $normalized = strtolower(trim($request->quantity_unit));
+            $normalized = str_replace(' ', '_', $normalized);
+            $request->merge(['quantity_unit' => $normalized]);
         }
 
         $validated = $request->validate([
@@ -117,10 +128,13 @@ class IssuanceScanController extends Controller
             'barcode'       => 'required|string|max:191',
             'quantity'      => 'nullable|numeric|min:0.001',
             'quantity_unit' => ['nullable', Rule::in([
-                'unit', 'piece', 'meter', 'roll', 'kg', 'liter',
-                'set', 'box', 'quarter_roll', 'half_roll',
+                // Standard units (match unit_name after lowercase + underscore)
+                'unit', 'piece', 'meter', 'roll', 'kg', 'kilogram',
+                'liter', 'set', 'box',
+                // Roll fractions for copper tube
+                'quarter_roll', 'half_roll', '3/8_roll',
             ])],
-            'location_id'   => 'required|integer|exists:locations,location_id',
+            'location_id'   => 'nullable|integer|exists:locations,location_id',
         ]);
 
         $issuance = Issuance::find($validated['issuance_id']);
@@ -132,36 +146,58 @@ class IssuanceScanController extends Controller
             ]);
         }
 
-        $raw        = trim($validated['barcode']);
-        $lower      = strtolower($raw);
-        $locationId = (int) $validated['location_id'];
+        // Use the location the session was started with — already validated in initSession().
+        // Do NOT re-resolve from the user/request to avoid any mismatch.
+        $locationId = (int) $issuance->location_id;
 
-        // Pass 1: serial number lookup (appliances)
+        $raw        = trim($validated['barcode']);
+        $candidates = $this->barcodeLookupCandidates($raw);
+
+        // Pass 1: serial number lookup (appliances) — tries all barcode candidates
         $product      = null;
         $serialRecord = null;
 
-        $serial = ItemSerial::where('location_id', $locationId)
-            ->whereRaw('LOWER(TRIM(serial_number)) = ?', [$lower])
-            ->where('status_id', self::STATUS_SERIAL_IN_STOCK)
-            ->first();
-
-        if ($serial) {
-            $product = Product::with([
-                'applianceDetail.brand',
-                'applianceDetail.modelLookup',
-            ])->find($serial->product_id);
-            $serialRecord = $serial;
+        foreach ($candidates as $candidate) {
+            $serial = ItemSerial::where('location_id', $locationId)
+                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($candidate)])
+                ->where('status_id', self::STATUS_SERIAL_IN_STOCK)
+                ->first();
+            if ($serial) {
+                $product = Product::with([
+                    'applianceDetail.brand',
+                    'applianceDetail.modelLookup',
+                ])->find($serial->product_id);
+                $serialRecord = $serial;
+                break;
+            }
         }
 
-        // Pass 2: product barcode lookup (consumables)
+        // Pass 2: product barcode / product_code lookup — multi-candidate search
         if (! $product) {
-            $product = Product::query()
-                ->where(function ($q) use ($lower) {
-                    $q->whereRaw("LOWER(TRIM(COALESCE(barcode,''))) = ?", [$lower])
-                      ->orWhereRaw("LOWER(TRIM(COALESCE(product_code,''))) = ?", [$lower]);
-                })
-                ->with(['consumableDetail.unit'])
-                ->first();
+            $product = $this->findProductByBarcodeCandidates($candidates);
+            if ($product) {
+                $product->load(['consumableDetail.unit']);
+            }
+        }
+
+        // Pass 3: receiving barcode lookup — the barcode scanned during PO receiving is
+        // stored in receiving_details.scanned_barcode, not in products.barcode.
+        // Try each candidate so format variations (EAN-12/13, case) are all covered.
+        if (! $product) {
+            foreach ($candidates as $candidate) {
+                $norm = strtolower(trim($candidate));
+                if ($norm === '') continue;
+                $detail = DB::table('receiving_details')
+                    ->whereRaw('LOWER(TRIM(COALESCE(scanned_barcode,\'\'))) = ?', [$norm])
+                    ->whereNotNull('product_id')
+                    ->select('product_id')
+                    ->first();
+                if ($detail) {
+                    $product = Product::with(['applianceDetail.brand', 'applianceDetail.modelLookup', 'consumableDetail.unit'])
+                        ->find($detail->product_id);
+                    break;
+                }
+            }
         }
 
         if (! $product) {
@@ -273,6 +309,19 @@ class IssuanceScanController extends Controller
         }
 
         // ── CONSUMABLE BRANCH ─────────────────────────────────
+
+        // Ensure consumableDetail.unit and issuableUnits.unit are loaded.
+        if (! $product->relationLoaded('consumableDetail')) {
+            $product->load('consumableDetail.unit', 'issuableUnits.unit');
+        } else {
+            if ($product->consumableDetail && ! $product->consumableDetail->relationLoaded('unit')) {
+                $product->consumableDetail->load('unit');
+            }
+            if (! $product->relationLoaded('issuableUnits')) {
+                $product->load('issuableUnits.unit');
+            }
+        }
+
         $requestedQty = (float) ($validated['quantity'] ?? 1);
         $quantityUnit = $validated['quantity_unit']
                        ?? ($product->consumableDetail?->unit?->unit_abbreviation ?? 'piece');
@@ -284,10 +333,14 @@ class IssuanceScanController extends Controller
             : $packagePrice;
         $lineSubtotal  = round($pricePerPiece * $requestedQty, 2);
 
+        $baseUnitName = $product->consumableDetail?->unit?->unit_name ?? 'piece';
+        $baseUnitAbbr = $product->consumableDetail?->unit?->unit_abbreviation ?? 'pc';
+
         return DB::transaction(function () use (
             $issuance, $product, $requestedQty, $quantityUnit,
             $quantityInPieces, $packagePrice, $pricePerPiece,
-            $lineSubtotal, $locationId, $piecesPerPackage
+            $lineSubtotal, $locationId, $piecesPerPackage,
+            $baseUnitName, $baseUnitAbbr
         ) {
             $inv = Inventory::where('product_id', $product->product_id)
                 ->where('location_id', $locationId)
@@ -340,10 +393,13 @@ class IssuanceScanController extends Controller
                 'product_id'         => $product->product_id,
                 'product_name'       => $product->product_name,
                 'product_code'       => $product->product_code,
-                'unit_name'          => $product->consumableDetail?->unit?->unit_name,
-                'unit_abbreviation'  => $product->consumableDetail?->unit?->unit_abbreviation,
+                'unit_name'          => $baseUnitName,
+                'unit_abbreviation'  => $baseUnitAbbr,
+                'base_unit_name'     => $baseUnitName,
+                'base_unit_abbr'     => $baseUnitAbbr,
                 'pieces_per_package' => $piecesPerPackage,
-                'package_unit'       => $product->consumableDetail?->package_unit,
+                'package_unit'       => $product->consumableDetail?->package_unit
+                                     ?? $baseUnitName,
                 'package_price'      => $packagePrice,
                 'price_per_piece'    => $pricePerPiece,
                 'quantity_issued'    => $requestedQty,
@@ -353,10 +409,12 @@ class IssuanceScanController extends Controller
                 'detail_id'          => $detail->issuance_detail_id,
                 'stock_remaining'    => $inv->quantity_on_hand,
                 'pricing_note'       => "₱{$packagePrice} per "
-                    . ($product->consumableDetail?->package_unit
-                        ?? $product->consumableDetail?->unit?->unit_name
-                        ?? 'package')
-                    . " / {$piecesPerPackage} = ₱{$pricePerPiece} per {$quantityUnit}",
+                    . ($product->consumableDetail?->package_unit ?? $baseUnitName)
+                    . " ÷ {$piecesPerPackage} {$baseUnitName}s"
+                    . " = ₱{$pricePerPiece} per {$baseUnitName}",
+                'quick_actions'      => $product->buildConsumableQuickActions(),
+                'dropdown_units'     => $product->getIssuableDropdownUnits(),
+                'has_issuable_units' => $product->issuableUnits->isNotEmpty(),
             ]);
         });
     }

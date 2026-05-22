@@ -27,6 +27,7 @@ use Illuminate\Validation\ValidationException;
 class InventoryScanTransactionController extends Controller
 {
     use ApiResponse;
+    use \App\Traits\ResolvesUserLocation;
 
     public function store(Request $request)
     {
@@ -72,7 +73,7 @@ class InventoryScanTransactionController extends Controller
             return match ($type) {
                 'receiving' => $this->processReceiving($request, $product, $validated, $quantity),
                 'transfer'  => $this->processTransfer($request, $product, $validated, $quantity),
-                'audit'     => $this->processAudit($request, $product, (int) ($validated['location_id'] ?? 0), $barcode),
+                'audit'     => $this->processAudit($request, $product, $barcode),
                 'issuance'  => $this->processIssuance($request, $product, $validated, $quantity),
                 default     => $this->error('Unsupported transaction type', 400),
             };
@@ -144,6 +145,28 @@ class InventoryScanTransactionController extends Controller
             }
         }
 
+        // 4. Receiving history fallback — consumables whose products.barcode is null
+        //    but whose barcode was scanned during PO receiving
+        foreach ($candidates as $c) {
+            $norm = strtolower(trim($c));
+            if ($norm === '') continue;
+            $detail = DB::table('receiving_details')
+                ->whereRaw("LOWER(TRIM(COALESCE(scanned_barcode,''))) = ?", [$norm])
+                ->whereNotNull('product_id')
+                ->select('product_id')
+                ->first();
+            if ($detail) {
+                $p = Product::query()
+                    ->where('product_id', $detail->product_id)
+                    ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                            'consumableDetail.unit'])
+                    ->first();
+                if ($p) {
+                    return $p;
+                }
+            }
+        }
+
         return null;
     }
 
@@ -164,12 +187,9 @@ class InventoryScanTransactionController extends Controller
 
     private function processReceiving(Request $request, Product $product, array $validated, int $quantity): \Illuminate\Http\JsonResponse
     {
-        $locationId = (int) ($validated['location_id'] ?? 0);
-        if ($locationId <= 0) {
-            return $this->success([
-                'action' => 'rejected',
-                'reason' => 'Select a receiving location.',
-            ], 'Rejected');
+        $locationId = $this->resolveLocationId($request);
+        if ($locationId === null) {
+            return $this->locationErrorResponse();
         }
 
         // One scan always equals exactly one physical unit:
@@ -363,17 +383,34 @@ class InventoryScanTransactionController extends Controller
                 'scanned_barcode' => $scannedBarcode ?: null,
             ]);
 
-            // Register serial number for appliance units
-            if ($isSerialized && $scannedBarcode !== '') {
-                ItemSerial::create([
-                    'product_id'    => $product->product_id,
-                    'location_id'   => $locationId,
-                    'receiving_id'  => $receiving->receiving_id,
-                    'scanned_by'    => $request->user()?->user_id,
-                    'serial_number' => $scannedBarcode,
-                    'serial_type'   => 'received',
-                    'status_id'     => 26,
-                ]);
+            // Register serial number for all product types that have a scanned barcode
+            if ($scannedBarcode !== '') {
+                if ($isSerialized) {
+                    ItemSerial::create([
+                        'product_id'    => $product->product_id,
+                        'location_id'   => $locationId,
+                        'receiving_id'  => $receiving->receiving_id,
+                        'scanned_by'    => $request->user()?->user_id,
+                        'serial_number' => $scannedBarcode,
+                        'serial_type'   => 'received',
+                        'status_id'     => 26,
+                    ]);
+                } else {
+                    // Consumables: one row per barcode+location (idempotent on re-receive)
+                    ItemSerial::firstOrCreate(
+                        [
+                            'product_id'    => $product->product_id,
+                            'location_id'   => $locationId,
+                            'serial_number' => $scannedBarcode,
+                        ],
+                        [
+                            'receiving_id' => $receiving->receiving_id,
+                            'scanned_by'   => $request->user()?->user_id,
+                            'serial_type'  => 'received',
+                            'status_id'    => 26,
+                        ]
+                    );
+                }
             }
 
             // Sync PO status (Partially Received / Completed) and received_by
@@ -437,7 +474,20 @@ class InventoryScanTransactionController extends Controller
             ];
 
             if ($poId && $remaining !== null) {
-                $payload['remaining_after'] = $remaining - $quantity;
+                $remainingPieces = $remaining - $quantity;
+
+                $payload['remaining_after']       = $remainingPieces;
+                $payload['remaining_packages']    = $isSerialized
+                    ? null
+                    : ($piecesPerPackage > 0 ? (int) ceil($remainingPieces / $piecesPerPackage) : null);
+                $payload['packages_unit_label']   = $isSerialized
+                    ? null
+                    : ($product->consumableDetail?->package_unit ?? 'package');
+                $payload['ordered_packages']      = $isSerialized
+                    ? null
+                    : (int) ($poDetail?->quantity_ordered ?? 0);
+                $payload['ordered_pieces']        = $orderedPieces;
+                $payload['received_pieces_total'] = $alreadyReceived + $quantity;
             }
 
             if ($poId) {
@@ -457,18 +507,24 @@ class InventoryScanTransactionController extends Controller
 
     private function processTransfer(Request $request, Product $product, array $validated, int $quantity): \Illuminate\Http\JsonResponse
     {
-        $fromLocationId = (int) ($validated['from_location_id'] ?? 0);
+        // FROM location must be the user's assigned location
+        $fromLocationId = $this->resolveLocationId($request);
+        if ($fromLocationId === null) {
+            return $this->locationErrorResponse();
+        }
+
+        // TO location is freely chosen but must be a valid active location
         $toLocationId = (int) ($validated['to_location_id'] ?? 0);
-        if ($fromLocationId <= 0 || $toLocationId <= 0) {
+        if ($toLocationId <= 0) {
             return $this->success([
                 'action' => 'rejected',
-                'reason' => 'Select source and destination locations.',
+                'reason' => 'Select a destination location for the transfer.',
             ], 'Rejected');
         }
         if ($fromLocationId === $toLocationId) {
             return $this->success([
                 'action' => 'rejected',
-                'reason' => 'From and To locations must be different.',
+                'reason' => 'Transfer destination must be different from your assigned location.',
             ], 'Rejected');
         }
 
@@ -551,6 +607,33 @@ class InventoryScanTransactionController extends Controller
                 $transfer->update(['total_quantity_received' => $quantity]);
             }
 
+            // Keep item_serial in sync with the inventory move
+            $isSerialized = $product->isSerialized();
+            $scannedBarcode = trim($validated['barcode'] ?? '');
+            if ($scannedBarcode !== '') {
+                if ($isSerialized) {
+                    // Move the unit's serial record to the destination location
+                    ItemSerial::where('product_id', $product->product_id)
+                        ->where('location_id', $fromLocationId)
+                        ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($scannedBarcode)])
+                        ->update(['location_id' => $toLocationId]);
+                } else {
+                    // Ensure the barcode is registered at the destination
+                    ItemSerial::firstOrCreate(
+                        [
+                            'product_id'    => $product->product_id,
+                            'location_id'   => $toLocationId,
+                            'serial_number' => $scannedBarcode,
+                        ],
+                        [
+                            'scanned_by'  => $uid,
+                            'serial_type' => 'transferred',
+                            'status_id'   => 26,
+                        ]
+                    );
+                }
+            }
+
             DB::commit();
 
             try {
@@ -599,13 +682,11 @@ class InventoryScanTransactionController extends Controller
         }
     }
 
-    private function processAudit(Request $request, Product $product, int $locationId, string $barcode): \Illuminate\Http\JsonResponse
+    private function processAudit(Request $request, Product $product, string $barcode): \Illuminate\Http\JsonResponse
     {
-        if ($locationId <= 0) {
-            return $this->success([
-                'action' => 'rejected',
-                'reason' => 'Select a location before audit scan.',
-            ], 'Rejected');
+        $locationId = $this->resolveLocationId($request);
+        if ($locationId === null) {
+            return $this->locationErrorResponse();
         }
 
         $inv = Inventory::where('location_id', $locationId)
@@ -655,12 +736,9 @@ class InventoryScanTransactionController extends Controller
 
     private function processIssuance(Request $request, Product $product, array $validated, int $quantity): \Illuminate\Http\JsonResponse
     {
-        $locationId = (int) ($validated['location_id'] ?? 0);
-        if ($locationId <= 0) {
-            return $this->success([
-                'action' => 'rejected',
-                'reason' => 'Select a location for issuance.',
-            ], 'Rejected');
+        $locationId = $this->resolveLocationId($request);
+        if ($locationId === null) {
+            return $this->locationErrorResponse();
         }
 
         DB::beginTransaction();
@@ -692,6 +770,19 @@ class InventoryScanTransactionController extends Controller
             $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $quantity);
             $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $quantity);
             $fromInventory->save();
+
+            // Update item_serial to reflect the issuance
+            $issuanceBarcode = trim($validated['barcode'] ?? '');
+            if ($issuanceBarcode !== '') {
+                if ($product->isSerialized()) {
+                    // Remove the appliance serial from stock (it left the warehouse)
+                    ItemSerial::where('product_id', $product->product_id)
+                        ->where('location_id', $locationId)
+                        ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($issuanceBarcode)])
+                        ->delete();
+                }
+                // Consumables are quantity-managed via inventory; no per-row serial removal needed
+            }
 
             DB::commit();
 

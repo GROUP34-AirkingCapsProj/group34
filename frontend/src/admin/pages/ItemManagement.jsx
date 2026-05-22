@@ -36,6 +36,7 @@ const ItemManagement = () => {
   const [brands, setBrands] = useState([]);
   const [units, setUnits] = useState([]);
   const [statuses, setStatuses] = useState([]);
+  const [issuableUnits, setIssuableUnits] = useState([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddBrandOpen, setIsAddBrandOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -100,6 +101,17 @@ const ItemManagement = () => {
   useEffect(() => {
     fetchLookups();
   }, [fetchLookups]);
+
+  // Load issuable units when opening the edit modal; clear when creating.
+  useEffect(() => {
+    if (editingItem?.product_id) {
+      productsAPI.getIssuableUnits(editingItem.product_id)
+        .then(res => setIssuableUnits(Array.isArray(res?.data) ? res.data : []))
+        .catch(() => setIssuableUnits([]));
+    } else {
+      setIssuableUnits([]);
+    }
+  }, [editingItem]);
 
   const fetchItems = useCallback(async (page = 1) => {
     try {
@@ -327,6 +339,49 @@ const ItemManagement = () => {
 
 
 
+  const handleAddIssuableUnit = () => {
+    setIssuableUnits(prev => [...prev, {
+      issuable_unit_id:    null,
+      unit_id:             '',
+      label:               '',
+      conversion_factor:   1,
+      is_whole_package:    false,
+      show_as_quick_action: true,
+      sort_order:          prev.length,
+    }]);
+  };
+
+  const updateIssuableUnit = (idx, field, value) => {
+    setIssuableUnits(prev => prev.map((iu, i) =>
+      i === idx ? { ...iu, [field]: value } : iu
+    ));
+  };
+
+  const removeIssuableUnit = (idx) => {
+    setIssuableUnits(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const saveIssuableUnits = async (productId) => {
+    if (editingItem?.product_id) {
+      const existing = await productsAPI.getIssuableUnits(productId);
+      const existingIds = (existing?.data ?? []).map(iu => iu.issuable_unit_id);
+      for (const iuId of existingIds) {
+        await productsAPI.destroyIssuableUnit(iuId);
+      }
+    }
+    for (const iu of issuableUnits) {
+      if (!iu.label || !iu.unit_id || !iu.conversion_factor) continue;
+      await productsAPI.storeIssuableUnit(productId, {
+        unit_id:              Number(iu.unit_id),
+        label:                iu.label,
+        conversion_factor:    Number(iu.conversion_factor),
+        is_whole_package:     Boolean(iu.is_whole_package),
+        sort_order:           Number(iu.sort_order) || 0,
+        show_as_quick_action: Boolean(iu.show_as_quick_action),
+      });
+    }
+  };
+
   const handleSubmit = async (e) => {
     if (isInventoryAnalystViewOnly) {
       toast.info('Saving items is disabled for Inventory Analyst.');
@@ -372,12 +427,18 @@ const ItemManagement = () => {
       } : {}),
     };
     try {
+      let savedProductId;
       if (editingItem) {
         await productsAPI.update(editingItem.product_id ?? editingItem.id, payload);
+        savedProductId = editingItem.product_id ?? editingItem.id;
         toast.success('Product updated successfully!');
       } else {
-        await productsAPI.create(payload);
+        const res = await productsAPI.create(payload);
+        savedProductId = res?.data?.product_id ?? res?.product_id;
         toast.success('Product registered successfully!');
+      }
+      if (productType === 'consumable' && savedProductId) {
+        await saveIssuableUnits(savedProductId);
       }
       setIsModalOpen(false);
       fetchItems(currentPage);
@@ -1292,6 +1353,128 @@ const ItemManagement = () => {
                     </small>
                   </div>
                 </div>
+                {/* ── ISSUABLE UNITS SECTION ── */}
+                <div className="issuable-units-section">
+                  <div className="issuable-units-header">
+                    <div>
+                      <h4 className="issuable-units-title">Issuable Units</h4>
+                      <p className="issuable-units-subtitle">
+                        Define how this product can be issued. These appear as quick-action buttons during issuance.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="issuable-add-btn"
+                      onClick={handleAddIssuableUnit}
+                    >
+                      Add Unit
+                    </button>
+                  </div>
+
+                  {issuableUnits.length === 0 ? (
+                    <div className="issuable-units-empty">
+                      No issuable units defined. The system will use default whole-package options.
+                    </div>
+                  ) : (
+                    <table className="issuable-units-table">
+                      <thead>
+                        <tr>
+                          <th>Label</th>
+                          <th>Unit Type</th>
+                          <th>Pieces Deducted</th>
+                          <th>Quick Button</th>
+                          <th>Whole Pkg</th>
+                          <th>Order</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {issuableUnits.map((iu, idx) => (
+                          <tr key={iu.issuable_unit_id ?? `new-${idx}`}>
+                            <td>
+                              <input
+                                type="text"
+                                value={iu.label}
+                                onChange={e => updateIssuableUnit(idx, 'label', e.target.value)}
+                                className="issuable-label-input"
+                                placeholder="e.g. 1 Roll, 1 Box (25 rolls)"
+                              />
+                            </td>
+                            <td>
+                              <select
+                                value={iu.unit_id}
+                                onChange={e => updateIssuableUnit(idx, 'unit_id', parseInt(e.target.value))}
+                                className="issuable-unit-select"
+                              >
+                                <option value="">Select unit</option>
+                                {units.map(u => (
+                                  <option key={u.unit_id} value={u.unit_id}>
+                                    {u.unit_name} ({u.unit_abbreviation})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <div className="issuable-conversion-row">
+                                <input
+                                  type="number"
+                                  min="0.000001"
+                                  step="0.001"
+                                  value={iu.conversion_factor}
+                                  onChange={e => updateIssuableUnit(idx, 'conversion_factor', parseFloat(e.target.value))}
+                                  className="issuable-conversion-input"
+                                />
+                                <span className="issuable-conversion-hint">pieces</span>
+                              </div>
+                              {formData.unit_price && formData.pieces_per_package && (
+                                <span className="issuable-price-preview">
+                                  &#8369;{(
+                                    (parseFloat(formData.unit_price) /
+                                      parseFloat(formData.pieces_per_package)) *
+                                    iu.conversion_factor
+                                  ).toFixed(2)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="issuable-checkbox-cell">
+                              <input
+                                type="checkbox"
+                                checked={iu.show_as_quick_action}
+                                onChange={e => updateIssuableUnit(idx, 'show_as_quick_action', e.target.checked)}
+                              />
+                            </td>
+                            <td className="issuable-checkbox-cell">
+                              <input
+                                type="checkbox"
+                                checked={iu.is_whole_package}
+                                onChange={e => updateIssuableUnit(idx, 'is_whole_package', e.target.checked)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min="0"
+                                value={iu.sort_order}
+                                onChange={e => updateIssuableUnit(idx, 'sort_order', parseInt(e.target.value))}
+                                className="issuable-order-input"
+                              />
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="issuable-remove-btn"
+                                onClick={() => removeIssuableUnit(idx)}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
                 <div className="im-form-row">
                   <div className="im-form-field">
                     <label>BARCODE</label>

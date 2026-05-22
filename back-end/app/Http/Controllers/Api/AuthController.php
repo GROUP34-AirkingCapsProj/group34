@@ -273,12 +273,37 @@ class AuthController extends Controller
     }
 
     /**
-     * Get current user
+     * Get current user — includes location enforcement data for scan modules.
      */
     public function user(Request $request)
     {
+        $user = $request->user()->load('location', 'role', 'status');
+
+        $enforcedId  = $user->getEnforcedLocationId();
+        $allowedIds  = $user->getAllowedLocationIds();
+
+        $allowedLocations = [];
+        if (! $user->hasStrictLocation()) {
+            $allowedLocations = \App\Models\Location::whereIn('location_id', $allowedIds)
+                ->where('is_active', 1)
+                ->get(['location_id', 'location_name', 'location_type', 'location_code'])
+                ->toArray();
+        }
+
         return response()->json([
-            'user' => $request->user()->load('role', 'status'),
+            'success' => true,
+            'data'    => array_merge($user->toArray(), [
+                'enforced_location_id' => $enforcedId,
+                'allowed_location_ids' => $allowedIds,
+                'allowed_locations'    => $allowedLocations,
+                'has_strict_location'  => $user->hasStrictLocation(),
+                'primary_location'     => $user->location ? [
+                    'location_id'   => $user->location->location_id,
+                    'location_name' => $user->location->location_name,
+                    'location_type' => $user->location->location_type,
+                    'location_code' => $user->location->location_code,
+                ] : null,
+            ]),
         ]);
     }
 
