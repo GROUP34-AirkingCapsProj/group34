@@ -7,6 +7,7 @@ use App\Models\BarcodeScan;
 use App\Models\ItemSerial;
 use App\Models\Product;
 use App\Traits\ApiResponse;
+use App\Traits\NormalizesBarcode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -14,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 
 class BarcodeScanController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, NormalizesBarcode;
 
     /**
      * POST /barcode/scan — Receive PO smart lookup (FOUND | NOT_FOUND | PENDING_CONSUMABLE).
@@ -50,6 +51,39 @@ class BarcodeScanController extends Controller
             }
 
             $product = $this->findProductByBarcodeCandidates($candidates);
+
+            // Fallback: search item_serial.serial_number to identify the appliance product
+            if (! $product) {
+                foreach ($candidates as $c) {
+                    $serial = ItemSerial::query()
+                        ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($c))])
+                        ->first();
+                    if ($serial && $serial->product_id) {
+                        $product = Product::find($serial->product_id);
+                        if ($product) break;
+                    }
+                }
+            }
+
+            // Also search by receiving barcode (receiving_details.scanned_barcode) so
+            // consumables whose products.barcode is null are still found by the code
+            // that was scanned during PO receiving.
+            if (! $product) {
+                foreach ($candidates as $c) {
+                    $norm = strtolower(trim($c));
+                    if ($norm === '') continue;
+                    $detail = DB::table('receiving_details')
+                        ->whereRaw("LOWER(TRIM(COALESCE(scanned_barcode,''))) = ?", [$norm])
+                        ->whereNotNull('product_id')
+                        ->select('product_id')
+                        ->first();
+                    if ($detail) {
+                        $product = Product::find($detail->product_id);
+                        break;
+                    }
+                }
+            }
+
             if ($product) {
                 $product->load([
                     'category',
@@ -57,20 +91,35 @@ class BarcodeScanController extends Controller
                     'applianceDetail.brand',
                     'applianceDetail.modelLookup',
                     'consumableDetail.unit',
+                    'issuableUnits.unit',
                 ]);
+
+                $piecesPerPkg  = $product->getPiecesPerPackage();
+                $packagePrice  = (float) $product->unit_price;
+                $pricePerPiece = $piecesPerPkg > 0
+                    ? round($packagePrice / $piecesPerPkg, 4)
+                    : $packagePrice;
 
                 return $this->success([
                     'status'             => 'FOUND',
                     'product'            => $product,
-                    // V5 helper fields for the frontend receiving screen
                     'product_type'       => $product->product_type,
                     'is_serialized'      => $product->isSerialized(),
-                    'pieces_per_package' => $product->getPiecesPerPackage(),
-                    'brand_name'         => $product->applianceDetail?->brand?->brand_name   ?? null,
-                    'capacity'           => $product->applianceDetail?->capacity_rating       ?? null,
-                    'variant'            => $product->applianceDetail?->variant               ?? null,
-                    'unit_name'          => $product->consumableDetail?->unit?->unit_name     ?? null,
+                    'pieces_per_package' => $piecesPerPkg,
+                    'brand_name'         => $product->applianceDetail?->brand?->brand_name       ?? null,
+                    'capacity'           => $product->applianceDetail?->capacity_rating           ?? null,
+                    'variant'            => $product->applianceDetail?->variant                   ?? null,
+                    'unit_name'          => $product->consumableDetail?->unit?->unit_name         ?? null,
                     'unit_abbr'          => $product->consumableDetail?->unit?->unit_abbreviation ?? null,
+                    // Fields for the issuance quantity panel
+                    'base_unit_name'     => $product->consumableDetail?->unit?->unit_name         ?? null,
+                    'base_unit_abbr'     => $product->consumableDetail?->unit?->unit_abbreviation ?? null,
+                    'package_unit'       => $product->consumableDetail?->package_unit             ?? null,
+                    'package_price'      => $packagePrice,
+                    'price_per_piece'    => $pricePerPiece,
+                    'quick_actions'      => $product->buildConsumableQuickActions(),
+                    'dropdown_units'     => $product->getIssuableDropdownUnits(),
+                    'has_issuable_units' => $product->issuableUnits->isNotEmpty(),
                 ], 'Product found');
             }
 
@@ -85,93 +134,6 @@ class BarcodeScanController extends Controller
     /**
      * @return list<string>
      */
-    private function barcodeLookupCandidates(string $raw): array
-    {
-        $s = trim($raw);
-        $set = [];
-
-        $add = function (string $v) use (&$set) {
-            $v = trim($v);
-            if ($v !== '') {
-                $set[$v] = true;
-            }
-        };
-
-        $add($s);
-        $add(strtoupper($s));
-        $add(strtolower($s));
-        $add(preg_replace('/\s+/', '', $s) ?? '');
-        $alnum = preg_replace('/[^0-9A-Za-z]/', '', $s);
-        if ($alnum !== null && $alnum !== '') {
-            $add($alnum);
-            $add(strtoupper($alnum));
-        }
-        $digits = preg_replace('/\D/', '', $s) ?? '';
-        if ($digits !== '') {
-            $add($digits);
-        }
-        if (strlen($digits) === 12) {
-            $ean13 = $this->ean13From12($digits);
-            if ($ean13 !== null) {
-                $add($ean13);
-            }
-        }
-
-        return array_keys($set);
-    }
-
-    private function ean13From12(string $twelve): ?string
-    {
-        if (! preg_match('/^\d{12}$/', $twelve)) {
-            return null;
-        }
-        $sum = 0;
-        foreach (str_split($twelve) as $i => $ch) {
-            $d = (int) $ch;
-            $sum += ($i % 2 === 0) ? $d : $d * 3;
-        }
-        $check = (10 - ($sum % 10)) % 10;
-
-        return $twelve.$check;
-    }
-
-    /**
-     * @param  list<string>  $candidates
-     */
-    private function findProductByBarcodeCandidates(array $candidates): ?Product
-    {
-        foreach ($candidates as $c) {
-            $norm = strtolower(trim($c));
-            if ($norm === '') {
-                continue;
-            }
-
-            $product = Product::query()
-                ->where(function ($q) use ($norm) {
-                    $q->whereRaw('LOWER(TRIM(COALESCE(barcode, \'\'))) = ?', [$norm])
-                        ->orWhereRaw('LOWER(TRIM(COALESCE(product_code, \'\'))) = ?', [$norm]);
-                })
-                ->first();
-
-            if ($product) {
-                return $product;
-            }
-        }
-
-        foreach ($candidates as $c) {
-            $serial = ItemSerial::query()
-                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($c))])
-                ->first();
-            if ($serial && $serial->product_id) {
-                $p = Product::query()->where('product_id', $serial->product_id)->first();
-                if ($p) {
-                    return $p;
-                }
-            }
-        }
-
-        return null;
-    }
 
     public function index(Request $request)
     {

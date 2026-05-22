@@ -22,6 +22,7 @@ use Illuminate\Validation\Rule;
 
 class BarcodeAdjustmentController extends Controller
 {
+    use \App\Traits\ResolvesUserLocation;
     // Adjustment status IDs — verified in Phase 2 (status_lookup)
     private const STATUS_PENDING  = 19;
     private const STATUS_APPROVED = 20;
@@ -198,14 +199,19 @@ class BarcodeAdjustmentController extends Controller
             'corrected_barcode'    => 'nullable|string|max:100',
             'correction_type'      => ['required', Rule::in(['wrong_product', 'wrong_quantity', 'duplicate_scan', 'wrong_serial', 'void_scan'])],
             'reason'               => 'required|string|max:1000',
-            'location_id'          => 'required|integer|exists:locations,location_id',
+            'location_id'          => 'nullable|integer|exists:locations,location_id',
         ]);
+
+        $resolvedLocationId = $this->resolveLocationId($request);
+        if ($resolvedLocationId === null) {
+            return $this->locationErrorResponse();
+        }
 
         $userId    = Auth::id();
         $ipAddress = $request->ip();
         $userAgent = $request->userAgent();
 
-        return DB::transaction(function () use ($validated, $userId, $ipAddress, $userAgent) {
+        return DB::transaction(function () use ($validated, $resolvedLocationId, $userId, $ipAddress, $userAgent) {
 
             // ── Load rows with locks ─────────────────────────────────────────
             $rd = ReceivingDetail::with(['product.applianceDetail', 'product.consumableDetail', 'receiving'])
@@ -241,7 +247,7 @@ class BarcodeAdjustmentController extends Controller
             $adjustmentNumber = 'ADJ-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 
             $adjustment = Adjustment::create([
-                'location_id'             => $validated['location_id'],
+                'location_id'             => $resolvedLocationId,
                 'po_id'                   => $validated['po_id'],
                 'receiving_id'            => $rd->receiving_id,
                 'created_by'              => $userId,
@@ -306,7 +312,7 @@ class BarcodeAdjustmentController extends Controller
             // ── 6. Decrement inventory for original product ──────────────────
             if ($originalProduct) {
                 $invOrig = Inventory::where('product_id', $originalProduct->product_id)
-                    ->where('location_id', $validated['location_id'])
+                    ->where('location_id', $resolvedLocationId)
                     ->first();
 
                 if ($invOrig) {
@@ -342,7 +348,7 @@ class BarcodeAdjustmentController extends Controller
             $invCorr = Inventory::firstOrCreate(
                 [
                     'product_id'  => $correctedProduct->product_id,
-                    'location_id' => $validated['location_id'],
+                    'location_id' => $resolvedLocationId,
                 ],
                 [
                     'quantity_on_hand'   => 0,
@@ -362,7 +368,7 @@ class BarcodeAdjustmentController extends Controller
             if ($correctedProduct->isSerialized() && $correctedBarcode) {
                 ItemSerial::create([
                     'product_id'    => $correctedProduct->product_id,
-                    'location_id'   => $validated['location_id'],
+                    'location_id'   => $resolvedLocationId,
                     'receiving_id'  => $rd->receiving_id,
                     'scanned_by'    => $userId,
                     'serial_number' => $correctedBarcode,

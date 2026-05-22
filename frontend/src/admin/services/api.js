@@ -951,6 +951,15 @@ export const productsAPI = {
   },
   restore: async (id) =>
     apiRequest(`/products/${id}/restore`, { method: 'POST' }),
+  getIssuableUnits: async (productId) =>
+    apiRequest(`/products/${productId}/issuable-units`),
+  storeIssuableUnit: async (productId, data) =>
+    apiRequest(`/products/${productId}/issuable-units`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  destroyIssuableUnit: async (iuId) =>
+    apiRequest(`/products/issuable-units/${iuId}`, { method: 'DELETE' }),
 };
 
 /* ======================

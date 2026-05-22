@@ -26,6 +26,20 @@ class ReceivingController extends Controller
         try {
             $query = Receiving::with(['purchaseOrder.details', 'purchaseOrder.supplier', 'location', 'receivedBy', 'details.product']);
 
+            // Location visibility: admin sees everything; all others see receivings for their
+            // assigned location OR receivings they personally recorded.
+            $authUser = $request->user();
+            if ($authUser && (int) $authUser->role_id !== 1) {
+                $userId     = (int) $authUser->user_id;
+                $locationId = $authUser->location_id ? (int) $authUser->location_id : null;
+                $query->where(function ($q) use ($userId, $locationId) {
+                    $q->where('received_by', $userId);
+                    if ($locationId) {
+                        $q->orWhere('location_id', $locationId);
+                    }
+                });
+            }
+
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);
             }

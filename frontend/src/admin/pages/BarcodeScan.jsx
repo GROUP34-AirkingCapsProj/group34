@@ -17,7 +17,9 @@ import {
   receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI, barcodeScanAPI, locationsAPI, purchaseOrdersAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, useUserLocation } from '../context/AuthContext';
+import LocationBadge    from '../components/LocationBadge';
+import LocationSelector from '../components/LocationSelector';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/barcode_scan.css';
@@ -538,7 +540,8 @@ function pickPreferredCameraDeviceId(devices, savedId) {
 
 const BarcodeScan = () => {
   const navigate = useNavigate();
-  const { user: _user } = useAuth();
+  const { user: _user, refreshUser } = useAuth();
+  const { locationId: enforcedLocationId, locationName: enforcedLocationName, locationType: enforcedLocationType, isStrictLocation, allowedLocations } = useUserLocation();
   const roleKey = useMemo(() => getRoleKey(_user || {}), [_user]);
   const isAdminRole = roleKey === ROLES.ADMIN;
   /** Browsers block getUserMedia on plain http:// unless hostname is localhost. */
@@ -781,6 +784,9 @@ const BarcodeScan = () => {
   // continuous camera auto-scan; only the manual Scan (circular) button fires scans.
   const bsrModeActiveRef = useRef(false);
 
+  /* ── hydrate location enforcement fields ── */
+  useEffect(() => { refreshUser(); }, [refreshUser]);
+
   /* ── load filter data ── */
   useEffect(() => {
     categoriesAPI.getAll().then((r) => setCategories(Array.isArray(r.data) ? r.data : [])).catch(() => {});
@@ -793,6 +799,15 @@ const BarcodeScan = () => {
         toast.error(e?.message || 'Could not load locations. Check API URL and network.');
       });
   }, []);
+
+  // For strict roles, auto-populate location fields so validations pass without a dropdown
+  useEffect(() => {
+    if (isStrictLocation && enforcedLocationId) {
+      const strId = String(enforcedLocationId);
+      setTxForm((p) => p.location_id === strId ? p : { ...p, location_id: strId });
+      setBsrLocationId((prev) => prev === strId ? prev : strId);
+    }
+  }, [isStrictLocation, enforcedLocationId]);
 
 // REMOVED: Storage event listener - no longer needed since we only use database POs now
   useEffect(() => {
@@ -1831,7 +1846,9 @@ const BarcodeScan = () => {
         });
         return;
       }
-      const qtyReceived = data?.quantity_received ?? (isSerialized ? 1 : pkgs * pcs);
+      const qtyReceived       = data?.quantity_received ?? (isSerialized ? 1 : pkgs * pcs);
+      const packageUnitLabel  = data?.packages_unit_label ?? 'pkg';
+      const remainingPackages = data?.remaining_packages ?? null;
       const productName = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
       const productId   = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
       const poDetailId  = bsrActiveLine.po_detail_id;
@@ -1909,6 +1926,8 @@ const BarcodeScan = () => {
         orderedPcs,
         lineComplete,
         nextLine,
+        packageUnitLabel,
+        remainingPackages,
       });
     } catch (e) {
       setBsrAlertModal({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
@@ -2451,17 +2470,15 @@ const BarcodeScan = () => {
       </div>
       <div className="bs-filter-col">
         <label>LOCATION</label>
-        <select
-          value={txForm.location_id}
-          onChange={(e) => setTxForm((p) => ({ ...p, location_id: e.target.value }))}
-        >
-          <option value="">Select</option>
-          {locations.map((l) => (
-            <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>
-              {l.location_name || l.name}
-            </option>
-          ))}
-        </select>
+        {isStrictLocation ? (
+          <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
+        ) : (
+          <LocationSelector
+            value={txForm.location_id ? Number(txForm.location_id) : null}
+            onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
+            allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+          />
+        )}
       </div>
       <div className="bs-filter-col">
         <label>PURCHASE ORDER (OPTIONAL)</label>
@@ -2506,21 +2523,15 @@ const BarcodeScan = () => {
       </div>
       <div className="bs-filter-col">
         <label>LOCATION <span className="bs-required-mark">*</span></label>
-        <select
-          className={!txForm.location_id ? 'bs-select-invalid' : undefined}
-          value={txForm.location_id}
-          onChange={(e) => setTxForm((p) => ({ ...p, location_id: e.target.value }))}
-          aria-invalid={!txForm.location_id}
-        >
-          <option value="">Select</option>
-          {locations.map((l) => (
-            <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>
-              {l.location_name || l.name}
-            </option>
-          ))}
-        </select>
-        {!txForm.location_id && (
-          <p className="bs-field-hint bs-field-hint--error">Required before scanning — choose where stock is issued from.</p>
+        {isStrictLocation ? (
+          <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
+        ) : (
+          <LocationSelector
+            value={txForm.location_id ? Number(txForm.location_id) : null}
+            onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
+            allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+            error={!txForm.location_id && !isStrictLocation ? 'Required before scanning — choose where stock is issued from.' : ''}
+          />
         )}
       </div>
     </div>
@@ -2896,16 +2907,15 @@ const BarcodeScan = () => {
                       ) : (
                         <>
                           <div className="bsr-success-row">
-                            <span className="bsr-success-label">Packages</span>
-                            <span className="bsr-success-value">{bsrScanSuccess.pkgs} pkg{bsrScanSuccess.pkgs !== 1 ? 's' : ''}</span>
+                            <span className="bsr-success-label">Received</span>
+                            <span className="bsr-success-value">
+                              1 {bsrScanSuccess.packageUnitLabel}
+                              <span style={{ color: '#6b7280', fontWeight: 400, marginLeft: 4 }}>({bsrScanSuccess.qtyReceived} pcs)</span>
+                            </span>
                           </div>
                           <div className="bsr-success-row">
-                            <span className="bsr-success-label">Pcs / Package</span>
+                            <span className="bsr-success-label">Pcs / {bsrScanSuccess.packageUnitLabel}</span>
                             <span className="bsr-success-value">{bsrScanSuccess.pcs} pcs</span>
-                          </div>
-                          <div className="bsr-success-row bsr-success-row--total">
-                            <span className="bsr-success-label">Total Added</span>
-                            <span className="bsr-success-value bsr-success-total">+{bsrScanSuccess.qtyReceived} pcs</span>
                           </div>
                         </>
                       )}
@@ -2914,11 +2924,22 @@ const BarcodeScan = () => {
                         <span className="bsr-success-value">
                           {bsrScanSuccess.isSerialized
                             ? `${bsrScanSuccess.newReceived} / ${bsrScanSuccess.ordered} units`
-                            : `${Math.floor(bsrScanSuccess.newReceived / bsrScanSuccess.pcs)} / ${bsrScanSuccess.ordered} pkg`
+                            : `${Math.floor(bsrScanSuccess.newReceived / bsrScanSuccess.pcs)} / ${bsrScanSuccess.ordered} ${bsrScanSuccess.packageUnitLabel}`
                           }
                           {bsrScanSuccess.lineComplete && <span className="bsr-success-complete-tag">COMPLETE</span>}
                         </span>
                       </div>
+                      {!bsrScanSuccess.isSerialized && bsrScanSuccess.remainingPackages !== null && (
+                        <div className="bsr-success-row">
+                          <span className="bsr-success-label">Remaining</span>
+                          <span className="bsr-success-value" style={{ color: bsrScanSuccess.remainingPackages <= 0 ? '#16a34a' : '#d97706' }}>
+                            {bsrScanSuccess.remainingPackages <= 0
+                              ? `0 ${bsrScanSuccess.packageUnitLabel}(s) — fully received`
+                              : `${bsrScanSuccess.remainingPackages} ${bsrScanSuccess.packageUnitLabel}(s) left`
+                            }
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <button type="button" className="bsr-success-done-btn" onClick={handleBsrScanSuccessDone}>
                       Done
@@ -2943,12 +2964,15 @@ const BarcodeScan = () => {
                 </div>
                 <div className="bsr-location-row">
                   <label className="bsr-location-label">RECEIVING LOCATION</label>
-                  <select className="bsr-location-select" value={bsrLocationId} onChange={(e) => setBsrLocationId(e.target.value)}>
-                    <option value="">Select location…</option>
-                    {locations.map((l) => (
-                      <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>{l.location_name || l.name}</option>
-                    ))}
-                  </select>
+                  {isStrictLocation ? (
+                    <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
+                  ) : (
+                    <LocationSelector
+                      value={bsrLocationId ? Number(bsrLocationId) : null}
+                      onChange={(val) => setBsrLocationId(val != null ? String(val) : '')}
+                      allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+                    />
+                  )}
                 </div>
 
                 <div className="bs-camera-box" style={{ marginBottom: 12 }}>
@@ -3288,17 +3312,15 @@ const BarcodeScan = () => {
             <div className="bs-action-grid">
               <div className="bs-filter-col">
                 <label>LOCATION</label>
-                <select
-                  value={txForm.location_id}
-                  onChange={(e) => setTxForm((p) => ({ ...p, location_id: e.target.value }))}
-                >
-                  <option value="">Select</option>
-                  {locations.map((l) => (
-                    <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>
-                      {l.location_name || l.name}
-                    </option>
-                  ))}
-                </select>
+                {isStrictLocation ? (
+                  <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
+                ) : (
+                  <LocationSelector
+                    value={txForm.location_id ? Number(txForm.location_id) : null}
+                    onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
+                    allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -3709,33 +3731,29 @@ const BarcodeScan = () => {
                 {(mode.key === 'issue-out' || mode.key === 'adjust') && (
                   <div className="bs-filter-col">
                     <label>LOCATION</label>
-                    <select
-                      value={txForm.location_id}
-                      onChange={(e) => setTxForm((p) => ({ ...p, location_id: e.target.value }))}
-                    >
-                      <option value="">Select</option>
-                      {locations.map((l) => (
-                        <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>
-                          {l.location_name || l.name}
-                        </option>
-                      ))}
-                    </select>
+                    {isStrictLocation ? (
+                      <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
+                    ) : (
+                      <LocationSelector
+                        value={txForm.location_id ? Number(txForm.location_id) : null}
+                        onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
+                        allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+                      />
+                    )}
                   </div>
                 )}
                 {mode.key === 'transfer' && transferSubmode === 'out' && (
                   <div className="bs-filter-col">
                     <label>FROM LOCATION (warehouse)</label>
-                    <select
-                      value={txForm.location_id}
-                      onChange={(e) => setTxForm((p) => ({ ...p, location_id: e.target.value }))}
-                    >
-                      <option value="">Select</option>
-                      {locations.map((l) => (
-                        <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>
-                          {l.location_name || l.name}
-                        </option>
-                      ))}
-                    </select>
+                    {isStrictLocation ? (
+                      <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
+                    ) : (
+                      <LocationSelector
+                        value={txForm.location_id ? Number(txForm.location_id) : null}
+                        onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
+                        allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+                      />
+                    )}
                   </div>
                 )}
                 {mode.key === 'transfer' && (

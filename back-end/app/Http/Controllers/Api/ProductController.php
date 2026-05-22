@@ -8,6 +8,7 @@ use App\Models\BrandLookup;
 use App\Models\CategoryLookup;
 use App\Models\ConsumableDetail;
 use App\Models\Product;
+use App\Models\ProductIssuableUnit;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -349,13 +350,82 @@ class ProductController extends Controller
     }
 
     // -----------------------------------------------------------------------
-    // HELPERS
+    // ISSUABLE UNITS CRUD
     // -----------------------------------------------------------------------
 
-    /**
-     * Promote extension-table fields up to the product level so the API
-     * response shape stays backward-compatible with the frontend.
-     */
+    // GET /api/products/{id}/issuable-units
+    public function issuableUnits($productId)
+    {
+        $product = Product::with('issuableUnits.unit')->find($productId);
+        if (! $product) {
+            return $this->notFound('Product not found');
+        }
+        return $this->success($product->issuableUnits, 'Issuable units retrieved');
+    }
+
+    // POST /api/products/{id}/issuable-units
+    public function storeIssuableUnit(Request $request, $productId)
+    {
+        $product = Product::find($productId);
+        if (! $product) {
+            return $this->notFound('Product not found');
+        }
+
+        try {
+            $validated = $request->validate([
+                'unit_id'              => 'required|exists:unit_lookup,unit_id',
+                'label'                => 'required|string|max:100',
+                'conversion_factor'    => 'required|numeric|min:0.000001',
+                'is_whole_package'     => 'boolean',
+                'sort_order'           => 'integer|min:0',
+                'show_as_quick_action' => 'boolean',
+            ]);
+
+            $iu = ProductIssuableUnit::create(
+                array_merge($validated, ['product_id' => $productId])
+            );
+
+            return $this->success($iu->load('unit'), 'Issuable unit added', 201);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+    }
+
+    // PUT /api/products/issuable-units/{issuable_unit_id}
+    public function updateIssuableUnit(Request $request, $iuId)
+    {
+        $iu = ProductIssuableUnit::find($iuId);
+        if (! $iu) {
+            return $this->notFound('Issuable unit not found');
+        }
+
+        try {
+            $validated = $request->validate([
+                'label'                => 'sometimes|string|max:100',
+                'conversion_factor'    => 'sometimes|numeric|min:0.000001',
+                'is_whole_package'     => 'sometimes|boolean',
+                'sort_order'           => 'sometimes|integer|min:0',
+                'show_as_quick_action' => 'sometimes|boolean',
+            ]);
+
+            $iu->update($validated);
+            return $this->success($iu->load('unit'), 'Updated');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+    }
+
+    // DELETE /api/products/issuable-units/{issuable_unit_id}
+    public function destroyIssuableUnit($iuId)
+    {
+        $iu = ProductIssuableUnit::find($iuId);
+        if (! $iu) {
+            return $this->notFound('Issuable unit not found');
+        }
+        $iu->delete();
+        return $this->success(null, 'Removed');
+    }
+
     // -----------------------------------------------------------------------
     // EXPORT
     // -----------------------------------------------------------------------

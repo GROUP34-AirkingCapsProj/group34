@@ -12,7 +12,9 @@ import {
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { barcodeAdjustmentAPI, productsAPI, locationsAPI, purchaseOrdersAPI, categoriesAPI } from '../services/api';
 import { toast } from '../utils/toast';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, useUserLocation } from '../context/AuthContext';
+import LocationBadge    from '../components/LocationBadge';
+import LocationSelector from '../components/LocationSelector';
 import '../styles/barcode_scan.css';
 import '../styles/po_receiving.css';
 import '../styles/barcode_adjustment.css';
@@ -405,7 +407,8 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
 
 /* ─── Main page ──────────────────────────────────────────────────────── */
 export default function BarcodeAdjustmentPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations, canChooseLocation } = useUserLocation();
   const navigate = useNavigate();
 
   // Reference data
@@ -454,7 +457,10 @@ export default function BarcodeAdjustmentPage() {
   const [selectedRow, setSelectedRow] = useState(null);
 
   // Form fields
+  // For admin/BM: user-chosen location_id. Strict roles use enforcedLocationId from the hook.
   const [locationId, setLocationId]             = useState('');
+  // The value sent to the backend — strict roles use enforced value so validation/submit work
+  const effectiveLocationId = isStrictLocation ? (enforcedLocationId ?? '') : locationId;
   const [correctedBarcode, setCorrectedBarcode] = useState('');
   const [customBarcode, setCustomBarcode]       = useState('');
   const [correctedProduct, setCorrectedProduct] = useState(null); // full product object
@@ -470,6 +476,9 @@ export default function BarcodeAdjustmentPage() {
   // History
   const [history, setHistory]           = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Hydrate full location data (enforced_location_id, allowed_locations, etc.)
+  useEffect(() => { refreshUser(); }, [refreshUser]);
 
   // Load all reference data on mount
   useEffect(() => {
@@ -490,10 +499,6 @@ export default function BarcodeAdjustmentPage() {
       .catch(() => {});
   }, []);
 
-  // Auto-set location from user profile
-  useEffect(() => {
-    if (!locationId && user?.location_id) setLocationId(String(user.location_id));
-  }, [user, locationId]);
 
 
   // Filtered PO list
@@ -795,7 +800,7 @@ export default function BarcodeAdjustmentPage() {
 
   const handleSubmit = async () => {
     if (!preview) { toast.error('Run a preview first.'); return; }
-    if (!locationId) { toast.error('Select a location.'); return; }
+    if (!effectiveLocationId) { toast.error('Select a location.'); return; }
     if (!window.confirm('This will permanently modify inventory records.\n\nConfirm?')) return;
     setSubmitting(true);
     try {
@@ -806,7 +811,7 @@ export default function BarcodeAdjustmentPage() {
         corrected_barcode:    effectiveBarcode || undefined,
         correction_type:      correctionType,
         reason:               reason.trim(),
-        location_id:          parseInt(locationId, 10),
+        location_id:          parseInt(effectiveLocationId, 10) || undefined,
       });
       if (res.success) {
         toast.success(`Correction applied — ${res.adjustment_number}`);
@@ -1039,12 +1044,15 @@ export default function BarcodeAdjustmentPage() {
               {/* Location */}
               <div>
                 <Label>Location <span style={{ color: '#dc2626' }}>*</span></Label>
-                <select className="baj-select" value={locationId} onChange={e => setLocationId(e.target.value)}>
-                  <option value="">Select location…</option>
-                  {locations.map(l => (
-                    <option key={l.location_id ?? l.id} value={l.location_id ?? l.id}>{l.location_name ?? l.name}</option>
-                  ))}
-                </select>
+                {isStrictLocation ? (
+                  <LocationBadge locationName={locationName} locationType={locationType} />
+                ) : (
+                  <LocationSelector
+                    value={locationId ? Number(locationId) : null}
+                    onChange={(val) => setLocationId(val != null ? String(val) : '')}
+                    allowedLocations={allowedLocations}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1233,10 +1241,10 @@ export default function BarcodeAdjustmentPage() {
                     ))}
                   </ul>
                   <div className="ba-submit-row">
-                    <button className="baj-btn-primary" onClick={handleSubmit} disabled={submitting || !locationId}>
+                    <button className="baj-btn-primary" onClick={handleSubmit} disabled={submitting || !effectiveLocationId}>
                       {submitting ? 'Submitting…' : 'Confirm & Submit Correction'}
                     </button>
-                    {!locationId && <span style={{ fontSize: 12, color: '#dc2626' }}>Select a location in Step 1 first.</span>}
+                    {!effectiveLocationId && <span style={{ fontSize: 12, color: '#dc2626' }}>Select a location in Step 1 first.</span>}
                   </div>
                 </div>
               )}

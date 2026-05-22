@@ -7,41 +7,32 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Restricts mutating requests to locations assigned via the user_locations pivot.
- * null/empty pivot rows = full access (admin equivalent). Non-empty rows = whitelist.
+ * Pre-populates the resolved location_id on the request so controllers that
+ * read request input directly (without ResolvesUserLocation trait) also see
+ * the enforced value. The ResolvesUserLocation trait in each scan controller
+ * is the primary enforcement layer; this middleware is a convenience shim.
  */
 class EnsureAssignedLocationAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+
         if (! $user) {
             return $next($request);
         }
 
+        // Read-only methods need no location enforcement
         $method = strtoupper($request->method());
         if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) {
             return $next($request);
         }
 
-        // Load assigned locations from pivot (cached on the model for this request)
-        $assignedLocations = $user->locations()->pluck('locations.location_id')->all();
-
-        // No pivot rows = unrestricted access (admin / newly created users)
-        if (empty($assignedLocations)) {
-            return $next($request);
-        }
-
-        if (! $request->has('location_id')) {
-            return $next($request);
-        }
-
-        $lid = (int) $request->input('location_id');
-        if ($lid > 0 && ! in_array($lid, $assignedLocations, true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You are not authorized for this warehouse/location.',
-            ], 403);
+        // For strict roles, pre-inject the enforced location_id so that any
+        // controller or middleware downstream that reads request->input('location_id')
+        // already sees the correct value without needing the trait.
+        if ($user->hasStrictLocation() && $user->location_id) {
+            $request->merge(['location_id' => (int) $user->location_id]);
         }
 
         return $next($request);

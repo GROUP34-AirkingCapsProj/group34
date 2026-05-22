@@ -37,6 +37,20 @@ class PurchaseOrderController extends Controller
         try {
             $query = PurchaseOrder::with(self::WITH_RELATIONS);
 
+            // Location visibility: admin sees everything; all others see POs for their
+            // assigned location OR POs they personally created.
+            $authUser = $request->user();
+            if ($authUser && (int) $authUser->role_id !== 1) {
+                $userId     = (int) $authUser->user_id;
+                $locationId = $authUser->location_id ? (int) $authUser->location_id : null;
+                $query->where(function ($q) use ($userId, $locationId) {
+                    $q->where('created_by', $userId);
+                    if ($locationId) {
+                        $q->orWhere('location_id', $locationId);
+                    }
+                });
+            }
+
             if ($request->has('supplier_id')) {
                 $query->where('supplier_id', $request->supplier_id);
             }
@@ -448,20 +462,33 @@ class PurchaseOrderController extends Controller
             'quantity_ordered'   => $detail->quantity_ordered,
             'unit_price'         => $detail->unit_price,
             'subtotal'           => $detail->subtotal,
-            // Product shared
+            // Flat product fields (legacy — kept for backward compat)
             'product_code'       => $p?->product_code,
             'product_name'       => $p?->product_name,
             'product_type'       => $p?->product_type,
             'is_serialized'      => $p?->isSerialized() ?? false,
-            // Appliance (null for consumables)
             'brand_name'         => $ad?->brand?->brand_name,
             'capacity_rating'    => $ad?->capacity_rating,
             'variant'            => $ad?->variant,
-            // Consumable (null for appliances)
             'unit_name'          => $cd?->unit?->unit_name,
             'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
             'pieces_per_package' => $cd?->pieces_per_package,
             'package_unit'       => $cd?->package_unit,
+            // Nested product object — required by BSR scan page (bsrActiveLine.product.X)
+            'product'            => $p ? [
+                'product_id'         => $p->product_id,
+                'product_code'       => $p->product_code,
+                'product_name'       => $p->product_name,
+                'product_type'       => $p->product_type,
+                'is_serialized'      => $p->isSerialized(),
+                'pieces_per_package' => $cd?->pieces_per_package ?? 1,
+                'package_unit'       => $cd?->package_unit,
+                'brand_name'         => $ad?->brand?->brand_name,
+                'capacity_rating'    => $ad?->capacity_rating,
+                'variant'            => $ad?->variant,
+                'unit_name'          => $cd?->unit?->unit_name,
+                'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
+            ] : null,
         ];
     }
 }

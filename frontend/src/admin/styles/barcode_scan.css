@@ -678,3 +678,85 @@
   .bs-filters { grid-template-columns: 1fr 1fr; }
   .bs-action-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Location badge ── */
+.location-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  color: #0369a1;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.location-badge svg {
+  flex-shrink: 0;
+  color: #0369a1;
+}
+.location-badge__text {
+  white-space: nowrap;
+}
+
+/* ── Location selector ── */
+.location-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.location-selector__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.location-selector__select,
+.location-selector__input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: #fff;
+  color: #111827;
+  transition: border-color 0.15s;
+}
+.location-selector__select:focus,
+.location-selector__input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+.location-selector__select--error,
+.location-selector__input--error {
+  border-color: #ef4444;
+}
+.location-selector__error {
+  font-size: 0.78rem;
+  color: #ef4444;
+  margin: 0;
+}
+
+/* ── Location error banner (shown when strict-role has no location) ── */
+.location-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 0.875rem;
+  margin-bottom: 16px;
+}
+.location-error-banner svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}

@@ -1528,3 +1528,289 @@
 }
 
 /* Camera box uses bs-* classes from barcode_scan.css */
+
+/* ── Panel header (new layout) ───────────────────────────────────── */
+
+.qty-panel-product-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.qty-panel-product-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.qty-panel-product-code {
+  font-size: 12px;
+  font-family: monospace;
+  color: #6b7280;
+  background: #fef3c7;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.qty-panel-close {
+  padding: 4px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.qty-panel-close:hover { background: #f3f4f6; }
+
+/* ── Pricing reference row ───────────────────────────────────────── */
+
+.qty-pricing-ref {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #6b7280;
+  padding: 6px 0 10px;
+  flex-wrap: wrap;
+}
+.qty-pricing-ref-item strong { color: #1f2937; }
+.qty-pricing-sep { color: #d1d5db; }
+
+/* ── Quick-action section label ──────────────────────────────────── */
+
+.qty-quick-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+/* ── Quick-action grid ───────────────────────────────────────────── */
+
+.qty-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.qty-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px 8px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: 64px;
+  text-align: center;
+}
+
+.qty-quick-btn:hover:not(:disabled) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.qty-quick-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.qty-quick-btn--selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.qty-quick-btn--bulk {
+  border-color: #d1fae5;
+  background: #f0fdf4;
+}
+.qty-quick-btn--bulk:hover:not(:disabled),
+.qty-quick-btn--bulk.qty-quick-btn--selected {
+  border-color: #10b981;
+  background: #ecfdf5;
+}
+
+.qty-quick-btn--custom {
+  border-style: dashed;
+  color: #6b7280;
+  background: #fff;
+}
+.qty-quick-btn--custom:hover:not(:disabled) {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.qty-quick-btn-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.2;
+}
+.qty-quick-btn--custom .qty-quick-btn-label { color: #6b7280; }
+
+.qty-quick-btn-price {
+  font-size: 11px;
+  font-weight: 500;
+  color: #059669;
+}
+
+/* ── Custom input row ────────────────────────────────────────────── */
+
+.qty-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid #f3f4f6;
+  flex-wrap: wrap;
+}
+
+.qty-custom-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.qty-custom-input {
+  width: 90px;
+  height: 38px;
+  padding: 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: monospace;
+  text-align: right;
+  border: 2px solid #fbbf24;
+  border-radius: 6px;
+  outline: none;
+  color: #111827;
+  background: #fff;
+}
+.qty-custom-input:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
+}
+
+.qty-custom-unit-select {
+  height: 38px;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 2px solid #fbbf24;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  outline: none;
+  cursor: pointer;
+}
+.qty-custom-unit-select:focus { border-color: #d97706; }
+
+/* ── Live total preview ──────────────────────────────────────────── */
+
+.qty-total-preview {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.qty-total-preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.qty-total-preview-row--total {
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 2px;
+}
+
+.qty-total-label {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.qty-total-value {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.qty-total-amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e3a5f;
+  font-family: monospace;
+}
+
+/* ── Add button ──────────────────────────────────────────────────── */
+
+.qty-panel-actions { margin-top: 4px; }
+
+.qty-add-btn {
+  width: 100%;
+  height: 44px;
+  background: #1e3a5f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.qty-add-btn:hover:not(:disabled) { background: #1e40af; }
+.qty-add-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* ── Mobile responsive ───────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .qty-quick-grid {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 6px;
+  }
+
+  .qty-quick-btn {
+    min-height: 54px;
+    padding: 8px 6px;
+  }
+
+  .qty-quick-btn-label { font-size: 12px; }
+  .qty-quick-btn-price { font-size: 10px; }
+
+  .qty-custom-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .qty-custom-input,
+  .qty-custom-unit-select {
+    width: 100%;
+    font-size: 16px; /* prevents iOS zoom */
+  }
+
+  .qty-total-amount { font-size: 18px; }
+}
