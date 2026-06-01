@@ -25,6 +25,8 @@ use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\DeliveryReceiptController;
 use App\Http\Controllers\Api\IssuanceController;
 use App\Http\Controllers\Api\TransferController;
+use App\Http\Controllers\Api\TransferRequestController;
+use App\Http\Controllers\Api\ISTController;
 use App\Http\Controllers\Api\AdjustmentController;
 use App\Http\Controllers\Api\BarcodeAdjustmentController;
 use App\Http\Controllers\Api\ProfitLossController;
@@ -605,6 +607,41 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::delete('/issuances/{id}', [IssuanceController::class, 'destroy']);
         Route::post('/issuances/{id}/restore', [IssuanceController::class, 'restore']);
         Route::delete('/issuances/{id}/force', [IssuanceController::class, 'forceDestroy']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | IST — INTERBRANCH STOCK TRANSFER (IST document, linked to request)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/ist', [ISTController::class, 'index']);
+    Route::get('/ist/prepare/{requestId}', [ISTController::class, 'prepareFromRequest']);
+    Route::get('/ist/{id}/scan-status', [ISTController::class, 'scanStatus']);
+    Route::get('/ist/{id}/receive', [ISTController::class, 'receiveForm']);
+    Route::get('/ist/{id}/receipt', [ISTController::class, 'receipt']);
+    Route::get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
+    Route::get('/ist/{id}', [ISTController::class, 'show']);
+    Route::middleware('role:admin,warehouse_personnel,inventory_analyst')->group(function () {
+        Route::post('/ist', [ISTController::class, 'store']);
+        Route::post('/ist/{transferId}/scan', [ISTController::class, 'scan']);
+        Route::delete('/ist/{transferId}/scan/{scanId}', [ISTController::class, 'removeScan']);
+        Route::post('/ist/{transferId}/confirm-dispatch', [ISTController::class, 'confirmDispatch']);
+        Route::post('/ist/{id}/receive', [ISTController::class, 'receiveStore']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | TRANSFER REQUESTS (interbranch stock request workflow)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/transfer-requests', [TransferRequestController::class, 'index']);
+    Route::get('/transfer-requests/{id}', [TransferRequestController::class, 'show']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel,inventory_analyst')->group(function () {
+        Route::post('/transfer-requests', [TransferRequestController::class, 'store']);
+    });
+    Route::middleware('role:admin,inventory_analyst')->group(function () {
+        Route::patch('/transfer-requests/{id}/approve', [TransferRequestController::class, 'approve']);
+        Route::patch('/transfer-requests/{id}/reject', [TransferRequestController::class, 'reject']);
     });
 
     /*

@@ -20,6 +20,7 @@ class ItemSerial extends Model
         'scanned_by',
         'serial_number',
         'serial_type',
+        'transfer_id',
         'status_id',
     ];
 

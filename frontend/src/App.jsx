@@ -26,6 +26,12 @@ const ReceivingManagement = lazy(() => import('./admin/pages/ReceivingManagement
 const InventoryManagement = lazy(() => import('./admin/pages/InventoryManagement'));
 const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferManagement'));
 const TransferScanWorkflow = lazy(() => import('./admin/pages/TransferScanWorkflow'));
+const TransferRequestPage = lazy(() => import('./admin/pages/TransferRequestPage'));
+const ISTCreatePage = lazy(() => import('./admin/pages/ISTCreatePage'));
+const ISTManagementPage = lazy(() => import('./admin/pages/ISTManagementPage'));
+const ISTDetailPage = lazy(() => import('./admin/pages/ISTDetailPage'));
+const ISTReceivePage = lazy(() => import('./admin/pages/ISTReceivePage'));
+const ISTReceiptPage = lazy(() => import('./admin/pages/ISTReceiptPage'));
 const IssuanceManagement = lazy(() => import('./admin/pages/IssuanceManagement'));
 const AdjustmentManagement = lazy(() => import('./admin/pages/AdjustmentManagement'));
 const BarcodeAdjustmentPage = lazy(() => import('./admin/pages/BarcodeAdjustmentPage'));
@@ -119,7 +125,13 @@ function App() {
           <Route path="/admin/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
           <Route path="/admin/transfers" element={<RoleRoute><StockTransferManagement /></RoleRoute>} />
           <Route path="/admin/transfer-scan" element={<RoleRoute><TransferScanWorkflow /></RoleRoute>} />
+          <Route path="/admin/transfer-requests" element={<RoleRoute><TransferRequestPage /></RoleRoute>} />
           <Route path="/admin/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
+          <Route path="/admin/ist" element={<RoleRoute><ISTManagementPage /></RoleRoute>} />
+          <Route path="/admin/ist/create/:requestId" element={<RoleRoute><ISTCreatePage /></RoleRoute>} />
+          <Route path="/admin/ist/:id/receive" element={<RoleRoute><ISTReceivePage /></RoleRoute>} />
+          <Route path="/admin/ist/:id/receipt" element={<RoleRoute><ISTReceiptPage /></RoleRoute>} />
+          <Route path="/admin/ist/:id" element={<RoleRoute><ISTDetailPage /></RoleRoute>} />
           <Route path="/admin/adjustments" element={<RoleRoute><AdjustmentManagement /></RoleRoute>} />
           <Route path="/admin/barcode-adjustment" element={<RoleRoute><BarcodeAdjustmentPage /></RoleRoute>} />
 

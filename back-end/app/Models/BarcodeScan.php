@@ -11,6 +11,7 @@ class BarcodeScan extends Model
         'user_id',
         'barcode',
         'product_id',
+        'transfer_id',
         'scan_mode',
         'scanned_at',
     ];
