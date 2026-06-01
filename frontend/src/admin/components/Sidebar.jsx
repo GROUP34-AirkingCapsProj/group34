@@ -31,7 +31,9 @@ const routePrefetchMap = {
   '/admin/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
   '/admin/receivings': () => import('../pages/ReceivingManagement'),
   '/admin/inventory': () => import('../pages/InventoryManagement'),
+  '/admin/transfer-requests': () => import('../pages/TransferRequestPage'),
   '/admin/transfers': () => import('../pages/StockTransferManagement'),
+  '/admin/ist': () => import('../pages/ISTManagementPage'),
   '/admin/issuances': () => import('../pages/IssuanceManagement'),
   '/admin/adjustments': () => import('../pages/AdjustmentManagement'),
   '/admin/inventory-operation': () => import('../pages/BarcodeScan'),
@@ -83,6 +85,9 @@ const adminMenuSections = [
     label: 'INVENTORY INTELLIGENCE',
     items: [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
+      { name: 'Transfer Requests', path: '/admin/transfer-requests', icon: 'transfer' },
+      { name: 'Stock Transfers', path: '/admin/transfers', icon: 'transfer' },
+      { name: 'Interbranch Transfers', path: '/admin/ist', icon: 'transfer' },
     ],
   },
   {

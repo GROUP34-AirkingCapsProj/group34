@@ -19,7 +19,9 @@ class TransferDetail extends Model
         'item_id',
         'serial_number',
         'barcode',
+        'quantity_requested',
         'quantity_transferred',
+        'quantity_scanned',
         'quantity_received',
         'condition',
     ];

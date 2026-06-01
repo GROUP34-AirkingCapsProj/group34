@@ -19,6 +19,7 @@ class Transfer extends Model
     protected $primaryKey = 'transfer_id';
 
     protected $fillable = [
+        'transfer_request_id',
         'from_location_id',
         'to_location_id',
         'transfer_number',
@@ -30,6 +31,8 @@ class Transfer extends Model
         'requested_by',
         'approved_by',
         'received_by',
+        'prepared_by',
+        'notes',
         'status_id',
     ];
 
@@ -68,6 +71,21 @@ class Transfer extends Model
     public function receivedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by', 'user_id');
+    }
+
+    public function preparedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'prepared_by', 'user_id');
+    }
+
+    public function transferRequest(): BelongsTo
+    {
+        return $this->belongsTo(Transfer::class, 'transfer_request_id', 'transfer_id');
+    }
+
+    public function ists(): HasMany
+    {
+        return $this->hasMany(Transfer::class, 'transfer_request_id', 'transfer_id');
     }
 
     public function status(): BelongsTo
