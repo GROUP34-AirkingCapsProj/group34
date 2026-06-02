@@ -5,6 +5,7 @@ import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
+import DateInput from '../components/DateInput';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -193,8 +194,7 @@ const ISTCreatePage = () => {
 
           <div className="po-field" style={{ marginTop: 16, maxWidth: 260 }}>
             <label className="po-field-label">TRANSFER DATE *</label>
-            <input
-              type="date"
+            <DateInput
               className="po-input"
               value={txDate}
               onChange={e => setTxDate(e.target.value)}

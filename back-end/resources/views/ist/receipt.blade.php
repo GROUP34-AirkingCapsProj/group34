@@ -83,7 +83,7 @@
       <td class="meta-value">{{ $ist->fromLocation?->location_name ?? '—' }}</td>
       <td style="width:20px"></td>
       <td class="meta-label">DATE:</td>
-      <td class="meta-value">{{ $ist->transfer_date ? \Carbon\Carbon::parse($ist->transfer_date)->format('F j, Y') : '—' }}</td>
+      <td class="meta-value">{{ $ist->transfer_date ? \Carbon\Carbon::parse($ist->transfer_date)->format('m/d/Y') : '—' }}</td>
     </tr>
     <tr>
       <td class="meta-label">TO:</td>

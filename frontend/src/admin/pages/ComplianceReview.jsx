@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import { barcodeAdjustmentAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/compliance_review.css';
+import DateInput from '../components/DateInput';
 
 const ACTION_LABELS = {
   barcode_correction:    { label: 'Correction',  color: '#dc2626', bg: '#fef2f2' },
@@ -25,14 +26,14 @@ const ADJ_TYPE_LABELS = {
 const fmt = (ts) => {
   if (!ts) return '—';
   return new Date(ts).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', hour12: true,
+    month: '2-digit', day: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
   });
 };
 
 const fmtDate = (d) => {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 };
 
 const JsonPreview = ({ values }) => {
@@ -193,10 +194,10 @@ const ComplianceReview = () => {
 
         {/* Filters */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18, alignItems: 'center' }}>
-          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setLogsPage(1); setAdjPage(1); }}
+          <DateInput value={dateFrom} onChange={e => { setDateFrom(e.target.value); setLogsPage(1); setAdjPage(1); }}
             style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }} />
           <span style={{ color: '#9ca3af', fontSize: 12 }}>to</span>
-          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setLogsPage(1); setAdjPage(1); }}
+          <DateInput value={dateTo} onChange={e => { setDateTo(e.target.value); setLogsPage(1); setAdjPage(1); }}
             style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }} />
           {activeTab === 'logs' && (
             <select value={actionFilter} onChange={e => { setActionFilter(e.target.value); setLogsPage(1); }}

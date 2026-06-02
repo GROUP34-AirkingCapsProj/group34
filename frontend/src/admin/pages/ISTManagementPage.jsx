@@ -7,10 +7,15 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 
-const fmtDate = (v) => (v ? String(v).slice(0, 10) : '—');
+const fmtDate = (v) => {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v).slice(0, 10);
+  return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+};
 const fmtDateTime = (v) => {
   if (!v) return '—';
-  try { return new Date(v).toLocaleString('en-PH', { dateStyle: 'short', timeStyle: 'short' }); }
+  try { return new Date(v).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
   catch { return String(v).slice(0, 16).replace('T', ' '); }
 };
 const userName = (u) => u ? ((`${u.first_name || ''} ${u.last_name || ''}`).trim() || u.username || '—') : '—';

@@ -17,6 +17,7 @@ import {
   addApprovalQueuePurchaseOrder,
   addSystemNotification,
 } from '../utils/approvalNotifications';
+import DateInput from '../components/DateInput';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
@@ -32,6 +33,12 @@ import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 //   { data: [{ unit_id, unit_name, unit_abbreviation }, ...] }
 // This maps directly to the unit_lookup table in your DB.
 // ---------------------------------------------------------------------------
+
+const isoToMDY = (s) => {
+  if (!s) return '—';
+  const [y, m, d] = String(s).slice(0, 10).split('-');
+  return `${m}/${d}/${y}`;
+};
 
 const DraftPOCreator = () => {
   const navigate = useNavigate();
@@ -690,8 +697,7 @@ const DraftPOCreator = () => {
     const d = new Date(`${poDate}T12:00:00`);
     if (Number.isNaN(d.getTime())) return '—';
     return d
-      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      .toUpperCase();
+      .toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
   }, [poDate]);
 
   const lineTypeLabel = (type) => (type === 'PART' ? 'PART' : 'APPLIANCE');
@@ -808,7 +814,7 @@ const DraftPOCreator = () => {
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">CREATED DATE</span>
                       <span className="po-status-meta-value">
-                        {po.order_date ? String(po.order_date).slice(0, 10) : '—'}
+                        {isoToMDY(po.order_date)}
                       </span>
                     </div>
                     <div className="po-status-meta-item">
@@ -1039,8 +1045,7 @@ const DraftPOCreator = () => {
                   </div>
                   <div className="po-field">
                     <label className="po-field-label">PO DATE</label>
-                    <input
-                      type="date"
+                    <DateInput
                       className="po-input"
                       value={poDate}
                       onChange={(e) => setPoDate(e.target.value)}
@@ -1048,12 +1053,10 @@ const DraftPOCreator = () => {
                   </div>
                   <div className="po-field">
                     <label className="po-field-label">EXPECTED DELIVERY (ARRIVAL)</label>
-                    <input
-                      type="date"
+                    <DateInput
                       className="po-input"
                       value={expectedDeliveryDate}
                       onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                      title="Used in Approval Queue and to block warehouse scan-receive before this date."
                     />
                     <span className="po-field-hint" style={{ display: 'block', marginTop: 6, fontSize: 12, color: '#64748b' }}>
                       Receive PO scan is blocked until this date (after the PO is approved).
@@ -1259,7 +1262,7 @@ const DraftPOCreator = () => {
                 <div className="po-detail-head-info">
                   <h2 className="po-detail-head-number">{d.po_number}</h2>
                   <p className="po-detail-head-sub">
-                    {d.supplier?.supplier_name || '—'} &nbsp;·&nbsp; {d.order_date ? String(d.order_date).slice(0, 10) : '—'}
+                    {d.supplier?.supplier_name || '—'} &nbsp;·&nbsp; {isoToMDY(d.order_date)}
                   </p>
                 </div>
                 <div className="po-detail-head-badges">
@@ -1371,11 +1374,11 @@ const DraftPOCreator = () => {
                   </div>
                   <div className="po-detail-info-item">
                     <span className="po-detail-info-label">ORDER DATE</span>
-                    <span className="po-detail-info-value">{d.order_date ? String(d.order_date).slice(0, 10) : '—'}</span>
+                    <span className="po-detail-info-value">{isoToMDY(d.order_date)}</span>
                   </div>
                   <div className="po-detail-info-item">
                     <span className="po-detail-info-label">EXPECTED DELIVERY</span>
-                    <span className="po-detail-info-value">{d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—'}</span>
+                    <span className="po-detail-info-value">{isoToMDY(d.expected_delivery_date)}</span>
                   </div>
                   <div className="po-detail-info-item">
                     <span className="po-detail-info-label">TOTAL AMOUNT</span>

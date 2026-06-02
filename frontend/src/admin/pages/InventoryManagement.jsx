@@ -1011,7 +1011,7 @@ const InventoryManagement = () => {
                         <div className="invd-field">
                           <span className="invd-label">Last Updated</span>
                           <span className="invd-value">
-                            {new Date(historyData.inventory.last_updated).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            {new Date(historyData.inventory.last_updated).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
                           </span>
                         </div>
                       )}
@@ -1044,7 +1044,7 @@ const InventoryManagement = () => {
                           <div className="invd-field">
                             <span className="invd-label">Last Stocked</span>
                             <span className="invd-value">
-                              {new Date(historyData.summary.last_stocked_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              {new Date(historyData.summary.last_stocked_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
                             </span>
                           </div>
                         )}
@@ -1096,7 +1096,7 @@ const InventoryManagement = () => {
                               <td>
                                 <span className="invd-date">
                                   {rd.receiving_date
-                                    ? new Date(rd.receiving_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                                    ? new Date(rd.receiving_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
                                     : '—'}
                                 </span>
                                 {rd.receiving_number && <span className="invd-sub">{rd.receiving_number}</span>}

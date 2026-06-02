@@ -3,20 +3,20 @@ import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
-import { canActOnApprovalQueue, canApprovePendingRegistrations } from '../utils/roles';
-import { purchaseOrdersAPI, statusAPI, productsAPI, pendingProductsAPI, consumableSupplyAPI } from '../services/api';
+import { canActOnApprovalQueue } from '../utils/roles';
+import { purchaseOrdersAPI, statusAPI, productsAPI, transferRequestsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/approval_queue.css';
 import '../styles/po_recommendation.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 
-const AQ_TABS = ['item-registration', 'purchase-orders', 'branch-transfers'];
+const AQ_TABS = ['purchase-orders', 'branch-transfers'];
 
 const formatYmd = (value) => {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 };
 
 const daysUntil = (value) => {
@@ -45,7 +45,6 @@ const formatDateTime = (value) => {
 const ApprovalQueue = ({ initialTab } = {}) => {
   const { user } = useAuth();
   const canActOnQueue = useMemo(() => canActOnApprovalQueue(user), [user]);
-  const canApproveRegistrations = useMemo(() => canApprovePendingRegistrations(user), [user]);
   const location = useLocation();
 const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'purchase-orders';
@@ -163,17 +162,15 @@ const [activeTab, setActiveTab] = useState(() => {
     };
   }, [activeTab, fetchServerPOs]);
 
-  const [branchTransfers] = useState([]);
+  // ── Stock Transfer state ───────────────────────────────────────────────────
+  const [pendingTransfers,      setPendingTransfers]      = useState([]);
+  const [loadingTransfers,      setLoadingTransfers]      = useState(false);
+  const [transferDetail,        setTransferDetail]        = useState(null);
+  const [transferDetailLoading, setTransferDetailLoading] = useState(false);
+  const [transferApprovedQtys,  setTransferApprovedQtys]  = useState({});
+  const [transferActionLoading, setTransferActionLoading] = useState(null);
+  const [transferRejectModal,   setTransferRejectModal]   = useState({ open: false, id: null, reason: '', submitting: false });
 
-  const [pendingRegistrations, setPendingRegistrations] = useState([]);
-  const [pendingRegLoading, setPendingRegLoading] = useState(false);
-  const [packLabels, setPackLabels] = useState({});
-  const [irApproveOpen, setIrApproveOpen] = useState(false);
-  const [irSelected, setIrSelected] = useState(null);
-  const [irApproveForm, setIrApproveForm] = useState({
-    final_product_name: '',
-  });
-  const [irSubmitting, setIrSubmitting] = useState(false);
 
   const [poActionLoading, setPoActionLoading] = useState(null);
   const [poVerifyModal, setPoVerifyModal] = useState(null);
@@ -340,73 +337,6 @@ const [activeTab, setActiveTab] = useState(() => {
     setPoVerifyLoading(false);
   }, [poVerifyModal]);
 
-  useEffect(() => {
-    consumableSupplyAPI.getCatalog().then((res) => {
-      const units = res?.data?.packaging_units;
-      const map = {};
-      if (Array.isArray(units)) {
-        units.forEach((u) => {
-          if (u?.key) map[u.key] = u.label || u.key;
-        });
-      }
-      setPackLabels(map);
-    }).catch(() => setPackLabels({}));
-  }, []);
-
-  const fetchPendingRegistrations = useCallback(async () => {
-    setPendingRegLoading(true);
-    try {
-      const res = await pendingProductsAPI.getAll({ per_page: 100 });
-      const raw = res?.data;
-      const list = Array.isArray(raw) ? raw : raw && Array.isArray(raw.data) ? raw.data : [];
-      setPendingRegistrations(list);
-    } catch (e) {
-      toast.error(e.message || 'Could not load pending item registrations.');
-      setPendingRegistrations([]);
-    } finally {
-      setPendingRegLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'item-registration') {
-      fetchPendingRegistrations();
-    }
-  }, [activeTab, fetchPendingRegistrations]);
-
-  const packLabel = (key) => packLabels[key] || key || '—';
-
-  const openIrApprove = (row) => {
-    setIrSelected(row);
-    setIrApproveForm({
-      final_product_name: row.generated_name || '',
-    });
-    setIrApproveOpen(true);
-  };
-
-  const handleIrApproveSubmit = async (e) => {
-    e.preventDefault();
-    if (!irSelected?.pending_product_id) return;
-    const name = irApproveForm.final_product_name.trim();
-    if (!name) {
-      toast.error('Product name is required.');
-      return;
-    }
-    setIrSubmitting(true);
-    try {
-      await pendingProductsAPI.approve(irSelected.pending_product_id, {
-        final_product_name: name,
-      });
-      toast.success('Approved — item is in Item Master. Add unit price and cost there if needed.');
-      setIrApproveOpen(false);
-      setIrSelected(null);
-      fetchPendingRegistrations();
-    } catch (err) {
-      toast.error(err.message || 'Approval failed.');
-    } finally {
-      setIrSubmitting(false);
-    }
-  };
 
 const handlePOAction = async (id, action) => {
     const nextStatus = action === 'approve' ? 'authorized' : 'rejected';
@@ -498,41 +428,101 @@ const handlePOAction = async (id, action) => {
     }
   };
 
+  // ── Stock Transfer fetch ───────────────────────────────────────────────────
+  const fetchPendingTransfers = useCallback(async () => {
+    setLoadingTransfers(true);
+    try {
+      const res = await transferRequestsAPI.getAll({ per_page: 100 });
+      const all = Array.isArray(res?.data) ? res.data : [];
+      setPendingTransfers(all.filter(x => x.status?.status_name === 'Pending'));
+    } catch {
+      toast.error('Could not load pending stock transfers.');
+    } finally {
+      setLoadingTransfers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'branch-transfers') fetchPendingTransfers();
+  }, [activeTab, fetchPendingTransfers]);
+
+  const openTransferDetail = useCallback(async (r) => {
+    setTransferDetail(r);
+    setTransferApprovedQtys({});
+    setTransferDetailLoading(true);
+    try {
+      const res = await transferRequestsAPI.getById(r.transfer_id);
+      const full = res?.data ?? r;
+      setTransferDetail(full);
+      const init = {};
+      (full.details ?? []).forEach(d => { init[d.transfer_detail_id] = d.quantity_requested; });
+      setTransferApprovedQtys(init);
+    } catch { /* keep card-level data */ }
+    finally { setTransferDetailLoading(false); }
+  }, []);
+
+  const closeTransferDetail = useCallback(() => { setTransferDetail(null); setTransferApprovedQtys({}); }, []);
+
+  const handleTransferApprove = useCallback(async (id) => {
+    setTransferActionLoading(id);
+    try {
+      const quantities = Object.entries(transferApprovedQtys).map(([detailId, qty]) => ({
+        transfer_detail_id: Number(detailId),
+        quantity_approved:  Math.max(1, parseInt(qty) || 1),
+      }));
+      await transferRequestsAPI.approve(id, { quantities });
+      setPendingTransfers(p => p.filter(r => r.transfer_id !== id));
+      closeTransferDetail();
+      toast.success('Transfer request approved.');
+    } catch (err) {
+      toast.error(err?.message || 'Approval failed.');
+    } finally {
+      setTransferActionLoading(null);
+    }
+  }, [transferApprovedQtys, closeTransferDetail]);
+
+  const handleTransferReject = useCallback(async () => {
+    if (!transferRejectModal.reason.trim()) return;
+    setTransferRejectModal(p => ({ ...p, submitting: true }));
+    try {
+      await transferRequestsAPI.reject(transferRejectModal.id, { rejection_reason: transferRejectModal.reason });
+      setPendingTransfers(p => p.filter(r => r.transfer_id !== transferRejectModal.id));
+      setTransferRejectModal({ open: false, id: null, reason: '', submitting: false });
+      closeTransferDetail();
+      toast.success('Transfer request rejected.');
+    } catch (err) {
+      toast.error(err?.message || 'Rejection failed.');
+      setTransferRejectModal(p => ({ ...p, submitting: false }));
+    }
+  }, [transferRejectModal, closeTransferDetail]);
+
+  const trLocName = (r) => ({
+    from: r.from_location?.location_name ?? r.fromLocation?.location_name ?? '—',
+    to:   r.to_location?.location_name   ?? r.toLocation?.location_name   ?? '—',
+  });
+
 return (
     <AdminLayout>
       <div className="aq-content">
         {/* Page Header */}
         <div className="aq-page-header">
           <h1>Approvals</h1>
-          {!canActOnQueue && !canApproveRegistrations && (
+          {!canActOnQueue && (
             <p className="aq-viewonly-banner">
-              <strong>View only.</strong> Only <strong>Admin</strong> and <strong>Branch Manager</strong> can approve
-              item registrations and authorize purchase orders / restock here. You can review and open PO line items
-              with the eye icon.
-            </p>
-          )}
-          {!canActOnQueue && canApproveRegistrations && (
-            <p className="aq-viewonly-banner">
-              <strong>Item registration:</strong> you can approve pending catalog submissions.{' '}
-              <strong>Purchase orders</strong> and <strong>restock</strong> on this page are view-only unless you are
-              Admin or Branch Manager.
+              <strong>View only.</strong> Only <strong>Admin</strong> and <strong>Branch Manager</strong> can authorize
+              purchase orders and restock here. You can review and open PO line items with the eye icon.
             </p>
           )}
           <p>
-            <strong>Item registration</strong> is approval-only: confirm the catalog name here;{' '}
-            <strong>unit price and cost</strong> are set later in <strong>Item Master</strong>. When a draft has{' '}
-            <strong>Item Master</strong> lines and a{' '}
-            <strong>branch-linked location</strong>, <strong>Final Submission</strong> creates the purchase order in the{' '}
-            <strong>database</strong> immediately (status Pending Approval) so it appears in <strong>Receive PO</strong>.{' '}
             {canActOnQueue ? (
               <>
-                <strong>Approve</strong> sets it to <strong>Authorized</strong> on the server. Receiving stays blocked
-                until authorized and on or after the expected delivery date when set.
+                <strong>Approve</strong> sets a purchase order to <strong>Authorized</strong> on the server. Receiving
+                stays blocked until authorized and on or after the expected delivery date when set.
               </>
             ) : (
               <>
-                <strong>Admin</strong> or <strong>Branch Manager</strong> must <strong>Authorize</strong> on the server
-                before receiving can proceed (expected delivery date rules still apply).
+                <strong>Admin</strong> or <strong>Branch Manager</strong> must <strong>Authorize</strong> a purchase
+                order before receiving can proceed (expected delivery date rules still apply).
               </>
             )}
           </p>
@@ -553,19 +543,6 @@ return (
           </button>
           <button
             type="button"
-            className={`aq-tab-btn ${activeTab === 'item-registration' ? 'active' : ''}`}
-            onClick={() => setActiveTab('item-registration')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="12" y1="18" x2="12" y2="12"></line>
-              <line x1="9" y1="15" x2="15" y2="15"></line>
-            </svg>
-            Item registration
-          </button>
-          <button
-            type="button"
             className={`aq-tab-btn ${activeTab === 'branch-transfers' ? 'active' : ''}`}
             onClick={() => setActiveTab('branch-transfers')}
           >
@@ -575,103 +552,9 @@ return (
               <polyline points="7 23 3 19 7 15"></polyline>
               <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
             </svg>
-            Branch Transfers
+            Stock Transfer
           </button>
         </div>
-
-        {/* Item registration (pending products → Item Master) */}
-        {activeTab === 'item-registration' && (
-          <div className="aq-list">
-            {pendingRegLoading ? (
-              <p className="aq-meta" style={{ padding: 24 }}>Loading pending registrations…</p>
-            ) : pendingRegistrations.length === 0 ? (
-              <div className="aq-empty-state">
-                <div className="aq-empty-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                  </svg>
-                </div>
-                <p>No products waiting for registration approval.</p>
-              </div>
-            ) : (
-              pendingRegistrations.map((row) => {
-                const kind = row.registration_kind === 'appliance' ? 'Appliance' : 'Consumable';
-                const snap = row.appliance_snapshot || {};
-                const detail =
-                  row.registration_kind === 'appliance'
-                    ? [snap.capacity_rating, snap.variant].filter(Boolean).join(' · ') || '—'
-                    : [row.supply_type, packLabel(row.packaging_unit)].filter(Boolean).join(' · ');
-                return (
-                  <div className="aq-card" key={row.pending_product_id}>
-                    <div className="aq-card-top">
-                      <div className="aq-card-title">
-                        <h3>
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              marginRight: 8,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              padding: '2px 8px',
-                              borderRadius: 4,
-                              verticalAlign: 'middle',
-                              background: row.registration_kind === 'appliance' ? '#dbeafe' : '#fef3c7',
-                              color: row.registration_kind === 'appliance' ? '#1e40af' : '#92400e',
-                            }}
-                          >
-                            {kind}
-                          </span>
-                          {row.generated_name || '—'}
-                        </h3>
-                        <p>
-                          Barcode <code>{row.barcode}</code>
-                          {row.category?.category_name || row.brand?.brand_name
-                            ? ` · ${[row.category?.category_name, row.brand?.brand_name].filter(Boolean).join(' · ')}`
-                            : ''}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="aq-card-bottom">
-                      <div className="aq-card-info">
-                        <span className="aq-meta">{detail}</span>
-                        <span className="aq-meta" style={{ display: 'block', marginTop: 6 }}>
-                          Submitted {formatDateTime(row.created_at)}
-                          {row.creator?.username ? ` · ${row.creator.username}` : ''}
-                          {Number(row.opening_quantity) > 0 ? (
-                            <>
-                              {' · '}
-                              <strong>Opening stock:</strong>{' '}
-                              {Number(row.opening_quantity).toLocaleString()}
-                              {row.openingLocation?.location_name
-                                ? ` @ ${row.openingLocation.location_name}`
-                                : row.opening_location_id
-                                  ? ` @ location #${row.opening_location_id}`
-                                  : ''}
-                            </>
-                          ) : null}
-                        </span>
-                      </div>
-                      <div className="aq-card-actions">
-                        {canApproveRegistrations ? (
-                          <button
-                            type="button"
-                            className="aq-btn-approve-restock"
-                            onClick={() => openIrApprove(row)}
-                          >
-                            APPROVE
-                          </button>
-                        ) : (
-                          <span className="aq-badge view-only">PENDING — view only</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
 
         {/* Purchase Orders Tab */}
         {activeTab === 'purchase-orders' && (
@@ -795,66 +678,215 @@ return (
           </div>
         )}
 
-{/* Branch Transfers Tab */}
+{/* Stock Transfer Tab */}
         {activeTab === 'branch-transfers' && (
           <div className="aq-list">
-            {branchTransfers.length === 0 ? (
+            {loadingTransfers ? (
+              <p className="aq-meta" style={{ padding: 24 }}>Loading pending transfers…</p>
+            ) : pendingTransfers.length === 0 ? (
               <div className="aq-empty-state">
                 <div className="aq-empty-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <polyline points="17 1 21 5 17 9"/>
+                    <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                    <polyline points="7 23 3 19 7 15"/>
+                    <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
                   </svg>
                 </div>
-                <p>No pending transfers for approval</p>
+                <p>No stock transfers pending approval.</p>
               </div>
             ) : (
-              branchTransfers.map(transfer => (
-                <div className="aq-card" key={transfer.id}>
-                  <p>{transfer.description}</p>
-                </div>
-              ))
+              pendingTransfers.map(r => {
+                const { from, to } = trLocName(r);
+                const itemCount = r.details?.length ?? 0;
+                return (
+                  <div className="aq-card" key={r.transfer_id}>
+                    <div className="aq-card-top">
+                      <div className="aq-card-title">
+                        <h3>TR: {r.transfer_number}</h3>
+                        <p>{from} → {to}</p>
+                      </div>
+                    </div>
+                    <div className="aq-card-bottom">
+                      <div className="aq-card-info">
+                        <span className="aq-meta">
+                          Transfer date: <strong>{formatYmd(r.transfer_date)}</strong>
+                        </span>
+                        <span className="aq-meta" style={{ display: 'block', marginTop: 4 }}>
+                          Submitted {formatDateTime(r.created_at)}
+                          {r.requestedBy?.first_name || r.created_by_user?.first_name
+                            ? ` · ${[r.requestedBy?.first_name ?? r.created_by_user?.first_name, r.requestedBy?.last_name ?? r.created_by_user?.last_name].filter(Boolean).join(' ')}`
+                            : ''}
+                        </span>
+                        {itemCount > 0 && (
+                          <span className="aq-meta" style={{ display: 'block', marginTop: 4 }}>
+                            {itemCount} item{itemCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="aq-card-actions">
+                        <button
+                          type="button"
+                          className="aq-btn-view"
+                          title="View transfer details"
+                          onClick={() => openTransferDetail(r)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        </button>
+                        {canActOnQueue ? (
+                          <>
+                            <button
+                              type="button"
+                              className="aq-btn-reject"
+                              disabled={transferActionLoading === r.transfer_id}
+                              onClick={() => setTransferRejectModal({ open: true, id: r.transfer_id, reason: '', submitting: false })}
+                            >
+                              REJECT
+                            </button>
+                            <button
+                              type="button"
+                              className="aq-btn-approve"
+                              disabled={transferActionLoading === r.transfer_id}
+                              onClick={() => openTransferDetail(r)}
+                            >
+                              {transferActionLoading === r.transfer_id ? 'SAVING…' : 'APPROVE'}
+                            </button>
+                          </>
+                        ) : (
+                          <span className="aq-badge view-only">PENDING — view only</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
       </div>
 
-      {irApproveOpen && irSelected && (
+      {/* Stock Transfer Detail / Approve Modal */}
+      {transferDetail && (
         <Modal
-          title="Approve item registration"
-          onClose={() => !irSubmitting && setIrApproveOpen(false)}
-          maxWidth={480}
+          title={`Transfer Request — ${transferDetail.transfer_number}`}
+          onClose={closeTransferDetail}
+          maxWidth={560}
         >
-          <form onSubmit={handleIrApproveSubmit}>
-            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
-              Barcode <code>{irSelected.barcode}</code>
-              {' · '}
-              {irSelected.registration_kind === 'appliance' ? 'Appliance' : 'Consumable'}
-            </p>
-            <p style={{ fontSize: 13, color: '#1e40af', background: '#eff6ff', padding: 10, borderRadius: 8, marginBottom: 12 }}>
-              Pricing is not entered here. After approval, open this product in <strong>Item Master</strong> to set unit price and cost.
-            </p>
-            <label style={{ display: 'block', marginBottom: 16, fontSize: 13, fontWeight: 600 }}>
-              Catalog product name
-              <input
-                type="text"
-                style={{ width: '100%', marginTop: 4, padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 6 }}
-                value={irApproveForm.final_product_name}
-                onChange={(e) =>
-                  setIrApproveForm((f) => ({ ...f, final_product_name: e.target.value }))
-                }
-                required
-              />
-            </label>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" className="aq-modal-done" disabled={irSubmitting} onClick={() => setIrApproveOpen(false)}>
-                Cancel
-              </button>
-              <button type="submit" className="aq-btn-approve-restock" disabled={irSubmitting} style={{ border: 'none', cursor: 'pointer' }}>
-                {irSubmitting ? 'Approving…' : 'Approve & add to Item Master'}
-              </button>
-            </div>
-          </form>
+          {transferDetailLoading ? (
+            <p style={{ color: '#6b7280', fontSize: 13 }}>Loading details…</p>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+                <strong>{trLocName(transferDetail).from}</strong>
+                {' → '}
+                <strong>{trLocName(transferDetail).to}</strong>
+                {transferDetail.transfer_date && (
+                  <span style={{ marginLeft: 10 }}>· {formatYmd(transferDetail.transfer_date)}</span>
+                )}
+              </div>
+
+              {(transferDetail.details ?? []).length === 0 ? (
+                <p style={{ fontSize: 13, color: '#9ca3af' }}>No line items.</p>
+              ) : (
+                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginBottom: 16 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#6b7280', textAlign: 'left' }}>
+                      <th style={{ padding: '6px 8px', fontWeight: 600 }}>Product</th>
+                      <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}>Requested</th>
+                      {canActOnQueue && <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}>Approve Qty</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(transferDetail.details ?? []).map(d => (
+                      <tr key={d.transfer_detail_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '8px 8px' }}>
+                          {d.product?.product_name ?? d.product_name ?? `#${d.product_id}`}
+                        </td>
+                        <td style={{ padding: '8px 8px', textAlign: 'right' }}>
+                          {d.quantity_requested}
+                        </td>
+                        {canActOnQueue && (
+                          <td style={{ padding: '8px 8px', textAlign: 'right' }}>
+                            <input
+                              type="number"
+                              min={1}
+                              max={d.quantity_requested}
+                              value={transferApprovedQtys[d.transfer_detail_id] ?? d.quantity_requested}
+                              onChange={e => setTransferApprovedQtys(p => ({ ...p, [d.transfer_detail_id]: e.target.value }))}
+                              style={{ width: 70, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, textAlign: 'right' }}
+                            />
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {canActOnQueue && (
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="aq-modal-done"
+                    onClick={() => setTransferRejectModal({ open: true, id: transferDetail.transfer_id, reason: '', submitting: false })}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    className="aq-btn-approve-restock"
+                    disabled={transferActionLoading === transferDetail.transfer_id}
+                    onClick={() => handleTransferApprove(transferDetail.transfer_id)}
+                    style={{ border: 'none', cursor: 'pointer' }}
+                  >
+                    {transferActionLoading === transferDetail.transfer_id ? 'Approving…' : 'Approve Transfer'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </Modal>
+      )}
+
+      {/* Stock Transfer Reject Modal */}
+      {transferRejectModal.open && (
+        <Modal
+          title="Reject Transfer Request"
+          onClose={() => !transferRejectModal.submitting && setTransferRejectModal({ open: false, id: null, reason: '', submitting: false })}
+          maxWidth={420}
+        >
+          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+            Please provide a reason for rejecting this transfer request.
+          </p>
+          <textarea
+            rows={3}
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13, resize: 'vertical' }}
+            placeholder="Rejection reason…"
+            value={transferRejectModal.reason}
+            onChange={e => setTransferRejectModal(p => ({ ...p, reason: e.target.value }))}
+          />
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button
+              type="button"
+              className="aq-modal-done"
+              disabled={transferRejectModal.submitting}
+              onClick={() => setTransferRejectModal({ open: false, id: null, reason: '', submitting: false })}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="aq-btn-reject"
+              disabled={transferRejectModal.submitting || !transferRejectModal.reason.trim()}
+              onClick={handleTransferReject}
+              style={{ border: 'none', cursor: 'pointer' }}
+            >
+              {transferRejectModal.submitting ? 'Rejecting…' : 'Confirm Reject'}
+            </button>
+          </div>
         </Modal>
       )}
 
@@ -1021,7 +1053,7 @@ return (
                   </div>
                   <div className="po-detail-info-item">
                     <span className="po-detail-info-label">EXPECTED DELIVERY</span>
-                    <span className="po-detail-info-value">{po.expected_delivery_date ? String(po.expected_delivery_date).slice(0, 10) : '—'}</span>
+                    <span className="po-detail-info-value">{po.expected_delivery_date ? formatYmd(po.expected_delivery_date) : '—'}</span>
                   </div>
                   <div className="po-detail-info-item">
                     <span className="po-detail-info-label">TOTAL AMOUNT</span>

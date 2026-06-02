@@ -6,6 +6,7 @@ import { toast } from '../utils/toast';
 import { getReceivingWorkflow, receivingReceivedQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
+import DateInput from '../components/DateInput';
 
 const CONDITIONS = ['Good', 'Damaged', 'Expired', 'Defective'];
 const emptyDetail = () => ({ product_id: '', quantity_amount: 1, condition: 'Good' });
@@ -18,10 +19,10 @@ const formatDateTime = (value) => {
   if (!value) return 'N/A';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('en-PH', {
-    year: 'numeric',
-    month: 'short',
+  return date.toLocaleString('en-US', {
+    month: '2-digit',
     day: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -330,7 +331,7 @@ const ReceivingManagement = () => {
               </div>
               <div className="form-group">
                 <label>Receiving Date *</label>
-                <input required type="date" value={formData.receiving_date} onChange={(e) => setFormData((f) => ({ ...f, receiving_date: e.target.value }))} />
+                <DateInput required value={formData.receiving_date} onChange={(e) => setFormData((f) => ({ ...f, receiving_date: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label>Damaged Qty</label>

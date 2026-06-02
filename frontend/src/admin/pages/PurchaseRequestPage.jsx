@@ -15,11 +15,18 @@ import PRProgressBar, { getPRStatusText } from '../components/PRProgressBar';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
+import DateInput from '../components/DateInput';
 
 // ─── formatters ──────────────────────────────────────────────────────────────
 
 const fmtPeso = (n) =>
   `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const isoToMDY = (s) => {
+  if (!s) return '—';
+  const [y, m, d] = String(s).slice(0, 10).split('-');
+  return `${m}/${d}/${y}`;
+};
 
 // ─── PR status helpers ────────────────────────────────────────────────────────
 
@@ -517,8 +524,7 @@ const PurchaseRequestPage = () => {
           </div>
           <div className="po-field">
             <label className="po-field-label">NEEDED BY DATE</label>
-            <input
-              type="date"
+            <DateInput
               className="po-input"
               value={neededByDate}
               min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
@@ -806,7 +812,7 @@ const PurchaseRequestPage = () => {
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">NEEDED BY</span>
-                      <span className="po-status-meta-value">{pr.needed_by_date ? String(pr.needed_by_date).slice(0, 10) : '—'}</span>
+                      <span className="po-status-meta-value">{isoToMDY(pr.needed_by_date)}</span>
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">ITEMS</span>
@@ -919,7 +925,7 @@ const PurchaseRequestPage = () => {
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">NEEDED BY</span>
-                      <span className="po-status-meta-value">{pr.needed_by_date ? String(pr.needed_by_date).slice(0, 10) : '—'}</span>
+                      <span className="po-status-meta-value">{isoToMDY(pr.needed_by_date)}</span>
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">ITEMS</span>
@@ -1070,7 +1076,7 @@ const PurchaseRequestPage = () => {
             <div className="po-detail-head-info">
               <h2 className="po-detail-head-number">{pr.pr_number}</h2>
               <p className="po-detail-head-sub">
-                {pr.location?.location_name || '—'} · {pr.request_date ? String(pr.request_date).slice(0, 10) : '—'}
+                {pr.location?.location_name || '—'} · {isoToMDY(pr.request_date)}
               </p>
             </div>
             <div className="po-detail-head-badges">
@@ -1088,11 +1094,11 @@ const PurchaseRequestPage = () => {
               </div>
               <div className="po-detail-info-item">
                 <span className="po-detail-info-label">REQUEST DATE</span>
-                <span className="po-detail-info-value">{pr.request_date ? String(pr.request_date).slice(0, 10) : '—'}</span>
+                <span className="po-detail-info-value">{isoToMDY(pr.request_date)}</span>
               </div>
               <div className="po-detail-info-item">
                 <span className="po-detail-info-label">NEEDED BY</span>
-                <span className="po-detail-info-value">{pr.needed_by_date ? String(pr.needed_by_date).slice(0, 10) : '—'}</span>
+                <span className="po-detail-info-value">{isoToMDY(pr.needed_by_date)}</span>
               </div>
               {pr.budget && (
                 <>

@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import { profitLossAPI, productsAPI, modelsAPI, statusAPI, usersAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/profit_loss_management.css';
+import DateInput from '../components/DateInput';
 
 const REFERENCE_TYPES = ['Damage', 'Theft', 'Expiry', 'Lost', 'Write-off', 'Other'];
 
@@ -366,11 +367,11 @@ const ProfitLossManagement = () => {
               </div>
               <div className="plm-form-group">
                 <label>Transaction Date *</label>
-                <input type="date" value={formData.transaction_date} onChange={e => handleFormChange('transaction_date', e.target.value)} required />
+                <DateInput value={formData.transaction_date} onChange={e => handleFormChange('transaction_date', e.target.value)} required />
               </div>
               <div className="plm-form-group">
                 <label>Incident Date</label>
-                <input type="date" value={formData.incident_date} onChange={e => handleFormChange('incident_date', e.target.value)} />
+                <DateInput value={formData.incident_date} onChange={e => handleFormChange('incident_date', e.target.value)} />
               </div>
               <div className="plm-form-group">
                 <label>Quantity Lost *</label>

@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import { purchaseReturnsAPI, purchaseOrdersAPI, suppliersAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../../admin/styles/dashboard_air.css';
+import DateInput from '../components/DateInput';
 
 const emptyDetail = () => ({ product_id: '', quantity_returned: 1, unit_cost: '', condition: 'Good' });
 const emptyForm = () => ({
@@ -266,7 +267,7 @@ const PurchaseReturnManagement = () => {
               </div>
               <div className="form-group">
                 <label>Return Date *</label>
-                <input required type="date" value={formData.return_date} onChange={e => setFormData(f => ({ ...f, return_date: e.target.value }))} />
+                <DateInput required value={formData.return_date} onChange={e => setFormData(f => ({ ...f, return_date: e.target.value }))} />
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Reason</label>

@@ -5,6 +5,7 @@ import { locationsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/warehouse_management.css';
+import DateInput from '../components/DateInput';
 
 const WarehouseManagement = () => {
   const [warehouses, setWarehouses] = useState([]);
@@ -363,7 +364,7 @@ const WarehouseManagement = () => {
             </div>
             <div className="form-group">
               <label>Opening Date</label>
-              <input type="date" value={formData.opening_date} onChange={(e) => setFormData({...formData, opening_date: e.target.value})} />
+              <DateInput value={formData.opening_date} onChange={(e) => setFormData({...formData, opening_date: e.target.value})} />
             </div>
           </div>
           <div className="form-group">

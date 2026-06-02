@@ -7,6 +7,7 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import { toast } from '../utils/toast';
 import '../styles/archive_management.css';
 import '../styles/archive_settings.css';
+import DateInput from '../components/DateInput';
 
 const MODULES = [
   { key: 'products',           label: 'Products' },
@@ -294,15 +295,13 @@ const ArchiveManagement = () => {
           />
           <div className="archive-date-range">
             <label>Archived from:</label>
-            <input
-              type="date"
+            <DateInput
               value={deletedFrom}
               onChange={e => { setDeletedFrom(e.target.value); setPage(1); }}
               className="archive-date-input"
             />
             <label>to:</label>
-            <input
-              type="date"
+            <DateInput
               value={deletedTo}
               onChange={e => { setDeletedTo(e.target.value); setPage(1); }}
               className="archive-date-input"
@@ -355,9 +354,9 @@ const ArchiveManagement = () => {
                   </td>
                   <td className="archive-record-date">
                     {item.deleted_at
-                      ? new Date(item.deleted_at).toLocaleDateString('en-PH', {
-                          year: 'numeric', month: 'short',
-                          day: 'numeric', hour: '2-digit', minute: '2-digit',
+                      ? new Date(item.deleted_at).toLocaleString('en-US', {
+                          month: '2-digit', day: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
                         })
                       : '—'}
                   </td>

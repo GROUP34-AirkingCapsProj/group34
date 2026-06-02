@@ -36,9 +36,9 @@ const PRESET_REASONS = [
 ];
 
 const fmt = (ts) =>
-  ts ? new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
+  ts ? new Date(ts).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '—';
 
 /* ─── Camera / scanner utilities ──────────────────────────────────────── */
 const BA_HTML5_QR_MOUNT_ID  = 'ba-html5-qrcode-mount';
