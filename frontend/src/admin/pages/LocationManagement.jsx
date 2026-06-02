@@ -7,6 +7,7 @@ import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/branch_management.css';
 import '../styles/archive_management.css';
+import DateInput from '../components/DateInput';
 
 const REGION_CITIES = {
   'NCR': [
@@ -442,7 +443,7 @@ const LocationManagement = () => {
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="loc-opening">Opening date</label>
-                <input id="loc-opening" type="date" value={formData.opening_date} onChange={(e) => setFormData({ ...formData, opening_date: e.target.value })} />
+                <DateInput id="loc-opening" value={formData.opening_date} onChange={(e) => setFormData({ ...formData, opening_date: e.target.value })} />
               </div>
             </div>
           </section>

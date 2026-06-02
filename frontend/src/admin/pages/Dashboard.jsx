@@ -17,6 +17,7 @@ import {
 } from 'chart.js';
 import { Bar, Line } from 'react-chartjs-2';
 import '../../admin/styles/dashboard_air.css';
+import DateInput from '../../admin/components/DateInput';
 
 // Role-specific dashboards (lazy-loaded)
 const InventoryAnalystDashboard = lazy(() => import('./InventoryAnalystDashboard'));
@@ -481,16 +482,14 @@ const AdminDashboard = () => {
           <div className="dash-filter-group">
             <span className="dash-filter-label">Date Range</span>
             <div className="dash-filter-dates">
-              <input
-                type="date"
+              <DateInput
                 className="dash-filter-date"
                 value={filterDateFrom}
                 max={filterDateTo}
                 onChange={e => { setFilterDateFrom(e.target.value); setFilterPeriod('custom'); }}
               />
               <span className="dash-filter-date-sep">—</span>
-              <input
-                type="date"
+              <DateInput
                 className="dash-filter-date"
                 value={filterDateTo}
                 min={filterDateFrom}

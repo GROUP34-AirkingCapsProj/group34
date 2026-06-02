@@ -448,8 +448,8 @@ const ArchiveSettingsPage = () => {
               </svg>
               Last auto-archive ran on{' '}
               <strong>
-                {new Date(lastRun.ran_at).toLocaleDateString('en-PH', {
-                  year: 'numeric', month: 'short', day: 'numeric',
+                {new Date(lastRun.ran_at).toLocaleString('en-US', {
+                  month: '2-digit', day: '2-digit', year: 'numeric',
                   hour: '2-digit', minute: '2-digit',
                 })}
               </strong>

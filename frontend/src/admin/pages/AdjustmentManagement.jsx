@@ -6,6 +6,7 @@ import { adjustmentsAPI, locationsAPI, productsAPI, statusAPI } from '../service
 import { toast } from '../utils/toast';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/archive_management.css';
+import DateInput from '../components/DateInput';
 
 const ADJUSTMENT_TYPES = ['Stock Count', 'Damage Write-off', 'Theft Loss', 'Found Stock', 'Expiry', 'Other'];
 const emptyDetail = () => ({ product_id: '', add_quantity: 0, deduct_quantity: 0 });
@@ -251,7 +252,7 @@ const AdjustmentManagement = () => {
               </div>
               <div className="form-group">
                 <label>Date *</label>
-                <input required type="date" value={formData.date} onChange={e => setFormData(f => ({ ...f, date: e.target.value }))} />
+                <DateInput required value={formData.date} onChange={e => setFormData(f => ({ ...f, date: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label>Type *</label>

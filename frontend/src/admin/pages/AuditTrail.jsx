@@ -65,7 +65,7 @@ function formatVal(val) {
   if (val === null || val === undefined) return '—';
   if (typeof val === 'object') return JSON.stringify(val);
   const s = String(val);
-  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(s)) return s.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(s)) { const [y, m, d] = s.slice(0, 10).split('-'); return `${m}/${d}/${y}`; }
   if (/^\d+(\.\d+)?$/.test(s) && Number(s) >= 1000) {
     return Number(s).toLocaleString('en-PH', { maximumFractionDigits: 2 });
   }

@@ -9,6 +9,7 @@ import { getTransferWorkflow, transferShippedQty } from '../utils/moduleFeedStat
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
 import '../styles/archive_management.css';
+import DateInput from '../components/DateInput';
 
 const emptyDetail = () => ({ product_id: '', quantity_transferred: 1 });
 const emptyForm = () => ({
@@ -20,10 +21,10 @@ const formatDateTime = (value) => {
   if (!value) return 'N/A';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('en-PH', {
-    year: 'numeric',
-    month: 'short',
+  return date.toLocaleString('en-US', {
+    month: '2-digit',
     day: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -121,8 +122,8 @@ const StockTransferManagement = () => {
     const fromLoc = t.from_location?.location_name || t.fromLocation?.location_name || '—';
     const toLoc = t.to_location?.location_name || t.toLocation?.location_name || '—';
     const tDate = t.transfer_date
-      ? new Date(t.transfer_date).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }).toUpperCase()
-      : new Date().toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }).toUpperCase();
+      ? new Date(t.transfer_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+      : new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
     const items = t.details || [];
     const blankCount = Math.max(0, 18 - items.length);
 
@@ -482,7 +483,7 @@ const StockTransferManagement = () => {
               </div>
               <div className="form-group">
                 <label>Transfer Date *</label>
-                <input required type="date" value={formData.transfer_date} onChange={(e) => setFormData((f) => ({ ...f, transfer_date: e.target.value }))} />
+                <DateInput required value={formData.transfer_date} onChange={(e) => setFormData((f) => ({ ...f, transfer_date: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label>Status</label>

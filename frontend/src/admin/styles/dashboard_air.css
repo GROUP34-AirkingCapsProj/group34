@@ -326,10 +326,10 @@
 ================================ */
 .content-wrapper {
   flex: 1;
+  min-width: 0;
   margin-left: 220px;
   display: flex;
   flex-direction: column;
-  width: calc(100vw - 220px);
 }
 
 /* ===============================
@@ -803,6 +803,8 @@
   background: var(--bg-main);
   min-height: calc(100vh - 72px);
   width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 /* ===============================
@@ -896,7 +898,7 @@
 ================================ */
 .stats-container {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
   margin-bottom: 28px;
   padding: 4px 0;
@@ -1172,7 +1174,7 @@
 ================================ */
 .charts-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 24px;
   margin-bottom: 28px;
   padding: 4px 0;
@@ -1189,6 +1191,8 @@
   border: 1px solid var(--border-color);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   transition: all 0.2s ease;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chart-card:hover {
@@ -1206,9 +1210,11 @@
 }
 
 .chart-wrapper {
-  height: 280px;
   position: relative;
+  width: 100%;
+  height: 280px;
   padding: 8px 4px;
+  overflow: hidden;
 }
 
 .pie-wrapper {
@@ -1318,6 +1324,7 @@
   gap: 8px;
 }
 .dash-filter-date {
+  width: 130px;
   padding: 5px 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -1379,23 +1386,19 @@
    RESPONSIVE
 ================================ */
 @media (max-width: 1200px) {
-  .stats-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .charts-section {
-    grid-template-columns: 1fr;
-  }
-
   .dash-filter-row { gap: 14px; }
   .dash-filter-actions { margin-left: 0; }
+}
+
+@media (max-width: 1024px) {
+  .page-content { padding: 24px 28px; }
 }
 
 @media (max-width: 640px) {
   .dash-filter-bar { padding: 14px 16px; }
   .dash-filter-row { flex-direction: column; gap: 12px; }
   .dash-filter-dates { flex-wrap: wrap; }
-  .dash-filter-date { width: 100%; }
+  .dash-filter-date { width: 100% !important; }
   .dash-filter-dims { flex-direction: column; }
   .dash-filter-select { min-width: 0; width: 100%; }
   .dash-filter-actions { width: 100%; justify-content: space-between; }
@@ -1403,13 +1406,8 @@
 }
 
 @media (max-width: 768px) {
-  .stats-container {
-    grid-template-columns: 1fr;
-  }
-
   .content-wrapper {
     margin-left: 0;
-    width: 100%;
   }
 
   /* Off-canvas sidebar: slides over content with dimmed backdrop */

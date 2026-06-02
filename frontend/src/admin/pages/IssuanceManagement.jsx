@@ -8,6 +8,7 @@ import { getIssuanceDisplay, issuanceLineQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
 import '../styles/archive_management.css';
+import DateInput from '../components/DateInput';
 
 const ISSUANCE_TYPES = ['Internal', 'Maintenance', 'Operations', 'Office Use', 'Other'];
 const emptyDetail = () => ({ product_id: '', quantity_issued: 1, condition_issued: 'Good' });
@@ -20,10 +21,10 @@ const formatDateTime = (value) => {
   if (!value) return 'N/A';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('en-PH', {
-    year: 'numeric',
-    month: 'short',
+  return date.toLocaleString('en-US', {
+    month: '2-digit',
     day: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -303,7 +304,7 @@ const IssuanceManagement = () => {
               </div>
               <div className="form-group">
                 <label>Issuance Date *</label>
-                <input required type="date" value={formData.issuance_date} onChange={(e) => setFormData((f) => ({ ...f, issuance_date: e.target.value }))} />
+                <DateInput required value={formData.issuance_date} onChange={(e) => setFormData((f) => ({ ...f, issuance_date: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label>Type *</label>
@@ -313,7 +314,7 @@ const IssuanceManagement = () => {
               </div>
               <div className="form-group">
                 <label>Expected Return Date</label>
-                <input type="date" value={formData.expected_return_date} onChange={(e) => setFormData((f) => ({ ...f, expected_return_date: e.target.value }))} />
+                <DateInput value={formData.expected_return_date} onChange={(e) => setFormData((f) => ({ ...f, expected_return_date: e.target.value }))} />
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Purpose</label>

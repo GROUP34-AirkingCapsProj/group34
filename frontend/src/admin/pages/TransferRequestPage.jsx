@@ -8,6 +8,7 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
+import DateInput from '../components/DateInput';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -270,7 +271,7 @@ const TransferRequestPage = () => {
 
           <div className="po-field">
             <label className="po-field-label">TRANSFER DATE *</label>
-            <input type="date" className="po-input" value={txDate} onChange={e => setTxDate(e.target.value)} />
+            <DateInput className="po-input" value={txDate} onChange={e => setTxDate(e.target.value)} />
           </div>
         </div>
 

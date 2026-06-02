@@ -322,7 +322,7 @@ const getReceivePoBlockReason = (po) => {
   if (expMs == null || todayMs == null) return null;
   if (todayMs < expMs) {
     const days = Math.ceil((expMs - todayMs) / 86400000);
-    const label = new Date(expMs).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+    const label = new Date(expMs).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
     return `Receiving is blocked until the expected arrival date (${label}, in ${days} day(s)).`;
   }
   return null;
@@ -482,7 +482,7 @@ const bsrFmtDate = (v) => {
   if (!v) return '—';
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return String(v);
-  return d.toLocaleDateString('en-PH', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 };
 const bsrFmtCurrency = (n) =>
   `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0 })}`;
@@ -3564,7 +3564,7 @@ const BarcodeScan = () => {
                   <div className="bsr-detail-row"><span className="bsr-detail-label">IST Number:</span><span className="bsr-detail-value bsr-detail-value--bold">{istSelectedIst.transfer_number}</span></div>
                   <div className="bsr-detail-row"><span className="bsr-detail-label">From:</span><span className="bsr-detail-value bsr-detail-value--bold">{from}</span></div>
                   <div className="bsr-detail-row"><span className="bsr-detail-label">To:</span><span className="bsr-detail-value bsr-detail-value--bold">{to}</span></div>
-                  <div className="bsr-detail-row"><span className="bsr-detail-label">Transfer Date:</span><span className="bsr-detail-value bsr-detail-value--bold">{String(istSelectedIst.transfer_date || '').slice(0, 10)}</span></div>
+                  <div className="bsr-detail-row"><span className="bsr-detail-label">Transfer Date:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrFmtDate(istSelectedIst.transfer_date)}</span></div>
                 </div>
               </div>
 

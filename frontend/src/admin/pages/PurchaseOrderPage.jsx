@@ -17,11 +17,18 @@ import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
+import DateInput from '../components/DateInput';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const fmtPeso = (n) =>
   `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const isoToMDY = (s) => {
+  if (!s) return '—';
+  const [y, m, d] = String(s).slice(0, 10).split('-');
+  return `${m}/${d}/${y}`;
+};
 
 const getStatusConfig = (statusName) => {
   const s = String(statusName || '').toLowerCase();
@@ -419,7 +426,7 @@ const PurchaseOrderPage = () => {
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">CREATED DATE</span>
-                      <span className="po-status-meta-value">{po.order_date ? String(po.order_date).slice(0, 10) : '—'}</span>
+                      <span className="po-status-meta-value">{isoToMDY(po.order_date)}</span>
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">ITEMS</span>
@@ -588,7 +595,7 @@ const PurchaseOrderPage = () => {
                 </div>
                 <div className="po-field">
                   <label className="po-field-label">EXPECTED DELIVERY DATE</label>
-                  <input type="date" className="po-input" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} />
+                  <DateInput className="po-input" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} />
                 </div>
                 <div className="po-field">
                   <label className="po-field-label">PAYMENT TERMS</label>
@@ -812,7 +819,7 @@ const PurchaseOrderPage = () => {
                   }
                   return '';
                 })();
-                const todayStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                const todayStr = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 
                 return (
                   <div className="po-doc-preview">
@@ -1050,7 +1057,7 @@ const PurchaseOrderPage = () => {
                     </p>
                   )}
                   <p className="po-detail-head-sub">
-                    {d.supplier?.supplier_name || '—'} &nbsp;·&nbsp; {d.order_date ? String(d.order_date).slice(0, 10) : '—'}
+                    {d.supplier?.supplier_name || '—'} &nbsp;·&nbsp; {isoToMDY(d.order_date)}
                   </p>
                 </div>
                 <div className="po-detail-head-badges">
@@ -1106,8 +1113,8 @@ const PurchaseOrderPage = () => {
 
                 <div className="po-detail-info-grid">
                   <div className="po-detail-info-item"><span className="po-detail-info-label">CREATED BY</span><span className="po-detail-info-value">{createdByName}</span></div>
-                  <div className="po-detail-info-item"><span className="po-detail-info-label">ORDER DATE</span><span className="po-detail-info-value">{d.order_date ? String(d.order_date).slice(0, 10) : '—'}</span></div>
-                  <div className="po-detail-info-item"><span className="po-detail-info-label">EXPECTED DELIVERY</span><span className="po-detail-info-value">{d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—'}</span></div>
+                  <div className="po-detail-info-item"><span className="po-detail-info-label">ORDER DATE</span><span className="po-detail-info-value">{isoToMDY(d.order_date)}</span></div>
+                  <div className="po-detail-info-item"><span className="po-detail-info-label">EXPECTED DELIVERY</span><span className="po-detail-info-value">{isoToMDY(d.expected_delivery_date)}</span></div>
                   <div className="po-detail-info-item"><span className="po-detail-info-label">TOTAL AMOUNT</span><span className="po-detail-info-value" style={{ color: '#dc2626', fontWeight: 800 }}>₱{amount.toLocaleString('en-PH')}</span></div>
                   {actorName !== '—' && (
                     <div className="po-detail-info-item">

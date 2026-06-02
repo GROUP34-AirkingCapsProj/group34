@@ -12,11 +12,18 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
+import DateInput from '../components/DateInput';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const fmtPeso = (n) =>
   `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const isoToMDY = (s) => {
+  if (!s) return '';
+  const [y, m, day] = String(s).slice(0, 10).split('-');
+  return `${m}/${day}/${y}`;
+};
 
 const toLocalDate = (d) => {
   const y = d.getFullYear();
@@ -345,9 +352,8 @@ const BudgetManagementPage = () => {
             <label className="po-field-label">
               PERIOD START <span style={{ color: '#dc2626' }}>*</span>
             </label>
-            <input
+            <DateInput
               className={`po-input${errors.period_start ? ' po-field--error' : ''}`}
-              type="date"
               value={f.period_start}
               onChange={e => setFn('period_start', e.target.value)}
             />
@@ -357,9 +363,8 @@ const BudgetManagementPage = () => {
             <label className="po-field-label">
               PERIOD END <span style={{ color: '#dc2626' }}>*</span>
             </label>
-            <input
+            <DateInput
               className={`po-input${errors.period_end ? ' po-field--error' : ''}`}
-              type="date"
               value={f.period_end}
               min={f.period_start || undefined}
               onChange={e => setFn('period_end', e.target.value)}
@@ -474,7 +479,7 @@ const BudgetManagementPage = () => {
         </div>
         {form.period_start && form.period_end && (
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-            Period: {form.period_start} → {form.period_end}
+            Period: {isoToMDY(form.period_start)} → {isoToMDY(form.period_end)}
           </div>
         )}
       </div>
@@ -508,7 +513,7 @@ const BudgetManagementPage = () => {
               {b.period_label}
               {b.period_start && b.period_end && (
                 <span style={{ color: '#94a3b8', marginLeft: 6 }}>
-                  ({String(b.period_start).slice(0, 10)} – {String(b.period_end).slice(0, 10)})
+                  ({isoToMDY(b.period_start)} – {isoToMDY(b.period_end)})
                 </span>
               )}
             </div>
@@ -558,7 +563,7 @@ const BudgetManagementPage = () => {
         <div style={{ fontSize: 12, color: '#94a3b8' }}>
           Created by: <strong style={{ color: '#64748b' }}>{createdBy}</strong>
           {b.created_at && (
-            <span> on {String(b.created_at).slice(0, 10)}</span>
+            <span> on {isoToMDY(b.created_at)}</span>
           )}
           {b.category?.category_name && (
             <span style={{ marginLeft: 12 }}>

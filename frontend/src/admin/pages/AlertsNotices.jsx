@@ -6,6 +6,7 @@ import { auditAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/alerts_notices.css';
+import DateInput from '../components/DateInput';
 
 const PAGE_SIZE = 10;
 const AUDIT_LAST_SEEN_KEY = 'airking_audit_last_seen';
@@ -75,7 +76,7 @@ function formatVal(val) {
   if (val === null || val === undefined) return '—';
   if (typeof val === 'object') return JSON.stringify(val);
   const s = String(val);
-  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(s)) return s.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(s)) { const [y, m, d] = s.slice(0, 10).split('-'); return `${m}/${d}/${y}`; }
   if (/^\d+(\.\d+)?$/.test(s) && Number(s) >= 1000) {
     return Number(s).toLocaleString('en-PH', { maximumFractionDigits: 2 });
   }
@@ -211,7 +212,7 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
           <span className="an-audit-user">{userName}</span>
           <span className="an-audit-sep">·</span>
           <span className="an-audit-time">
-            {item?.created_at ? new Date(item.created_at).toLocaleString() : ''}
+            {item?.created_at ? new Date(item.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
           </span>
           {item?.ip_address && (
             <><span className="an-audit-sep">·</span><span className="an-audit-ip">{item.ip_address}</span></>
@@ -305,7 +306,7 @@ const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle })
           <span className="an-audit-user">{userName}</span>
           <span className="an-audit-sep">·</span>
           <span className="an-audit-time">
-            {primary?.created_at ? new Date(primary.created_at).toLocaleString() : ''}
+            {primary?.created_at ? new Date(primary.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
           </span>
           {primary?.ip_address && (
             <><span className="an-audit-sep">·</span><span className="an-audit-ip">{primary.ip_address}</span></>
@@ -681,15 +682,13 @@ const AlertsNotices = () => {
                 <option key={val} value={val}>{label}</option>
               ))}
             </select>
-            <input
-              type="date"
+            <DateInput
               value={auditDateFrom}
               onChange={e => { setAuditDateFrom(e.target.value); setAuditPage(1); }}
               className="an-filter-date"
               aria-label="Filter from date"
             />
-            <input
-              type="date"
+            <DateInput
               value={auditDateTo}
               onChange={e => { setAuditDateTo(e.target.value); setAuditPage(1); }}
               className="an-filter-date"
