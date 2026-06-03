@@ -16,6 +16,7 @@ import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
+import { toast } from '../utils/toast';
 
 // ─── formatters ──────────────────────────────────────────────────────────────
 
@@ -138,8 +139,6 @@ const PurchaseRequestPage = () => {
   const [lineItems, setLineItems] = useState([newLine()]);
   const [submitting,  setSubmitting]  = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [createdPRNum,  setCreatedPRNum]  = useState('');
 
   // ── Tab 2: My Requests ────────────────────────────────────────────────────
   const [myPRs,        setMyPRs]        = useState([]);
@@ -371,8 +370,8 @@ const PurchaseRequestPage = () => {
       if (budget?.budget_id) payload.budget_id = budget.budget_id;
 
       const res = await purchaseRequestsAPI.create(payload);
-      setCreatedPRNum(res?.data?.pr_number || 'Purchase Request');
-      setSubmitSuccess(true);
+      const createdPRNum = res?.data?.pr_number || 'Purchase Request';
+      toast.success(`${createdPRNum} submitted! Waiting for Admin approval.`);
       setLineItems([newLine()]);
       setPurpose('');
     } catch (err) {
@@ -399,7 +398,7 @@ const PurchaseRequestPage = () => {
       await purchaseRequestsAPI.approve(prId);
       setPendingPRs(p => p.filter(pr => pr.pr_id !== prId));
       if (selectedPR?.pr_id === prId) setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.APPROVED } : null);
-    } catch (err) { alert(err?.message || 'Approval failed.'); }
+    } catch (err) { toast.error(err?.message || 'Approval failed.'); }
     finally { setActionLoading(p => { const n = { ...p }; delete n[prId]; return n; }); }
   }, [selectedPR]);
 
@@ -416,7 +415,7 @@ const PurchaseRequestPage = () => {
         setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.REJECTED, rejection_reason: rejectModal.reason } : null);
       setRejectModal({ open: false, prId: null, reason: '', submitting: false });
     } catch (err) {
-      alert(err?.message || 'Rejection failed.');
+      toast.error(err?.message || 'Rejection failed.');
       setRejectModal(p => ({ ...p, submitting: false }));
     }
   }, [rejectModal, selectedPR]);
@@ -490,18 +489,6 @@ const PurchaseRequestPage = () => {
   // ── Tab 1: Create Request ─────────────────────────────────────────────────
   const renderCreateTab = () => (
     <div className="pr-create-form-layout">
-      {submitSuccess && (
-        <div className="po-success-banner">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-          <strong>{createdPRNum}</strong> submitted! Waiting for Admin approval.
-          <button type="button" className="po-success-close" onClick={() => setSubmitSuccess(false)} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-      )}
-
       {/* Request details card */}
       <div className="po-details-card">
         <div className="pr-form-grid">

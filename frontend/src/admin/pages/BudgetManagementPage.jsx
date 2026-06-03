@@ -13,6 +13,7 @@ import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
+import { toast } from '../utils/toast';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -130,7 +131,6 @@ const BudgetManagementPage = () => {
   const [form,         setForm]         = useState(emptyForm);
   const [formErrors,   setFormErrors]   = useState({});
   const [submitting,   setSubmitting]   = useState(false);
-  const [createSuccess,setCreateSuccess]= useState('');
   const [createError,  setCreateError]  = useState('');
 
   // Edit modal
@@ -220,7 +220,7 @@ const BudgetManagementPage = () => {
       };
       await budgetAllocationsAPI.create(payload);
       const loc = locations.find(l => String(l.location_id) === String(form.location_id));
-      setCreateSuccess(`Budget created for ${loc?.location_name || 'location'}!`);
+      toast.success(`Budget created for ${loc?.location_name || 'location'}!`);
       setForm(emptyForm());
       setFormErrors({});
       await loadBudgets();
@@ -292,7 +292,7 @@ const BudgetManagementPage = () => {
       await budgetAllocationsAPI.delete(budgetId);
       await loadBudgets();
     } catch (err) {
-      alert(err?.message || 'Failed to delete budget.');
+      toast.error(err?.message || 'Failed to delete budget.');
     }
   }, [loadBudgets]);
 
@@ -701,17 +701,6 @@ const BudgetManagementPage = () => {
   return (
     <AdminLayout>
       <div className="po-recommendation-page">
-        {/* Success banner */}
-        {createSuccess && (
-          <div className="po-success-banner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            {createSuccess}
-            <button type="button" className="po-success-close" onClick={() => setCreateSuccess('')}>✕</button>
-          </div>
-        )}
-
         {/* Page header */}
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">

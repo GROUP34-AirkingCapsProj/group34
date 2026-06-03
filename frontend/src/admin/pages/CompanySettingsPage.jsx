@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { companySettingsAPI } from '../services/api';
+import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 
 const CompanySettingsPage = () => {
@@ -12,8 +13,6 @@ const CompanySettingsPage = () => {
   });
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
-  const [success,  setSuccess]  = useState(false);
-  const [error,    setError]    = useState('');
 
   useEffect(() => {
     companySettingsAPI.get()
@@ -25,7 +24,7 @@ const CompanySettingsPage = () => {
           company_phone:   data.company_phone   || '',
         });
       })
-      .catch(() => setError('Failed to load company settings.'))
+      .catch(() => toast.error('Failed to load company settings.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -35,14 +34,11 @@ const CompanySettingsPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setError('');
-    setSuccess(false);
     try {
       await companySettingsAPI.update(form);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 4000);
+      toast.success('Settings saved successfully!');
     } catch {
-      setError('Failed to save settings. Please try again.');
+      toast.error('Failed to save settings. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -61,21 +57,6 @@ const CompanySettingsPage = () => {
             This information appears on the header of all exported Purchase Order documents.
           </p>
         </div>
-
-        {/* Success banner */}
-        {success && (
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            Settings saved successfully!
-          </div>
-        )}
-
-        {/* Error banner */}
-        {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#dc2626' }}>
-            {error}
-          </div>
-        )}
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8', fontSize: 14 }}>Loading…</div>

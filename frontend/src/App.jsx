@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
@@ -76,8 +77,20 @@ function App() {
     <AuthProvider>
     <SupabaseAuthProvider>
     <Router>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: { fontSize: 14, borderRadius: 10, padding: '12px 16px', maxWidth: 380 },
+          success: { style: { background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' } },
+          error:   { style: { background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' } },
+        }}
+      />
       <SessionIdleGuard />
-      <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-muted)' }}>Loading...</div>}>
+      <Suspense fallback={
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#080d16' }}>
+          <div style={{ width: 44, height: 44, border: '3px solid rgba(220,20,60,0.2)', borderTopColor: '#dc143c', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+        </div>
+      }>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin" element={<Navigate to="/admin/login" replace />} />

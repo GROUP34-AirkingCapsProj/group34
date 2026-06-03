@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { archiveSettingsAPI } from '../services/api';
+import { toast } from '../utils/toast';
 import '../styles/archive_settings.css';
 
 const MODULE_LABELS = {
@@ -123,11 +124,12 @@ function ModuleRow({ moduleKey, config: initialConfig, onSaved }) {
         pinnable:             cfg.pinnable,
       };
       await archiveSettingsAPI.updateModule(moduleKey, payload);
+      toast.success((MODULE_LABELS[moduleKey] ?? moduleKey) + ' settings saved.');
       setSaved(true);
       if (onSaved) onSaved(moduleKey, payload);
       setTimeout(() => setSaved(false), 3000);
     } catch {
-      alert('Failed to save settings for ' + (MODULE_LABELS[moduleKey] ?? moduleKey));
+      toast.error('Failed to save settings for ' + (MODULE_LABELS[moduleKey] ?? moduleKey));
     } finally {
       setSaving(false);
     }
@@ -300,10 +302,11 @@ const ArchiveSettingsPage = () => {
     setSavedSched(false);
     try {
       await archiveSettingsAPI.updateSchedule(scheduleForm);
+      toast.success('Schedule settings saved.');
       setSavedSched(true);
       setTimeout(() => setSavedSched(false), 3000);
     } catch {
-      alert('Failed to save schedule settings.');
+      toast.error('Failed to save schedule settings.');
     } finally {
       setSavingSched(false);
     }
@@ -324,7 +327,7 @@ const ArchiveSettingsPage = () => {
       });
       loadLogs(logsPage);
     } catch {
-      alert('Preview failed. Check console for details.');
+      toast.error('Preview failed. Check console for details.');
     } finally {
       setRunning('');
     }
@@ -347,7 +350,7 @@ const ArchiveSettingsPage = () => {
       loadSettings();
       loadLogs(logsPage);
     } catch {
-      alert('Auto-archive run failed.');
+      toast.error('Auto-archive run failed.');
     } finally {
       setRunning('');
     }
@@ -368,7 +371,7 @@ const ArchiveSettingsPage = () => {
       });
       loadLogs(logsPage);
     } catch {
-      alert('Cleanup preview failed.');
+      toast.error('Cleanup preview failed.');
     } finally {
       setRunning('');
     }
@@ -391,7 +394,7 @@ const ArchiveSettingsPage = () => {
       });
       loadLogs(logsPage);
     } catch {
-      alert('Cleanup run failed.');
+      toast.error('Cleanup run failed.');
     } finally {
       setRunning('');
     }

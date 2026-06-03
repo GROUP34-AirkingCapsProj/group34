@@ -1,0 +1,697 @@
+﻿/* =====================================================
+   AIRKING â€” COMPREHENSIVE RESPONSIVE SYSTEM
+   Breakpoints:
+     â‰¤1200px  large tablet / small laptop
+     â‰¤1024px  tablet landscape
+     â‰¤900px   tablet portrait
+     â‰¤768px   mobile landscape  (sidebar becomes off-canvas)
+     â‰¤640px   mobile portrait
+     â‰¤480px   small phone
+     â‰¤360px   very small phone
+   All selectors scoped to .admin-shell or .page-content
+   so PWA and login pages are not affected.
+===================================================== */
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   LARGE TABLET / SMALL LAPTOP  â‰¤ 1200px
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 1200px) {
+
+  /* Stats grids: 4 â†’ 3 columns */
+  .page-content [class*="-stats-row"],
+  .page-content [class*="-stats-grid"],
+  .page-content .stats-container {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Dashboard charts: 2-col min shrinks */
+  .charts-section {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+  }
+
+  /* Quick actions: keep 6 equal columns on large screens */
+  .quick-actions-grid,
+  .quick-actions-grid--compact {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   TABLET LANDSCAPE  â‰¤ 1024px
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 1024px) {
+
+  /* Sidebar: narrower on tablet */
+  .sidebar {
+    width: 200px !important;
+  }
+
+  .content-wrapper {
+    margin-left: 200px !important;
+  }
+
+  /* Sidebar nav item text: slightly smaller */
+  .nav-item {
+    font-size: 12.5px !important;
+    padding: 8px 9px !important;
+  }
+
+  .nav-section-header .nav-section-label {
+    font-size: 9px !important;
+  }
+
+  /* Stats grids: 4 â†’ 2 columns */
+  .page-content [class*="-stats-row"],
+  .page-content [class*="-stats-grid"],
+  .page-content .stats-container {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Charts: single column */
+  .charts-section {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Quick actions: 6 equal columns on tablet landscape */
+  .quick-actions-grid,
+  .quick-actions-grid--compact {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Page header: allow wrap */
+  .page-content [class*="-page-header"] {
+    gap: 10px !important;
+  }
+
+  /* 4-column page grids â†’ 2 */
+  .page-content [class*="-grid-4"],
+  .page-content [style*="grid-template-columns: repeat(4"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Modal: slightly narrower */
+  .modal-content {
+    max-width: 560px !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   TABLET PORTRAIT  â‰¤ 900px
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 900px) {
+
+  /* Sidebar stays visible but even narrower */
+  .sidebar {
+    width: 190px !important;
+  }
+
+  .content-wrapper {
+    margin-left: 190px !important;
+  }
+
+  /* Stats grids: 2 columns */
+  .page-content [class*="-stats-row"],
+  .page-content [class*="-stats-grid"],
+  .page-content .stats-container {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* PO Recommendation two-col layout â†’ single */
+  .page-content [class*="-two-cols"],
+  .page-content [class*="-col-2"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Quick actions: 3 per row on tablet portrait */
+  .quick-actions-grid,
+  .quick-actions-grid--compact {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Form grids: 2 â†’ 1 column */
+  .page-content [class*="-form"] .form-row,
+  .page-content [class*="form-row"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   MOBILE LANDSCAPE  â‰¤ 768px
+   Sidebar already goes off-canvas at this breakpoint
+   via the existing AdminLayout mechanism.
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 768px) {
+
+  /* â”€â”€ Layout â”€â”€ */
+  .content-wrapper {
+    margin-left: 0 !important;
+  }
+
+  /* â”€â”€ Header â”€â”€ */
+  .top-header {
+    height: 56px !important;
+    padding: 0 14px !important;
+  }
+
+  .header-brand-logo {
+    height: 32px !important;
+  }
+
+  .header-brand-text .brand-name {
+    font-size: 12px !important;
+    letter-spacing: 1px !important;
+  }
+
+  .header-brand-text .brand-subtitle {
+    display: none !important;
+  }
+
+  .header-user-info {
+    display: none !important;
+  }
+
+  .header-user-profile {
+    padding: 5px !important;
+    border-radius: 8px !important;
+  }
+
+  /* â”€â”€ Page content â”€â”€ */
+  .page-content {
+    padding: 14px 16px !important;
+    min-height: calc(100vh - 56px) !important;
+  }
+
+  /* â”€â”€ Page headers: stack title + action â”€â”€ */
+  .page-content [class*="-page-header"] {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .page-content [class*="-page-header"] h1,
+  .page-content h1 {
+    font-size: 18px !important;
+  }
+
+  /* â”€â”€ Stats grids: 2 columns â”€â”€ */
+  .page-content [class*="-stats-row"],
+  .page-content [class*="-stats-grid"],
+  .page-content .stats-container {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* â”€â”€ Charts: single column â”€â”€ */
+  .charts-section {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Chart height: shorter on mobile */
+  .chart-wrapper {
+    height: 200px !important;
+  }
+
+  /* â”€â”€ Quick actions: 3 per row â”€â”€ */
+  .quick-actions-grid,
+  .quick-actions-grid--compact {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* â”€â”€ ALL DATA TABLES: horizontal scroll â”€â”€
+     Wraps every table in a scrollable container
+     using the existing table-wrapper classes      */
+  .page-content [class*="-table-wrapper"],
+  .page-content [class*="-table-wrap"],
+  .page-content [class*="table-responsive"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Prevent table from collapsing below readable width */
+  .page-content [class*="-table"] {
+    min-width: 600px !important;
+  }
+
+  /* Smaller table text on mobile */
+  .page-content [class*="-table"] th {
+    padding: 8px 10px !important;
+    font-size: 9.5px !important;
+    white-space: nowrap !important;
+  }
+
+  .page-content [class*="-table"] td {
+    padding: 9px 10px !important;
+    font-size: 12px !important;
+  }
+
+  /* â”€â”€ Filter bars: stack â”€â”€ */
+  .page-content [class*="-filter-bar"],
+  .page-content [class*="-filter-section"],
+  .page-content [class*="-search-row"],
+  .page-content [class*="-filter-row"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .page-content [class*="-search-box"],
+  .page-content [class*="-search-input"] {
+    width: 100% !important;
+  }
+
+  .page-content [class*="-filters"],
+  .page-content [class*="-filter-dims"] {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  .page-content [class*="-filters"] select,
+  .page-content [class*="-filter-select"],
+  .page-content [class*="-filter"] select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* â”€â”€ Form grids: all single column â”€â”€ */
+  .page-content [class*="-form"] .form-row,
+  .page-content .form-row,
+  .page-content [class*="form-row"] {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+
+  /* â”€â”€ Cards: full width, tighter padding â”€â”€ */
+  .page-content [class*="-card"]:not([class*="-stat-card"]):not([class*="-mode-card"]) {
+    padding: 12px 14px !important;
+  }
+
+  .page-content [class*="-stat-card"] {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+  }
+
+  /* â”€â”€ Approval alert: stack â”€â”€ */
+  .approval-alert-panel {
+    flex-direction: column !important;
+    text-align: center !important;
+    padding: 14px !important;
+    gap: 10px !important;
+  }
+
+  /* â”€â”€ Dashboard header â”€â”€ */
+  .dashboard-header {
+    margin-bottom: 14px !important;
+  }
+
+  /* â”€â”€ Tabs: scrollable row â”€â”€ */
+  .page-content [class*="-tabs-bar"],
+  .page-content [class*="-tab-bar"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+  }
+
+  /* â”€â”€ Action button groups: wrap â”€â”€ */
+  .page-content [class*="-actions"],
+  .page-content [class*="-btn-group"] {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* â”€â”€ Pagination: wrap â”€â”€ */
+  .page-content [class*="-pagination"],
+  .pg-container {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+
+  /* â”€â”€ Branch management: keep table modal scrollable â”€â”€ */
+  .modal .modal-content {
+    max-height: 95vh !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   MOBILE PORTRAIT  â‰¤ 640px
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 640px) {
+
+  /* â”€â”€ Page content â”€â”€ */
+  .page-content {
+    padding: 12px !important;
+  }
+
+  /* â”€â”€ Stats: keep 2-col but tighter â”€â”€ */
+  .page-content [class*="-stats-row"],
+  .page-content [class*="-stats-grid"],
+  .page-content .stats-container {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* Stat numbers: smaller */
+  .page-content [class*="-stat-value"],
+  .page-content [class*="-stat-number"],
+  .stat-content h2 {
+    font-size: 18px !important;
+  }
+
+  /* â”€â”€ Quick actions: 3 per row on mobile â”€â”€ */
+  .quick-actions-grid,
+  .quick-actions-grid--compact {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* â”€â”€ Dashboard barcode scan mode cards: 2-col â”€â”€ */
+  .bs-mode-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* â”€â”€ Modals: full-width bottom-sheet style â”€â”€ */
+  .modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 18px 18px 0 0 !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    margin: 0 !important;
+  }
+
+  /* â”€â”€ Primary buttons: full width in filter areas â”€â”€ */
+  .page-content [class*="-filter-bar"] [class*="-btn-primary"],
+  .page-content [class*="-filter-bar"] [class*="-btn-add"],
+  .page-content [class*="-filter-section"] [class*="-btn-add"] {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* â”€â”€ Page titles â”€â”€ */
+  .page-content h1 {
+    font-size: 16px !important;
+  }
+
+  /* â”€â”€ Card header: stack title + action â”€â”€ */
+  .page-content [class*="-card-header"] {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+
+  /* â”€â”€ Recent activity: simplify â”€â”€ */
+  .recent-activity-item {
+    flex-wrap: wrap !important;
+  }
+
+  .ra-right {
+    flex-direction: row !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding-left: 22px !important;
+  }
+
+  /* â”€â”€ Low stock table â”€â”€ */
+  .low-stock-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .low-stock-table {
+    min-width: 500px !important;
+  }
+
+  /* â”€â”€ Tab bars: smaller text â”€â”€ */
+  .page-content [class*="-tab"],
+  .page-content [class*="-tab-btn"] {
+    font-size: 11.5px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* â”€â”€ PO Recommendation banner: stack â”€â”€ */
+  .page-content [class*="-banner"] {
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 16px !important;
+  }
+
+  /* â”€â”€ Section titles inside cards â”€â”€ */
+  .page-content [class*="-form-section-title"],
+  .page-content [class*="-section-title"] {
+    font-size: 10.5px !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   SMALL PHONE  â‰¤ 480px
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 480px) {
+
+  /* â”€â”€ Header: even more compact â”€â”€ */
+  .top-header {
+    height: 50px !important;
+    padding: 0 10px !important;
+    gap: 8px !important;
+  }
+
+  .header-brand {
+    gap: 6px !important;
+  }
+
+  .header-brand-logo {
+    height: 28px !important;
+  }
+
+  /* â”€â”€ Page content â”€â”€ */
+  .page-content {
+    padding: 10px !important;
+  }
+
+  /* â”€â”€ Stats: 1 or 2 col â”€â”€
+     Keep 2-col for narrow stat cards, but single-col for wider pages */
+  .page-content [class*="-stats-row"],
+  .page-content [class*="-stats-grid"],
+  .page-content .stats-container {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* â”€â”€ Quick actions: 2 per row â”€â”€ */
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* â”€â”€ Barcode mode cards: 2-col â”€â”€ */
+  .bs-mode-cards {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* â”€â”€ Tables: even smaller text â”€â”€ */
+  .page-content [class*="-table"] th {
+    padding: 7px 8px !important;
+    font-size: 9px !important;
+  }
+
+  .page-content [class*="-table"] td {
+    padding: 8px 8px !important;
+    font-size: 11.5px !important;
+  }
+
+  /* â”€â”€ Sidebar off-canvas: full-width on very small phones â”€â”€ */
+  .sidebar {
+    max-width: 100vw !important;
+    width: 260px !important;
+  }
+
+  /* â”€â”€ Modals: full viewport height â”€â”€ */
+  .modal-content {
+    max-height: 95vh !important;
+    border-radius: 14px 14px 0 0 !important;
+  }
+
+  /* â”€â”€ Pagination: smaller buttons â”€â”€ */
+  .pg-btn,
+  .page-content [class*="-page-btn"],
+  .page-content [class*="-pagination"] button {
+    min-width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+    padding: 0 6px !important;
+  }
+
+  /* â”€â”€ Buttons: compact â”€â”€ */
+  .page-content [class*="-btn-primary"],
+  .page-content [class*="-btn-add"],
+  .page-content [class*="-btn-save"] {
+    padding: 7px 12px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   VERY SMALL PHONE  â‰¤ 360px
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 360px) {
+
+  .page-content {
+    padding: 8px !important;
+  }
+
+  /* Stats: single column on the smallest phones */
+  .page-content [class*="-stats-row"],
+  .page-content [class*="-stats-grid"],
+  .page-content .stats-container {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+
+  .page-content [class*="-stat-card"] {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+
+  /* Quick actions: 2-col */
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   LOGIN PAGE â€” RESPONSIVE
+   Already has its own rules; these fill in the gaps
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 768px) {
+  .login-container {
+    flex-direction: column !important;
+    border-radius: 14px !important;
+    max-width: 460px !important;
+    width: calc(100% - 24px) !important;
+  }
+
+  .left-side {
+    padding: 28px 24px !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  }
+
+  .logo-box {
+    width: 72px !important;
+    height: 72px !important;
+    margin-bottom: 16px !important;
+    border-radius: 14px !important;
+  }
+
+  .left-side h1 {
+    font-size: 18px !important;
+  }
+
+  .right-side {
+    padding: 28px 24px !important;
+  }
+
+  .login-form h2 {
+    font-size: 22px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 12px !important;
+  }
+
+  .login-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 12px !important;
+    min-height: unset !important;
+  }
+
+  .left-side {
+    padding: 20px !important;
+  }
+
+  .right-side {
+    padding: 20px !important;
+  }
+
+  .login-form h2 {
+    font-size: 20px !important;
+  }
+
+  .login-btn {
+    padding: 12px !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   SIDEBAR MOBILE DRAWER REFINEMENTS
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 768px) {
+
+  /* Sidebar drawer: full-height, good width */
+  .sidebar {
+    width: min(280px, 85vw) !important;
+    max-width: 280px !important;
+  }
+
+  /* Mobile bar inside dark sidebar */
+  .sidebar-mobile-bar {
+    display: flex !important;
+    padding: 12px 14px !important;
+  }
+
+  /* User section in mobile drawer: more compact */
+  .sidebar-user-section {
+    padding: 14px !important;
+  }
+
+  .sidebar-user-avatar {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .sidebar-user-name {
+    font-size: 13px !important;
+  }
+
+  /* Nav items in mobile drawer */
+  .nav-item {
+    padding: 9px 10px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   UTILITY â€” prevent overflow everywhere
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+@media (max-width: 1024px) {
+  .admin-shell {
+    overflow-x: hidden !important;
+  }
+
+  .page-content {
+    overflow-x: hidden !important;
+  }
+
+  /* Any card with a wide inner element still scrolls */
+  .page-content [class*="-table-wrapper"],
+  .page-content [class*="-table-wrap"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+

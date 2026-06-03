@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { barcodeAdjustmentAPI } from '../services/api';
+import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/compliance_review.css';
 import DateInput from '../components/DateInput';
@@ -99,11 +100,9 @@ const ComplianceReview = () => {
   const [dateFrom, setDateFrom]         = useState('');
   const [dateTo, setDateTo]             = useState('');
   const [actionFilter, setActionFilter] = useState('');
-  const [error, setError]               = useState(null);
 
   const fetchLogs = useCallback(async () => {
     setLogsLoading(true);
-    setError(null);
     try {
       const params = { page: logsPage };
       if (dateFrom) params.date_from = dateFrom;
@@ -116,7 +115,7 @@ const ComplianceReview = () => {
         setLogsTotal(res.data?.total ?? 0);
       }
     } catch (e) {
-      setError('Failed to load compliance logs: ' + e.message);
+      toast.error('Failed to load compliance logs: ' + e.message);
     } finally {
       setLogsLoading(false);
     }
@@ -124,7 +123,6 @@ const ComplianceReview = () => {
 
   const fetchAdjustments = useCallback(async () => {
     setAdjLoading(true);
-    setError(null);
     try {
       const params = { page: adjPage };
       if (dateFrom) params.date_from = dateFrom;
@@ -136,7 +134,7 @@ const ComplianceReview = () => {
         setAdjTotal(res.data?.total ?? 0);
       }
     } catch (e) {
-      setError('Failed to load adjustment history: ' + e.message);
+      toast.error('Failed to load adjustment history: ' + e.message);
     } finally {
       setAdjLoading(false);
     }
@@ -220,12 +218,6 @@ const ComplianceReview = () => {
             {activeTab === 'logs' ? `${logsTotal} log(s)` : `${adjTotal} adjustment(s)`}
           </span>
         </div>
-
-        {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#dc2626', fontSize: 13 }}>
-            {error}
-          </div>
-        )}
 
         {/* Content Layout */}
         <div className="cr-content-layout">

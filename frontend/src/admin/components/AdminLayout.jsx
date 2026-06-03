@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, startTransition } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
-import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
+import Sidebar, { adminMenuSections, prefetchRoute, routePrefetchMap, avatarColor } from '../components/Sidebar';
 import '../styles/dashboard_air.css';
+import '../styles/global_overrides.css';
+import '../styles/responsive.css';
 
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -118,20 +120,12 @@ const AdminLayout = ({ children }) => {
     return sessionStorage.getItem('activeNavItem') || '';
   });
 
-  // Prefetch common routes on mount
+  // Prefetch ALL routes immediately after mount so every page's JS chunk
+  // is already in the browser cache before the user clicks anything.
   useEffect(() => {
     const timer = setTimeout(() => {
-      [
-        '/admin/dashboard',
-        '/admin/inventory',
-        '/admin/po-recommendations',
-        '/admin/draft-po-creator',
-        '/admin/items',
-        '/admin/transactions',
-        '/admin/receivings',
-        '/admin/purchase-orders',
-      ].forEach(prefetchRoute);
-    }, 1000);
+      Object.keys(routePrefetchMap).forEach(prefetchRoute);
+    }, 100);
     return () => clearTimeout(timer);
   }, []);
 
@@ -153,7 +147,9 @@ const AdminLayout = ({ children }) => {
     (item) => {
       setActiveItemName(item.name);
       sessionStorage.setItem('activeNavItem', item.name);
-      navigate(item.path);
+      // startTransition keeps the current page visible while the
+      // new page's lazy chunk + data load — no spinner flash.
+      startTransition(() => { navigate(item.path); });
       if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
         setMobileNavOpen(false);
       }
@@ -376,7 +372,15 @@ const AdminLayout = ({ children }) => {
           </div>
         </header>
 
-        <main className="page-content">{children}</main>
+        <main className="page-content">
+          <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, flexDirection: 'column', gap: 14 }}>
+              <div style={{ width: 36, height: 36, border: '3px solid #f0f0f0', borderTopColor: '#dc143c', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+            </div>
+          }>
+            {children}
+          </Suspense>
+        </main>
       </div>
     </div>
   );

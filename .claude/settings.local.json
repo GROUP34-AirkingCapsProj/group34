@@ -10,7 +10,13 @@
       "Bash(xargs grep *)",
       "Bash(npx react-scripts *)",
       "Bash(netstat -ano)",
-      "Bash(findstr \":3000\")"
+      "Bash(findstr \":3000\")",
+      "PowerShell(Start-Sleep -Seconds 18; try { $r = Invoke-WebRequest -Uri \"http://localhost:3000\" -TimeoutSec 8 -UseBasicParsing; Write-Output \"Status: $\\($r.StatusCode\\)\"; Write-Output \\($r.Content.Substring\\(0, [Math]::Min\\(300, $r.Content.Length\\)\\)\\) } catch { Write-Output \"Not ready yet: $_\" })",
+      "PowerShell(\\(Get-Content \"C:\\\\XAMPP1\\\\htdocs\\\\Airking_Inventory\\\\frontend\\\\src\\\\admin\\\\styles\\\\dashboard_air.css\" | Measure-Object -Line\\).Lines)",
+      "PowerShell(\\(Get-Content \"C:\\\\XAMPP1\\\\htdocs\\\\Airking_Inventory\\\\frontend\\\\src\\\\admin\\\\styles\\\\login.css\" | Measure-Object -Line\\).Lines)"
     ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true
   }
 }

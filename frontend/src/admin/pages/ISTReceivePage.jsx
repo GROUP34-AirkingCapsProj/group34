@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toast } from '../utils/toast';
 import '../styles/po_recommendation.css';
 import '../styles/dashboard_air.css';
 import DateInput from '../components/DateInput';
@@ -31,7 +32,6 @@ const ISTReceivePage = () => {
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
   const [submitting,   setSubmitting]   = useState(false);
-  const [submitError,  setSubmitError]  = useState('');
 
   // Form state
   const [receivedDate, setReceivedDate] = useState(todayIso());
@@ -72,7 +72,6 @@ const ISTReceivePage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitError('');
 
     const products = (ist?.details || []).map((d) => ({
       transfer_detail_id: d.transfer_detail_id,
@@ -81,7 +80,7 @@ const ISTReceivePage = () => {
 
     const totalReceiving = products.reduce((s, p) => s + p.quantity_received, 0);
     if (totalReceiving < 1) {
-      setSubmitError('Enter a received quantity for at least one product.');
+      toast.error('Enter a received quantity for at least one product.');
       return;
     }
 
@@ -92,7 +91,7 @@ const ISTReceivePage = () => {
         state: { success: `${ist.transfer_number} has been received successfully.` },
       });
     } catch (err) {
-      setSubmitError(err?.message || 'Failed to confirm receipt.');
+      toast.error(err?.message || 'Failed to confirm receipt.');
     } finally {
       setSubmitting(false);
     }
@@ -292,9 +291,6 @@ const ISTReceivePage = () => {
             </div>
 
             {/* ── Submit ── */}
-            {submitError && (
-              <div className="po-submit-error" style={{ marginBottom: 12 }}>{submitError}</div>
-            )}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
                 type="button"

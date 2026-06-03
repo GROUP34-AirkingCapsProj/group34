@@ -122,6 +122,31 @@ export const removeToken = () => {
 };
 
 /* ======================
+   RESPONSE CACHE
+   GET responses are cached for 20 seconds so revisiting
+   a page within that window is instant. Mutations
+   (POST/PUT/PATCH/DELETE) clear related cache entries.
+====================== */
+const _cache = new Map();
+const CACHE_TTL = 20_000;
+
+const cacheGet = (key) => {
+  const hit = _cache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.ts > CACHE_TTL) { _cache.delete(key); return null; }
+  return hit.data;
+};
+
+const cacheSet = (key, data) => _cache.set(key, { data, ts: Date.now() });
+
+/* Invalidate all cached entries whose URL contains `pattern`.
+   Call with no argument to clear everything (e.g. on logout). */
+export const invalidateCache = (pattern) => {
+  if (!pattern) { _cache.clear(); return; }
+  for (const k of _cache.keys()) { if (k.includes(pattern)) _cache.delete(k); }
+};
+
+/* ======================
    API REQUEST HELPER
 ====================== */
 const apiRequest = async (endpoint, options = {}) => {
@@ -139,14 +164,17 @@ const apiRequest = async (endpoint, options = {}) => {
 
   const base = getApiBaseUrl();
   const url = endpoint.startsWith('/') ? `${base}${endpoint}` : `${base}/${endpoint}`;
-  const method = options.method || 'GET';
-  console.log(`[API] ${method} ${url}`, options.body ? { body: options.body } : '');
+  const method = (options.method || 'GET').toUpperCase();
+
+  // --- Cache read (GET only) ---
+  if (method === 'GET') {
+    const cached = cacheGet(url);
+    if (cached !== null) return cached;
+  }
+
   let response;
   try {
-    response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    response = await fetch(url, { ...options, headers });
   } catch (networkError) {
     const msg =
       networkError.message === 'Failed to fetch'
@@ -173,8 +201,6 @@ const apiRequest = async (endpoint, options = {}) => {
     throw new Error(msg);
   }
 
-  console.log(`[API] ${method} ${url} → ${response.status}`, response.ok ? 'OK' : { message: data.message, errors: data.errors });
-
   if (!response.ok) {
     // Token expired or missing — clear storage and bounce to login
     if (response.status === 401) {
@@ -191,6 +217,9 @@ const apiRequest = async (endpoint, options = {}) => {
     }
     throw err;
   }
+
+  // --- Cache write (GET only) ---
+  if (method === 'GET') cacheSet(url, data);
 
   return data;
 };

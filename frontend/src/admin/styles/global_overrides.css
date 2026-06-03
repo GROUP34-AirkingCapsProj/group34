@@ -1,0 +1,904 @@
+/* ======================================================
+   AIRKING GLOBAL UI OVERRIDES — BOLD AIRKING THEME
+   Applied to all admin pages via AdminLayout import.
+   Brand colors:
+     --primary  : #dc143c  (AirKing Red)
+     --accent   : #f5b301  (AirKing Gold)
+====================================================== */
+
+/* ─── 1. FONT — Outfit everywhere ─── */
+.page-content,
+.page-content * {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.modal,
+.modal * {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ─── 2. PAGE HEADER TYPOGRAPHY ─── */
+.page-content h1 {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.3px !important;
+  color: #1a1a1a !important;
+  line-height: 1.3 !important;
+}
+
+.page-content h2 {
+  font-weight: 700 !important;
+  letter-spacing: -0.2px !important;
+}
+
+/* Page subtitles */
+.page-content [class*="-page-header"] > p,
+.page-content [class*="-page-header"] p,
+.page-content [class*="-page-subtitle"],
+.page-content [class*="-subtitle"] {
+  font-size: 12.5px !important;
+  color: #9c9490 !important;
+  line-height: 1.5 !important;
+  font-weight: 400 !important;
+}
+
+/* ─── 3. ALL CARD CONTAINERS ─── */
+.page-content [class*="-card"]:not([class*="nav-item"]):not([class*="captcha"]) {
+  background: #ffffff !important;
+  border-radius: 14px !important;
+  border: 1px solid #ede8e3 !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+  transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease !important;
+}
+
+.page-content [class*="-card"]:not([class*="nav-item"]):not([class*="captcha"]):hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Card hover: gold top accent */
+.page-content [class*="-card"]:not([class*="nav-item"]):not([class*="captcha"]):hover {
+  border-top-color: #f5b301 !important;
+}
+
+/* ─── 4. STAT CARDS ─── */
+.page-content [class*="-stat-card"] {
+  background: #ffffff !important;
+  border-radius: 14px !important;
+  border: 1px solid #ede8e3 !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+  padding: 13px 16px !important;
+  transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease !important;
+}
+
+.page-content [class*="-stat-card"]:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.09) !important;
+  transform: translateY(-2px) !important;
+  border-top: 2px solid #f5b301 !important;
+}
+
+.page-content [class*="-stat-value"],
+.page-content [class*="-stat-number"] {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.5px !important;
+  line-height: 1.1 !important;
+}
+
+.page-content [class*="-stat-label"] {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  color: #a8a09a !important;
+}
+
+/* ─── 5. TABLE CARDS — edge-to-edge, 16px radius ─── */
+.page-content [class*="-table-card"] {
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  border: 1px solid #ede8e3 !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.page-content [class*="-table-card"]:hover {
+  border-top: 2px solid #f5b301 !important;
+  transform: none !important;
+}
+
+.page-content [class*="-table-wrap"] {
+  padding: 0 !important;
+}
+
+/* Card headers inside table cards */
+.page-content [class*="-card-header"] {
+  border-bottom-color: #f0ece8 !important;
+  background: #faf8f6 !important;
+  padding: 16px 22px !important;
+}
+
+.page-content [class*="-card-header"] h3 {
+  font-size: 14.5px !important;
+  font-weight: 600 !important;
+  color: #1a1a1a !important;
+  letter-spacing: 0 !important;
+}
+
+/* ─── 6. TABLE HEADERS — warm gold-amber ─── */
+.page-content [class*="-table"] thead th,
+.page-content [class*="-table"] th {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: #b45309 !important;
+  padding: 9px 14px !important;
+  background: #fffbf2 !important;
+  border-bottom: 1px solid #fde68a !important;
+}
+
+/* ─── 6b. TABLE BODY ─── */
+.page-content [class*="-table"] tbody td {
+  padding: 10px 14px !important;
+  font-size: 12.5px !important;
+  border-bottom: 1px solid #f0ece8 !important;
+  color: #3d3530 !important;
+}
+
+.page-content [class*="-table"] tbody tr {
+  transition: background 0.12s ease !important;
+}
+
+.page-content [class*="-table"] tbody tr:hover {
+  background: #fffdf7 !important;
+}
+
+.page-content [class*="-table"] tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* ─── 7. INPUTS & SELECTS ─── */
+.page-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.page-content select,
+.page-content textarea {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  border-radius: 9px !important;
+  border-color: #ede8e3 !important;
+  font-size: 13px !important;
+  color: #1a1a1a !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.page-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.page-content select:focus,
+.page-content textarea:focus {
+  border-color: #dc143c !important;
+  box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.08) !important;
+  outline: none !important;
+}
+
+/* Form labels */
+.page-content [class$="-form"] label,
+.page-content [class*="-form-group"] label,
+.page-content [class*="-form"] [class*="-label"],
+.page-content .form-group label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  color: #a8a09a !important;
+}
+
+/* ─── 8. SEARCH INPUTS ─── */
+.page-content [class$="-search-box"],
+.page-content [class*="-search-input"],
+.page-content [class*="search-box"] {
+  border-radius: 9px !important;
+  border-color: #ede8e3 !important;
+  background: #faf8f6 !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.page-content [class$="-search-box"]:focus-within,
+.page-content [class*="-search-input"]:focus-within,
+.page-content [class*="search-box"]:focus-within {
+  border-color: #dc143c !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.07) !important;
+}
+
+/* ─── 9. PRIMARY BUTTONS — red gradient ─── */
+.page-content [class*="-btn-primary"],
+.page-content [class*="-btn-add"],
+.page-content [class*="-btn-save"],
+.page-content [class*="-btn-generate"],
+.page-content [class*="-btn-submit"],
+.page-content [class*="-btn-create"] {
+  background: linear-gradient(135deg, #e01c3a 0%, #c0102a 100%) !important;
+  border-radius: 8px !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  padding: 8px 16px !important;
+  letter-spacing: 0.2px !important;
+  color: #ffffff !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 8px rgba(220, 20, 60, 0.25) !important;
+}
+
+.page-content [class*="-btn-primary"]:hover,
+.page-content [class*="-btn-add"]:hover,
+.page-content [class*="-btn-save"]:hover,
+.page-content [class*="-btn-generate"]:hover,
+.page-content [class*="-btn-submit"]:hover,
+.page-content [class*="-btn-create"]:hover {
+  background: linear-gradient(135deg, #c0102a 0%, #a00820 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 16px rgba(220, 20, 60, 0.35) !important;
+}
+
+/* Secondary/ghost buttons */
+.page-content [class*="-btn-cancel"],
+.page-content [class*="-btn-reset"],
+.page-content [class*="-btn-close"],
+.page-content [class*="-btn-back"] {
+  border-radius: 9px !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+/* Export/edit/view buttons */
+.page-content [class*="-btn-export"],
+.page-content [class*="-btn-edit"],
+.page-content [class*="-btn-view"],
+.page-content [class*="-btn-detail"] {
+  border-radius: 7px !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  transition: all 0.15s ease !important;
+}
+
+.page-content [class*="-btn-deactivate"],
+.page-content [class*="-btn-delete"],
+.page-content [class*="-btn-remove"] {
+  border-radius: 7px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  transition: all 0.15s ease !important;
+}
+
+/* ─── 10. TAB BARS ─── */
+.page-content [class$="-tabs-bar"],
+.page-content [class*="-tabs-bar"],
+.page-content [class*="-tab-bar"] {
+  border-radius: 11px !important;
+  border: 1px solid #ede8e3 !important;
+  background: #faf8f6 !important;
+  padding: 4px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) inset !important;
+}
+
+.page-content [class$="-tab"],
+.page-content [class*="-tab-btn"] {
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  transition: all 0.15s ease !important;
+}
+
+/* Active tabs: red bg + white text */
+.page-content [class$="-tab"].active,
+.page-content [class*="-tab-btn"].active,
+.page-content [class$="-tab"][class*="active"],
+.page-content button.active[class*="-tab"] {
+  background: #dc143c !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 4px rgba(220, 20, 60, 0.25) !important;
+  font-weight: 600 !important;
+}
+
+/* ─── 11. STATUS BADGES & PILLS ─── */
+.page-content [class*="-status"],
+.page-content [class*="-badge"] {
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  border-radius: 6px !important;
+}
+
+.page-content [class*="-role-badge"] {
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 3px 9px !important;
+}
+
+/* ─── 12. PAGINATION ─── */
+.page-content [class$="-pagination"] button,
+.page-content [class*="-pagination"] button,
+.page-content [class*="-page-btn"] {
+  border-radius: 7px !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 12.5px !important;
+  transition: all 0.15s ease !important;
+}
+
+.page-content [class*="-pagination"] button.active,
+.page-content [class*="-page-btn-active"],
+.page-content [class*="-page-btn"].active,
+.pg-btn--active {
+  background: linear-gradient(135deg, #e01c3a 0%, #c0102a 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(220, 20, 60, 0.25) !important;
+}
+
+/* ─── 13. MODAL ─── */
+.modal {
+  background: rgba(26,10,8,0.55) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+.modal-content {
+  border-radius: 16px !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 24px 64px rgba(0, 0, 0, 0.22),
+    0 8px 24px rgba(0, 0, 0, 0.12) !important;
+}
+
+.modal-header {
+  border-bottom-color: #f0ece8 !important;
+  padding: 14px 20px !important;
+  background: #faf8f6 !important;
+}
+
+.modal-header h2 {
+  font-size: 15.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.2px !important;
+  color: #1a1a1a !important;
+}
+
+/* Close button */
+.modal .close {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 20px !important;
+  background: #f0ece8 !important;
+  color: #7c6f65 !important;
+  transition: all 0.15s ease !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+}
+
+.modal .close:hover {
+  background: rgba(220, 20, 60, 0.1) !important;
+  color: #dc143c !important;
+}
+
+/* Modal footer */
+.modal-footer,
+.page-content [class*="modal-footer"],
+.page-content [class*="-modal-footer"] {
+  border-top-color: #f0ece8 !important;
+  padding: 12px 20px !important;
+  background: #faf8f6 !important;
+}
+
+/* ─── 14. FORM SECTIONS ─── */
+.page-content [class*="-form-section"] {
+  border-bottom-color: #f0ece8 !important;
+  padding-bottom: 16px !important;
+  margin-bottom: 16px !important;
+}
+
+.page-content [class*="-form-section-title"],
+.page-content [class*="-form-group-title"],
+.page-content [class*="-section-title"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: #a8a09a !important;
+  margin-bottom: 14px !important;
+}
+
+/* ─── 15. FILTER SELECTS ─── */
+.page-content [class*="-filters"] select,
+.page-content [class*="-filter-select"],
+.page-content [class*="-filter"] select {
+  border-radius: 9px !important;
+  border-color: #ede8e3 !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-size: 12.5px !important;
+  color: #3d3530 !important;
+  transition: border-color 0.2s ease !important;
+}
+
+.page-content [class*="-filters"] select:focus,
+.page-content [class*="-filter-select"]:focus {
+  border-color: #dc143c !important;
+  box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.07) !important;
+  outline: none !important;
+}
+
+/* ─── 16. BANNER COMPONENTS ─── */
+.page-content [class$="-banner"],
+.page-content [class*="-banner-"] {
+  border-radius: 16px !important;
+}
+
+/* ─── 17. SECTION HEADERS ─── */
+.page-content [class*="-section-header"],
+.page-content [class*="-panel-header"] {
+  border-bottom-color: #f0ece8 !important;
+}
+
+/* ─── 18. EMPTY STATES ─── */
+.page-content [class*="-empty"],
+.page-content [class*="empty-state"] {
+  color: #a8a09a !important;
+  font-size: 13px !important;
+}
+
+/* ─── 19. APPROVAL / ALERT BANNERS ─── */
+.page-content [class*="-alert-panel"],
+.page-content [class*="-alert-card"] {
+  border-radius: 14px !important;
+}
+
+/* ─── 20. MISC SHARED CLASSES ─── */
+.page-content [class*="-error"] {
+  border-radius: 9px !important;
+  font-size: 12.5px !important;
+}
+
+.page-content [class*="-loading"] {
+  color: #a8a09a !important;
+  font-size: 13px !important;
+}
+
+.page-content [class*="-field-error"],
+.page-content .um-field-error {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+/* ─── 21. STAT ICONS ─── */
+.page-content [class*="-stat-icon"] {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.page-content [class*="-stat-icon"] svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.page-content [class*="-stat-icon"].blue,
+.page-content [class*="-stat-icon-blue"] {
+  background: linear-gradient(135deg, #dbeafe, #c7d9f9) !important;
+}
+
+.page-content [class*="-stat-icon"].green,
+.page-content [class*="-stat-icon-green"] {
+  background: linear-gradient(135deg, #d1fae5, #c6f2d4) !important;
+}
+
+.page-content [class*="-stat-icon"].red,
+.page-content [class*="-stat-icon-red"] {
+  background: linear-gradient(135deg, #fee2e2, #fecece) !important;
+}
+
+.page-content [class*="-stat-icon"].orange,
+.page-content [class*="-stat-icon-orange"] {
+  background: linear-gradient(135deg, #ffedd5, #fde0bb) !important;
+}
+
+/* ─── 22. COMPLIANCE / SECTION HEADINGS ─── */
+.page-content [class*="-section"] > h2,
+.page-content [class*="-section"] > h3 {
+  font-weight: 600 !important;
+  letter-spacing: -0.1px !important;
+}
+
+/* ─── 23. BACK BUTTON ─── */
+.page-content [class*="-back-btn"],
+.page-content [class*="back-button"],
+.page-content .back-button {
+  border-radius: 9px !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  transition: all 0.2s ease !important;
+}
+
+/* ─── 24. SCROLLBAR POLISH ─── */
+.page-content ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.page-content ::-webkit-scrollbar-track {
+  background: #f0ece8;
+  border-radius: 999px;
+}
+
+.page-content ::-webkit-scrollbar-thumb {
+  background: #d4cdc8;
+  border-radius: 999px;
+}
+
+.page-content ::-webkit-scrollbar-thumb:hover {
+  background: #b8b0aa;
+}
+
+.modal ::-webkit-scrollbar {
+  width: 5px;
+}
+
+.modal ::-webkit-scrollbar-track {
+  background: #faf8f6;
+  border-radius: 999px;
+}
+
+.modal ::-webkit-scrollbar-thumb {
+  background: #ede8e3;
+  border-radius: 999px;
+}
+
+/* ─── 25. SWEETALERT2 ─── */
+.swal2-popup,
+.swal2-popup * {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+.swal2-title {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.2px !important;
+}
+
+.swal2-html-container {
+  font-size: 14px !important;
+  color: #7c6f65 !important;
+}
+
+.swal2-confirm {
+  border-radius: 9px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  padding: 10px 24px !important;
+  box-shadow: 0 4px 12px rgba(220, 20, 60, 0.25) !important;
+}
+
+.swal2-cancel {
+  border-radius: 9px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  padding: 10px 24px !important;
+}
+
+/* ─── 26. RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .page-content [class*="-stat-card"]:hover,
+  .page-content [class*="-card"]:hover {
+    transform: none !important;
+  }
+}
+
+/* ======================================================
+   LAYOUT NORMALIZATION
+   .page-content is the ONE source of truth for spacing.
+   All page roots must be zero-padded.
+====================================================== */
+
+/* Page roots: strip conflicting padding & centering */
+.bs-page {
+  padding: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.por-page {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.bsr-page {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.baj-page {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.isp-page {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.as-page {
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+.cb-page {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+}
+
+/* Consistent .page-content spacing */
+.page-content {
+  padding: 22px 28px !important;
+  background: #faf9f7 !important;
+}
+
+@media (max-width: 1024px) {
+  .page-content { padding: 18px 22px !important; }
+}
+
+@media (max-width: 768px) {
+  .page-content { padding: 14px !important; }
+  .bs-page { padding-bottom: env(safe-area-inset-bottom, 0px) !important; }
+  .baj-page { padding-bottom: env(safe-area-inset-bottom, 0px) !important; }
+}
+
+/* ─── Page header typography — scoped to page-header only, not card headers ─── */
+/* Use [class*="-page-header"] instead of [class*="-header"] to avoid
+   matching card-header, section-header, table-header, etc.            */
+.page-content [class*="-page-header"] h1,
+.page-content [class*="-page-title"],
+.page-content h1 {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.3px !important;
+  color: #1a1a1a !important;
+  line-height: 1.3 !important;
+  /* Prevent title from overflowing narrow containers */
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Page subtitles: only direct-child p or explicit subtitle classes */
+.page-content [class*="-page-subtitle"],
+.page-content [class*="-page-header-left"] > p,
+.page-content [class*="-header-left"] > p {
+  font-size: 12.5px !important;
+  color: #9c9490 !important;
+  line-height: 1.5 !important;
+  font-weight: 400 !important;
+  margin: 0 !important;
+}
+
+/* Card h3/h4 headings inside cards */
+.page-content [class*="-card"] h3,
+.page-content [class*="-table-card"] h3 {
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  color: #1a1a1a !important;
+  letter-spacing: -0.1px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* ─── Page header layout: DO NOT force flex here —
+   each page's own CSS already defines its header layout.
+   We only set the bottom margin and allow existing flex to wrap. ─── */
+.page-content [class*="-page-header"] {
+  margin-bottom: 18px !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+/* Left side of two-column headers: column stack */
+.page-content [class*="-page-header-left"],
+.page-content [class*="-header-left"] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  min-width: 0 !important; /* allow text-overflow to work */
+}
+
+/* Table cards: no internal padding */
+.page-content [class*="-table-card"],
+.page-content [class*="-table-wrap"] {
+  padding: 0 !important;
+}
+
+/* Standalone cards: compact padding */
+.page-content [class*="-card"]:not([class*="-table-card"]):not([class*="-table-wrap"]):not([class*="-stat-card"]):not([class*="-mode-card"]):not([class*="-action-card"]):not([class*="-alert"]):not([class*="-banner"]) {
+  padding: 16px 20px !important;
+}
+
+/* Stat cards: compact */
+.page-content [class*="-stat-card"] {
+  padding: 13px 16px !important;
+}
+
+/* Filter/search bar spacing */
+.page-content [class*="-filter-bar"],
+.page-content [class*="-filter-section"],
+.page-content [class*="-search-row"],
+.page-content [class*="-filter-row"] {
+  margin-bottom: 16px !important;
+}
+
+/* Stats row spacing */
+.page-content [class*="-stats-row"],
+.page-content [class*="-stats-grid"],
+.page-content [class*="-stat-row"] {
+  gap: 12px !important;
+  margin-bottom: 16px !important;
+}
+
+/* Section spacing */
+.page-content > [class*="-section"],
+.page-content > [class*="-card"],
+.page-content > [class*="-table-card"],
+.page-content > [class*="-panel"] {
+  margin-bottom: 16px !important;
+}
+
+/* Branch management modal override */
+.modal .modal-content {
+  margin: 0 !important;
+}
+
+/* ─── ALIGNMENT & OVERFLOW FIXES ─── */
+
+/* Sidebar user name / role: never overflow sidebar width */
+.sidebar-user-name {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 150px !important;
+}
+
+/* Header user name: no wrap */
+.header-user-name {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 160px !important;
+}
+
+/* All buttons: never let text wrap inside them */
+.page-content button,
+.page-content [class*="-btn"] {
+  white-space: nowrap !important;
+}
+
+/* Stat card number: clip if somehow overflows */
+.page-content [class*="-stat-value"],
+.page-content [class*="-stat-number"],
+.stat-content h2 {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Table cells: vertical align middle, no break in short cells */
+.page-content [class*="-table"] td {
+  vertical-align: middle !important;
+}
+
+/* Table header cells: left-align by default */
+.page-content [class*="-table"] th {
+  text-align: left !important;
+}
+
+/* Numeric table columns: tabular nums for consistent width */
+.page-content [class*="-table"] td[class*="-num"],
+.page-content [class*="-table"] td[class*="-qty"],
+.page-content [class*="-table"] td[class*="-price"],
+.page-content [class*="-table"] td[class*="-amount"] {
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Card headers with flex: align items properly */
+.page-content [class*="-card-header"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+/* Card header title: don't let it overflow */
+.page-content [class*="-card-header"] h3,
+.page-content [class*="-card-header"] h4,
+.page-content [class*="-card-header"] span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  min-width: 0 !important;
+}
+
+/* Filter section row: items centered vertically */
+.page-content [class*="-filter-section"],
+.page-content [class*="-filter-bar"],
+.page-content [class*="-filter-row"],
+.page-content [class*="-search-row"] {
+  align-items: center !important;
+}
+
+/* Badge/chip text: always centered */
+.page-content [class*="-badge"],
+.page-content [class*="-status"],
+.page-content [class*="-chip"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+
+/* Pagination: center-aligned row */
+.page-content [class*="-pagination"],
+.pg-container {
+  align-items: center !important;
+}
+
+/* Modal header: ensure title and close button align */
+.modal-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.modal-header h2 {
+  flex: 1 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+}
+
+/* Action columns in tables: center the action buttons.
+   Use [class$="-actions"] (ends-with) NOT [class*="-actions"] (contains)
+   to avoid matching .quick-actions-grid, .quick-actions-section, etc. */
+.page-content [class*="-cell-actions"],
+.page-content [class$="-actions"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+
+/* ─── PO Recommendation banner overrides ─── */
+.page-content .sre-banner-title {
+  color: #f5b301 !important;
+  font-size: 22px !important;
+}
+
+.page-content .sre-banner-subtitle,
+.page-content .sre-banner-subtitle * {
+  color: #ffffff !important;
+  font-size: 13px !important;
+}

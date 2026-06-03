@@ -17,6 +17,7 @@ import {
   addApprovalQueuePurchaseOrder,
   addSystemNotification,
 } from '../utils/approvalNotifications';
+import { toast } from '../utils/toast';
 import DateInput from '../components/DateInput';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
@@ -65,8 +66,6 @@ const DraftPOCreator = () => {
   const [loadingItemMaster, setLoadingItemMaster]   = useState(true);
   const [lineItems, setLineItems]                   = useState([]);
   const [submitting, setSubmitting]                 = useState(false);
-  const [submitError, setSubmitError]               = useState('');
-  const [submitSuccess, setSubmitSuccess]           = useState(false);
 
   const [activeTab, setActiveTab]                   = useState('create');
   const [poStatusList, setPoStatusList]             = useState([]);
@@ -486,18 +485,16 @@ const DraftPOCreator = () => {
 
   // ── Final submission ─────────────────────────────────────────────────────
   const handleFinalSubmission = useCallback(async () => {
-    setSubmitError('');
-
     if (lineItems.length === 0) {
-      setSubmitError('Add at least one item to the purchase order.');
+      toast.error('Add at least one item to the purchase order.');
       return;
     }
     if (!selectedSupplierId) {
-      setSubmitError('Please select a supplier.');
+      toast.error('Please select a supplier.');
       return;
     }
     if (!poDate) {
-      setSubmitError('Please select a PO date.');
+      toast.error('Please select a PO date.');
       return;
     }
 
@@ -545,7 +542,7 @@ const DraftPOCreator = () => {
         .filter(Boolean);
 
       if (poDetails.length === 0) {
-        setSubmitError(
+        toast.error(
           'No line items have a valid product ID. ' +
           'Make sure all items were selected from the Item Master, not created as ad-hoc entries.'
         );
@@ -554,7 +551,7 @@ const DraftPOCreator = () => {
       }
 
       if (!locationIdForPo) {
-        setSubmitError(
+        toast.error(
           'Could not resolve a warehouse location for this branch. ' +
           'Check that the selected branch has a matching location in Location Management.'
         );
@@ -588,7 +585,7 @@ const DraftPOCreator = () => {
       const backendPoId = data?.po_id ?? data?.id;
 
       if (backendPoId == null || backendPoId === '') {
-        setSubmitError(
+        toast.error(
           'The purchase order was sent but the server did not return an ID. ' +
           'Check the API response and your database connection.'
         );
@@ -658,17 +655,19 @@ const DraftPOCreator = () => {
       });
 
       if (skippedCount > 0) {
-        setSubmitError(
+        toast.warning(
           `PO saved successfully, but ${skippedCount} item(s) without a product ID were excluded from the database record.`
         );
+      } else {
+        toast.success(`Purchase Order ${referenceNo} submitted successfully!`);
       }
-
-      setSubmitSuccess(true);
+      setLineItems([]);
+      window.scrollTo(0, 0);
     } catch (err) {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to submit purchase order. Please check your connection and try again.';
-      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -685,12 +684,6 @@ const DraftPOCreator = () => {
     expectedDeliveryDate,
   ]);
 
-  const handleAfterSuccessClose = useCallback(() => {
-    setSubmitSuccess(false);
-    setLineItems([]);
-    setSubmitError('');
-    window.scrollTo(0, 0);
-  }, []);
 
   const createdOnLabel = useMemo(() => {
     if (!poDate) return '—';
@@ -907,16 +900,6 @@ const DraftPOCreator = () => {
   return (
     <AdminLayout>
       <div className="po-recommendation-page po-draft-creator-page">
-        {submitSuccess && (
-          <div className="po-success-banner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-            Purchase Order <strong>{referenceNo}</strong> submitted successfully!
-            <button type="button" className="po-success-close" onClick={handleAfterSuccessClose}>✕</button>
-          </div>
-        )}
 
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
@@ -971,10 +954,6 @@ const DraftPOCreator = () => {
             Draft PO Status
           </button>
         </div>
-
-        {submitError && activeTab === 'create' && (
-          <div className="po-submit-error">{submitError}</div>
-        )}
 
         {activeTab === 'status' && renderPoStatusView()}
 

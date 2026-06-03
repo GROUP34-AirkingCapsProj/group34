@@ -9,6 +9,7 @@ import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
+import { toast } from '../utils/toast';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -76,8 +77,6 @@ const TransferRequestPage = () => {
   const [lines,        setLines]        = useState([newLine()]);
   const [submitting,   setSubmitting]   = useState(false);
   const [submitErr,    setSubmitErr]    = useState('');
-  const [submitOk,     setSubmitOk]     = useState(false);
-  const [createdNum,   setCreatedNum]   = useState('');
 
   const addLine    = useCallback(() => setLines(p => [...p, newLine()]), []);
   const removeLine = useCallback((id) => setLines(p => p.filter(l => l.id !== id)), []);
@@ -104,8 +103,8 @@ const TransferRequestPage = () => {
           quantity_requested: Math.max(1, parseInt(l.qty) || 1),
         })),
       });
-      setCreatedNum(res?.data?.transfer_number || 'Transfer Request');
-      setSubmitOk(true);
+      const createdNum = res?.data?.transfer_number || 'Transfer Request';
+      toast.success(`${createdNum} submitted — waiting for approval.`);
       setLines([newLine()]);
       setNotes('');
       setFromLocId('');
@@ -182,7 +181,7 @@ const TransferRequestPage = () => {
       await transferRequestsAPI.approve(id, { quantities });
       setPendingReqs(p => p.filter(r => r.transfer_id !== id));
       closeDetail();
-    } catch (err) { alert(err?.message || 'Approval failed.'); }
+    } catch (err) { toast.error(err?.message || 'Approval failed.'); }
     finally { setActionLoading(p => { const n = { ...p }; delete n[id]; return n; }); }
   }, [approvedQtys, closeDetail]);
 
@@ -198,7 +197,7 @@ const TransferRequestPage = () => {
       setRejectModal({ open: false, id: null, reason: '', submitting: false });
       closeDetail();
     } catch (err) {
-      alert(err?.message || 'Rejection failed.');
+      toast.error(err?.message || 'Rejection failed.');
       setRejectModal(p => ({ ...p, submitting: false }));
     }
   }, [rejectModal, closeDetail]);
@@ -221,20 +220,6 @@ const TransferRequestPage = () => {
   // ─────────────────────────────────────────────────────────────────────────
   const renderCreate = () => (
     <div className="pr-create-form-layout">
-      {submitOk && (
-        <div className="po-success-banner">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
-          <strong>{createdNum}</strong> submitted — waiting for approval.
-          <button type="button" className="po-success-close" onClick={() => setSubmitOk(false)} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-      )}
-
       <div className="po-details-card">
         <div className="pr-form-grid">
           <div className="po-field">
