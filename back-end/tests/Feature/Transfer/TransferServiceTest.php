@@ -118,4 +118,56 @@ class TransferServiceTest extends TransferTestCase
         $this->expectException(\RuntimeException::class);
         (new \App\Services\TransferService())->dispatch($ist);
     }
+
+    /** Helper: build an In-Transit IST with one dispatched consumable line. */
+    private function inTransitConsumable(int $qty = 3): array
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 10);
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => $qty, 'quantity_scanned' => $qty],
+        ]);
+        (new \App\Services\TransferService())->dispatch($ist);
+        return [$from, $to, $prod, $ist->fresh('details')];
+    }
+
+    public function test_receive_scan_increments_received_and_logs_scan(): void
+    {
+        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        $detail = $ist->details->first();
+        $user = $this->makeUser();
+
+        $svc = new \App\Services\TransferService();
+        $svc->recordReceiveScan($ist, 'BC-1', (int) $detail->transfer_detail_id, $user->user_id, 1);
+
+        $detail->refresh();
+        $this->assertSame(1, (int) $detail->quantity_received);
+
+        $this->assertSame(1, \App\Models\BarcodeScan::where('transfer_id', $ist->transfer_id)
+            ->where('scan_mode', 'receive')->count());
+    }
+
+    public function test_receive_scan_rejects_serial_not_on_shipment(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 2);
+        $serials = $this->makeSerials($from->location_id, $prod->product_id, 2);
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 2, 'quantity_scanned' => 2],
+        ]);
+        \App\Models\ItemSerial::whereIn('serial_number', $serials)
+            ->update(['transfer_id' => $ist->transfer_id]);
+        $svc = new \App\Services\TransferService();
+        $svc->dispatch($ist);
+        $ist->refresh()->load('details');
+        $detail = $ist->details->first();
+        $user = $this->makeUser();
+
+        $this->expectException(\RuntimeException::class);
+        $svc->recordReceiveScan($ist, 'SN-NOT-REAL', (int) $detail->transfer_detail_id, $user->user_id, 1);
+    }
 }
