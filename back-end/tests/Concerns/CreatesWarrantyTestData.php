@@ -49,13 +49,10 @@ trait CreatesWarrantyTestData
             'status_id'     => 26,
         ]);
 
-        Inventory::create([
-            'product_id'         => $product->product_id,
-            'location_id'        => $location->location_id,
-            'quantity_on_hand'   => 5,
-            'available_quantity' => 5,
-            'packages_on_hand'   => 0,
-        ]);
+        Inventory::updateOrCreate(
+            ['product_id' => $product->product_id, 'location_id' => $location->location_id],
+            ['quantity_on_hand' => 5, 'available_quantity' => 5, 'packages_on_hand' => 0],
+        );
 
         $warranty = WarrantyRecord::create(array_merge([
             'product_id'             => $product->product_id,
