@@ -11,6 +11,38 @@ class WarrantyClaimTest extends TestCase
     use DatabaseTransactions;
     use CreatesWarrantyTestData;
 
+    public function test_repair_resolves_consumable_by_item_serial_barcode(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+        $part = $this->makeConsumable($locationId, 20);
+
+        // Physical scanned barcode lives on an item_serial row, NOT on products.barcode
+        $code = 'PARTBC-' . strtoupper(uniqid());
+        \App\Models\ItemSerial::create([
+            'product_id'    => $part->product_id,
+            'location_id'   => $locationId,
+            'serial_number' => $code,
+            'serial_type'   => 'received',
+            'status_id'     => 26,
+        ]);
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $locationId,
+        ]);
+
+        $detail = $this->service()->addItem($claim, ['barcode' => $code, 'quantity' => 2]);
+
+        $this->assertSame((int) $part->product_id, (int) $detail->product_id);
+        $this->assertNull($detail->serial_number, 'Consumable repair part should not store a serial.');
+        $this->assertSame(2, (int) $detail->quantity_in_pieces);
+    }
+
     public function test_harness_can_build_warranty_fixture(): void
     {
         $this->actingUser();

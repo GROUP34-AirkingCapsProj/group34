@@ -105,9 +105,9 @@ class WarrantyClaimService
 
     private function addRepairPart(WarrantyClaim $claim, int $locationId, array $candidates, float $qty): WarrantyClaimDetail
     {
-        $product = $this->findProductByBarcodeCandidates($candidates);
+        $product = $this->resolveRepairPart($candidates);
         if (! $product) {
-            throw new WarrantyClaimException('Part not found. Scan a stocked consumable barcode.');
+            throw new WarrantyClaimException('Part not found. Scan a stocked consumable spare part.');
         }
         $product->load('consumableDetail.unit');
         if ($product->isSerialized()) {
@@ -147,6 +147,47 @@ class WarrantyClaimService
             $this->refreshPartsCost($claim);
             return $detail;
         });
+    }
+
+    /**
+     * Resolve a repair part from a scanned code, mirroring the issuance flow:
+     * product barcode/code -> item_serial.serial_number -> receiving_details.scanned_barcode.
+     * Consumables often have a NULL products.barcode; their scannable code lives in
+     * item_serial / receiving_details (from the PO receiving scan), so all three are tried.
+     */
+    private function resolveRepairPart(array $candidates): ?Product
+    {
+        // 1) products.barcode / products.product_code
+        $product = $this->findProductByBarcodeCandidates($candidates);
+        if ($product) {
+            return $product;
+        }
+
+        // 2) item_serial.serial_number -> product
+        foreach ($candidates as $candidate) {
+            $norm = strtolower(trim($candidate));
+            if ($norm === '') continue;
+            $serial = ItemSerial::whereRaw('LOWER(TRIM(serial_number)) = ?', [$norm])->first();
+            if ($serial) {
+                return Product::find($serial->product_id);
+            }
+        }
+
+        // 3) receiving_details.scanned_barcode -> product
+        foreach ($candidates as $candidate) {
+            $norm = strtolower(trim($candidate));
+            if ($norm === '') continue;
+            $row = DB::table('receiving_details')
+                ->whereRaw("LOWER(TRIM(COALESCE(scanned_barcode, ''))) = ?", [$norm])
+                ->whereNotNull('product_id')
+                ->select('product_id')
+                ->first();
+            if ($row) {
+                return Product::find($row->product_id);
+            }
+        }
+
+        return null;
     }
 
     private function addReplacementUnit(WarrantyClaim $claim, int $locationId, array $candidates): WarrantyClaimDetail
