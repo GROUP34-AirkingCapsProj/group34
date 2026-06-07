@@ -312,19 +312,42 @@ class DashboardController extends Controller
             ]);
 
         $totalPending = $pendingPos->count() + $pendingPrs->count() + $pendingProducts->count();
+        $awaiting     = $this->awaitingTransferCounts();
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'pending_pos'           => $pendingPos->values(),
-                'pending_prs'           => $pendingPrs->values(),
-                'pending_products'      => $pendingProducts->values(),
-                'pending_po_count'      => $pendingPos->count(),
-                'pending_pr_count'      => $pendingPrs->count(),
-                'pending_product_count' => $pendingProducts->count(),
-                'total_pending'         => $totalPending,
+                'pending_pos'                => $pendingPos->values(),
+                'pending_prs'                => $pendingPrs->values(),
+                'pending_products'           => $pendingProducts->values(),
+                'pending_po_count'           => $pendingPos->count(),
+                'pending_pr_count'           => $pendingPrs->count(),
+                'pending_product_count'      => $pendingProducts->count(),
+                'total_pending'              => $totalPending,
+                'awaiting_fulfillment_count' => $awaiting['fulfillment'],
+                'awaiting_receipt_count'     => $awaiting['receipt'],
             ],
         ]);
+    }
+
+    private function awaitingTransferCounts(): array
+    {
+        $user    = request()->user();
+        $role    = $user?->role?->role_name ?? '';
+        $isAdmin = in_array($role, ['admin', 'inventory_analyst'], true);
+        $locId   = $user?->enforced_location_id ?? $user?->location_id;
+
+        $fulfillment = Transfer::whereNotNull('transfer_request_id')
+            ->whereHas('status', fn ($q) => $q->where('status_name', 'Approved')->where('status_category', 'transfer'))
+            ->when(!$isAdmin && $locId, fn ($q) => $q->where('from_location_id', $locId))
+            ->count();
+
+        $receipt = Transfer::whereNotNull('transfer_request_id')
+            ->whereHas('status', fn ($q) => $q->where('status_name', 'In Transit')->where('status_category', 'transfer'))
+            ->when(!$isAdmin && $locId, fn ($q) => $q->where('to_location_id', $locId))
+            ->count();
+
+        return ['fulfillment' => $fulfillment, 'receipt' => $receipt];
     }
 
     private function getStats(): array
@@ -334,6 +357,7 @@ class DashboardController extends Controller
         $pendingRegistrations = PendingProduct::where('status', 'pending')->count();
         $activeLocations     = Location::count();
         $totalProducts       = Product::count();
+        $awaiting            = $this->awaitingTransferCounts();
 
         return [
             'total_users'          => User::count(),
@@ -350,6 +374,8 @@ class DashboardController extends Controller
             'pending_pos'          => $pendingPOs,
             'pending_registrations' => $pendingRegistrations,
             'pending_actions'      => $pendingTransfers + $pendingPOs + $pendingRegistrations,
+            'awaiting_fulfillment' => $awaiting['fulfillment'],
+            'awaiting_receipt'     => $awaiting['receipt'],
         ];
     }
 
