@@ -425,6 +425,25 @@ const ISTManagementPage = () => {
                                 Confirm Receipt
                               </button>
                             </div>
+                          ) : ist.status?.status_name === 'Approved' ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                type="button"
+                                className="po-btn"
+                                style={{ fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}`); }}
+                              >
+                                View
+                              </button>
+                              <button
+                                type="button"
+                                className="po-btn"
+                                style={{ fontSize: 11, padding: '4px 10px', background: '#1e293b', color: '#fff' }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/dispatch`); }}
+                              >
+                                Scan / Dispatch
+                              </button>
+                            </div>
                           ) : (
                             <button
                               type="button"

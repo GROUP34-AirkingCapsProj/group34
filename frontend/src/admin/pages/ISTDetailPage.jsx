@@ -155,6 +155,16 @@ const ISTDetailPage = () => {
             {ist && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <StatusBadge name={statusName} />
+                {statusName === 'Approved' && (
+                  <button
+                    type="button"
+                    className="po-btn"
+                    style={{ background: '#1e293b', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
+                    onClick={() => navigate(`/admin/ist/${id}/dispatch`)}
+                  >
+                    Scan / Dispatch
+                  </button>
+                )}
                 {canReceive && (
                   <button
                     type="button"
