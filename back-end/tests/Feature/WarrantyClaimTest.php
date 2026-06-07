@@ -130,4 +130,98 @@ class WarrantyClaimTest extends TestCase
             'location_id'  => $appliance['location']->location_id,
         ]);
     }
+
+    public function test_repair_addItem_deducts_consumable_stock(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+        $part = $this->makeConsumable($locationId, 100);
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $locationId,
+        ]);
+
+        $detail = $this->service()->addItem($claim, [
+            'barcode'  => $part->barcode ?: $part->product_code,
+            'quantity' => 3,
+        ]);
+
+        $this->assertSame(3, (int) $detail->quantity_in_pieces);
+        $this->assertNull($detail->serial_number);
+        $this->assertDatabaseHas('inventory', [
+            'product_id'       => $part->product_id,
+            'location_id'      => $locationId,
+            'quantity_on_hand' => 97,
+        ]);
+    }
+
+    public function test_replacement_addItem_consumes_serial_unit(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $replacement = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'replacement',
+            'location_id'  => $locationId,
+        ]);
+
+        $detail = $this->service()->addItem($claim, [
+            'barcode' => $replacement['serial'],
+        ]);
+
+        $this->assertSame($replacement['serial'], $detail->serial_number);
+        $this->assertDatabaseMissing('item_serial', [
+            'serial_number' => $replacement['serial'],
+            'status_id'     => 26,
+        ]);
+    }
+
+    public function test_repair_rejects_serialized_item(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $replacement = $this->makeAppliance($customer);
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+
+        $this->expectException(\App\Exceptions\WarrantyClaimException::class);
+        $this->service()->addItem($claim, ['barcode' => $replacement['serial']]);
+    }
+
+    public function test_replacement_allows_only_one_unit(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $r1 = $this->makeAppliance($customer);
+        $r2 = $this->makeAppliance($customer);
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'replacement',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+
+        $this->service()->addItem($claim, ['barcode' => $r1['serial']]);
+
+        $this->expectException(\App\Exceptions\WarrantyClaimException::class);
+        $this->service()->addItem($claim->fresh(), ['barcode' => $r2['serial']]);
+    }
 }
