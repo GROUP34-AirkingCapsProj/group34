@@ -196,6 +196,49 @@ class WarrantyClaimService
         });
     }
 
+    /** @throws WarrantyClaimException */
+    public function removeItem(WarrantyClaim $claim, int $detailId): void
+    {
+        $this->assertPending($claim);
+
+        $detail = $claim->details()->where('claim_detail_id', $detailId)->first();
+        if (! $detail) {
+            throw new WarrantyClaimException('Item not found on this claim.');
+        }
+        $product = Product::with(['applianceDetail', 'consumableDetail'])->find($detail->product_id);
+
+        DB::transaction(function () use ($claim, $detail, $product) {
+            $inv = Inventory::where('product_id', $detail->product_id)
+                ->where('location_id', $claim->location_id)->lockForUpdate()->first();
+
+            if ($inv) {
+                $inv->quantity_on_hand   += $detail->quantity_in_pieces;
+                $inv->available_quantity += $detail->quantity_in_pieces;
+                if ($product && ! $product->isSerialized()) {
+                    $ppp = $product->getPiecesPerPackage();
+                    if ($ppp > 0) {
+                        $inv->packages_on_hand = (int) floor($inv->quantity_on_hand / $ppp);
+                    }
+                }
+                $inv->save();
+            }
+
+            if ($product && $product->isSerialized() && $detail->serial_number) {
+                ItemSerial::create([
+                    'product_id'    => $detail->product_id,
+                    'location_id'   => $claim->location_id,
+                    'serial_number' => $detail->serial_number,
+                    'serial_type'   => 'received',
+                    'status_id'     => self::STATUS_SERIAL_IN_STOCK,
+                    'scanned_by'    => Auth::id(),
+                ]);
+            }
+
+            $detail->delete();
+            $this->refreshPartsCost($claim);
+        });
+    }
+
     private function assertPending(WarrantyClaim $claim): void
     {
         if ((int) $claim->status_id !== $this->claimStatusId('Pending')) {
