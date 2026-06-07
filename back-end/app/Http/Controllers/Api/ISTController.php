@@ -7,6 +7,7 @@ use App\Models\Transfer;
 use App\Models\TransferDetail;
 use App\Models\TblTransferTracking;
 use App\Models\Inventory;
+use App\Services\TransferService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -299,125 +300,88 @@ class ISTController extends Controller
     /**
      * Confirm receipt: update inventory at destination, set status to Received.
      */
-    public function receiveStore(Request $request, $id)
+    public function receiveStore(Request $request, $id, TransferService $service)
     {
         try {
-            $validated = $request->validate([
-                'received_date'                   => 'required|date',
-                'notes'                           => 'nullable|string|max:500',
-                'products'                        => 'required|array',
-                'products.*.transfer_detail_id'   => 'required|integer',
-                'products.*.quantity_received'    => 'required|integer|min:0',
-            ]);
-
-            $inTransitId = $this->statusId('In Transit');
-            $receivedId  = $this->statusId('Received');
-
-            if (!$receivedId) {
-                return $this->error("Status 'Received' not found in status_lookup.", 500);
-            }
-
-            $ist = Transfer::with(['details.product', 'toLocation'])
+            $ist = Transfer::with(['details.product'])
                 ->whereNotNull('transfer_request_id')
-                ->where('status_id', $inTransitId)
                 ->findOrFail($id);
 
-            // Only destination-location user or admin may receive
             $user      = $request->user();
             $role      = $user->role?->role_name ?? '';
             $isAdmin   = in_array($role, ['admin', 'inventory_analyst'], true);
             $userLocId = $user->enforced_location_id ?? $user->location_id;
-
             if (!$isAdmin && $userLocId && (int) $userLocId !== (int) $ist->to_location_id) {
                 return $this->error('You are not authorized to receive items at this destination.', 403);
             }
 
-            $username     = $user->username ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: "user#{$user->user_id}";
-            $locationName = $ist->toLocation?->location_name ?? "Location #{$ist->to_location_id}";
-            $detailMap    = $ist->details->keyBy('transfer_detail_id');
-
-            DB::beginTransaction();
-
-            $totalReceived = 0;
-
-            foreach ($validated['products'] as $row) {
-                $detailId    = (int) $row['transfer_detail_id'];
-                $qtyReceived = (int) $row['quantity_received'];
-                $detail      = $detailMap->get($detailId);
-
-                if (!$detail || $qtyReceived < 1) continue;
-
-                $detail->update(['quantity_received' => $qtyReceived]);
-                $totalReceived += $qtyReceived;
-
-                $isSerialized = $detail->product?->product_type === 'appliance';
-
-                if (!$isSerialized) {
-                    $existing = Inventory::where('product_id', $detail->product_id)
-                        ->where('location_id', $ist->to_location_id)
-                        ->first();
-                    if ($existing) {
-                        $existing->increment('quantity_on_hand', $qtyReceived);
-                    } else {
-                        Inventory::create([
-                            'product_id'       => $detail->product_id,
-                            'location_id'      => $ist->to_location_id,
-                            'quantity_on_hand'  => $qtyReceived,
-                        ]);
-                    }
-                } else {
-                    // Confirm serialized arrival: mark as active at destination
-                    \App\Models\ItemSerial::where('transfer_id', $id)
-                        ->where('product_id', $detail->product_id)
-                        ->update([
-                            'location_id' => $ist->to_location_id,
-                            'serial_type' => 'active',
-                        ]);
-                }
-            }
-
-            $ist->update([
-                'status_id'               => $receivedId,
-                'received_by'             => $user->user_id,
-                'total_quantity_received' => $totalReceived,
-            ]);
-
-            TblTransferTracking::create([
-                'transfer_id' => $ist->transfer_id,
-                'location_id' => $ist->to_location_id,
-                'status_note' => "Items received at {$locationName} by {$username} — {$totalReceived} units",
-                'recorded_by' => $user->user_id,
-                'recorded_at' => now(),
-            ]);
-
-            DB::commit();
-
-            try {
-                \App\Models\AuditTrail::create([
-                    'user_id'    => $user->user_id,
-                    'action'     => 'ist_received',
-                    'table_name' => 'transfers',
-                    'record_id'  => $ist->transfer_id,
-                    'old_values' => ['status' => 'In Transit'],
-                    'new_values' => ['status' => 'Received', 'total_quantity_received' => $totalReceived],
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ]);
-            } catch (\Throwable $e) {
-                report($e);
-            }
+            $result = $service->receive($ist, $user->user_id);
 
             return $this->success([
-                'transfer_number'         => $ist->transfer_number,
+                'transfer_number'         => $result->transfer_number,
                 'status'                  => 'Received',
-                'total_quantity_received' => $totalReceived,
+                'total_quantity_received' => (int) $result->total_quantity_received,
             ], 'Transfer received successfully');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to confirm receipt: ' . $e->getMessage(), 500);
+        }
+    }
 
+    /**
+     * Record a receive-side barcode scan against an In Transit IST.
+     */
+    public function receiveScan(Request $request, $transferId, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'barcode'            => 'required|string|max:255',
+                'transfer_detail_id' => 'required|integer',
+                'quantity'           => 'sometimes|integer|min:1',
+            ]);
+
+            $ist = Transfer::whereNotNull('transfer_request_id')->findOrFail($transferId);
+
+            $user      = $request->user();
+            $role      = $user->role?->role_name ?? '';
+            $isAdmin   = in_array($role, ['admin', 'inventory_analyst'], true);
+            $userLocId = $user->enforced_location_id ?? $user->location_id;
+            if (!$isAdmin && $userLocId && (int) $userLocId !== (int) $ist->to_location_id) {
+                return $this->error('You are not authorized to receive items at this destination.', 403);
+            }
+
+            $result = $service->recordReceiveScan(
+                $ist,
+                $validated['barcode'],
+                (int) $validated['transfer_detail_id'],
+                $user->user_id,
+                (int) ($validated['quantity'] ?? 1)
+            );
+
+            return $this->success($result, 'Receive scan recorded');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return $this->error('Failed to confirm receipt: ' . $e->getMessage(), 500);
+            return $this->error('Receive scan failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove a receive-side scan (undo before confirmation).
+     */
+    public function removeReceiveScan(Request $request, $transferId, $scanId, TransferService $service)
+    {
+        try {
+            $ist = Transfer::whereNotNull('transfer_request_id')->findOrFail($transferId);
+            $service->removeReceiveScan($ist, (int) $scanId);
+            return $this->success(null, 'Receive scan removed');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to remove receive scan: ' . $e->getMessage(), 500);
         }
     }
 
@@ -512,10 +476,7 @@ class ISTController extends Controller
 
             if ($isSerialized) {
                 \App\Models\ItemSerial::where('serial_number', $validated['barcode'])
-                    ->update([
-                        'serial_type' => 'transferred',
-                        'transfer_id' => (int) $transferId,
-                    ]);
+                    ->update(['transfer_id' => (int) $transferId]);
             }
 
             DB::commit();
@@ -567,7 +528,7 @@ class ISTController extends Controller
 
             \App\Models\ItemSerial::where('transfer_id', $transferId)
                 ->where('serial_number', $scan->barcode)
-                ->update(['serial_type' => 'active', 'transfer_id' => null]);
+                ->update(['transfer_id' => null]);
 
             $scan->delete();
 
@@ -583,89 +544,23 @@ class ISTController extends Controller
     /**
      * Confirm dispatch: set IST to In Transit, deduct inventory, record tracking.
      */
-    public function confirmDispatch(Request $request, $transferId)
+    public function confirmDispatch(Request $request, $transferId, TransferService $service)
     {
         try {
-            $approvedId  = $this->statusId('Approved');
-            $inTransitId = $this->statusId('In Transit');
-
-            if (!$inTransitId) {
-                return $this->error("Status 'In Transit' not found in status_lookup.", 500);
-            }
-
             $ist = Transfer::with(['details.product'])
                 ->whereNotNull('transfer_request_id')
-                ->where('status_id', $approvedId)
                 ->findOrFail($transferId);
 
-            $totalScanned = $ist->details->sum('quantity_scanned');
-            if ($totalScanned < 1) {
-                return $this->error(
-                    'No items have been scanned. Scan at least one item before confirming dispatch.', 422
-                );
-            }
-
-            $user     = $request->user();
-            $username = $user->username
-                ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))
-                ?: "user#{$user->user_id}";
-
-            DB::beginTransaction();
-
-            foreach ($ist->details as $detail) {
-                $scanned = (int) $detail->quantity_scanned;
-                if ($scanned < 1) continue;
-
-                $detail->update(['quantity_transferred' => $scanned]);
-
-                if ($detail->product?->product_type !== 'appliance') {
-                    Inventory::where('product_id', $detail->product_id)
-                        ->where('location_id', $ist->from_location_id)
-                        ->decrement('quantity_on_hand', $scanned);
-                } else {
-                    \App\Models\ItemSerial::where('transfer_id', $transferId)
-                        ->where('product_id', $detail->product_id)
-                        ->update(['location_id' => $ist->to_location_id]);
-                }
-            }
-
-            $ist->update([
-                'status_id'                  => $inTransitId,
-                'total_quantity_transferred' => $totalScanned,
-            ]);
-
-            TblTransferTracking::create([
-                'transfer_id' => $ist->transfer_id,
-                'location_id' => $ist->from_location_id,
-                'status_note' => "Items dispatched — {$totalScanned} unit(s) confirmed by {$username}",
-                'recorded_by' => $user->user_id,
-                'recorded_at' => now(),
-            ]);
-
-            DB::commit();
-
-            try {
-                \App\Models\AuditTrail::create([
-                    'user_id'    => $user->user_id,
-                    'action'     => 'ist_dispatched',
-                    'table_name' => 'transfers',
-                    'record_id'  => $ist->transfer_id,
-                    'old_values' => ['status' => 'Approved'],
-                    'new_values' => ['status' => 'In Transit', 'total_quantity_transferred' => $totalScanned],
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ]);
-            } catch (\Throwable $e) {
-                report($e);
-            }
+            $result = $service->dispatch($ist);
 
             return $this->success([
-                'transfer_number'   => $ist->transfer_number,
-                'status'            => 'In Transit',
-                'total_dispatched'  => $totalScanned,
+                'transfer_number'  => $result->transfer_number,
+                'status'           => 'In Transit',
+                'total_dispatched' => (int) $result->total_quantity_transferred,
             ], 'IST dispatched successfully');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
             return $this->error('Failed to confirm dispatch: ' . $e->getMessage(), 500);
         }
     }
