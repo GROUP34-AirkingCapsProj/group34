@@ -222,4 +222,27 @@ class TransferFlowTest extends TransferTestCase
             $this->assertSame($to->location_id, (int) $row->location_id);
         }
     }
+
+    public function test_admin_direct_transfer_rejects_unknown_serial(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 2);
+        // Only one real serial exists at source; the second is bogus.
+        $real = $this->makeSerials($from->location_id, $prod->product_id, 1)[0];
+
+        $resp = $this->actingAs($this->adminUser(), 'sanctum')->postJson('/api/transfers', [
+            'from_location_id' => $from->location_id,
+            'to_location_id'   => $to->location_id,
+            'transfer_date'    => now()->toDateString(),
+            'details'          => [['product_id' => $prod->product_id, 'quantity_transferred' => 2, 'serials' => [$real, 'SN-BOGUS-XYZ']]],
+        ]);
+        $resp->assertStatus(422);
+
+        // Nothing should have moved: source serial still received at source.
+        $row = \App\Models\ItemSerial::where('serial_number', $real)->first();
+        $this->assertSame('received', $row->serial_type);
+        $this->assertSame($from->location_id, (int) $row->location_id);
+    }
 }
