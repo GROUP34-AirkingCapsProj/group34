@@ -173,15 +173,11 @@ class ISTController extends Controller
 
             DB::beginTransaction();
 
-            // Generate IST number
-            $nextId    = (int) DB::table('transfers')->max('transfer_id') + 1;
-            $istNumber = 'IST-' . date('Ymd') . '-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
-
             $ist = Transfer::create([
                 'transfer_request_id'        => $req->transfer_id,
                 'from_location_id'           => $req->from_location_id,
                 'to_location_id'             => $req->to_location_id,
-                'transfer_number'            => $istNumber,
+                'transfer_number'            => 'IST-PENDING-' . uniqid(),
                 'transfer_date'              => $validated['transfer_date'],
                 'prepared_by'                => $user->user_id,
                 'approved_by'                => $req->approved_by,
@@ -189,6 +185,9 @@ class ISTController extends Controller
                 'total_quantity_transferred' => 0,
                 'total_quantity_received'    => 0,
             ]);
+            $istNumber = 'IST-' . date('Ymd') . '-' . str_pad((string) $ist->transfer_id, 4, '0', STR_PAD_LEFT);
+            $ist->transfer_number = $istNumber;
+            $ist->save();
 
             foreach ($activeLines as $row) {
                 $detail = $detailMap->get((int) $row['transfer_detail_id']);

@@ -92,22 +92,20 @@ class TransferRequestController extends Controller
 
             $pendingId = $this->statusId('Pending');
 
-            // Generate transfer number: TR-REQ-YYYYMMDD-XXXX
-            $nextId = (int) DB::table('transfers')->max('transfer_id') + 1;
-            $transferNumber = 'TR-REQ-' . date('Ymd') . '-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
-
             $transfer = Transfer::create([
-                'transfer_request_id'       => null,
-                'from_location_id'          => $validated['from_location_id'],
-                'to_location_id'            => $validated['to_location_id'],
-                'transfer_number'           => $transferNumber,
-                'transfer_date'             => $validated['transfer_date'],
-                'requested_by'              => $user->user_id,
-                'status_id'                 => $pendingId,
-                'notes'                     => $validated['notes'] ?? null,
+                'transfer_request_id'        => null,
+                'from_location_id'           => $validated['from_location_id'],
+                'to_location_id'             => $validated['to_location_id'],
+                'transfer_number'            => 'TR-REQ-PENDING-' . uniqid(),
+                'transfer_date'              => $validated['transfer_date'],
+                'requested_by'               => $user->user_id,
+                'status_id'                  => $pendingId,
+                'notes'                      => $validated['notes'] ?? null,
                 'total_quantity_transferred' => 0,
                 'total_quantity_received'    => 0,
             ]);
+            $transfer->transfer_number = 'TR-REQ-' . date('Ymd') . '-' . str_pad((string) $transfer->transfer_id, 4, '0', STR_PAD_LEFT);
+            $transfer->save();
 
             foreach ($validated['products'] as $row) {
                 $transfer->details()->create([
