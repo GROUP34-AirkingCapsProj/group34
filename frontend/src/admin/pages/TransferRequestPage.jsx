@@ -583,7 +583,20 @@ const TransferRequestPage = () => {
                             <div>{d.product?.product_name || '—'}</div>
                             {d.product?.product_code && <small style={{ color: '#94a3b8' }}>{d.product.product_code}</small>}
                           </td>
-                          <td>{d.quantity_requested}</td>
+                          <td>
+                            {d.quantity_requested}
+                            {!loadingDetail && (
+                              <span className="line-stock" style={{ display: 'block', fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                {'avail: '}
+                                <span style={{ fontWeight: 600 }}>{d.available_at_source ?? d.stock_at_source ?? 0}</span>
+                                {Number(d.shortfall) > 0 && (
+                                  <span className="line-shortfall" style={{ color: '#b45309', fontWeight: 600, marginLeft: 4 }}>
+                                    ⚠ short {d.shortfall}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </td>
                           <td>
                             {loadingDetail ? (
                               <span style={{ color: '#94a3b8' }}>—</span>

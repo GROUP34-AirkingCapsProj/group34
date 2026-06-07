@@ -172,9 +172,12 @@ class TransferRequestController extends Controller
             // Attach current stock at source for each line item
             $fromLocId = $transfer->from_location_id;
             foreach ($transfer->details as $detail) {
-                $detail->stock_at_source = (int) Inventory::where('location_id', $fromLocId)
+                $available = (int) (Inventory::where('location_id', $fromLocId)
                     ->where('product_id', $detail->product_id)
-                    ->value('quantity_on_hand') ?? 0;
+                    ->value('available_quantity') ?? 0);
+                $detail->available_at_source = $available;
+                $detail->stock_at_source     = $available; // backward-compat alias
+                $detail->shortfall           = max(0, (int) $detail->quantity_requested - $available);
             }
 
             return $this->success($transfer, 'Transfer request retrieved');

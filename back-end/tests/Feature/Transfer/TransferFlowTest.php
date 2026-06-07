@@ -65,4 +65,35 @@ class TransferFlowTest extends TransferTestCase
             ->where('product_id', $prod->product_id)->first();
         $this->assertSame(3, (int) $dst->quantity_on_hand);
     }
+
+    public function test_request_show_exposes_available_at_source_and_shortfall(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 3);
+
+        $req = \App\Models\Transfer::create([
+            'transfer_request_id' => null,
+            'from_location_id'    => $from->location_id,
+            'to_location_id'      => $to->location_id,
+            'transfer_number'     => 'TR-REQ-SHOW-' . uniqid(),
+            'transfer_date'       => now(),
+            'status_id'           => $this->statusId('Pending'),
+        ]);
+        $req->details()->create([
+            'product_id'           => $prod->product_id,
+            'quantity_requested'   => 5,
+            'quantity_transferred' => 0,
+            'quantity_scanned'     => 0,
+            'quantity_received'    => 0,
+        ]);
+
+        $resp = $this->actingAs($this->adminUser(), 'sanctum')
+            ->getJson("/api/transfer-requests/{$req->transfer_id}");
+
+        $resp->assertOk()
+            ->assertJsonPath('data.details.0.available_at_source', 3)
+            ->assertJsonPath('data.details.0.shortfall', 2);
+    }
 }
