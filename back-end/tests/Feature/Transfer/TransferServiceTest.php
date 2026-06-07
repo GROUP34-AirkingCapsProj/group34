@@ -170,4 +170,45 @@ class TransferServiceTest extends TransferTestCase
         $this->expectException(\RuntimeException::class);
         $svc->recordReceiveScan($ist, 'SN-NOT-REAL', (int) $detail->transfer_detail_id, $user->user_id, 1);
     }
+
+    public function test_remove_receive_scan_undoes_bulk_quantity(): void
+    {
+        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        $detail = $ist->details->first();
+        $user = $this->makeUser();
+        $svc = new \App\Services\TransferService();
+
+        $res = $svc->recordReceiveScan($ist, 'BULK-1', (int) $detail->transfer_detail_id, $user->user_id, 3);
+        $detail->refresh();
+        $this->assertSame(3, (int) $detail->quantity_received);
+
+        $svc->removeReceiveScan($ist, (int) $res['scan_id']);
+        $detail->refresh();
+        $this->assertSame(0, (int) $detail->quantity_received);
+        $this->assertSame(0, \App\Models\BarcodeScan::where('transfer_id', $ist->transfer_id)
+            ->where('scan_mode', 'receive')->count());
+    }
+
+    public function test_receive_scan_cannot_exceed_shipped(): void
+    {
+        [$from, $to, $prod, $ist] = $this->inTransitConsumable(2);
+        $detail = $ist->details->first();
+        $user = $this->makeUser();
+        $svc = new \App\Services\TransferService();
+
+        $this->expectException(\RuntimeException::class);
+        $svc->recordReceiveScan($ist, 'OVER-1', (int) $detail->transfer_detail_id, $user->user_id, 3);
+    }
+
+    public function test_receive_scan_rejects_duplicate_barcode(): void
+    {
+        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        $detail = $ist->details->first();
+        $user = $this->makeUser();
+        $svc = new \App\Services\TransferService();
+
+        $svc->recordReceiveScan($ist, 'DUP-1', (int) $detail->transfer_detail_id, $user->user_id, 1);
+        $this->expectException(\RuntimeException::class);
+        $svc->recordReceiveScan($ist, 'DUP-1', (int) $detail->transfer_detail_id, $user->user_id, 1);
+    }
 }

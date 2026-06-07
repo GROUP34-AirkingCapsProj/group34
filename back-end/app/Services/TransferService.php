@@ -108,9 +108,10 @@ class TransferService
     }
 
     /**
-     * Record one received unit (scan or manual). Increments the line's
-     * quantity_received and writes a barcode_scans row (scan_mode 'receive').
-     * Serialized scans must match an in-transit serial of THIS transfer.
+     * Record received unit(s) (scan or manual). Increments the line's
+     * quantity_received by $step and writes a barcode_scans row
+     * (scan_mode 'receive', quantity = $step) so removal can undo the exact amount.
+     * Serialized scans are always 1 unit and must match an in-transit serial of THIS transfer.
      */
     public function recordReceiveScan(Transfer $ist, string $barcode, int $transferDetailId, int $userId, int $qty = 1): array
     {
@@ -118,18 +119,19 @@ class TransferService
             throw new RuntimeException('Only an In Transit IST can be received.');
         }
 
-        $detail = TransferDetail::where('transfer_detail_id', $transferDetailId)
-            ->where('transfer_id', $ist->transfer_id)
-            ->with('product')
-            ->first();
-        if (!$detail) {
-            throw new RuntimeException('Line item does not belong to this transfer.');
-        }
+        return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty) {
+            $detail = TransferDetail::where('transfer_detail_id', $transferDetailId)
+                ->where('transfer_id', $ist->transfer_id)
+                ->with('product')
+                ->lockForUpdate()
+                ->first();
+            if (!$detail) {
+                throw new RuntimeException('Line item does not belong to this transfer.');
+            }
 
-        $serialized = $this->isSerialized($detail);
-        $step = $serialized ? 1 : max(1, $qty);
+            $serialized = $this->isSerialized($detail);
+            $step = $serialized ? 1 : max(1, $qty);
 
-        return DB::transaction(function () use ($ist, $detail, $barcode, $userId, $step, $serialized) {
             $alreadyScanned = BarcodeScan::where('transfer_id', $ist->transfer_id)
                 ->where('scan_mode', 'receive')
                 ->where('barcode', $barcode)
@@ -161,6 +163,7 @@ class TransferService
                 'transfer_id' => $ist->transfer_id,
                 'barcode'     => $barcode,
                 'scan_mode'   => 'receive',
+                'quantity'    => $step,
                 'scanned_at'  => now(),
             ]);
 
@@ -176,7 +179,7 @@ class TransferService
         });
     }
 
-    /** Undo a received-scan before confirmation. */
+    /** Undo a received-scan before confirmation (undoes the scan's recorded quantity). */
     public function removeReceiveScan(Transfer $ist, int $scanId): void
     {
         if ((int) $ist->status_id !== $this->statusId('In Transit')) {
@@ -192,11 +195,14 @@ class TransferService
                 throw new RuntimeException('Receive scan not found.');
             }
 
+            $step = max(1, (int) ($scan->quantity ?? 1));
+
             $detail = TransferDetail::where('transfer_id', $ist->transfer_id)
                 ->where('product_id', $scan->product_id)
+                ->lockForUpdate()
                 ->first();
-            if ($detail && (int) $detail->quantity_received > 0) {
-                $detail->quantity_received = (int) $detail->quantity_received - 1;
+            if ($detail) {
+                $detail->quantity_received = max(0, (int) $detail->quantity_received - $step);
                 $detail->save();
             }
 

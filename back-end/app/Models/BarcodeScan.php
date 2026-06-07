@@ -13,11 +13,13 @@ class BarcodeScan extends Model
         'product_id',
         'transfer_id',
         'scan_mode',
+        'quantity',
         'scanned_at',
     ];
 
     protected $casts = [
         'scanned_at' => 'datetime',
+        'quantity'   => 'integer',
     ];
 
     public function user(): BelongsTo
