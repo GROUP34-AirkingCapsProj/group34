@@ -37,6 +37,20 @@ class TransferService
         return ($detail?->product?->product_type) === 'appliance';
     }
 
+    /** Fetch the inventory row for a location/product under a write lock, creating it (zeroed) if absent. */
+    private function lockInventory(int $locationId, int $productId): Inventory
+    {
+        Inventory::firstOrCreate(
+            ['location_id' => $locationId, 'product_id' => $productId],
+            ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
+        );
+
+        return Inventory::where('location_id', $locationId)
+            ->where('product_id', $productId)
+            ->lockForUpdate()
+            ->first();
+    }
+
     /**
      * Approved IST -> In Transit. shipped = quantity_scanned (auto-close remainder).
      * Deducts source quantity_on_hand AND available_quantity for every product type.
@@ -207,19 +221,7 @@ class TransferService
                 $shipped  = (int) $detail->quantity_transferred;
 
                 if ($received > 0) {
-                    $dst = Inventory::where('location_id', $locked->to_location_id)
-                        ->where('product_id', $detail->product_id)
-                        ->lockForUpdate()
-                        ->first();
-                    if (!$dst) {
-                        $dst = new Inventory([
-                            'location_id'        => $locked->to_location_id,
-                            'product_id'         => $detail->product_id,
-                            'quantity_on_hand'   => 0,
-                            'available_quantity' => 0,
-                            'reorder_level'      => 0,
-                        ]);
-                    }
+                    $dst = $this->lockInventory($locked->to_location_id, $detail->product_id);
                     $dst->quantity_on_hand   = (int) $dst->quantity_on_hand + $received;
                     $dst->available_quantity = (int) $dst->available_quantity + $received;
                     $dst->save();
