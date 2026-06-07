@@ -41,6 +41,8 @@ class TransferService
      * Approved IST -> In Transit. shipped = quantity_scanned (auto-close remainder).
      * Deducts source quantity_on_hand AND available_quantity for every product type.
      * Serialized scanned serials become 'transferred' (location stays at source).
+     * The header row is locked inside the transaction so concurrent dispatches
+     * serialize and the second caller aborts on the re-checked status.
      */
     public function dispatch(Transfer $ist): Transfer
     {
@@ -48,22 +50,30 @@ class TransferService
             throw new RuntimeException('Only an approved IST can be dispatched.');
         }
 
-        $ist->load('details.product');
-        $totalScanned = (int) $ist->details->sum('quantity_scanned');
-        if ($totalScanned < 1) {
-            throw new RuntimeException('Scan at least one item before dispatch.');
-        }
-
         return DB::transaction(function () use ($ist) {
+            $locked = Transfer::where('transfer_id', $ist->transfer_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ((int) $locked->status_id !== $this->statusId('Approved')) {
+                throw new RuntimeException('Only an approved IST can be dispatched.');
+            }
+
+            $locked->load('details.product');
+            $totalScanned = (int) $locked->details->sum('quantity_scanned');
+            if ($totalScanned < 1) {
+                throw new RuntimeException('Scan at least one item before dispatch.');
+            }
+
             $totalShipped = 0;
 
-            foreach ($ist->details as $detail) {
+            foreach ($locked->details as $detail) {
                 $shipped = (int) $detail->quantity_scanned;
                 if ($shipped < 1) {
                     continue;
                 }
 
-                $src = Inventory::where('location_id', $ist->from_location_id)
+                $src = Inventory::where('location_id', $locked->from_location_id)
                     ->where('product_id', $detail->product_id)
                     ->lockForUpdate()
                     ->first();
@@ -78,8 +88,9 @@ class TransferService
                 $src->save();
 
                 if ($this->isSerialized($detail)) {
-                    ItemSerial::where('transfer_id', $ist->transfer_id)
+                    ItemSerial::where('transfer_id', $locked->transfer_id)
                         ->where('product_id', $detail->product_id)
+                        ->where('serial_type', 'received')
                         ->update(['serial_type' => 'transferred']);
                 }
 
@@ -88,11 +99,11 @@ class TransferService
                 $totalShipped += $shipped;
             }
 
-            $ist->status_id = $this->statusId('In Transit');
-            $ist->total_quantity_transferred = $totalShipped;
-            $ist->save();
+            $locked->status_id = $this->statusId('In Transit');
+            $locked->total_quantity_transferred = $totalShipped;
+            $locked->save();
 
-            return $ist->fresh('details');
+            return $locked->fresh('details');
         });
     }
 }
