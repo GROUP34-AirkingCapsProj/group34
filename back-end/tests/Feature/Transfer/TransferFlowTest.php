@@ -96,4 +96,27 @@ class TransferFlowTest extends TransferTestCase
             ->assertJsonPath('data.details.0.available_at_source', 3)
             ->assertJsonPath('data.details.0.shortfall', 2);
     }
+
+    public function test_request_numbers_are_unique_under_repeated_create(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 50);
+        $admin = $this->adminUser();
+
+        $numbers = [];
+        for ($i = 0; $i < 5; $i++) {
+            $resp = $this->actingAs($admin, 'sanctum')->postJson('/api/transfer-requests', [
+                'from_location_id' => $from->location_id,
+                'to_location_id'   => $to->location_id,
+                'transfer_date'    => now()->toDateString(),
+                'products'         => [['product_id' => $prod->product_id, 'quantity_requested' => 1]],
+            ]);
+            $resp->assertCreated();
+            $numbers[] = $resp->json('data.transfer_number');
+        }
+
+        $this->assertSame(count($numbers), count(array_unique($numbers)));
+    }
 }
