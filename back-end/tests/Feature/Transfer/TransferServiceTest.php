@@ -16,4 +16,13 @@ class TransferServiceTest extends TransferTestCase
             $this->assertNotNull($id, "Status '{$name}' must exist in category 'transfer'");
         }
     }
+
+    public function test_resolves_transfer_status_by_name(): void
+    {
+        $svc = new \App\Services\TransferService();
+        $this->assertSame(
+            $this->statusId('In Transit'),
+            $svc->statusIdForTest('In Transit')
+        );
+    }
 }
