@@ -387,6 +387,31 @@ class WarrantyClaimTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_customer_history_includes_claims(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+        $part = $this->makeConsumable($locationId, 10);
+
+        $init = $this->postJson('/api/warranty-claims/init', [
+            'customer_id'   => $customer->customer_id,
+            'serial_number' => $appliance['serial'],
+            'claim_type'    => 'repair',
+            'location_id'   => $locationId,
+        ])->json();
+        $claimId = $init['data']['claim_id'] ?? $init['claim_id'];
+        $this->postJson("/api/warranty-claims/{$claimId}/item", ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 1]);
+        $this->postJson("/api/warranty-claims/{$claimId}/complete");
+
+        $res = $this->getJson("/api/customers/{$customer->customer_id}/history")->json();
+        $data = $res['data'] ?? $res;
+        $this->assertArrayHasKey('warranty_claims', $data);
+        $this->assertNotEmpty($data['warranty_claims']);
+        $this->assertSame('repair', $data['warranty_claims'][0]['claim_type']);
+    }
+
     public function test_claim_slip_downloads_csv(): void
     {
         $this->actingUser();
