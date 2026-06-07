@@ -122,7 +122,7 @@ const ISTManagementPage = () => {
   ).length;
   const toReceiveCount = ists.filter((t) =>
     t.status?.status_name === 'In Transit' &&
-    (isAdmin || !myLocId || String(t.to_location_id) === myLocId)
+    (isAdmin || String(t.to_location_id) === myLocId)
   ).length;
 
   const applyPreset = (preset) => {
