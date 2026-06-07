@@ -211,4 +211,57 @@ class TransferServiceTest extends TransferTestCase
         $this->expectException(\RuntimeException::class);
         $svc->recordReceiveScan($ist, 'DUP-1', (int) $detail->transfer_detail_id, $user->user_id, 1);
     }
+
+    public function test_receive_confirm_increments_destination_and_closes(): void
+    {
+        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        $detail = $ist->details->first();
+        $user = $this->makeUser();
+        $svc = new \App\Services\TransferService();
+
+        $svc->recordReceiveScan($ist, 'BC-1', (int) $detail->transfer_detail_id, $user->user_id, 3);
+        $svc->receive($ist->fresh('details'), $user->user_id);
+
+        $dst = \App\Models\Inventory::where('location_id', $to->location_id)
+            ->where('product_id', $prod->product_id)->first();
+        $this->assertSame(3, $dst->quantity_on_hand);
+        $this->assertSame(3, $dst->available_quantity);
+
+        $ist->refresh();
+        $this->assertSame($this->statusId('Received'), (int) $ist->status_id);
+        $this->assertSame(3, (int) $ist->total_quantity_received);
+    }
+
+    public function test_receive_appliance_activates_serials_at_destination(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 2);
+        $serials = $this->makeSerials($from->location_id, $prod->product_id, 2);
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 2, 'quantity_scanned' => 2],
+        ]);
+        \App\Models\ItemSerial::whereIn('serial_number', $serials)
+            ->update(['transfer_id' => $ist->transfer_id]);
+        $user = $this->makeUser();
+        $svc = new \App\Services\TransferService();
+        $svc->dispatch($ist);
+        $ist->refresh()->load('details');
+        $detail = $ist->details->first();
+
+        foreach ($serials as $sn) {
+            $svc->recordReceiveScan($ist, $sn, (int) $detail->transfer_detail_id, $user->user_id, 1);
+        }
+        $svc->receive($ist->fresh('details'), $user->user_id);
+
+        $rows = \App\Models\ItemSerial::whereIn('serial_number', $serials)->get();
+        foreach ($rows as $row) {
+            $this->assertSame('received', $row->serial_type);
+            $this->assertSame($to->location_id, (int) $row->location_id);
+        }
+        $dst = \App\Models\Inventory::where('location_id', $to->location_id)
+            ->where('product_id', $prod->product_id)->first();
+        $this->assertSame(2, $dst->quantity_on_hand);
+    }
 }
