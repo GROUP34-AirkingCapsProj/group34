@@ -621,12 +621,16 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/ist/{id}/receipt', [ISTController::class, 'receipt']);
     Route::get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
     Route::get('/ist/{id}', [ISTController::class, 'show']);
-    Route::middleware('role:admin,warehouse_personnel,inventory_analyst')->group(function () {
+    Route::middleware('role:admin,warehouse_personnel,inventory_analyst,branch_manager')->group(function () {
         Route::post('/ist', [ISTController::class, 'store']);
         Route::post('/ist/{transferId}/scan', [ISTController::class, 'scan']);
         Route::delete('/ist/{transferId}/scan/{scanId}', [ISTController::class, 'removeScan']);
         Route::post('/ist/{transferId}/confirm-dispatch', [ISTController::class, 'confirmDispatch']);
+    });
+    Route::middleware('role:admin,inventory_analyst,branch_manager,warehouse_personnel')->group(function () {
         Route::post('/ist/{id}/receive', [ISTController::class, 'receiveStore']);
+        Route::post('/ist/{transferId}/receive-scan', [ISTController::class, 'receiveScan']);
+        Route::delete('/ist/{transferId}/receive-scan/{scanId}', [ISTController::class, 'removeReceiveScan']);
     });
 
     /*
