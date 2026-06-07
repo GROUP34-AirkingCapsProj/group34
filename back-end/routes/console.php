@@ -11,7 +11,7 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Http\Controllers\Api\ReceivingController;
 use App\Http\Controllers\Api\IssuanceController;
-use App\Http\Controllers\Api\TransferController;
+use App\Services\TransferService;
 use App\Http\Controllers\Api\AdjustmentController;
 
 Artisan::command('inspire', function () {
@@ -24,10 +24,16 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
     $this->info('Running core inventory transaction check...');
     $this->line($commit ? 'Mode: COMMIT' : 'Mode: DRY RUN (rollback)');
 
-    // Choose a product+source inventory row (stock can be zero; receive step will add stock first).
+    // Choose a consumable product+source inventory row (stock can be zero; receive step will add stock first).
+    // Must be a consumable (non-appliance) so the transfer step works without serial numbers.
+    $consumableProductIds = Product::query()
+        ->where(function ($q) { $q->where('product_type', '!=', 'appliance')->orWhereNull('product_type'); })
+        ->pluck('product_id');
+
     $sourceInv = Inventory::query()
         ->whereNotNull('location_id')
         ->whereNotNull('product_id')
+        ->whereIn('product_id', $consumableProductIds)
         ->orderByDesc('available_quantity')
         ->orderByDesc('quantity_on_hand')
         ->first();
@@ -40,10 +46,12 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
     }
 
     if (!$product || !$sourceLocationId) {
-        $product = Product::query()->first();
+        $product = Product::query()
+            ->where(function ($q) { $q->where('product_type', '!=', 'appliance')->orWhereNull('product_type'); })
+            ->first();
         $firstLocation = Location::query()->first();
         if (!$product || !$firstLocation) {
-            $this->error('Cannot run check: need at least one product and one location.');
+            $this->error('Cannot run check: need at least one consumable product and one location.');
             return 1;
         }
         $sourceLocationId = $firstLocation->location_id;
@@ -134,19 +142,15 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
         $issuanceResp = app(IssuanceController::class)->store($issuanceReq);
         $assertOk($issuanceResp, 'Issuance');
 
-        // 3) Transfer: -1 source, +1 destination
-        $transferReq = Request::create('/api/transfers', 'POST', [
-            'from_location_id' => $sourceLocationId,
-            'to_location_id' => $destLocationId,
-            'transfer_number' => "TR-CHECK-{$suffix}",
-            'transfer_date' => now()->toDateString(),
-            'details' => [[
-                'product_id' => $product->product_id,
-                'quantity_transferred' => $stepTransfer,
-            ]],
-        ]);
-        $transferResp = app(TransferController::class)->store($transferReq);
-        $assertOk($transferResp, 'Transfer');
+        // 3) Transfer: -1 source, +1 destination (via TransferService::directOverride — consumable, no serials)
+        $systemUserId = (int) (DB::table('users')->value('user_id') ?? 1);
+        app(TransferService::class)->directOverride(
+            (int) $sourceLocationId,
+            (int) $destLocationId,
+            [['product_id' => (int) $product->product_id, 'quantity' => $stepTransfer, 'serials' => []]],
+            $systemUserId,
+            now()->toDateString()
+        );
 
         // 4) Adjustment: deduct 1 at source
         $adjustReq = Request::create('/api/adjustments', 'POST', [

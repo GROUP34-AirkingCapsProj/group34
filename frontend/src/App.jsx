@@ -25,7 +25,6 @@ const ReceivingManagement = lazy(() => import('./admin/pages/ReceivingManagement
 // Inventory
 const InventoryManagement = lazy(() => import('./admin/pages/InventoryManagement'));
 const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferManagement'));
-const TransferScanWorkflow = lazy(() => import('./admin/pages/TransferScanWorkflow'));
 const TransferRequestPage = lazy(() => import('./admin/pages/TransferRequestPage'));
 const ISTCreatePage = lazy(() => import('./admin/pages/ISTCreatePage'));
 const ISTManagementPage = lazy(() => import('./admin/pages/ISTManagementPage'));
@@ -124,7 +123,8 @@ function App() {
           {/* Inventory */}
           <Route path="/admin/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
           <Route path="/admin/transfers" element={<RoleRoute><StockTransferManagement /></RoleRoute>} />
-          <Route path="/admin/transfer-scan" element={<RoleRoute><TransferScanWorkflow /></RoleRoute>} />
+          {/* /admin/transfer-scan retired — receiving is now handled via IST flow (/admin/ist/:id/receive) */}
+          <Route path="/admin/transfer-scan" element={<Navigate to="/admin/ist" replace />} />
           <Route path="/admin/transfer-requests" element={<RoleRoute><TransferRequestPage /></RoleRoute>} />
           <Route path="/admin/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
           <Route path="/admin/ist" element={<RoleRoute><ISTManagementPage /></RoleRoute>} />
