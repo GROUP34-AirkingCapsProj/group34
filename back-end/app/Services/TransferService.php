@@ -179,6 +179,94 @@ class TransferService
         });
     }
 
+    /**
+     * In Transit -> Received. Finalizes whatever was recorded via recordReceiveScan.
+     * Increments destination inventory (both columns), activates matched serials
+     * at the destination, logs any shipped != received discrepancy.
+     */
+    public function receive(Transfer $ist, int $userId): Transfer
+    {
+        if ((int) $ist->status_id !== $this->statusId('In Transit')) {
+            throw new RuntimeException('Only an In Transit IST can be received.');
+        }
+
+        return DB::transaction(function () use ($ist, $userId) {
+            $locked = Transfer::where('transfer_id', $ist->transfer_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            if ((int) $locked->status_id !== $this->statusId('In Transit')) {
+                throw new RuntimeException('Only an In Transit IST can be received.');
+            }
+
+            $locked->load('details.product');
+            $totalReceived = 0;
+            $discrepancies = [];
+
+            foreach ($locked->details as $detail) {
+                $received = (int) $detail->quantity_received;
+                $shipped  = (int) $detail->quantity_transferred;
+
+                if ($received > 0) {
+                    $dst = Inventory::where('location_id', $locked->to_location_id)
+                        ->where('product_id', $detail->product_id)
+                        ->lockForUpdate()
+                        ->first();
+                    if (!$dst) {
+                        $dst = new Inventory([
+                            'location_id'        => $locked->to_location_id,
+                            'product_id'         => $detail->product_id,
+                            'quantity_on_hand'   => 0,
+                            'available_quantity' => 0,
+                            'reorder_level'      => 0,
+                        ]);
+                    }
+                    $dst->quantity_on_hand   = (int) $dst->quantity_on_hand + $received;
+                    $dst->available_quantity = (int) $dst->available_quantity + $received;
+                    $dst->save();
+
+                    if ($this->isSerialized($detail)) {
+                        $scanned = BarcodeScan::where('transfer_id', $locked->transfer_id)
+                            ->where('scan_mode', 'receive')
+                            ->where('product_id', $detail->product_id)
+                            ->pluck('barcode');
+                        ItemSerial::where('transfer_id', $locked->transfer_id)
+                            ->where('product_id', $detail->product_id)
+                            ->whereIn('serial_number', $scanned)
+                            ->update([
+                                'serial_type' => 'received',
+                                'location_id' => $locked->to_location_id,
+                            ]);
+                    }
+                }
+
+                if ($received !== $shipped) {
+                    $discrepancies[] = "product {$detail->product_id}: shipped {$shipped}, received {$received}";
+                }
+
+                $totalReceived += $received;
+            }
+
+            $locked->status_id = $this->statusId('Received');
+            $locked->received_by = $userId;
+            $locked->total_quantity_received = $totalReceived;
+            $locked->save();
+
+            $note = "Items received — {$totalReceived} unit(s)";
+            if (!empty($discrepancies)) {
+                $note .= '. Discrepancies: ' . implode('; ', $discrepancies);
+            }
+            TblTransferTracking::create([
+                'transfer_id' => $locked->transfer_id,
+                'location_id' => $locked->to_location_id,
+                'status_note' => $note,
+                'recorded_by' => $userId,
+                'recorded_at' => now(),
+            ]);
+
+            return $locked->fresh('details');
+        });
+    }
+
     /** Undo a received-scan before confirmation (undoes the scan's recorded quantity). */
     public function removeReceiveScan(Transfer $ist, int $scanId): void
     {
