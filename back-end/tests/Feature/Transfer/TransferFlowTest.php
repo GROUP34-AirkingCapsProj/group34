@@ -119,4 +119,11 @@ class TransferFlowTest extends TransferTestCase
 
         $this->assertSame(count($numbers), count(array_unique($numbers)));
     }
+
+    public function test_dashboard_stats_include_awaiting_counts(): void
+    {
+        $resp = $this->actingAs($this->adminUser(), 'sanctum')->getJson('/api/dashboard/stats');
+        $resp->assertOk()
+            ->assertJsonStructure(['data' => ['awaiting_fulfillment', 'awaiting_receipt']]);
+    }
 }

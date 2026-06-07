@@ -21,6 +21,7 @@ const AdminLayout = ({ children }) => {
   const profileRef = useRef(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [awaitingIstCount, setAwaitingIstCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState(() => new Set());
 
@@ -99,6 +100,22 @@ const AdminLayout = ({ children }) => {
     };
     fetchPending();
     const interval = setInterval(fetchPending, 60000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, []);
+
+  // Poll server for IST awaiting counts (fulfillment + receipt)
+  useEffect(() => {
+    let mounted = true;
+    const fetchIstCounts = async () => {
+      try {
+        const res = await dashboardAPI.getStats();
+        const fulfillment = res?.data?.data?.awaiting_fulfillment ?? res?.data?.awaiting_fulfillment ?? 0;
+        const receipt     = res?.data?.data?.awaiting_receipt     ?? res?.data?.awaiting_receipt     ?? 0;
+        if (mounted) setAwaitingIstCount(Number(fulfillment) + Number(receipt));
+      } catch (_) {}
+    };
+    fetchIstCounts();
+    const interval = setInterval(fetchIstCounts, 60000);
     return () => { mounted = false; clearInterval(interval); };
   }, []);
 
@@ -249,6 +266,7 @@ const AdminLayout = ({ children }) => {
         roleMeta={roleMeta}
         onLogout={handleLogout}
         pendingApprovalCount={pendingApprovalCount}
+        awaitingIstCount={awaitingIstCount}
       />
 
       {/* Main Content */}

@@ -408,6 +408,7 @@ const Sidebar = ({
   roleMeta,
   onLogout,
   pendingApprovalCount = 0,
+  awaitingIstCount = 0,
 }) => {
   const locationLabel = user?.location?.location_name || user?.branch?.branch_name || null;
   const showLocationChip =
@@ -504,6 +505,11 @@ const Sidebar = ({
                     {item.path === '/admin/approval-queue' && pendingApprovalCount > 0 && (
                       <span className="nav-item-badge">
                         {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                      </span>
+                    )}
+                    {item.path === '/admin/ist' && awaitingIstCount > 0 && (
+                      <span className="nav-item-badge">
+                        {awaitingIstCount > 99 ? '99+' : awaitingIstCount}
                       </span>
                     )}
                   </button>
