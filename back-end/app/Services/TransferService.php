@@ -269,6 +269,61 @@ class TransferService
         });
     }
 
+    /**
+     * State-aware undo of an IST's inventory/serial movement.
+     * - In Transit: restore source, reactivate serials at source, clear transfer link.
+     * - Received: also pull received qty out of destination and move serials back.
+     * Does not change the transfer status; callers handle that.
+     */
+    public function reverse(Transfer $ist): void
+    {
+        $ist->load('details.product');
+        $inTransit = $this->statusId('In Transit');
+        $received  = $this->statusId('Received');
+        $state = (int) $ist->status_id;
+
+        if (!in_array($state, [$inTransit, $received], true)) {
+            return; // nothing moved yet (Pending/Approved/Rejected)
+        }
+
+        DB::transaction(function () use ($ist, $state, $received) {
+            foreach ($ist->details as $detail) {
+                $shipped = (int) $detail->quantity_transferred;
+                $recv    = (int) $detail->quantity_received;
+                if ($shipped < 1) {
+                    continue;
+                }
+
+                if ($state === $received && $recv > 0) {
+                    $dst = Inventory::where('location_id', $ist->to_location_id)
+                        ->where('product_id', $detail->product_id)
+                        ->lockForUpdate()
+                        ->first();
+                    if ($dst) {
+                        $dst->quantity_on_hand   = max(0, (int) $dst->quantity_on_hand - $recv);
+                        $dst->available_quantity = max(0, (int) $dst->available_quantity - $recv);
+                        $dst->save();
+                    }
+                }
+
+                $src = $this->lockInventory($ist->from_location_id, $detail->product_id);
+                $src->quantity_on_hand   = (int) $src->quantity_on_hand + $shipped;
+                $src->available_quantity = (int) $src->available_quantity + $shipped;
+                $src->save();
+
+                if ($this->isSerialized($detail)) {
+                    ItemSerial::where('transfer_id', $ist->transfer_id)
+                        ->where('product_id', $detail->product_id)
+                        ->update([
+                            'serial_type' => 'received',
+                            'location_id' => $ist->from_location_id,
+                            'transfer_id' => null,
+                        ]);
+                }
+            }
+        });
+    }
+
     /** Undo a received-scan before confirmation (undoes the scan's recorded quantity). */
     public function removeReceiveScan(Transfer $ist, int $scanId): void
     {
