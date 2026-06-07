@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { warrantyClaimsAPI, customersAPI, getApiBaseUrl, getToken } from '../services/api';
+import { warrantyClaimsAPI, customersAPI, locationsAPI, getApiBaseUrl, getToken } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/warranty_claim.css';
 
@@ -13,6 +13,7 @@ export default function WarrantyClaimPage() {
     claim_type: 'repair', notes: '', location_id: '',
   });
   const [customerResults, setCustomerResults] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [claim, setClaim] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -24,6 +25,19 @@ export default function WarrantyClaimPage() {
     const params = new URLSearchParams(window.location.search);
     const s = params.get('serial');
     if (s) setForm((f) => ({ ...f, serial_number: s }));
+
+    (async () => {
+      try {
+        const res = await locationsAPI.getAll();
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setLocations(list);
+        // Auto-select when there is exactly one choice.
+        if (list.length === 1) {
+          const only = list[0];
+          setForm((f) => ({ ...f, location_id: String(only.location_id ?? only.id) }));
+        }
+      } catch { setLocations([]); }
+    })();
   }, []);
 
   const searchCustomers = async (q) => {
@@ -45,6 +59,7 @@ export default function WarrantyClaimPage() {
     setError('');
     if (!form.customer_id) { setError('Select a customer.'); return; }
     if (!form.serial_number.trim()) { setError('Enter or scan the serial number being claimed.'); return; }
+    if (!form.location_id) { setError('Select a location.'); return; }
     setBusy(true);
     try {
       const res = await warrantyClaimsAPI.init({
@@ -147,6 +162,16 @@ export default function WarrantyClaimPage() {
                 <select value={form.claim_type} onChange={(e) => setForm((f) => ({ ...f, claim_type: e.target.value }))}>
                   <option value="repair">Repair (use spare parts)</option>
                   <option value="replacement">Replacement (give a new unit)</option>
+                </select>
+              </div>
+              <div className="wc-form-group">
+                <label>Location *</label>
+                <select value={form.location_id} onChange={(e) => setForm((f) => ({ ...f, location_id: e.target.value }))}>
+                  <option value="">Select location…</option>
+                  {locations.map((l) => {
+                    const id = l.location_id ?? l.id;
+                    return <option key={id} value={String(id)}>{l.location_name || l.name}</option>;
+                  })}
                 </select>
               </div>
             </div>
