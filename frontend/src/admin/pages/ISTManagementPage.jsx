@@ -115,6 +115,31 @@ const ISTManagementPage = () => {
     ? baseList.length
     : baseList.filter((t) => t.status?.status_name === key).length;
 
+  // Preset counts (always from full list, regardless of current viewTab)
+  const toFulfillCount = ists.filter((t) =>
+    t.status?.status_name === 'Approved' &&
+    (isAdmin || !myLocId || String(t.from_location_id) === myLocId)
+  ).length;
+  const toReceiveCount = ists.filter((t) =>
+    t.status?.status_name === 'In Transit' &&
+    (isAdmin || !myLocId || String(t.to_location_id) === myLocId)
+  ).length;
+
+  const applyPreset = (preset) => {
+    if (preset === 'fulfill') {
+      setViewTab('outgoing');
+      setStatusTab('Approved');
+    } else if (preset === 'receive') {
+      setViewTab('incoming');
+      setStatusTab('In Transit');
+    }
+  };
+
+  const activePreset =
+    viewTab === 'outgoing' && statusTab === 'Approved' ? 'fulfill' :
+    viewTab === 'incoming' && statusTab === 'In Transit' ? 'receive' :
+    null;
+
   return (
     <AdminLayout>
       <div className="po-recommendation-page">
@@ -170,6 +195,57 @@ const ISTManagementPage = () => {
             </button>
           </div>
         )}
+
+        {/* Quick-filter presets */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', alignSelf: 'center', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Worklist:
+          </span>
+          <button
+            type="button"
+            onClick={() => applyPreset('fulfill')}
+            style={{
+              padding: '6px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              border: activePreset === 'fulfill' ? '2px solid #16a34a' : '1.5px solid #bbf7d0',
+              background: activePreset === 'fulfill' ? '#16a34a' : '#f0fdf4',
+              color: activePreset === 'fulfill' ? '#fff' : '#16a34a',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            To Fulfill
+            {toFulfillCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
+                background: activePreset === 'fulfill' ? 'rgba(255,255,255,0.25)' : '#dcfce7',
+                color: activePreset === 'fulfill' ? '#fff' : '#16a34a',
+              }}>
+                {toFulfillCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('receive')}
+            style={{
+              padding: '6px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              border: activePreset === 'receive' ? '2px solid #2563eb' : '1.5px solid #bfdbfe',
+              background: activePreset === 'receive' ? '#2563eb' : '#eff6ff',
+              color: activePreset === 'receive' ? '#fff' : '#2563eb',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            To Receive
+            {toReceiveCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
+                background: activePreset === 'receive' ? 'rgba(255,255,255,0.25)' : '#dbeafe',
+                color: activePreset === 'receive' ? '#fff' : '#2563eb',
+              }}>
+                {toReceiveCount}
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* View tabs: Outgoing / Incoming */}
         <div style={{ display: 'flex', gap: 2, marginBottom: 12 }}>
