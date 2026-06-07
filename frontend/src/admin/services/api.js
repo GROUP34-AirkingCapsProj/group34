@@ -773,15 +773,23 @@ export const deliveryReceiptsAPI = {
 };
 
 /* ======================
-   WARRANTY CLAIMS API (not in ERD — returns empty gracefully)
+   WARRANTY CLAIMS API
 ====================== */
-const _emptyPage = { success: true, data: [], pagination: { total: 0, last_page: 1, per_page: 10, current_page: 1 } };
 export const warrantyClaimsAPI = {
-  getAll: async () => _emptyPage,
-  getById: async () => null,
-  create: async () => { throw new Error('Warranty claims are not available in this version.'); },
-  update: async () => { throw new Error('Warranty claims are not available in this version.'); },
-  delete: async () => { throw new Error('Warranty claims are not available in this version.'); },
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/warranty-claims?${query}` : '/warranty-claims');
+  },
+  getById: async (id) => apiRequest(`/warranty-claims/${id}`),
+  init: async (data) =>
+    apiRequest('/warranty-claims/init', { method: 'POST', body: JSON.stringify(data) }),
+  addItem: async (id, data) =>
+    apiRequest(`/warranty-claims/${id}/item`, { method: 'POST', body: JSON.stringify(data) }),
+  removeItem: async (id, detailId) =>
+    apiRequest(`/warranty-claims/${id}/item/${detailId}`, { method: 'DELETE' }),
+  complete: async (id) =>
+    apiRequest(`/warranty-claims/${id}/complete`, { method: 'POST' }),
+  slipUrl: (id) => `/warranty-claims/${id}/slip`,
 };
 
 /* ======================
