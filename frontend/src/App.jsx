@@ -30,6 +30,7 @@ const ISTCreatePage = lazy(() => import('./admin/pages/ISTCreatePage'));
 const ISTManagementPage = lazy(() => import('./admin/pages/ISTManagementPage'));
 const ISTDetailPage = lazy(() => import('./admin/pages/ISTDetailPage'));
 const ISTReceivePage = lazy(() => import('./admin/pages/ISTReceivePage'));
+const ISTDispatchPage = lazy(() => import('./admin/pages/ISTDispatchPage'));
 const ISTReceiptPage = lazy(() => import('./admin/pages/ISTReceiptPage'));
 const IssuanceManagement = lazy(() => import('./admin/pages/IssuanceManagement'));
 const AdjustmentManagement = lazy(() => import('./admin/pages/AdjustmentManagement'));
@@ -129,6 +130,7 @@ function App() {
           <Route path="/admin/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
           <Route path="/admin/ist" element={<RoleRoute><ISTManagementPage /></RoleRoute>} />
           <Route path="/admin/ist/create/:requestId" element={<RoleRoute><ISTCreatePage /></RoleRoute>} />
+          <Route path="/admin/ist/:id/dispatch" element={<RoleRoute><ISTDispatchPage /></RoleRoute>} />
           <Route path="/admin/ist/:id/receive" element={<RoleRoute><ISTReceivePage /></RoleRoute>} />
           <Route path="/admin/ist/:id/receipt" element={<RoleRoute><ISTReceiptPage /></RoleRoute>} />
           <Route path="/admin/ist/:id" element={<RoleRoute><ISTDetailPage /></RoleRoute>} />
