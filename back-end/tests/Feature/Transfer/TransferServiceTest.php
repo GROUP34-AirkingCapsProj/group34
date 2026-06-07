@@ -264,4 +264,43 @@ class TransferServiceTest extends TransferTestCase
             ->where('product_id', $prod->product_id)->first();
         $this->assertSame(2, $dst->quantity_on_hand);
     }
+
+    public function test_reverse_from_in_transit_restores_source(): void
+    {
+        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        (new \App\Services\TransferService())->reverse($ist->fresh('details'));
+
+        $src = \App\Models\Inventory::where('location_id', $from->location_id)
+            ->where('product_id', $prod->product_id)->first();
+        $this->assertSame(10, $src->quantity_on_hand);
+        $this->assertSame(10, $src->available_quantity);
+    }
+
+    public function test_round_trip_conserves_total_stock(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 10);
+        $this->setStock($to->location_id, $prod->product_id, 0);
+        $user = $this->makeUser();
+        $svc = new \App\Services\TransferService();
+
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 4, 'quantity_scanned' => 4],
+        ]);
+        $svc->dispatch($ist);
+        $ist->refresh()->load('details');
+        $svc->recordReceiveScan($ist, 'BC-RT', (int) $ist->details->first()->transfer_detail_id, $user->user_id, 4);
+        $svc->receive($ist->fresh('details'), $user->user_id);
+
+        $srcQty = (int) \App\Models\Inventory::where('location_id', $from->location_id)
+            ->where('product_id', $prod->product_id)->value('quantity_on_hand');
+        $dstQty = (int) \App\Models\Inventory::where('location_id', $to->location_id)
+            ->where('product_id', $prod->product_id)->value('quantity_on_hand');
+
+        $this->assertSame(6, $srcQty);
+        $this->assertSame(4, $dstQty);
+        $this->assertSame(10, $srcQty + $dstQty);
+    }
 }
