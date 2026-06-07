@@ -169,12 +169,14 @@ class TransferRequestController extends Controller
                 ->whereNull('transfer_request_id')
                 ->findOrFail($id);
 
-            // Attach current stock at source for each line item
+            // Attach current stock at source for each line item (single query)
             $fromLocId = $transfer->from_location_id;
+            $availability = \App\Models\Inventory::where('location_id', $fromLocId)
+                ->whereIn('product_id', $transfer->details->pluck('product_id'))
+                ->pluck('available_quantity', 'product_id');
+
             foreach ($transfer->details as $detail) {
-                $available = (int) (Inventory::where('location_id', $fromLocId)
-                    ->where('product_id', $detail->product_id)
-                    ->value('available_quantity') ?? 0);
+                $available = (int) ($availability[$detail->product_id] ?? 0);
                 $detail->available_at_source = $available;
                 $detail->stock_at_source     = $available; // backward-compat alias
                 $detail->shortfall           = max(0, (int) $detail->quantity_requested - $available);

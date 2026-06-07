@@ -567,7 +567,7 @@ const TransferRequestPage = () => {
                       <th>#</th>
                       <th>PRODUCT</th>
                       <th>REQUESTED</th>
-                      <th>STOCK AT SOURCE</th>
+                      <th>AVAIL AT SOURCE</th>
                       {isPending && isAdmin ? <th>APPROVED QTY</th> : <th>TRANSFERRED</th>}
                     </tr>
                   </thead>
