@@ -4121,8 +4121,8 @@ const BarcodeScan = () => {
                 ? 'Ship from warehouse. Use “Ship first” so stock only appears at the showroom after someone scans to receive here.'
                 : 'Truck arrived? Pick your showroom and the in-transit transfer, then scan each barcode to add stock at this location.'}
             </p>
-            <button type="button" className="btn-link" style={{ padding: 0, marginTop: 10, fontSize: 13 }} onClick={() => navigate('/admin/transfer-scan')}>
-              Open full checklist (print DR) →
+            <button type="button" className="btn-link" style={{ padding: 0, marginTop: 10, fontSize: 13 }} onClick={() => navigate('/admin/ist')}>
+              Open IST receive flow →
             </button>
           </div>
         )}

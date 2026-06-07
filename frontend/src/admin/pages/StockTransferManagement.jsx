@@ -291,8 +291,8 @@ const StockTransferManagement = () => {
             <p>Transfer inventory between locations — <strong>In transit</strong> = naka-scan na sa warehouse, papunta sa showroom; <strong>Completed</strong> = natanggap na sa destination</p>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" className="txn-btn-print" onClick={() => navigate('/admin/transfer-scan')}>
-              Transfer scan (OUT / IN)
+            <button type="button" className="txn-btn-print" onClick={() => navigate('/admin/ist')}>
+              IST Receive flow
             </button>
             <button type="button" className="txn-btn-create" onClick={openAddModal}>+ New Transfer</button>
           </div>
@@ -446,8 +446,8 @@ const StockTransferManagement = () => {
           {getTransferWorkflow(viewingTransfer).key === 'transit' && (
             <p style={{ marginTop: 12, fontSize: 14, color: '#b45309' }}>
               Stock has left the warehouse. The showroom must scan items on{' '}
-              <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => { setViewingTransfer(null); navigate(`/admin/transfer-scan?mode=in&transfer=${viewingTransfer.transfer_id}`); }}>
-                Transfer scan → TRANSFER IN
+              <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => { setViewingTransfer(null); navigate('/admin/ist'); }}>
+                IST Receive flow
               </button>
               {' '}before units appear at the destination.
             </p>
