@@ -386,4 +386,27 @@ class WarrantyClaimTest extends TestCase
             'location_id'   => $appliance['location']->location_id,
         ])->assertStatus(422);
     }
+
+    public function test_claim_slip_downloads_csv(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+        $part = $this->makeConsumable($locationId, 10);
+
+        $init = $this->postJson('/api/warranty-claims/init', [
+            'customer_id'   => $customer->customer_id,
+            'serial_number' => $appliance['serial'],
+            'claim_type'    => 'repair',
+            'location_id'   => $locationId,
+        ])->json();
+        $claimId = $init['data']['claim_id'] ?? $init['claim_id'];
+        $this->postJson("/api/warranty-claims/{$claimId}/item", ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 1]);
+        $this->postJson("/api/warranty-claims/{$claimId}/complete");
+
+        $res = $this->get("/api/warranty-claims/{$claimId}/slip");
+        $res->assertOk();
+        $this->assertStringContainsString('text/csv', $res->headers->get('Content-Type'));
+    }
 }

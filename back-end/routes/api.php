@@ -437,6 +437,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
              Route::get('/',                    [\App\Http\Controllers\Api\WarrantyClaimController::class, 'index']);
              Route::post('/init',               [\App\Http\Controllers\Api\WarrantyClaimController::class, 'init']);
              Route::get('/{claimId}',           [\App\Http\Controllers\Api\WarrantyClaimController::class, 'show']);
+             Route::get('/{claimId}/slip',      [\App\Http\Controllers\Api\WarrantyClaimController::class, 'downloadSlip']);
              Route::post('/{claimId}/item',     [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addItem']);
              Route::delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
              Route::post('/{claimId}/complete', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'complete']);
