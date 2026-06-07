@@ -177,7 +177,7 @@ class ISTController extends Controller
                 'transfer_request_id'        => $req->transfer_id,
                 'from_location_id'           => $req->from_location_id,
                 'to_location_id'             => $req->to_location_id,
-                'transfer_number'            => 'IST-PENDING-' . uniqid(),
+                'transfer_number'            => 'IST-PENDING-' . uniqid('', true),
                 'transfer_date'              => $validated['transfer_date'],
                 'prepared_by'                => $user->user_id,
                 'approved_by'                => $req->approved_by,
