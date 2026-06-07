@@ -57,6 +57,11 @@ class WarrantyRecord extends Model
         return $this->belongsTo(User::class, 'claimed_by', 'user_id');
     }
 
+    public function claims()
+    {
+        return $this->hasMany(WarrantyClaim::class, 'warranty_id', 'warranty_id');
+    }
+
     public function issuanceDetail()
     {
         return $this->belongsTo(IssuanceDetail::class, 'issuance_detail_id', 'issuance_detail_id');
