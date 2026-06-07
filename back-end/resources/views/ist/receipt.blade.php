@@ -219,10 +219,11 @@
         <span class="sig-label">Dispatched by:</span>&nbsp;
         @php
           $dispBy = $dispatchEntry?->recordedBy;
-          echo $dispBy
+          $dispByName = $dispBy
             ? (trim(($dispBy->first_name ?? '') . ' ' . ($dispBy->last_name ?? '')) ?: ($dispBy->username ?? '—'))
             : (trim(($ist->preparedBy?->first_name ?? '') . ' ' . ($ist->preparedBy?->last_name ?? '')) ?: '—');
         @endphp
+        {{ $dispByName }}
       </td>
     </tr>
     <tr>
