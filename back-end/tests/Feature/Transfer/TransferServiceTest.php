@@ -80,4 +80,42 @@ class TransferServiceTest extends TransferTestCase
         $this->assertSame(0, $src->quantity_on_hand);
         $this->assertSame(0, $src->available_quantity);
     }
+
+    public function test_dispatch_partial_ships_only_scanned_and_auto_closes(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 10);
+
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 5, 'quantity_scanned' => 3],
+        ]);
+
+        (new \App\Services\TransferService())->dispatch($ist);
+
+        $ist->refresh()->load('details');
+        $this->assertSame(3, (int) $ist->details->first()->quantity_transferred);
+        $this->assertSame(3, (int) $ist->total_quantity_transferred);
+        $this->assertSame($this->statusId('In Transit'), (int) $ist->status_id);
+
+        $src = \App\Models\Inventory::where('location_id', $from->location_id)
+            ->where('product_id', $prod->product_id)->first();
+        $this->assertSame(7, $src->quantity_on_hand);
+    }
+
+    public function test_dispatch_rejects_when_nothing_scanned(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 10);
+
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 5, 'quantity_scanned' => 0],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        (new \App\Services\TransferService())->dispatch($ist);
+    }
 }
