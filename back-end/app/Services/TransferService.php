@@ -383,6 +383,15 @@ class TransferService
                     if (count($serials) !== $qty) {
                         throw new RuntimeException("Serialized product {$line['product_id']} requires {$qty} serial number(s).");
                     }
+
+                    $matched = ItemSerial::whereIn('serial_number', $serials)
+                        ->where('product_id', $line['product_id'])
+                        ->where('location_id', $fromId)
+                        ->count();
+                    if ($matched !== count($serials)) {
+                        throw new RuntimeException("One or more serial numbers for product {$line['product_id']} were not found at the source location.");
+                    }
+
                     ItemSerial::whereIn('serial_number', $serials)
                         ->where('product_id', $line['product_id'])
                         ->where('location_id', $fromId)
