@@ -43,3 +43,6 @@ yarn-error.log*
 .idea/
 *.swp
 *.swo
+
+# Local test environment (points at airkingV5_test)
+back-end/.env.testing
