@@ -50,4 +50,34 @@ class TransferServiceTest extends TransferTestCase
         $this->assertSame(5, (int) $ist->details->first()->quantity_transferred);
         $this->assertSame(5, (int) $ist->total_quantity_transferred);
     }
+
+    public function test_dispatch_appliance_flips_serials_without_moving_location(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 3);
+        $serials = $this->makeSerials($from->location_id, $prod->product_id, 3);
+
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 3, 'quantity_scanned' => 3],
+        ]);
+
+        // Simulate the source scan loop having linked the 3 serials to this IST.
+        \App\Models\ItemSerial::whereIn('serial_number', $serials)
+            ->update(['transfer_id' => $ist->transfer_id]);
+
+        (new \App\Services\TransferService())->dispatch($ist);
+
+        $rows = \App\Models\ItemSerial::whereIn('serial_number', $serials)->get();
+        foreach ($rows as $row) {
+            $this->assertSame('transferred', $row->serial_type);
+            $this->assertSame($from->location_id, (int) $row->location_id, 'serial must NOT move to destination at dispatch');
+        }
+
+        $src = \App\Models\Inventory::where('location_id', $from->location_id)
+            ->where('product_id', $prod->product_id)->first();
+        $this->assertSame(0, $src->quantity_on_hand);
+        $this->assertSame(0, $src->available_quantity);
+    }
 }
