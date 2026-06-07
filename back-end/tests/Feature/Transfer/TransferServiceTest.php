@@ -25,4 +25,29 @@ class TransferServiceTest extends TransferTestCase
             $svc->statusIdForTest('In Transit')
         );
     }
+
+    public function test_dispatch_consumable_decrements_source_both_columns(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 10);
+
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 5, 'quantity_scanned' => 5],
+        ]);
+
+        (new \App\Services\TransferService())->dispatch($ist);
+
+        $src = \App\Models\Inventory::where('location_id', $from->location_id)
+            ->where('product_id', $prod->product_id)->first();
+
+        $this->assertSame(5, $src->quantity_on_hand);
+        $this->assertSame(5, $src->available_quantity);
+
+        $ist->refresh()->load('details');
+        $this->assertSame($this->statusId('In Transit'), (int) $ist->status_id);
+        $this->assertSame(5, (int) $ist->details->first()->quantity_transferred);
+        $this->assertSame(5, (int) $ist->total_quantity_transferred);
+    }
 }
