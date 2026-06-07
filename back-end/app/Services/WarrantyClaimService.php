@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\WarrantyClaimException;
+use App\Models\AuditTrail;
 use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\Product;
@@ -236,6 +237,84 @@ class WarrantyClaimService
 
             $detail->delete();
             $this->refreshPartsCost($claim);
+        });
+    }
+
+    /** @throws WarrantyClaimException */
+    public function completeClaim(WarrantyClaim $claim): WarrantyClaim
+    {
+        $this->assertPending($claim);
+
+        if (! $claim->details()->exists()) {
+            throw new WarrantyClaimException('Add at least one item before completing the claim.');
+        }
+        if ($claim->claim_type === 'replacement' && $claim->details()->count() !== 1) {
+            throw new WarrantyClaimException('A replacement claim must contain exactly one unit.');
+        }
+
+        return DB::transaction(function () use ($claim) {
+            $warranty = WarrantyRecord::lockForUpdate()->find($claim->warranty_id);
+
+            if (! $warranty || $warranty->status_id !== self::STATUS_WARRANTY_ACTIVE || $warranty->is_expired) {
+                throw new WarrantyClaimException('Warranty is no longer claimable.');
+            }
+
+            // 1. Mark original warranty Claimed.
+            $warranty->update([
+                'status_id'   => self::STATUS_WARRANTY_CLAIMED,
+                'claim_date'  => now()->toDateString(),
+                'claimed_by'  => Auth::id(),
+                'claim_notes' => $claim->notes,
+            ]);
+
+            // 2. Replacement -> new warranty inheriting the original end date.
+            if ($claim->claim_type === 'replacement') {
+                $unit = $claim->details()->first();
+                WarrantyRecord::create([
+                    'product_id'              => $unit->product_id,
+                    'serial_number'           => $unit->serial_number,
+                    'customer_id'             => $claim->customer_id,
+                    'sale_date'               => now()->toDateString(),
+                    'warranty_start_date'     => now()->toDateString(),
+                    'warranty_end_date'       => $warranty->warranty_end_date,
+                    'warranty_period_months'  => $warranty->warranty_period_months,
+                    'warranty_duration_label' => $warranty->warranty_duration_label,
+                    'status_id'               => self::STATUS_WARRANTY_ACTIVE,
+                    'notes'                   => 'Replacement under claim ' . $claim->claim_number,
+                ]);
+            }
+
+            // 3. Finalize claim.
+            $claim->update([
+                'status_id'    => $this->claimStatusId('Completed'),
+                'parts_cost'   => (float) $claim->details()->sum('line_cost'),
+                'completed_at' => now(),
+            ]);
+
+            // 4. Audit trail (best-effort).
+            try {
+                AuditTrail::create([
+                    'user_id'    => Auth::id(),
+                    'action'     => 'warranty_claim_completed',
+                    'table_name' => 'warranty_claims',
+                    'record_id'  => $claim->claim_id,
+                    'old_values' => null,
+                    'new_values' => [
+                        'claim_number' => $claim->claim_number,
+                        'claim_type'   => $claim->claim_type,
+                        'warranty_id'  => $claim->warranty_id,
+                        'serial'       => $claim->serial_number,
+                        'items'        => $claim->details()->count(),
+                        'parts_cost'   => $claim->parts_cost,
+                    ],
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
+            return $claim->fresh(['details', 'warranty', 'customer']);
         });
     }
 
