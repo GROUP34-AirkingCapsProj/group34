@@ -270,4 +270,73 @@ class WarrantyClaimTest extends TestCase
             'serial_number' => $replacement['serial'], 'status_id' => 26,
         ]);
     }
+
+    public function test_complete_repair_marks_original_claimed_no_new_warranty(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+        $part = $this->makeConsumable($locationId, 50);
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $locationId,
+        ]);
+        $this->service()->addItem($claim, ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 2]);
+
+        $before = \App\Models\WarrantyRecord::count();
+        $done = $this->service()->completeClaim($claim->fresh());
+
+        $this->assertSame($this->service()->claimStatusId('Completed'), (int) $done->status_id);
+        $this->assertSame(35, (int) $appliance['warranty']->fresh()->status_id);
+        $this->assertSame($before, \App\Models\WarrantyRecord::count(), 'Repair must not create a warranty record.');
+    }
+
+    public function test_complete_replacement_inherits_end_date_and_is_claimable(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $replacement = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+
+        $originalEnd = $appliance['warranty']->warranty_end_date->toDateString();
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'replacement',
+            'location_id'  => $locationId,
+        ]);
+        $this->service()->addItem($claim, ['barcode' => $replacement['serial']]);
+
+        $this->service()->completeClaim($claim->fresh());
+
+        $this->assertSame(35, (int) $appliance['warranty']->fresh()->status_id);
+
+        $new = \App\Models\WarrantyRecord::whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($replacement['serial'])])
+            ->where('status_id', 33)->latest('warranty_id')->first();
+        $this->assertNotNull($new, 'Replacement must create a new active warranty.');
+        $this->assertSame($originalEnd, $new->warranty_end_date->toDateString());
+    }
+
+    public function test_complete_rejects_empty_claim(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+
+        $this->expectException(\App\Exceptions\WarrantyClaimException::class);
+        $this->service()->completeClaim($claim->fresh());
+    }
 }
