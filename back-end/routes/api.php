@@ -656,13 +656,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/transfers/archived', [TransferController::class, 'archived']);
     Route::get('/transfers', [TransferController::class, 'index']);
     Route::get('/transfers/{id}', [TransferController::class, 'show']);
-    Route::middleware('role:admin,branch_manager,warehouse_personnel')->group(function () {
+    Route::middleware('role:admin')->group(function () {
         Route::post('/transfers', [TransferController::class, 'store']);
         Route::put('/transfers/{id}', [TransferController::class, 'update']);
         Route::post('/transfers/{id}/receive', [TransferController::class, 'receive']);
         Route::post('/transfers/{id}/tracking', [TransferController::class, 'addTracking']);
-    });
-    Route::middleware('role:admin')->group(function () {
         Route::delete('/transfers/{id}', [TransferController::class, 'destroy']);
         Route::post('/transfers/{id}/restore', [TransferController::class, 'restore']);
         Route::delete('/transfers/{id}/force', [TransferController::class, 'forceDestroy']);

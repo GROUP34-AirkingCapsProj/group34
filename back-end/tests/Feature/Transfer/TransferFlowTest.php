@@ -158,4 +158,68 @@ class TransferFlowTest extends TransferTestCase
         $resp->assertOk();
         $this->assertSame(1, (int) $resp->json('data.awaiting_fulfillment'));
     }
+
+    public function test_admin_direct_transfer_moves_stock_via_service(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeConsumable();
+        $this->setStock($from->location_id, $prod->product_id, 10);
+        $this->setStock($to->location_id, $prod->product_id, 0);
+
+        $resp = $this->actingAs($this->adminUser(), 'sanctum')->postJson('/api/transfers', [
+            'from_location_id' => $from->location_id,
+            'to_location_id'   => $to->location_id,
+            'transfer_date'    => now()->toDateString(),
+            'details'          => [['product_id' => $prod->product_id, 'quantity_transferred' => 4]],
+        ]);
+        $resp->assertCreated();
+
+        $src = \App\Models\Inventory::where('location_id', $from->location_id)->where('product_id', $prod->product_id)->first();
+        $dst = \App\Models\Inventory::where('location_id', $to->location_id)->where('product_id', $prod->product_id)->first();
+        $this->assertSame(6, (int) $src->quantity_on_hand);
+        $this->assertSame(6, (int) $src->available_quantity);
+        $this->assertSame(4, (int) $dst->quantity_on_hand);
+        $this->assertSame(4, (int) $dst->available_quantity);
+    }
+
+    public function test_admin_direct_transfer_rejects_serialized_without_serials(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 3);
+
+        $resp = $this->actingAs($this->adminUser(), 'sanctum')->postJson('/api/transfers', [
+            'from_location_id' => $from->location_id,
+            'to_location_id'   => $to->location_id,
+            'transfer_date'    => now()->toDateString(),
+            'details'          => [['product_id' => $prod->product_id, 'quantity_transferred' => 2]],
+        ]);
+        $resp->assertStatus(422);
+    }
+
+    public function test_admin_direct_transfer_serialized_with_serials_moves_serial(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 2);
+        $this->setStock($to->location_id, $prod->product_id, 0);
+        $serials = $this->makeSerials($from->location_id, $prod->product_id, 2);
+
+        $resp = $this->actingAs($this->adminUser(), 'sanctum')->postJson('/api/transfers', [
+            'from_location_id' => $from->location_id,
+            'to_location_id'   => $to->location_id,
+            'transfer_date'    => now()->toDateString(),
+            'details'          => [['product_id' => $prod->product_id, 'quantity_transferred' => 2, 'serials' => $serials]],
+        ]);
+        $resp->assertCreated();
+
+        $rows = \App\Models\ItemSerial::whereIn('serial_number', $serials)->get();
+        foreach ($rows as $row) {
+            $this->assertSame('received', $row->serial_type);
+            $this->assertSame($to->location_id, (int) $row->location_id);
+        }
+    }
 }

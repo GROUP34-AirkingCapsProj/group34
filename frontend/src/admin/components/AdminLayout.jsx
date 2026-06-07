@@ -191,8 +191,16 @@ const AdminLayout = ({ children }) => {
     navigate('/admin/alerts');
   };
 
-  // Use role-specific menu or fall back to full admin menu
-  const menuSections = ROLE_MENUS[roleKey] || adminMenuSections;
+  // Use role-specific menu or fall back to full admin menu.
+  // Filter adminOnly items for non-admin roles when using the full adminMenuSections.
+  const menuSections = (() => {
+    const sections = ROLE_MENUS[roleKey] || adminMenuSections;
+    if (roleKey === ROLES.ADMIN) return sections;
+    return sections.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.adminOnly),
+    }));
+  })();
 
   // Sync active highlight when navigating from outside the sidebar
   useEffect(() => {

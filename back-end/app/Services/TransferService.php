@@ -348,6 +348,73 @@ class TransferService
         });
     }
 
+    /**
+     * Admin-only express transfer: no request/approval, no manual scans.
+     * Builds an Approved transfer, simulates scan+receipt, then runs dispatch()+receive().
+     * Serialized lines require explicit serials (entered by the admin).
+     *
+     * @param array $lines each: ['product_id'=>int, 'quantity'=>int, 'serials'=>string[]]
+     */
+    public function directOverride(int $fromId, int $toId, array $lines, int $userId, string $date): Transfer
+    {
+        return DB::transaction(function () use ($fromId, $toId, $lines, $userId, $date) {
+            $transfer = Transfer::create([
+                'transfer_request_id'        => null,
+                'from_location_id'           => $fromId,
+                'to_location_id'             => $toId,
+                'transfer_number'            => 'OVR-PENDING-' . uniqid('', true),
+                'transfer_date'              => $date,
+                'requested_by'               => $userId,
+                'approved_by'                => $userId,
+                'status_id'                  => $this->statusId('Approved'),
+                'total_quantity_transferred' => 0,
+                'total_quantity_received'    => 0,
+            ]);
+            $transfer->transfer_number = 'OVR-' . date('Ymd') . '-' . str_pad((string) $transfer->transfer_id, 4, '0', STR_PAD_LEFT);
+            $transfer->save();
+
+            foreach ($lines as $line) {
+                $product = \App\Models\Product::find($line['product_id']);
+                $qty = (int) $line['quantity'];
+                $isAppliance = ($product?->product_type === 'appliance');
+
+                if ($isAppliance) {
+                    $serials = $line['serials'] ?? [];
+                    if (count($serials) !== $qty) {
+                        throw new RuntimeException("Serialized product {$line['product_id']} requires {$qty} serial number(s).");
+                    }
+                    ItemSerial::whereIn('serial_number', $serials)
+                        ->where('product_id', $line['product_id'])
+                        ->where('location_id', $fromId)
+                        ->update(['transfer_id' => $transfer->transfer_id]);
+
+                    foreach ($serials as $sn) {
+                        BarcodeScan::create([
+                            'user_id'     => $userId,
+                            'product_id'  => $line['product_id'],
+                            'transfer_id' => $transfer->transfer_id,
+                            'barcode'     => $sn,
+                            'scan_mode'   => 'receive',
+                            'quantity'    => 1,
+                            'scanned_at'  => now(),
+                        ]);
+                    }
+                }
+
+                $transfer->details()->create([
+                    'product_id'           => $line['product_id'],
+                    'quantity_requested'   => $qty,
+                    'quantity_scanned'     => $qty,
+                    'quantity_transferred' => 0,
+                    'quantity_received'    => $qty,
+                ]);
+            }
+
+            $transfer = $this->dispatch($transfer->fresh('details'), $userId);
+            return $this->receive($transfer->fresh('details'), $userId);
+        });
+    }
+
     /** Undo a received-scan before confirmation (undoes the scan's recorded quantity). */
     public function removeReceiveScan(Transfer $ist, int $scanId): void
     {
