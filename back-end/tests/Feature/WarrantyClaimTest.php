@@ -55,4 +55,79 @@ class WarrantyClaimTest extends TestCase
         $this->assertSame($appliance['warranty']->warranty_id, $claim->warranty->warranty_id);
         $this->assertCount(1, $customer->fresh()->warrantyClaims);
     }
+
+    private function service(): \App\Services\WarrantyClaimService
+    {
+        return app(\App\Services\WarrantyClaimService::class);
+    }
+
+    public function test_init_claim_succeeds_for_active_warranty(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+
+        $claim = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'notes'        => 'Not cooling',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+
+        $this->assertSame('repair', $claim->claim_type);
+        $this->assertSame($appliance['warranty']->warranty_id, $claim->warranty_id);
+        $this->assertStringStartsWith('WC-', $claim->claim_number);
+        $pending = \App\Models\StatusLookup::where('status_category','warranty_claim')->where('status_name','Pending')->value('status_id');
+        $this->assertSame((int) $pending, (int) $claim->status_id);
+    }
+
+    public function test_init_claim_rejects_expired_warranty(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer, [
+            'warranty_end_date' => \Illuminate\Support\Carbon::today()->subDay()->toDateString(),
+            'status_id'         => 34,
+        ]);
+
+        $this->expectException(\App\Exceptions\WarrantyClaimException::class);
+        $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'replacement',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+    }
+
+    public function test_init_claim_rejects_already_claimed_warranty(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer, ['status_id' => 35]);
+
+        $this->expectException(\App\Exceptions\WarrantyClaimException::class);
+        $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+    }
+
+    public function test_init_claim_rejects_customer_mismatch(): void
+    {
+        $this->actingUser();
+        $owner    = $this->makeCustomer();
+        $other    = $this->makeCustomer(['customer_name' => 'Someone Else']);
+        $appliance = $this->makeAppliance($owner);
+
+        $this->expectException(\App\Exceptions\WarrantyClaimException::class);
+        $this->service()->initClaim([
+            'customer_id'  => $other->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+    }
 }
