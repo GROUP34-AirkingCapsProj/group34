@@ -46,6 +46,7 @@ const routePrefetchMap = {
   '/admin/profit-loss': () => import('../pages/ProfitLossManagement'),
   '/admin/issuance-scan': () => import('../pages/IssuanceScanPage'),
   '/admin/warranties': () => import('../pages/WarrantyManagement'),
+  '/admin/warranty-claims': () => import('../pages/WarrantyClaimPage'),
 };
 
 const prefetchedRoutes = new Set();
@@ -109,6 +110,7 @@ const adminMenuSections = [
       { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
       { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
       { name: 'Warranty Hub', path: '/admin/warranty', icon: 'warranty' },
+      { name: 'Warranty Claims', path: '/admin/warranty-claims', icon: 'warranty' },
       { name: 'Alerts & Notices', path: '/admin/alerts', icon: 'notifications' },
       { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
     ],
