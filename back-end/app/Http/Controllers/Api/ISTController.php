@@ -43,6 +43,20 @@ class ISTController extends Controller
         return in_array($role, ['admin', 'warehouse_personnel', 'inventory_analyst'], true);
     }
 
+    /** Returns a 403 JsonResponse if the caller may not act on this IST's destination, else null. */
+    private function ensureReceiveLocation(Request $request, Transfer $ist): ?\Illuminate\Http\JsonResponse
+    {
+        $user      = $request->user();
+        $role      = $user->role?->role_name ?? '';
+        $isAdmin   = in_array($role, ['admin', 'inventory_analyst'], true);
+        $userLocId = $user->enforced_location_id ?? $user->location_id;
+
+        if (!$isAdmin && $userLocId && (int) $userLocId !== (int) $ist->to_location_id) {
+            return $this->error('You are not authorized to receive items at this destination.', 403);
+        }
+        return null;
+    }
+
     /**
      * List all ISTs (transfer_request_id IS NOT NULL) for current user's location.
      */
@@ -307,15 +321,25 @@ class ISTController extends Controller
                 ->whereNotNull('transfer_request_id')
                 ->findOrFail($id);
 
-            $user      = $request->user();
-            $role      = $user->role?->role_name ?? '';
-            $isAdmin   = in_array($role, ['admin', 'inventory_analyst'], true);
-            $userLocId = $user->enforced_location_id ?? $user->location_id;
-            if (!$isAdmin && $userLocId && (int) $userLocId !== (int) $ist->to_location_id) {
-                return $this->error('You are not authorized to receive items at this destination.', 403);
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
             }
 
+            $user   = $request->user();
             $result = $service->receive($ist, $user->user_id);
+
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'ist_received',
+                    'table_name' => 'transfers',
+                    'record_id'  => $result->transfer_id,
+                    'old_values' => ['status' => 'In Transit'],
+                    'new_values' => ['status' => 'Received', 'total_quantity_received' => (int) $result->total_quantity_received],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) { report($e); }
 
             return $this->success([
                 'transfer_number'         => $result->transfer_number,
@@ -343,14 +367,11 @@ class ISTController extends Controller
 
             $ist = Transfer::whereNotNull('transfer_request_id')->findOrFail($transferId);
 
-            $user      = $request->user();
-            $role      = $user->role?->role_name ?? '';
-            $isAdmin   = in_array($role, ['admin', 'inventory_analyst'], true);
-            $userLocId = $user->enforced_location_id ?? $user->location_id;
-            if (!$isAdmin && $userLocId && (int) $userLocId !== (int) $ist->to_location_id) {
-                return $this->error('You are not authorized to receive items at this destination.', 403);
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
             }
 
+            $user   = $request->user();
             $result = $service->recordReceiveScan(
                 $ist,
                 $validated['barcode'],
@@ -376,6 +397,9 @@ class ISTController extends Controller
     {
         try {
             $ist = Transfer::whereNotNull('transfer_request_id')->findOrFail($transferId);
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
             $service->removeReceiveScan($ist, (int) $scanId);
             return $this->success(null, 'Receive scan removed');
         } catch (\RuntimeException $e) {
@@ -551,7 +575,20 @@ class ISTController extends Controller
                 ->whereNotNull('transfer_request_id')
                 ->findOrFail($transferId);
 
-            $result = $service->dispatch($ist);
+            $result = $service->dispatch($ist, $request->user()?->user_id);
+
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'ist_dispatched',
+                    'table_name' => 'transfers',
+                    'record_id'  => $result->transfer_id,
+                    'old_values' => ['status' => 'Approved'],
+                    'new_values' => ['status' => 'In Transit', 'total_quantity_transferred' => (int) $result->total_quantity_transferred],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) { report($e); }
 
             return $this->success([
                 'transfer_number'  => $result->transfer_number,
