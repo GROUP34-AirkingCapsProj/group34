@@ -18,10 +18,14 @@ abstract class TransferTestCase extends TestCase
 
     protected function statusId(string $name): int
     {
-        return (int) DB::table('status_lookup')
+        $id = DB::table('status_lookup')
             ->where('status_category', 'transfer')
             ->where('status_name', $name)
             ->value('status_id');
+        if ($id === null) {
+            throw new \RuntimeException("Unknown transfer status: {$name}");
+        }
+        return (int) $id;
     }
 
     protected function makeLocation(string $name): Location
@@ -35,13 +39,14 @@ abstract class TransferTestCase extends TestCase
 
     protected function makeUser(): User
     {
+        $roleId = (int) (\Illuminate\Support\Facades\DB::table('roles')->min('role_id') ?? 1);
         return User::create([
             'username'      => 'tester_' . uniqid(),
             'first_name'    => 'Test',
             'last_name'     => 'User',
             'email'         => uniqid() . '@example.test',
             'password_hash' => bcrypt('secret'),
-            'role_id'       => 1,
+            'role_id'       => $roleId,
         ]);
     }
 
@@ -100,7 +105,7 @@ abstract class TransferTestCase extends TestCase
             'to_location_id'      => $to,
             'transfer_number'     => 'TR-REQ-TEST-' . uniqid(),
             'transfer_date'       => now(),
-            'status_id'           => $this->statusId('Approved'),
+            'status_id'           => $this->statusId('Pending'),
         ]);
 
         $ist = Transfer::create([
