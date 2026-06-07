@@ -96,7 +96,7 @@ class TransferRequestController extends Controller
                 'transfer_request_id'        => null,
                 'from_location_id'           => $validated['from_location_id'],
                 'to_location_id'             => $validated['to_location_id'],
-                'transfer_number'            => 'TR-REQ-PENDING-' . uniqid(),
+                'transfer_number'            => 'TR-REQ-PENDING-' . uniqid('', true),
                 'transfer_date'              => $validated['transfer_date'],
                 'requested_by'               => $user->user_id,
                 'status_id'                  => $pendingId,
