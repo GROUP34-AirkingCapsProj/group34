@@ -339,4 +339,51 @@ class WarrantyClaimTest extends TestCase
         $this->expectException(\App\Exceptions\WarrantyClaimException::class);
         $this->service()->completeClaim($claim->fresh());
     }
+
+    public function test_http_full_repair_flow(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+        $part = $this->makeConsumable($locationId, 30);
+
+        $init = $this->postJson('/api/warranty-claims/init', [
+            'customer_id'   => $customer->customer_id,
+            'serial_number' => $appliance['serial'],
+            'claim_type'    => 'repair',
+            'notes'         => 'Compressor noise',
+            'location_id'   => $locationId,
+        ])->assertStatus(201)->json();
+
+        $claimId = $init['data']['claim_id'] ?? $init['claim_id'];
+
+        $this->postJson("/api/warranty-claims/{$claimId}/item", [
+            'barcode'  => $part->barcode ?: $part->product_code,
+            'quantity' => 1,
+        ])->assertOk();
+
+        $this->postJson("/api/warranty-claims/{$claimId}/complete")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(35, (int) $appliance['warranty']->fresh()->status_id);
+    }
+
+    public function test_http_init_rejects_expired_with_422(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer, [
+            'warranty_end_date' => \Illuminate\Support\Carbon::today()->subDay()->toDateString(),
+            'status_id'         => 34,
+        ]);
+
+        $this->postJson('/api/warranty-claims/init', [
+            'customer_id'   => $customer->customer_id,
+            'serial_number' => $appliance['serial'],
+            'claim_type'    => 'repair',
+            'location_id'   => $appliance['location']->location_id,
+        ])->assertStatus(422);
+    }
 }

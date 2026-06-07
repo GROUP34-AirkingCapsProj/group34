@@ -428,6 +428,22 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | Warranty Claims (repair / replacement)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')
+         ->prefix('warranty-claims')
+         ->group(function () {
+             Route::get('/',                    [\App\Http\Controllers\Api\WarrantyClaimController::class, 'index']);
+             Route::post('/init',               [\App\Http\Controllers\Api\WarrantyClaimController::class, 'init']);
+             Route::get('/{claimId}',           [\App\Http\Controllers\Api\WarrantyClaimController::class, 'show']);
+             Route::post('/{claimId}/item',     [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addItem']);
+             Route::delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
+             Route::post('/{claimId}/complete', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'complete']);
+         });
+
+    /*
+    |--------------------------------------------------------------------------
     | Issuance Scan (barcode-driven issuance flow)
     |--------------------------------------------------------------------------
     */
