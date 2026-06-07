@@ -65,10 +65,10 @@ The single transfer lifecycle:
 ```
 REQUEST                 APPROVE/REJECT          IST (fulfill)              RECEIVE
 ─────────               ──────────────          ────────────              ───────
-Requester creates  →    Admin/IA reviews   →    Admin/IA creates IST  →   Dest confirms
-transfer request        (sees source stock)     from approved request     receipt (single
-(Pending)               → Approved / Rejected    Source scans/enters       action) → Received
-                                                  barcodes → dispatch
+Requester creates  →    Admin/IA reviews   →    Admin/IA creates IST  →   Dest scans/enters
+transfer request        (sees source stock)     from approved request     each unit, confirms
+(Pending)               → Approved / Rejected    Source scans/enters       → Received +
+                                                  barcodes → dispatch       receipt generated
                                                   (In Transit)
 ```
 
@@ -129,18 +129,58 @@ Per line, **shipped = `quantity_scanned`** (this is the auto-close:
 - `total_quantity_transferred <- Σ shipped`; status -> `In Transit`.
 - Insufficient stock under the row lock -> `422` (`"Only N available at source"`).
 
-### `receive(Transfer $ist, array $lines): Transfer` — In Transit → Received
+### Receive is a scan/manual verification step (mirrors dispatch)
+
+Receiving is not a blind quantity confirm. The destination user records **each
+arriving unit** by scanning its barcode or manually entering it, so the goods
+movement is verified and audited at both ends. This mirrors the source-side
+scan workflow.
+
+**`receiveScan(Transfer $ist, array $input)` / `removeReceiveScan(...)`** — the
+build-up loop, parallel to the source-side `ISTController::scan`/`removeScan`:
+
+- Guard: status is `In Transit`; caller's location = `to_location_id` (unless
+  admin/IA).
+- Each scan/manual entry writes a `barcode_scans` row (`scan_mode = 'receive'`,
+  `transfer_id` set) and increments a per-line received counter.
+- **Serialized appliances:** the scanned serial must match an in-transit serial
+  of *this* transfer; otherwise `422` (`"This serial is not part of this
+  shipment"`). Duplicate-scan guard, same as dispatch.
+- **Non-serialized:** manual/scan entry increments the line's received count, up
+  to the shipped quantity.
+- `removeReceiveScan` undoes a mistaken entry before confirmation.
+- Scan progress is restorable across refreshes (reuse the `scanStatus` pattern,
+  filtered to `scan_mode = 'receive'`).
+
+### `receive(Transfer $ist): Transfer` — In Transit → Received (confirm)
 
 Guard: status is `In Transit`; caller's location = `to_location_id` (unless
-admin/IA). Single action.
+admin/IA). Single confirm action that finalizes whatever was scanned/entered.
 
-- Default `received = shipped`. Non-serialized lines may record a lower
-  `received` (damage/loss); any shipped≠received gap is written to tracking +
-  audit, and the IST still closes.
+- `received` per line = the count recorded in the receive-scan loop. Any
+  shipped≠received gap (damage/loss, or serials not arriving) is written to
+  tracking + audit, and the IST still closes.
 - **Destination inventory** incremented by `received` on both columns.
-- **Serialized appliances:** the transfer's in-transit serials become
-  `serial_type -> 'active'`, `location_id -> to_location_id`.
+- **Serialized appliances:** the matched in-transit serials become
+  `serial_type -> 'active'`, `location_id -> to_location_id`. Serials shipped but
+  never scanned at receipt stay flagged (not silently activated) and are listed
+  as a discrepancy.
 - `total_quantity_received <- Σ received`; status -> `Received`.
+- On success, a **receipt is generated** (see below).
+
+### Receipt on confirm
+
+Confirming receipt generates a receipt (JSON for screen + PDF download), reusing
+the existing `ISTController::receipt` / `receiptPdf` and the `ist.receipt` view.
+It shows:
+
+- Transfer/IST number, source and destination locations.
+- **When:** received date/time (and dispatch date/time).
+- **Who:** received-by user, and prepared/dispatched-by user.
+- **What:** each product with quantity requested, shipped, and received, plus the
+  serial numbers received for serialized items.
+- Any discrepancies (shipped≠received, or unscanned serials), called out
+  explicitly.
 
 ### `reverse(Transfer $ist): void` — state-aware undo
 
@@ -238,15 +278,16 @@ deleted; the override is a thin caller of `TransferService`.
   from the direct `/transfers` write routes. Normal users only see the
   request → IST flow.
 - **Behavior:** one express action that creates a transfer flagged as an admin
-  override at status `Approved`, sets each line's `quantity_scanned` to the
-  chosen quantity (the override substitutes for the scan step), then runs
-  `dispatch()` immediately followed by `receive()` — the exact same correct
-  movements, without the request/approval gate. No second stock-math path.
-  Because the serials are not physically scanned in this path, the override is
-  restricted to non-serialized products, or requires the admin to enter the
-  specific serial numbers per line so `dispatch()` can flip the correct
-  `item_serial` rows; serialized transfers without entered serials are rejected
-  with a `422`.
+  override at status `Approved`, then substitutes for both scan loops — it sets
+  each line's `quantity_scanned` (source) and received count (destination) to the
+  chosen quantity — and runs `dispatch()` immediately followed by `receive()`.
+  The exact same correct movements run, without the request/approval gate or the
+  manual scan steps. No second stock-math path. Because the serials are not
+  physically scanned in this path, the override is restricted to non-serialized
+  products, or requires the admin to enter the specific serial numbers per line
+  so `dispatch()`/`receive()` flip the correct `item_serial` rows; serialized
+  transfers without entered serials are rejected with a `422`. A receipt is still
+  generated on completion.
 - **Audit:** `AuditTrail` action `admin_direct_transfer`, plus tracking rows, so
   an override is distinguishable from a normal IST in history.
 - **Corrections/cancellations:** go through `TransferService::reverse()`, not the
@@ -288,10 +329,15 @@ pointed at it, wrapped in `DatabaseTransactions`. New statuses resolved by name.
   to destination.
 - Partial dispatch: 5 requested, 3 scanned -> 3 shipped, source −3, remainder
   auto-closed, status `In Transit`.
-- `receive` increments destination on both columns and moves serials to `active`
-  at destination.
-- Shipped≠received gap (non-serialized) records the discrepancy and still closes
-  `Received`.
+- `receiveScan` records a `barcode_scans` row (`scan_mode = 'receive'`), matches
+  serialized scans against this transfer's in-transit serials, and rejects a
+  serial not on the shipment; `removeReceiveScan` undoes it.
+- `receive` (confirm) increments destination on both columns and moves only the
+  scanned/matched serials to `active` at destination.
+- Shipped≠received gap (non-serialized short, or a dispatched serial never
+  scanned at receipt) records the discrepancy and still closes `Received`.
+- Receipt payload includes products (requested/shipped/received), received
+  serials, received-by, dispatched-by, and both timestamps.
 - `reverse` from `In Transit` and from `Received` each restore inventory +
   serials correctly.
 - Round-trip invariant: request -> approve -> IST -> dispatch -> receive leaves
