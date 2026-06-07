@@ -224,4 +224,50 @@ class WarrantyClaimTest extends TestCase
         $this->expectException(\App\Exceptions\WarrantyClaimException::class);
         $this->service()->addItem($claim->fresh(), ['barcode' => $r2['serial']]);
     }
+
+    public function test_remove_repair_part_restores_stock(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $locationId = $appliance['location']->location_id;
+        $part = $this->makeConsumable($locationId, 100);
+
+        $claim  = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'repair',
+            'location_id'  => $locationId,
+        ]);
+        $detail = $this->service()->addItem($claim, ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 4]);
+
+        $this->service()->removeItem($claim->fresh(), $detail->claim_detail_id);
+
+        $this->assertDatabaseHas('inventory', [
+            'product_id' => $part->product_id, 'location_id' => $locationId, 'quantity_on_hand' => 100,
+        ]);
+        $this->assertDatabaseMissing('warranty_claim_details', ['claim_detail_id' => $detail->claim_detail_id]);
+    }
+
+    public function test_remove_replacement_unit_restores_serial(): void
+    {
+        $this->actingUser();
+        $customer  = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $replacement = $this->makeAppliance($customer);
+
+        $claim  = $this->service()->initClaim([
+            'customer_id'  => $customer->customer_id,
+            'serial_number'=> $appliance['serial'],
+            'claim_type'   => 'replacement',
+            'location_id'  => $appliance['location']->location_id,
+        ]);
+        $detail = $this->service()->addItem($claim, ['barcode' => $replacement['serial']]);
+
+        $this->service()->removeItem($claim->fresh(), $detail->claim_detail_id);
+
+        $this->assertDatabaseHas('item_serial', [
+            'serial_number' => $replacement['serial'], 'status_id' => 26,
+        ]);
+    }
 }
