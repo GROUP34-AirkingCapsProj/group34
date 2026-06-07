@@ -27,8 +27,10 @@ class TransferDetail extends Model
     ];
 
     protected $casts = [
+        'quantity_requested'   => 'integer',
         'quantity_transferred' => 'integer',
-        'quantity_received' => 'integer',
+        'quantity_scanned'     => 'integer',
+        'quantity_received'    => 'integer',
     ];
 
     public function transfer(): BelongsTo
