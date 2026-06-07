@@ -126,4 +126,36 @@ class TransferFlowTest extends TransferTestCase
         $resp->assertOk()
             ->assertJsonStructure(['data' => ['awaiting_fulfillment', 'awaiting_receipt']]);
     }
+
+    public function test_awaiting_counts_are_location_scoped(): void
+    {
+        $whA  = $this->makeLocation('WH-A');
+        $whB  = $this->makeLocation('WH-B');
+        $dest = $this->makeLocation('SR-DEST');
+        $prod = $this->makeConsumable();
+        $this->setStock($whA->location_id, $prod->product_id, 10);
+        $this->setStock($whB->location_id, $prod->product_id, 10);
+
+        // Approved IST sourced from WH-A (to fulfill at WH-A)
+        $this->makeApprovedIst($whA->location_id, $dest->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 2, 'quantity_scanned' => 0],
+        ]);
+        // Approved IST sourced from WH-B (should NOT count for a WH-A user)
+        $this->makeApprovedIst($whB->location_id, $dest->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 2, 'quantity_scanned' => 0],
+        ]);
+
+        // A non-admin warehouse user assigned to WH-A
+        $user     = $this->makeUser();
+        $whRoleId = \Illuminate\Support\Facades\DB::table('roles')->where('role_name', 'warehouse_personnel')->value('role_id');
+        if ($whRoleId) {
+            $user->role_id = $whRoleId;
+        }
+        $user->location_id = $whA->location_id;
+        $user->save();
+
+        $resp = $this->actingAs($user, 'sanctum')->getJson('/api/dashboard/stats');
+        $resp->assertOk();
+        $this->assertSame(1, (int) $resp->json('data.awaiting_fulfillment'));
+    }
 }

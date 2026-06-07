@@ -337,6 +337,10 @@ class DashboardController extends Controller
         $isAdmin = in_array($role, ['admin', 'inventory_analyst'], true);
         $locId   = $user?->enforced_location_id ?? $user?->location_id;
 
+        if (!$isAdmin && !$locId) {
+            return ['fulfillment' => 0, 'receipt' => 0];
+        }
+
         $fulfillment = Transfer::whereNotNull('transfer_request_id')
             ->whereHas('status', fn ($q) => $q->where('status_name', 'Approved')->where('status_category', 'transfer'))
             ->when(!$isAdmin && $locId, fn ($q) => $q->where('from_location_id', $locId))
