@@ -22,6 +22,7 @@ class WarrantyClaim extends Model
     protected $casts = [
         'parts_cost'   => 'decimal:2',
         'completed_at' => 'datetime',
+        'status_id'    => 'integer',
     ];
 
     public function details()

@@ -98,7 +98,7 @@ class WarrantyClaimService
         $candidates = $this->barcodeLookupCandidates($raw);
 
         if ($claim->claim_type === 'replacement') {
-            return $this->addReplacementUnit($claim, $locationId, $raw, $candidates);
+            return $this->addReplacementUnit($claim, $locationId, $candidates);
         }
         return $this->addRepairPart($claim, $locationId, $candidates, (float) ($data['quantity'] ?? 1));
     }
@@ -149,27 +149,30 @@ class WarrantyClaimService
         });
     }
 
-    private function addReplacementUnit(WarrantyClaim $claim, int $locationId, string $raw, array $candidates): WarrantyClaimDetail
+    private function addReplacementUnit(WarrantyClaim $claim, int $locationId, array $candidates): WarrantyClaimDetail
     {
         if ($claim->details()->exists()) {
             throw new WarrantyClaimException('A replacement claim can only include one unit.');
         }
 
-        $serial = null;
-        foreach ($candidates as $candidate) {
-            $serial = ItemSerial::where('location_id', $locationId)
-                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($candidate)])
-                ->where('status_id', self::STATUS_SERIAL_IN_STOCK)
-                ->first();
-            if ($serial) break;
-        }
-        if (! $serial) {
-            throw new WarrantyClaimException('Replacement unit not found in stock at this location. Scan a unit serial.');
-        }
+        // Look up + lock the in-stock serial INSIDE the transaction so two
+        // concurrent replacement claims can't both consume the same unit.
+        return DB::transaction(function () use ($claim, $locationId, $candidates) {
+            $serial = null;
+            foreach ($candidates as $candidate) {
+                $serial = ItemSerial::where('location_id', $locationId)
+                    ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($candidate)])
+                    ->where('status_id', self::STATUS_SERIAL_IN_STOCK)
+                    ->lockForUpdate()
+                    ->first();
+                if ($serial) break;
+            }
+            if (! $serial) {
+                throw new WarrantyClaimException('Replacement unit not found in stock at this location. Scan a unit serial.');
+            }
 
-        $product = Product::find($serial->product_id);
+            $product = Product::find($serial->product_id);
 
-        return DB::transaction(function () use ($claim, $product, $serial, $locationId, $raw) {
             $inv = Inventory::where('product_id', $product->product_id)
                 ->where('location_id', $locationId)->lockForUpdate()->first();
             if (! $inv || $inv->quantity_on_hand < 1) {
@@ -179,12 +182,13 @@ class WarrantyClaimService
             $inv->available_quantity = max(0, $inv->available_quantity - 1);
             $inv->save();
 
+            $canonicalSerial = $serial->serial_number;
             $serial->delete();
 
             $unitCost = (float) ($product->cost_price ?? 0);
             $detail = $claim->details()->create([
                 'product_id'         => $product->product_id,
-                'serial_number'      => $raw,
+                'serial_number'      => $canonicalSerial,
                 'quantity_issued'    => 1,
                 'quantity_in_pieces' => 1,
                 'quantity_unit'      => 'unit',

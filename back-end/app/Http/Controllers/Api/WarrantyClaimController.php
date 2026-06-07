@@ -73,7 +73,7 @@ class WarrantyClaimController extends Controller
         try {
             $validated = $request->validate([
                 'barcode'  => 'required|string|max:191',
-                'quantity' => 'nullable|numeric|min:0.001',
+                'quantity' => 'nullable|integer|min:1',
             ]);
             $claim = WarrantyClaim::findOrFail($claimId);
             $this->service->addItem($claim, $validated);

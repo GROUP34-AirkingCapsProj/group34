@@ -27,6 +27,7 @@ class WarrantyRecord extends Model
         'warranty_end_date'      => 'date',
         'claim_date'             => 'date',
         'warranty_period_months' => 'integer',
+        'status_id'              => 'integer',
     ];
 
     protected $appends = ['days_remaining', 'is_expired'];
