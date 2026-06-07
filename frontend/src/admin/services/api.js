@@ -715,10 +715,12 @@ export const istAPI = {
   scan:            async (id, data)   => apiRequest(`/ist/${id}/scan`, { method: 'POST', body: JSON.stringify(data) }),
   removeScan:      async (id, scanId) => apiRequest(`/ist/${id}/scan/${scanId}`, { method: 'DELETE' }),
   confirmDispatch: async (id)         => apiRequest(`/ist/${id}/confirm-dispatch`, { method: 'POST' }),
-  receiveForm:     async (id)         => apiRequest(`/ist/${id}/receive`),
-  receive:         async (id, data)   => apiRequest(`/ist/${id}/receive`, { method: 'POST', body: JSON.stringify(data) }),
-  receipt:         async (id)         => apiRequest(`/ist/${id}/receipt`),
-  receiptPdfUrl:   (id)               => `${getApiBaseUrl()}/ist/${id}/receipt/pdf`,
+  receiveForm:       async (id)         => apiRequest(`/ist/${id}/receive`),
+  receive:           async (id, data)   => apiRequest(`/ist/${id}/receive`, { method: 'POST', body: JSON.stringify(data) }),
+  receiveScan:       async (id, data)   => apiRequest(`/ist/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data) }),
+  removeReceiveScan: async (id, scanId) => apiRequest(`/ist/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
+  receipt:           async (id)         => apiRequest(`/ist/${id}/receipt`),
+  receiptPdfUrl:     (id)               => `${getApiBaseUrl()}/ist/${id}/receipt/pdf`,
 };
 
 /* ======================
