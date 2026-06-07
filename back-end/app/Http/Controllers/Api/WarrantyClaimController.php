@@ -123,6 +123,56 @@ class WarrantyClaimController extends Controller
         return $asArray ? $payload : $this->success($payload, 'Claim retrieved');
     }
 
+    public function downloadSlip(int $claimId)
+    {
+        $claim = WarrantyClaim::with([
+            'details.product', 'customer', 'location', 'status', 'warranty',
+        ])->find($claimId);
+
+        if (! $claim) {
+            return $this->notFound('Claim not found');
+        }
+
+        $filename = "{$claim->claim_number}.csv";
+        $headers  = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($claim) {
+            $h = fopen('php://output', 'w');
+            fputcsv($h, ['WARRANTY CLAIM SLIP']);
+            fputcsv($h, ['Claim Number', $claim->claim_number]);
+            fputcsv($h, ['Type',         ucfirst($claim->claim_type)]);
+            fputcsv($h, ['Status',       $claim->status?->status_name ?? '']);
+            fputcsv($h, ['Date',         $claim->completed_at?->toDateString() ?? $claim->created_at?->toDateString()]);
+            fputcsv($h, ['Location',     $claim->location?->location_name ?? '']);
+            fputcsv($h, []);
+            fputcsv($h, ['Customer',      $claim->customer?->customer_name ?? '']);
+            fputcsv($h, ['Contact',       $claim->customer?->contact_number ?? '']);
+            fputcsv($h, ['Claimed Serial',$claim->serial_number ?? '']);
+            fputcsv($h, ['Problem/Notes', $claim->notes ?? '']);
+            fputcsv($h, []);
+            fputcsv($h, ['#', 'Product Code', 'Product Name', 'Serial', 'Qty', 'Unit', 'Cost']);
+            foreach ($claim->details as $i => $d) {
+                fputcsv($h, [
+                    $i + 1,
+                    $d->product?->product_code ?? '',
+                    $d->product?->product_name ?? '',
+                    $d->serial_number ?? '',
+                    $d->quantity_issued,
+                    $d->quantity_unit ?? '',
+                    number_format($d->line_cost, 2),
+                ]);
+            }
+            fputcsv($h, []);
+            fputcsv($h, ['Total Parts Cost (internal)', number_format($claim->parts_cost, 2)]);
+            fclose($h);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
     private function format(WarrantyClaim $c): array
     {
         return [
