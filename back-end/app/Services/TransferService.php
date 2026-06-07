@@ -58,13 +58,13 @@ class TransferService
      * The header row is locked inside the transaction so concurrent dispatches
      * serialize and the second caller aborts on the re-checked status.
      */
-    public function dispatch(Transfer $ist): Transfer
+    public function dispatch(Transfer $ist, ?int $userId = null): Transfer
     {
         if ((int) $ist->status_id !== $this->statusId('Approved')) {
             throw new RuntimeException('Only an approved IST can be dispatched.');
         }
 
-        return DB::transaction(function () use ($ist) {
+        return DB::transaction(function () use ($ist, $userId) {
             $locked = Transfer::where('transfer_id', $ist->transfer_id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -116,6 +116,16 @@ class TransferService
             $locked->status_id = $this->statusId('In Transit');
             $locked->total_quantity_transferred = $totalShipped;
             $locked->save();
+
+            if ($userId !== null) {
+                TblTransferTracking::create([
+                    'transfer_id' => $locked->transfer_id,
+                    'location_id' => $locked->from_location_id,
+                    'status_note' => "Items dispatched — {$totalShipped} unit(s)",
+                    'recorded_by' => $userId,
+                    'recorded_at' => now(),
+                ]);
+            }
 
             return $locked->fresh('details');
         });
