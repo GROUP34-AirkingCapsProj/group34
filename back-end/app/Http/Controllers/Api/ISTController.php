@@ -641,10 +641,12 @@ class ISTController extends Controller
         try {
             $receivedId = $this->statusId('Received');
 
-            $ist = Transfer::with(array_merge(self::WITH_RELATIONS, ['receivedBy']))
-                ->whereNotNull('transfer_request_id')
-                ->where('status_id', $receivedId)
-                ->findOrFail($id);
+            $ist = Transfer::with(array_merge(self::WITH_RELATIONS, [
+                'receivedBy',
+                'transferTracking.recordedBy',
+            ]))->whereNotNull('transfer_request_id')
+               ->where('status_id', $receivedId)
+               ->findOrFail($id);
 
             $serials = \App\Models\ItemSerial::where('transfer_id', $id)
                 ->select('product_id', 'serial_number')
