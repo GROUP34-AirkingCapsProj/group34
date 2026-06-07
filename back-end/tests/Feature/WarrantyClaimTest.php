@@ -412,6 +412,17 @@ class WarrantyClaimTest extends TestCase
         $this->assertSame('repair', $data['warranty_claims'][0]['claim_type']);
     }
 
+    public function test_issuance_scan_rejects_warranty_type(): void
+    {
+        $this->actingUser();
+        $customer = $this->makeCustomer();
+
+        $this->postJson('/api/issuance-scan/init', [
+            'customer_id'   => $customer->customer_id,
+            'issuance_type' => 'warranty',
+        ])->assertStatus(422);
+    }
+
     public function test_claim_slip_downloads_csv(): void
     {
         $this->actingUser();
