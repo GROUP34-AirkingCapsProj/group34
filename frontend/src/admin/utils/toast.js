@@ -36,6 +36,8 @@ const fire = (icon, title, subtitle, timer) => {
   Toast.fire(options);
 };
 
+// Timers are bumped from the 1500ms mixin default to 2500ms so the
+// title + subtitle stay on screen long enough to read; warnings linger longer.
 export const toast = {
   success: (title, subtitle) => fire('success', title, subtitle, 2500),
   error:   (title, subtitle) => fire('error', title, subtitle, 2500),
