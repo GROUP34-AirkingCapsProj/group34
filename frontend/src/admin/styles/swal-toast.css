@@ -57,3 +57,36 @@
   margin-top: 2px;
   line-height: 1.3;
 }
+
+/* ── Confirm dialog (shared confirm.js) ── */
+.swal2-popup.swal-confirm {
+  border-radius: 0.75rem !important;
+  padding: 1.5rem !important;
+}
+.swal-confirm-title { font-size: 1.125rem !important; color: #111827 !important; }
+.swal-confirm-text  { font-size: 0.875rem !important; color: #4b5563 !important; }
+.swal-confirm-actions { gap: 0.5rem !important; }
+.swal-confirm-btn {
+  border: none !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 1.25rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  cursor: pointer !important;
+}
+.swal-confirm-btn.swal-confirm-danger  { background: #dc2626 !important; }
+.swal-confirm-btn.swal-confirm-primary { background: #2563eb !important; }
+.swal-cancel-btn {
+  border: 1px solid #d1d5db !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 1.25rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  background: #fff !important;
+  color: #374151 !important;
+  cursor: pointer !important;
+}
+.swal-confirm-input {
+  font-size: 0.875rem !important;
+}
