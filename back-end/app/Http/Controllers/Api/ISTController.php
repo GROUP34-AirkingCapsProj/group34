@@ -360,7 +360,7 @@ class ISTController extends Controller
         try {
             $validated = $request->validate([
                 'barcode'            => 'required|string|max:255',
-                'transfer_detail_id' => 'required|integer',
+                'transfer_detail_id' => 'sometimes|nullable|integer',
                 'quantity'           => 'sometimes|integer|min:1',
             ]);
 
@@ -374,7 +374,7 @@ class ISTController extends Controller
             $result = $service->recordReceiveScan(
                 $ist,
                 $validated['barcode'],
-                (int) $validated['transfer_detail_id'],
+                $validated['transfer_detail_id'] ?? null,
                 $user->user_id,
                 (int) ($validated['quantity'] ?? 1)
             );
