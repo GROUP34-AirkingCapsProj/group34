@@ -9,6 +9,8 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
+import { confirmAction } from '../utils/confirm';
+import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
@@ -130,15 +132,12 @@ const BudgetManagementPage = () => {
   const [form,         setForm]         = useState(emptyForm);
   const [formErrors,   setFormErrors]   = useState({});
   const [submitting,   setSubmitting]   = useState(false);
-  const [createSuccess,setCreateSuccess]= useState('');
-  const [createError,  setCreateError]  = useState('');
 
   // Edit modal
   const [editBudget,   setEditBudget]   = useState(null); // budget object
   const [editForm,     setEditForm]     = useState({});
   const [editErrors,   setEditErrors]   = useState({});
   const [editSaving,   setEditSaving]   = useState(false);
-  const [editError,    setEditError]    = useState('');
 
 
   // ── Load budgets ────────────────────────────────────────────────────────────
@@ -206,8 +205,8 @@ const BudgetManagementPage = () => {
     const errs = validateForm(form);
     setFormErrors(errs);
     if (Object.keys(errs).length) return;
+    if (!(await confirmAction({ title: 'Create this budget allocation?', confirmText: 'Create', tone: 'primary' }))) return;
     setSubmitting(true);
-    setCreateError('');
     try {
       const payload = {
         location_id:  Number(form.location_id),
@@ -219,8 +218,7 @@ const BudgetManagementPage = () => {
         ...(form.notes?.trim() ? { notes: form.notes.trim() } : {}),
       };
       await budgetAllocationsAPI.create(payload);
-      const loc = locations.find(l => String(l.location_id) === String(form.location_id));
-      setCreateSuccess(`Budget created for ${loc?.location_name || 'location'}!`);
+      toast.success('Budget created');
       setForm(emptyForm());
       setFormErrors({});
       await loadBudgets();
@@ -229,11 +227,11 @@ const BudgetManagementPage = () => {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to create budget.';
-      setCreateError(msg);
+      toast.error("Couldn't create budget", msg);
     } finally {
       setSubmitting(false);
     }
-  }, [form, locations, loadBudgets]);
+  }, [form, loadBudgets]);
 
   // ── Edit open ────────────────────────────────────────────────────────────────
   const openEdit = useCallback((b) => {
@@ -248,7 +246,6 @@ const BudgetManagementPage = () => {
       notes:        b.notes || '',
     });
     setEditErrors({});
-    setEditError('');
   }, []);
 
   // ── Edit save ────────────────────────────────────────────────────────────────
@@ -262,8 +259,8 @@ const BudgetManagementPage = () => {
     }
     setEditErrors(errs);
     if (Object.keys(errs).length) return;
+    if (!(await confirmAction({ title: 'Save changes to this budget?', confirmText: 'Save', tone: 'primary' }))) return;
     setEditSaving(true);
-    setEditError('');
     try {
       const payload = {
         period_label: editForm.period_label.trim(),
@@ -276,11 +273,12 @@ const BudgetManagementPage = () => {
       await budgetAllocationsAPI.update(editBudget.budget_id, payload);
       setEditBudget(null);
       await loadBudgets();
+      toast.success('Budget updated');
     } catch (err) {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to update budget.';
-      setEditError(msg);
+      toast.error("Couldn't save budget", msg);
     } finally {
       setEditSaving(false);
     }
@@ -291,8 +289,9 @@ const BudgetManagementPage = () => {
     try {
       await budgetAllocationsAPI.delete(budgetId);
       await loadBudgets();
+      toast.success('Budget archived');
     } catch (err) {
-      alert(err?.message || 'Failed to delete budget.');
+      toast.error("Couldn't archive budget", err?.message || 'Failed to delete budget.');
     }
   }, [loadBudgets]);
 
@@ -659,10 +658,6 @@ const BudgetManagementPage = () => {
 
       {renderPreview()}
 
-      {createError && (
-        <div className="po-submit-error" style={{ marginTop: 14 }}>{createError}</div>
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
         <button
           type="button"
@@ -701,16 +696,6 @@ const BudgetManagementPage = () => {
   return (
     <AdminLayout>
       <div className="po-recommendation-page">
-        {/* Success banner */}
-        {createSuccess && (
-          <div className="po-success-banner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            {createSuccess}
-            <button type="button" className="po-success-close" onClick={() => setCreateSuccess('')}>✕</button>
-          </div>
-        )}
 
         {/* Page header */}
         <div className="po-creator-header-card">
@@ -767,10 +752,6 @@ const BudgetManagementPage = () => {
         {editBudget && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
             {renderFormFields(editForm, setEF, editErrors, true)}
-
-            {editError && (
-              <div className="po-submit-error">{editError}</div>
-            )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8 }}>
               <button
