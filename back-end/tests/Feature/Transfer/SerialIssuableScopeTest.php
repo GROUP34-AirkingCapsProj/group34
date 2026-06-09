@@ -15,7 +15,7 @@ class SerialIssuableScopeTest extends TransferTestCase
             'location_id'   => $loc->location_id,
             'serial_number' => 'SN-OK',
             'serial_type'   => 'received',
-            'status_id'     => 26, // inventory: In Stock
+            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID, // inventory: In Stock
         ]);
 
         $found = ItemSerial::issuableAt($loc->location_id, 'SN-OK')->first();
@@ -31,7 +31,7 @@ class SerialIssuableScopeTest extends TransferTestCase
             'location_id'   => $loc->location_id,
             'serial_number' => 'SN-INTRANSIT',
             'serial_type'   => 'transferred', // dispatched, not yet received
-            'status_id'     => 26,
+            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
         ]);
 
         $found = ItemSerial::issuableAt($loc->location_id, 'SN-INTRANSIT')->first();

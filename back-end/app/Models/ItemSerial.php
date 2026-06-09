@@ -11,6 +11,9 @@ class ItemSerial extends Model
 {
     use Auditable;
     protected $table = 'item_serial';
+
+    /** Inventory status_id for "In Stock" (status_lookup category 'inventory'). */
+    public const IN_STOCK_STATUS_ID = 26;
     protected $primaryKey = 'serial_id';
 
     protected $fillable = [
@@ -65,7 +68,7 @@ class ItemSerial extends Model
         return $query
             ->where('location_id', $locationId)
             ->where('serial_type', 'received')
-            ->where('status_id', 26)
+            ->where('status_id', self::IN_STOCK_STATUS_ID)
             ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($serialNumber))]);
     }
 }
