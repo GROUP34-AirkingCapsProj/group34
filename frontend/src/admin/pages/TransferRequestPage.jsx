@@ -473,8 +473,8 @@ const TransferRequestPage = () => {
                     <button type="button" className="po-status-view-btn" onClick={() => openDetail(r)}>
                       REVIEW &amp; APPROVE
                     </button>
-                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(r.transfer_id)}>
-                      REJECT
+                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(r.transfer_id)} disabled={actionLoading[r.transfer_id] === 'rejecting'}>
+                      {actionLoading[r.transfer_id] === 'rejecting' ? 'REJECTING…' : 'REJECT'}
                     </button>
                   </div>
                 </div>
