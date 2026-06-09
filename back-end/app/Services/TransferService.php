@@ -13,6 +13,8 @@ use RuntimeException;
 
 class TransferService
 {
+    use \App\Traits\NormalizesBarcode;
+
     private function statusId(string $name): int
     {
         $id = DB::table('status_lookup')
@@ -421,6 +423,148 @@ class TransferService
 
             $transfer = $this->dispatch($transfer->fresh('details'), $userId);
             return $this->receive($transfer->fresh('details'), $userId);
+        });
+    }
+
+    /**
+     * Resolve a scanned barcode to a line on this Approved IST and record one
+     * dispatch scan, enforcing integrity gates:
+     *  - serialized: the serial must be at from_location, in stock
+     *    (serial_type='received'), free of another transfer, and belong to a
+     *    product on this IST (which also auto-routes it to the line).
+     *  - consumable: barcode resolves to a product that is on this IST.
+     * Duplicate barcodes on this IST are rejected. Returns the resolved line +
+     * running totals. $transferDetailId may be passed by the manual per-line UI;
+     * when null it is resolved here.
+     */
+    public function recordDispatchScan(Transfer $ist, string $barcode, ?int $transferDetailId, int $userId, int $qty = 1): array
+    {
+        if ((int) $ist->status_id !== $this->statusId('Approved')) {
+            throw new RuntimeException('Only an approved IST can be scanned for dispatch.');
+        }
+
+        return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty) {
+            $ist->loadMissing('details.product');
+            $code = trim($barcode);
+            if ($code === '') {
+                throw new RuntimeException('Enter a barcode or serial number.');
+            }
+
+            // Duplicate guard (same barcode already scanned on this IST).
+            $dupe = BarcodeScan::where('transfer_id', $ist->transfer_id)
+                ->where('barcode', $code)
+                ->exists();
+            if ($dupe) {
+                throw new RuntimeException("Barcode '{$code}' has already been scanned for this IST.");
+            }
+
+            // Resolve which serial (if any) this code is, and which line it belongs to.
+            $serial = ItemSerial::whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($code)])->first();
+
+            if ($serial) {
+                // Serialized path.
+                $detail = $ist->details->firstWhere('product_id', $serial->product_id);
+                if (!$detail) {
+                    throw new RuntimeException('This serial is not part of this transfer.');
+                }
+                if ((int) $serial->location_id !== (int) $ist->from_location_id) {
+                    throw new RuntimeException('This serial is not in stock at the source location.');
+                }
+                if ($serial->serial_type !== 'received') {
+                    throw new RuntimeException('This serial has already been shipped out.');
+                }
+                if ($serial->transfer_id !== null && (int) $serial->transfer_id !== (int) $ist->transfer_id) {
+                    throw new RuntimeException('This serial is committed to another transfer.');
+                }
+                $step = 1;
+            } else {
+                // Consumable path — resolve product by barcode candidates.
+                $product = $this->findProductByBarcodeCandidates($this->barcodeLookupCandidates($code));
+                if (!$product) {
+                    throw new RuntimeException('Barcode not found.');
+                }
+                $detail = $ist->details->firstWhere('product_id', $product->product_id);
+                if (!$detail) {
+                    throw new RuntimeException('This product is not part of this transfer.');
+                }
+                if ($this->isSerialized($detail)) {
+                    throw new RuntimeException('Scan the individual serial number for this appliance.');
+                }
+                $step = max(1, (int) $qty);
+            }
+
+            // If the caller named a line, it must match the resolved one.
+            if ($transferDetailId !== null && (int) $transferDetailId !== (int) $detail->transfer_detail_id) {
+                throw new RuntimeException('Scanned item does not match the selected line.');
+            }
+
+            $target  = (int) $detail->quantity_requested;
+            $current = (int) $detail->quantity_scanned;
+            if ($current + $step > $target) {
+                $remaining = $target - $current;
+                throw new RuntimeException("Only {$remaining} more unit(s) needed for this product.");
+            }
+
+            $detail->increment('quantity_scanned', $step);
+            $detail->refresh();
+
+            $scan = BarcodeScan::create([
+                'user_id'     => $userId,
+                'product_id'  => $detail->product_id,
+                'transfer_id' => $ist->transfer_id,
+                'barcode'     => $code,
+                'scan_mode'   => 'transfer',
+                'quantity'    => $step,
+                'scanned_at'  => now(),
+            ]);
+
+            if ($serial) {
+                $serial->transfer_id = $ist->transfer_id;
+                $serial->save();
+            }
+
+            return [
+                'scan_id'            => $scan->id,
+                'transfer_detail_id' => (int) $detail->transfer_detail_id,
+                'product_name'       => $detail->product?->product_name ?? "Product #{$detail->product_id}",
+                'total_scanned'      => (int) $detail->quantity_scanned,
+                'quantity_requested' => $target,
+                'remaining'          => $target - (int) $detail->quantity_scanned,
+            ];
+        });
+    }
+
+    /** Undo a dispatch scan before confirmation: decrement the line and free the serial. */
+    public function removeDispatchScan(Transfer $ist, int $scanId): void
+    {
+        if ((int) $ist->status_id !== $this->statusId('Approved')) {
+            throw new RuntimeException('Only an approved IST can be edited.');
+        }
+
+        DB::transaction(function () use ($ist, $scanId) {
+            $scan = BarcodeScan::where('id', $scanId)
+                ->where('transfer_id', $ist->transfer_id)
+                ->where('scan_mode', 'transfer')
+                ->first();
+            if (!$scan) {
+                throw new RuntimeException('Dispatch scan not found.');
+            }
+
+            $step = max(1, (int) ($scan->quantity ?? 1));
+            $detail = TransferDetail::where('transfer_id', $ist->transfer_id)
+                ->where('product_id', $scan->product_id)
+                ->lockForUpdate()
+                ->first();
+            if ($detail) {
+                $detail->quantity_scanned = max(0, (int) $detail->quantity_scanned - $step);
+                $detail->save();
+            }
+
+            ItemSerial::where('transfer_id', $ist->transfer_id)
+                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($scan->barcode)])
+                ->update(['transfer_id' => null]);
+
+            $scan->delete();
         });
     }
 
