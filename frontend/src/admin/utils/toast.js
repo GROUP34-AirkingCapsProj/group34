@@ -15,17 +15,30 @@ const Toast = Swal.mixin({
   },
 });
 
+const escapeHtml = (str) =>
+  String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const fire = (icon, title, subtitle, timer) => {
+  const options = {
+    icon,
+    title,
+    customClass: { popup: `swal-toast swal-toast-${icon}` },
+  };
+  if (subtitle) {
+    options.html = `<span class="swal-toast-subtitle">${escapeHtml(subtitle)}</span>`;
+  }
+  if (timer) options.timer = timer;
+  Toast.fire(options);
+};
+
 export const toast = {
-  success: (title) => {
-    Toast.fire({ icon: 'success', title });
-  },
-  error: (title) => {
-    Toast.fire({ icon: 'error', title, timer: 2500 });
-  },
-  info: (title) => {
-    Toast.fire({ icon: 'info', title });
-  },
-  warning: (title) => {
-    Toast.fire({ icon: 'warning', title, timer: 5500 });
-  },
+  success: (title, subtitle) => fire('success', title, subtitle, 2500),
+  error:   (title, subtitle) => fire('error', title, subtitle, 2500),
+  info:    (title, subtitle) => fire('info', title, subtitle, 2500),
+  warning: (title, subtitle) => fire('warning', title, subtitle, 5500),
 };
