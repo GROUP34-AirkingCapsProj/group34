@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import DateInput from '../components/DateInput';
@@ -44,7 +46,6 @@ const ISTCreatePage = () => {
   const [qtys,     setQtys]     = useState({});
   const [txDate,   setTxDate]   = useState(today());
   const [submitting, setSubmitting] = useState(false);
-  const [submitErr,  setSubmitErr]  = useState('');
 
   // Load pre-fill data
   useEffect(() => {
@@ -68,9 +69,8 @@ const ISTCreatePage = () => {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    setSubmitErr('');
-    if (!txDate) { setSubmitErr('Transfer date is required.'); return; }
-    if (!req)    { setSubmitErr('Request data not loaded.'); return; }
+    if (!txDate) { toast.error("Couldn't create IST", 'Transfer date is required.'); return; }
+    if (!req)    { toast.error("Couldn't create IST", 'Request data not loaded.'); return; }
 
     const products = (req.details ?? []).map(d => ({
       transfer_detail_id:   d.transfer_detail_id,
@@ -78,17 +78,19 @@ const ISTCreatePage = () => {
     }));
 
     const hasAny = products.some(p => p.quantity_to_transfer > 0);
-    if (!hasAny) { setSubmitErr('At least one product must have a quantity greater than 0.'); return; }
+    if (!hasAny) { toast.error("Couldn't create IST", 'At least one product must have a quantity greater than 0.'); return; }
 
     // Client-side guard: quantity cannot exceed approved
     for (const d of (req.details ?? [])) {
       const entered  = parseInt(qtys[d.transfer_detail_id] ?? 0) || 0;
       const approved = d.quantity_requested;
       if (entered > approved) {
-        setSubmitErr(`Quantity for ${d.product?.product_name || `product #${d.product_id}`} cannot exceed the approved amount of ${approved}.`);
+        toast.error("Couldn't create IST", `Quantity for ${d.product?.product_name || `product #${d.product_id}`} cannot exceed the approved amount of ${approved}.`);
         return;
       }
     }
+
+    if (!(await confirmAction({ title: 'Create this interbranch transfer?', confirmText: 'Create IST', tone: 'primary' }))) return;
 
     setSubmitting(true);
     try {
@@ -102,7 +104,7 @@ const ISTCreatePage = () => {
         state: { success: `IST ${res?.data?.transfer_number || ''} created successfully.` },
       });
     } catch (err) {
-      setSubmitErr(err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || 'Failed to create IST.');
+      toast.error("Couldn't create IST", err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || 'Failed to create IST.');
     } finally {
       setSubmitting(false);
     }
@@ -297,9 +299,6 @@ const ISTCreatePage = () => {
           </div>
         </div>
 
-        {submitErr && (
-          <div className="po-submit-error" style={{ marginTop: 12 }}>{submitErr}</div>
-        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
           <button
