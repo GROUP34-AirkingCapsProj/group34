@@ -5,6 +5,7 @@ import { getApiBaseUrl, getToken } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/archive_management.css';
 import '../styles/archive_settings.css';
 import DateInput from '../components/DateInput';
@@ -96,7 +97,7 @@ const ArchiveManagement = () => {
 
   // ── Restore ───────────────────────────────────────────────────────────────
   const handleRestore = async (module, id) => {
-    if (!window.confirm('Restore this record? It will become active again.')) return;
+    if (!(await confirmAction({ title: 'Restore this record?', text: 'It will become active again.', confirmText: 'Restore', tone: 'danger' }))) return;
     try {
       const res = await fetch(
         apiUrl(`/archive/${module}/${id}/restore`),
@@ -120,10 +121,8 @@ const ArchiveManagement = () => {
 
   // ── Force delete ──────────────────────────────────────────────────────────
   const handleForceDelete = async (module, id) => {
-    if (!window.confirm(
-      'PERMANENTLY DELETE this record?\n\nThis action cannot be undone. The record will be completely removed from the database and cannot be recovered.'
-    )) return;
-    if (!window.confirm('Are you absolutely sure? This is permanent.')) return;
+    if (!(await confirmAction({ title: 'Permanently delete this record?', text: 'This action cannot be undone. The record will be completely removed from the database and cannot be recovered.', confirmText: 'Continue', tone: 'danger' }))) return;
+    if (!(await confirmAction({ title: 'Are you absolutely sure?', text: 'This is permanent.', confirmText: 'Delete permanently', tone: 'danger' }))) return;
 
     try {
       const res = await fetch(
@@ -148,7 +147,7 @@ const ArchiveManagement = () => {
 
   // ── Restore all ───────────────────────────────────────────────────────────
   const handleRestoreAll = async () => {
-    if (!window.confirm(`Restore all ${totalItems} archived ${activeModule} records?`)) return;
+    if (!(await confirmAction({ title: `Restore all ${totalItems} archived ${activeModule} records?`, confirmText: 'Restore all', tone: 'danger' }))) return;
     try {
       const res = await fetch(
         apiUrl(`/archive/${activeModule}/restore-all`),
