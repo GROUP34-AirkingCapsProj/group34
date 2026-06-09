@@ -38,3 +38,22 @@
   height: 3px !important;
   background: rgba(0, 0, 0, 0.15) !important;
 }
+
+/* Colored left accent bar per level */
+.swal2-popup.swal-toast {
+  border-left: 4px solid #9ca3af !important;
+}
+.swal2-popup.swal-toast-success { border-left-color: #059669 !important; }
+.swal2-popup.swal-toast-error   { border-left-color: #dc2626 !important; }
+.swal2-popup.swal-toast-warning { border-left-color: #d97706 !important; }
+.swal2-popup.swal-toast-info    { border-left-color: #2563eb !important; }
+
+/* Bold title is the SweetAlert2 default .swal2-title (already styled).
+   Subtitle: small, muted, on its own line. */
+.swal-toast-subtitle {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 2px;
+  line-height: 1.3;
+}
