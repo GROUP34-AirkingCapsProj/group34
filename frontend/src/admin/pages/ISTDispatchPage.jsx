@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/po_recommendation.css';
 import '../styles/dashboard_air.css';
 
@@ -31,7 +33,6 @@ const ISTDispatchPage = () => {
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
   const [submitting,  setSubmitting]  = useState(false);
-  const [submitError, setSubmitError] = useState('');
   const [dispatched,  setDispatched]  = useState(false);
 
   const [detailUi,      setDetailUi]      = useState({}); // { [did]: { barcode, scanning, feedback, error } }
@@ -144,17 +145,22 @@ const ISTDispatchPage = () => {
   };
 
   const handleConfirm = async () => {
-    setSubmitError('');
     if (totalScanned < 1) {
-      setSubmitError('Scan at least one unit before confirming dispatch.');
+      toast.error("Can't dispatch yet", 'Scan at least one unit before confirming dispatch.');
       return;
     }
+    if (!(await confirmAction({
+      title: `Confirm dispatch of ${ist?.transfer_number || 'this IST'}?`,
+      text: 'Scanned units will be marked In Transit.',
+      confirmText: 'Confirm dispatch',
+      tone: 'primary',
+    }))) return;
     setSubmitting(true);
     try {
       await istAPI.confirmDispatch(id);
       setDispatched(true);
     } catch (err) {
-      setSubmitError(err?.message || 'Failed to confirm dispatch.');
+      toast.error("Couldn't confirm dispatch", err?.message || 'Failed to confirm dispatch.');
     } finally {
       setSubmitting(false);
     }
@@ -392,7 +398,6 @@ const ISTDispatchPage = () => {
               </div>
             </div>
 
-            {submitError && <div className="po-submit-error" style={{ marginBottom: 12 }}>{submitError}</div>}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
