@@ -11,7 +11,8 @@ const toneIcon = (tone) => (tone === 'primary' ? 'question' : 'warning');
 const toneClass = (tone) => (tone === 'primary' ? 'swal-confirm-primary' : 'swal-confirm-danger');
 
 const baseClasses = (tone) => ({
-  popup: `swal-confirm ${toneClass(tone)}`,
+  // Tone styling lives on the confirm button; the popup class is tone-agnostic.
+  popup: 'swal-confirm',
   title: 'swal-confirm-title',
   htmlContainer: 'swal-confirm-text',
   confirmButton: `swal-confirm-btn ${toneClass(tone)}`,
@@ -28,7 +29,7 @@ export const confirmAction = async ({
 } = {}) => {
   const result = await ConfirmDialog.fire({
     title,
-    text,
+    ...(text && { text }),
     icon: toneIcon(tone),
     confirmButtonText: confirmText,
     cancelButtonText: cancelText,
