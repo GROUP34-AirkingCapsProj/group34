@@ -435,12 +435,12 @@ class ISTController extends Controller
     /**
      * Record a barcode scan against an approved IST.
      */
-    public function scan(Request $request, $transferId)
+    public function scan(Request $request, $transferId, TransferService $service)
     {
         try {
             $validated = $request->validate([
                 'barcode'            => 'required|string|max:255',
-                'transfer_detail_id' => 'required|integer',
+                'transfer_detail_id' => 'sometimes|nullable|integer',
                 'quantity'           => 'sometimes|integer|min:1',
             ]);
 
@@ -450,78 +450,27 @@ class ISTController extends Controller
                 ->where('status_id', $approvedId)
                 ->findOrFail($transferId);
 
-            $detail = $ist->details->firstWhere('transfer_detail_id', (int) $validated['transfer_detail_id']);
-            if (!$detail) {
-                return $this->error('Transfer detail not found on this IST.', 422);
-            }
-
-            $isSerialized = $detail->product?->product_type === 'appliance';
-            $qty          = $isSerialized ? 1 : (int) ($validated['quantity'] ?? 1);
-            $currentScanned = (int) $detail->quantity_scanned;
-            $target         = (int) $detail->quantity_requested;
-
-            if ($currentScanned >= $target) {
-                return $this->error(
-                    "This product is already fully scanned ({$currentScanned}/{$target}).", 422
-                );
-            }
-            if ($currentScanned + $qty > $target) {
-                $remaining = $target - $currentScanned;
-                return $this->error(
-                    "Only {$remaining} more unit(s) needed. Cannot scan {$qty}.", 422
-                );
-            }
-
-            // Duplicate barcode guard
-            $dupe = \App\Models\BarcodeScan::where('transfer_id', $transferId)
-                ->where('barcode', $validated['barcode'])
-                ->exists();
-            if ($dupe) {
-                return $this->error(
-                    "Barcode '{$validated['barcode']}' has already been scanned for this IST.", 422
-                );
-            }
-
-            $user = $request->user();
-            DB::beginTransaction();
-
-            $detail->increment('quantity_scanned', $qty);
-            $detail->refresh();
-
-            $scan = \App\Models\BarcodeScan::create([
-                'user_id'     => $user->user_id,
-                'product_id'  => $detail->product_id,
-                'transfer_id' => (int) $transferId,
-                'barcode'     => $validated['barcode'],
-                'scan_mode'   => 'transfer',
-                'scanned_at'  => now(),
-            ]);
-
-            if ($isSerialized) {
-                \App\Models\ItemSerial::where('serial_number', $validated['barcode'])
-                    ->update(['transfer_id' => (int) $transferId]);
-            }
-
-            DB::commit();
+            $result = $service->recordDispatchScan(
+                $ist,
+                $validated['barcode'],
+                $validated['transfer_detail_id'] ?? null,
+                $request->user()->user_id,
+                (int) ($validated['quantity'] ?? 1),
+            );
 
             $ist->load('details');
             $fullyScanned = $ist->details->every(
                 fn ($d) => (int) $d->quantity_scanned >= (int) $d->quantity_requested
             );
 
-            return $this->success([
-                'scan_id'            => $scan->id,
-                'product_name'       => $detail->product?->product_name ?? "Product #{$detail->product_id}",
-                'quantity_scanned'   => $qty,
-                'total_scanned'      => (int) $detail->quantity_scanned,
-                'quantity_requested' => $target,
-                'remaining'          => $target - (int) $detail->quantity_scanned,
-                'ist_fully_scanned'  => $fullyScanned,
-            ], 'Scan recorded');
+            return $this->success(array_merge($result, [
+                'ist_fully_scanned' => $fullyScanned,
+            ]), 'Scan recorded');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
             return $this->error('Scan failed: ' . $e->getMessage(), 500);
         }
     }
@@ -529,37 +478,19 @@ class ISTController extends Controller
     /**
      * Remove a single scan — decrements quantity_scanned and deletes the barcode_scans row.
      */
-    public function removeScan(Request $request, $transferId, $scanId)
+    public function removeScan(Request $request, $transferId, $scanId, TransferService $service)
     {
         try {
             $approvedId = $this->statusId('Approved');
-            $ist = Transfer::with('details')
-                ->whereNotNull('transfer_request_id')
+            $ist = Transfer::whereNotNull('transfer_request_id')
                 ->where('status_id', $approvedId)
                 ->findOrFail($transferId);
 
-            $scan = \App\Models\BarcodeScan::where('id', $scanId)
-                ->where('transfer_id', $transferId)
-                ->firstOrFail();
-
-            DB::beginTransaction();
-
-            $detail = $ist->details->firstWhere('product_id', $scan->product_id);
-            if ($detail && (int) $detail->quantity_scanned > 0) {
-                $detail->decrement('quantity_scanned', 1);
-            }
-
-            \App\Models\ItemSerial::where('transfer_id', $transferId)
-                ->where('serial_number', $scan->barcode)
-                ->update(['transfer_id' => null]);
-
-            $scan->delete();
-
-            DB::commit();
-
+            $service->removeDispatchScan($ist, (int) $scanId);
             return $this->success(null, 'Scan removed');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
             return $this->error('Failed to remove scan: ' . $e->getMessage(), 500);
         }
     }
