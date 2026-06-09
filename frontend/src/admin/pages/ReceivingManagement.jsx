@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { receivingsAPI, purchaseOrdersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import { getReceivingWorkflow, receivingReceivedQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
@@ -147,7 +148,7 @@ const ReceivingManagement = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this receiving record?')) return;
+    if (!(await confirmAction({ title: 'Delete this receiving record?', confirmText: 'Delete', tone: 'danger' }))) return;
     try {
       await receivingsAPI.delete(id);
       toast.success('Deleted.');

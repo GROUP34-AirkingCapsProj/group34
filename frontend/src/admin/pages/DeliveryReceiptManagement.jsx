@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { deliveryReceiptsAPI, salesAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../../admin/styles/dashboard_air.css';
 
 const emptyForm = () => ({ dr_number: '', sales_id: '', status_id: '' });
@@ -81,7 +82,7 @@ const DeliveryReceiptManagement = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this delivery receipt?')) return;
+    if (!(await confirmAction({ title: 'Delete this delivery receipt?', confirmText: 'Delete', tone: 'danger' }))) return;
     try { await deliveryReceiptsAPI.delete(id); toast.success('Deleted.'); fetchReceipts(currentPage); }
     catch (e) { toast.error(e.message || 'Failed to delete.'); }
   };

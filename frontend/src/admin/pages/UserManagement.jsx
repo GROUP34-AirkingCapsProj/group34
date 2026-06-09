@@ -5,6 +5,7 @@ import PasswordFieldWithToggle from '../components/PasswordFieldWithToggle';
 import ArchiveButton from '../components/ArchiveButton';
 import { usersAPI, authAPI, batchAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/dashboard_air.css';
 import '../styles/user_management.css';
 import '../styles/archive_management.css';
@@ -163,7 +164,7 @@ const UserManagement = () => {
     const action = status === 'Active' ? 'deactivate' : 'activate';
     const newStatusId = status === 'Active' ? 2 : 1;
 
-    if (!window.confirm(`Are you sure you want to ${action} ${getUserName(user)}?`)) return;
+    if (!(await confirmAction({ title: `Are you sure you want to ${action} ${getUserName(user)}?`, confirmText: 'Confirm', tone: 'danger' }))) return;
 
     setDeactivatingId(id);
     try {

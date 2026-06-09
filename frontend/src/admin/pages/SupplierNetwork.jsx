@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { suppliersAPI, itemsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
@@ -286,7 +287,7 @@ const SupplierNetwork = () => {
       toast.info('Removing product links is disabled for Inventory Analyst.');
       return;
     }
-    if (!window.confirm('Remove this product from the supplier?')) return;
+    if (!(await confirmAction({ title: 'Remove this product from the supplier?', confirmText: 'Remove', tone: 'danger' }))) return;
     try {
       await suppliersAPI.removeProduct(productsModal.supplier_id, productId);
       toast.success('Product removed');

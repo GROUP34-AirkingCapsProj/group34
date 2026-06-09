@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { profitLossAPI, productsAPI, modelsAPI, statusAPI, usersAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/profit_loss_management.css';
 import DateInput from '../components/DateInput';
 
@@ -173,7 +174,7 @@ const ProfitLossManagement = () => {
 
   /* ── Delete ─────────────────────────────────────────────── */
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this profit/loss record?')) return;
+    if (!(await confirmAction({ title: 'Delete this profit/loss record?', confirmText: 'Delete', tone: 'danger' }))) return;
     try {
       await profitLossAPI.delete(id);
       toast.success('Record deleted.');
