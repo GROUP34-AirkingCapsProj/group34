@@ -12,6 +12,7 @@ import {
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { barcodeAdjustmentAPI, productsAPI, locationsAPI, purchaseOrdersAPI, categoriesAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
@@ -801,7 +802,7 @@ export default function BarcodeAdjustmentPage() {
   const handleSubmit = async () => {
     if (!preview) { toast.error('Run a preview first.'); return; }
     if (!effectiveLocationId) { toast.error('Select a location.'); return; }
-    if (!window.confirm('This will permanently modify inventory records.\n\nConfirm?')) return;
+    if (!(await confirmAction({ title: 'Modify inventory records?', text: 'This will permanently modify inventory records.', confirmText: 'Confirm', tone: 'danger' }))) return;
     setSubmitting(true);
     try {
       const res = await barcodeAdjustmentAPI.submit({

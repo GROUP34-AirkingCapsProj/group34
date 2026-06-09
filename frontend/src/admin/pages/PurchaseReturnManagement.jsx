@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { purchaseReturnsAPI, purchaseOrdersAPI, suppliersAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../../admin/styles/dashboard_air.css';
 import DateInput from '../components/DateInput';
 
@@ -108,7 +109,7 @@ const PurchaseReturnManagement = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this purchase return?')) return;
+    if (!(await confirmAction({ title: 'Delete this purchase return?', confirmText: 'Delete', tone: 'danger' }))) return;
     try { await purchaseReturnsAPI.delete(id); toast.success('Deleted.'); fetchReturns(currentPage); }
     catch (e) { toast.error(e.message || 'Failed to delete.'); }
   };

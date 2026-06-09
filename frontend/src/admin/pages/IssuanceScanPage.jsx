@@ -21,6 +21,7 @@ import {
   unitsAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/dashboard_air.css';
 import '../styles/barcode_scan.css';
 import '../styles/issuance_scan.css';
@@ -910,7 +911,7 @@ export default function IssuanceScanPage() {
 
   // ── Remove item ──────────────────────────────────────────────
   const handleRemoveItem = async (detailId, productName) => {
-    if (!window.confirm(`Remove ${productName} from this issuance?`)) return;
+    if (!(await confirmAction({ title: `Remove ${productName} from this issuance?`, confirmText: 'Remove', tone: 'danger' }))) return;
     try {
       await issuanceScanAPI.removeItem(detailId);
       await refreshSession();
@@ -956,11 +957,11 @@ export default function IssuanceScanPage() {
     setCameraDevices([]);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     const msg = itemCount > 0
       ? `Reset this issuance? ${itemCount} scanned item${itemCount !== 1 ? 's' : ''} will be discarded and you will start over.`
       : 'Reset this issuance and start over?';
-    if (!window.confirm(msg)) return;
+    if (!(await confirmAction({ title: msg, confirmText: 'Confirm', tone: 'danger' }))) return;
     handleNewIssuance();
   };
 
