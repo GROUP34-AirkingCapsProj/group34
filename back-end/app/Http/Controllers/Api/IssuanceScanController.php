@@ -158,10 +158,7 @@ class IssuanceScanController extends Controller
         $serialRecord = null;
 
         foreach ($candidates as $candidate) {
-            $serial = ItemSerial::where('location_id', $locationId)
-                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($candidate)])
-                ->where('status_id', self::STATUS_SERIAL_IN_STOCK)
-                ->first();
+            $serial = ItemSerial::issuableAt($locationId, $candidate)->first();
             if ($serial) {
                 $product = Product::with([
                     'applianceDetail.brand',
