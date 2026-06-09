@@ -10,6 +10,7 @@ import {
   budgetAllocationsAPI,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toast } from '../utils/toast';
 import { getRoleKey, ROLES } from '../utils/roles';
 import PRProgressBar, { getPRStatusText } from '../components/PRProgressBar';
 import '../styles/dashboard_air.css';
@@ -137,9 +138,6 @@ const PurchaseRequestPage = () => {
   const [filterBrand, setFilterBrand] = useState('');
   const [lineItems, setLineItems] = useState([newLine()]);
   const [submitting,  setSubmitting]  = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [createdPRNum,  setCreatedPRNum]  = useState('');
 
   // ── Tab 2: My Requests ────────────────────────────────────────────────────
   const [myPRs,        setMyPRs]        = useState([]);
@@ -345,15 +343,14 @@ const PurchaseRequestPage = () => {
 
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
-    setSubmitError('');
-    if (!selectedLocId) { setSubmitError('Please select a location.'); return; }
-    if (!neededByDate)  { setSubmitError('Please set a needed-by date.'); return; }
+    if (!selectedLocId) { toast.error("Couldn't send request", 'Please select a location.'); return; }
+    if (!neededByDate)  { toast.error("Couldn't send request", 'Please set a needed-by date.'); return; }
     if (neededByDate <= new Date().toISOString().slice(0, 10)) {
-      setSubmitError('Needed-by date must be a future date.'); return;
+      toast.error("Couldn't send request", 'Needed-by date must be a future date.'); return;
     }
     const validLines = lineItems.filter(li => li.productId && li.qty > 0);
     if (!validLines.length) {
-      setSubmitError('Add at least one item with a selected product.'); return;
+      toast.error("Couldn't send request", 'Add at least one item with a selected product.'); return;
     }
 
     setSubmitting(true);
@@ -371,15 +368,15 @@ const PurchaseRequestPage = () => {
       if (budget?.budget_id) payload.budget_id = budget.budget_id;
 
       const res = await purchaseRequestsAPI.create(payload);
-      setCreatedPRNum(res?.data?.pr_number || 'Purchase Request');
-      setSubmitSuccess(true);
+      const prNum = res?.data?.pr_number || 'Purchase Request';
+      toast.success('Purchase Request sent', `${prNum} — waiting for admin approval`);
       setLineItems([newLine()]);
       setPurpose('');
     } catch (err) {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to submit purchase request.';
-      setSubmitError(msg);
+      toast.error("Couldn't send request", msg);
     } finally {
       setSubmitting(false);
     }
@@ -490,18 +487,6 @@ const PurchaseRequestPage = () => {
   // ── Tab 1: Create Request ─────────────────────────────────────────────────
   const renderCreateTab = () => (
     <div className="pr-create-form-layout">
-      {submitSuccess && (
-        <div className="po-success-banner">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-          <strong>{createdPRNum}</strong> submitted! Waiting for Admin approval.
-          <button type="button" className="po-success-close" onClick={() => setSubmitSuccess(false)} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-      )}
-
       {/* Request details card */}
       <div className="po-details-card">
         <div className="pr-form-grid">
@@ -754,8 +739,6 @@ const PurchaseRequestPage = () => {
           </div>
         )}
       </div>
-
-      {submitError && <div className="po-submit-error">{submitError}</div>}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
         <button
