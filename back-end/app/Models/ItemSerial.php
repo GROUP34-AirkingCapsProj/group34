@@ -53,4 +53,19 @@ class ItemSerial extends Model
     {
         return $this->hasMany(PurchaseReturnDetails::class, 'serial_id', 'serial_id');
     }
+
+    /**
+     * Serials that may be issued/sold at a location: physically here,
+     * In Stock (inventory status 26), and not shipped out on a transfer
+     * (serial_type stays 'received' until dispatched; receive() restores it).
+     * Case/space-insensitive on the serial number to match scanner input.
+     */
+    public function scopeIssuableAt($query, int $locationId, string $serialNumber)
+    {
+        return $query
+            ->where('location_id', $locationId)
+            ->where('serial_type', 'received')
+            ->where('status_id', 26)
+            ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($serialNumber))]);
+    }
 }
