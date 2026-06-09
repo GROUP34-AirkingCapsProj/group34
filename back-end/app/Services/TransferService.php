@@ -452,6 +452,7 @@ class TransferService
 
             // Duplicate guard (same barcode already scanned on this IST).
             $dupe = BarcodeScan::where('transfer_id', $ist->transfer_id)
+                ->where('scan_mode', 'transfer')
                 ->where('barcode', $code)
                 ->exists();
             if ($dupe) {
@@ -459,7 +460,10 @@ class TransferService
             }
 
             // Resolve which serial (if any) this code is, and which line it belongs to.
-            $serial = ItemSerial::whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($code)])->first();
+            $istProductIds = $ist->details->pluck('product_id')->all();
+            $serial = ItemSerial::whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($code)])
+                ->whereIn('product_id', $istProductIds)
+                ->first();
 
             if ($serial) {
                 // Serialized path.
@@ -498,19 +502,24 @@ class TransferService
                 throw new RuntimeException('Scanned item does not match the selected line.');
             }
 
-            $target  = (int) $detail->quantity_requested;
-            $current = (int) $detail->quantity_scanned;
+            // Re-read the resolved line under a write lock so concurrent scans serialize.
+            $locked = TransferDetail::where('transfer_detail_id', $detail->transfer_detail_id)
+                ->lockForUpdate()
+                ->first();
+
+            $target  = (int) $locked->quantity_requested;
+            $current = (int) $locked->quantity_scanned;
             if ($current + $step > $target) {
                 $remaining = $target - $current;
                 throw new RuntimeException("Only {$remaining} more unit(s) needed for this product.");
             }
 
-            $detail->increment('quantity_scanned', $step);
-            $detail->refresh();
+            $locked->increment('quantity_scanned', $step);
+            $locked->refresh();
 
             $scan = BarcodeScan::create([
                 'user_id'     => $userId,
-                'product_id'  => $detail->product_id,
+                'product_id'  => $locked->product_id,
                 'transfer_id' => $ist->transfer_id,
                 'barcode'     => $code,
                 'scan_mode'   => 'transfer',
@@ -525,11 +534,11 @@ class TransferService
 
             return [
                 'scan_id'            => $scan->id,
-                'transfer_detail_id' => (int) $detail->transfer_detail_id,
-                'product_name'       => $detail->product?->product_name ?? "Product #{$detail->product_id}",
-                'total_scanned'      => (int) $detail->quantity_scanned,
+                'transfer_detail_id' => (int) $locked->transfer_detail_id,
+                'product_name'       => $detail->product?->product_name ?? "Product #{$locked->product_id}",
+                'total_scanned'      => (int) $locked->quantity_scanned,
                 'quantity_requested' => $target,
-                'remaining'          => $target - (int) $detail->quantity_scanned,
+                'remaining'          => $target - (int) $locked->quantity_scanned,
             ];
         });
     }
