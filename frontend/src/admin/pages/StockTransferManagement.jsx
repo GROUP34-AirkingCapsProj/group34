@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { transfersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import { getTransferWorkflow, transferShippedQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
@@ -243,6 +244,7 @@ const StockTransferManagement = () => {
       return;
     }
     if (!formData.details[0]?.product_id) { toast.error('Add at least one product.'); return; }
+    if (!(await confirmAction({ title: editingTransfer ? 'Save changes to this transfer?' : 'Save this transfer?', confirmText: 'Save', tone: 'primary' }))) return;
     setSubmitting(true);
     try {
       const payload = {
