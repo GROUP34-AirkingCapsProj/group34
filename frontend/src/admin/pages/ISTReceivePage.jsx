@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/po_recommendation.css';
 import '../styles/dashboard_air.css';
 import DateInput from '../components/DateInput';
@@ -34,7 +36,6 @@ const ISTReceivePage = () => {
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
   const [submitting,   setSubmitting]   = useState(false);
-  const [submitError,  setSubmitError]  = useState('');
   const [confirmed,    setConfirmed]    = useState(false);
 
   // Received date for confirm
@@ -194,17 +195,22 @@ const ISTReceivePage = () => {
 
   // ── Confirm Receipt ──
   const handleConfirm = async () => {
-    setSubmitError('');
     if (totalReceived < 1) {
-      setSubmitError('Record at least one received unit before confirming.');
+      toast.error("Can't receive yet", 'Record at least one received unit before confirming.');
       return;
     }
+    if (!(await confirmAction({
+      title: `Confirm receipt of ${ist?.transfer_number || 'this IST'}?`,
+      text: 'Scanned units will be added to destination stock.',
+      confirmText: 'Confirm receipt',
+      tone: 'primary',
+    }))) return;
     setSubmitting(true);
     try {
       await istAPI.receive(id, { received_date: receivedDate });
       setConfirmed(true);
     } catch (err) {
-      setSubmitError(err?.message || 'Failed to confirm receipt.');
+      toast.error("Couldn't confirm receipt", err?.message || 'Failed to confirm receipt.');
     } finally {
       setSubmitting(false);
     }
@@ -540,9 +546,6 @@ const ISTReceivePage = () => {
               </div>
             </div>
 
-            {submitError && (
-              <div className="po-submit-error" style={{ marginBottom: 12 }}>{submitError}</div>
-            )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
