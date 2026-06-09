@@ -897,6 +897,7 @@ const PurchaseRequestPage = () => {
           const itemCount  = pr.details?.length ?? 0;
           const isExpanded = expandedCards.has(pr.pr_id);
           const isApproving = actionLoading[pr.pr_id] === 'approving';
+          const isRejecting = actionLoading[pr.pr_id] === 'rejecting';
 
           return (
             <div key={pr.pr_id} className="po-status-card">
@@ -1005,8 +1006,8 @@ const PurchaseRequestPage = () => {
                     <button type="button" className="po-status-view-btn" onClick={() => setSelectedPR(pr)}>
                       VIEW DETAILS
                     </button>
-                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(pr.pr_id)}>
-                      REJECT
+                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(pr.pr_id)} disabled={isRejecting}>
+                      {isRejecting ? 'REJECTING…' : 'REJECT'}
                     </button>
                     <button
                       type="button"
