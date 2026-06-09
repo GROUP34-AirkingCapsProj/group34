@@ -18,6 +18,8 @@ import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
 import DateInput from '../components/DateInput';
+import { confirmAction } from '../utils/confirm';
+import { toast } from '../utils/toast';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -134,8 +136,6 @@ const PurchaseOrderPage = () => {
 
   // Submit
   const [submitting,     setSubmitting]     = useState(false);
-  const [submitError,    setSubmitError]    = useState('');
-  const [convertSuccess, setConvertSuccess] = useState(null); // { po_number, pr_number }
 
   // PO Status tab
   const [poStatusList,    setPoStatusList]    = useState([]);
@@ -215,8 +215,6 @@ const PurchaseOrderPage = () => {
   // ── PR selection ───────────────────────────────────────────────────────────
   const handleSelectPR = useCallback((pr) => {
     setSelectedPR(pr);
-    setSubmitError('');
-    setConvertSuccess(null);
     setReorderNotes({});
     const details = Array.isArray(pr.details) ? pr.details : [];
     setLineItems(details.map(d => {
@@ -259,7 +257,6 @@ const PurchaseOrderPage = () => {
   const handleDeselectPR = useCallback(() => {
     setSelectedPR(null);
     setLineItems([]);
-    setSubmitError('');
     setReorderNotes({});
     setPaymentTerms('Net 30');
     setNotes('');
@@ -306,19 +303,10 @@ const PurchaseOrderPage = () => {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmitPO = useCallback(async () => {
-    setSubmitError('');
-    if (!selectedPR) {
-      setSubmitError('Please select an approved Purchase Request first.');
-      return;
-    }
-    if (!selectedSupplierId) {
-      setSubmitError('Please select a supplier.');
-      return;
-    }
-    if (lineItems.length === 0) {
-      setSubmitError('No line items to submit.');
-      return;
-    }
+    if (!selectedPR)         { toast.error("Couldn't create PO", 'Please select an approved Purchase Request first.'); return; }
+    if (!selectedSupplierId) { toast.error("Couldn't create PO", 'Please select a supplier.'); return; }
+    if (lineItems.length === 0) { toast.error("Couldn't create PO", 'No line items to submit.'); return; }
+    if (!(await confirmAction({ title: 'Submit this purchase order?', confirmText: 'Submit PO', tone: 'primary' }))) return;
     setSubmitting(true);
     try {
       const payload = {
@@ -340,7 +328,7 @@ const PurchaseOrderPage = () => {
       const res   = await purchaseRequestsAPI.convertToPO(selectedPR.pr_id, payload);
       const data  = res?.data;
       const poNum = data?.po_number || data?.po?.po_number || 'New PO';
-      setConvertSuccess({ po_number: poNum, pr_number: selectedPR.pr_number });
+      toast.success('Purchase Order created', `${poNum} from ${selectedPR.pr_number} — waiting for admin approval`);
       setApprovedPRs(prev => prev.filter(p => p.pr_id !== selectedPR.pr_id));
       setSelectedPR(null);
       setLineItems([]);
@@ -348,7 +336,7 @@ const PurchaseOrderPage = () => {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to create purchase order.';
-      setSubmitError(msg);
+      toast.error("Couldn't create PO", msg);
     } finally {
       setSubmitting(false);
     }
@@ -951,9 +939,6 @@ const PurchaseOrderPage = () => {
               {submitting ? 'SUBMITTING…' : 'SUBMIT PURCHASE ORDER'}
             </button>
 
-            {submitError && (
-              <div className="po-submit-error" style={{ marginTop: 8 }}>{submitError}</div>
-            )}
           </div>
         </div>
       </div>
@@ -964,16 +949,6 @@ const PurchaseOrderPage = () => {
   return (
     <AdminLayout>
       <div className="po-recommendation-page po-draft-creator-page">
-        {convertSuccess && (
-          <div className="po-success-banner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <strong>{convertSuccess.po_number}</strong> created from <strong>{convertSuccess.pr_number}</strong>! Waiting for Admin approval.
-            <button type="button" className="po-success-close" onClick={() => setConvertSuccess(null)} aria-label="Close">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-        )}
-
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
             <div className="po-creator-header-main">
