@@ -139,13 +139,30 @@ class TransferService
      * (scan_mode 'receive', quantity = $step) so removal can undo the exact amount.
      * Serialized scans are always 1 unit and must match an in-transit serial of THIS transfer.
      */
-    public function recordReceiveScan(Transfer $ist, string $barcode, int $transferDetailId, int $userId, int $qty = 1): array
+    public function recordReceiveScan(Transfer $ist, string $barcode, ?int $transferDetailId, int $userId, int $qty = 1): array
     {
         if ((int) $ist->status_id !== $this->statusId('In Transit')) {
             throw new RuntimeException('Only an In Transit IST can be received.');
         }
 
         return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty) {
+            if ($transferDetailId === null) {
+                $match = ItemSerial::where('transfer_id', $ist->transfer_id)
+                    ->where('serial_type', 'transferred')
+                    ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($barcode))])
+                    ->first();
+                if (!$match) {
+                    throw new RuntimeException('This serial is not part of this shipment.');
+                }
+                $line = TransferDetail::where('transfer_id', $ist->transfer_id)
+                    ->where('product_id', $match->product_id)
+                    ->first();
+                if (!$line) {
+                    throw new RuntimeException('This serial is not part of this shipment.');
+                }
+                $transferDetailId = (int) $line->transfer_detail_id;
+            }
+
             $detail = TransferDetail::where('transfer_detail_id', $transferDetailId)
                 ->where('transfer_id', $ist->transfer_id)
                 ->with('product')
@@ -197,10 +214,11 @@ class TransferService
             $detail->save();
 
             return [
-                'scan_id'           => $scan->id,
-                'quantity_received' => (int) $detail->quantity_received,
-                'quantity_shipped'  => $shipped,
-                'remaining'         => $shipped - (int) $detail->quantity_received,
+                'scan_id'            => $scan->id,
+                'transfer_detail_id' => (int) $detail->transfer_detail_id,
+                'quantity_received'  => (int) $detail->quantity_received,
+                'quantity_shipped'   => $shipped,
+                'remaining'          => $shipped - (int) $detail->quantity_received,
             ];
         });
     }
