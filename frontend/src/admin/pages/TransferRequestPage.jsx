@@ -5,6 +5,8 @@ import Modal from '../components/Modal';
 import { transferRequestsAPI, locationsAPI, productsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
+import { confirmAction, confirmWithReason } from '../utils/confirm';
+import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
@@ -173,6 +175,11 @@ const TransferRequestPage = () => {
 
   // ── Approve ───────────────────────────────────────────────────────────────
   const handleApprove = useCallback(async (id) => {
+    if (!(await confirmAction({
+      title: 'Approve this transfer request?',
+      confirmText: 'Approve',
+      tone: 'primary',
+    }))) return;
     setActionLoading(p => ({ ...p, [id]: 'approving' }));
     try {
       const quantities = Object.entries(approvedQtys).map(([detailId, qty]) => ({
@@ -182,26 +189,31 @@ const TransferRequestPage = () => {
       await transferRequestsAPI.approve(id, { quantities });
       setPendingReqs(p => p.filter(r => r.transfer_id !== id));
       closeDetail();
-    } catch (err) { alert(err?.message || 'Approval failed.'); }
+      toast.success('Transfer approved');
+    } catch (err) { toast.error("Couldn't approve transfer", err?.message || 'Approval failed.'); }
     finally { setActionLoading(p => { const n = { ...p }; delete n[id]; return n; }); }
   }, [approvedQtys, closeDetail]);
 
   // ── Reject ────────────────────────────────────────────────────────────────
-  const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', submitting: false });
-  const openReject  = useCallback((id) => setRejectModal({ open: true, id, reason: '', submitting: false }), []);
-  const handleReject = useCallback(async () => {
-    if (!rejectModal.reason.trim()) return;
-    setRejectModal(p => ({ ...p, submitting: true }));
+  const handleReject = useCallback(async (id) => {
+    const { confirmed, reason } = await confirmWithReason({
+      title: 'Reject this transfer request?',
+      confirmText: 'Reject',
+      tone: 'danger',
+      reasonRequired: true,
+      reasonLabel: 'Reason for rejection',
+    });
+    if (!confirmed) return;
+    setActionLoading(p => ({ ...p, [id]: 'rejecting' }));
     try {
-      await transferRequestsAPI.reject(rejectModal.id, { rejection_reason: rejectModal.reason });
-      setPendingReqs(p => p.filter(r => r.transfer_id !== rejectModal.id));
-      setRejectModal({ open: false, id: null, reason: '', submitting: false });
+      await transferRequestsAPI.reject(id, { rejection_reason: reason });
+      setPendingReqs(p => p.filter(r => r.transfer_id !== id));
       closeDetail();
+      toast.success('Transfer rejected');
     } catch (err) {
-      alert(err?.message || 'Rejection failed.');
-      setRejectModal(p => ({ ...p, submitting: false }));
-    }
-  }, [rejectModal, closeDetail]);
+      toast.error("Couldn't reject transfer", err?.message || 'Rejection failed.');
+    } finally { setActionLoading(p => { const n = { ...p }; delete n[id]; return n; }); }
+  }, [closeDetail]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const locName = useCallback((id) => {
@@ -461,7 +473,7 @@ const TransferRequestPage = () => {
                     <button type="button" className="po-status-view-btn" onClick={() => openDetail(r)}>
                       REVIEW &amp; APPROVE
                     </button>
-                    <button type="button" className="pr-btn-reject" onClick={() => openReject(r.transfer_id)}>
+                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(r.transfer_id)}>
                       REJECT
                     </button>
                   </div>
@@ -483,7 +495,8 @@ const TransferRequestPage = () => {
     const cfg       = statusCfg(r.status?.status_name);
     const { from, to } = reqLocNames(r);
     const isPending = r.status?.status_name === STATUS.PENDING;
-    const isApproving = actionLoading[r.transfer_id] === 'approving';
+    const isApproving  = actionLoading[r.transfer_id] === 'approving';
+    const isRejecting  = actionLoading[r.transfer_id] === 'rejecting';
     const details   = Array.isArray(r.details) ? r.details : [];
     const tracking  = Array.isArray(r.transferTracking) ? [...r.transferTracking].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)) : [];
 
@@ -668,9 +681,10 @@ const TransferRequestPage = () => {
                 <button
                   type="button"
                   className="pr-btn-reject"
-                  onClick={() => { closeDetail(); openReject(r.transfer_id); }}
+                  onClick={() => handleReject(r.transfer_id)}
+                  disabled={isRejecting}
                 >
-                  REJECT
+                  {isRejecting ? 'REJECTING…' : 'REJECT'}
                 </button>
                 <button
                   type="button"
@@ -687,46 +701,6 @@ const TransferRequestPage = () => {
       </Modal>
     );
   };
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: Reject modal
-  // ─────────────────────────────────────────────────────────────────────────
-  const renderRejectModal = () => (
-    <Modal isOpen={rejectModal.open} onClose={() => setRejectModal(p => ({ ...p, open: false }))} title="Reject Transfer Request" maxWidth={480}>
-      <div style={{ padding: '8px 0' }}>
-        <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#374151' }}>
-          REJECTION REASON <span style={{ color: '#dc2626' }}>*</span>
-        </label>
-        <textarea
-          style={{ width: '100%', minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
-          value={rejectModal.reason}
-          onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))}
-          placeholder="Explain why this request is being rejected…"
-        />
-        {!rejectModal.reason.trim() && (
-          <p style={{ color: '#dc2626', fontSize: 12, marginTop: 6 }}>Rejection reason is required.</p>
-        )}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button
-            type="button"
-            style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 13 }}
-            onClick={() => setRejectModal(p => ({ ...p, open: false }))}
-            disabled={rejectModal.submitting}
-          >
-            CANCEL
-          </button>
-          <button
-            type="button"
-            className="pr-btn-reject"
-            onClick={handleReject}
-            disabled={rejectModal.submitting || !rejectModal.reason.trim()}
-          >
-            {rejectModal.submitting ? 'REJECTING…' : 'CONFIRM REJECT'}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
 
   // ─────────────────────────────────────────────────────────────────────────
   // MAIN RENDER
@@ -798,7 +772,6 @@ const TransferRequestPage = () => {
       </div>
 
       {renderDetailModal()}
-      {renderRejectModal()}
     </AdminLayout>
   );
 };
