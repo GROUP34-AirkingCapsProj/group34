@@ -86,4 +86,27 @@ class DispatchScanTest extends TransferTestCase
         $this->expectException(RuntimeException::class);
         $this->svc()->recordDispatchScan($ist, $sn, null, $user->user_id);
     }
+
+    public function test_remove_dispatch_scan_reverts_line_and_frees_serial(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 2);
+        [$sn] = $this->makeSerials($from->location_id, $prod->product_id, 1);
+        $user = $this->makeUser();
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 2],
+        ]);
+
+        $res = $this->svc()->recordDispatchScan($ist, $sn, null, $user->user_id);
+
+        $this->svc()->removeDispatchScan($ist->fresh('details'), $res['scan_id']);
+
+        $detail = \App\Models\TransferDetail::where('transfer_detail_id', $res['transfer_detail_id'])->first();
+        $this->assertSame(0, (int) $detail->quantity_scanned);
+
+        $serial = ItemSerial::whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($sn)])->first();
+        $this->assertNull($serial->transfer_id);
+    }
 }
