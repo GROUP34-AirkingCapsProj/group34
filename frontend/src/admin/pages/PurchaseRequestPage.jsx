@@ -11,6 +11,7 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
+import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { getRoleKey, ROLES } from '../utils/roles';
 import PRProgressBar, { getPRStatusText } from '../components/PRProgressBar';
 import '../styles/dashboard_air.css';
@@ -150,7 +151,6 @@ const PurchaseRequestPage = () => {
 
   // ── Shared: modals ────────────────────────────────────────────────────────
   const [selectedPR,   setSelectedPR]   = useState(null);
-  const [rejectModal,  setRejectModal]  = useState({ open: false, prId: null, reason: '', submitting: false });
   const [actionLoading, setActionLoading] = useState({});
 
   // ── Load locations ────────────────────────────────────────────────────────
@@ -391,32 +391,42 @@ const PurchaseRequestPage = () => {
 
   // ── Approve / Reject ──────────────────────────────────────────────────────
   const handleApprove = useCallback(async (prId) => {
+    if (!(await confirmAction({
+      title: 'Approve this purchase request?',
+      confirmText: 'Approve',
+      tone: 'primary',
+    }))) return;
     setActionLoading(p => ({ ...p, [prId]: 'approving' }));
     try {
       await purchaseRequestsAPI.approve(prId);
       setPendingPRs(p => p.filter(pr => pr.pr_id !== prId));
       if (selectedPR?.pr_id === prId) setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.APPROVED } : null);
-    } catch (err) { alert(err?.message || 'Approval failed.'); }
+      toast.success('Request approved');
+    } catch (err) { toast.error("Couldn't approve request", err?.message || 'Approval failed.'); }
     finally { setActionLoading(p => { const n = { ...p }; delete n[prId]; return n; }); }
   }, [selectedPR]);
 
-  const openRejectModal = useCallback((prId) =>
-    setRejectModal({ open: true, prId, reason: '', submitting: false }), []);
-
-  const handleReject = useCallback(async () => {
-    if (!rejectModal.reason.trim()) return;
-    setRejectModal(p => ({ ...p, submitting: true }));
+  const handleReject = useCallback(async (prId) => {
+    const { confirmed, reason } = await confirmWithReason({
+      title: 'Reject this purchase request?',
+      confirmText: 'Reject',
+      tone: 'danger',
+      reasonRequired: true,
+      reasonLabel: 'Reason for rejection',
+      reasonPlaceholder: 'Explain why this purchase request is being rejected…',
+    });
+    if (!confirmed) return;
+    setActionLoading(p => ({ ...p, [prId]: 'rejecting' }));
     try {
-      await purchaseRequestsAPI.reject(rejectModal.prId, { rejection_reason: rejectModal.reason });
-      setPendingPRs(p => p.filter(pr => pr.pr_id !== rejectModal.prId));
-      if (selectedPR?.pr_id === rejectModal.prId)
-        setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.REJECTED, rejection_reason: rejectModal.reason } : null);
-      setRejectModal({ open: false, prId: null, reason: '', submitting: false });
+      await purchaseRequestsAPI.reject(prId, { rejection_reason: reason });
+      setPendingPRs(p => p.filter(pr => pr.pr_id !== prId));
+      if (selectedPR?.pr_id === prId)
+        setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.REJECTED, rejection_reason: reason } : null);
+      toast.success('Request rejected');
     } catch (err) {
-      alert(err?.message || 'Rejection failed.');
-      setRejectModal(p => ({ ...p, submitting: false }));
-    }
-  }, [rejectModal, selectedPR]);
+      toast.error("Couldn't reject request", err?.message || 'Rejection failed.');
+    } finally { setActionLoading(p => { const n = { ...p }; delete n[prId]; return n; }); }
+  }, [selectedPR]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER HELPERS
@@ -995,7 +1005,7 @@ const PurchaseRequestPage = () => {
                     <button type="button" className="po-status-view-btn" onClick={() => setSelectedPR(pr)}>
                       VIEW DETAILS
                     </button>
-                    <button type="button" className="pr-btn-reject" onClick={() => openRejectModal(pr.pr_id)}>
+                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(pr.pr_id)}>
                       REJECT
                     </button>
                     <button
@@ -1206,7 +1216,7 @@ const PurchaseRequestPage = () => {
             {/* Admin actions */}
             {canAct && (
               <div className="pr-modal-action-row">
-                <button type="button" className="pr-btn-reject" onClick={() => { setSelectedPR(null); openRejectModal(pr.pr_id); }}>
+                <button type="button" className="pr-btn-reject" onClick={() => { setSelectedPR(null); handleReject(pr.pr_id); }}>
                   REJECT
                 </button>
                 <button type="button" className="pr-btn-approve" onClick={() => handleApprove(pr.pr_id)} disabled={isApproving}>
@@ -1220,38 +1230,6 @@ const PurchaseRequestPage = () => {
     );
   };
 
-  // ── Reject Modal ──────────────────────────────────────────────────────────
-  const renderRejectModal = () => (
-    <Modal isOpen={rejectModal.open} onClose={() => setRejectModal(p => ({ ...p, open: false }))} title="Reject Purchase Request" maxWidth={480}>
-      <div style={{ padding: '8px 0' }}>
-        <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#374151' }}>
-          REJECTION REASON <span style={{ color: '#dc2626' }}>*</span>
-        </label>
-        <textarea
-          style={{ width: '100%', minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
-          value={rejectModal.reason}
-          onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))}
-          placeholder="Explain why this purchase request is being rejected…"
-        />
-        {!rejectModal.reason.trim() && (
-          <p style={{ color: '#dc2626', fontSize: 12, marginTop: 6 }}>Rejection reason is required.</p>
-        )}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button
-            type="button"
-            style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 13 }}
-            onClick={() => setRejectModal(p => ({ ...p, open: false }))}
-            disabled={rejectModal.submitting}
-          >
-            CANCEL
-          </button>
-          <button type="button" className="pr-btn-reject" onClick={handleReject} disabled={rejectModal.submitting || !rejectModal.reason.trim()}>
-            {rejectModal.submitting ? 'REJECTING…' : 'CONFIRM REJECT'}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
 
   // ─────────────────────────────────────────────────────────────────────────
   // MAIN RENDER
@@ -1328,7 +1306,6 @@ const PurchaseRequestPage = () => {
       </div>
 
       {renderDetailModal()}
-      {renderRejectModal()}
     </AdminLayout>
   );
 };
