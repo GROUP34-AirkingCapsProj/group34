@@ -97,7 +97,7 @@ const ArchiveManagement = () => {
 
   // ── Restore ───────────────────────────────────────────────────────────────
   const handleRestore = async (module, id) => {
-    if (!(await confirmAction({ title: 'Restore this record?', text: 'It will become active again.', confirmText: 'Restore', tone: 'danger' }))) return;
+    if (!(await confirmAction({ title: 'Restore this record?', text: 'It will become active again.', confirmText: 'Restore', tone: 'primary' }))) return;
     try {
       const res = await fetch(
         apiUrl(`/archive/${module}/${id}/restore`),
@@ -147,7 +147,7 @@ const ArchiveManagement = () => {
 
   // ── Restore all ───────────────────────────────────────────────────────────
   const handleRestoreAll = async () => {
-    if (!(await confirmAction({ title: `Restore all ${totalItems} archived ${activeModule} records?`, confirmText: 'Restore all', tone: 'danger' }))) return;
+    if (!(await confirmAction({ title: `Restore all ${totalItems} archived ${activeModule} records?`, confirmText: 'Restore all', tone: 'primary' }))) return;
     try {
       const res = await fetch(
         apiUrl(`/archive/${activeModule}/restore-all`),
