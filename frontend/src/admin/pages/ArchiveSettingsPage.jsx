@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { archiveSettingsAPI } from '../services/api';
+import { confirmAction } from '../utils/confirm';
+import { toast } from '../utils/toast';
 import '../styles/archive_settings.css';
 
 const MODULE_LABELS = {
@@ -331,7 +333,7 @@ const ArchiveSettingsPage = () => {
   };
 
   const handleRunNow = async () => {
-    if (!window.confirm('This will archive records based on current settings. Continue?')) return;
+    if (!(await confirmAction({ title: 'Archive records now?', text: 'This will archive records based on current settings.', confirmText: 'Archive', tone: 'danger' }))) return;
     setRunning('run');
     try {
       const res = await archiveSettingsAPI.runNow();
@@ -347,7 +349,7 @@ const ArchiveSettingsPage = () => {
       loadSettings();
       loadLogs(logsPage);
     } catch {
-      alert('Auto-archive run failed.');
+      toast.error("Couldn't run auto-archive", 'Auto-archive run failed.');
     } finally {
       setRunning('');
     }
@@ -375,8 +377,8 @@ const ArchiveSettingsPage = () => {
   };
 
   const handleRunCleanup = async () => {
-    if (!window.confirm('This will PERMANENTLY DELETE archived records past their retention period.')) return;
-    if (!window.confirm('This action is irreversible. Are you sure?')) return;
+    if (!(await confirmAction({ title: 'Permanently delete expired records?', text: 'This will permanently delete archived records past their retention period.', confirmText: 'Continue', tone: 'danger' }))) return;
+    if (!(await confirmAction({ title: 'Are you sure?', text: 'This action is irreversible.', confirmText: 'Delete permanently', tone: 'danger' }))) return;
     setRunning('cleanup');
     try {
       const res = await archiveSettingsAPI.runCleanup();
@@ -391,7 +393,7 @@ const ArchiveSettingsPage = () => {
       });
       loadLogs(logsPage);
     } catch {
-      alert('Cleanup run failed.');
+      toast.error("Couldn't run cleanup", 'Cleanup run failed.');
     } finally {
       setRunning('');
     }
