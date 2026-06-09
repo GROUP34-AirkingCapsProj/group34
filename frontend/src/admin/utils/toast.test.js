@@ -52,7 +52,7 @@ describe('toast util', () => {
     expect(arg.html).toContain('&lt;img');
   });
 
-  test('error uses a longer timer than success', () => {
+  test('error fires with a 2500ms timer', () => {
     toast.error('Save failed', 'reason');
     expect(mockFire.mock.calls[0][0].timer).toBe(2500);
   });
