@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
-import { istAPI, getApiBaseUrl } from '../services/api';
+import { istAPI } from '../services/api';
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -31,7 +31,7 @@ const ISTReceiptPage = () => {
 
   useEffect(() => { fetchIst(); }, [fetchIst]);
 
-  const pdfUrl = `${getApiBaseUrl()}/ist/${id}/receipt/pdf`;
+  const pdfUrl = istAPI.receiptPdfUrl(id);
 
   return (
     <>

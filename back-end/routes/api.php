@@ -619,7 +619,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/ist/{id}/scan-status', [ISTController::class, 'scanStatus']);
     Route::get('/ist/{id}/receive', [ISTController::class, 'receiveForm']);
     Route::get('/ist/{id}/receipt', [ISTController::class, 'receipt']);
-    Route::get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
+    // NOTE: /ist/{id}/receipt/pdf is a browser-download route — defined below with
+    // auth.query.token so the <a href> link can authenticate via ?token=.
     Route::get('/ist/{id}', [ISTController::class, 'show']);
     Route::middleware('role:admin,inventory_analyst,warehouse_personnel,branch_manager')->group(function () {
         Route::post('/ist', [ISTController::class, 'store']);
@@ -882,3 +883,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 Route::middleware(['auth.query.token', 'role:admin,branch_manager,warehouse_personnel'])
      ->get('/issuance-scan/delivery-receipt/{issuance_id}/csv',
          [IssuanceScanController::class, 'downloadDeliveryReceipt']);
+
+Route::middleware(['auth.query.token', 'role:admin,inventory_analyst,branch_manager,warehouse_personnel'])
+     ->get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
