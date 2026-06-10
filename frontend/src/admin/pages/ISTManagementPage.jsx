@@ -365,18 +365,18 @@ const ISTManagementPage = () => {
                       >
                         <td>
                           <span style={{ fontWeight: 600, color: '#1e293b' }}>{ist.transfer_number}</span>
-                          {ist.transferRequest?.transfer_number && (
+                          {(ist.transfer_request?.transfer_number || ist.transferRequest?.transfer_number) && (
                             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                              from {ist.transferRequest.transfer_number}
+                              from {ist.transfer_request?.transfer_number || ist.transferRequest?.transfer_number}
                             </div>
                           )}
                         </td>
                         <td>{from}</td>
                         <td>{to}</td>
                         <td>{fmtDate(ist.transfer_date)}</td>
-                        <td>{userName(ist.preparedBy)}</td>
+                        <td>{userName(ist.prepared_by || ist.preparedBy)}</td>
                         <td style={{ fontSize: 12 }}>{dispatch ? fmtDateTime(dispatch.recorded_at) : '—'}</td>
-                        <td>{dispatch ? userName(dispatch.recordedBy) : '—'}</td>
+                        <td>{dispatch ? userName(dispatch.recorded_by || dispatch.recordedBy) : '—'}</td>
                         <td style={{ textAlign: 'center' }}>{(ist.details || []).length} line(s)</td>
                         <td style={{ textAlign: 'center' }}>
                           {(ist.total_quantity_transferred || 0)} / {totalReq}

@@ -77,8 +77,8 @@ const ISTReceivePage = () => {
 
   useEffect(() => { fetchIst(); }, [fetchIst]);
 
-  const from = ist?.fromLocation?.location_name || '—';
-  const to   = ist?.toLocation?.location_name   || '—';
+  const from = ist?.from_location?.location_name || '—';
+  const to   = ist?.to_location?.location_name   || '—';
 
   const dispatchEntry = (ist?.transfer_tracking || [])
     .filter((t) => (t.status_note || '').toLowerCase().includes('dispatched'))
@@ -268,7 +268,7 @@ const ISTReceivePage = () => {
                   { label: 'FROM',            value: from,                            bold: true },
                   { label: 'TO',              value: to,                              bold: true },
                   { label: 'TRANSFER DATE',   value: fmtDate(ist.transfer_date) },
-                  { label: 'DISPATCHED BY',   value: userName(dispatchEntry?.recordedBy) },
+                  { label: 'DISPATCHED BY',   value: userName(dispatchEntry?.recorded_by) },
                   { label: 'DISPATCHED DATE', value: fmtDateTime(dispatchEntry?.recorded_at) },
                 ].map(({ label, value, bold }) => (
                   <div key={label} className="po-field">
