@@ -5,6 +5,7 @@ import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
+import CameraScanner from '../components/CameraScanner';
 import '../styles/po_recommendation.css';
 import '../styles/dashboard_air.css';
 
@@ -144,6 +145,28 @@ const ISTDispatchPage = () => {
     }
   };
 
+  const handleGlobalScan = useCallback(async (code) => {
+    const barcode = String(code || '').trim();
+    if (!barcode) return;
+    try {
+      const result = await istAPI.scan(id, { barcode });
+      const data = result?.data ?? result;
+      const did  = data.transfer_detail_id;
+      setSessionScans((prev) => ({
+        ...prev,
+        [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: 1 }],
+      }));
+      setScannedTotals((prev) => ({ ...prev, [did]: data.total_scanned }));
+      setDetailUi((prev) => ({
+        ...prev,
+        [did]: { ...initDetailState(), feedback: data.remaining > 0 ? `Recorded. ${data.remaining} remaining.` : 'All units scanned.' },
+      }));
+      toast.success(`Scanned ${data.product_name}`);
+    } catch (err) {
+      toast.error('Scan rejected', err?.message || 'Scan rejected.');
+    }
+  }, [id]);
+
   const handleConfirm = async () => {
     if (totalScanned < 1) {
       toast.error("Can't dispatch yet", 'Scan at least one unit before confirming dispatch.');
@@ -262,6 +285,16 @@ const ISTDispatchPage = () => {
                   {totalScanned < 1 ? 'Scan units below to record dispatch' : 'Ready to confirm when done (partial allowed)'}
                 </span>
               </div>
+            </div>
+
+            <div className="po-details-card" style={{ marginBottom: 16 }}>
+              <CameraScanner
+                onDecode={handleGlobalScan}
+                mountId="ist-dispatch-scanner"
+                storageKey="bs_inventory_camera_device_id"
+                busy={submitting}
+                hint="Scan each unit leaving the source. It will be matched to its product automatically."
+              />
             </div>
 
             {(ist.details || []).map((detail) => {
