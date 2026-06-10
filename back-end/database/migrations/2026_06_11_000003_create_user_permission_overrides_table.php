@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('user_permission_overrides', function (Blueprint $table) {
@@ -17,6 +18,7 @@ return new class extends Migration {
             $table->timestamp('revoked_at')->nullable();
             $table->text('reason')->nullable();
             $table->timestamps();
+            // Only one active override (revoked_at IS NULL) per user+permission is enforced in the application layer (PermissionAdminService), not by the DB — MySQL has no partial unique index.
             $table->index(['user_id', 'permission_id', 'revoked_at']);
             $table->foreign('permission_id')->references('permission_id')->on('permissions')->cascadeOnDelete();
         });
