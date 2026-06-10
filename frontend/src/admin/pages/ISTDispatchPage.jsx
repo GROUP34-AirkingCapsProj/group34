@@ -90,8 +90,8 @@ const ISTDispatchPage = () => {
 
   useEffect(() => { fetchIst(); }, [fetchIst]);
 
-  const from = ist?.fromLocation?.location_name || '—';
-  const to   = ist?.toLocation?.location_name   || '—';
+  const from = ist?.from_location?.location_name || '—';
+  const to   = ist?.to_location?.location_name   || '—';
 
   const totalScanned = Object.values(scannedTotals).reduce((s, n) => s + (n || 0), 0);
 
@@ -264,7 +264,7 @@ const ISTDispatchPage = () => {
                   { label: 'FROM',          value: from, bold: true },
                   { label: 'TO',            value: to, bold: true },
                   { label: 'TRANSFER DATE', value: fmtDate(ist.transfer_date) },
-                  { label: 'PREPARED BY',   value: userName(ist.preparedBy) },
+                  { label: 'PREPARED BY',   value: userName(ist.prepared_by) },
                 ].map(({ label, value, bold }) => (
                   <div key={label} className="po-field">
                     <span className="po-field-label">{label}</span>

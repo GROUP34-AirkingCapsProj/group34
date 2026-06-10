@@ -138,8 +138,8 @@ const ISTCreatePage = () => {
 
   const from       = req.from_location?.location_name || req.fromLocation?.location_name || '—';
   const to         = req.to_location?.location_name   || req.toLocation?.location_name   || '—';
-  const approver   = userName(req.approvedBy);
-  const requester  = userName(req.requestedBy);
+  const approver   = userName(req.approved_by || req.approvedBy);
+  const requester  = userName(req.requested_by || req.requestedBy);
   const details    = Array.isArray(req.details) ? req.details : [];
 
   return (

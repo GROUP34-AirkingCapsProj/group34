@@ -122,14 +122,14 @@ const ISTReceiptPage = () => {
               <tbody>
                 <tr>
                   <td style={{ fontWeight: 700, width: 55, paddingBottom: 3 }}>FROM:</td>
-                  <td style={{ paddingLeft: 6, paddingBottom: 3 }}>{ist.fromLocation?.location_name || '—'}</td>
+                  <td style={{ paddingLeft: 6, paddingBottom: 3 }}>{ist.from_location?.location_name || '—'}</td>
                   <td style={{ width: 20 }}></td>
                   <td style={{ fontWeight: 700, width: 45, paddingBottom: 3 }}>DATE:</td>
                   <td style={{ paddingLeft: 6, paddingBottom: 3 }}>{fmtDate(ist.transfer_date)}</td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 700 }}>TO:</td>
-                  <td style={{ paddingLeft: 6 }}>{ist.toLocation?.location_name || '—'}</td>
+                  <td style={{ paddingLeft: 6 }}>{ist.to_location?.location_name || '—'}</td>
                   <td></td>
                   <td style={{ fontWeight: 700 }}>MR #:</td>
                   <td style={{ paddingLeft: 6 }}>{ist.transfer_number}</td>
@@ -196,15 +196,15 @@ const ISTReceiptPage = () => {
               <tbody>
                 <tr>
                   <td style={{ padding: '3px 0', width: '50%' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Prepared by:</span>&nbsp;{fullName(ist.preparedBy)}
+                    <span style={{ fontWeight: 700, color: '#374151' }}>Prepared by:</span>&nbsp;{fullName(ist.prepared_by)}
                   </td>
                   <td style={{ padding: '3px 0' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Approved by:</span>&nbsp;{fullName(ist.approvedBy)}
+                    <span style={{ fontWeight: 700, color: '#374151' }}>Approved by:</span>&nbsp;{fullName(ist.approved_by)}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ padding: '3px 0' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Received by:</span>&nbsp;{fullName(ist.receivedBy)}
+                    <span style={{ fontWeight: 700, color: '#374151' }}>Received by:</span>&nbsp;{fullName(ist.received_by)}
                   </td>
                   <td></td>
                 </tr>

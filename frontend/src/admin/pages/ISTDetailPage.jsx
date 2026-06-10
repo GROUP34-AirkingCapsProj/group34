@@ -102,12 +102,17 @@ const ISTDetailPage = () => {
   useEffect(() => { fetchIst(); }, [fetchIst]);
 
   const statusName = ist?.status?.status_name || '';
-  const from = ist?.fromLocation?.location_name || '—';
-  const to   = ist?.toLocation?.location_name   || '—';
+  const from = ist?.from_location?.location_name || '—';
+  const to   = ist?.to_location?.location_name   || '—';
 
   // Dispatch entry from tracking
   const dispatchEntry = ist?.transfer_tracking
     ?.filter((t) => (t.status_note || '').toLowerCase().includes('dispatched'))
+    .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))[0];
+
+  // Receive entry from tracking
+  const receiveEntry = ist?.transfer_tracking
+    ?.filter((t) => (t.status_note || '').toLowerCase().includes('received'))
     .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))[0];
 
   // Tracking sorted ASC for timeline
@@ -214,18 +219,25 @@ const ISTDetailPage = () => {
                   { label: 'FROM',              value: from,                                   bold: true },
                   { label: 'TO',                value: to,                                     bold: true },
                   { label: 'TRANSFER DATE',     value: fmtDate(ist.transfer_date) },
-                  { label: 'PREPARED BY',       value: userName(ist.preparedBy) },
-                  { label: 'APPROVED BY',       value: userName(ist.approvedBy) },
-                  ...(ist.transferRequest?.transfer_number
-                    ? [{ label: 'FROM REQUEST', value: ist.transferRequest.transfer_number }]
+                  { label: 'PREPARED BY',       value: userName(ist.prepared_by) },
+                  { label: 'APPROVED BY',       value: userName(ist.approved_by) },
+                  ...(ist.transfer_request?.transfer_number
+                    ? [{ label: 'FROM REQUEST', value: ist.transfer_request.transfer_number }]
                     : []),
                   ...(dispatchEntry
                     ? [
                         { label: 'DISPATCHED DATE', value: fmtDateTime(dispatchEntry.recorded_at) },
-                        { label: 'DISPATCHED BY',   value: userName(dispatchEntry.recordedBy) },
+                        { label: 'DISPATCHED BY',   value: userName(dispatchEntry.recorded_by) },
+                      ]
+                    : []),
+                  ...(receiveEntry || ist.received_by
+                    ? [
+                        { label: 'RECEIVED DATE', value: fmtDateTime(receiveEntry?.recorded_at) },
+                        { label: 'RECEIVED BY',   value: userName(ist.received_by || receiveEntry?.recorded_by) },
                       ]
                     : []),
                   { label: 'TOTAL DISPATCHED', value: `${ist.total_quantity_transferred ?? 0} unit(s)` },
+                  { label: 'TOTAL RECEIVED',   value: `${ist.total_quantity_received ?? 0} unit(s)` },
                 ].map(({ label, value, bold }) => (
                   <div key={label} className="po-field">
                     <span className="po-field-label">{label}</span>
@@ -337,8 +349,8 @@ const ISTDetailPage = () => {
                         </div>
                         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#64748b' }}>
                           <span>{fmtDateTime(entry.recorded_at)}</span>
-                          {entry.recordedBy && (
-                            <span>by <strong style={{ color: '#475569' }}>{userName(entry.recordedBy)}</strong></span>
+                          {entry.recorded_by && (
+                            <span>by <strong style={{ color: '#475569' }}>{userName(entry.recorded_by)}</strong></span>
                           )}
                         </div>
                       </div>
