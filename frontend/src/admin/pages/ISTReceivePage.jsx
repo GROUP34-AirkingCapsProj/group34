@@ -202,6 +202,7 @@ const ISTReceivePage = () => {
       const result = await istAPI.receiveScan(id, { barcode });
       const data = result?.data ?? result;
       const did  = data.transfer_detail_id;
+      if (did == null) { toast.error('Scan not recorded', 'Unexpected response.'); return; }
       const step = Math.max(1, (data.quantity_received ?? 0) - (receivedTotals[did] || 0));
       setSessionScans((prev) => ({
         ...prev,

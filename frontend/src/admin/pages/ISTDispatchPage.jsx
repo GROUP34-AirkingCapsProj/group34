@@ -152,6 +152,7 @@ const ISTDispatchPage = () => {
       const result = await istAPI.scan(id, { barcode });
       const data = result?.data ?? result;
       const did  = data.transfer_detail_id;
+      if (did == null) { toast.error('Scan not recorded', 'Unexpected response.'); return; }
       setSessionScans((prev) => ({
         ...prev,
         [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: 1 }],
