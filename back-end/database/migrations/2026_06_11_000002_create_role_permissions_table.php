@@ -4,12 +4,13 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('role_permissions', function (Blueprint $table) {
             $table->id(); // surrogate PK so Eloquent updateOrCreate issues safe UPDATEs
-            $table->unsignedInteger('role_id');
+            $table->unsignedBigInteger('role_id');
             $table->unsignedBigInteger('permission_id');
             $table->boolean('is_granted')->default(false);
             $table->timestamps();
