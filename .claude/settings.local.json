@@ -10,7 +10,26 @@
       "Bash(xargs grep *)",
       "Bash(npx react-scripts *)",
       "Bash(netstat -ano)",
-      "Bash(findstr \":3000\")"
+      "Bash(findstr \":3000\")",
+      "Bash(sed -n '510,520p' frontend/src/admin/services/api.js)",
+      "Bash(sed -n '1,40p' back-end/app/Models/AuditTrail.php)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(/c/XAMPP1/mysql/bin/mysql.exe -u root -h 127.0.0.1 -P 3306 -e \"DROP DATABASE IF EXISTS airkingV5_test; CREATE DATABASE airkingV5_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\")",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(/c/XAMPP1/mysql/bin/mysql.exe -u root -h 127.0.0.1 -P 3306 airkingV5_test)",
+      "Bash(/c/XAMPP1/mysql/bin/mysql.exe *)",
+      "Bash(echo \"Deleted: $?\")",
+      "PowerShell(cd \"C:\\\\XAMPP1\\\\htdocs\\\\Airking_Inventory\\\\back-end\"; php artisan tinker --execute=\"use Illuminate\\\\Support\\\\Facades\\\\DB; \\\\$rows = DB::select\\(\\\\\"SELECT migration FROM migrations WHERE migration LIKE '%warranty_claims%'\\\\\"\\); print_r\\(\\\\$rows\\);\" 2>&1)",
+      "Bash(git commit *)",
+      "Bash(head -40 frontend/src/admin/pages/StockTransferManagement.jsx)",
+      "Bash(head -40 frontend/src/admin/pages/TransferScanWorkflow.jsx)",
+      "Bash(head -30 frontend/src/admin/pages/TransferRequestPage.jsx)",
+      "Bash(grep -n 'protected $table' back-end/app/Models/ProductInventory.php)"
     ]
+  },
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
   }
 }

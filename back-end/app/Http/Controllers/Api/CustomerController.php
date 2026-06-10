@@ -24,7 +24,7 @@ class CustomerController extends Controller
     public function index(Request $request)
     {
         $query = Customer::with('status')
-                         ->withCount(['issuances', 'warrantyRecords'])
+                         ->withCount(['issuances', 'warrantyRecords', 'warrantyClaims'])
                          ->orderBy('customer_name');
 
         if ($request->filled('search')) {
@@ -81,7 +81,7 @@ class CustomerController extends Controller
     public function show($id)
     {
         $customer = Customer::with('status')
-            ->withCount(['issuances', 'warrantyRecords'])
+            ->withCount(['issuances', 'warrantyRecords', 'warrantyClaims'])
             ->find($id);
 
         if (! $customer) {
@@ -190,6 +190,27 @@ class CustomerController extends Controller
             'status_name'             => $w->status?->status_name,
         ]);
 
+        $claims = \App\Models\WarrantyClaim::with(['details.product', 'status'])
+            ->where('customer_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn ($c) => [
+                'claim_id'      => $c->claim_id,
+                'claim_number'  => $c->claim_number,
+                'claim_type'    => $c->claim_type,
+                'serial_number' => $c->serial_number,
+                'status_name'   => $c->status?->status_name,
+                'notes'         => $c->notes,
+                'parts_cost'    => $c->parts_cost,
+                'completed_at'  => $c->completed_at?->toDateString(),
+                'items'         => $c->details->map(fn ($d) => [
+                    'product_name'   => $d->product?->product_name,
+                    'serial_number'  => $d->serial_number,
+                    'quantity'       => $d->quantity_issued,
+                    'quantity_unit'  => $d->quantity_unit,
+                ])->values(),
+            ]);
+
         return $this->success([
             'customer'           => $customer,
             'issuances'          => $issuances,
@@ -198,6 +219,8 @@ class CustomerController extends Controller
             'active_warranties'  => $activeWarranties
                                         ->where('is_expired', false)
                                         ->count(),
+            'warranty_claims'    => $claims,
+            'total_claims'       => $claims->count(),
         ], 'Customer history retrieved');
     }
 

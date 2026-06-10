@@ -61,6 +61,7 @@ const PurchaseOrderPage = lazy(() => import('./admin/pages/PurchaseOrderPage'));
 const ComplianceReview = lazy(() => import('./admin/pages/ComplianceReview'));
 const AlertsNotices = lazy(() => import('./admin/pages/AlertsNotices'));
 const WarrantyManagement = lazy(() => import('./admin/pages/WarrantyManagement'));
+const WarrantyClaimPage = lazy(() => import('./admin/pages/WarrantyClaimPage'));
 const IssuanceScanPage  = lazy(() => import('./admin/pages/IssuanceScanPage'));
 
 // Supabase PWA (parallel to Laravel admin)
@@ -162,6 +163,7 @@ function App() {
           <Route path="/admin/notifications" element={<RoleRoute><Navigate to="/admin/alerts" replace /></RoleRoute>} />
           <Route path="/admin/warranty" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
           <Route path="/admin/warranties" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
+          <Route path="/admin/warranty-claims" element={<RoleRoute><WarrantyClaimPage /></RoleRoute>} />
           <Route path="/admin/issuance-scan" element={<RoleRoute><IssuanceScanPage /></RoleRoute>} />
         </Routes>
       </Suspense>

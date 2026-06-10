@@ -1147,11 +1147,10 @@ export default function IssuanceScanPage() {
                   <label>Issuance Type *</label>
                   <select
                     value={form.issuance_type}
-                    onChange={(e) => setForm((f) => ({ ...f, issuance_type: e.target.value, discount_percent: e.target.value === 'warranty' ? 100 : 0 }))}
+                    onChange={(e) => setForm((f) => ({ ...f, issuance_type: e.target.value, discount_percent: 0 }))}
                   >
                     <option value="individual">Individual</option>
                     <option value="business">Business</option>
-                    <option value="warranty">Warranty (free replacement)</option>
                   </select>
                 </div>
                 <div className="isp-form-group">
@@ -1195,12 +1194,6 @@ export default function IssuanceScanPage() {
                       />
                     </div>
                   )}
-                </div>
-              )}
-
-              {form.issuance_type === 'warranty' && (
-                <div className="isp-info-banner">
-                  Warranty issuance applies 100% discount. No charge for replacement items.
                 </div>
               )}
 

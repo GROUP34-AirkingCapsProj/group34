@@ -41,7 +41,7 @@ class IssuanceScanController extends Controller
     {
         $validated = $request->validate([
             'customer_id'      => 'required|integer|exists:customers,customer_id',
-            'issuance_type'    => ['required', Rule::in(['business', 'individual', 'warranty'])],
+            'issuance_type'    => ['required', Rule::in(['business', 'individual'])],
             'discount_type'    => ['nullable', Rule::in(['none', 'business', 'senior', 'custom'])],
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'location_id'      => 'nullable|integer|exists:locations,location_id',
@@ -61,9 +61,6 @@ class IssuanceScanController extends Controller
         if ($validated['issuance_type'] === 'business') {
             $discountPercent = (float) ($validated['discount_percent'] ?? 0);
             $discountType    = $validated['discount_type'] ?? 'business';
-        } elseif ($validated['issuance_type'] === 'warranty') {
-            $discountPercent = 100;
-            $discountType    = 'none';
         }
 
         $drNumber = 'DR-' . now()->format('Ymd') . '-'
