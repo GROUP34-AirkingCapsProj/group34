@@ -720,7 +720,10 @@ export const istAPI = {
   receiveScan:       async (id, data)   => apiRequest(`/ist/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data) }),
   removeReceiveScan: async (id, scanId) => apiRequest(`/ist/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
   receipt:           async (id)         => apiRequest(`/ist/${id}/receipt`),
-  receiptPdfUrl:     (id)               => `${getApiBaseUrl()}/ist/${id}/receipt/pdf`,
+  receiptPdfUrl:     (id)               => {
+    const token = getToken();
+    return `${getApiBaseUrl()}/ist/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
 };
 
 /* ======================
