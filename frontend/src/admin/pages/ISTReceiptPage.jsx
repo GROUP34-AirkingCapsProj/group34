@@ -94,18 +94,19 @@ const ISTReceiptPage = () => {
             fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#111',
           }}>
 
-            {/* Company Header */}
-            <div style={{ fontWeight: 700, fontSize: 15, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              LGM Global Industries, Inc.
+            {/* Company Header — centered letterhead; address reflects the SOURCE location */}
+            <div style={{ textAlign: 'center', borderBottom: '2px solid #111', paddingBottom: 10, marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 22, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                LGM Global Industries, Inc.
+              </div>
+              {ist.from_location?.location_name && (
+                <div style={{ fontSize: 11, color: '#333', marginTop: 3 }}>{ist.from_location.location_name}</div>
+              )}
+              {ist.from_location?.address && (
+                <div style={{ fontSize: 11, color: '#333', marginTop: 1 }}>{ist.from_location.address}</div>
+              )}
+              <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>Vat Reg. TIN#: 771-347-425-000</div>
             </div>
-            <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
-              Bluz Bldg. Tadeco Road San Francisco Panabo City
-            </div>
-            <div style={{ fontSize: 10, color: '#444', marginTop: 1 }}>
-              Vat Reg. TIN#: 771-347-425-000
-            </div>
-
-            <hr style={{ border: 'none', borderTop: '1.5px solid #111', margin: '10px 0' }} />
 
             {/* Title + IST Number */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '10px 0 6px' }}>

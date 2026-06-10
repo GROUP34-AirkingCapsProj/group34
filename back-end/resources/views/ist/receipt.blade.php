@@ -10,8 +10,9 @@
   .page { width: 100%; max-width: 700px; margin: 0 auto; padding: 28px 32px; }
 
   /* Header */
-  .company-name { font-size: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
-  .company-sub  { font-size: 10px; color: #444; margin-top: 2px; }
+  .company-header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
+  .company-name { font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; }
+  .company-sub  { font-size: 11px; color: #333; margin-top: 2px; }
   .divider      { border: none; border-top: 1.5px solid #111; margin: 10px 0; }
   .divider-thin { border: none; border-top: 1px solid #bbb; margin: 8px 0; }
 
@@ -71,12 +72,18 @@
 <body>
 <div class="page">
 
-  {{-- Company Header --}}
-  <div class="company-name">LGM Global Industries, Inc.</div>
-  <div class="company-sub">Bluz Bldg. Tadeco Road San Francisco Panabo City</div>
-  <div class="company-sub">Vat Reg. TIN#: 771-347-425-000</div>
-
-  <hr class="divider">
+  {{-- Company Header — centered letterhead; address reflects the SOURCE location --}}
+  @php $srcLoc = $ist->fromLocation; @endphp
+  <div class="company-header">
+    <div class="company-name">LGM Global Industries, Inc.</div>
+    @if($srcLoc?->location_name)
+      <div class="company-sub">{{ $srcLoc->location_name }}</div>
+    @endif
+    @if($srcLoc?->address)
+      <div class="company-sub">{{ $srcLoc->address }}</div>
+    @endif
+    <div class="company-sub" style="font-size:10px;color:#666">Vat Reg. TIN#: 771-347-425-000</div>
+  </div>
 
   {{-- Title + IST Number --}}
   <div class="title-row">
