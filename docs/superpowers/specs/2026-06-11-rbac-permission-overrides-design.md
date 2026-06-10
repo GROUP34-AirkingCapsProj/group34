@@ -211,9 +211,37 @@ The seed matrix in §8 already bakes in the five theme decisions. This section r
 
 **Theme D (`pos_sales_recording.create` → SA, BM, WP).** Raw matrix already = SA,BM,WP; seeded as-given. (Note: live `SaleController@store` currently = admin,BM,**IA** — Phase-2 enforcement will *change* this to SA,BM,WP.)
 
-**Theme E (`purchase_order_creation` writes → SA, IA).** Raw matrix create/update/approve = SA,IA,AU → AU dropped (Theme A) = SA,IA. `archive` SA-only (Theme B). `read` = SA,IA,AU preserved (live PO index is unguarded; auditors read POs today).
+**Theme E (`purchase_order_creation` writes → SA, IA).** Raw matrix create/update/approve = SA,IA,AU → AU dropped (Theme A) = SA,IA. `archive` SA-only (Theme B). `read` = SA,IA,AU + **BM** (Stage-2 decision 6r) = SA,IA,BM,AU.
 
-**Unmapped routes (no matrix feature) — left on `role:` as-is, not seeded:** `subcategories` (admin,BM), `models` (admin,IA), `purchase_returns` (admin,BM), `profit_loss` (admin,BM), legacy `/items` aliases. These have no corresponding feature in the supplied matrix; they keep their current `role:` middleware and are out of scope until a feature key is assigned.
+### Stage-2 route-level reconciliation (decisions on all 74 `role:` routes)
+
+A full route-by-route pass mapped every `role:` middleware in `routes/api.php` (web.php has none) to a feature/action and compared it to the matrix. Buckets 1–5 confirmed the five themes above. Bucket 6 (route-level conflicts) was decided as follows and is reflected in §8:
+
+| Item | Routes | Feature.action | Decision (seeded value) |
+|---|---|---|---|
+| 6a | serials store/update (`:371`) | barcode_assignment.create/update | CURRENT → **SA,BM,WP** |
+| 6b | serials destroy (`:375`) | barcode_assignment.archive | CURRENT → **SA** |
+| 6c | inventory scan-barcode / barcode-scans (`:816`) | barcode_inventory_processing.create | CURRENT → **SA,BM,WP** |
+| 6d | issuance-scan (`:451`) | inventory_issuance.create | CURRENT → **SA,BM,WP** |
+| 6e | adjustments barcode submit (`:696`) | inventory_adjustments.create | CURRENT → **SA,BM,WP** |
+| 6f | receivings store (`:554`) | delivery_receiving.create | CURRENT, keep BM → **SA,BM,WP** (unchanged from §8) |
+| 6g | IST store/scan/receive (`:642,648`) | inventory_transfers.create/update | CURRENT → **SA,IA,BM,WP** |
+| 6h | transfer-requests store (`:661`) | inventory_transfers.create | CURRENT → **SA,IA,BM,WP** |
+| 6i | legacy transfers store/update (`:677`) | inventory_transfers.create/update | CURRENT, SA-only — **the legacy `/transfers` route keeps its own `role:admin` guard in Phase 2**; does not narrow the seeded cell |
+| 6j | pending-products approve (`:359`) | item_master_management.approve | MATRIX → **SA,IA** (unchanged from §8) |
+| 6k | pending-products store (`:352`) | item_master_management.create | MATRIX → **SA,IA** (unchanged from §8) |
+| 6l | locations store/update/destroy (`:291,295`) | location_based_inventory.create/update | CURRENT → **SA,BM** (archive SA) |
+| 6m | delivery-receipts store/update (`:603`) | delivery_receipt_generation.create/update | MATRIX → **SA,BM,WP** (unchanged from §8) |
+| 6n | password-reset/users reads (`:113,121`) | user_account_management.read | MATRIX → **SA,AU** (unchanged from §8) |
+| 6o | archive summary/index (`:176`) | archive_viewing.read | MATRIX → **SA,IA,BM,AU** (unchanged from §8) |
+| 6p | archive restore (`:179`) | data_archiving.update | MATRIX → **SA** (unchanged from §8) |
+| 6q | audit-log/audit-trail v1 (`:752`) | audit_trail_viewing.read | MATRIX → **SA,BM,AU** (unchanged from §8) |
+| 6r | PO export/read (`:474`) | purchase_order_creation.read | **SA,IA,BM,AU** |
+| 6s | delivery-receipt csv / IST receipt pdf (`:900,904`) | delivery_receipt_generation.read / inventory_transfers.read | MATRIX, add AU (unchanged from §8) |
+
+> **6i nuance:** three route-sets feed `inventory_transfers.create/update` — IST (`:642`), transfer-requests (`:661`), and legacy `/transfers` (`:677`). Decisions 6g/6h widen the *seeded default* to SA,IA,BM,WP; 6i keeps the legacy direct-transfer route admin-only at the route level when Phase 2 migrates it (a stricter per-route guard layered over the default).
+
+**Unmapped routes (Stage-2 decision: leave ALL on current `role:`, do NOT assign feature keys, do NOT seed):** system session/company settings (`:109,111`), `status-lookup` writes (`:151`), `archive-settings` (`:189`), `subcategories` (`:225,229`), `models` (`:257,261`), `customers/{}/force` (`:416`), `warranty-claims` (`:434`), `budget-allocations` (`:499,504`), `purchase-requests` (`:520,528,535,541`), `purchase-returns` (`:571,575`), `profit-loss` (`:739,743`). These keep their existing `role:` middleware unchanged and get no permission rows until a feature key is assigned in a later effort.
 
 ---
 
@@ -226,12 +254,12 @@ Grants are listed per `feature.action` using role abbreviations **SA / IA / BM /
 |---|---|---|---|---|---|
 | centralized_inventory | SA | SA IA BM WP AU | SA | SA | SA |
 | automated_inventory_monitoring | SA IA BM WP | SA IA BM WP AU | SA IA BM WP | SA | SA IA BM WP |
-| location_based_inventory | SA IA BM | SA IA BM WP AU | SA IA BM | SA | SA IA BM |
-| barcode_inventory_processing | SA WP | SA IA BM WP AU | SA WP | SA | SA WP |
+| location_based_inventory | SA BM | SA IA BM WP AU | SA BM | SA | SA IA BM |
+| barcode_inventory_processing | SA BM WP | SA IA BM WP AU | SA WP | SA | SA WP |
 | inventory_receiving | SA WP | SA BM WP AU | SA WP | SA | SA WP |
-| inventory_issuance | SA WP | SA BM WP AU | SA WP | SA | SA WP |
-| inventory_transfers | SA BM WP | SA IA BM WP AU | SA BM WP | SA | **SA IA** |
-| inventory_adjustments | SA WP | SA IA BM WP AU | SA WP | SA | SA WP |
+| inventory_issuance | SA BM WP | SA BM WP AU | SA WP | SA | SA WP |
+| inventory_transfers | SA IA BM WP | SA IA BM WP AU | SA IA BM WP | SA | **SA IA** |
+| inventory_adjustments | SA BM WP | SA IA BM WP AU | SA WP | SA | SA WP |
 
 ### Group II — Item, Barcode & Classification
 | feature | create | read | update | archive | approve |
@@ -240,7 +268,7 @@ Grants are listed per `feature.action` using role abbreviations **SA / IA / BM /
 | category_management | SA IA | SA IA AU | SA IA | SA | SA IA |
 | brand_management | SA IA | SA IA AU | SA IA | SA | SA IA |
 | uom_management | SA IA | SA IA AU | SA IA | SA | SA IA |
-| barcode_assignment | SA WP | SA WP AU | SA WP | SA | SA WP |
+| barcode_assignment | SA BM WP | SA WP AU | SA BM WP | SA | SA WP |
 
 ### Group III — User, Role & Security
 | feature | create | read | update | archive | approve |
@@ -274,7 +302,7 @@ Grants are listed per `feature.action` using role abbreviations **SA / IA / BM /
 |---|---|---|---|---|---|
 | supplier_management | SA IA BM | SA IA BM AU | SA IA BM | SA | SA IA BM |
 | item_supplier_mapping | SA IA BM | SA IA BM AU | SA IA BM | SA | SA IA BM |
-| purchase_order_creation | **SA IA** | SA IA AU | **SA IA** | SA | **SA IA** |
+| purchase_order_creation | **SA IA** | SA IA BM AU | **SA IA** | SA | **SA IA** |
 | purchase_order_approval | — | — | — | — | SA |
 | po_status_tracking | — | SA IA BM WP AU | — | — | — |
 | delivery_receiving | SA BM WP | SA BM WP AU | SA BM WP | SA | SA BM WP |

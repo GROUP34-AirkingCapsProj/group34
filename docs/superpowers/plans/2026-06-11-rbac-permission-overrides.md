@@ -725,6 +725,18 @@ class SeederTest extends TestCase
         $this->assertFalse($this->granted('supplier_management', 'create', $this->roleId['auditor']));
         $this->assertTrue($this->granted('supplier_management', 'read', $this->roleId['auditor']));
 
+        // Stage-2 Bucket 6 decisions:
+        // 6a — barcode_assignment.create keeps BM (SA,BM,WP).
+        $this->assertTrue($this->granted('barcode_assignment', 'create', $this->roleId['branch_manager']));
+        // 6g/6h — inventory_transfers.create keeps IA (SA,IA,BM,WP).
+        $this->assertTrue($this->granted('inventory_transfers', 'create', $this->roleId['inventory_analyst']));
+        $this->assertTrue($this->granted('inventory_transfers', 'create', $this->roleId['warehouse_personnel']));
+        // 6l — location_based_inventory.create is SA,BM only (IA dropped).
+        $this->assertTrue($this->granted('location_based_inventory', 'create', $this->roleId['branch_manager']));
+        $this->assertFalse($this->granted('location_based_inventory', 'create', $this->roleId['inventory_analyst']));
+        // 6r — purchase_order_creation.read adds BM (SA,IA,BM,AU).
+        $this->assertTrue($this->granted('purchase_order_creation', 'read', $this->roleId['branch_manager']));
+
         // Re-running is idempotent (no duplicate permission rows).
         (new PermissionSeeder())->run();
         $this->assertEquals(1, Permission::where('feature', 'inventory_transfers')->where('action', 'approve')->count());
@@ -793,22 +805,22 @@ class PermissionSeeder extends Seeder
                 'create' => [$SA, $IA, $BM, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $IA, $BM, $WP], 'archive' => [$SA], 'approve' => [$SA, $IA, $BM, $WP],
             ],
             'location_based_inventory' => [
-                'create' => [$SA, $IA, $BM], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $IA, $BM], 'archive' => [$SA], 'approve' => [$SA, $IA, $BM],
+                'create' => [$SA, $BM], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $BM], 'archive' => [$SA], 'approve' => [$SA, $IA, $BM],
             ],
             'barcode_inventory_processing' => [
-                'create' => [$SA, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
+                'create' => [$SA, $BM, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
             ],
             'inventory_receiving' => [
                 'create' => [$SA, $WP], 'read' => [$SA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
             ],
             'inventory_issuance' => [
-                'create' => [$SA, $WP], 'read' => [$SA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
+                'create' => [$SA, $BM, $WP], 'read' => [$SA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
             ],
             'inventory_transfers' => [
-                'create' => [$SA, $BM, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $BM, $WP], 'archive' => [$SA], 'approve' => [$SA, $IA],
+                'create' => [$SA, $IA, $BM, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $IA, $BM, $WP], 'archive' => [$SA], 'approve' => [$SA, $IA],
             ],
             'inventory_adjustments' => [
-                'create' => [$SA, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
+                'create' => [$SA, $BM, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
             ],
 
             // --- Group II ---
@@ -825,7 +837,7 @@ class PermissionSeeder extends Seeder
                 'create' => [$SA, $IA], 'read' => [$SA, $IA, $AU], 'update' => [$SA, $IA], 'archive' => [$SA], 'approve' => [$SA, $IA],
             ],
             'barcode_assignment' => [
-                'create' => [$SA, $WP], 'read' => [$SA, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
+                'create' => [$SA, $BM, $WP], 'read' => [$SA, $WP, $AU], 'update' => [$SA, $BM, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
             ],
 
             // --- Group III ---
@@ -863,7 +875,7 @@ class PermissionSeeder extends Seeder
                 'create' => [$SA, $IA, $BM], 'read' => [$SA, $IA, $BM, $AU], 'update' => [$SA, $IA, $BM], 'archive' => [$SA], 'approve' => [$SA, $IA, $BM],
             ],
             'purchase_order_creation' => [
-                'create' => [$SA, $IA], 'read' => [$SA, $IA, $AU], 'update' => [$SA, $IA], 'archive' => [$SA], 'approve' => [$SA, $IA],
+                'create' => [$SA, $IA], 'read' => [$SA, $IA, $BM, $AU], 'update' => [$SA, $IA], 'archive' => [$SA], 'approve' => [$SA, $IA],
             ],
             'purchase_order_approval' => ['approve' => [$SA]],
             'po_status_tracking' => ['read' => [$SA, $IA, $BM, $WP, $AU]],
