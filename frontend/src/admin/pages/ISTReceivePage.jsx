@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import '../styles/po_recommendation.css';
+import '../styles/po_receiving.css';
 import '../styles/dashboard_air.css';
 import DateInput from '../components/DateInput';
 import CameraScanner from '../components/CameraScanner';
@@ -25,9 +26,15 @@ const userName = (u) =>
   u ? ((`${u.first_name || ''} ${u.last_name || ''}`).trim() || u.username || '—') : '—';
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-// ── per-detail scan state shape: { barcode, qty, scanning, feedback, error, scans[] }
-const initDetailState = () => ({ barcode: '', qty: 1, scanning: false, feedback: null, error: null });
+const isLineSerialized = (detail) =>
+  detail?.is_serialized || detail?.product?.is_serialized || detail?.product?.product_type === 'appliance';
 
+/**
+ * Destination-side receive scanner for an In-Transit IST.
+ * Click a product line on the left, then scan each arriving unit into it
+ * (camera or input); confirm receipt to add to destination stock.
+ * Mirrors the Receive PO barcode-scan UX.
+ */
 const ISTReceivePage = () => {
   const { id }   = useParams();
   const navigate = useNavigate();
@@ -39,19 +46,17 @@ const ISTReceivePage = () => {
   const [submitting,   setSubmitting]   = useState(false);
   const [confirmed,    setConfirmed]    = useState(false);
 
-  // Received date for confirm
   const [receivedDate, setReceivedDate] = useState(todayIso());
 
-  // Per-detail UI state: barcode input / qty / scanning status / inline feedback
-  const [detailUi, setDetailUi] = useState({}); // { [transfer_detail_id]: { barcode, qty, scanning, feedback, error } }
+  const [sessionScans,   setSessionScans]   = useState({}); // { [did]: [{ scan_id, barcode, quantity }] }
+  const [receivedTotals, setReceivedTotals] = useState({}); // { [did]: quantity_received }
+  const [activeLine,     setActiveLine]      = useState(null); // selected transfer_detail_id
+  const [scanInput,      setScanInput]       = useState('');
+  const [scanQty,        setScanQty]         = useState(1);    // consumable qty per scan
+  const [scanning,       setScanning]        = useState(false);
 
-  // Scans recorded in this session: { [transfer_detail_id]: [{ scan_id, barcode, quantity }] }
-  const [sessionScans, setSessionScans] = useState({});
-
-  // Running received totals (from server responses)
-  const [receivedTotals, setReceivedTotals] = useState({}); // { [transfer_detail_id]: quantity_received }
-
-  const inputRefs = useRef({});
+  const receivedTotalsRef = useRef({});
+  useEffect(() => { receivedTotalsRef.current = receivedTotals; }, [receivedTotals]);
 
   const fetchIst = useCallback(() => {
     setLoading(true);
@@ -60,14 +65,10 @@ const ISTReceivePage = () => {
       .then((r) => {
         const data = r?.data ?? r;
         setIst(data);
-        // Initialize per-detail UI state
-        const uiInit = {};
         const totalsInit = {};
         (data?.details || []).forEach((d) => {
-          uiInit[d.transfer_detail_id] = initDetailState();
           totalsInit[d.transfer_detail_id] = d.quantity_received ?? 0;
         });
-        setDetailUi(uiInit);
         setReceivedTotals(totalsInit);
       })
       .catch((e) => setError(e?.message || 'This IST is not available for receiving.'))
@@ -83,143 +84,75 @@ const ISTReceivePage = () => {
     .filter((t) => (t.status_note || '').toLowerCase().includes('dispatched'))
     .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))[0] || null;
 
-  // Total received across all lines (from our running totals)
   const totalReceived = Object.values(receivedTotals).reduce((s, n) => s + (n || 0), 0);
 
-  // ── Scan handler for a specific detail line ──
-  const handleScan = async (detail) => {
-    const did = detail.transfer_detail_id;
-    const ui  = detailUi[did] || initDetailState();
-    const barcode = ui.barcode.trim();
+  const activeDetail = (ist?.details || []).find((d) => d.transfer_detail_id === activeLine) || null;
+  const activeSerialized = activeDetail ? isLineSerialized(activeDetail) : false;
 
-    if (!barcode) {
-      setDetailUi((prev) => ({
-        ...prev,
-        [did]: { ...prev[did], error: 'Enter a barcode or serial number.' },
-      }));
-      return;
-    }
+  const lineTarget = (detail) =>
+    Number(detail?.quantity_transferred ?? detail?.quantity_scanned ?? 0);
 
-    // For serialized: quantity is always 1; for consumable allow ui.qty
-    const isSerialized = detail.is_serialized || (detail.product?.is_serialized);
-    const quantity = isSerialized ? 1 : Math.max(1, parseInt(ui.qty, 10) || 1);
-
-    setDetailUi((prev) => ({
-      ...prev,
-      [did]: { ...prev[did], scanning: true, error: null, feedback: null },
-    }));
-
-    try {
-      const result = await istAPI.receiveScan(id, {
-        barcode,
-        transfer_detail_id: did,
-        quantity,
-      });
-
-      const data = result?.data ?? result;
-      const scanId         = data?.scan_id;
-      const qtyReceived    = data?.quantity_received ?? 0;
-      const remaining      = data?.remaining ?? 0;
-
-      // Track scan in session
-      setSessionScans((prev) => {
-        const existing = prev[did] || [];
-        return {
-          ...prev,
-          [did]: [...existing, { scan_id: scanId, barcode, quantity }],
-        };
-      });
-
-      // Update running received total for this line
-      setReceivedTotals((prev) => ({ ...prev, [did]: qtyReceived }));
-
-      // Inline success feedback
-      setDetailUi((prev) => ({
-        ...prev,
-        [did]: {
-          ...initDetailState(),
-          feedback: remaining > 0
-            ? `Recorded. ${remaining} unit(s) remaining.`
-            : 'All units for this line received.',
-        },
-      }));
-
-      // Re-focus the input for fast scanning
-      setTimeout(() => {
-        inputRefs.current[did]?.focus();
-      }, 50);
-    } catch (err) {
-      const msg = err?.errors
-        ? Object.values(err.errors).flat().join(' ')
-        : err?.message || 'Scan failed.';
-      setDetailUi((prev) => ({
-        ...prev,
-        [did]: { ...prev[did], scanning: false, error: msg },
-      }));
-    }
-  };
-
-  // ── Remove a scan (undo) ──
-  const handleRemoveScan = async (detailId, scan) => {
-    try {
-      await istAPI.removeReceiveScan(id, scan.scan_id);
-
-      // Remove from session scans
-      setSessionScans((prev) => {
-        const existing = prev[detailId] || [];
-        return {
-          ...prev,
-          [detailId]: existing.filter((s) => s.scan_id !== scan.scan_id),
-        };
-      });
-
-      // Decrement running total by the scan's quantity
-      setReceivedTotals((prev) => ({
-        ...prev,
-        [detailId]: Math.max(0, (prev[detailId] || 0) - scan.quantity),
-      }));
-
-      setDetailUi((prev) => ({
-        ...prev,
-        [detailId]: { ...(prev[detailId] || initDetailState()), feedback: 'Scan removed.' },
-      }));
-    } catch (err) {
-      setDetailUi((prev) => ({
-        ...prev,
-        [detailId]: {
-          ...(prev[detailId] || initDetailState()),
-          error: err?.message || 'Failed to remove scan.',
-        },
-      }));
-    }
-  };
-
-  // ── Global camera-scan handler (auto-routes via backend) ──
-  const handleGlobalScan = useCallback(async (code) => {
+  // ── Record one scan into the selected line ──
+  const handleLineScan = useCallback(async (code) => {
     const barcode = String(code || '').trim();
     if (!barcode) return;
+    if (activeLine == null) {
+      toast.error('Select a product first', 'Click an item on the left, then scan.');
+      return;
+    }
+    const detail = (ist?.details || []).find((d) => d.transfer_detail_id === activeLine);
+    const serialized = isLineSerialized(detail);
+    const quantity = serialized ? 1 : Math.max(1, parseInt(scanQty, 10) || 1);
+
+    setScanning(true);
     try {
-      const result = await istAPI.receiveScan(id, { barcode });
+      const result = await istAPI.receiveScan(id, { barcode, transfer_detail_id: activeLine, quantity });
       const data = result?.data ?? result;
-      const did  = data.transfer_detail_id;
-      if (did == null) { toast.error('Scan not recorded', 'Unexpected response.'); return; }
-      const step = Math.max(1, (data.quantity_received ?? 0) - (receivedTotals[did] || 0));
+      const did  = data.transfer_detail_id ?? activeLine;
       setSessionScans((prev) => ({
         ...prev,
-        [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: step }],
+        [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity }],
       }));
       setReceivedTotals((prev) => ({ ...prev, [did]: data.quantity_received }));
-      setDetailUi((prev) => ({
-        ...prev,
-        [did]: { ...initDetailState(), feedback: data.remaining > 0 ? `Recorded. ${data.remaining} remaining.` : 'All units received.' },
-      }));
       toast.success('Unit received');
-    } catch (err) {
-      toast.error('Scan rejected', err?.message || 'Scan rejected.');
-    }
-  }, [id, receivedTotals]);
 
-  // ── Confirm Receipt ──
+      if (data.remaining === 0) {
+        const next = (ist?.details || []).find((d) => {
+          if (d.transfer_detail_id === did) return false;
+          const tot = receivedTotalsRef.current[d.transfer_detail_id] || 0;
+          return tot < lineTarget(d);
+        });
+        setActiveLine(next ? next.transfer_detail_id : null);
+        setScanQty(1);
+      }
+    } catch (err) {
+      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : (err?.message || 'Scan rejected.');
+      toast.error('Scan rejected', msg);
+    } finally {
+      setScanning(false);
+    }
+  }, [id, activeLine, ist, scanQty]);
+
+  const submitManual = async () => {
+    const v = scanInput.trim();
+    if (!v) return;
+    setScanInput('');
+    await handleLineScan(v);
+  };
+
+  const handleRemoveScan = async (did, scan) => {
+    try {
+      await istAPI.removeReceiveScan(id, scan.scan_id);
+      setSessionScans((prev) => {
+        const existing = prev[did] || [];
+        return { ...prev, [did]: existing.filter((s) => s.scan_id !== scan.scan_id) };
+      });
+      setReceivedTotals((prev) => ({ ...prev, [did]: Math.max(0, (prev[did] || 0) - (scan.quantity || 1)) }));
+    } catch (err) {
+      toast.error('Could not remove scan', err?.message || 'Failed to remove scan.');
+    }
+  };
+
   const handleConfirm = async () => {
     if (totalReceived < 1) {
       toast.error("Can't receive yet", 'Record at least one received unit before confirming.');
@@ -242,7 +175,16 @@ const ISTReceivePage = () => {
     }
   };
 
-  // ── Post-confirm: show receipt options ──
+  // Flatten session scans for the "SCANNED ITEMS" panel.
+  const scannedFlat = [];
+  (ist?.details || []).forEach((d) => {
+    const name = d.product?.product_name || `Product #${d.product_id}`;
+    (sessionScans[d.transfer_detail_id] || []).forEach((s) => {
+      scannedFlat.push({ ...s, did: d.transfer_detail_id, productName: name });
+    });
+  });
+
+  // ── Post-confirm: receipt options ──
   if (confirmed) {
     const pdfUrl = istAPI.receiptPdfUrl(id);
     return (
@@ -250,36 +192,18 @@ const ISTReceivePage = () => {
         <div className="po-recommendation-page">
           <div className="po-details-card" style={{ textAlign: 'center', padding: '40px 32px' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>✓</div>
-            <h2 style={{ color: '#16a34a', fontWeight: 700, marginBottom: 8 }}>
-              Receipt Confirmed
-            </h2>
+            <h2 style={{ color: '#16a34a', fontWeight: 700, marginBottom: 8 }}>Receipt Confirmed</h2>
             <p style={{ color: '#475569', marginBottom: 24 }}>
               {ist?.transfer_number} has been received successfully.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="po-btn"
-                style={{ background: '#1e293b', color: '#fff' }}
-                onClick={() => navigate(`/admin/ist/${id}/receipt`)}
-              >
+              <button type="button" className="po-btn" style={{ background: '#1e293b', color: '#fff' }} onClick={() => navigate(`/admin/ist/${id}/receipt`)}>
                 View On-Screen Receipt
               </button>
-              <a
-                href={pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="po-btn"
-                style={{ background: '#f59e0b', color: '#fff', textDecoration: 'none' }}
-              >
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="po-btn" style={{ background: '#f59e0b', color: '#fff', textDecoration: 'none' }}>
                 Download PDF Receipt
               </a>
-              <button
-                type="button"
-                className="po-btn"
-                style={{ background: '#f1f5f9', color: '#475569' }}
-                onClick={() => navigate('/admin/ist')}
-              >
+              <button type="button" className="po-btn" style={{ background: '#f1f5f9', color: '#475569' }} onClick={() => navigate('/admin/ist')}>
                 Back to IST List
               </button>
             </div>
@@ -293,7 +217,6 @@ const ISTReceivePage = () => {
     <AdminLayout>
       <div className="po-recommendation-page">
 
-        {/* Header */}
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
             <div className="po-creator-header-main">
@@ -316,7 +239,7 @@ const ISTReceivePage = () => {
                 <h1 className="po-page-title">
                   {loading ? 'Loading…' : `RECEIVE ITEMS — ${ist?.transfer_number || ''}`}
                 </h1>
-                <p className="po-page-subtitle">Scan or enter barcodes to record each arriving unit</p>
+                <p className="po-page-subtitle">Click a product, then scan each arriving unit</p>
               </div>
             </div>
           </div>
@@ -336,7 +259,6 @@ const ISTReceivePage = () => {
 
         {ist && !loading && (
           <>
-            {/* ── IST Header (read-only) ── */}
             <div className="po-details-card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px 24px' }}>
                 {[
@@ -355,217 +277,184 @@ const ISTReceivePage = () => {
               </div>
             </div>
 
-            {/* ── Progress summary ── */}
-            <div className="po-details-card" style={{ marginBottom: 16, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <span style={{ fontWeight: 600, color: '#15803d', fontSize: 14 }}>
-                  Total received this session: {totalReceived}
-                </span>
-                <span style={{ fontSize: 12, color: '#64748b' }}>
-                  {totalReceived < 1 ? 'Scan units below to record receipt' : 'Ready to confirm when done'}
-                </span>
-              </div>
-            </div>
+            {/* ── Two-column scan workspace (mirrors Receive PO) ── */}
+            <div className="bsr-workflow">
 
-            {/* ── Camera scanner (global auto-route) ── */}
-            <div className="po-details-card" style={{ marginBottom: 16 }}>
-              <CameraScanner
-                onDecode={handleGlobalScan}
-                mountId="ist-receive-scanner"
-                storageKey="bs_inventory_camera_device_id"
-                busy={submitting}
-                hint="Scan each arriving unit. It will be matched to its product automatically."
-              />
-            </div>
-
-            {/* ── Per-line scan cards ── */}
-            {(ist.details || []).map((detail) => {
-              const did        = detail.transfer_detail_id;
-              const ui         = detailUi[did] || initDetailState();
-              const dispatched = detail.quantity_transferred ?? detail.quantity_scanned ?? 0;
-              const received   = receivedTotals[did] ?? 0;
-              const remaining  = Math.max(0, dispatched - received);
-              const complete   = remaining === 0 && dispatched > 0;
-              const scans      = sessionScans[did] || [];
-              const isSerialized = detail.is_serialized || (detail.product?.is_serialized);
-              const name       = detail.product?.product_name || `Product #${detail.product_id}`;
-              const model      = detail.product?.model_name || detail.product?.model?.model_name || '';
-              const serials    = Array.isArray(detail.item_serials) ? detail.item_serials : [];
-
-              return (
-                <div
-                  key={did}
-                  className="po-line-items-card"
-                  style={{
-                    marginBottom: 16,
-                    border: complete ? '1px solid #86efac' : '1px solid #e2e8f0',
-                    background: complete ? '#f0fdf4' : '#fff',
-                  }}
-                >
-                  {/* Line header */}
-                  <div className="po-line-items-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 10, marginBottom: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <span className="po-line-items-title" style={{ display: 'block', marginBottom: 4 }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{name}</span>
-                        {model && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>{model}</span>}
-                        {detail.product?.product_code && (
-                          <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>
-                            SKU: {detail.product.product_code}
-                          </span>
-                        )}
-                      </span>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>
-                        Dispatched: <strong>{dispatched}</strong>
-                        &nbsp;|&nbsp;
-                        Received: <strong style={{ color: complete ? '#16a34a' : '#1e293b' }}>{received}</strong>
-                        &nbsp;|&nbsp;
-                        Remaining: <strong style={{ color: remaining > 0 ? '#b45309' : '#16a34a' }}>{remaining}</strong>
-                      </span>
+              {/* LEFT: clickable product checklist */}
+              <div className="bsr-left">
+                <div className="bsr-card">
+                  <div className="bsr-card-head">
+                    <div className="bsr-card-icon bsr-card-icon--box">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9810FA" strokeWidth="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                      </svg>
                     </div>
-                    {complete && (
-                      <span style={{
-                        background: '#dcfce7', color: '#16a34a', border: '1px solid #86efac',
-                        borderRadius: 12, fontSize: 10, fontWeight: 700, padding: '3px 10px',
-                        letterSpacing: 0.5,
-                      }}>
-                        COMPLETE
-                      </span>
-                    )}
+                    <span className="bsr-card-title">ITEMS TO RECEIVE</span>
+                    <span className="bsr-scanned-count">{totalReceived} received</span>
+                  </div>
+                  <div className="bsr-items-list">
+                    {(ist.details || []).length === 0 ? (
+                      <p className="bsr-items-empty">No line items on this IST.</p>
+                    ) : (ist.details || []).map((detail) => {
+                      const did        = detail.transfer_detail_id;
+                      const dispatched = lineTarget(detail);
+                      const received   = receivedTotals[did] ?? 0;
+                      const remaining  = Math.max(0, dispatched - received);
+                      const done       = remaining === 0 && dispatched > 0;
+                      const isActive   = activeLine === did;
+                      const serialized = isLineSerialized(detail);
+                      const name       = detail.product?.product_name || `Product #${detail.product_id}`;
+                      const sku        = detail.product?.product_code || '—';
+                      const pct        = dispatched > 0 ? Math.min(100, (received / dispatched) * 100) : 0;
+                      return (
+                        <div
+                          key={did}
+                          className={`bsr-item-row bsr-item-row--clickable${isActive ? ' bsr-item-row--active' : ''}${done ? ' bsr-item-row--done' : ''}`}
+                          onClick={() => !done && setActiveLine(did)}
+                          title={done ? 'Fully received' : 'Click to scan this item'}
+                        >
+                          <div className="bsr-item-info">
+                            <span className="bsr-item-name">{name}</span>
+                            <span className="bsr-item-sku">SKU: {sku}</span>
+                            <div className="bsr-item-badges">
+                              {serialized
+                                ? <span className="bsr-serialized-badge">SERIAL</span>
+                                : <span className="bsr-bulk-badge">BULK</span>}
+                              {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
+                            </div>
+                          </div>
+                          <div className="bsr-item-progress-row">
+                            <span className="bsr-item-progress-label">Progress:</span>
+                            <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>
+                              {received} / {dispatched} units
+                            </span>
+                          </div>
+                          <div className="bsr-progress-bar-wrap">
+                            <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%` }}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT: scan panel + scanned items */}
+              <div className="bsr-right">
+                <div className="bsr-card">
+                  <div className="bsr-card-head">
+                    <div className="bsr-card-icon bsr-card-icon--scan">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9810FA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 5v4"/><path d="M3 15v4"/><path d="M7 5v2"/><path d="M7 17v2"/>
+                        <path d="M7 9v6"/><path d="M11 5v14"/><path d="M15 5v2"/><path d="M15 17v2"/>
+                        <path d="M15 9v6"/><path d="M19 5v4"/><path d="M19 15v4"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="bsr-card-title">SCAN BARCODE</span>
+                      {activeDetail ? (
+                        <p className="bsr-card-subtitle">
+                          <strong>{activeDetail.product?.product_name || 'Selected item'}</strong>
+                        </p>
+                      ) : (
+                        <p className="bsr-card-subtitle bsr-card-subtitle--warn">Select an item on the left to begin</p>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Dispatched serials (from shipment) */}
-                  {serials.length > 0 && (
-                    <div style={{ marginBottom: 10 }}>
-                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>DISPATCHED SERIALS: </span>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                        {serials.map((sn) => (
-                          <span key={sn} style={{
-                            fontSize: 10, padding: '2px 6px', borderRadius: 4,
-                            background: '#f1f5f9', color: '#475569', fontFamily: 'monospace',
-                          }}>{sn}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <CameraScanner
+                    onDecode={handleLineScan}
+                    mountId="ist-receive-scanner"
+                    storageKey="bs_inventory_camera_device_id"
+                    busy={submitting || scanning || activeLine == null}
+                    hint="Select a product, then scan each arriving unit."
+                  />
 
-                  {/* Scan input row */}
-                  {!complete && (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: ui.error || ui.feedback ? 8 : 0 }}>
-                      <div style={{ flex: '1 1 200px' }}>
-                        <input
-                          ref={(el) => { inputRefs.current[did] = el; }}
-                          type="text"
-                          placeholder={isSerialized ? 'Scan or type serial number…' : 'Scan or type barcode…'}
-                          value={ui.barcode}
-                          onChange={(e) => setDetailUi((prev) => ({
-                            ...prev,
-                            [did]: { ...prev[did], barcode: e.target.value, error: null, feedback: null },
-                          }))}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleScan(detail);
-                            }
-                          }}
-                          disabled={ui.scanning}
-                          style={{
-                            width: '100%', padding: '8px 12px', borderRadius: 6,
-                            border: `1px solid ${ui.error ? '#dc2626' : '#d1d5db'}`,
-                            fontSize: 13, color: '#1e293b', boxSizing: 'border-box',
-                            fontFamily: isSerialized ? 'monospace' : 'inherit',
-                          }}
-                          autoComplete="off"
-                        />
-                      </div>
-                      {!isSerialized && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>Qty:</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={remaining}
-                            value={ui.qty}
-                            onChange={(e) => setDetailUi((prev) => ({
-                              ...prev,
-                              [did]: { ...prev[did], qty: Math.max(1, parseInt(e.target.value) || 1) },
-                            }))}
-                            disabled={ui.scanning}
-                            style={{
-                              width: 72, padding: '8px 6px', borderRadius: 6,
-                              border: '1px solid #d1d5db', fontSize: 13, textAlign: 'center',
-                            }}
-                          />
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        className="po-btn"
-                        style={{ background: '#1e293b', color: '#fff', padding: '8px 18px', whiteSpace: 'nowrap' }}
-                        onClick={() => handleScan(detail)}
-                        disabled={ui.scanning || !ui.barcode.trim()}
-                      >
-                        {ui.scanning ? 'Adding…' : 'Add'}
-                      </button>
-                    </div>
-                  )}
+                  <div className="bsr-scan-row">
+                    <input
+                      type="text"
+                      className={`bsr-scan-input${scanning ? ' bsr-scan-input--scanning' : ''}`}
+                      placeholder={activeLine != null ? 'Scan or type barcode / serial…' : 'Select an item on the left first…'}
+                      value={scanInput}
+                      onChange={(e) => setScanInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitManual(); } }}
+                      disabled={scanning || activeLine == null}
+                      autoComplete="off"
+                    />
+                    {activeDetail && !activeSerialized && (
+                      <input
+                        type="number"
+                        min={1}
+                        value={scanQty}
+                        onChange={(e) => setScanQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        disabled={scanning}
+                        title="Quantity per scan (consumable)"
+                        style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, textAlign: 'center' }}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      className="bsr-capture-btn"
+                      onClick={submitManual}
+                      disabled={scanning || activeLine == null || !scanInput.trim()}
+                    >
+                      {scanning ? 'Scanning…' : 'Submit'}
+                    </button>
+                  </div>
+                </div>
 
-                  {/* Inline error / success */}
-                  {ui.error && (
-                    <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8, padding: '6px 10px', background: '#fef2f2', borderRadius: 4 }}>
-                      {ui.error}
+                <div className="bsr-card">
+                  <div className="bsr-card-head">
+                    <div className="bsr-card-icon bsr-card-icon--cart">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9810FA" strokeWidth="2">
+                        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                      </svg>
                     </div>
-                  )}
-                  {ui.feedback && (
-                    <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 8, padding: '6px 10px', background: '#f0fdf4', borderRadius: 4 }}>
-                      {ui.feedback}
+                    <span className="bsr-card-title">SCANNED ITEMS</span>
+                    <span className="bsr-scanned-count">{scannedFlat.length} {scannedFlat.length === 1 ? 'item' : 'items'}</span>
+                  </div>
+                  {scannedFlat.length === 0 ? (
+                    <div className="bsr-scanned-empty">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
+                        <rect x="2" y="5" width="3" height="14" rx="1"/><rect x="7" y="5" width="1.5" height="14" rx="0.5"/>
+                        <rect x="10" y="5" width="3" height="14" rx="1"/><rect x="15" y="5" width="1.5" height="14" rx="0.5"/>
+                        <rect x="18" y="5" width="3" height="14" rx="1"/>
+                      </svg>
+                      <p>No items received yet</p>
                     </div>
-                  )}
-
-                  {/* Session scans for this line — allow undo */}
-                  {scans.length > 0 && (
-                    <div style={{ marginTop: 10, borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>SCANNED THIS SESSION:</span>
-                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {scans.map((s) => (
-                          <div key={s.scan_id ?? s.barcode} style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            background: '#f8fafc', borderRadius: 4, padding: '4px 8px',
-                          }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#1e293b', flex: 1 }}>
-                              {s.barcode}
-                            </span>
-                            <span style={{ fontSize: 11, color: '#64748b' }}>×{s.quantity}</span>
-                            {s.scan_id != null && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveScan(did, s)}
-                                style={{
-                                  background: 'none', border: 'none', cursor: 'pointer',
-                                  color: '#dc2626', fontSize: 11, padding: '2px 6px',
-                                  borderRadius: 3,
-                                }}
-                                title="Remove this scan"
-                              >
-                                Remove
-                              </button>
-                            )}
+                  ) : (
+                    <div className="bsr-scanned-list">
+                      {scannedFlat.map((s) => (
+                        <div key={s.scan_id ?? `${s.did}-${s.barcode}`} className="bsr-scanned-item">
+                          <div className="bsr-scanned-item-info">
+                            <span className="bsr-scanned-item-name">{s.productName}</span>
+                            <span className="bsr-scanned-item-serial">{s.barcode}{s.quantity > 1 ? ` ×${s.quantity}` : ''}</span>
                           </div>
-                        ))}
-                      </div>
+                          {s.scan_id != null && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveScan(s.did, s)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 11, padding: '2px 6px', borderRadius: 3 }}
+                              title="Remove this scan"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
-              );
-            })}
+              </div>
+            </div>
 
-            {/* ── Footer: date + confirm ── */}
-            <div className="po-details-card" style={{ marginBottom: 16 }}>
+            <div className="po-details-card" style={{ margin: '16px 0' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px 24px' }}>
                 <div className="po-field">
                   <span className="po-field-label">RECEIVED BY</span>
-                  <span style={{ fontSize: 14, color: '#1e293b', fontWeight: 500 }}>
-                    {userName(user)}
-                  </span>
+                  <span style={{ fontSize: 14, color: '#1e293b', fontWeight: 500 }}>{userName(user)}</span>
                 </div>
                 <div className="po-field">
                   <label htmlFor="ist-received-date" className="po-field-label">RECEIVED DATE</label>
@@ -574,15 +463,11 @@ const ISTReceivePage = () => {
                     value={receivedDate}
                     onChange={(e) => setReceivedDate(e.target.value)}
                     required
-                    style={{
-                      padding: '7px 10px', borderRadius: 6, border: '1px solid #d1d5db',
-                      fontSize: 14, color: '#1e293b', background: '#fff',
-                    }}
+                    style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, color: '#1e293b', background: '#fff' }}
                   />
                 </div>
               </div>
             </div>
-
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
