@@ -8,6 +8,7 @@ import { confirmAction } from '../utils/confirm';
 import '../styles/po_recommendation.css';
 import '../styles/dashboard_air.css';
 import DateInput from '../components/DateInput';
+import CameraScanner from '../components/CameraScanner';
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -193,6 +194,30 @@ const ISTReceivePage = () => {
     }
   };
 
+  // ── Global camera-scan handler (auto-routes via backend) ──
+  const handleGlobalScan = useCallback(async (code) => {
+    const barcode = String(code || '').trim();
+    if (!barcode) return;
+    try {
+      const result = await istAPI.receiveScan(id, { barcode });
+      const data = result?.data ?? result;
+      const did  = data.transfer_detail_id;
+      const step = Math.max(1, (data.quantity_received ?? 0) - (receivedTotals[did] || 0));
+      setSessionScans((prev) => ({
+        ...prev,
+        [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: step }],
+      }));
+      setReceivedTotals((prev) => ({ ...prev, [did]: data.quantity_received }));
+      setDetailUi((prev) => ({
+        ...prev,
+        [did]: { ...initDetailState(), feedback: data.remaining > 0 ? `Recorded. ${data.remaining} remaining.` : 'All units received.' },
+      }));
+      toast.success('Unit received');
+    } catch (err) {
+      toast.error('Scan rejected', err?.message || 'Scan rejected.');
+    }
+  }, [id, receivedTotals]);
+
   // ── Confirm Receipt ──
   const handleConfirm = async () => {
     if (totalReceived < 1) {
@@ -339,6 +364,17 @@ const ISTReceivePage = () => {
                   {totalReceived < 1 ? 'Scan units below to record receipt' : 'Ready to confirm when done'}
                 </span>
               </div>
+            </div>
+
+            {/* ── Camera scanner (global auto-route) ── */}
+            <div className="po-details-card" style={{ marginBottom: 16 }}>
+              <CameraScanner
+                onDecode={handleGlobalScan}
+                mountId="ist-receive-scanner"
+                storageKey="bs_inventory_camera_device_id"
+                busy={submitting}
+                hint="Scan each arriving unit. It will be matched to its product automatically."
+              />
             </div>
 
             {/* ── Per-line scan cards ── */}
