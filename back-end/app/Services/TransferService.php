@@ -147,18 +147,28 @@ class TransferService
 
         return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty) {
             if ($transferDetailId === null) {
+                $code = trim($barcode);
                 $match = ItemSerial::where('transfer_id', $ist->transfer_id)
                     ->where('serial_type', 'transferred')
-                    ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($barcode))])
+                    ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($code)])
                     ->first();
-                if (!$match) {
-                    throw new RuntimeException('This serial is not part of this shipment.');
+
+                if ($match) {
+                    $line = TransferDetail::where('transfer_id', $ist->transfer_id)
+                        ->where('product_id', $match->product_id)
+                        ->first();
+                } else {
+                    // Consumable fallback: resolve the barcode to a product on this transfer.
+                    $product = $this->findProductByBarcodeCandidates($this->barcodeLookupCandidates($code));
+                    $line = $product
+                        ? TransferDetail::where('transfer_id', $ist->transfer_id)
+                            ->where('product_id', $product->product_id)
+                            ->first()
+                        : null;
                 }
-                $line = TransferDetail::where('transfer_id', $ist->transfer_id)
-                    ->where('product_id', $match->product_id)
-                    ->first();
+
                 if (!$line) {
-                    throw new RuntimeException('This serial is not part of this shipment.');
+                    throw new RuntimeException('This barcode is not part of this shipment.');
                 }
                 $transferDetailId = (int) $line->transfer_detail_id;
             }
