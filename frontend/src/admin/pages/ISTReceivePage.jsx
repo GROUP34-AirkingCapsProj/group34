@@ -113,15 +113,17 @@ const ISTReceivePage = () => {
         ...prev,
         [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity }],
       }));
-      setReceivedTotals((prev) => ({ ...prev, [did]: data.quantity_received }));
+      // Update the totals ref synchronously so rapid back-to-back scans (and the
+      // auto-advance below) read fresh values without waiting for the effect.
+      const nextTotals = { ...receivedTotalsRef.current, [did]: data.quantity_received };
+      receivedTotalsRef.current = nextTotals;
+      setReceivedTotals(nextTotals);
       toast.success('Unit received');
 
       if (data.remaining === 0) {
-        const next = (ist?.details || []).find((d) => {
-          if (d.transfer_detail_id === did) return false;
-          const tot = receivedTotalsRef.current[d.transfer_detail_id] || 0;
-          return tot < lineTarget(d);
-        });
+        const next = (ist?.details || []).find((d) =>
+          d.transfer_detail_id !== did && (nextTotals[d.transfer_detail_id] || 0) < lineTarget(d)
+        );
         setActiveLine(next ? next.transfer_detail_id : null);
         setScanQty(1);
       }
