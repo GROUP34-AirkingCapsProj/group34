@@ -25,7 +25,14 @@
       "Bash(head -40 frontend/src/admin/pages/StockTransferManagement.jsx)",
       "Bash(head -40 frontend/src/admin/pages/TransferScanWorkflow.jsx)",
       "Bash(head -30 frontend/src/admin/pages/TransferRequestPage.jsx)",
-      "Bash(grep -n 'protected $table' back-end/app/Models/ProductInventory.php)"
+      "Bash(grep -n 'protected $table' back-end/app/Models/ProductInventory.php)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(git rebase *)",
+      "PowerShell(& \"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\" -u root -h 127.0.0.1 -P 3306 airkingV5_test -e \"DESCRIBE item_serials;\" 2>&1)",
+      "PowerShell(& \"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\" -u root -h 127.0.0.1 -P 3306 airkingV5_test -e \"DESCRIBE transfers;\" 2>&1)",
+      "Bash(git -C C:/XAMPP1/htdocs/Airking_Inventory grep -nE \"window\\\\.confirm\" frontend/src/admin/pages)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   },
   "enabledPlugins": {
