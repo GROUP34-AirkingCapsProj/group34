@@ -49,6 +49,12 @@ class Customer extends Model
                     ->orderBy('created_at', 'desc');
     }
 
+    public function warrantyClaims(): HasMany
+    {
+        return $this->hasMany(WarrantyClaim::class, 'customer_id', 'customer_id')
+                    ->orderBy('created_at', 'desc');
+    }
+
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class, 'customer_id', 'customer_id');

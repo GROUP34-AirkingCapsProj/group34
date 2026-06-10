@@ -2,122 +2,212 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\WarrantyClaimException;
 use App\Http\Controllers\Controller;
-use App\Traits\ApiResponse;
 use App\Models\WarrantyClaim;
+use App\Services\WarrantyClaimService;
+use App\Traits\ApiResponse;
+use App\Traits\ResolvesUserLocation;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class WarrantyClaimController extends Controller
 {
     use ApiResponse;
+    use ResolvesUserLocation;
+
+    public function __construct(private WarrantyClaimService $service)
+    {
+    }
 
     public function index(Request $request)
     {
-        $query = WarrantyClaim::query();
+        $query = WarrantyClaim::with(['customer', 'product', 'status', 'warranty'])
+            ->orderBy('created_at', 'desc');
 
-        // Search
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('warranty_code', 'like', "%{$search}%")
-                  ->orWhere('customer_name', 'like', "%{$search}%")
-                  ->orWhere('serial_number', 'like', "%{$search}%");
-            });
+        if ($request->filled('claim_type')) {
+            $query->where('claim_type', $request->string('claim_type'));
+        }
+        if ($request->filled('customer_id')) {
+            $query->where('customer_id', $request->integer('customer_id'));
+        }
+        if ($request->filled('search')) {
+            $s = $request->string('search');
+            $query->where(fn ($q) => $q
+                ->where('claim_number', 'like', "%{$s}%")
+                ->orWhere('serial_number', 'like', "%{$s}%"));
         }
 
-        // Filters
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->has('branch')) {
-            $query->where('branch', $request->branch);
-        }
-        if ($request->has('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        $query->orderBy('created_at', 'desc');
-
-        $perPage = $request->get('per_page', 50);
-        $claims = $query->paginate($perPage);
-
-        return $this->paginated($claims, 'Warranty claims retrieved successfully');
+        return $this->paginated($query->paginate($request->integer('per_page', 15)), 'Warranty claims retrieved');
     }
 
-    public function store(Request $request)
+    public function init(Request $request)
     {
         try {
             $validated = $request->validate([
-                'customer_name' => 'required|string|max:255',
-                'customer_contact' => 'nullable|string|max:50',
-                'item_name' => 'required|string|max:255',
+                'customer_id'   => 'required|integer|exists:customers,customer_id',
                 'serial_number' => 'required|string|max:100',
-                'issue' => 'required|string|max:1000',
-                'branch' => 'nullable|string|max:255',
-                'priority' => 'required|in:LOW,MEDIUM,HIGH,CRITICAL',
-                'status' => 'required|in:Open,In-Repair,Completed,Closed',
-                'technician' => 'nullable|string|max:255',
-                'estimated_date' => 'nullable|date',
+                'claim_type'    => ['required', Rule::in(['repair', 'replacement'])],
+                'notes'         => 'nullable|string|max:1000',
+                'location_id'   => 'nullable|integer|exists:locations,location_id',
             ]);
 
-            // Auto-generate warranty code
-            $lastClaim = WarrantyClaim::orderBy('id', 'desc')->first();
-            $nextNumber = $lastClaim ? ($lastClaim->id + 1) : 1;
-            $validated['warranty_code'] = 'WAR-' . date('Y') . '-' . str_pad(1000 + $nextNumber, 4, '0', STR_PAD_LEFT);
+            $locationId = $this->resolveLocationId($request);
+            if ($locationId === null) {
+                return $this->locationErrorResponse();
+            }
+            $validated['location_id'] = $locationId;
 
-            $claim = WarrantyClaim::create($validated);
-
-            return $this->success($claim, 'Warranty claim created successfully', 201);
-
+            $claim = $this->service->initClaim($validated);
+            return $this->success($this->show($claim->claim_id, true), 'Claim started.', 201);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
-        } catch (\Exception $e) {
-            return $this->error('Failed to create warranty claim: ' . $e->getMessage(), 500);
+        } catch (WarrantyClaimException $e) {
+            return $this->error($e->getMessage(), 422);
         }
     }
 
-    public function show(WarrantyClaim $warrantyClaim)
-    {
-        return $this->success($warrantyClaim, 'Warranty claim retrieved successfully');
-    }
-
-    public function update(Request $request, WarrantyClaim $warrantyClaim)
+    public function addItem(Request $request, int $claimId)
     {
         try {
             $validated = $request->validate([
-                'customer_name' => 'sometimes|required|string|max:255',
-                'customer_contact' => 'nullable|string|max:50',
-                'item_name' => 'sometimes|required|string|max:255',
-                'serial_number' => 'sometimes|required|string|max:100',
-                'issue' => 'sometimes|required|string|max:1000',
-                'branch' => 'nullable|string|max:255',
-                'priority' => 'sometimes|required|in:LOW,MEDIUM,HIGH,CRITICAL',
-                'status' => 'sometimes|required|in:Open,In-Repair,Completed,Closed',
-                'technician' => 'nullable|string|max:255',
-                'estimated_date' => 'nullable|date',
+                'barcode'  => 'required|string|max:191',
+                'quantity' => 'nullable|integer|min:1',
             ]);
-
-            $warrantyClaim->update($validated);
-
-            return $this->success($warrantyClaim, 'Warranty claim updated successfully');
-
+            $claim = WarrantyClaim::findOrFail($claimId);
+            $this->service->addItem($claim, $validated);
+            return $this->success($this->show($claimId, true), 'Item added.');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
-        } catch (\Exception $e) {
-            return $this->error('Failed to update warranty claim: ' . $e->getMessage(), 500);
+        } catch (WarrantyClaimException $e) {
+            return $this->error($e->getMessage(), 422);
         }
     }
 
-    public function destroy(WarrantyClaim $warrantyClaim)
+    public function removeItem(int $claimId, int $detailId)
     {
         try {
-            $warrantyClaim->delete();
-
-            return $this->success(null, 'Warranty claim deleted successfully');
-
-        } catch (\Exception $e) {
-            return $this->error('Failed to delete warranty claim: ' . $e->getMessage(), 500);
+            $claim = WarrantyClaim::findOrFail($claimId);
+            $this->service->removeItem($claim, $detailId);
+            return $this->success($this->show($claimId, true), 'Item removed.');
+        } catch (WarrantyClaimException $e) {
+            return $this->error($e->getMessage(), 422);
         }
+    }
+
+    public function complete(int $claimId)
+    {
+        try {
+            $claim = WarrantyClaim::findOrFail($claimId);
+            $this->service->completeClaim($claim);
+            return $this->success($this->show($claimId, true), 'Warranty claim completed.');
+        } catch (WarrantyClaimException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+    }
+
+    /** @return array|\Illuminate\Http\JsonResponse */
+    public function show(int $claimId, bool $asArray = false)
+    {
+        $claim = WarrantyClaim::with([
+            'details.product.applianceDetail.brand',
+            'details.product.consumableDetail.unit',
+            'customer', 'product', 'location', 'status', 'warranty', 'createdByUser',
+        ])->find($claimId);
+
+        if (! $claim) {
+            return $asArray ? [] : $this->notFound('Claim not found');
+        }
+        $payload = $this->format($claim);
+        return $asArray ? $payload : $this->success($payload, 'Claim retrieved');
+    }
+
+    public function downloadSlip(int $claimId)
+    {
+        $claim = WarrantyClaim::with([
+            'details.product', 'customer', 'location', 'status', 'warranty',
+        ])->find($claimId);
+
+        if (! $claim) {
+            return $this->notFound('Claim not found');
+        }
+
+        $filename = "{$claim->claim_number}.csv";
+        $headers  = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($claim) {
+            $h = fopen('php://output', 'w');
+            fputcsv($h, ['WARRANTY CLAIM SLIP']);
+            fputcsv($h, ['Claim Number', $claim->claim_number]);
+            fputcsv($h, ['Type',         ucfirst($claim->claim_type)]);
+            fputcsv($h, ['Status',       $claim->status?->status_name ?? '']);
+            fputcsv($h, ['Date',         $claim->completed_at?->toDateString() ?? $claim->created_at?->toDateString()]);
+            fputcsv($h, ['Location',     $claim->location?->location_name ?? '']);
+            fputcsv($h, []);
+            fputcsv($h, ['Customer',      $claim->customer?->customer_name ?? '']);
+            fputcsv($h, ['Contact',       $claim->customer?->contact_number ?? '']);
+            fputcsv($h, ['Claimed Serial',$claim->serial_number ?? '']);
+            fputcsv($h, ['Problem/Notes', $claim->notes ?? '']);
+            fputcsv($h, []);
+            fputcsv($h, ['#', 'Product Code', 'Product Name', 'Serial', 'Qty', 'Unit', 'Cost']);
+            foreach ($claim->details as $i => $d) {
+                fputcsv($h, [
+                    $i + 1,
+                    $d->product?->product_code ?? '',
+                    $d->product?->product_name ?? '',
+                    $d->serial_number ?? '',
+                    $d->quantity_issued,
+                    $d->quantity_unit ?? '',
+                    number_format($d->line_cost, 2),
+                ]);
+            }
+            fputcsv($h, []);
+            fputcsv($h, ['Total Parts Cost (internal)', number_format($claim->parts_cost, 2)]);
+            fclose($h);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    private function format(WarrantyClaim $c): array
+    {
+        return [
+            'claim_id'      => $c->claim_id,
+            'claim_number'  => $c->claim_number,
+            'claim_type'    => $c->claim_type,
+            'status_name'   => $c->status?->status_name,
+            'notes'         => $c->notes,
+            'serial_number' => $c->serial_number,
+            'parts_cost'    => $c->parts_cost,
+            'completed_at'  => $c->completed_at?->toDateTimeString(),
+            'location_name' => $c->location?->location_name,
+            'warranty' => $c->warranty ? [
+                'warranty_id'       => $c->warranty->warranty_id,
+                'warranty_end_date' => $c->warranty->warranty_end_date?->format('Y-m-d'),
+                'status_id'         => $c->warranty->status_id,
+            ] : null,
+            'customer' => $c->customer ? [
+                'customer_id'   => $c->customer->customer_id,
+                'customer_name' => $c->customer->customer_name,
+                'customer_type' => $c->customer->customer_type,
+                'company_name'  => $c->customer->company_name,
+                'contact_number'=> $c->customer->contact_number,
+            ] : null,
+            'items' => $c->details->map(fn ($d) => [
+                'detail_id'          => $d->claim_detail_id,
+                'product_id'         => $d->product_id,
+                'product_name'       => $d->product?->product_name,
+                'product_code'       => $d->product?->product_code,
+                'serial_number'      => $d->serial_number,
+                'quantity_issued'    => $d->quantity_issued,
+                'quantity_in_pieces' => $d->quantity_in_pieces,
+                'quantity_unit'      => $d->quantity_unit,
+                'line_cost'          => $d->line_cost,
+            ])->values()->all(),
+        ];
     }
 }

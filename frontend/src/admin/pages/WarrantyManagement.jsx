@@ -104,10 +104,9 @@ const WarrantyManagement = () => {
     }
   };
 
-  const openClaimModal = (warrantyId, productName) => {
-    setClaimTarget({ id: warrantyId, name: productName });
-    setClaimNotes('');
-    setClaimError('');
+  const openClaimModal = (warrantyId, productName, serialNumber) => {
+    const serial = encodeURIComponent(serialNumber || '');
+    window.location.href = `/admin/warranty-claims${serial ? `?serial=${serial}` : ''}`;
   };
 
   const submitClaim = async () => {
@@ -272,7 +271,7 @@ const WarrantyManagement = () => {
                   <button
                     type="button"
                     className="war-btn-assign"
-                    onClick={() => openClaimModal(sr.warranty_id, sr.product?.product_name ?? sr.serial_number)}
+                    onClick={() => openClaimModal(sr.warranty_id, sr.product?.product_name ?? sr.serial_number, sr.serial_number)}
                   >
                     Mark as Claimed
                   </button>
@@ -382,7 +381,7 @@ const WarrantyManagement = () => {
                         {w.status_id === 33 && (
                           <button
                             className="war-btn-assign"
-                            onClick={() => openClaimModal(w.warranty_id, w.product?.product_name ?? w.serial_number)}
+                            onClick={() => openClaimModal(w.warranty_id, w.product?.product_name ?? w.serial_number, w.serial_number)}
                           >
                             Claim
                           </button>
@@ -496,7 +495,7 @@ const WarrantyManagement = () => {
                 <button
                   type="button"
                   className="btn-save"
-                  onClick={() => openClaimModal(viewingWarranty.warranty_id, viewingWarranty.product?.product_name ?? viewingWarranty.serial_number)}
+                  onClick={() => openClaimModal(viewingWarranty.warranty_id, viewingWarranty.product?.product_name ?? viewingWarranty.serial_number, viewingWarranty.serial_number)}
                 >
                   Mark as Claimed
                 </button>
