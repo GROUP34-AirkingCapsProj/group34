@@ -114,16 +114,18 @@ const ISTDispatchPage = () => {
         ...prev,
         [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: data.quantity ?? 1 }],
       }));
-      setScannedTotals((prev) => ({ ...prev, [did]: data.total_scanned }));
+      // Update the totals ref synchronously so rapid back-to-back scans (and the
+      // auto-advance below) read fresh values without waiting for the effect.
+      const nextTotals = { ...scannedTotalsRef.current, [did]: data.total_scanned };
+      scannedTotalsRef.current = nextTotals;
+      setScannedTotals(nextTotals);
       toast.success(`Scanned ${data.product_name || ''}`.trim());
 
       // Auto-advance to the next incomplete line when this one is fully scanned.
       if (data.remaining === 0) {
-        const next = (ist?.details || []).find((d) => {
-          if (d.transfer_detail_id === did) return false;
-          const tot = scannedTotalsRef.current[d.transfer_detail_id] || 0;
-          return tot < (d.quantity_requested || 0);
-        });
+        const next = (ist?.details || []).find((d) =>
+          d.transfer_detail_id !== did && (nextTotals[d.transfer_detail_id] || 0) < (d.quantity_requested || 0)
+        );
         setActiveLine(next ? next.transfer_detail_id : null);
       }
     } catch (err) {
