@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\IssuanceScanController;
 use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveSettingsController;
+use App\Http\Controllers\Api\PermissionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -126,6 +127,20 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
         Route::delete('/users/{id}/force', [UserController::class, 'forceDestroy']);
         Route::apiResource('users', UserController::class);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | PERMISSION MANAGEMENT (ADMIN ONLY)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/permissions', [PermissionController::class, 'index']);
+        Route::get('/role-permissions', [PermissionController::class, 'roleDefaults']);
+        Route::put('/role-permissions', [PermissionController::class, 'updateRoleDefaults']);
+        Route::get('/users/{userId}/permissions', [PermissionController::class, 'userPermissions']);
+        Route::put('/users/{userId}/permissions', [PermissionController::class, 'updateUserPermissions']);
+        Route::get('/permission-audit-logs', [PermissionController::class, 'auditLogs']);
     });
 
     /*
