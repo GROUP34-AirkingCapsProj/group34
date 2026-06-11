@@ -655,7 +655,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/adjustments', [AdjustmentController::class, 'index']);
 
     // Barcode Adjustment Module — specific routes BEFORE the {id} wildcard
-    Route::middleware('role:admin,warehouse_personnel,branch_manager')->group(function () {
+    Route::middleware('permission:inventory_adjustments,read')->group(function () {
         Route::get('/adjustments/receiving-history/{po_id}',
             [BarcodeAdjustmentController::class, 'getReceivingHistory']);
         Route::get('/adjustments/lookup-barcode',
@@ -664,6 +664,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
             [BarcodeAdjustmentController::class, 'getAdjustmentHistory']);
         Route::get('/adjustments/corrections/{correction_id}',
             [BarcodeAdjustmentController::class, 'getScanCorrectionDetail']);
+    });
+    Route::middleware('permission:inventory_adjustments,create')->group(function () {
         Route::post('/adjustments/preview',
             [BarcodeAdjustmentController::class, 'previewCorrection']);
         Route::post('/adjustments/submit',
@@ -671,22 +673,18 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
 
     Route::get('/adjustments/{id}', [AdjustmentController::class, 'show']);
-    Route::middleware('role:admin,warehouse_personnel')->group(function () {
-        Route::post('/adjustments', [AdjustmentController::class, 'store']);
-        Route::put('/adjustments/{id}', [AdjustmentController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/adjustments/{id}', [AdjustmentController::class, 'destroy']);
-        Route::post('/adjustments/{id}/restore', [AdjustmentController::class, 'restore']);
-        Route::delete('/adjustments/{id}/force', [AdjustmentController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:inventory_adjustments,create')->post('/adjustments', [AdjustmentController::class, 'store']);
+    Route::middleware('permission:inventory_adjustments,update')->put('/adjustments/{id}', [AdjustmentController::class, 'update']);
+    Route::middleware('permission:inventory_adjustments,archive')->delete('/adjustments/{id}', [AdjustmentController::class, 'destroy']);
+    Route::middleware('permission:inventory_adjustments,archive')->post('/adjustments/{id}/restore', [AdjustmentController::class, 'restore']);
+    Route::middleware('permission:inventory_adjustments,archive')->delete('/adjustments/{id}/force', [AdjustmentController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
     | COMPLIANCE REVIEW
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:admin,auditor,branch_manager')->group(function () {
+    Route::middleware('permission:exception_detection,read')->group(function () {
         Route::get('/compliance/logs',
             [BarcodeAdjustmentController::class, 'getComplianceLogs']);
     });
