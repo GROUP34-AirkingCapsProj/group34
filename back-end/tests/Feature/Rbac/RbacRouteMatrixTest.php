@@ -68,6 +68,9 @@ class RbacRouteMatrixTest extends TestCase
             ['post', '/api/issuances', 'inventory_issuance', 'create'],
             ['delete', '/api/issuances/1', 'inventory_issuance', 'archive'],
             ['post', '/api/issuance-scan/init', 'inventory_issuance', 'create'],
+            ['post', '/api/ist', 'inventory_transfers', 'create'],
+            ['post', '/api/ist/1/receive', 'inventory_transfers', 'update'],
+            ['patch', '/api/transfer-requests/1/approve', 'inventory_transfers', 'approve'],
         ];
     }
 
