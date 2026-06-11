@@ -20,7 +20,7 @@ class PermissionResolver
                 ->where('action', $action)
                 ->value('permission_id');
         }
-        return $this->permIdCache[$key] ? (int) $this->permIdCache[$key] : null;
+        return $this->permIdCache[$key] !== null ? (int) $this->permIdCache[$key] : null;
     }
 
     public function canUser(int $userId, string $feature, string $action): bool
