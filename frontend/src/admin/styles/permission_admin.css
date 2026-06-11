@@ -1,0 +1,13 @@
+.perm-admin { padding: 1.5rem; }
+.perm-admin h1 { margin-bottom: .25rem; }
+.perm-group { margin: 1.25rem 0; }
+.perm-group h2 { font-size: .95rem; color: #374151; margin: .5rem 0; }
+.perm-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.perm-table th, .perm-table td { border: 1px solid #e5e7eb; padding: .4rem .5rem; text-align: center; }
+.perm-table th:first-child, .perm-table td:first-child { text-align: left; }
+.perm-cell-toggle { cursor: pointer; }
+.perm-cell-na { color: #d1d5db; }
+.perm-override-on { background: #ecfdf5; }
+.perm-override-off { background: #fef2f2; }
+.perm-toolbar { display: flex; gap: .5rem; align-items: center; margin: .75rem 0; }
+.perm-dirty { color: #b45309; font-weight: 600; }
