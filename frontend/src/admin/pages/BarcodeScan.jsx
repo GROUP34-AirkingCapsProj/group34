@@ -528,10 +528,12 @@ function pickPreferredCameraDeviceId(devices, savedId) {
 
 const BarcodeScan = () => {
   const navigate = useNavigate();
-  const { user: _user, refreshUser } = useAuth();
+  const { user: _user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName: enforcedLocationName, locationType: enforcedLocationType, isStrictLocation, allowedLocations } = useUserLocation();
   const roleKey = useMemo(() => getRoleKey(_user || {}), [_user]);
   const isAdminRole = roleKey === ROLES.ADMIN;
+  // Admin always; anyone else granted the live barcode_inventory_processing/create permission.
+  const canScan = isAdminRole || (typeof can === 'function' && can('barcode_inventory_processing', 'create'));
   /** Browsers block getUserMedia on plain http:// unless hostname is localhost. */
   const cameraBlockedPlainHttp = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -3095,7 +3097,7 @@ const BarcodeScan = () => {
                     <p className="bs-cam-hint">Position the barcode in the frame and tap <strong>Scan</strong> — auto-capture is disabled; only the button triggers a scan.</p>
                   )}
                   {cameraError && <p className="bs-cam-err">{cameraError}</p>}
-                  {cameraActive && (
+                  {cameraActive && canScan && (
                     <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Scan barcode from current camera frame">
                       <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">Scan</span>
                     </button>
@@ -3139,7 +3141,7 @@ const BarcodeScan = () => {
                     type="button"
                     className="bsr-capture-btn"
                     onClick={handleBsrCaptureClick}
-                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrScanInput.trim().length < 4}
+                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrScanInput.trim().length < 4}
                     aria-label="Submit barcode"
                   >
                     {bsrScanning ? 'Scanning…' : 'Submit'}
@@ -3246,7 +3248,7 @@ const BarcodeScan = () => {
                       });
                     }
                   }}
-                  disabled={totalScanned === 0 && !isFullyReceived}
+                  disabled={!canScan || (totalScanned === 0 && !isFullyReceived)}
                 ><BsrCheckIcon /> {isFullyReceived ? 'Complete Receiving' : 'Save & Exit'}</button>
               </div>
             </div>
@@ -3320,7 +3322,7 @@ const BarcodeScan = () => {
           {/* camera error */}
           {cameraError && <p className="bs-cam-err">{cameraError}</p>}
 
-          {cameraActive && (
+          {cameraActive && canScan && (
             <button
               type="button"
               className="bs-cam-shutter"
