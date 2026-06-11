@@ -226,13 +226,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/categories/archived', [CategoryLookupController::class, 'archived']);
     Route::get('/categories', [CategoryLookupController::class, 'index']);
     Route::get('/categories/{category}', [CategoryLookupController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
-        Route::post('/categories', [CategoryLookupController::class, 'store']);
-        Route::put('/categories/{category}', [CategoryLookupController::class, 'update']);
-        Route::delete('/categories/{category}', [CategoryLookupController::class, 'destroy']);
-        Route::post('/categories/{category}/restore', [CategoryLookupController::class, 'restore']);
-        Route::delete('/categories/{category}/force', [CategoryLookupController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:category_management,create')->post('/categories', [CategoryLookupController::class, 'store']);
+    Route::middleware('permission:category_management,update')->put('/categories/{category}', [CategoryLookupController::class, 'update']);
+    Route::middleware('permission:category_management,archive')->delete('/categories/{category}', [CategoryLookupController::class, 'destroy']);
+    Route::middleware('permission:category_management,archive')->post('/categories/{category}/restore', [CategoryLookupController::class, 'restore']);
+    Route::middleware('permission:category_management,archive')->delete('/categories/{category}/force', [CategoryLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -257,13 +255,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/brands/archived', [BrandLookupController::class, 'archived']);
     Route::get('/brands', [BrandLookupController::class, 'index']);
     Route::get('/brands/{brand}', [BrandLookupController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
-        Route::post('/brands', [BrandLookupController::class, 'store']);
-        Route::put('/brands/{brand}', [BrandLookupController::class, 'update']);
-        Route::delete('/brands/{brand}', [BrandLookupController::class, 'destroy']);
-        Route::post('/brands/{brand}/restore', [BrandLookupController::class, 'restore']);
-        Route::delete('/brands/{brand}/force', [BrandLookupController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:brand_management,create')->post('/brands', [BrandLookupController::class, 'store']);
+    Route::middleware('permission:brand_management,update')->put('/brands/{brand}', [BrandLookupController::class, 'update']);
+    Route::middleware('permission:brand_management,archive')->delete('/brands/{brand}', [BrandLookupController::class, 'destroy']);
+    Route::middleware('permission:brand_management,archive')->post('/brands/{brand}/restore', [BrandLookupController::class, 'restore']);
+    Route::middleware('permission:brand_management,archive')->delete('/brands/{brand}/force', [BrandLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -291,13 +287,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/units/archived', [UnitLookupController::class, 'archived']);
     Route::get('/units', [UnitLookupController::class, 'index']);
     Route::get('/units/{id}', [UnitLookupController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
-        Route::post('/units', [UnitLookupController::class, 'store']);
-        Route::put('/units/{id}', [UnitLookupController::class, 'update']);
-        Route::delete('/units/{id}', [UnitLookupController::class, 'destroy']);
-        Route::post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
-        Route::delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:uom_management,create')->post('/units', [UnitLookupController::class, 'store']);
+    Route::middleware('permission:uom_management,update')->put('/units/{id}', [UnitLookupController::class, 'update']);
+    Route::middleware('permission:uom_management,archive')->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
+    Route::middleware('permission:uom_management,archive')->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
+    Route::middleware('permission:uom_management,archive')->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
