@@ -603,13 +603,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // NOTE: /ist/{id}/receipt/pdf is a browser-download route — defined below with
     // auth.query.token so the <a href> link can authenticate via ?token=.
     Route::get('/ist/{id}', [ISTController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst,warehouse_personnel,branch_manager')->group(function () {
+    Route::middleware('permission:inventory_transfers,create')->group(function () {
         Route::post('/ist', [ISTController::class, 'store']);
         Route::post('/ist/{transferId}/scan', [ISTController::class, 'scan']);
         Route::delete('/ist/{transferId}/scan/{scanId}', [ISTController::class, 'removeScan']);
         Route::post('/ist/{transferId}/confirm-dispatch', [ISTController::class, 'confirmDispatch']);
     });
-    Route::middleware('role:admin,inventory_analyst,warehouse_personnel,branch_manager')->group(function () {
+    Route::middleware('permission:inventory_transfers,update')->group(function () {
         Route::post('/ist/{id}/receive', [ISTController::class, 'receiveStore']);
         Route::post('/ist/{transferId}/receive-scan', [ISTController::class, 'receiveScan']);
         Route::delete('/ist/{transferId}/receive-scan/{scanId}', [ISTController::class, 'removeReceiveScan']);
@@ -622,10 +622,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/transfer-requests', [TransferRequestController::class, 'index']);
     Route::get('/transfer-requests/{id}', [TransferRequestController::class, 'show']);
-    Route::middleware('role:admin,branch_manager,warehouse_personnel,inventory_analyst')->group(function () {
-        Route::post('/transfer-requests', [TransferRequestController::class, 'store']);
-    });
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
+    Route::middleware('permission:inventory_transfers,create')->post('/transfer-requests', [TransferRequestController::class, 'store']);
+    Route::middleware('permission:inventory_transfers,approve')->group(function () {
         Route::patch('/transfer-requests/{id}/approve', [TransferRequestController::class, 'approve']);
         Route::patch('/transfer-requests/{id}/reject', [TransferRequestController::class, 'reject']);
     });
@@ -869,5 +867,5 @@ Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,r
      ->get('/issuance-scan/delivery-receipt/{issuance_id}/csv',
          [IssuanceScanController::class, 'downloadDeliveryReceipt']);
 
-Route::middleware(['auth.query.token', 'role:admin,inventory_analyst,branch_manager,warehouse_personnel'])
+Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
      ->get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
