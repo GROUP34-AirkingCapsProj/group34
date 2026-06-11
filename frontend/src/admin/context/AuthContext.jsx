@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-import { removeToken, authAPI } from '../services/api';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { removeToken, authAPI, permissionsAPI } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -13,6 +13,29 @@ const readStoredUser = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readStoredUser);
+  // Live effective permissions for the current user: { 'feature.action': bool }.
+  // null = not loaded yet (used to avoid premature route redirects).
+  const [permissions, setPermissions] = useState(null);
+
+  // Load the current user's effective permissions whenever the logged-in user changes.
+  useEffect(() => {
+    let cancelled = false;
+    if (!user?.user_id) {
+      setPermissions(null);
+      return undefined;
+    }
+    permissionsAPI
+      .getMine()
+      .then((res) => { if (!cancelled) setPermissions(res?.data ?? {}); })
+      .catch(() => { if (!cancelled) setPermissions({}); });
+    return () => { cancelled = true; };
+  }, [user?.user_id]);
+
+  // True only when the current user is explicitly granted feature.action.
+  const can = useCallback(
+    (feature, action) => permissions != null && permissions[`${feature}.${action}`] === true,
+    [permissions]
+  );
 
   const updateUser = useCallback((userData) => {
     setUser(userData);
@@ -47,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   }, [updateUser]);
 
   return (
-    <AuthContext.Provider value={{ user, updateUser, refreshUser, clearSession }}>
+    <AuthContext.Provider value={{ user, updateUser, refreshUser, clearSession, permissions, can }}>
       {children}
     </AuthContext.Provider>
   );
