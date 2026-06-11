@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RolePermission extends Model
 {
@@ -13,7 +14,7 @@ class RolePermission extends Model
 
     protected $casts = ['is_granted' => 'boolean'];
 
-    public function permission()
+    public function permission(): BelongsTo
     {
         return $this->belongsTo(Permission::class, 'permission_id', 'permission_id');
     }

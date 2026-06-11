@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserPermissionOverride extends Model
 {
@@ -19,7 +20,7 @@ class UserPermissionOverride extends Model
         'revoked_at' => 'datetime',
     ];
 
-    public function permission()
+    public function permission(): BelongsTo
     {
         return $this->belongsTo(Permission::class, 'permission_id', 'permission_id');
     }
