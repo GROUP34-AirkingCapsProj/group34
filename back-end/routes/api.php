@@ -709,7 +709,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: AUDIT_LOG (audit_log)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:admin,auditor')->group(function () {
+    Route::middleware('permission:audit_trail_viewing,read')->group(function () {
         Route::get('/audit-log', function (Illuminate\Http\Request $request) {
             $query = \App\Models\AuditLog::with('user')->orderBy('created_at', 'desc');
             if ($request->has('user_id')) {
@@ -739,7 +739,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | AUDIT TRAIL v2 (structured, filterable, with labels)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:admin,auditor,branch_manager')->group(function () {
+    Route::middleware('permission:audit_trail_viewing,read')->group(function () {
         Route::get('/audit-trail/v2', [AuditTrailController::class, 'index']);
         Route::get('/audit-trail/v2/filter-options', [AuditTrailController::class, 'filterOptions']);
         Route::get('/audit-trail/v2/{audit_id}', [AuditTrailController::class, 'show']);
@@ -753,9 +753,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/activity-log', [ActivityLogController::class, 'index']);
     Route::get('/activity-log/{id}', [ActivityLogController::class, 'show']);
     Route::post('/activity-log', [ActivityLogController::class, 'store']);
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/activity-log/{id}', [ActivityLogController::class, 'destroy']);
-    });
+    Route::middleware('permission:audit_trail_viewing,archive')->delete('/activity-log/{id}', [ActivityLogController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
