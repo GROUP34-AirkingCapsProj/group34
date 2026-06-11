@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { useAuth, useUserLocation } from '../context/AuthContext';
+import { getRoleKey, ROLES } from '../utils/roles';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
 import {
@@ -332,8 +333,12 @@ function QuickAddModal({ onSave, onClose }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IssuanceScanPage() {
-  const { refreshUser } = useAuth();
+  const { user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations } = useUserLocation();
+
+  const isAdmin = getRoleKey(user || {}) === ROLES.ADMIN;
+  // Admin always; anyone else granted the live inventory_issuance/create permission.
+  const canIssue = isAdmin || (typeof can === 'function' && can('inventory_issuance', 'create'));
 
   const [step, setStep]               = useState(STEPS.SETUP);
   const [form, setForm]               = useState({ ...EMPTY_FORM });
@@ -1203,9 +1208,10 @@ export default function IssuanceScanPage() {
               </div>
 
               <div className="isp-form-actions">
-                <button type="submit" className="isp-btn-primary" disabled={setupSaving}>
+                <button type="submit" className="isp-btn-primary" disabled={setupSaving || !canIssue}>
                   {setupSaving ? 'Starting...' : 'Start Issuance'}
                 </button>
+                {!canIssue && <span style={{ fontSize: 12, color: '#dc2626', marginLeft: 8 }}>You do not have permission to issue stock.</span>}
               </div>
             </form>
           </div>
@@ -1279,7 +1285,7 @@ export default function IssuanceScanPage() {
                     type="button"
                     className="bs-cam-shutter"
                     onClick={manualFrameScan}
-                    disabled={scanProcessing || !!pendingScan}
+                    disabled={scanProcessing || !!pendingScan || !canIssue}
                     aria-label="Scan barcode from current camera frame"
                   >
                     <span className="bs-cam-shutter-inner"/>
@@ -1345,7 +1351,7 @@ export default function IssuanceScanPage() {
                   <button
                     type="button"
                     onClick={() => { if (scanValue.trim()) handleScan(scanValue); }}
-                    disabled={!scanValue.trim() || scanProcessing || !!pendingScan}
+                    disabled={!scanValue.trim() || scanProcessing || !!pendingScan || !canIssue}
                     className="scan-submit-btn"
                   >
                     {scanProcessing ? 'Scanning...' : 'Apply'}
@@ -1529,6 +1535,7 @@ export default function IssuanceScanPage() {
                       type="button"
                       className="qty-add-btn"
                       disabled={
+                        !canIssue ||
                         scanProcessing ||
                         (!selectedAction && (!customQty || parseFloat(customQty) <= 0))
                       }
@@ -1864,7 +1871,7 @@ export default function IssuanceScanPage() {
                   </svg>
                   Go Back
                 </button>
-                <button type="button" className="isp-btn-complete" onClick={handleComplete} disabled={completing}>
+                <button type="button" className="isp-btn-complete" onClick={handleComplete} disabled={completing || !canIssue}>
                   {completing ? 'Completing...' : 'Confirm and Complete'}
                 </button>
               </div>

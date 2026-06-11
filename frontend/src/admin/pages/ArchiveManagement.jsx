@@ -31,9 +31,12 @@ const MODULES = [
 const PER_PAGE = 15;
 
 const ArchiveManagement = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
   const isAdmin = roleKey === ROLES.ADMIN;
+  // Admin always; anyone else granted the matching live data_archiving permission.
+  const canRestore     = isAdmin || (typeof can === 'function' && can('data_archiving', 'update'));
+  const canForceDelete = isAdmin || (typeof can === 'function' && can('data_archiving', 'archive'));
 
   const [summary, setSummary]         = useState({});
   const [activeModule, setActiveModule] = useState('products');
@@ -317,7 +320,7 @@ const ArchiveManagement = () => {
         </div>
 
         {/* Restore All */}
-        {isAdmin && totalItems > 0 && (
+        {canRestore && totalItems > 0 && (
           <button type="button" className="archive-restore-all-btn" onClick={handleRestoreAll}>
             Restore All ({totalItems})
           </button>
@@ -361,14 +364,16 @@ const ArchiveManagement = () => {
                   </td>
                   <td>
                     <div className="archive-actions">
-                      <button
-                        type="button"
-                        className="archive-restore-btn"
-                        onClick={() => handleRestore(item.module, item.id)}
-                      >
-                        Restore
-                      </button>
-                      {isAdmin && (
+                      {canRestore && (
+                        <button
+                          type="button"
+                          className="archive-restore-btn"
+                          onClick={() => handleRestore(item.module, item.id)}
+                        >
+                          Restore
+                        </button>
+                      )}
+                      {canForceDelete && (
                         <button
                           type="button"
                           className="archive-force-delete-btn"

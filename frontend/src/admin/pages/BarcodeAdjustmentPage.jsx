@@ -14,6 +14,7 @@ import { barcodeAdjustmentAPI, productsAPI, locationsAPI, purchaseOrdersAPI, cat
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import { useAuth, useUserLocation } from '../context/AuthContext';
+import { getRoleKey, ROLES } from '../utils/roles';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
 import '../styles/barcode_scan.css';
@@ -408,9 +409,13 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
 
 /* ─── Main page ──────────────────────────────────────────────────────── */
 export default function BarcodeAdjustmentPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations, canChooseLocation } = useUserLocation();
   const navigate = useNavigate();
+
+  const isAdmin = getRoleKey(user) === ROLES.ADMIN;
+  // Admin always; anyone else granted the live inventory_adjustments/create permission.
+  const canSubmitCorrection = isAdmin || (typeof can === 'function' && can('inventory_adjustments', 'create'));
 
   // Reference data
   const [allPOs, setAllPOs]         = useState([]);
@@ -1242,10 +1247,11 @@ export default function BarcodeAdjustmentPage() {
                     ))}
                   </ul>
                   <div className="ba-submit-row">
-                    <button className="baj-btn-primary" onClick={handleSubmit} disabled={submitting || !effectiveLocationId}>
+                    <button className="baj-btn-primary" onClick={handleSubmit} disabled={submitting || !effectiveLocationId || !canSubmitCorrection}>
                       {submitting ? 'Submitting…' : 'Confirm & Submit Correction'}
                     </button>
                     {!effectiveLocationId && <span style={{ fontSize: 12, color: '#dc2626' }}>Select a location in Step 1 first.</span>}
+                    {effectiveLocationId && !canSubmitCorrection && <span style={{ fontSize: 12, color: '#dc2626' }}>You do not have permission to submit corrections.</span>}
                   </div>
                 </div>
               )}
