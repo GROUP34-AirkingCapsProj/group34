@@ -535,15 +535,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/receivings', [ReceivingController::class, 'index']);
     Route::get('/receivings/po-scan-status/{poId}', [ReceivingController::class, 'poScanStatus']);
     Route::get('/receivings/{id}', [ReceivingController::class, 'show']);
-    Route::middleware('role:admin,warehouse_personnel,branch_manager')->group(function () {
-        Route::post('/receivings', [ReceivingController::class, 'store']);
-    });
-    Route::middleware('role:admin,branch_manager')->group(function () {
-        Route::put('/receivings/{id}', [ReceivingController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/receivings/{id}', [ReceivingController::class, 'destroy']);
-    });
+    Route::middleware('permission:delivery_receiving,create')->post('/receivings', [ReceivingController::class, 'store']);
+    Route::middleware('permission:delivery_receiving,update')->put('/receivings/{id}', [ReceivingController::class, 'update']);
+    Route::middleware('permission:delivery_receiving,archive')->delete('/receivings/{id}', [ReceivingController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -567,15 +561,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/sales', [SaleController::class, 'index']);
     Route::get('/sales/{id}', [SaleController::class, 'show']);
-    Route::middleware('role:admin,branch_manager,inventory_analyst')->group(function () {
-        Route::post('/sales', [SaleController::class, 'store']);
-    });
-    Route::middleware('role:admin,branch_manager')->group(function () {
-        Route::put('/sales/{id}', [SaleController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/sales/{id}', [SaleController::class, 'destroy']);
-    });
+    Route::middleware('permission:pos_sales_recording,create')->post('/sales', [SaleController::class, 'store']);
+    Route::middleware('permission:pos_sales_recording,update')->put('/sales/{id}', [SaleController::class, 'update']);
+    Route::middleware('permission:pos_sales_recording,archive')->delete('/sales/{id}', [SaleController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -584,13 +572,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/delivery-receipts', [DeliveryReceiptController::class, 'index']);
     Route::get('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'show']);
-    Route::middleware('role:admin,branch_manager')->group(function () {
-        Route::post('/delivery-receipts', [DeliveryReceiptController::class, 'store']);
-        Route::put('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'destroy']);
-    });
+    Route::middleware('permission:delivery_receipt_generation,create')->post('/delivery-receipts', [DeliveryReceiptController::class, 'store']);
+    Route::middleware('permission:delivery_receipt_generation,update')->put('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'update']);
+    Route::middleware('permission:delivery_receipt_generation,archive')->delete('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
