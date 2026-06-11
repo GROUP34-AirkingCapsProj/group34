@@ -44,10 +44,17 @@ class PermissionController extends Controller
     {
         $data = $request->validate([
             'changes' => ['required', 'array', 'min:1'],
-            'changes.*.role_id' => ['required', 'integer'],
+            'changes.*.role_id' => ['required', 'integer', 'exists:roles,role_id'],
             'changes.*.permission_id' => ['required', 'integer', 'exists:permissions,permission_id'],
             'changes.*.is_granted' => ['required', 'boolean'],
         ]);
+
+        $adminRoleId = (int) \Illuminate\Support\Facades\DB::table('roles')->where('role_name', 'admin')->value('role_id');
+        foreach ($data['changes'] as $change) {
+            if ((int) $change['role_id'] === $adminRoleId) {
+                return $this->error('The admin role permissions cannot be modified.', 403);
+            }
+        }
 
         foreach ($data['changes'] as $change) {
             $this->admin->setRoleDefault($request->user(), (int) $change['role_id'], (int) $change['permission_id'], (bool) $change['is_granted']);
@@ -59,6 +66,11 @@ class PermissionController extends Controller
     /** A user's effective permissions, plus active overrides. */
     public function userPermissions(Request $request, $userId)
     {
+        $targetUser = \App\Models\User::where('user_id', $userId)->first();
+        if (! $targetUser) {
+            return $this->error('User not found.', 404);
+        }
+
         $overrides = UserPermissionOverride::where('user_id', $userId)
             ->whereNull('revoked_at')->get(['permission_id', 'is_granted']);
 
@@ -78,6 +90,16 @@ class PermissionController extends Controller
             'changes.*.is_granted' => ['nullable', 'boolean'], // null = clear override
         ]);
 
+        $targetUser = \App\Models\User::where('user_id', $userId)->first();
+        if (! $targetUser) {
+            return $this->error('User not found.', 404);
+        }
+
+        $targetUser->loadMissing('role');
+        if ($targetUser->role && $targetUser->role->role_name === 'admin') {
+            return $this->error('Permissions of an admin user cannot be overridden.', 403);
+        }
+
         foreach ($data['changes'] as $change) {
             $permId = (int) $change['permission_id'];
             if (array_key_exists('is_granted', $change) && $change['is_granted'] === null) {
@@ -93,6 +115,16 @@ class PermissionController extends Controller
     /** Filterable audit feed. */
     public function auditLogs(Request $request)
     {
+        $request->validate([
+            'target_user_id' => ['nullable', 'integer'],
+            'target_role_id' => ['nullable', 'integer'],
+            'change_type' => ['nullable', 'string'],
+            'feature' => ['nullable', 'string'],
+            'action' => ['nullable', 'string'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ]);
         $query = PermissionAuditLog::with(['permission', 'changedBy', 'targetUser'])
             ->orderByDesc('changed_at');
 
