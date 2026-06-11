@@ -56,6 +56,10 @@ class RbacRouteMatrixTest extends TestCase
             ['post', '/api/suppliers', 'supplier_management', 'create'],
             ['delete', '/api/suppliers/1', 'supplier_management', 'archive'],
             ['post', '/api/suppliers/1/products', 'item_supplier_mapping', 'create'],
+            ['post', '/api/purchase-orders', 'purchase_order_creation', 'create'],
+            ['put', '/api/purchase-orders/1', 'purchase_order_creation', 'update'],
+            ['delete', '/api/purchase-orders/1', 'purchase_order_creation', 'archive'],
+            ['get', '/api/purchase-orders/export', 'purchase_order_creation', 'read'],
         ];
     }
 

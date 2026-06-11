@@ -462,22 +462,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/purchase-orders/archived', [PurchaseOrderController::class, 'archived']);
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     // Specific routes before {id} wildcard
-    Route::middleware('role:admin,inventory_analyst,branch_manager')->group(function () {
-        Route::get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
-        Route::get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
-    });
+    Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
+    Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
     Route::get('/purchase-orders/{id}', [PurchaseOrderController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst,branch_manager')->group(function () {
-        Route::post('/purchase-orders', [PurchaseOrderController::class, 'store']);
-    });
-    Route::middleware('role:admin,branch_manager')->group(function () {
-        Route::put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
-        Route::post('/purchase-orders/{id}/restore', [PurchaseOrderController::class, 'restore']);
-        Route::delete('/purchase-orders/{id}/force', [PurchaseOrderController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:purchase_order_creation,create')->post('/purchase-orders', [PurchaseOrderController::class, 'store']);
+    Route::middleware('permission:purchase_order_creation,update')->put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
+    Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
+    Route::middleware('permission:purchase_order_creation,archive')->post('/purchase-orders/{id}/restore', [PurchaseOrderController::class, 'restore']);
+    Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}/force', [PurchaseOrderController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
