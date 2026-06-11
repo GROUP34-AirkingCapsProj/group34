@@ -192,12 +192,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ARCHIVE MANAGEMENT — unified endpoints
     |--------------------------------------------------------------------------
     */
-    Route::prefix('archive')->middleware('role:admin,branch_manager')->group(function () {
-        Route::get('/summary',                    [ArchiveController::class, 'summary']);
-        Route::get('/{module}',                   [ArchiveController::class, 'index']);
-        Route::post('/{module}/{id}/restore',     [ArchiveController::class, 'restore']);
-        Route::middleware('role:admin')->delete('/{module}/{id}/force',   [ArchiveController::class, 'forceDestroy']);
-        Route::middleware('role:admin')->post('/{module}/restore-all',    [ArchiveController::class, 'restoreAll']);
+    Route::prefix('archive')->group(function () {
+        Route::middleware('permission:archive_viewing,read')->get('/summary',                    [ArchiveController::class, 'summary']);
+        Route::middleware('permission:archive_viewing,read')->get('/{module}',                   [ArchiveController::class, 'index']);
+        Route::middleware('permission:data_archiving,update')->post('/{module}/{id}/restore',     [ArchiveController::class, 'restore']);
+        Route::middleware('permission:data_archiving,archive')->delete('/{module}/{id}/force',   [ArchiveController::class, 'forceDestroy']);
+        Route::middleware('permission:data_archiving,update')->post('/{module}/restore-all',    [ArchiveController::class, 'restoreAll']);
     });
 
     /*
