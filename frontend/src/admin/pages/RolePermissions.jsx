@@ -12,6 +12,7 @@ const RolePermissions = () => {
   const [dirty, setDirty] = useState({});   // same key => bool (pending value)
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -71,6 +72,14 @@ const RolePermissions = () => {
 
   const dirtyCount = Object.keys(dirty).length;
 
+  const dirtyPermIds = useMemo(
+    () => new Set(Object.keys(dirty).map((k) => Number(k.split(':')[1]))),
+    [dirty]
+  );
+  const groupHasDirty = (g) => g.features.some((f) => Object.values(f.actions).some((pid) => dirtyPermIds.has(pid)));
+  const activeIndex = groups.length ? Math.min(activeTab, groups.length - 1) : 0;
+  const active = groups[activeIndex];
+
   return (
     <AdminLayout>
       <div className="perm-admin">
@@ -90,56 +99,74 @@ const RolePermissions = () => {
             : <span className="perm-muted">Click a checkbox to grant or remove a default, then Save.</span>}
         </div>
 
-        {loading ? <div className="perm-muted">Loading…</div> : groups.map((g) => (
-          <div className="perm-card" key={g.label}>
-            <h2>{g.label}</h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="perm-table">
-                <thead>
-                  <tr>
-                    <th rowSpan={2} className="perm-feature-cell">Feature</th>
-                    {ACTIONS.map((a) => (
-                      <th key={a} colSpan={ROLE_COLUMNS.length} className="perm-action-group perm-group-start">
-                        {ACTION_META[a].label}
-                      </th>
-                    ))}
-                  </tr>
-                  <tr>
-                    {ACTIONS.map((a) => ROLE_COLUMNS.map((r, idx) => (
-                      <th
-                        key={`${a}-${r.id}`}
-                        className={`perm-role-col ${idx === 0 ? 'perm-group-start' : ''}`}
-                        style={{ '--role-accent': r.accent }}
-                        title={`${r.name} — ${ACTION_META[a].label}`}
-                      >
-                        {r.label}
-                      </th>
-                    )))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {g.features.map((f) => (
-                    <tr key={f.feature}>
-                      <td className="perm-feature-cell">{f.title}</td>
-                      {ACTIONS.map((a) => ROLE_COLUMNS.map((r, idx) => {
-                        const permId = f.actions[a];
-                        const divider = idx === 0 ? 'perm-group-start' : '';
-                        if (!permId) return <td key={`${f.feature}-${a}-${r.id}`} className={`perm-cell-na ${divider}`}>&mdash;</td>;
-                        return (
-                          <td key={`${f.feature}-${a}-${r.id}`} className={`perm-cell-toggle ${divider}`}
-                              title={`${r.name} can ${ACTION_META[a].label.toLowerCase()} ${f.title}`}
-                              onClick={() => toggle(r.id, permId)}>
-                            <input type="checkbox" readOnly checked={valueFor(r.id, permId)} />
-                          </td>
-                        );
-                      }))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {loading ? <div className="perm-muted">Loading…</div> : (
+          <>
+            <div className="perm-tabs" role="tablist">
+              {groups.map((g, i) => (
+                <button
+                  type="button"
+                  key={g.label}
+                  className={`perm-tab ${i === activeIndex ? 'active' : ''}`}
+                  onClick={() => setActiveTab(i)}
+                >
+                  {g.label}
+                  {groupHasDirty(g) && <span className="perm-tab-dot" title="Unsaved changes in this category" />}
+                </button>
+              ))}
             </div>
-          </div>
-        ))}
+
+            {active && (
+              <div className="perm-card" key={active.label}>
+                <h2>{active.label}</h2>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="perm-table">
+                    <thead>
+                      <tr>
+                        <th rowSpan={2} className="perm-feature-cell">Feature</th>
+                        {ACTIONS.map((a) => (
+                          <th key={a} colSpan={ROLE_COLUMNS.length} className="perm-action-group perm-group-start">
+                            {ACTION_META[a].label}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr>
+                        {ACTIONS.map((a) => ROLE_COLUMNS.map((r, idx) => (
+                          <th
+                            key={`${a}-${r.id}`}
+                            className={`perm-role-col ${idx === 0 ? 'perm-group-start' : ''}`}
+                            style={{ '--role-accent': r.accent }}
+                            title={`${r.name} — ${ACTION_META[a].label}`}
+                          >
+                            {r.label}
+                          </th>
+                        )))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {active.features.map((f) => (
+                        <tr key={f.feature}>
+                          <td className="perm-feature-cell">{f.title}</td>
+                          {ACTIONS.map((a) => ROLE_COLUMNS.map((r, idx) => {
+                            const permId = f.actions[a];
+                            const divider = idx === 0 ? 'perm-group-start' : '';
+                            if (!permId) return <td key={`${f.feature}-${a}-${r.id}`} className={`perm-cell-na ${divider}`}>&mdash;</td>;
+                            return (
+                              <td key={`${f.feature}-${a}-${r.id}`} className={`perm-cell-toggle ${divider}`}
+                                  title={`${r.name} can ${ACTION_META[a].label.toLowerCase()} ${f.title}`}
+                                  onClick={() => toggle(r.id, permId)}>
+                                <input type="checkbox" readOnly checked={valueFor(r.id, permId)} />
+                              </td>
+                            );
+                          }))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </AdminLayout>
   );

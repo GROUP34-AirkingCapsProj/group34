@@ -15,6 +15,7 @@ const UserPermissionOverrides = () => {
   const [pending, setPending] = useState({});     // permId => bool|null (null = clear)
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -91,6 +92,11 @@ const UserPermissionOverrides = () => {
     }
   };
 
+  const pendingPermIds = useMemo(() => new Set(Object.keys(pending).map(Number)), [pending]);
+  const groupHasPending = (g) => g.features.some((f) => Object.values(f.actions).some((pid) => pendingPermIds.has(pid)));
+  const activeIndex = groups.length ? Math.min(activeTab, groups.length - 1) : 0;
+  const active = groups[activeIndex];
+
   return (
     <AdminLayout>
       <div className="perm-admin">
@@ -119,42 +125,60 @@ const UserPermissionOverrides = () => {
 
         {!userId && <p className="perm-muted">Select a user above to view and edit their overrides.</p>}
 
-        {userId && groups.map((g) => (
-          <div className="perm-card" key={g.label}>
-            <h2>{g.label}</h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="perm-table">
-                <thead>
-                  <tr>
-                    <th className="perm-feature-cell">Feature</th>
-                    {ACTIONS.map((a) => <th key={a} title={ACTION_META[a].desc}>{ACTION_META[a].label}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {g.features.map((f) => (
-                    <tr key={f.feature}>
-                      <td className="perm-feature-cell">{f.title}</td>
-                      {ACTIONS.map((a) => {
-                        const permId = f.actions[a];
-                        if (!permId) return <td key={a} className="perm-cell-na">&mdash;</td>;
-                        const val = effectiveValue(permId);
-                        const overridden = isOverridden(permId);
-                        const cls = overridden ? (val ? 'perm-override-on' : 'perm-override-off') : (val ? 'perm-allow' : 'perm-deny');
-                        return (
-                          <td key={a} className={`perm-cell-toggle ${cls}`}
-                              title={`${ACTION_META[a].label}: ${val ? 'allowed' : 'not allowed'}${overridden ? ' (override)' : ' (role default)'} — click to change`}
-                              onClick={() => cycle(permId)}>
-                            {val ? '✓' : '✗'}{overridden ? '∗' : ''}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {userId && (
+          <>
+            <div className="perm-tabs" role="tablist">
+              {groups.map((g, i) => (
+                <button
+                  type="button"
+                  key={g.label}
+                  className={`perm-tab ${i === activeIndex ? 'active' : ''}`}
+                  onClick={() => setActiveTab(i)}
+                >
+                  {g.label}
+                  {groupHasPending(g) && <span className="perm-tab-dot" title="Unsaved changes in this category" />}
+                </button>
+              ))}
             </div>
-          </div>
-        ))}
+
+            {active && (
+              <div className="perm-card" key={active.label}>
+                <h2>{active.label}</h2>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="perm-table">
+                    <thead>
+                      <tr>
+                        <th className="perm-feature-cell">Feature</th>
+                        {ACTIONS.map((a) => <th key={a} title={ACTION_META[a].desc}>{ACTION_META[a].label}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {active.features.map((f) => (
+                        <tr key={f.feature}>
+                          <td className="perm-feature-cell">{f.title}</td>
+                          {ACTIONS.map((a) => {
+                            const permId = f.actions[a];
+                            if (!permId) return <td key={a} className="perm-cell-na">&mdash;</td>;
+                            const val = effectiveValue(permId);
+                            const overridden = isOverridden(permId);
+                            const cls = overridden ? (val ? 'perm-override-on' : 'perm-override-off') : (val ? 'perm-allow' : 'perm-deny');
+                            return (
+                              <td key={a} className={`perm-cell-toggle ${cls}`}
+                                  title={`${ACTION_META[a].label}: ${val ? 'allowed' : 'not allowed'}${overridden ? ' (override)' : ' (role default)'} — click to change`}
+                                  onClick={() => cycle(permId)}>
+                                {val ? '✓' : '✗'}{overridden ? '∗' : ''}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </AdminLayout>
   );
