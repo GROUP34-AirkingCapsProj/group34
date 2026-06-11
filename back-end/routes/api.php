@@ -338,40 +338,26 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::put('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'updateIssuableUnit']);
     Route::delete('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'destroyIssuableUnit']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
-        Route::post('/products', [ProductController::class, 'store']);
-        Route::post('/products/{id}/issuable-units', [ProductController::class, 'storeIssuableUnit']);
-        Route::put('/products/{product}', [ProductController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
-        Route::post('/products/{id}/restore', [ProductController::class, 'restore']);
-        Route::delete('/products/{id}/force', [ProductController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:item_master_management,create')->post('/products', [ProductController::class, 'store']);
+    Route::middleware('permission:item_master_management,create')->post('/products/{id}/issuable-units', [ProductController::class, 'storeIssuableUnit']);
+    Route::middleware('permission:item_master_management,update')->put('/products/{product}', [ProductController::class, 'update']);
+    Route::middleware('permission:item_master_management,archive')->delete('/products/{product}', [ProductController::class, 'destroy']);
+    Route::middleware('permission:item_master_management,archive')->post('/products/{id}/restore', [ProductController::class, 'restore']);
+    Route::middleware('permission:item_master_management,archive')->delete('/products/{id}/force', [ProductController::class, 'forceDestroy']);
 
     // Legacy alias: /items → products
     Route::get('/items', [ProductController::class, 'index']);
     Route::get('/items/{product}', [ProductController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
-        Route::post('/items', [ProductController::class, 'store']);
-        Route::put('/items/{product}', [ProductController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/items/{product}', [ProductController::class, 'destroy']);
-    });
+    Route::middleware('permission:item_master_management,create')->post('/items', [ProductController::class, 'store']);
+    Route::middleware('permission:item_master_management,update')->put('/items/{product}', [ProductController::class, 'update']);
+    Route::middleware('permission:item_master_management,archive')->delete('/items/{product}', [ProductController::class, 'destroy']);
 
     Route::get('/consumable-supply/catalog', [PendingProductController::class, 'catalog']);
     Route::get('/supply-types', [PendingProductController::class, 'supplyTypesIndex']);
-    Route::middleware('role:admin,branch_manager,warehouse_personnel,inventory_analyst')->group(function () {
-        Route::post('/pending-products', [PendingProductController::class, 'store']);
-    });
+    Route::middleware('permission:item_master_management,create')->post('/pending-products', [PendingProductController::class, 'store']);
     // List: procurement/audit visibility; approve: same as create submitters who run Item Master workflow
-    Route::middleware('role:admin,branch_manager,inventory_analyst,auditor')->group(function () {
-        Route::get('/pending-products', [PendingProductController::class, 'index']);
-    });
-    Route::middleware('role:admin,branch_manager')->group(function () {
-        Route::post('/pending-products/{pendingProduct}/approve', [PendingProductController::class, 'approve']);
-    });
+    Route::middleware('permission:item_master_management,read')->get('/pending-products', [PendingProductController::class, 'index']);
+    Route::middleware('permission:item_master_management,approve')->post('/pending-products/{pendingProduct}/approve', [PendingProductController::class, 'approve']);
 
     /*
     |--------------------------------------------------------------------------
