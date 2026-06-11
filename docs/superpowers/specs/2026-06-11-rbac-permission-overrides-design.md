@@ -104,7 +104,7 @@ Kept separate from the generic `audit_trail`; this table backs the SA audit view
 | `permission_id` | BIGINT UNSIGNED, FK → `permissions.permission_id` | |
 | `old_value` | BOOLEAN NULL | NULL on first-ever set |
 | `new_value` | BOOLEAN | |
-| `change_type` | ENUM('role_default','user_override') | |
+| `change_type` | ENUM('role_default','user_override','user_override_clear') | `user_override_clear` marks a revert-to-default (added in migration `..._000005`) |
 | `reason` | TEXT NULL | |
 | `changed_at` | TIMESTAMP | |
 
@@ -161,6 +161,8 @@ The codebase has no Gates/Policies and enforces exclusively through the variadic
 | `GET /permission-audit-logs` | filterable audit feed (§5) |
 
 Every write diffs old→new, persists, and writes a `permission_audit_logs` row in the same transaction.
+
+**As-built safeguards (Task 7):** `updateRoleDefaults` validates `role_id` with `exists:roles,role_id` and **403s any attempt to edit the `admin` role's defaults**; `updateUserPermissions`/`userPermissions` **404** for an unknown `{userId}` and the write path **403s when the target user's role is `admin`** (admins cannot be locked out or have their permissions overridden). `auditLogs` validates all filter params (`nullable` integer/date/string). A user-override change with `is_granted: null` clears the override (writes a `user_override_clear` audit row).
 
 **Page A — Role Permissions Editor** (replaces the stub `RolePermissions.jsx`):
 A grid of features × actions, grouped by the 12 groups, with a toggle per role. Saving a cell updates `role_permissions` and writes a `role_default` audit row. Uses the existing `toast` + `confirm` helpers (`frontend/src/admin/utils/`).
