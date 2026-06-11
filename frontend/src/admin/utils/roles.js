@@ -218,6 +218,8 @@ export const ROUTE_ACCESS = {
   // Admin/security
   '/admin/users': [ROLES.ADMIN],
   '/admin/roles': [ROLES.ADMIN],
+  '/admin/user-permissions': [ROLES.ADMIN],
+  '/admin/permission-audit': [ROLES.ADMIN],
   '/admin/config': [ROLES.ADMIN],
   '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/archive-settings': [ROLES.ADMIN],
