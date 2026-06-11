@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
-import { canActOnApprovalQueue } from '../utils/roles';
+import { canActOnApprovalQueue, getRoleKey, ROLES } from '../utils/roles';
 import { purchaseOrdersAPI, statusAPI, productsAPI, transferRequestsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/approval_queue.css';
@@ -43,8 +43,12 @@ const formatDateTime = (value) => {
 };
 
 const ApprovalQueue = ({ initialTab } = {}) => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const canActOnQueue = useMemo(() => canActOnApprovalQueue(user), [user]);
+  const isAdmin = getRoleKey(user) === ROLES.ADMIN;
+  // PO approve/reject in the queue goes through a PO update on the backend.
+  // Admin always; anyone else granted the live purchase_order_creation/update permission.
+  const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
   const location = useLocation();
 const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'purchase-orders';
@@ -646,7 +650,7 @@ return (
 
 {/* ✅ ONLY PENDING HAS ACTIONS */}
 {po.status === 'pending' && (
-  canActOnQueue ? (
+  canApprovePO ? (
     <>
       <button
         type="button"

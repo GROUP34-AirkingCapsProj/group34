@@ -12,6 +12,7 @@ import {
   companySettingsAPI,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
@@ -93,7 +94,10 @@ const poLineLabel = (item) => {
 
 const PurchaseOrderPage = () => {
   const navigate = useNavigate();
-  const { user: authUser } = useAuth();
+  const { user: authUser, can } = useAuth();
+  const isAdmin = getRoleKey(authUser) === ROLES.ADMIN;
+  // Admin always; anyone else granted the live purchase_order_creation/create permission.
+  const canCreatePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'create'));
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');
@@ -929,15 +933,17 @@ const PurchaseOrderPage = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="po-btn po-btn-final-submission"
-              style={{ width: '100%', marginTop: 12 }}
-              onClick={handleSubmitPO}
-              disabled={submitting}
-            >
-              {submitting ? 'SUBMITTING…' : 'SUBMIT PURCHASE ORDER'}
-            </button>
+            {canCreatePO && (
+              <button
+                type="button"
+                className="po-btn po-btn-final-submission"
+                style={{ width: '100%', marginTop: 12 }}
+                onClick={handleSubmitPO}
+                disabled={submitting}
+              >
+                {submitting ? 'SUBMITTING…' : 'SUBMIT PURCHASE ORDER'}
+              </button>
+            )}
 
           </div>
         </div>
