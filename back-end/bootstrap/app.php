@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'location.scope' => \App\Http\Middleware\EnsureAssignedLocationAccess::class,
             'extend.sanctum.session' => \App\Http\Middleware\ExtendSanctumTokenExpiration::class,
             'auth.query.token'       => \App\Http\Middleware\AuthenticateFromQueryToken::class,
+            'permission'             => \App\Http\Middleware\CheckPermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
