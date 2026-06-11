@@ -243,7 +243,9 @@ A full route-by-route pass mapped every `role:` middleware in `routes/api.php` (
 
 > **6i nuance:** three route-sets feed `inventory_transfers.create/update` — IST (`:642`), transfer-requests (`:661`), and legacy `/transfers` (`:677`). Decisions 6g/6h widen the *seeded default* to SA,IA,BM,WP; 6i keeps the legacy direct-transfer route admin-only at the route level when Phase 2 migrates it (a stricter per-route guard layered over the default).
 
-**Unmapped routes (Stage-2 decision: leave ALL on current `role:`, do NOT assign feature keys, do NOT seed):** system session/company settings (`:109,111`), `status-lookup` writes (`:151`), `archive-settings` (`:189`), `subcategories` (`:225,229`), `models` (`:257,261`), `customers/{}/force` (`:416`), `warranty-claims` (`:434`), `budget-allocations` (`:499,504`), `purchase-requests` (`:520,528,535,541`), `purchase-returns` (`:571,575`), `profit-loss` (`:739,743`). These keep their existing `role:` middleware unchanged and get no permission rows until a feature key is assigned in a later effort.
+**Unmapped routes (Stage-2 decision: leave ALL on current `role:`, do NOT assign feature keys, do NOT seed):** system session/company settings (`:109,111`), `status-lookup` writes (`:151`), `archive-settings` (`:189`), `subcategories` (`:225,229`), `models` (`:257,261`), `customers/{}/force` (`:416`), `warranty-claims` (`:434`), `budget-allocations` (`:499,504`), `purchase-returns` (`:571,575`), `profit-loss` (`:739,743`). These keep their existing `role:` middleware unchanged and get no permission rows until a feature key is assigned in a later effort.
+
+> **Post-build addition (Purchase Request approval):** `purchase_request_creation` and `purchase_request_approval` were later added to the matrix (Group VI above), and the PR approve/reject/pending routes (`:546–550`) were migrated from `role:admin` to `permission:purchase_request_approval,approve`. PR create/store routes remain on their existing `role:` middleware for now (only approval is enforced via the permission system).
 
 ---
 
@@ -306,6 +308,8 @@ Grants are listed per `feature.action` using role abbreviations **SA / IA / BM /
 | item_supplier_mapping | SA IA BM | SA IA BM AU | SA IA BM | SA | SA IA BM |
 | purchase_order_creation | **SA IA** | SA IA BM AU | **SA IA** | SA | **SA IA** |
 | purchase_order_approval | — | — | — | — | SA |
+| purchase_request_creation | SA IA | SA IA | SA IA | SA | — |
+| purchase_request_approval | — | — | — | — | SA |
 | po_status_tracking | — | SA IA BM WP AU | — | — | — |
 | delivery_receiving | SA BM WP | SA BM WP AU | SA BM WP | SA | SA BM WP |
 
