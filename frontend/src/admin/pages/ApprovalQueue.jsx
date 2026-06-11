@@ -511,14 +511,14 @@ return (
         {/* Page Header */}
         <div className="aq-page-header">
           <h1>Approvals</h1>
-          {!canActOnQueue && (
+          {!canActOnQueue && !canApprovePO && (
             <p className="aq-viewonly-banner">
-              <strong>View only.</strong> Only <strong>Admin</strong> and <strong>Branch Manager</strong> can authorize
-              purchase orders and restock here. You can review and open PO line items with the eye icon.
+              <strong>View only.</strong> You don&rsquo;t have permission to authorize purchase orders or restock here.
+              You can review and open PO line items with the eye icon.
             </p>
           )}
           <p>
-            {canActOnQueue ? (
+            {(canActOnQueue || canApprovePO) ? (
               <>
                 <strong>Approve</strong> sets a purchase order to <strong>Authorized</strong> on the server. Receiving
                 stays blocked until authorized and on or after the expected delivery date when set.
