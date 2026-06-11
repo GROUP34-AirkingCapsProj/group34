@@ -543,8 +543,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // Any authenticated user can view a single PR
     Route::get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
 
-    // Admin actions
-    Route::middleware('role:admin')->group(function () {
+    // PR approval — gated by the DB permission system (purchase_request_approval, approve).
+    // Default grants SA only; admins can grant others via the Role Permissions editor / overrides.
+    Route::middleware('permission:purchase_request_approval,approve')->group(function () {
         Route::get('/purchase-requests/pending/list', [PurchaseRequestController::class, 'pending']);
         Route::patch('/purchase-requests/{id}/approve', [PurchaseRequestController::class, 'approve']);
         Route::patch('/purchase-requests/{id}/reject', [PurchaseRequestController::class, 'reject']);

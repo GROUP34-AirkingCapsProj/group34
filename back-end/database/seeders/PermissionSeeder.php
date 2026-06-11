@@ -127,6 +127,10 @@ class PermissionSeeder extends Seeder
                 'create' => [$SA, $IA], 'read' => [$SA, $IA, $BM, $AU], 'update' => [$SA, $IA], 'archive' => [$SA], 'approve' => [$SA, $IA],
             ],
             'purchase_order_approval' => ['approve' => [$SA]],
+            'purchase_request_creation' => [
+                'create' => [$SA, $IA], 'read' => [$SA, $IA], 'update' => [$SA, $IA], 'archive' => [$SA],
+            ],
+            'purchase_request_approval' => ['approve' => [$SA]],
             'po_status_tracking' => ['read' => [$SA, $IA, $BM, $WP, $AU]],
             'delivery_receiving' => [
                 'create' => [$SA, $BM, $WP], 'read' => [$SA, $BM, $WP, $AU], 'update' => [$SA, $BM, $WP], 'archive' => [$SA], 'approve' => [$SA, $BM, $WP],
