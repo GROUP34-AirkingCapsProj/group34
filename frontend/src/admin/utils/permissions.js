@@ -31,7 +31,7 @@ export const FEATURE_GROUPS = [
   { label: 'III. User, Role & Security', features: ['user_account_management', 'role_assignment', 'rbac_enforcement'] },
   { label: 'IV. Dashboard & UI', features: ['role_dashboards', 'summary_cards', 'quick_actions', 'notification_panel'] },
   { label: 'V. Restocking & Low-Stock', features: ['reorder_monitoring', 'safety_stock', 'consumption_rate', 'low_stock_prediction', 'restock_recommendation', 'restock_quantity', 'restock_approval', 'restock_history'] },
-  { label: 'VI. Supplier & Purchase Orders', features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_order_approval', 'po_status_tracking', 'delivery_receiving'] },
+  { label: 'VI. Supplier & Purchase Orders', features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_order_approval', 'purchase_request_creation', 'purchase_request_approval', 'po_status_tracking', 'delivery_receiving'] },
   { label: 'VII. Point of Sale', features: ['pos_sales_recording', 'barcode_scanning_sales', 'sales_validation', 'customer_info_capture', 'delivery_receipt_generation', 'pos_transaction_logs'] },
   { label: 'VIII. Transaction Control', features: ['transaction_validation', 'transaction_approval', 'transaction_rejection'] },
   { label: 'IX. Audit & Compliance', features: ['audit_trail_viewing', 'transaction_logs_audit', 'login_logs', 'exception_detection'] },
