@@ -65,12 +65,12 @@ Four new migrations. `roles` and `users` are untouched.
 
 | column | type | notes |
 |---|---|---|
-| `role_id` | INT UNSIGNED, FK → `roles.role_id` | |
+| `role_id` | BIGINT UNSIGNED, references `roles.role_id` (no hard FK — matches project convention) | |
 | `permission_id` | BIGINT UNSIGNED, FK → `permissions.permission_id`, ON DELETE CASCADE | |
 | `is_granted` | BOOLEAN, default `0` | |
 | `created_at` / `updated_at` | TIMESTAMP | |
 
-- **Composite PK** `(role_id, permission_id)`.
+- **Surrogate `id` PK** + **UNIQUE `(role_id, permission_id)`** (a surrogate PK keeps Eloquent `updateOrCreate` UPDATEs safe; a composite PK would break them).
 - Seeded once from §8; SA edits live via the UI (DB remains truth).
 
 ### c. `user_permission_overrides` — per-user override (always wins)
@@ -100,7 +100,7 @@ Kept separate from the generic `audit_trail`; this table backs the SA audit view
 | `log_id` | BIGINT UNSIGNED, PK, AI | |
 | `changed_by` | BIGINT UNSIGNED, FK → `users.user_id` | |
 | `target_user_id` | BIGINT UNSIGNED NULL | set for `user_override` |
-| `target_role_id` | INT UNSIGNED NULL | set for `role_default` |
+| `target_role_id` | BIGINT UNSIGNED NULL | set for `role_default` |
 | `permission_id` | BIGINT UNSIGNED, FK → `permissions.permission_id` | |
 | `old_value` | BOOLEAN NULL | NULL on first-ever set |
 | `new_value` | BOOLEAN | |
