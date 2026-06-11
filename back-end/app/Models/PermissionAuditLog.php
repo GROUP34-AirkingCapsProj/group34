@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PermissionAuditLog extends Model
 {
@@ -21,17 +22,17 @@ class PermissionAuditLog extends Model
         'changed_at' => 'datetime',
     ];
 
-    public function permission()
+    public function permission(): BelongsTo
     {
         return $this->belongsTo(Permission::class, 'permission_id', 'permission_id');
     }
 
-    public function changedBy()
+    public function changedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'changed_by', 'user_id');
     }
 
-    public function targetUser()
+    public function targetUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'target_user_id', 'user_id');
     }
