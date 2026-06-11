@@ -2245,6 +2245,17 @@ git commit -m "feat(rbac): permission audit log viewer (Page C)"
 
 ---
 
+## Backend as-built deltas (Tasks 1–7, completed)
+
+Differences from the task code above, applied during implementation review and reflected in the committed code:
+
+- **Task 1:** `role_permissions.role_id` and `permission_audit_logs.target_role_id` are `unsignedBigInteger` (match `roles.role_id` = bigint unsigned), not `unsignedInteger`.
+- **Task 6:** a 5th migration `2026_06_11_000005_extend_permission_audit_change_type_enum.php` extends `change_type` to `ENUM('role_default','user_override','user_override_clear')`. `clearUserOverride` writes `user_override_clear`.
+- **Task 7 (safeguards):** `updateRoleDefaults` adds `exists:roles,role_id` and **403s edits to the `admin` role**; `userPermissions`/`updateUserPermissions` **404** unknown users and the write path **403s overrides on `admin` users**; `auditLogs` validates filter params. Tests cover all of these.
+- **Commits:** fb86189, 7e0037f (T1) · 64fa002, 136f0bc (T2) · 1bad140, 59080c6 (T3) · 19b50fc, 9fe72c3 (T4) · ad03404 (T5) · afb7895, 8db2ad2 (T6) · ca38baf, 5070b87 (T7). Full `tests/Feature/Permissions` suite: 21 passed / 69 assertions.
+
+---
+
 ## Final verification
 
 - [ ] **Backend suite green:** from `back-end/`, run `php artisan test tests/Feature/Permissions` → all tests pass.
