@@ -2254,6 +2254,11 @@ Differences from the task code above, applied during implementation review and r
 - **Task 7 (safeguards):** `updateRoleDefaults` adds `exists:roles,role_id` and **403s edits to the `admin` role**; `userPermissions`/`updateUserPermissions` **404** unknown users and the write path **403s overrides on `admin` users**; `auditLogs` validates filter params. Tests cover all of these.
 - **Commits:** fb86189, 7e0037f (T1) · 64fa002, 136f0bc (T2) · 1bad140, 59080c6 (T3) · 19b50fc, 9fe72c3 (T4) · ad03404 (T5) · afb7895, 8db2ad2 (T6) · ca38baf, 5070b87 (T7). Full `tests/Feature/Permissions` suite: 21 passed / 69 assertions.
 
+**Post-build additions (beyond the original 11 tasks):**
+- **UI polish:** the 3 admin pages were aligned to the app design system, given a collapsible role/action legend, and the 12 categories were turned into tabs (commits 8166927, ed6b20c).
+- **Demo end-to-end slice (barcode scan):** scan routes migrated to `permission:barcode_inventory_processing,create`; added `GET /me/permissions`; frontend `AuthContext.can()`, permission-aware `RoleRoute`, and menu surfacing (commit 7aef6b6, `ScanSliceTest`).
+- **Purchase Request approval:** added `purchase_request_creation` + `purchase_request_approval` to the matrix; PR approve/reject/pending migrated to `permission:purchase_request_approval,approve` (commit 698fe95, `PurchaseRequestApprovalSliceTest`). Full backend suite: 90 passed / 323 assertions.
+
 ---
 
 ## Final verification
