@@ -202,20 +202,25 @@ const AdminLayout = ({ children }) => {
           items: section.items.filter((item) => !item.adminOnly),
         }));
 
-    // Demo slice: if this user has been granted barcode-scan access via the DB
-    // permission system, surface the Inventory Operation page in their menu even
-    // when their static role menu omits it.
-    const scanPath = '/admin/inventory-operation';
-    const hasScan = result.some((s) => s.items.some((it) => it.path === scanPath));
-    if (!hasScan && typeof can === 'function' && can('barcode_inventory_processing', 'create')) {
-      const scanItem = { name: 'Inventory Operation', path: scanPath, icon: 'barcode' };
-      const idx = result.findIndex((s) => s.label === 'INVENTORY INTELLIGENCE');
-      if (idx >= 0) {
-        result = result.map((s, i) => (i === idx ? { ...s, items: [...s.items, scanItem] } : s));
-      } else {
-        result = [...result, { label: 'INVENTORY OPERATIONS', items: [scanItem] }];
+    // Permission overlay: items tagged here appear when the user is granted the
+    // permission, even if their static ROLE_MENUS omits them. Base menu behavior
+    // is unchanged. Add more rows as features are surfaced.
+    const overlayItems = [
+      { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'barcode',
+        section: 'INVENTORY INTELLIGENCE', requiredPermission: ['barcode_inventory_processing', 'create'] },
+    ];
+    overlayItems.forEach((it) => {
+      const already = result.some((s) => s.items.some((x) => x.path === it.path));
+      if (!already && typeof can === 'function' && can(it.requiredPermission[0], it.requiredPermission[1])) {
+        const item = { name: it.name, path: it.path, icon: it.icon };
+        const idx = result.findIndex((s) => s.label === it.section);
+        if (idx >= 0) {
+          result = result.map((s, i) => (i === idx ? { ...s, items: [...s.items, item] } : s));
+        } else {
+          result = [...result, { label: it.section, items: [item] }];
+        }
       }
-    }
+    });
     return result;
   })();
 
