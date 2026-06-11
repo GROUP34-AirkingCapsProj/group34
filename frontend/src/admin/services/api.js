@@ -405,6 +405,26 @@ export const auditAPI = {
 };
 
 /* ======================
+   PERMISSIONS API (RBAC management — SA only)
+====================== */
+export const permissionsAPI = {
+  catalog: async () => apiRequest('/permissions'),
+  getRoleDefaults: async () => apiRequest('/role-permissions'),
+  updateRoleDefaults: async (changes) =>
+    apiRequest('/role-permissions', { method: 'PUT', body: JSON.stringify({ changes }) }),
+  getUserPermissions: async (userId) => apiRequest(`/users/${userId}/permissions`),
+  updateUserPermissions: async (userId, reason, changes) =>
+    apiRequest(`/users/${userId}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason, changes }),
+    }),
+  getAuditLogs: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/permission-audit-logs?${query}` : '/permission-audit-logs');
+  },
+};
+
+/* ======================
    LOCATIONS API (ERD — replaces branches & warehouses)
 ====================== */
 export const locationsAPI = {
