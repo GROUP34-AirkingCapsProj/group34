@@ -87,8 +87,8 @@ class PermissionAdminService
                 'target_role_id' => null,
                 'permission_id' => $permissionId,
                 'old_value' => $old,
-                'new_value' => $old, // cleared → reverts to role default; record the revoke event
-                'change_type' => 'user_override',
+                'new_value' => $old, // new_value mirrors old_value; the 'user_override_clear' change_type marks this as a revert-to-default event.
+                'change_type' => 'user_override_clear',
                 'reason' => $reason,
                 'changed_at' => now(),
             ]);
