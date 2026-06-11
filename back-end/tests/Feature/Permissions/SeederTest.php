@@ -6,16 +6,20 @@ use App\Models\Permission;
 use App\Models\RolePermission;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class SeederTest extends TestCase
 {
     use DatabaseTransactions;
 
-    private array $roleId = [
-        'admin' => 1, 'inventory_analyst' => 2, 'branch_manager' => 3,
-        'warehouse_personnel' => 4, 'auditor' => 5,
-    ];
+    private array $roleId = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->roleId = DB::table('roles')->pluck('role_id', 'role_name')->all();
+    }
 
     private function granted(string $feature, string $action, int $roleId): bool
     {
