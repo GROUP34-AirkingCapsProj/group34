@@ -11,23 +11,26 @@ class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        $roleIds = DB::table('roles')->pluck('role_id', 'role_name'); // slug => id
+        DB::transaction(function () {
+            $roleIds = DB::table('roles')->pluck('role_id', 'role_name'); // slug => id
 
-        foreach ($this->matrix() as $feature => $actions) {
-            foreach ($actions as $action => $grantedRoles) {
-                $permission = Permission::firstOrCreate(
-                    ['feature' => $feature, 'action' => $action],
-                    ['description' => ucfirst($action) . ' access for ' . str_replace('_', ' ', $feature)]
-                );
-
-                foreach ($roleIds as $slug => $roleId) {
-                    RolePermission::updateOrCreate(
-                        ['role_id' => $roleId, 'permission_id' => $permission->permission_id],
-                        ['is_granted' => in_array($slug, $grantedRoles, true)]
+            foreach ($this->matrix() as $feature => $actions) {
+                foreach ($actions as $action => $grantedRoles) {
+                    // firstOrCreate sets the description only on first insert; reruns won't overwrite an existing description.
+                    $permission = Permission::firstOrCreate(
+                        ['feature' => $feature, 'action' => $action],
+                        ['description' => ucfirst($action) . ' access for ' . str_replace('_', ' ', $feature)]
                     );
+
+                    foreach ($roleIds as $slug => $roleId) {
+                        RolePermission::updateOrCreate(
+                            ['role_id' => $roleId, 'permission_id' => $permission->permission_id],
+                            ['is_granted' => in_array($slug, $grantedRoles, true)]
+                        );
+                    }
                 }
             }
-        }
+        });
     }
 
     /**
