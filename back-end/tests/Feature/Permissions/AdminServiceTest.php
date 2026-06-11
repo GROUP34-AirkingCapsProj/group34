@@ -75,5 +75,24 @@ class AdminServiceTest extends TestCase
 
         $this->assertEquals(0, UserPermissionOverride::where('user_id', $target->user_id)
             ->where('permission_id', $p->permission_id)->whereNull('revoked_at')->count());
+        $this->assertEquals(1, \App\Models\PermissionAuditLog::where('change_type', 'user_override_clear')
+            ->where('permission_id', $p->permission_id)->count());
+    }
+
+    public function test_set_role_default_creates_row_when_absent(): void
+    {
+        $admin = $this->admin();
+        $p = \App\Models\Permission::create(['feature' => 'svc', 'action' => 'read', 'description' => 'x']);
+
+        app(\App\Services\PermissionAdminService::class)->setRoleDefault($admin, 4, $p->permission_id, true);
+
+        $rp = \App\Models\RolePermission::where('role_id', 4)->where('permission_id', $p->permission_id)->first();
+        $this->assertNotNull($rp);
+        $this->assertTrue($rp->is_granted);
+        $log = \App\Models\PermissionAuditLog::where('change_type', 'role_default')
+            ->where('permission_id', $p->permission_id)->where('target_role_id', 4)->first();
+        $this->assertNotNull($log);
+        $this->assertNull($log->old_value); // no prior row → old is null
+        $this->assertTrue($log->new_value);
     }
 }
