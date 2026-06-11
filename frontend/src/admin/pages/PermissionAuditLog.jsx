@@ -23,7 +23,8 @@ const PermissionAuditLog = () => {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, []);
 
   const set = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }));
 
