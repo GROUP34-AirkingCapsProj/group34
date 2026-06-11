@@ -76,4 +76,63 @@ class ControllerTest extends TestCase
         $this->actingAs($admin, 'sanctum')->getJson('/api/permission-audit-logs')
             ->assertOk()->assertJsonStructure(['data']);
     }
+
+    public function test_clear_override_via_null_is_granted(): void
+    {
+        (new \Database\Seeders\PermissionSeeder())->run();
+        $admin = $this->user(1);
+        $target = $this->user(3);
+        $permId = \App\Models\Permission::where('feature', 'inventory_transfers')->where('action', 'approve')->value('permission_id');
+
+        // set an override, then clear it with is_granted = null
+        $this->actingAs($admin, 'sanctum')->putJson("/api/users/{$target->user_id}/permissions", [
+            'reason' => 'grant', 'changes' => [['permission_id' => $permId, 'is_granted' => true]],
+        ])->assertOk();
+        $this->actingAs($admin, 'sanctum')->putJson("/api/users/{$target->user_id}/permissions", [
+            'reason' => 'reset', 'changes' => [['permission_id' => $permId, 'is_granted' => null]],
+        ])->assertOk();
+
+        $this->assertEquals(0, \App\Models\UserPermissionOverride::where('user_id', $target->user_id)
+            ->where('permission_id', $permId)->whereNull('revoked_at')->count());
+        $this->assertEquals(1, \App\Models\PermissionAuditLog::where('change_type', 'user_override_clear')
+            ->where('permission_id', $permId)->count());
+    }
+
+    public function test_unknown_user_returns_404(): void
+    {
+        (new \Database\Seeders\PermissionSeeder())->run();
+        $admin = $this->user(1);
+        $permId = \App\Models\Permission::where('feature', 'inventory_transfers')->where('action', 'approve')->value('permission_id');
+        $this->actingAs($admin, 'sanctum')->putJson('/api/users/99999999/permissions', [
+            'reason' => 'x', 'changes' => [['permission_id' => $permId, 'is_granted' => true]],
+        ])->assertStatus(404);
+    }
+
+    public function test_bogus_role_id_is_422(): void
+    {
+        (new \Database\Seeders\PermissionSeeder())->run();
+        $admin = $this->user(1);
+        $permId = \App\Models\Permission::where('feature', 'inventory_transfers')->where('action', 'approve')->value('permission_id');
+        $this->actingAs($admin, 'sanctum')->putJson('/api/role-permissions', [
+            'changes' => [['role_id' => 99999999, 'permission_id' => $permId, 'is_granted' => true]],
+        ])->assertStatus(422);
+    }
+
+    public function test_admin_role_and_admin_user_are_protected(): void
+    {
+        (new \Database\Seeders\PermissionSeeder())->run();
+        $admin = $this->user(1);
+        $otherAdmin = $this->user(1);
+        $permId = \App\Models\Permission::where('feature', 'inventory_transfers')->where('action', 'approve')->value('permission_id');
+
+        // editing the admin role's defaults → 403
+        $this->actingAs($admin, 'sanctum')->putJson('/api/role-permissions', [
+            'changes' => [['role_id' => 1, 'permission_id' => $permId, 'is_granted' => false]],
+        ])->assertStatus(403);
+
+        // overriding another admin user's permissions → 403
+        $this->actingAs($admin, 'sanctum')->putJson("/api/users/{$otherAdmin->user_id}/permissions", [
+            'reason' => 'nope', 'changes' => [['permission_id' => $permId, 'is_granted' => false]],
+        ])->assertStatus(403);
+    }
 }
