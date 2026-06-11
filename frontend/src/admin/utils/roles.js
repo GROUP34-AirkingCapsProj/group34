@@ -285,6 +285,16 @@ export const canAccessRoute = (user, path) => {
   return allowed.includes(role);
 };
 
+/**
+ * Routes that can ALSO be unlocked by a live DB permission (feature, action),
+ * on top of the static ROUTE_ACCESS role lists above. Used by RoleRoute so an
+ * admin-granted permission takes effect without editing the role lists.
+ * (Demo slice: barcode scan / Inventory Operation.)
+ */
+export const ROUTE_PERMISSION = {
+  '/admin/inventory-operation': ['barcode_inventory_processing', 'create'],
+};
+
 /** Approve / reject in Approval Queue (PO + restock local queue). Admin & branch manager only. */
 export const canActOnApprovalQueue = (user) => {
   const r = getRoleKey(user);

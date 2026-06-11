@@ -9,7 +9,7 @@ import '../styles/dashboard_air.css';
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession } = useAuth();
+  const { user: _user, clearSession, can } = useAuth();
   const user = _user || {};
 
   // Role-based setup
@@ -195,11 +195,28 @@ const AdminLayout = ({ children }) => {
   // Filter adminOnly items for non-admin roles when using the full adminMenuSections.
   const menuSections = (() => {
     const sections = ROLE_MENUS[roleKey] || adminMenuSections;
-    if (roleKey === ROLES.ADMIN) return sections;
-    return sections.map((section) => ({
-      ...section,
-      items: section.items.filter((item) => !item.adminOnly),
-    }));
+    let result = roleKey === ROLES.ADMIN
+      ? sections
+      : sections.map((section) => ({
+          ...section,
+          items: section.items.filter((item) => !item.adminOnly),
+        }));
+
+    // Demo slice: if this user has been granted barcode-scan access via the DB
+    // permission system, surface the Inventory Operation page in their menu even
+    // when their static role menu omits it.
+    const scanPath = '/admin/inventory-operation';
+    const hasScan = result.some((s) => s.items.some((it) => it.path === scanPath));
+    if (!hasScan && typeof can === 'function' && can('barcode_inventory_processing', 'create')) {
+      const scanItem = { name: 'Inventory Operation', path: scanPath, icon: 'barcode' };
+      const idx = result.findIndex((s) => s.label === 'INVENTORY INTELLIGENCE');
+      if (idx >= 0) {
+        result = result.map((s, i) => (i === idx ? { ...s, items: [...s.items, scanItem] } : s));
+      } else {
+        result = [...result, { label: 'INVENTORY OPERATIONS', items: [scanItem] }];
+      }
+    }
+    return result;
   })();
 
   // Sync active highlight when navigating from outside the sidebar

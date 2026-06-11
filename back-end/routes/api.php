@@ -129,6 +129,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::apiResource('users', UserController::class);
     });
 
+    // Current user's own effective permissions — used by the frontend to gate
+    // menus/routes by live permission. Any authenticated user (GET).
+    Route::get('/me/permissions', [PermissionController::class, 'mine']);
+
     /*
     |--------------------------------------------------------------------------
     | PERMISSION MANAGEMENT (ADMIN ONLY)
@@ -825,10 +829,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | INVENTORY OPERATION (barcode scan — admin, branch manager, warehouse only)
+    | INVENTORY OPERATION (barcode scan)
+    | DEMO SLICE: gated by the DB permission system (feature barcode_inventory_processing,
+    | action create) instead of a hardcoded role list. Default grants SA/BM/WP (same as
+    | before); admins can now also grant IA (or anyone) via the Role Permissions editor
+    | or a per-user override, and it takes effect here with no code change.
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:admin,branch_manager,warehouse_personnel')->group(function () {
+    Route::middleware('permission:barcode_inventory_processing,create')->group(function () {
         Route::post('/inventory/scan-barcode', [InventoryController::class, 'scanBarcode']);
         Route::post('/inventory/scan-transaction', [InventoryScanTransactionController::class, 'store']);
         Route::post('/barcode/scan', [BarcodeScanController::class, 'scanLookup']);

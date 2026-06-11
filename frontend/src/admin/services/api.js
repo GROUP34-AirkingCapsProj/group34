@@ -409,6 +409,7 @@ export const auditAPI = {
 ====================== */
 export const permissionsAPI = {
   catalog: async () => apiRequest('/permissions'),
+  getMine: async () => apiRequest('/me/permissions'),
   getRoleDefaults: async () => apiRequest('/role-permissions'),
   updateRoleDefaults: async (changes) =>
     apiRequest('/role-permissions', { method: 'PUT', body: JSON.stringify({ changes }) }),

@@ -63,6 +63,18 @@ class PermissionController extends Controller
         return $this->success(null, 'Role permissions updated');
     }
 
+    /**
+     * The CURRENT user's own effective permissions (any authenticated user, GET).
+     * Used by the frontend to gate menus/routes by live permission.
+     */
+    public function mine(Request $request)
+    {
+        return $this->success(
+            $this->resolver->effectivePermissionsFor((int) $request->user()->user_id),
+            'My permissions'
+        );
+    }
+
     /** A user's effective permissions, plus active overrides. */
     public function userPermissions(Request $request, $userId)
     {
