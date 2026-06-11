@@ -308,15 +308,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/locations/archived', [LocationController::class, 'archived']);
     Route::get('/locations', [LocationController::class, 'index']);
     Route::get('/locations/{location}', [LocationController::class, 'show']);
-    Route::middleware('role:admin,branch_manager')->group(function () {
-        Route::post('/locations', [LocationController::class, 'store']);
-        Route::put('/locations/{location}', [LocationController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/locations/{location}', [LocationController::class, 'destroy']);
-        Route::post('/locations/{id}/restore', [LocationController::class, 'restore']);
-        Route::delete('/locations/{id}/force', [LocationController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:location_based_inventory,create')->post('/locations', [LocationController::class, 'store']);
+    Route::middleware('permission:location_based_inventory,update')->put('/locations/{location}', [LocationController::class, 'update']);
+    Route::middleware('permission:location_based_inventory,archive')->delete('/locations/{location}', [LocationController::class, 'destroy']);
+    Route::middleware('permission:location_based_inventory,archive')->post('/locations/{id}/restore', [LocationController::class, 'restore']);
+    Route::middleware('permission:location_based_inventory,archive')->delete('/locations/{id}/force', [LocationController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
