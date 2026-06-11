@@ -439,7 +439,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | Issuance Scan (barcode-driven issuance flow)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:admin,branch_manager,warehouse_personnel')
+    Route::middleware('permission:inventory_issuance,create')
          ->prefix('issuance-scan')
          ->group(function () {
              Route::post('/init',
@@ -584,15 +584,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/issuances/archived', [IssuanceController::class, 'archived']);
     Route::get('/issuances', [IssuanceController::class, 'index']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
-    Route::middleware('role:admin,warehouse_personnel')->group(function () {
-        Route::post('/issuances', [IssuanceController::class, 'store']);
-        Route::put('/issuances/{id}', [IssuanceController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/issuances/{id}', [IssuanceController::class, 'destroy']);
-        Route::post('/issuances/{id}/restore', [IssuanceController::class, 'restore']);
-        Route::delete('/issuances/{id}/force', [IssuanceController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:inventory_issuance,create')->post('/issuances', [IssuanceController::class, 'store']);
+    Route::middleware('permission:inventory_issuance,update')->put('/issuances/{id}', [IssuanceController::class, 'update']);
+    Route::middleware('permission:inventory_issuance,archive')->delete('/issuances/{id}', [IssuanceController::class, 'destroy']);
+    Route::middleware('permission:inventory_issuance,archive')->post('/issuances/{id}/restore', [IssuanceController::class, 'restore']);
+    Route::middleware('permission:inventory_issuance,archive')->delete('/issuances/{id}/force', [IssuanceController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -869,7 +865,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 | Download endpoints — token passed as ?token= query param (browser download)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth.query.token', 'role:admin,branch_manager,warehouse_personnel'])
+Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,read'])
      ->get('/issuance-scan/delivery-receipt/{issuance_id}/csv',
          [IssuanceScanController::class, 'downloadDeliveryReceipt']);
 
