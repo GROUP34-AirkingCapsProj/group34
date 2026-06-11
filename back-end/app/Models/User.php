@@ -164,4 +164,19 @@ class User extends Authenticatable
     {
         return in_array((int) $this->role_id, [2, 4], true);
     }
+
+    /**
+     * Resolve a feature/action permission for this user (override → role default → deny).
+     *
+     * Only the two-string form `can('feature','action')` hits the permission resolver.
+     * Any other call shape (single ability string, or an array of arguments) delegates
+     * to the framework Gate so existing/internal can() calls are unaffected.
+     */
+    public function can($feature, $action = null): bool
+    {
+        if (is_string($feature) && is_string($action)) {
+            return app(\App\Support\PermissionResolver::class)->canUser((int) $this->user_id, $feature, $action);
+        }
+        return parent::can($feature, $action ?? []);
+    }
 }
