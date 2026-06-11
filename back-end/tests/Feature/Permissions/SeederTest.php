@@ -68,6 +68,10 @@ class SeederTest extends TestCase
         // 6r — purchase_order_creation.read adds BM (SA,IA,BM,AU).
         $this->assertTrue($this->granted('purchase_order_creation', 'read', $this->roleId['branch_manager']));
 
+        // Phase 2 prep: delivery_receipt_generation.archive = SA only.
+        $this->assertTrue($this->granted('delivery_receipt_generation', 'archive', $this->roleId['admin']));
+        $this->assertFalse($this->granted('delivery_receipt_generation', 'archive', $this->roleId['branch_manager']));
+
         // Re-running is idempotent (no duplicate permission rows).
         (new PermissionSeeder())->run();
         $this->assertEquals(1, Permission::where('feature', 'inventory_transfers')->where('action', 'approve')->count());
