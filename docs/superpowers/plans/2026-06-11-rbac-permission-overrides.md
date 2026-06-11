@@ -112,7 +112,7 @@ return new class extends Migration {
     {
         Schema::create('role_permissions', function (Blueprint $table) {
             $table->id(); // surrogate PK so Eloquent updateOrCreate issues safe UPDATEs
-            $table->unsignedInteger('role_id');
+            $table->unsignedBigInteger('role_id'); // matches roles.role_id (bigint unsigned)
             $table->unsignedBigInteger('permission_id');
             $table->boolean('is_granted')->default(false);
             $table->timestamps();
@@ -182,7 +182,7 @@ return new class extends Migration {
             $table->bigIncrements('log_id');
             $table->unsignedBigInteger('changed_by');
             $table->unsignedBigInteger('target_user_id')->nullable();
-            $table->unsignedInteger('target_role_id')->nullable();
+            $table->unsignedBigInteger('target_role_id')->nullable(); // matches roles.role_id (bigint unsigned)
             $table->unsignedBigInteger('permission_id');
             $table->boolean('old_value')->nullable();
             $table->boolean('new_value');
