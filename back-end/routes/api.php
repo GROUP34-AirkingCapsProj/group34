@@ -119,14 +119,23 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | USER MANAGEMENT (ADMIN ONLY)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:admin')->group(function () {
+    // Specific paths declared before the {user} wildcard.
+    Route::middleware('permission:user_account_management,read')->group(function () {
+        Route::get('/users/archived', [UserController::class, 'archived']);
+        Route::get('/users/by-location/{locationId}', [UserController::class, 'byLocation']);
+        Route::get('/users', [UserController::class, 'index']);
+        Route::get('/users/{user}', [UserController::class, 'show']);
+    });
+    Route::middleware('permission:user_account_management,create')->post('/users', [UserController::class, 'store']);
+    Route::middleware('permission:user_account_management,update')->group(function () {
+        Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
         Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
         Route::put('/users/{user}/status', [UserController::class, 'updateStatus']);
-        Route::get('/users/by-location/{locationId}', [UserController::class, 'byLocation']);
-        Route::get('/users/archived', [UserController::class, 'archived']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
+    });
+    Route::middleware('permission:user_account_management,archive')->group(function () {
+        Route::delete('/users/{user}', [UserController::class, 'destroy']);
         Route::delete('/users/{id}/force', [UserController::class, 'forceDestroy']);
-        Route::apiResource('users', UserController::class);
     });
 
     // Current user's own effective permissions — used by the frontend to gate
@@ -154,11 +163,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/roles', [RoleController::class, 'index']);
     Route::get('/roles/{id}', [RoleController::class, 'show']);
-    Route::middleware('role:admin')->group(function () {
-        Route::post('/roles', [RoleController::class, 'store']);
-        Route::put('/roles/{id}', [RoleController::class, 'update']);
-        Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
-    });
+    Route::middleware('permission:role_assignment,create')->post('/roles', [RoleController::class, 'store']);
+    Route::middleware('permission:role_assignment,update')->put('/roles/{id}', [RoleController::class, 'update']);
+    Route::middleware('permission:role_assignment,archive')->delete('/roles/{id}', [RoleController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------

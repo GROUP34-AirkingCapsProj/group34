@@ -78,6 +78,9 @@ class RbacRouteMatrixTest extends TestCase
             ['delete', '/api/activity-log/1', 'audit_trail_viewing', 'archive'],
             ['get', '/api/archive/summary', 'archive_viewing', 'read'],
             ['post', '/api/archive/products/1/restore', 'data_archiving', 'update'],
+            ['post', '/api/users', 'user_account_management', 'create'],
+            ['get', '/api/users', 'user_account_management', 'read'],
+            ['post', '/api/roles', 'role_assignment', 'create'],
         ];
     }
 
