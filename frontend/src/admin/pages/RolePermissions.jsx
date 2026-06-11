@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { permissionsAPI } from '../services/api';
-import { groupByFeatureGroup, ROLE_COLUMNS, ACTIONS } from '../utils/permissions';
+import { groupByFeatureGroup, ROLE_COLUMNS, ACTIONS, ACTION_META } from '../utils/permissions';
 import { toast } from '../utils/toast';
+import PermissionGuide from '../components/PermissionGuide';
 import '../styles/permission_admin.css';
 
 const RolePermissions = () => {
@@ -73,46 +74,70 @@ const RolePermissions = () => {
   return (
     <AdminLayout>
       <div className="perm-admin">
-        <h1>Role Permissions</h1>
-        <p>Default access per role. User-specific exceptions are managed in User Overrides.</p>
-
-        <div className="perm-toolbar">
-          <button onClick={save} disabled={saving || dirtyCount === 0}>
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
-          {dirtyCount > 0 && <span className="perm-dirty">{dirtyCount} unsaved</span>}
+        <div className="perm-header">
+          <h1>Role Permissions</h1>
+          <p>Default access for each role. Columns are grouped by action; each action shows the five role codes (SA, IA, BM, WP, AU). Per-user exceptions are managed in User Overrides.</p>
         </div>
 
-        {loading ? <div>Loading…</div> : groups.map((g) => (
-          <div className="perm-group" key={g.label}>
+        <PermissionGuide />
+
+        <div className="perm-toolbar">
+          <button className="perm-btn-primary" onClick={save} disabled={saving || dirtyCount === 0}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+          {dirtyCount > 0
+            ? <span className="perm-dirty">{dirtyCount} unsaved change{dirtyCount === 1 ? '' : 's'}</span>
+            : <span className="perm-muted">Click a checkbox to grant or remove a default, then Save.</span>}
+        </div>
+
+        {loading ? <div className="perm-muted">Loading…</div> : groups.map((g) => (
+          <div className="perm-card" key={g.label}>
             <h2>{g.label}</h2>
-            <table className="perm-table">
-              <thead>
-                <tr>
-                  <th>Feature</th>
-                  {ACTIONS.map((a) => ROLE_COLUMNS.map((r) => (
-                    <th key={`${a}-${r.id}`}>{a[0].toUpperCase()}·{r.label}</th>
-                  )))}
-                </tr>
-              </thead>
-              <tbody>
-                {g.features.map((f) => (
-                  <tr key={f.feature}>
-                    <td>{f.title}</td>
-                    {ACTIONS.map((a) => ROLE_COLUMNS.map((r) => {
-                      const permId = f.actions[a];
-                      if (!permId) return <td key={`${f.feature}-${a}-${r.id}`} className="perm-cell-na">&mdash;</td>;
-                      return (
-                        <td key={`${f.feature}-${a}-${r.id}`} className="perm-cell-toggle"
-                            onClick={() => toggle(r.id, permId)}>
-                          <input type="checkbox" readOnly checked={valueFor(r.id, permId)} />
-                        </td>
-                      );
-                    }))}
+            <div style={{ overflowX: 'auto' }}>
+              <table className="perm-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} className="perm-feature-cell">Feature</th>
+                    {ACTIONS.map((a) => (
+                      <th key={a} colSpan={ROLE_COLUMNS.length} className="perm-action-group perm-group-start">
+                        {ACTION_META[a].label}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  <tr>
+                    {ACTIONS.map((a) => ROLE_COLUMNS.map((r, idx) => (
+                      <th
+                        key={`${a}-${r.id}`}
+                        className={`perm-role-col ${idx === 0 ? 'perm-group-start' : ''}`}
+                        style={{ '--role-accent': r.accent }}
+                        title={`${r.name} — ${ACTION_META[a].label}`}
+                      >
+                        {r.label}
+                      </th>
+                    )))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.features.map((f) => (
+                    <tr key={f.feature}>
+                      <td className="perm-feature-cell">{f.title}</td>
+                      {ACTIONS.map((a) => ROLE_COLUMNS.map((r, idx) => {
+                        const permId = f.actions[a];
+                        const divider = idx === 0 ? 'perm-group-start' : '';
+                        if (!permId) return <td key={`${f.feature}-${a}-${r.id}`} className={`perm-cell-na ${divider}`}>&mdash;</td>;
+                        return (
+                          <td key={`${f.feature}-${a}-${r.id}`} className={`perm-cell-toggle ${divider}`}
+                              title={`${r.name} can ${ACTION_META[a].label.toLowerCase()} ${f.title}`}
+                              onClick={() => toggle(r.id, permId)}>
+                            <input type="checkbox" readOnly checked={valueFor(r.id, permId)} />
+                          </td>
+                        );
+                      }))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
       </div>

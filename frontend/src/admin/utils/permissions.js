@@ -3,15 +3,25 @@
  * Feature groups mirror the spec (docs/superpowers/specs/2026-06-11-rbac-permission-overrides-design.md §8).
  */
 
+// label = short code shown in column headers; name = full role; accent mirrors ROLE_META in roles.js.
 export const ROLE_COLUMNS = [
-  { id: 1, slug: 'admin', label: 'SA' },
-  { id: 2, slug: 'inventory_analyst', label: 'IA' },
-  { id: 3, slug: 'branch_manager', label: 'BM' },
-  { id: 4, slug: 'warehouse_personnel', label: 'WP' },
-  { id: 5, slug: 'auditor', label: 'AU' },
+  { id: 1, slug: 'admin', label: 'SA', name: 'System Administrator', accent: '#dc2626', blurb: 'Full system access and configuration.' },
+  { id: 2, slug: 'inventory_analyst', label: 'IA', name: 'Inventory Analyst', accent: '#7c3aed', blurb: 'Item master, suppliers, analytics & reports.' },
+  { id: 3, slug: 'branch_manager', label: 'BM', name: 'Branch Manager', accent: '#059669', blurb: 'Branch operations, POS, and approvals.' },
+  { id: 4, slug: 'warehouse_personnel', label: 'WP', name: 'Warehouse Personnel', accent: '#2563eb', blurb: 'Receiving, issuance, transfers, scanning.' },
+  { id: 5, slug: 'auditor', label: 'AU', name: 'Auditor', accent: '#d97706', blurb: 'Read-only audit & compliance access.' },
 ];
 
 export const ACTIONS = ['create', 'read', 'update', 'archive', 'approve'];
+
+// Human-readable meaning of each action, used by the on-page legend.
+export const ACTION_META = {
+  create: { label: 'Create', desc: 'Add new records.' },
+  read: { label: 'Read', desc: 'View records and lists.' },
+  update: { label: 'Update', desc: 'Edit existing records.' },
+  archive: { label: 'Archive', desc: 'Soft-delete / move records to the archive.' },
+  approve: { label: 'Approve', desc: 'Approve or finalize records.' },
+};
 
 export const keyOf = (feature, action) => `${feature}.${action}`;
 
