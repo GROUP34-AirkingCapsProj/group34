@@ -113,13 +113,15 @@ const newLine = () => ({
 const PurchaseRequestPage = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user }  = useAuth();
+  const { user, can }  = useAuth();
   const roleKey   = getRoleKey(user);
   const isAdmin   = roleKey === ROLES.ADMIN;
   const isIA      = roleKey === ROLES.INVENTORY_ANALYST;
   const canCreate = isAdmin || isIA;  // both roles can submit PRs and convert to PO
+  // Admin always; anyone else who's been granted the purchase_request_approval permission.
+  const canApprovePR = isAdmin || (typeof can === 'function' && can('purchase_request_approval', 'approve'));
 
-  const initialTab = location.state?.tab ?? (isAdmin ? 'approvals' : 'create');
+  const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // ── Tab 1: Create ─────────────────────────────────────────────────────────
@@ -234,14 +236,14 @@ const PurchaseRequestPage = () => {
         .catch(console.error)
         .finally(() => setLoadingMyPRs(false));
     }
-    if (activeTab === 'approvals' && isAdmin) {
+    if (activeTab === 'approvals' && canApprovePR) {
       setLoadingPending(true);
       purchaseRequestsAPI.getPending()
         .then(res => setPendingPRs(Array.isArray(res?.data) ? res.data : []))
         .catch(console.error)
         .finally(() => setLoadingPending(false));
     }
-  }, [activeTab, isAdmin]);
+  }, [activeTab, canApprovePR]);
 
   // ── Line item helpers ─────────────────────────────────────────────────────
   const addLine = useCallback(() => setLineItems(p => [...p, newLine()]), []);
@@ -1053,7 +1055,7 @@ const PurchaseRequestPage = () => {
     const details = Array.isArray(pr.details) ? pr.details : [];
 
     const isApproving = actionLoading[pr.pr_id] === 'approving';
-    const canAct      = pr.status_id === PR_STATUS.PENDING && isAdmin;
+    const canAct      = pr.status_id === PR_STATUS.PENDING && canApprovePR;
 
     return (
       <Modal isOpen={!!selectedPR} onClose={() => setSelectedPR(null)} title="" hideHeader maxWidth={740}>
@@ -1283,7 +1285,7 @@ const PurchaseRequestPage = () => {
             </svg>
             My Requests
           </button>
-          {isAdmin && (
+          {canApprovePR && (
             <button
               type="button"
               className={`po-tab-btn${activeTab === 'approvals' ? ' po-tab-btn--active' : ''}`}
@@ -1303,7 +1305,7 @@ const PurchaseRequestPage = () => {
         {/* Tab content */}
         {activeTab === 'create'       && canCreate  && renderCreateTab()}
         {activeTab === 'my-requests'               && renderMyRequestsTab()}
-        {activeTab === 'approvals'    && isAdmin   && renderApprovalsTab()}
+        {activeTab === 'approvals'    && canApprovePR && renderApprovalsTab()}
       </div>
 
       {renderDetailModal()}
