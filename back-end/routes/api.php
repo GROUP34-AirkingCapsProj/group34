@@ -367,13 +367,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/serials', [SerialController::class, 'index']);
     Route::get('/serials/{serial}', [SerialController::class, 'show']);
     Route::post('/serials/scan', [SerialController::class, 'scan']);
-    Route::middleware('role:admin,branch_manager,warehouse_personnel')->group(function () {
-        Route::post('/serials', [SerialController::class, 'store']);
-        Route::put('/serials/{serial}', [SerialController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/serials/{serial}', [SerialController::class, 'destroy']);
-    });
+    Route::middleware('permission:barcode_assignment,create')->post('/serials', [SerialController::class, 'store']);
+    Route::middleware('permission:barcode_assignment,update')->put('/serials/{serial}', [SerialController::class, 'update']);
+    Route::middleware('permission:barcode_assignment,archive')->delete('/serials/{serial}', [SerialController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -384,18 +380,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::get('/suppliers/{id}', [SupplierController::class, 'show']);
     Route::get('/suppliers/{id}/products', [SupplierController::class, 'products']);
-    Route::middleware('role:admin,inventory_analyst,branch_manager')->group(function () {
-        Route::post('/suppliers', [SupplierController::class, 'store']);
-        Route::put('/suppliers/{id}', [SupplierController::class, 'update']);
-        Route::post('/suppliers/{id}/products', [SupplierController::class, 'addProduct']);
-        Route::put('/suppliers/{id}/products/{supplierProdId}', [SupplierController::class, 'updateProduct']);
-        Route::delete('/suppliers/{id}/products/{productId}', [SupplierController::class, 'removeProduct']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/suppliers/{id}', [SupplierController::class, 'destroy']);
-        Route::post('/suppliers/{id}/restore', [SupplierController::class, 'restore']);
-        Route::delete('/suppliers/{id}/force', [SupplierController::class, 'forceDestroy']);
-    });
+    Route::middleware('permission:supplier_management,create')->post('/suppliers', [SupplierController::class, 'store']);
+    Route::middleware('permission:supplier_management,update')->put('/suppliers/{id}', [SupplierController::class, 'update']);
+    Route::middleware('permission:item_supplier_mapping,create')->post('/suppliers/{id}/products', [SupplierController::class, 'addProduct']);
+    Route::middleware('permission:item_supplier_mapping,update')->put('/suppliers/{id}/products/{supplierProdId}', [SupplierController::class, 'updateProduct']);
+    Route::middleware('permission:item_supplier_mapping,update')->delete('/suppliers/{id}/products/{productId}', [SupplierController::class, 'removeProduct']);
+    Route::middleware('permission:supplier_management,archive')->delete('/suppliers/{id}', [SupplierController::class, 'destroy']);
+    Route::middleware('permission:supplier_management,archive')->post('/suppliers/{id}/restore', [SupplierController::class, 'restore']);
+    Route::middleware('permission:supplier_management,archive')->delete('/suppliers/{id}/force', [SupplierController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
