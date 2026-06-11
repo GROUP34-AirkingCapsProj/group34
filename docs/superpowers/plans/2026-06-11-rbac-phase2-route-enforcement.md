@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **STATUS: COMPLETE (executed 2026-06-11, branch `backupV3`).** Backend 91 tests / 530 assertions green; `RbacRouteMatrixTest` = 41 endpoints × 5 roles = 205 assertions. Frontend production build compiles (exit 0), jest green. `role:`→`permission:`: 73→26 guards (the 26 remaining are the intentional "stays"); `permission:` guards 2→91. Foundational fix: authorization runs before route-model binding (`bootstrap/app.php`). Commits: 70338a5, 89103f9, 8f1a5b6, 12a6248, 13b0af0, 0671700, 0e20c2b, 614206b, df62d6c, cf8191a, bf8bb2c (+audit), bf-archive, 6bdcfb8, 9e25777, d7a95f8, 8b309d2, de2f1f5.
+
 **Goal:** Migrate the ~73 remaining hardcoded `role:` route guards to `permission:feature,action`, and migrate the frontend gating (route access, menus, action buttons) to the live permission system — so admin grants/overrides take effect everywhere.
 
 **Architecture:** Per-route `permission:` middleware backed by the Phase-1 `PermissionResolver`/seeded matrix; a data-driven RBAC matrix test as the regression contract; a frontend overlay (`ROUTE_PERMISSION` + `requiredPermission` menu tags + `can()` button gating) layered on the existing `ROLE_MENUS`/`ROUTE_ACCESS`.
