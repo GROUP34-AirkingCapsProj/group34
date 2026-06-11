@@ -40,7 +40,12 @@ class RbacRouteMatrixTest extends TestCase
     private function routeMatrix(): array
     {
         return [
-            // e.g. ['post', '/api/categories', 'category_management', 'create'],
+            ['post', '/api/categories', 'category_management', 'create'],
+            ['delete', '/api/categories/1', 'category_management', 'archive'],
+            ['post', '/api/brands', 'brand_management', 'create'],
+            ['delete', '/api/brands/1', 'brand_management', 'archive'],
+            ['post', '/api/units', 'uom_management', 'create'],
+            ['delete', '/api/units/1', 'uom_management', 'archive'],
         ];
     }
 
