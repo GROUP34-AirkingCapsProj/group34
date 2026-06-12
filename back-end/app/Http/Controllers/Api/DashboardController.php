@@ -21,10 +21,10 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         return response()->json([
-            'stats'                    => $this->getStats(),
+            'stats'                    => $this->getStats($request->user()),
             'low_stock_items'          => $this->getLowStockItems(),
             'inventory_by_category'    => $this->getInventoryByCategory(),
             'location_distribution'    => $this->getLocationDistribution(),
@@ -36,9 +36,9 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function stats()
+    public function stats(Request $request)
     {
-        return response()->json(['success' => true, 'data' => $this->getStats()]);
+        return response()->json(['success' => true, 'data' => $this->getStats($request->user())]);
     }
 
     public function lowStock()
@@ -354,32 +354,77 @@ class DashboardController extends Controller
         return ['fulfillment' => $fulfillment, 'receipt' => $receipt];
     }
 
-    private function getStats(): array
+    private function getStats(?User $user = null): array
     {
-        $pendingTransfers     = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))->count();
-        $pendingPOs          = PurchaseOrder::where('status_id', 7)->count();
-        $pendingRegistrations = PendingProduct::where('status', 'pending')->count();
-        $activeLocations     = Location::count();
-        $totalProducts       = Product::count();
-        $awaiting            = $this->awaitingTransferCounts();
+        $isCentralized = $user === null || $user->isCentralized();
+        $locId         = $isCentralized ? null : $user->scopedLocationId();
+        $noData        = !$isCentralized && $locId === null;
 
-        return [
-            'total_users'          => User::count(),
-            'active_locations'     => $activeLocations,
-            'active_branches'      => $activeLocations,
-            'total_products'       => $totalProducts,
-            'total_items'          => $totalProducts,
-            'low_stock'            => (int) DB::table('products')
+        // ── pending_transfers: Transfer has from_location_id / to_location_id (no trait)
+        // Scoped users see pending transfers that originate from OR arrive at their location.
+        $pendingTransfersQuery = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'));
+        if ($noData) {
+            $pendingTransfers = 0;
+        } elseif (!$isCentralized) {
+            $pendingTransfers = (clone $pendingTransfersQuery)
+                ->where(fn($q) => $q->where('from_location_id', $locId)->orWhere('to_location_id', $locId))
+                ->count();
+        } else {
+            $pendingTransfers = $pendingTransfersQuery->count();
+        }
+
+        // ── pending_pos: PurchaseOrder has location_id (no trait)
+        $pendingPOsQuery = PurchaseOrder::where('status_id', 7);
+        if ($noData) {
+            $pendingPOs = 0;
+        } elseif (!$isCentralized) {
+            $pendingPOs = (clone $pendingPOsQuery)->where('location_id', $locId)->count();
+        } else {
+            $pendingPOs = $pendingPOsQuery->count();
+        }
+
+        // ── pending_registrations: PendingProduct has no location_id — always global
+        $pendingRegistrations = PendingProduct::where('status', 'pending')->count();
+
+        $activeLocations = Location::count();
+        $totalProducts   = Product::count();
+        $awaiting        = $this->awaitingTransferCounts();
+
+        // ── total_sales: Sale has ScopesToUserLocation trait
+        $totalSales = $noData ? 0 : ($user !== null ? Sale::forUser($user)->count() : Sale::count());
+
+        // ── low_stock: correlated subquery over inventory — scope to user's location when scoped
+        if ($noData) {
+            $lowStock = 0;
+        } elseif (!$isCentralized) {
+            $lowStock = (int) DB::table('products')
+                ->where('recommended_stocks', '>', 0)
+                ->whereRaw(
+                    '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id AND inventory.location_id = ?) < products.recommended_stocks',
+                    [$locId]
+                )
+                ->count();
+        } else {
+            $lowStock = (int) DB::table('products')
                 ->where('recommended_stocks', '>', 0)
                 ->whereRaw('(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id) < products.recommended_stocks')
-                ->count(),
-            'total_sales'          => Sale::count(),
-            'pending_transfers'    => $pendingTransfers,
-            'pending_pos'          => $pendingPOs,
+                ->count();
+        }
+
+        return [
+            'total_users'           => User::count(),
+            'active_locations'      => $activeLocations,
+            'active_branches'       => $activeLocations,
+            'total_products'        => $totalProducts,
+            'total_items'           => $totalProducts,
+            'low_stock'             => $lowStock,
+            'total_sales'           => $totalSales,
+            'pending_transfers'     => $pendingTransfers,
+            'pending_pos'           => $pendingPOs,
             'pending_registrations' => $pendingRegistrations,
-            'pending_actions'      => $pendingTransfers + $pendingPOs + $pendingRegistrations,
-            'awaiting_fulfillment' => $awaiting['fulfillment'],
-            'awaiting_receipt'     => $awaiting['receipt'],
+            'pending_actions'       => $pendingTransfers + $pendingPOs + $pendingRegistrations,
+            'awaiting_fulfillment'  => $awaiting['fulfillment'],
+            'awaiting_receipt'      => $awaiting['receipt'],
         ];
     }
 
