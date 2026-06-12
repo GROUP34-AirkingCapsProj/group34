@@ -332,23 +332,22 @@ class DashboardController extends Controller
 
     private function awaitingTransferCounts(): array
     {
-        $user    = request()->user();
-        $role    = $user?->role?->role_name ?? '';
-        $isAdmin = in_array($role, ['admin', 'inventory_analyst'], true);
-        $locId   = $user?->enforced_location_id ?? $user?->location_id;
+        $user          = request()->user();
+        $isCentralized = $user === null || $user->isCentralized();
+        $locId         = $isCentralized ? null : $user->scopedLocationId();
 
-        if (!$isAdmin && !$locId) {
+        if (!$isCentralized && $locId === null) {
             return ['fulfillment' => 0, 'receipt' => 0];
         }
 
         $fulfillment = Transfer::whereNotNull('transfer_request_id')
             ->whereHas('status', fn ($q) => $q->where('status_name', 'Approved')->where('status_category', 'transfer'))
-            ->when(!$isAdmin && $locId, fn ($q) => $q->where('from_location_id', $locId))
+            ->when(!$isCentralized, fn ($q) => $q->where('from_location_id', $locId))
             ->count();
 
         $receipt = Transfer::whereNotNull('transfer_request_id')
             ->whereHas('status', fn ($q) => $q->where('status_name', 'In Transit')->where('status_category', 'transfer'))
-            ->when(!$isAdmin && $locId, fn ($q) => $q->where('to_location_id', $locId))
+            ->when(!$isCentralized, fn ($q) => $q->where('to_location_id', $locId))
             ->count();
 
         return ['fulfillment' => $fulfillment, 'receipt' => $receipt];
