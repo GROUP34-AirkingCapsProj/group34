@@ -3,13 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
+import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import '../styles/dashboard_air.css';
 
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession, can } = useAuth();
+  const { user: _user, clearSession, can, permissions } = useAuth();
   const user = _user || {};
 
   // Role-based setup
@@ -191,38 +192,11 @@ const AdminLayout = ({ children }) => {
     navigate('/admin/alerts');
   };
 
-  // Use role-specific menu or fall back to full admin menu.
-  // Filter adminOnly items for non-admin roles when using the full adminMenuSections.
-  const menuSections = (() => {
-    const sections = ROLE_MENUS[roleKey] || adminMenuSections;
-    let result = roleKey === ROLES.ADMIN
-      ? sections
-      : sections.map((section) => ({
-          ...section,
-          items: section.items.filter((item) => !item.adminOnly),
-        }));
-
-    // Permission overlay: items tagged here appear when the user is granted the
-    // permission, even if their static ROLE_MENUS omits them. Base menu behavior
-    // is unchanged. Add more rows as features are surfaced.
-    const overlayItems = [
-      { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'barcode',
-        section: 'INVENTORY INTELLIGENCE', requiredPermission: ['barcode_inventory_processing', 'create'] },
-    ];
-    overlayItems.forEach((it) => {
-      const already = result.some((s) => s.items.some((x) => x.path === it.path));
-      if (!already && typeof can === 'function' && can(it.requiredPermission[0], it.requiredPermission[1])) {
-        const item = { name: it.name, path: it.path, icon: it.icon };
-        const idx = result.findIndex((s) => s.label === it.section);
-        if (idx >= 0) {
-          result = result.map((s, i) => (i === idx ? { ...s, items: [...s.items, item] } : s));
-        } else {
-          result = [...result, { label: it.section, items: [item] }];
-        }
-      }
-    });
-    return result;
-  })();
+  const isAdmin = roleKey === ROLES.ADMIN;
+  const menuSections = useMemo(
+    () => buildSidebar(adminMenuSections, permissions || {}, isAdmin),
+    [permissions, isAdmin]
+  );
 
   // Sync active highlight when navigating from outside the sidebar
   useEffect(() => {
