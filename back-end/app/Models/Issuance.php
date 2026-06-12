@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 class Issuance extends Model
 {
-    use SoftDeletes, Auditable;
+    use SoftDeletes, Auditable, ScopesToUserLocation;
 
     protected $table      = 'issuances';
     protected $primaryKey = 'issuance_id';
