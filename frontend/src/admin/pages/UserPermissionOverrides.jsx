@@ -15,10 +15,14 @@ import '../styles/permission_admin.css';
 function bundleState(bundle, effective) {
   const perms = bundle.permissions ?? [];
   if (perms.length === 0) return 'off';
-  const grantedCount = perms.filter((p) => !!effective[`${p.feature}.${p.action}`]).length;
-  if (grantedCount === perms.length) return 'on';
-  if (grantedCount > 0) return 'partial';
-  return 'off';
+  // Per spec §4: derive state from required (read-gate) perms only.
+  // Fall back to all perms only if none are marked is_required.
+  const target = perms.filter((p) => p.is_required);
+  const scope = target.length > 0 ? target : perms;
+  const grantedCount = scope.filter((p) => effective[`${p.feature}.${p.action}`] === true).length;
+  if (grantedCount === 0) return 'off';
+  if (grantedCount === scope.length) return 'on';
+  return 'partial';
 }
 
 /** Simple icon renderer — uses a Unicode fallback mapped to known icon slugs. */

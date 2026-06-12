@@ -25,6 +25,7 @@ jest.mock('../services/api', () => ({
           sort_order: 1,
           permissions: [
             { permission_id: 10, feature: 'item_master_management', action: 'read', is_required: true },
+            { permission_id: 11, feature: 'item_master_management', action: 'create', is_required: false },
           ],
         },
       ],
@@ -76,17 +77,33 @@ test('Navigation Access tab renders bundle cards', async () => {
   await waitFor(() => expect(screen.getByText('Item Master')).toBeInTheDocument());
 });
 
-test('Advanced tab shows permission grid header', async () => {
+test('Advanced tab shows the feature-group tablist (perm-tabs)', async () => {
   render(<UserPermissionOverrides initialUserId={42} />);
 
   // Find the Advanced tab and click it
   const advancedTab = await screen.findByRole('tab', { name: /advanced/i });
   fireEvent.click(advancedTab);
 
-  // The existing grid should be present (either the table or the "select user" message)
-  // With initialUserId=42, user is pre-selected so the grid area renders
+  // .perm-tabs is the feature-group tablist rendered ONLY inside the Advanced panel.
+  // It must be present after switching to Advanced; it must NOT exist on the Nav tab.
   await waitFor(() => {
-    // The grid tabs (feature group tabs inside Advanced) or the table itself
-    expect(document.querySelector('.perm-admin')).toBeInTheDocument();
+    expect(document.querySelector('.perm-tabs')).toBeInTheDocument();
   });
+});
+
+test('bundle toggle shows ON when required perm is granted even if action perm is not', async () => {
+  // effective map: required 'read' is granted; action 'create' is NOT granted.
+  // bundleState must return 'on' because it only looks at is_required perms.
+  render(<UserPermissionOverrides initialUserId={42} />);
+
+  const navTab = await screen.findByRole('tab', { name: /navigation access/i });
+  fireEvent.click(navTab);
+
+  // Wait for the Item Master bundle card toggle to appear
+  await waitFor(() => expect(screen.getByText('Item Master')).toBeInTheDocument());
+
+  // The toggle button should have aria-pressed="true" (state === 'on').
+  // The button's accessible name is its text content ("ON"/"OFF"); use title to find it.
+  const toggle = screen.getByTitle(/disable item master/i);
+  expect(toggle).toHaveAttribute('aria-pressed', 'true');
 });
