@@ -68,17 +68,7 @@ class ISTController extends Controller
             $query = Transfer::with(array_merge(self::WITH_RELATIONS, ['transferTracking.recordedBy']))
                 ->whereNotNull('transfer_request_id');
 
-            if (! $user->isCentralized()) {
-                $loc = $user->scopedLocationId();
-                if ($loc === null) {
-                    $query->whereRaw('1 = 0');
-                } else {
-                    $query->where(function ($q) use ($loc) {
-                        $q->where('from_location_id', $loc)
-                          ->orWhere('to_location_id', $loc);
-                    });
-                }
-            }
+            $query->forUser($user);
 
             if ($request->filled('status_id')) {
                 $query->where('status_id', $request->integer('status_id'));
