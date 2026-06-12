@@ -1263,6 +1263,15 @@ export const barcodeScanAPI = {
 };
 
 /* ======================
+   NAV BUNDLES API (SA — navigation access configuration)
+====================== */
+export const navBundlesAPI = {
+  /** GET /nav-bundles → { data: [ { bundle_id, name, route_path, sidebar_section, sidebar_icon,
+   *                                  description, sort_order, permissions: [{permission_id, feature, action, is_required}] } ] } */
+  list: async () => apiRequest('/nav-bundles'),
+};
+
+/* ======================
    BARCODE ADJUSTMENT API
 ====================== */
 export const barcodeAdjustmentAPI = {
