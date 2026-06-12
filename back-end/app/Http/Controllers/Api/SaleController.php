@@ -18,7 +18,9 @@ class SaleController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Sale::with(['customer', 'location', 'paymentStatus', 'soldBy']);
+            $query = Sale::query()
+                ->forUser($request->user())
+                ->with(['customer', 'location', 'paymentStatus', 'soldBy']);
 
             if ($request->has('customer_id')) {
                 $query->where('customer_id', $request->customer_id);

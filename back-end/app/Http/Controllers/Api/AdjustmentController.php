@@ -20,7 +20,9 @@ class AdjustmentController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Adjustment::with(['location', 'createdBy', 'approvedBy', 'status']);
+            $query = Adjustment::query()
+                ->forUser($request->user())
+                ->with(['location', 'createdBy', 'approvedBy', 'status']);
 
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);

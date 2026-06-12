@@ -37,20 +37,20 @@ class TransferRequestController extends Controller
     public function index(Request $request)
     {
         try {
-            $user   = $request->user();
-            $roleId = $user->role?->role_id ?? 0;
-            $isAdmin = in_array($user->role?->role_name, ['admin', 'inventory_analyst'], true) || $roleId === 1;
+            $user = $request->user();
 
             // Only request records (transfer_request_id IS NULL)
             $query = Transfer::with(self::WITH_RELATIONS)
                 ->whereNull('transfer_request_id');
 
-            if (!$isAdmin) {
-                $locId = $user->enforced_location_id ?? $user->location_id;
-                if ($locId) {
-                    $query->where(function ($q) use ($locId) {
-                        $q->where('from_location_id', $locId)
-                          ->orWhere('to_location_id', $locId);
+            if (! $user->isCentralized()) {
+                $loc = $user->scopedLocationId();
+                if ($loc === null) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->where(function ($q) use ($loc) {
+                        $q->where('from_location_id', $loc)
+                          ->orWhere('to_location_id', $loc);
                     });
                 }
             }

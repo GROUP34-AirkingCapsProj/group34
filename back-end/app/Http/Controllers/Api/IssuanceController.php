@@ -20,7 +20,9 @@ class IssuanceController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Issuance::with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product']);
+            $query = Issuance::query()
+                ->forUser($request->user())
+                ->with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product']);
 
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 /**
  * Receiving (ERD: RECEIVING)
@@ -16,7 +17,7 @@ use App\Traits\Auditable;
  */
 class Receiving extends Model
 {
-    use Auditable;
+    use Auditable, ScopesToUserLocation;
     protected $table = 'receivings';
     protected $primaryKey = 'receiving_id';
 
