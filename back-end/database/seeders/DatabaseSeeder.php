@@ -117,6 +117,8 @@ class DatabaseSeeder extends Seeder
         $this->call(CategoriesAndBrandsSeeder::class);
         // Requires roles to exist (seeded earlier in this run()).
         $this->call(PermissionSeeder::class);
+        // Requires permissions to exist (seeded above).
+        $this->call(NavBundleSeeder::class);
     }
 }
 
