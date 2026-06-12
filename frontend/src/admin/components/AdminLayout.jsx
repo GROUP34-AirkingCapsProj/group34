@@ -11,7 +11,7 @@ import '../styles/dashboard_air.css';
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession, can, permissions } = useAuth();
+  const { user: _user, clearSession, can, permissions, refreshPermissions } = useAuth();
   const user = _user || {};
   const { locationName: userLocationName } = useUserLocation();
 
@@ -66,6 +66,14 @@ const AdminLayout = ({ children }) => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [mobileNavOpen]);
+
+// Re-sync effective permissions on every page navigation so mid-session revocations
+  // take effect on the next route change. One GET per navigation; no loop risk because
+  // refreshPermissions is a stable useCallback keyed on user_id.
+  useEffect(() => {
+    if (!_user?.user_id) return;
+    refreshPermissions();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
 // Sync unread notification count from API
   useEffect(() => {
