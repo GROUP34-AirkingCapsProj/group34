@@ -10,18 +10,15 @@ trait ResolvesUserLocation
 
     /**
      * Resolves the correct location_id for a transaction based on the
-     * authenticated user's role and assigned location.
+     * authenticated user's role grouping.
      *
-     * Strict roles (warehouse_personnel=4, inventory_analyst=2):
-     *   Returns users.location_id. Ignores any location_id in the request.
+     * Location-scoped roles (branch_manager=3, warehouse_personnel=4):
+     *   Forced to users.location_id. Any request location_id is IGNORED.
      *   Returns null (sets $locationError) if no location is assigned.
      *
-     * Branch manager (role_id=3):
-     *   Uses request location_id if provided and allowed.
-     *   Falls back to users.location_id. Errors if neither resolves.
-     *
-     * Admin (role_id=1):
-     *   Uses request location_id. Errors if not provided or not active.
+     * Centralized roles (admin=1, inventory_analyst=2, auditor=5):
+     *   Must supply a valid, active location_id in the request.
+     *   Returns null (sets $locationError) if missing or inactive.
      *
      * @return int|null  The resolved location_id, or null on failure.
      */
@@ -34,46 +31,22 @@ trait ResolvesUserLocation
             return null;
         }
 
-        $roleId = (int) $user->role_id;
-
-        // ── STRICT ROLES: warehouse_personnel (4), inventory_analyst (2) ──
-        if ($user->hasStrictLocation()) {
-            if (! $user->location_id) {
+        // ── LOCATION-SCOPED ROLES (branch_manager=3, warehouse_personnel=4) ──
+        // Forced to their assigned location. Any request location_id is ignored.
+        if (! $user->isCentralized()) {
+            $loc = $user->scopedLocationId();
+            if ($loc === null) {
                 $this->locationError =
                     'Your account has no assigned location. '
                     . 'Contact your administrator to assign a location '
                     . 'before performing inventory transactions.';
                 return null;
             }
-            // Ignore any location_id sent by the frontend — enforce the user's assignment
-            return (int) $user->location_id;
+            return $loc;
         }
 
-        // ── BRANCH MANAGER (3) ────────────────────────────────────────────
-        if ($roleId === 3) {
-            $requestedId = $request->input('location_id');
-
-            if (! $requestedId) {
-                if (! $user->location_id) {
-                    $this->locationError =
-                        'Your account has no primary location assigned. '
-                        . 'Contact your administrator.';
-                    return null;
-                }
-                return (int) $user->location_id;
-            }
-
-            $requested = (int) $requestedId;
-            if (! $user->canTransactAt($requested)) {
-                $this->locationError =
-                    'You are not authorized to perform transactions '
-                    . 'at the selected location.';
-                return null;
-            }
-            return $requested;
-        }
-
-        // ── ADMIN (1) and any other roles ─────────────────────────────────
+        // ── CENTRALIZED ROLES (admin=1, inventory_analyst=2, auditor=5) ──
+        // Must choose a valid, active location for the transaction.
         $requestedId = $request->input('location_id');
         if (! $requestedId) {
             $this->locationError = 'Please select a location to proceed.';
