@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 class Inventory extends Model
 {
-    use Auditable;
+    use Auditable, ScopesToUserLocation;
 
     protected $table = 'inventory';
 
