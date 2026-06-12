@@ -17,19 +17,25 @@ export const AuthProvider = ({ children }) => {
   // null = not loaded yet (used to avoid premature route redirects).
   const [permissions, setPermissions] = useState(null);
 
+  // Re-fetches effective permissions from the server and updates state.
+  // Exposed on context so callers (e.g. AdminLayout) can re-sync on navigation.
+  const refreshPermissions = useCallback(() => {
+    if (!user?.user_id) return;
+    permissionsAPI
+      .getMine()
+      .then((res) => { setPermissions(res?.data ?? {}); })
+      .catch(() => { setPermissions({}); });
+  }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load the current user's effective permissions whenever the logged-in user changes.
   useEffect(() => {
-    let cancelled = false;
     if (!user?.user_id) {
       setPermissions(null);
       return undefined;
     }
-    permissionsAPI
-      .getMine()
-      .then((res) => { if (!cancelled) setPermissions(res?.data ?? {}); })
-      .catch(() => { if (!cancelled) setPermissions({}); });
-    return () => { cancelled = true; };
-  }, [user?.user_id]);
+    refreshPermissions();
+    return undefined;
+  }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // True only when the current user is explicitly granted feature.action.
   const can = useCallback(
@@ -70,7 +76,7 @@ export const AuthProvider = ({ children }) => {
   }, [updateUser]);
 
   return (
-    <AuthContext.Provider value={{ user, updateUser, refreshUser, clearSession, permissions, can }}>
+    <AuthContext.Provider value={{ user, updateUser, refreshUser, refreshPermissions, clearSession, permissions, can }}>
       {children}
     </AuthContext.Provider>
   );
