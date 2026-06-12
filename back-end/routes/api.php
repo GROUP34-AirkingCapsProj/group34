@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\IssuanceScanController;
 use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveSettingsController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\NavBundleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -141,6 +142,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // Current user's own effective permissions — used by the frontend to gate
     // menus/routes by live permission. Any authenticated user (GET).
     Route::get('/me/permissions', [PermissionController::class, 'mine']);
+
+    // Navigation bundle catalog — any authenticated user (GET).
+    Route::get('/nav-bundles', [NavBundleController::class, 'index']);
 
     /*
     |--------------------------------------------------------------------------
