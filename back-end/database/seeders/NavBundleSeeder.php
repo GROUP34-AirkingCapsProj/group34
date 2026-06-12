@@ -103,8 +103,7 @@ class NavBundleSeeder extends Seeder
             '/admin/transactions' => ['name' => 'POS Operations', 'section' => 'SALES & LOGISTICS', 'icon' => 'transactions',
                 'required' => ['pos_sales_recording.read'], 'actions' => ['pos_sales_recording.create', 'barcode_scanning_sales.create', 'sales_validation.create']],
             '/admin/purchase-orders' => ['name' => 'Purchase Orders', 'section' => 'SALES & LOGISTICS', 'icon' => 'purchaseorders',
-                // spec had purchase_order_approval.read — that feature has no .read action; corrected to .approve
-                'required' => ['purchase_order_approval.approve']],
+                'required' => ['po_status_tracking.read'], 'actions' => ['purchase_order_approval.approve']],
             '/admin/customers' => ['name' => 'Customer Registry', 'section' => 'SALES & LOGISTICS', 'icon' => 'customers',
                 'required' => ['customer_info_capture.read'], 'actions' => ['customer_info_capture.create', 'customer_info_capture.update']],
             '/admin/inventory-operation' => ['name' => 'Scan Barcode', 'section' => 'SALES & LOGISTICS', 'icon' => 'scan',
