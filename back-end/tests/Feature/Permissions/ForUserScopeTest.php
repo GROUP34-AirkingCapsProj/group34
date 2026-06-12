@@ -31,15 +31,18 @@ class ForUserScopeTest extends TestCase
     public function test_scoped_user_query_filters_by_location(): void
     {
         $locId = Location::value('location_id');
+        $this->assertNotNull($locId, 'Need at least one location row to run this test');
         $wp = $this->makeUser(4, $locId);
-        $sql = strtolower(Inventory::query()->forUser($wp)->toSql());
-        $this->assertStringContainsString('location_id', $sql);
+        $builder = Inventory::query()->forUser($wp);
+        $this->assertStringContainsString('location_id', strtolower($builder->toSql()));
+        $this->assertSame([$locId], $builder->getBindings());
     }
 
     public function test_scoped_user_without_location_returns_empty(): void
     {
         $wp = $this->makeUser(4, null);
-        $sql = Inventory::query()->forUser($wp)->toSql();
-        $this->assertStringContainsString('1 = 0', $sql);
+        $builder = Inventory::query()->forUser($wp);
+        $this->assertStringContainsString('1 = 0', $builder->toSql());
+        $this->assertSame([], $builder->getBindings());
     }
 }
