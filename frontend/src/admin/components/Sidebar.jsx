@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
-import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
+import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
 
 /* Deterministic avatar colour from a string */
 const AVATAR_COLORS = ['#dc2626', '#d97706', '#059669', '#2563eb', '#7c3aed', '#db2777'];
