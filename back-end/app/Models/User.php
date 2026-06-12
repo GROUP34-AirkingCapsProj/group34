@@ -166,6 +166,30 @@ class User extends Authenticatable
     }
 
     /**
+     * Centralized roles see all locations' data and may choose a location on writes.
+     * CENTRALIZED = admin(1), inventory_analyst(2), auditor(5). Single source of truth
+     * for BOTH read scoping and write enforcement (see spec §5).
+     */
+    public function isCentralized(): bool
+    {
+        return in_array((int) $this->role_id, [1, 2, 5], true);
+    }
+
+    /**
+     * The location_id this user's data is restricted to.
+     * Returns null for centralized users (no restriction). For location-scoped
+     * roles (branch_manager=3, warehouse_personnel=4) returns users.location_id,
+     * which may itself be null when unassigned (callers then deny — spec D3).
+     */
+    public function scopedLocationId(): ?int
+    {
+        if ($this->isCentralized()) {
+            return null;
+        }
+        return $this->location_id ? (int) $this->location_id : null;
+    }
+
+    /**
      * Resolve a feature/action permission for this user (override → role default → deny).
      *
      * Only the two-string form `can('feature','action')` hits the permission resolver.
