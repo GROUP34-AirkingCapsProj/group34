@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../admin/components/AdminLayout';
 import { useAuth } from '../../admin/context/AuthContext';
 import { getRoleKey, ROLES } from '../../admin/utils/roles';
+import { pickDashboardWidgets } from './dashboardWidgets';
 import { batchAPI, dashboardAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
+
+// Re-export so callers can also `import { pickDashboardWidgets } from './Dashboard'`
+export { pickDashboardWidgets } from './dashboardWidgets';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,6 +46,8 @@ ChartJS.register(
 ───────────────────────────────────────────── */
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { permissions: authPermissions } = useAuth();
+  const visibleWidgets = pickDashboardWidgets(authPermissions || {});
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
@@ -315,25 +321,27 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* APPROVAL ALERT PANEL */}
-      <div className="approval-alert-panel">
-        <div className="approval-alert-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            <path d="M9 12l2 2 4-4"></path>
-          </svg>
+      {/* APPROVAL ALERT PANEL — gated by po_status_tracking.read */}
+      {visibleWidgets.includes('po_summary') && (
+        <div className="approval-alert-panel">
+          <div className="approval-alert-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="M9 12l2 2 4-4"></path>
+            </svg>
+          </div>
+          <div className="approval-alert-content">
+            <h3>Pending Approvals Queue</h3>
+            <p>There are {pendingActions} items awaiting your authorization.</p>
+          </div>
+          <button type="button" className="approval-alert-btn" onClick={() => navigate('/admin/approval-queue')}>
+            GO TO APPROVALS
+          </button>
         </div>
-        <div className="approval-alert-content">
-          <h3>Pending Approvals Queue</h3>
-          <p>There are {pendingActions} items awaiting your authorization.</p>
-        </div>
-        <button type="button" className="approval-alert-btn" onClick={() => navigate('/admin/approval-queue')}>
-          GO TO APPROVALS
-        </button>
-      </div>
+      )}
 
-      {/* LOW STOCK ALERT */}
-      {lowStockItems.length > 0 && (
+      {/* LOW STOCK ALERT — gated by automated_inventory_monitoring.read */}
+      {visibleWidgets.includes('low_stock') && lowStockItems.length > 0 && (
         <div className="low-stock-section">
           <div className="low-stock-header">
             <div className="low-stock-header-left">
@@ -543,15 +551,17 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* TRANSACTION TRENDS */}
-      <div className="charts-section charts-section--single">
-        <div className="chart-card">
-          <h3>Transaction Trends</h3>
-          <div className="chart-wrapper">
-            <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Sales', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+      {/* TRANSACTION TRENDS — gated by pos_sales_recording.read */}
+      {visibleWidgets.includes('sales_summary') && (
+        <div className="charts-section charts-section--single">
+          <div className="chart-card">
+            <h3>Transaction Trends</h3>
+            <div className="chart-wrapper">
+              <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Sales', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
       
 
       {/* CHARTS ROW 2 */}

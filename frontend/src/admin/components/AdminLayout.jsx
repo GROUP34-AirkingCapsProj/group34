@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
-import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
+import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
