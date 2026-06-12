@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
+import LocationBadge from '../components/LocationBadge';
 import '../styles/dashboard_air.css';
 
 const AdminLayout = ({ children }) => {
@@ -12,6 +13,11 @@ const AdminLayout = ({ children }) => {
   const location = useLocation();
   const { user: _user, clearSession, can, permissions } = useAuth();
   const user = _user || {};
+  const { locationName: userLocationName } = useUserLocation();
+
+  // Centralized roles: admin=1, inventory_analyst=2, auditor=5
+  // Scoped roles: branch_manager=3, warehouse_personnel=4
+  const isCentralized = [1, 2, 5].includes(Number(user?.role?.role_id));
 
   // Role-based setup
   const roleKey = useMemo(() => getRoleKey(user), [user]);
@@ -299,6 +305,11 @@ const AdminLayout = ({ children }) => {
           </div>
 
           <div className="header-actions">
+            <LocationBadge
+              isCentralized={isCentralized}
+              locationName={userLocationName}
+              className="header-location-badge"
+            />
             {(roleKey === ROLES.ADMIN
               || roleKey === ROLES.BRANCH_MANAGER
               || roleKey === ROLES.INVENTORY_ANALYST) && (
