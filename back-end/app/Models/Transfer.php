@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -101,5 +102,24 @@ class Transfer extends Model
     public function transferTracking(): HasMany
     {
         return $this->hasMany(TblTransferTracking::class, 'transfer_id', 'transfer_id');
+    }
+
+    /**
+     * Location read-scope for a two-location model (from/to).
+     * Centralized users: unfiltered. Scoped users: transfers they sent OR received.
+     * Scoped users with no location: empty result (deny — spec D3).
+     */
+    public function scopeForUser(Builder $query, User $user): Builder
+    {
+        if ($user->isCentralized()) {
+            return $query;
+        }
+        $loc = $user->scopedLocationId();
+        if ($loc === null) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->where(function ($q) use ($loc) {
+            $q->where('from_location_id', $loc)->orWhere('to_location_id', $loc);
+        });
     }
 }

@@ -43,17 +43,7 @@ class TransferRequestController extends Controller
             $query = Transfer::with(self::WITH_RELATIONS)
                 ->whereNull('transfer_request_id');
 
-            if (! $user->isCentralized()) {
-                $loc = $user->scopedLocationId();
-                if ($loc === null) {
-                    $query->whereRaw('1 = 0');
-                } else {
-                    $query->where(function ($q) use ($loc) {
-                        $q->where('from_location_id', $loc)
-                          ->orWhere('to_location_id', $loc);
-                    });
-                }
-            }
+            $query->forUser($user);
 
             if ($request->filled('status_id')) {
                 $query->where('status_id', $request->integer('status_id'));

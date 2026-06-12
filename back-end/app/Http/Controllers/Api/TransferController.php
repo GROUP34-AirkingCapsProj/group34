@@ -38,16 +38,7 @@ class TransferController extends Controller
             $user = $request->user();
             $query = Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'receivedBy', 'status', 'details.product']);
 
-            if (! $user->isCentralized()) {
-                $loc = $user->scopedLocationId();
-                if ($loc === null) {
-                    $query->whereRaw('1 = 0');
-                } else {
-                    $query->where(function ($q) use ($loc) {
-                        $q->where('from_location_id', $loc)->orWhere('to_location_id', $loc);
-                    });
-                }
-            }
+            $query->forUser($user);
 
             if ($request->has('from_location_id')) {
                 $query->where('from_location_id', $request->from_location_id);
