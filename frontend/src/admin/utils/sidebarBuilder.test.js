@@ -24,3 +24,14 @@ test('empty sections are dropped', () => {
   const out = buildSidebar(sections, {}, false);
   expect(out.length).toBe(0);
 });
+
+test('role-open items (warranty) are shown to non-admins', () => {
+  const s = [{ label: 'COMPLIANCE & SUPPORT', items: [
+    { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
+    { name: 'System Configuration', path: '/admin/config', icon: 'config' },
+  ] }];
+  const out = buildSidebar(s, {}, false);
+  const labels = out.flatMap((x) => x.items.map((i) => i.name));
+  expect(labels).toContain('Warranty Records');       // role-open: visible
+  expect(labels).not.toContain('System Configuration'); // admin-only: hidden
+});
