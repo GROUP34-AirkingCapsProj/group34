@@ -20,6 +20,7 @@ class InventoryController extends Controller
     {
         // Only rows whose product still exists in `products` (same catalog as Item Master).
         $query = Inventory::query()
+            ->forUser($request->user())
             ->whereHas('product')
             ->with(['location'])
             ->with(['product' => function ($q) {
