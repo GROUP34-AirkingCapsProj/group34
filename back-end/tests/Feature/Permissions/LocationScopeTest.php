@@ -56,4 +56,14 @@ class LocationScopeTest extends TestCase
         $this->assertFalse($u->isCentralized());
         $this->assertNull($u->scopedLocationId());
     }
+
+    public function test_strict_location_matches_scoped_roles(): void
+    {
+        $loc = \App\Models\Location::value('location_id');
+        $this->assertTrue($this->makeUser(3, $loc)->hasStrictLocation());   // branch_manager
+        $this->assertTrue($this->makeUser(4, $loc)->hasStrictLocation());   // warehouse_personnel
+        $this->assertFalse($this->makeUser(1, null)->hasStrictLocation());  // admin
+        $this->assertFalse($this->makeUser(2, $loc)->hasStrictLocation());  // inventory_analyst
+        $this->assertFalse($this->makeUser(5, $loc)->hasStrictLocation());  // auditor
+    }
 }

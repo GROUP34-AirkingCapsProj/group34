@@ -157,12 +157,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Returns true for roles that must use a single enforced location
-     * with no override allowed (inventory_analyst=2, warehouse_personnel=4).
+     * Roles that must transact at a single enforced location with no override.
+     * Now derived from the scope source of truth: strict == location-scoped == !centralized.
+     * (branch_manager=3, warehouse_personnel=4)
      */
     public function hasStrictLocation(): bool
     {
-        return in_array((int) $this->role_id, [2, 4], true);
+        return ! $this->isCentralized();
     }
 
     /**
