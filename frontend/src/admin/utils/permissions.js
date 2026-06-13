@@ -18,15 +18,16 @@ export const ACTION_META = {
 
 export const keyOf = (feature, action) => `${feature}.${action}`;
 
-// Groups cover ONLY the 23 real features that exist in the catalog.
+// Groups cover the real features that exist in the catalog.
 export const FEATURE_GROUPS = [
   { label: 'I. Users & Security',               features: ['user_account_management', 'role_assignment'] },
   { label: 'II. Item & Classification',          features: ['item_master_management', 'category_management', 'brand_management', 'uom_management', 'barcode_assignment'] },
-  { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_request_approval'] },
+  { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_request_creation', 'purchase_request_approval'] },
   { label: 'IV. Inventory Operations',           features: ['barcode_inventory_processing', 'delivery_receiving', 'inventory_issuance', 'inventory_transfers', 'inventory_adjustments'] },
   { label: 'V. Sales & Delivery',                features: ['pos_sales_recording', 'delivery_receipt_generation'] },
   { label: 'VI. Location',                       features: ['location_based_inventory'] },
-  { label: 'VII. Audit, Compliance & Archive',   features: ['audit_trail_viewing', 'exception_detection', 'archive_viewing', 'data_archiving'] },
+  { label: 'VII. Warranty & After-Sales',        features: ['warranty_records', 'warranty_claims'] },
+  { label: 'VIII. Audit, Compliance & Archive',  features: ['audit_trail_viewing', 'exception_detection', 'archive_viewing', 'data_archiving'] },
 ];
 
 const prettyFeature = (f) =>
