@@ -107,6 +107,8 @@ class PermissionAdminService
                 'target_role_id' => null,
                 'permission_id'  => $permissionId,
                 'old_value'      => $old,
+                // new_value mirrors old_value by design; the 'user_override_clear'
+                // change_type is what marks this row as a revert-to-role-default event.
                 'new_value'      => $old,
                 'change_type'    => 'user_override_clear',
                 'reason'         => $reason,
