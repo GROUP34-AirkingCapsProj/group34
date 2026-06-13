@@ -6,7 +6,6 @@ import { NAV_BUNDLES, bundleVisible } from './navBundles';
  */
 export const ROLE_OPEN_PATHS = new Set([
   '/admin/warranties',
-  '/admin/warranty',
   '/admin/warranty-claims',
 ]);
 
