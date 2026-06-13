@@ -53,8 +53,11 @@ class PermissionSeeder extends Seeder
             'automated_inventory_monitoring' => [
                 'create' => [$SA, $IA, $BM, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $IA, $BM, $WP], 'archive' => [$SA], 'approve' => [$SA, $IA, $BM, $WP],
             ],
+            // Location/branch management is admin-only. Non-admin roles read their
+            // branch inventory via centralized_inventory + automated_inventory_monitoring,
+            // not this feature (which gates the Location Management page).
             'location_based_inventory' => [
-                'create' => [$SA, $BM], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $BM], 'archive' => [$SA], 'approve' => [$SA, $IA, $BM],
+                'create' => [$SA], 'read' => [$SA], 'update' => [$SA], 'archive' => [$SA], 'approve' => [$SA],
             ],
             'barcode_inventory_processing' => [
                 'create' => [$SA, $BM, $WP], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA, $WP], 'archive' => [$SA], 'approve' => [$SA, $WP],
@@ -96,8 +99,11 @@ class PermissionSeeder extends Seeder
             'role_assignment' => [
                 'create' => [$SA], 'read' => [$SA, $AU], 'update' => [$SA], 'archive' => [$SA], 'approve' => [$SA],
             ],
+            // Permission-management pages (Role & Permissions, User Overrides) are
+            // admin-only. Previously read was granted to all roles, exposing those
+            // pages to non-admins.
             'rbac_enforcement' => [
-                'create' => [$SA], 'read' => [$SA, $IA, $BM, $WP, $AU], 'update' => [$SA], 'archive' => [$SA], 'approve' => [$SA],
+                'create' => [$SA], 'read' => [$SA], 'update' => [$SA], 'archive' => [$SA], 'approve' => [$SA],
             ],
 
             // --- Group IV ---
