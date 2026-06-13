@@ -207,6 +207,13 @@ const AdminLayout = ({ children }) => {
   };
 
   const isAdmin = roleKey === ROLES.ADMIN;
+  // Permissions load asynchronously after login; until they arrive `permissions`
+  // is null. Without this guard the sidebar would briefly render only the
+  // non-gated items (a partial-menu flash) before filling in. Used to show a
+  // skeleton instead. Only true on initial load — re-syncs on navigation keep
+  // the previous permissions until the new fetch resolves.
+  const permissionsLoading = !!_user?.user_id && permissions == null;
+
   const menuSections = useMemo(
     () => buildSidebar(adminMenuSections, permissions || {}, isAdmin),
     [permissions, isAdmin]
@@ -276,6 +283,7 @@ const AdminLayout = ({ children }) => {
         onNavHover={handleNavHover}
         isItemActive={isItemActive}
         menuSections={menuSections}
+        navLoading={permissionsLoading}
         expandedSections={expandedSections}
         onToggleSection={toggleSection}
         navMenuRef={navMenuRef}

@@ -304,6 +304,34 @@
   flex-shrink: 0;
 }
 
+/* Loading skeleton — shown while effective permissions load (no partial flash) */
+.nav-skeleton { padding: 4px 0; }
+.nav-skel-section { margin-bottom: 18px; }
+.nav-skel-label {
+  display: block; height: 9px; border-radius: 4px;
+  margin: 0 12px 12px; opacity: 0.7;
+}
+.nav-skel-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; margin-bottom: 2px;
+}
+.nav-skel-icon { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; }
+.nav-skel-text { height: 10px; border-radius: 5px; }
+.nav-skel-label,
+.nav-skel-icon,
+.nav-skel-text {
+  background: linear-gradient(90deg, var(--bg-hover, #f3f4f6) 25%, rgba(0,0,0,0.04) 37%, var(--bg-hover, #f3f4f6) 63%);
+  background-size: 400% 100%;
+  animation: nav-skel-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes nav-skel-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-skel-label, .nav-skel-icon, .nav-skel-text { animation: none; }
+}
+
 .nav-icon svg {
   width: 18px;
   height: 18px;
