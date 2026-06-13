@@ -104,6 +104,7 @@ const UserPermissionOverrides = () => {
     setSelectedUserId(id);
     setUserPerms(null);
     setPending({});
+    setReason(''); // don't carry a previous user's reason into a new override save
     setError(null);
     if (id) loadUserPerms(id);
   };
