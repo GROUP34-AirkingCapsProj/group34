@@ -4,7 +4,7 @@ import Pagination from '../components/Pagination';
 import { permissionsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { ROLE_COLUMNS, ACTIONS } from '../utils/permissions';
-import '../styles/dashboard_air.css';
+import '../styles/rbac_console.css';
 
 const CHANGE_TYPES = ['role_default', 'user_override', 'override_cleared'];
 
@@ -26,31 +26,16 @@ const formatDate = (d) => {
   }
 };
 
-const changeBadge = (type) => {
-  const styles = {
-    role_default:     { bg: '#ede9fe', color: '#5b21b6' },
-    user_override:    { bg: '#fef3c7', color: '#92400e' },
-    override_cleared: { bg: '#f1f5f9', color: '#475569' },
-  };
-  const s = styles[type] || { bg: '#f1f5f9', color: '#475569' };
-  return (
-    <span
-      style={{
-        fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px',
-        borderRadius: 4, background: s.bg, color: s.color,
-        textTransform: 'uppercase', letterSpacing: '0.04em',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {type?.replace(/_/g, ' ') || '—'}
-    </span>
-  );
+const changeBadgeClass = (type) => {
+  if (type === 'role_default') return 'rcx-badge rcx-badge--role';
+  if (type === 'user_override') return 'rcx-badge rcx-badge--user';
+  return 'rcx-badge rcx-badge--clear';
 };
 
-const boolBadge = (val) => {
-  if (val == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+const BoolBadge = ({ val }) => {
+  if (val == null) return <span className="rcx-muted">—</span>;
   return (
-    <span style={{ color: val ? '#059669' : '#dc2626', fontWeight: 600 }}>
+    <span className={`rcx-bool ${val ? 'rcx-bool--granted' : 'rcx-bool--denied'}`}>
       {val ? 'Granted' : 'Denied'}
     </span>
   );
@@ -124,31 +109,24 @@ const PermissionAuditLog = () => {
 
   return (
     <AdminLayout>
-      <div className="cb-page">
-        <div className="cb-page-header">
-          <div>
-            <h1>Permission Audit Log</h1>
-            <p>Read-only history of all permission changes made to roles and individual users.</p>
+      <div className="rbac-console">
+        <header className="rcx-header">
+          <div className="rcx-header-row">
+            <div>
+              <p className="rcx-eyebrow">Access Control · Audit Trail</p>
+              <h1 className="rcx-title">Permission Audit Log</h1>
+              <p className="rcx-sub">
+                Read-only history of every permission change made to roles and individual users.
+              </p>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* Filters */}
-        <form
-          onSubmit={handleFilterSubmit}
-          style={{
-            display: 'flex', flexWrap: 'wrap', gap: '0.75rem',
-            alignItems: 'flex-end', marginBottom: '1.25rem',
-            padding: '1rem', background: 'var(--bg-surface, #f8fafc)',
-            borderRadius: 8, border: '1px solid var(--border-color, #e2e8f0)',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>Change type</label>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              style={{ padding: '0.35rem 0.6rem', borderRadius: 5, border: '1px solid var(--border-color, #e2e8f0)', background: 'var(--bg-card, #fff)', minWidth: 150 }}
-            >
+        <form className="rcx-filters" onSubmit={handleFilterSubmit}>
+          <div className="rcx-field">
+            <label className="rcx-label">Change type</label>
+            <select className="rcx-select" value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ minWidth: 160 }}>
               <option value="">All types</option>
               {CHANGE_TYPES.map((t) => (
                 <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
@@ -156,24 +134,16 @@ const PermissionAuditLog = () => {
             </select>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>Feature</label>
-            <input
-              type="text"
-              value={filterFeature}
+          <div className="rcx-field">
+            <label className="rcx-label">Feature</label>
+            <input className="rcx-input" type="text" value={filterFeature}
               onChange={(e) => setFilterFeature(e.target.value)}
-              placeholder="e.g. user_account_management"
-              style={{ padding: '0.35rem 0.6rem', borderRadius: 5, border: '1px solid var(--border-color, #e2e8f0)', background: 'var(--bg-card, #fff)', minWidth: 200 }}
-            />
+              placeholder="e.g. user_account_management" style={{ minWidth: 230 }} />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>Action</label>
-            <select
-              value={filterAction}
-              onChange={(e) => setFilterAction(e.target.value)}
-              style={{ padding: '0.35rem 0.6rem', borderRadius: 5, border: '1px solid var(--border-color, #e2e8f0)', background: 'var(--bg-card, #fff)', minWidth: 120 }}
-            >
+          <div className="rcx-field">
+            <label className="rcx-label">Action</label>
+            <select className="rcx-select" value={filterAction} onChange={(e) => setFilterAction(e.target.value)} style={{ minWidth: 130 }}>
               <option value="">All actions</option>
               {ACTIONS.map((a) => (
                 <option key={a} value={a}>{a}</option>
@@ -181,41 +151,31 @@ const PermissionAuditLog = () => {
             </select>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>From date</label>
-            <input
-              type="date"
-              value={filterFrom}
-              onChange={(e) => setFilterFrom(e.target.value)}
-              style={{ padding: '0.35rem 0.6rem', borderRadius: 5, border: '1px solid var(--border-color, #e2e8f0)', background: 'var(--bg-card, #fff)' }}
-            />
+          <div className="rcx-field">
+            <label className="rcx-label">From date</label>
+            <input className="rcx-input" type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} style={{ minWidth: 150 }} />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>To date</label>
-            <input
-              type="date"
-              value={filterTo}
-              onChange={(e) => setFilterTo(e.target.value)}
-              style={{ padding: '0.35rem 0.6rem', borderRadius: 5, border: '1px solid var(--border-color, #e2e8f0)', background: 'var(--bg-card, #fff)' }}
-            />
+          <div className="rcx-field">
+            <label className="rcx-label">To date</label>
+            <input className="rcx-input" type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} style={{ minWidth: 150 }} />
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="submit" className="cb-btn-primary" disabled={loading} style={{ minWidth: 80 }}>
+            <button type="submit" className="rcx-btn rcx-btn--primary" disabled={loading} style={{ minWidth: 92 }}>
               {loading ? 'Loading…' : 'Search'}
             </button>
-            <button type="button" className="cb-btn-secondary" onClick={handleReset} disabled={loading}>
+            <button type="button" className="rcx-btn rcx-btn--ghost" onClick={handleReset} disabled={loading}>
               Reset
             </button>
           </div>
         </form>
 
-        {error && <div className="cb-error" style={{ marginBottom: '1rem' }}>Error: {error}</div>}
+        {error && <div className="rcx-state rcx-state--error" style={{ marginBottom: '1rem' }}>Error: {error}</div>}
 
         {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table className="cb-table" style={{ minWidth: 880 }}>
+        <div className="rcx-matrix-wrap">
+          <table className="rcx-table" style={{ minWidth: 900 }}>
             <thead>
               <tr>
                 <th>When</th>
@@ -230,18 +190,10 @@ const PermissionAuditLog = () => {
             </thead>
             <tbody>
               {loading && (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                    Loading…
-                  </td>
-                </tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2.5rem' }} className="rcx-muted">Loading<span className="rcx-loading-dots" /></td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                    No audit log entries found.
-                  </td>
-                </tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2.5rem' }} className="rcx-muted">No audit log entries found.</td></tr>
               )}
               {!loading && rows.map((row, i) => {
                 const feature = row.permission?.feature || row.feature || '—';
@@ -260,20 +212,14 @@ const PermissionAuditLog = () => {
 
                 return (
                   <tr key={row.id || i}>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
-                      {formatDate(row.changed_at)}
-                    </td>
-                    <td style={{ fontSize: '0.85rem' }}>{changedBy}</td>
-                    <td style={{ fontSize: '0.85rem' }}>{target}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>
-                      {feature}.{action}
-                    </td>
-                    <td>{changeBadge(row.change_type)}</td>
-                    <td style={{ textAlign: 'center' }}>{boolBadge(row.old_value)}</td>
-                    <td style={{ textAlign: 'center' }}>{boolBadge(row.new_value)}</td>
-                    <td style={{ fontSize: '0.82rem', color: row.reason ? 'inherit' : 'var(--text-muted)' }}>
-                      {row.reason || '—'}
-                    </td>
+                    <td className="rcx-mono rcx-muted" style={{ whiteSpace: 'nowrap' }}>{formatDate(row.changed_at)}</td>
+                    <td>{changedBy}</td>
+                    <td>{target}</td>
+                    <td className="rcx-mono">{feature}.{action}</td>
+                    <td><span className={changeBadgeClass(row.change_type)}>{row.change_type?.replace(/_/g, ' ') || '—'}</span></td>
+                    <td style={{ textAlign: 'center' }}><BoolBadge val={row.old_value} /></td>
+                    <td style={{ textAlign: 'center' }}><BoolBadge val={row.new_value} /></td>
+                    <td className={row.reason ? '' : 'rcx-muted'}>{row.reason || '—'}</td>
                   </tr>
                 );
               })}
@@ -281,7 +227,6 @@ const PermissionAuditLog = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {!loading && (
           <div style={{ marginTop: '1rem' }}>
             <Pagination
