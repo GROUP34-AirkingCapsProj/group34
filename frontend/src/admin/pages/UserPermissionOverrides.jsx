@@ -8,15 +8,17 @@ import '../styles/rbac_console.css';
 const ADMIN_ROLE_ID = 1;
 
 // Tri-state: 'grant' | 'deny' | 'inherit'
-const TriStateSelect = ({ value, onChange, baselineGranted }) => (
+const TriStateSelect = ({ value, onChange, baselineGranted, isPending }) => (
   <select
-    className="rcx-tri"
+    className={`rcx-tri${isPending ? ' is-pending' : ''}`}
     value={value}
     onChange={(e) => onChange(e.target.value)}
     style={{
       color: value === 'grant' ? 'var(--rc-green)' : value === 'deny' ? 'var(--rc-crimson)' : 'var(--rc-ink-soft)',
     }}
-    title={`Role default: ${baselineGranted ? 'Granted' : 'Denied'}`}
+    title={isPending
+      ? 'Unsaved change — save to apply'
+      : `Role default: ${baselineGranted ? 'Granted' : 'Denied'}`}
   >
     <option value="inherit">Inherit ({baselineGranted ? 'Granted' : 'Denied'})</option>
     <option value="grant">Grant</option>
@@ -117,16 +119,29 @@ const UserPermissionOverrides = () => {
   };
 
   // --- Simple tab: nav bundle toggles ---
-  // A bundle is "on" if the user has ALL required perms from effective
-  const bundleEffective = (bundle) => {
-    if (!userPerms?.effective) return false;
-    const required = (bundle.permissions || []).filter((p) => p.is_required);
-    if (required.length === 0) return true;
-    return required.every((p) => {
-      const key = `${p.feature}.${p.action}`;
-      return !!userPerms.effective[key];
-    });
+  // Resolve a single permission's state with the pending overlay on top of the
+  // saved effective state, so the UI reflects unsaved clicks immediately.
+  const permGrantedNow = (p) => {
+    if (p.permission_id in pending) {
+      const st = pending[p.permission_id];
+      if (st === 'grant') return true;
+      if (st === 'deny') return false;
+      // 'inherit' falls through to the saved effective value
+    }
+    return !!userPerms?.effective?.[`${p.feature}.${p.action}`];
   };
+
+  // A bundle is "on" if ALL its required perms are granted (pending-aware).
+  const bundleOnNow = (bundle) => {
+    const required = (bundle.permissions || []).filter((p) => p.is_required);
+    const list = required.length ? required : (bundle.permissions || []);
+    if (list.length === 0) return true;
+    return list.every(permGrantedNow);
+  };
+
+  // A bundle has unsaved changes if any of its perms is in the pending map.
+  const bundleDirty = (bundle) =>
+    (bundle.permissions || []).some((p) => p.permission_id in pending);
 
   const toggleBundle = (bundle, forceOn) => {
     const perms = bundle.permissions || [];
@@ -275,7 +290,9 @@ const UserPermissionOverrides = () => {
                       </thead>
                       <tbody>
                         {bundles.map((bundle) => {
-                          const on = bundleEffective(bundle);
+                          const on = bundleOnNow(bundle);
+                          const dirty = bundleDirty(bundle);
+                          const cls = dirty ? 'is-pending' : (on ? 'is-on' : 'is-off');
                           return (
                             <tr key={bundle.bundle_id}>
                               <td style={{ fontWeight: 600 }}>{bundle.name}</td>
@@ -284,10 +301,11 @@ const UserPermissionOverrides = () => {
                               <td style={{ textAlign: 'center' }}>
                                 <button
                                   type="button"
-                                  className={`rcx-access ${on ? 'is-on' : 'is-off'}`}
+                                  className={`rcx-access ${cls}`}
                                   onClick={() => toggleBundle(bundle, !on)}
+                                  title={dirty ? 'Unsaved change — save to apply' : (on ? 'Access granted' : 'Access denied')}
                                 >
-                                  {on ? 'Granted' : 'Denied'}
+                                  {on ? 'Granted' : 'Denied'}{dirty ? ' — unsaved' : ''}
                                 </button>
                               </td>
                             </tr>
@@ -330,6 +348,7 @@ const UserPermissionOverrides = () => {
                                         value={state}
                                         onChange={(v) => setPermState(permId, v)}
                                         baselineGranted={base}
+                                        isPending={permId in pending}
                                       />
                                     </td>
                                   </tr>
