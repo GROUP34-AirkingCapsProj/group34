@@ -1,0 +1,63 @@
+export const ROLE_COLUMNS = [
+  { id: 1, slug: 'admin', label: 'SA', name: 'System Administrator', accent: '#dc2626' },
+  { id: 2, slug: 'inventory_analyst', label: 'IA', name: 'Inventory Analyst', accent: '#7c3aed' },
+  { id: 3, slug: 'branch_manager', label: 'BM', name: 'Branch Manager', accent: '#059669' },
+  { id: 4, slug: 'warehouse_personnel', label: 'WP', name: 'Warehouse Personnel', accent: '#2563eb' },
+  { id: 5, slug: 'auditor', label: 'AU', name: 'Auditor', accent: '#d97706' },
+];
+
+export const ACTIONS = ['create', 'read', 'update', 'archive', 'approve'];
+
+export const ACTION_META = {
+  create:  { label: 'Create',  desc: 'Add new records.' },
+  read:    { label: 'Read',    desc: 'View records and lists.' },
+  update:  { label: 'Update',  desc: 'Edit existing records.' },
+  archive: { label: 'Archive', desc: 'Soft-delete / move to archive.' },
+  approve: { label: 'Approve', desc: 'Approve or finalize records.' },
+};
+
+export const keyOf = (feature, action) => `${feature}.${action}`;
+
+// Groups cover ONLY the 23 real features that exist in the catalog.
+export const FEATURE_GROUPS = [
+  { label: 'I. Users & Security',               features: ['user_account_management', 'role_assignment'] },
+  { label: 'II. Item & Classification',          features: ['item_master_management', 'category_management', 'brand_management', 'uom_management', 'barcode_assignment'] },
+  { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_request_approval'] },
+  { label: 'IV. Inventory Operations',           features: ['barcode_inventory_processing', 'delivery_receiving', 'inventory_issuance', 'inventory_transfers', 'inventory_adjustments'] },
+  { label: 'V. Sales & Delivery',                features: ['pos_sales_recording', 'delivery_receipt_generation'] },
+  { label: 'VI. Location',                       features: ['location_based_inventory'] },
+  { label: 'VII. Audit, Compliance & Archive',   features: ['audit_trail_viewing', 'exception_detection', 'archive_viewing', 'data_archiving'] },
+];
+
+const prettyFeature = (f) =>
+  f.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+/**
+ * Group a flat catalog into
+ * [{label, features:[{feature, title, actions:{action: permission_id}}]}]
+ * Unknown features collect into "Other".
+ */
+export function groupByFeatureGroup(permissions) {
+  const byFeature = {};
+  permissions.forEach((p) => {
+    byFeature[p.feature] = byFeature[p.feature] || {
+      feature: p.feature,
+      title: prettyFeature(p.feature),
+      actions: {},
+    };
+    byFeature[p.feature].actions[p.action] = p.permission_id;
+  });
+
+  const known = new Set();
+  const groups = FEATURE_GROUPS.map((g) => {
+    const features = g.features
+      .filter((f) => byFeature[f])
+      .map((f) => { known.add(f); return byFeature[f]; });
+    return { label: g.label, features };
+  }).filter((g) => g.features.length > 0);
+
+  const others = Object.values(byFeature).filter((f) => !known.has(f.feature));
+  if (others.length) groups.push({ label: 'Other', features: others });
+
+  return groups;
+}

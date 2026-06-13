@@ -1242,6 +1242,13 @@ export const budgetAllocationsAPI = {
 };
 
 /* ======================
+   NAV BUNDLES API
+====================== */
+export const navBundlesAPI = {
+  list: async () => apiRequest('/nav-bundles'),
+};
+
+/* ======================
    BARCODE SCAN API
 ====================== */
 export const barcodeScanAPI = {

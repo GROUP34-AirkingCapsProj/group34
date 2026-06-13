@@ -63,6 +63,11 @@ const WarrantyManagement = lazy(() => import('./admin/pages/WarrantyManagement')
 const WarrantyClaimPage = lazy(() => import('./admin/pages/WarrantyClaimPage'));
 const IssuanceScanPage  = lazy(() => import('./admin/pages/IssuanceScanPage'));
 
+// SA Permission Editor
+const RolePermissions       = lazy(() => import('./admin/pages/RolePermissions'));
+const UserPermissionOverrides = lazy(() => import('./admin/pages/UserPermissionOverrides'));
+const PermissionAuditLog    = lazy(() => import('./admin/pages/PermissionAuditLog'));
+
 // Supabase PWA (parallel to Laravel admin)
 const PwaLogin = lazy(() => import('./pwa/pages/PwaLogin'));
 const PwaLayout = lazy(() => import('./pwa/components/PwaLayout'));
@@ -163,6 +168,11 @@ function App() {
           <Route path="/admin/warranties" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
           <Route path="/admin/warranty-claims" element={<RoleRoute><WarrantyClaimPage /></RoleRoute>} />
           <Route path="/admin/issuance-scan" element={<RoleRoute><IssuanceScanPage /></RoleRoute>} />
+
+          {/* SA Permission Editor */}
+          <Route path="/admin/roles" element={<RoleRoute><RolePermissions /></RoleRoute>} />
+          <Route path="/admin/user-permissions" element={<RoleRoute><UserPermissionOverrides /></RoleRoute>} />
+          <Route path="/admin/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
         </Routes>
       </Suspense>
     </Router>
