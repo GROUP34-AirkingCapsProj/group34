@@ -23,7 +23,7 @@ const ACCENT_LIGHT = 'rgba(5,150,105,0.12)';
 
 const BranchManagerDashboard = () => {
   const navigate = useNavigate();
-  const { user: _user } = useAuth();
+  const { user: _user, can } = useAuth();
   const user = _user || {};
   const locationName = user?.location?.location_name || user?.branch?.branch_name || 'My Branch';
 
@@ -180,12 +180,12 @@ const BranchManagerDashboard = () => {
       {/* QUICK LINKS */}
       <div className="rd-quick-links">
         {[
-          { label: 'Approval Queue', path: '/admin/approval-queue', color: '#b91c1c' },
-          { label: 'Transfer Requests', path: '/admin/transfers', color: ACCENT },
-          { label: 'Issue Inventory', path: '/admin/issuances', color: '#2563eb' },
-          { label: 'Transactions', path: '/admin/transactions', color: '#d97706' },
+          { label: 'Approval Queue', path: '/admin/approval-queue', color: '#b91c1c', perm: ['purchase_order_creation', 'read'] },
+          { label: 'Transfer Requests', path: '/admin/transfers', color: ACCENT, perm: ['inventory_transfers', 'read'] },
+          { label: 'Issue Inventory', path: '/admin/issuances', color: '#2563eb', perm: ['inventory_issuance', 'create'] },
+          { label: 'Transactions', path: '/admin/transactions', color: '#d97706', perm: ['pos_sales_recording', 'read'] },
           { label: 'Branch Reports', path: '/admin/reports', color: '#6b7280' },
-        ].map(({ label, path, color }) => (
+        ].filter(card => !card.perm || can(card.perm[0], card.perm[1])).map(({ label, path, color }) => (
           <button key={label} className="rd-quick-link-btn" style={{ borderColor: color, color }} onClick={() => navigate(path)}>
             {label}
           </button>

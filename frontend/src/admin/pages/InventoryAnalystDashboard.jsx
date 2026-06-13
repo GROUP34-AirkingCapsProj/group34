@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import { useAuth } from '../context/AuthContext';
 import { batchAPI, inventoryAPI } from '../services/api';
 import '../styles/role_dashboards.css';
 
@@ -48,6 +49,7 @@ const chartDefaults = (accent) => ({
 
 const InventoryAnalystDashboard = () => {
   const navigate = useNavigate();
+  const { can } = useAuth();
   const [dashData, setDashData] = useState(null);
   const [invData, setInvData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -158,10 +160,10 @@ const InventoryAnalystDashboard = () => {
       <div className="rd-quick-links">
         {[
           { label: 'Restocking Recommendations', path: '/admin/po-recommendations', color: ACCENT },
-          { label: 'Issue Inventory', path: '/admin/issuances', color: '#059669' },
+          { label: 'Issue Inventory', path: '/admin/issuances', color: '#059669', perm: ['inventory_issuance', 'create'] },
           { label: 'Inventory Valuation', path: '/admin/profit-loss', color: '#d97706' },
-          { label: 'Audit Trail', path: '/admin/audit', color: '#6b7280' },
-        ].map(({ label, path, color }) => (
+          { label: 'Audit Trail', path: '/admin/audit', color: '#6b7280', perm: ['audit_trail_viewing', 'read'] },
+        ].filter(card => !card.perm || can(card.perm[0], card.perm[1])).map(({ label, path, color }) => (
           <button key={label} className="rd-quick-link-btn" style={{ borderColor: color, color }} onClick={() => navigate(path)}>
             {label}
           </button>

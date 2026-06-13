@@ -42,8 +42,14 @@ ChartJS.register(
 ───────────────────────────────────────────── */
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  // Admin sees every dashboard panel.
-  const visibleWidgets = ['po_summary', 'low_stock', 'ist_queue', 'sales_summary', 'receiving_summary'];
+  const { can } = useAuth();
+  const visibleWidgets = [
+    can('purchase_order_creation', 'read') && 'po_summary',
+    can('inventory_adjustments', 'read') && 'low_stock',
+    can('inventory_transfers', 'read') && 'ist_queue',
+    can('pos_sales_recording', 'read') && 'sales_summary',
+    can('delivery_receiving', 'read') && 'receiving_summary',
+  ].filter(Boolean);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
