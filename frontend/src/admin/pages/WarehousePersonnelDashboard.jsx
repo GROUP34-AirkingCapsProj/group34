@@ -10,7 +10,7 @@ const ACCENT_LIGHT = 'rgba(37,99,235,0.12)';
 
 const WarehousePersonnelDashboard = () => {
   const navigate = useNavigate();
-  const { user: _user } = useAuth();
+  const { user: _user, can } = useAuth();
   const user = _user || {};
   const locationName = user?.location?.location_name || user?.branch?.branch_name || 'My Warehouse';
 
@@ -62,6 +62,7 @@ const WarehousePersonnelDashboard = () => {
       icon: 'M3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM7 7h2v2H7zM15 7h2v2h-2zM11 3h2v4h-2zM3 11h4v2H3zM17 11h4v2h-4zM11 11h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2zM11 17h2v4h-2zM15 15h4v4h-4zM7 15h2v6H7z',
       color: ACCENT,
       bg: ACCENT_LIGHT,
+      perm: ['barcode_inventory_processing', 'create'],
     },
     {
       label: 'Receive Inventory',
@@ -70,6 +71,7 @@ const WarehousePersonnelDashboard = () => {
       icon: 'M5 12h14M12 5l7 7-7 7',
       color: '#059669',
       bg: 'rgba(5,150,105,0.12)',
+      perm: ['delivery_receiving', 'create'],
     },
     {
       label: 'Issue Inventory',
@@ -78,6 +80,7 @@ const WarehousePersonnelDashboard = () => {
       icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
       color: '#7c3aed',
       bg: 'rgba(124,58,237,0.12)',
+      perm: ['inventory_issuance', 'create'],
     },
     {
       label: 'Process Transfer',
@@ -86,6 +89,7 @@ const WarehousePersonnelDashboard = () => {
       icon: 'M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3',
       color: '#d97706',
       bg: 'rgba(217,119,6,0.12)',
+      perm: ['inventory_transfers', 'read'],
     },
     {
       label: 'Assigned Inventory',
@@ -95,7 +99,7 @@ const WarehousePersonnelDashboard = () => {
       color: '#64748b',
       bg: 'rgba(100,116,139,0.12)',
     },
-  ];
+  ].filter(card => !card.perm || can(card.perm[0], card.perm[1]));
 
   return (
     <AdminLayout>
