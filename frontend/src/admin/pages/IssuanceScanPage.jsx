@@ -333,13 +333,13 @@ function QuickAddModal({ onSave, onClose }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IssuanceScanPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations } = useUserLocation();
 
   const roleKey = getRoleKey(user || {});
   const isAdmin = roleKey === ROLES.ADMIN;
   // Inventory issuance: admin, branch manager, and warehouse personnel.
-  const canIssue = isAdmin || roleKey === ROLES.BRANCH_MANAGER || roleKey === ROLES.WAREHOUSE_PERSONNEL;
+  const canIssue = isAdmin || (typeof can === 'function' && can('inventory_issuance', 'create'));
 
   const [step, setStep]               = useState(STEPS.SETUP);
   const [form, setForm]               = useState({ ...EMPTY_FORM });

@@ -31,12 +31,12 @@ const MODULES = [
 const PER_PAGE = 15;
 
 const ArchiveManagement = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
   const isAdmin = roleKey === ROLES.ADMIN;
   // Restore and force-delete from the archive are admin-only.
-  const canRestore     = isAdmin;
-  const canForceDelete = isAdmin;
+  const canRestore     = isAdmin || (typeof can === 'function' && can('data_archiving', 'update'));
+  const canForceDelete = isAdmin || (typeof can === 'function' && can('data_archiving', 'archive'));
 
   const [summary, setSummary]         = useState({});
   const [activeModule, setActiveModule] = useState('products');

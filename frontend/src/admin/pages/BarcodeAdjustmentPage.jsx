@@ -409,14 +409,14 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
 
 /* ─── Main page ──────────────────────────────────────────────────────── */
 export default function BarcodeAdjustmentPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations, canChooseLocation } = useUserLocation();
   const navigate = useNavigate();
 
   const roleKey = getRoleKey(user);
   const isAdmin = roleKey === ROLES.ADMIN;
   // Inventory adjustments may be created by admin, branch manager, and warehouse personnel.
-  const canSubmitCorrection = isAdmin || roleKey === ROLES.BRANCH_MANAGER || roleKey === ROLES.WAREHOUSE_PERSONNEL;
+  const canSubmitCorrection = isAdmin || (typeof can === 'function' && can('inventory_adjustments', 'create'));
 
   // Reference data
   const [allPOs, setAllPOs]         = useState([]);

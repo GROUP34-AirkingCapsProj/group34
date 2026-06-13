@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-import { removeToken, authAPI } from '../services/api';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { removeToken, authAPI, permissionsAPI } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -13,6 +13,7 @@ const readStoredUser = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readStoredUser);
+  const [permissions, setPermissions] = useState(null);
 
   const updateUser = useCallback((userData) => {
     setUser(userData);
@@ -46,8 +47,30 @@ export const AuthProvider = ({ children }) => {
     }
   }, [updateUser]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const refreshPermissions = useCallback(() => {
+    if (!user?.user_id) return;
+    permissionsAPI.getMine()
+      .then((res) => setPermissions(res?.data ?? {}))
+      .catch(() => setPermissions({}));
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (!user?.user_id) {
+      setPermissions(null);
+      return;
+    }
+    refreshPermissions();
+  }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const can = useCallback(
+    (feature, action) =>
+      permissions != null && permissions[`${feature}.${action}`] === true,
+    [permissions],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, updateUser, refreshUser, clearSession }}>
+    <AuthContext.Provider value={{ user, updateUser, refreshUser, clearSession, permissions, can, refreshPermissions }}>
       {children}
     </AuthContext.Provider>
   );
