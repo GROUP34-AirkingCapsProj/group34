@@ -290,6 +290,7 @@
   padding: 0.3rem 0.5rem; border-radius: 7px; border: 1px solid var(--rc-line);
   background: var(--rc-card); cursor: pointer;
 }
+.rcx-tri.is-pending { border-color: #f3c98b; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14); }
 
 /* ---- filter bar --------------------------------------------------------- */
 .rcx-filters {
@@ -308,8 +309,11 @@
 }
 .rcx-access::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .rcx-access:hover { transform: translateY(-1px); filter: brightness(0.97); }
-.rcx-access.is-on  { background: #e7f8ef; color: #15803d; border-color: #bbe9cd; }
-.rcx-access.is-off { background: #fdecee; color: #b91c1c; border-color: #f6cdd2; }
+.rcx-access.is-on      { background: #e7f8ef; color: #15803d; border-color: #bbe9cd; }
+.rcx-access.is-off     { background: #fdecee; color: #b91c1c; border-color: #f6cdd2; }
+/* unsaved / pending change — amber, until Save is pressed */
+.rcx-access.is-pending { background: #fff7ed; color: #b45309; border-color: #f3c98b; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14); }
+.rcx-access.is-pending::before { animation: rcx-pop 1.4s ease-in-out infinite; }
 
 /* ============================ DATA TABLE (audit/bundles) =============== */
 .rcx-table { width: 100%; border-collapse: separate; border-spacing: 0; }
