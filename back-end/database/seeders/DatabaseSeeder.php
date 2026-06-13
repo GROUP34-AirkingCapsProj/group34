@@ -117,6 +117,7 @@ class DatabaseSeeder extends Seeder
         $this->call(CategoriesAndBrandsSeeder::class);
         $this->call(PermissionSeeder::class);
         $this->call(RolePermissionsSeeder::class);
+        $this->call(NavBundleSeeder::class);
     }
 }
 
