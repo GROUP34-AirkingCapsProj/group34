@@ -411,28 +411,32 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | Warranty Management
     |--------------------------------------------------------------------------
     */
-    Route::get('/warranties/export',             [WarrantyController::class, 'export']);
-    Route::get('/warranties/lookup/{serial}',    [WarrantyController::class, 'lookupBySerial']);
-    Route::get('/warranties',                    [WarrantyController::class, 'index']);
-    Route::get('/warranties/{id}',               [WarrantyController::class, 'show']);
-    Route::put('/warranties/{id}/claim',         [WarrantyController::class, 'markClaimed']);
+    Route::middleware('permission:warranty_records,read')->group(function () {
+        Route::get('/warranties/export',             [WarrantyController::class, 'export']);
+        Route::get('/warranties/lookup/{serial}',    [WarrantyController::class, 'lookupBySerial']);
+        Route::get('/warranties',                    [WarrantyController::class, 'index']);
+        Route::get('/warranties/{id}',               [WarrantyController::class, 'show']);
+    });
+    Route::middleware('permission:warranty_records,update')->put('/warranties/{id}/claim', [WarrantyController::class, 'markClaimed']);
 
     /*
     |--------------------------------------------------------------------------
     | Warranty Claims (repair / replacement)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:admin,branch_manager,warehouse_personnel')
-         ->prefix('warranty-claims')
-         ->group(function () {
-             Route::get('/',                    [\App\Http\Controllers\Api\WarrantyClaimController::class, 'index']);
-             Route::post('/init',               [\App\Http\Controllers\Api\WarrantyClaimController::class, 'init']);
-             Route::get('/{claimId}',           [\App\Http\Controllers\Api\WarrantyClaimController::class, 'show']);
-             Route::get('/{claimId}/slip',      [\App\Http\Controllers\Api\WarrantyClaimController::class, 'downloadSlip']);
-             Route::post('/{claimId}/item',     [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addItem']);
-             Route::delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
-             Route::post('/{claimId}/complete', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'complete']);
-         });
+    Route::prefix('warranty-claims')->group(function () {
+        Route::middleware('permission:warranty_claims,read')->group(function () {
+            Route::get('/',               [\App\Http\Controllers\Api\WarrantyClaimController::class, 'index']);
+            Route::get('/{claimId}',      [\App\Http\Controllers\Api\WarrantyClaimController::class, 'show']);
+            Route::get('/{claimId}/slip', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'downloadSlip']);
+        });
+        Route::middleware('permission:warranty_claims,create')->group(function () {
+            Route::post('/init',           [\App\Http\Controllers\Api\WarrantyClaimController::class, 'init']);
+            Route::post('/{claimId}/item', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addItem']);
+        });
+        Route::middleware('permission:warranty_claims,update')->delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
+        Route::middleware('permission:warranty_claims,approve')->post('/{claimId}/complete', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'complete']);
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -499,13 +503,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
 
     // Export and archive (before {id} wildcard)
-    Route::get('/purchase-requests/archived', [PurchaseRequestController::class, 'archived']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
+    Route::middleware('permission:purchase_request_creation,read')->group(function () {
+        Route::get('/purchase-requests/archived', [PurchaseRequestController::class, 'archived']);
         Route::get('/purchase-requests/export', [PurchaseRequestController::class, 'export']);
     });
 
-    // Any authenticated user can view a single PR
-    Route::get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
+    Route::middleware('permission:purchase_request_creation,read')->get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
 
     // PR approval — gated by the DB permission system (purchase_request_approval, approve).
     // Default grants SA only; admins can grant others via the Role Permissions editor / overrides.
@@ -515,14 +518,16 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::patch('/purchase-requests/{id}/reject', [PurchaseRequestController::class, 'reject']);
     });
 
-    // IA actions
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
+    // PR creation / listing / conversion
+    Route::middleware('permission:purchase_request_creation,read')->group(function () {
         Route::get('/purchase-requests', [PurchaseRequestController::class, 'index']);
-        Route::post('/purchase-requests', [PurchaseRequestController::class, 'store']);
         Route::get('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convert']);
+    });
+    Route::middleware('permission:purchase_request_creation,create')->group(function () {
+        Route::post('/purchase-requests', [PurchaseRequestController::class, 'store']);
         Route::post('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convertStore']);
     });
-    Route::middleware('role:admin')->group(function () {
+    Route::middleware('permission:purchase_request_creation,archive')->group(function () {
         Route::post('/purchase-requests/{id}/restore', [PurchaseRequestController::class, 'restore']);
         Route::delete('/purchase-requests/{id}/force', [PurchaseRequestController::class, 'forceDestroy']);
     });

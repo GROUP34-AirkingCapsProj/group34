@@ -4,6 +4,7 @@ export const NAV_BUNDLES = [
   { name: 'User Management',       routePath: '/admin/users',            required: ['user_account_management.read'] },
   { name: 'Location Management',   routePath: '/admin/branches',         required: ['location_based_inventory.read'] },
   { name: 'Archive Management',    routePath: '/admin/archive',          required: ['archive_viewing.read'] },
+  { name: 'Purchase Requests',     routePath: '/admin/purchase-requests',required: ['purchase_request_creation.read'] },
   { name: 'Purchase Orders',       routePath: '/admin/draft-po-creator', required: ['purchase_order_creation.read'] },
   { name: 'PO Receiving',          routePath: '/admin/receivings',       required: ['delivery_receiving.read'] },
   { name: 'Supplier Network',      routePath: '/admin/suppliers',        required: ['supplier_management.read'] },
@@ -14,6 +15,8 @@ export const NAV_BUNDLES = [
   { name: 'Transactions',          routePath: '/admin/transactions',     required: ['pos_sales_recording.read'] },
   { name: 'Scan Barcode',          routePath: '/admin/inventory-operation', required: ['barcode_inventory_processing.create'] },
   { name: 'Compliance Review',     routePath: '/admin/compliance',       required: ['exception_detection.read'] },
+  { name: 'Warranty Records',      routePath: '/admin/warranties',       required: ['warranty_records.read'] },
+  { name: 'Warranty Claims',       routePath: '/admin/warranty-claims',  required: ['warranty_claims.read'] },
   { name: 'Audit Trail',           routePath: '/admin/audit',            required: ['audit_trail_viewing.read'] },
 ];
 

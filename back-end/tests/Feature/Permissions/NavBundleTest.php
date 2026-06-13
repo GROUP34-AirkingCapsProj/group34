@@ -79,14 +79,14 @@ class NavBundleTest extends TestCase
     // (a) 15 active bundles exist
     // -----------------------------------------------------------------------
 
-    public function test_15_active_bundles_exist(): void
+    public function test_active_bundles_exist(): void
     {
         $count = NavPermissionBundle::where('is_active', true)->count();
 
         $this->assertEquals(
-            15,
+            18,
             $count,
-            "Expected 15 active nav bundles, found {$count}"
+            "Expected 18 active nav bundles, found {$count}"
         );
     }
 
@@ -115,7 +115,7 @@ class NavBundleTest extends TestCase
     // (c) GET /api/nav-bundles returns 200 with 15 bundles + permissions array
     // -----------------------------------------------------------------------
 
-    public function test_nav_bundles_endpoint_returns_200_with_15_bundles(): void
+    public function test_nav_bundles_endpoint_returns_200_with_all_bundles(): void
     {
         $admin = $this->makeAdmin();
 
@@ -129,9 +129,9 @@ class NavBundleTest extends TestCase
         $this->assertIsArray($data, 'Response data must be an array');
 
         $this->assertCount(
-            15,
+            18,
             $data,
-            'Expected 15 bundles in API response, got ' . count($data)
+            'Expected 18 bundles in API response, got ' . count($data)
         );
     }
 

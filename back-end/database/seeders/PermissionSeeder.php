@@ -76,6 +76,11 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
+            'purchase_request_creation' => [
+                'read'    => ['admin', 'inventory_analyst'],
+                'create'  => ['admin', 'inventory_analyst'],
+                'archive' => ['admin'],
+            ],
             'purchase_request_approval' => [
                 'approve' => ['admin'],
             ],
@@ -131,6 +136,18 @@ class PermissionSeeder extends Seeder
             'data_archiving' => [
                 'update'  => ['admin'],
                 'archive' => ['admin'],
+            ],
+            // Warranty records (currently open to all authenticated users — reproduced here).
+            'warranty_records' => [
+                'read'   => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                'update' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+            ],
+            // Warranty claim workflow (currently role:admin,branch_manager,warehouse_personnel).
+            'warranty_claims' => [
+                'read'    => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'approve' => ['admin', 'branch_manager', 'warehouse_personnel'],
             ],
         ];
     }

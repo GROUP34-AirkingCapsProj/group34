@@ -151,6 +151,10 @@ class RbacRouteMatrixTest extends TestCase
             'compliance logs'                   => ['GET',   '/api/compliance/logs',                 'branch_manager',      'inventory_analyst'],
             // Feature: audit_trail_viewing.read
             'audit-trail v2'                    => ['GET',   '/api/audit-trail/v2',                  'branch_manager',      'inventory_analyst'],
+            // Feature: purchase_request_creation.create
+            'purchase-requests store'           => ['POST',  '/api/purchase-requests',               'inventory_analyst',   'warehouse_personnel'],
+            // Feature: warranty_claims.create
+            'warranty-claims init'              => ['POST',  '/api/warranty-claims/init',            'branch_manager',      'inventory_analyst'],
         ];
     }
 

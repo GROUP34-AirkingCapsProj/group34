@@ -23,7 +23,8 @@ class NavBundleSeeder extends Seeder
             ['Location Management',  '/admin/branches',             'ADMINISTRATION',          'location',           'location_based_inventory','read'],
             ['Archive Management',   '/admin/archive',              'ADMINISTRATION',          'archive',            'archive_viewing',         'read'],
 
-            // PROCUREMENT & PLANNING (sort 0–4)
+            // PROCUREMENT & PLANNING
+            ['Purchase Requests',    '/admin/purchase-requests',    'PROCUREMENT & PLANNING',  'approval',           'purchase_request_creation','read'],
             ['Purchase Orders',      '/admin/draft-po-creator',     'PROCUREMENT & PLANNING',  'procurement',        'purchase_order_creation', 'read'],
             ['PO Receiving',         '/admin/receivings',           'PROCUREMENT & PLANNING',  'receiving',          'delivery_receiving',      'read'],
             ['Supplier Network',     '/admin/suppliers',            'PROCUREMENT & PLANNING',  'supplier',           'supplier_management',     'read'],
@@ -38,8 +39,10 @@ class NavBundleSeeder extends Seeder
             ['Transactions',         '/admin/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'pos_sales_recording',     'read'],
             ['Scan Barcode',         '/admin/inventory-operation',  'SALES & LOGISTICS',       'scan',               'barcode_inventory_processing', 'create'],
 
-            // COMPLIANCE & SUPPORT (sort 0–1)
+            // COMPLIANCE & SUPPORT
             ['Compliance Review',    '/admin/compliance',           'COMPLIANCE & SUPPORT',    'compliance',         'exception_detection',     'read'],
+            ['Warranty Records',     '/admin/warranties',           'COMPLIANCE & SUPPORT',    'warranty',           'warranty_records',        'read'],
+            ['Warranty Claims',      '/admin/warranty-claims',      'COMPLIANCE & SUPPORT',    'warranty',           'warranty_claims',         'read'],
             ['Audit Trail',          '/admin/audit',                'COMPLIANCE & SUPPORT',    'audit',              'audit_trail_viewing',     'read'],
         ];
     }
@@ -84,6 +87,6 @@ class NavBundleSeeder extends Seeder
             }
         });
 
-        $this->command->info('NavBundleSeeder: 15 bundles seeded.');
+        $this->command->info('NavBundleSeeder: 18 bundles seeded.');
     }
 }
