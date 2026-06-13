@@ -155,6 +155,24 @@ class RbacRouteMatrixTest extends TestCase
             'purchase-requests store'           => ['POST',  '/api/purchase-requests',               'inventory_analyst',   'warehouse_personnel'],
             // Feature: warranty_claims.create
             'warranty-claims init'              => ['POST',  '/api/warranty-claims/init',            'branch_manager',      'inventory_analyst'],
+            // Feature: role_assignment.create (admin-only)
+            'roles store'                       => ['POST',  '/api/roles',                           'admin',               'inventory_analyst'],
+            // Feature: brand_management.create
+            'brands store'                      => ['POST',  '/api/brands',                          'inventory_analyst',   'branch_manager'],
+            // Feature: uom_management.create
+            'units store'                       => ['POST',  '/api/units',                           'inventory_analyst',   'warehouse_personnel'],
+            // Feature: barcode_assignment.create
+            'serials store'                     => ['POST',  '/api/serials',                         'warehouse_personnel', 'inventory_analyst'],
+            // Feature: item_supplier_mapping.create
+            'supplier products map'             => ['POST',  '/api/suppliers/999999/products',       'branch_manager',      'warehouse_personnel'],
+            // Feature: delivery_receipt_generation.create
+            'delivery-receipts store'           => ['POST',  '/api/delivery-receipts',               'branch_manager',      'inventory_analyst'],
+            // Feature: location_based_inventory.create (admin-only)
+            'locations store'                   => ['POST',  '/api/locations',                       'admin',               'inventory_analyst'],
+            // Feature: archive_viewing.read
+            'archive summary'                   => ['GET',   '/api/archive/summary',                 'inventory_analyst',   'warehouse_personnel'],
+            // Feature: data_archiving.update (admin-only)
+            'archive restore'                   => ['POST',  '/api/archive/products/999999/restore', 'admin',               'branch_manager'],
         ];
     }
 
@@ -211,9 +229,21 @@ class RbacRouteMatrixTest extends TestCase
             ['POST',  '/api/adjustments'],
             ['POST',  '/api/inventory/scan-barcode'],
             ['POST',  '/api/users'],
-            ['PATCH', '/api/purchase-requests/999999/approve'],
-            ['PATCH', '/api/transfer-requests/999999/approve'],
+            ['POST',  '/api/purchase-requests'],
+            ['POST',  '/api/warranty-claims/init'],
+            ['POST',  '/api/roles'],
+            ['POST',  '/api/brands'],
+            ['POST',  '/api/units'],
+            ['POST',  '/api/serials'],
+            ['POST',  '/api/delivery-receipts'],
+            ['POST',  '/api/locations'],
         ];
+        // NOTE: id-targeted write endpoints (…/999999/approve, …/999999/restore,
+        // suppliers/999999/products) are intentionally excluded here — for the
+        // ALLOWED admin they pass the gate and reach the controller, which errors
+        // on the missing record and poisons this single shared DatabaseTransactions
+        // transaction for later iterations. They are covered (allowed + denied) by
+        // the isolated data-provider rows above, where each row is its own test.
 
         foreach ($writeEndpoints as [$method, $uri]) {
             $response = $this->actingAs($admin, 'sanctum')
