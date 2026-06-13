@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
-import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
-import { buildSidebar } from '../utils/sidebarBuilder';
+import { getRoleKey, ROLE_META, ROLES, canAccessRoute } from '../utils/roles';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
 import '../styles/dashboard_air.css';
@@ -11,7 +10,7 @@ import '../styles/dashboard_air.css';
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession, can, permissions, refreshPermissions } = useAuth();
+  const { user: _user, clearSession } = useAuth();
   const user = _user || {};
   const { locationName: userLocationName } = useUserLocation();
 
@@ -66,14 +65,6 @@ const AdminLayout = ({ children }) => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [mobileNavOpen]);
-
-// Re-sync effective permissions on every page navigation so mid-session revocations
-  // take effect on the next route change. One GET per navigation; no loop risk because
-  // refreshPermissions is a stable useCallback keyed on user_id.
-  useEffect(() => {
-    if (!_user?.user_id) return;
-    refreshPermissions();
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
 // Sync unread notification count from API
   useEffect(() => {
@@ -207,16 +198,21 @@ const AdminLayout = ({ children }) => {
   };
 
   const isAdmin = roleKey === ROLES.ADMIN;
-  // Permissions load asynchronously after login; until they arrive `permissions`
-  // is null. Without this guard the sidebar would briefly render only the
-  // non-gated items (a partial-menu flash) before filling in. Used to show a
-  // skeleton instead. Only true on initial load — re-syncs on navigation keep
-  // the previous permissions until the new fetch resolves.
-  const permissionsLoading = !!_user?.user_id && permissions == null;
 
+  // Role-based sidebar: keep items whose path the user's role can access
+  // (ROUTE_ACCESS via canAccessRoute), honouring the per-item adminOnly flag.
   const menuSections = useMemo(
-    () => buildSidebar(adminMenuSections, permissions || {}, isAdmin),
-    [permissions, isAdmin]
+    () =>
+      adminMenuSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => {
+            if (item.adminOnly && !isAdmin) return false;
+            return canAccessRoute(user, item.path);
+          }),
+        }))
+        .filter((section) => section.items.length > 0),
+    [user, isAdmin]
   );
 
   // Sync active highlight when navigating from outside the sidebar
@@ -283,7 +279,6 @@ const AdminLayout = ({ children }) => {
         onNavHover={handleNavHover}
         isItemActive={isItemActive}
         menuSections={menuSections}
-        navLoading={permissionsLoading}
         expandedSections={expandedSections}
         onToggleSection={toggleSection}
         navMenuRef={navMenuRef}

@@ -3,11 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../admin/components/AdminLayout';
 import { useAuth } from '../../admin/context/AuthContext';
 import { getRoleKey, ROLES } from '../../admin/utils/roles';
-import { pickDashboardWidgets } from './dashboardWidgets';
 import { batchAPI, dashboardAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
-
-// Re-export so callers can also `import { pickDashboardWidgets } from './Dashboard'`
-export { pickDashboardWidgets } from './dashboardWidgets';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -46,8 +42,8 @@ ChartJS.register(
 ───────────────────────────────────────────── */
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { permissions: authPermissions } = useAuth();
-  const visibleWidgets = pickDashboardWidgets(authPermissions || {});
+  // Admin sees every dashboard panel.
+  const visibleWidgets = ['po_summary', 'low_stock', 'ist_queue', 'sales_summary', 'receiving_summary'];
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(null);

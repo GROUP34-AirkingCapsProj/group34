@@ -4,14 +4,12 @@ import RoleRoute from './RoleRoute';
 
 jest.mock('../context/AuthContext', () => ({
   useAuth: () => ({
+    // warehouse_personnel is not in ROUTE_ACCESS['/admin/items'] → no access
     user: { user_id: 1, role: { role_name: 'warehouse_personnel', role_id: 4 } },
-    permissions: {},          // loaded but empty — no perms → no access to /admin/items
-    can: () => false,
-    refreshPermissions: jest.fn(),
   }),
 }));
 
-test('redirects to dashboard when required permission missing', () => {
+test('redirects to dashboard when the role cannot access the route', () => {
   render(
     <MemoryRouter initialEntries={['/admin/items']}>
       <Routes>

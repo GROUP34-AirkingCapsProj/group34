@@ -528,12 +528,12 @@ function pickPreferredCameraDeviceId(devices, savedId) {
 
 const BarcodeScan = () => {
   const navigate = useNavigate();
-  const { user: _user, refreshUser, can } = useAuth();
+  const { user: _user, refreshUser } = useAuth();
   const { locationId: enforcedLocationId, locationName: enforcedLocationName, locationType: enforcedLocationType, isStrictLocation, allowedLocations } = useUserLocation();
   const roleKey = useMemo(() => getRoleKey(_user || {}), [_user]);
   const isAdminRole = roleKey === ROLES.ADMIN;
-  // Admin always; anyone else granted the live barcode_inventory_processing/create permission.
-  const canScan = isAdminRole || (typeof can === 'function' && can('barcode_inventory_processing', 'create'));
+  // Barcode inventory processing: admin, branch manager, and warehouse personnel.
+  const canScan = isAdminRole || roleKey === ROLES.BRANCH_MANAGER || roleKey === ROLES.WAREHOUSE_PERSONNEL;
   /** Browsers block getUserMedia on plain http:// unless hostname is localhost. */
   const cameraBlockedPlainHttp = useMemo(() => {
     if (typeof window === 'undefined') return false;

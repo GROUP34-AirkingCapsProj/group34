@@ -43,12 +43,12 @@ const formatDateTime = (value) => {
 };
 
 const ApprovalQueue = ({ initialTab } = {}) => {
-  const { user, can } = useAuth();
+  const { user } = useAuth();
   const canActOnQueue = useMemo(() => canActOnApprovalQueue(user), [user]);
   const isAdmin = getRoleKey(user) === ROLES.ADMIN;
   // PO approve/reject in the queue goes through a PO update on the backend.
-  // Admin always; anyone else granted the live purchase_order_creation/update permission.
-  const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
+  // Admin & branch manager act on the approval queue.
+  const canApprovePO = canActOnQueue;
   const location = useLocation();
 const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'purchase-orders';
