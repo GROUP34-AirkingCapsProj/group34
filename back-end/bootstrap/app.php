@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'location.scope' => \App\Http\Middleware\EnsureAssignedLocationAccess::class,
             'extend.sanctum.session' => \App\Http\Middleware\ExtendSanctumTokenExpiration::class,
             'auth.query.token'       => \App\Http\Middleware\AuthenticateFromQueryToken::class,
+            'permission'             => \App\Http\Middleware\CheckPermission::class,
         ]);
 
         // Run authorization (role/auditor) BEFORE route-model binding, so a
@@ -30,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $substitute = \Illuminate\Routing\Middleware\SubstituteBindings::class;
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\AuditorReadOnly::class);
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\CheckRole::class);
+        $middleware->prependToPriorityList($substitute, \App\Http\Middleware\CheckPermission::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Always return JSON for API routes (fixes "Response was not JSON" on 404/500)
