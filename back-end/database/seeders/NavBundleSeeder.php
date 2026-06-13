@@ -100,10 +100,8 @@ class NavBundleSeeder extends Seeder
                 'required' => ['inventory_issuance.read'], 'actions' => ['inventory_issuance.create']],
 
             // SALES & LOGISTICS
-            '/admin/transactions' => ['name' => 'POS Operations', 'section' => 'SALES & LOGISTICS', 'icon' => 'transactions',
+            '/admin/transactions' => ['name' => 'Transactions', 'section' => 'SALES & LOGISTICS', 'icon' => 'globaltransactions',
                 'required' => ['pos_sales_recording.read'], 'actions' => ['pos_sales_recording.create', 'barcode_scanning_sales.create', 'sales_validation.create']],
-            '/admin/purchase-orders' => ['name' => 'Purchase Orders', 'section' => 'SALES & LOGISTICS', 'icon' => 'purchaseorders',
-                'required' => ['po_status_tracking.read'], 'actions' => ['purchase_order_approval.approve']],
             '/admin/customers' => ['name' => 'Customer Registry', 'section' => 'SALES & LOGISTICS', 'icon' => 'customers',
                 'required' => ['customer_info_capture.read'], 'actions' => ['customer_info_capture.create', 'customer_info_capture.update']],
             '/admin/inventory-operation' => ['name' => 'Scan Barcode', 'section' => 'SALES & LOGISTICS', 'icon' => 'scan',

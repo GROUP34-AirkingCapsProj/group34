@@ -51,10 +51,8 @@ export const NAV_BUNDLES = [
   { name: 'Issuances', routePath: '/admin/issuances', section: 'INVENTORY INTELLIGENCE', icon: 'issuance-scan',
     required: ['inventory_issuance.read'], actions: ['inventory_issuance.create'] },
   // SALES & LOGISTICS
-  { name: 'POS Operations', routePath: '/admin/transactions', section: 'SALES & LOGISTICS', icon: 'transactions',
+  { name: 'Transactions', routePath: '/admin/transactions', section: 'SALES & LOGISTICS', icon: 'globaltransactions',
     required: ['pos_sales_recording.read'], actions: ['pos_sales_recording.create', 'barcode_scanning_sales.create', 'sales_validation.create'] },
-  { name: 'Purchase Orders', routePath: '/admin/purchase-orders', section: 'SALES & LOGISTICS', icon: 'purchaseorders',
-    required: ['po_status_tracking.read'], actions: ['purchase_order_approval.approve'] },
   { name: 'Customer Registry', routePath: '/admin/customers', section: 'SALES & LOGISTICS', icon: 'customers',
     required: ['customer_info_capture.read'], actions: ['customer_info_capture.create', 'customer_info_capture.update'] },
   { name: 'Scan Barcode', routePath: '/admin/inventory-operation', section: 'SALES & LOGISTICS', icon: 'scan',
