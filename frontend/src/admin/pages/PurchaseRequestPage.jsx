@@ -113,13 +113,13 @@ const newLine = () => ({
 const PurchaseRequestPage = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user, can }  = useAuth();
+  const { user }  = useAuth();
   const roleKey   = getRoleKey(user);
   const isAdmin   = roleKey === ROLES.ADMIN;
   const isIA      = roleKey === ROLES.INVENTORY_ANALYST;
   const canCreate = isAdmin || isIA;  // both roles can submit PRs and convert to PO
-  // Admin always; anyone else who's been granted the purchase_request_approval permission.
-  const canApprovePR = isAdmin || (typeof can === 'function' && can('purchase_request_approval', 'approve'));
+  // Purchase request approval is admin-only.
+  const canApprovePR = isAdmin;
 
   const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');
   const [activeTab, setActiveTab] = useState(initialTab);

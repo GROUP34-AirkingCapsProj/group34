@@ -71,9 +71,6 @@ export const ROUTE_ACCESS = {
 
   // Admin/security
   '/admin/users': [ROLES.ADMIN],
-  '/admin/roles': [ROLES.ADMIN],
-  '/admin/user-permissions': [ROLES.ADMIN],
-  '/admin/permission-audit': [ROLES.ADMIN],
   '/admin/config': [ROLES.ADMIN],
   '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/archive-settings': [ROLES.ADMIN],
@@ -137,30 +134,6 @@ export const canAccessRoute = (user, path) => {
   const allowed = ROUTE_ACCESS[path];
   if (!allowed) return role === ROLES.ADMIN;
   return allowed.includes(role);
-};
-
-/**
- * Routes that can ALSO be unlocked by a live DB permission (feature, action),
- * on top of the static ROUTE_ACCESS role lists above. Used by RoleRoute so an
- * admin-granted permission takes effect without editing the role lists.
- * (Demo slice: barcode scan / Inventory Operation.)
- */
-export const ROUTE_PERMISSION = {
-  // Demo slice + Phase-2 widening: a granted permission unlocks the page even if
-  // the static ROUTE_ACCESS role list omits the user's role. Maps admin route path
-  // -> [feature, action]. Read-action gates page visibility; create/approve where the
-  // page's primary purpose is that action.
-  '/admin/inventory-operation': ['barcode_inventory_processing', 'create'],
-  '/admin/scan': ['barcode_inventory_processing', 'create'],
-  '/admin/items': ['item_master_management', 'read'],
-  '/admin/suppliers': ['supplier_management', 'read'],
-  '/admin/receivings': ['delivery_receiving', 'read'],
-  '/admin/issuance-scan': ['inventory_issuance', 'create'],
-  '/admin/transfers': ['inventory_transfers', 'read'],
-  '/admin/adjustments': ['inventory_adjustments', 'read'],
-  '/admin/transactions': ['pos_sales_recording', 'read'],
-  '/admin/draft-po-creator': ['purchase_order_creation', 'read'],
-  '/admin/purchase-requests': ['purchase_request_approval', 'approve'],
 };
 
 /** Approve / reject in Approval Queue (PO + restock local queue). Admin & branch manager only. */

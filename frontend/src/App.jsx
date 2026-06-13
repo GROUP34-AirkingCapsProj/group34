@@ -14,7 +14,6 @@ const Dashboard = lazy(() => import('./admin/pages/Dashboard'));
 // System Setup
 const UserManagement = lazy(() => import('./admin/pages/UserManagement'));
 const LocationManagement = lazy(() => import('./admin/pages/LocationManagement'));
-const RolePermissions = lazy(() => import('./admin/pages/RolePermissions'));
 const CategoryBrandManagement = lazy(() => import('./admin/pages/CategoryBrandManagement'));
 
 // Procurement
@@ -63,8 +62,6 @@ const AlertsNotices = lazy(() => import('./admin/pages/AlertsNotices'));
 const WarrantyManagement = lazy(() => import('./admin/pages/WarrantyManagement'));
 const WarrantyClaimPage = lazy(() => import('./admin/pages/WarrantyClaimPage'));
 const IssuanceScanPage  = lazy(() => import('./admin/pages/IssuanceScanPage'));
-const UserPermissionOverrides = lazy(() => import('./admin/pages/UserPermissionOverrides'));
-const PermissionAuditLog = lazy(() => import('./admin/pages/PermissionAuditLog'));
 
 // Supabase PWA (parallel to Laravel admin)
 const PwaLogin = lazy(() => import('./pwa/pages/PwaLogin'));
@@ -111,9 +108,6 @@ function App() {
           <Route path="/admin/locations" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/branches" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/warehouses" element={<RoleRoute><LocationManagement /></RoleRoute>} />
-          <Route path="/admin/roles" element={<RoleRoute><RolePermissions /></RoleRoute>} />
-          <Route path="/admin/user-permissions" element={<RoleRoute><UserPermissionOverrides /></RoleRoute>} />
-          <Route path="/admin/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
           <Route path="/admin/categories" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
           <Route path="/admin/brands" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
 

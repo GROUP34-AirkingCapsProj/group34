@@ -94,10 +94,11 @@ const poLineLabel = (item) => {
 
 const PurchaseOrderPage = () => {
   const navigate = useNavigate();
-  const { user: authUser, can } = useAuth();
-  const isAdmin = getRoleKey(authUser) === ROLES.ADMIN;
-  // Admin always; anyone else granted the live purchase_order_creation/create permission.
-  const canCreatePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'create'));
+  const { user: authUser } = useAuth();
+  const roleKey = getRoleKey(authUser);
+  const isAdmin = roleKey === ROLES.ADMIN;
+  // Purchase order creation: admin and inventory analyst.
+  const canCreatePO = isAdmin || roleKey === ROLES.INVENTORY_ANALYST;
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');

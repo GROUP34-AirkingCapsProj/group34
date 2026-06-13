@@ -48,8 +48,6 @@ use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\IssuanceScanController;
 use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveSettingsController;
-use App\Http\Controllers\Api\PermissionController;
-use App\Http\Controllers\Api\NavBundleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -121,43 +119,22 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     // Specific paths declared before the {user} wildcard.
-    Route::middleware('permission:user_account_management,read')->group(function () {
+    Route::middleware('role:admin,auditor')->group(function () {
         Route::get('/users/archived', [UserController::class, 'archived']);
         Route::get('/users/by-location/{locationId}', [UserController::class, 'byLocation']);
         Route::get('/users', [UserController::class, 'index']);
         Route::get('/users/{user}', [UserController::class, 'show']);
     });
-    Route::middleware('permission:user_account_management,create')->post('/users', [UserController::class, 'store']);
-    Route::middleware('permission:user_account_management,update')->group(function () {
+    Route::middleware('role:admin')->post('/users', [UserController::class, 'store']);
+    Route::middleware('role:admin')->group(function () {
         Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
         Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
         Route::put('/users/{user}/status', [UserController::class, 'updateStatus']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
     });
-    Route::middleware('permission:user_account_management,archive')->group(function () {
+    Route::middleware('role:admin')->group(function () {
         Route::delete('/users/{user}', [UserController::class, 'destroy']);
         Route::delete('/users/{id}/force', [UserController::class, 'forceDestroy']);
-    });
-
-    // Current user's own effective permissions — used by the frontend to gate
-    // menus/routes by live permission. Any authenticated user (GET).
-    Route::get('/me/permissions', [PermissionController::class, 'mine']);
-
-    // Navigation bundle catalog — any authenticated user (GET).
-    Route::get('/nav-bundles', [NavBundleController::class, 'index']);
-
-    /*
-    |--------------------------------------------------------------------------
-    | PERMISSION MANAGEMENT (ADMIN ONLY)
-    |--------------------------------------------------------------------------
-    */
-    Route::middleware('role:admin')->group(function () {
-        Route::get('/permissions', [PermissionController::class, 'index']);
-        Route::get('/role-permissions', [PermissionController::class, 'roleDefaults']);
-        Route::put('/role-permissions', [PermissionController::class, 'updateRoleDefaults']);
-        Route::get('/users/{userId}/permissions', [PermissionController::class, 'userPermissions']);
-        Route::put('/users/{userId}/permissions', [PermissionController::class, 'updateUserPermissions']);
-        Route::get('/permission-audit-logs', [PermissionController::class, 'auditLogs']);
     });
 
     /*
@@ -167,9 +144,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/roles', [RoleController::class, 'index']);
     Route::get('/roles/{id}', [RoleController::class, 'show']);
-    Route::middleware('permission:role_assignment,create')->post('/roles', [RoleController::class, 'store']);
-    Route::middleware('permission:role_assignment,update')->put('/roles/{id}', [RoleController::class, 'update']);
-    Route::middleware('permission:role_assignment,archive')->delete('/roles/{id}', [RoleController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/roles', [RoleController::class, 'store']);
+    Route::middleware('role:admin')->put('/roles/{id}', [RoleController::class, 'update']);
+    Route::middleware('role:admin')->delete('/roles/{id}', [RoleController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -204,11 +181,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::prefix('archive')->group(function () {
-        Route::middleware('permission:archive_viewing,read')->get('/summary',                    [ArchiveController::class, 'summary']);
-        Route::middleware('permission:archive_viewing,read')->get('/{module}',                   [ArchiveController::class, 'index']);
-        Route::middleware('permission:data_archiving,update')->post('/{module}/{id}/restore',     [ArchiveController::class, 'restore']);
-        Route::middleware('permission:data_archiving,archive')->delete('/{module}/{id}/force',   [ArchiveController::class, 'forceDestroy']);
-        Route::middleware('permission:data_archiving,update')->post('/{module}/restore-all',    [ArchiveController::class, 'restoreAll']);
+        Route::middleware('role:admin,inventory_analyst,branch_manager,auditor')->get('/summary',                    [ArchiveController::class, 'summary']);
+        Route::middleware('role:admin,inventory_analyst,branch_manager,auditor')->get('/{module}',                   [ArchiveController::class, 'index']);
+        Route::middleware('role:admin')->post('/{module}/{id}/restore',     [ArchiveController::class, 'restore']);
+        Route::middleware('role:admin')->delete('/{module}/{id}/force',   [ArchiveController::class, 'forceDestroy']);
+        Route::middleware('role:admin')->post('/{module}/restore-all',    [ArchiveController::class, 'restoreAll']);
     });
 
     /*
@@ -237,11 +214,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/categories/archived', [CategoryLookupController::class, 'archived']);
     Route::get('/categories', [CategoryLookupController::class, 'index']);
     Route::get('/categories/{category}', [CategoryLookupController::class, 'show']);
-    Route::middleware('permission:category_management,create')->post('/categories', [CategoryLookupController::class, 'store']);
-    Route::middleware('permission:category_management,update')->put('/categories/{category}', [CategoryLookupController::class, 'update']);
-    Route::middleware('permission:category_management,archive')->delete('/categories/{category}', [CategoryLookupController::class, 'destroy']);
-    Route::middleware('permission:category_management,archive')->post('/categories/{category}/restore', [CategoryLookupController::class, 'restore']);
-    Route::middleware('permission:category_management,archive')->delete('/categories/{category}/force', [CategoryLookupController::class, 'forceDestroy']);
+    Route::middleware('role:admin,inventory_analyst')->post('/categories', [CategoryLookupController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->put('/categories/{category}', [CategoryLookupController::class, 'update']);
+    Route::middleware('role:admin')->delete('/categories/{category}', [CategoryLookupController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/categories/{category}/restore', [CategoryLookupController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/categories/{category}/force', [CategoryLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -266,11 +243,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/brands/archived', [BrandLookupController::class, 'archived']);
     Route::get('/brands', [BrandLookupController::class, 'index']);
     Route::get('/brands/{brand}', [BrandLookupController::class, 'show']);
-    Route::middleware('permission:brand_management,create')->post('/brands', [BrandLookupController::class, 'store']);
-    Route::middleware('permission:brand_management,update')->put('/brands/{brand}', [BrandLookupController::class, 'update']);
-    Route::middleware('permission:brand_management,archive')->delete('/brands/{brand}', [BrandLookupController::class, 'destroy']);
-    Route::middleware('permission:brand_management,archive')->post('/brands/{brand}/restore', [BrandLookupController::class, 'restore']);
-    Route::middleware('permission:brand_management,archive')->delete('/brands/{brand}/force', [BrandLookupController::class, 'forceDestroy']);
+    Route::middleware('role:admin,inventory_analyst')->post('/brands', [BrandLookupController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->put('/brands/{brand}', [BrandLookupController::class, 'update']);
+    Route::middleware('role:admin')->delete('/brands/{brand}', [BrandLookupController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/brands/{brand}/restore', [BrandLookupController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/brands/{brand}/force', [BrandLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -298,11 +275,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/units/archived', [UnitLookupController::class, 'archived']);
     Route::get('/units', [UnitLookupController::class, 'index']);
     Route::get('/units/{id}', [UnitLookupController::class, 'show']);
-    Route::middleware('permission:uom_management,create')->post('/units', [UnitLookupController::class, 'store']);
-    Route::middleware('permission:uom_management,update')->put('/units/{id}', [UnitLookupController::class, 'update']);
-    Route::middleware('permission:uom_management,archive')->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
-    Route::middleware('permission:uom_management,archive')->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
-    Route::middleware('permission:uom_management,archive')->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
+    Route::middleware('role:admin,inventory_analyst')->post('/units', [UnitLookupController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->put('/units/{id}', [UnitLookupController::class, 'update']);
+    Route::middleware('role:admin')->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -312,11 +289,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/locations/archived', [LocationController::class, 'archived']);
     Route::get('/locations', [LocationController::class, 'index']);
     Route::get('/locations/{location}', [LocationController::class, 'show']);
-    Route::middleware('permission:location_based_inventory,create')->post('/locations', [LocationController::class, 'store']);
-    Route::middleware('permission:location_based_inventory,update')->put('/locations/{location}', [LocationController::class, 'update']);
-    Route::middleware('permission:location_based_inventory,archive')->delete('/locations/{location}', [LocationController::class, 'destroy']);
-    Route::middleware('permission:location_based_inventory,archive')->post('/locations/{id}/restore', [LocationController::class, 'restore']);
-    Route::middleware('permission:location_based_inventory,archive')->delete('/locations/{id}/force', [LocationController::class, 'forceDestroy']);
+    Route::middleware('role:admin')->post('/locations', [LocationController::class, 'store']);
+    Route::middleware('role:admin')->put('/locations/{location}', [LocationController::class, 'update']);
+    Route::middleware('role:admin')->delete('/locations/{location}', [LocationController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/locations/{id}/restore', [LocationController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/locations/{id}/force', [LocationController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -345,26 +322,26 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::put('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'updateIssuableUnit']);
     Route::delete('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'destroyIssuableUnit']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
-    Route::middleware('permission:item_master_management,create')->post('/products', [ProductController::class, 'store']);
-    Route::middleware('permission:item_master_management,create')->post('/products/{id}/issuable-units', [ProductController::class, 'storeIssuableUnit']);
-    Route::middleware('permission:item_master_management,update')->put('/products/{product}', [ProductController::class, 'update']);
-    Route::middleware('permission:item_master_management,archive')->delete('/products/{product}', [ProductController::class, 'destroy']);
-    Route::middleware('permission:item_master_management,archive')->post('/products/{id}/restore', [ProductController::class, 'restore']);
-    Route::middleware('permission:item_master_management,archive')->delete('/products/{id}/force', [ProductController::class, 'forceDestroy']);
+    Route::middleware('role:admin,inventory_analyst')->post('/products', [ProductController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->post('/products/{id}/issuable-units', [ProductController::class, 'storeIssuableUnit']);
+    Route::middleware('role:admin,inventory_analyst')->put('/products/{product}', [ProductController::class, 'update']);
+    Route::middleware('role:admin')->delete('/products/{product}', [ProductController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/products/{id}/restore', [ProductController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/products/{id}/force', [ProductController::class, 'forceDestroy']);
 
     // Legacy alias: /items → products
     Route::get('/items', [ProductController::class, 'index']);
     Route::get('/items/{product}', [ProductController::class, 'show']);
-    Route::middleware('permission:item_master_management,create')->post('/items', [ProductController::class, 'store']);
-    Route::middleware('permission:item_master_management,update')->put('/items/{product}', [ProductController::class, 'update']);
-    Route::middleware('permission:item_master_management,archive')->delete('/items/{product}', [ProductController::class, 'destroy']);
+    Route::middleware('role:admin,inventory_analyst')->post('/items', [ProductController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->put('/items/{product}', [ProductController::class, 'update']);
+    Route::middleware('role:admin')->delete('/items/{product}', [ProductController::class, 'destroy']);
 
     Route::get('/consumable-supply/catalog', [PendingProductController::class, 'catalog']);
     Route::get('/supply-types', [PendingProductController::class, 'supplyTypesIndex']);
-    Route::middleware('permission:item_master_management,create')->post('/pending-products', [PendingProductController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->post('/pending-products', [PendingProductController::class, 'store']);
     // List: procurement/audit visibility; approve: same as create submitters who run Item Master workflow
-    Route::middleware('permission:item_master_management,read')->get('/pending-products', [PendingProductController::class, 'index']);
-    Route::middleware('permission:item_master_management,approve')->post('/pending-products/{pendingProduct}/approve', [PendingProductController::class, 'approve']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager,auditor')->get('/pending-products', [PendingProductController::class, 'index']);
+    Route::middleware('role:admin,inventory_analyst')->post('/pending-products/{pendingProduct}/approve', [PendingProductController::class, 'approve']);
 
     /*
     |--------------------------------------------------------------------------
@@ -374,9 +351,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/serials', [SerialController::class, 'index']);
     Route::get('/serials/{serial}', [SerialController::class, 'show']);
     Route::post('/serials/scan', [SerialController::class, 'scan']);
-    Route::middleware('permission:barcode_assignment,create')->post('/serials', [SerialController::class, 'store']);
-    Route::middleware('permission:barcode_assignment,update')->put('/serials/{serial}', [SerialController::class, 'update']);
-    Route::middleware('permission:barcode_assignment,archive')->delete('/serials/{serial}', [SerialController::class, 'destroy']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->post('/serials', [SerialController::class, 'store']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->put('/serials/{serial}', [SerialController::class, 'update']);
+    Route::middleware('role:admin')->delete('/serials/{serial}', [SerialController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -387,14 +364,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::get('/suppliers/{id}', [SupplierController::class, 'show']);
     Route::get('/suppliers/{id}/products', [SupplierController::class, 'products']);
-    Route::middleware('permission:supplier_management,create')->post('/suppliers', [SupplierController::class, 'store']);
-    Route::middleware('permission:supplier_management,update')->put('/suppliers/{id}', [SupplierController::class, 'update']);
-    Route::middleware('permission:item_supplier_mapping,create')->post('/suppliers/{id}/products', [SupplierController::class, 'addProduct']);
-    Route::middleware('permission:item_supplier_mapping,update')->put('/suppliers/{id}/products/{supplierProdId}', [SupplierController::class, 'updateProduct']);
-    Route::middleware('permission:item_supplier_mapping,update')->delete('/suppliers/{id}/products/{productId}', [SupplierController::class, 'removeProduct']);
-    Route::middleware('permission:supplier_management,archive')->delete('/suppliers/{id}', [SupplierController::class, 'destroy']);
-    Route::middleware('permission:supplier_management,archive')->post('/suppliers/{id}/restore', [SupplierController::class, 'restore']);
-    Route::middleware('permission:supplier_management,archive')->delete('/suppliers/{id}/force', [SupplierController::class, 'forceDestroy']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager')->post('/suppliers', [SupplierController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager')->put('/suppliers/{id}', [SupplierController::class, 'update']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager')->post('/suppliers/{id}/products', [SupplierController::class, 'addProduct']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager')->put('/suppliers/{id}/products/{supplierProdId}', [SupplierController::class, 'updateProduct']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager')->delete('/suppliers/{id}/products/{productId}', [SupplierController::class, 'removeProduct']);
+    Route::middleware('role:admin')->delete('/suppliers/{id}', [SupplierController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/suppliers/{id}/restore', [SupplierController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/suppliers/{id}/force', [SupplierController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -446,7 +423,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | Issuance Scan (barcode-driven issuance flow)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('permission:inventory_issuance,create')
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')
          ->prefix('issuance-scan')
          ->group(function () {
              Route::post('/init',
@@ -469,14 +446,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/purchase-orders/archived', [PurchaseOrderController::class, 'archived']);
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     // Specific routes before {id} wildcard
-    Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
-    Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager,auditor')->get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
+    Route::middleware('role:admin,inventory_analyst,branch_manager,auditor')->get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
     Route::get('/purchase-orders/{id}', [PurchaseOrderController::class, 'show']);
-    Route::middleware('permission:purchase_order_creation,create')->post('/purchase-orders', [PurchaseOrderController::class, 'store']);
-    Route::middleware('permission:purchase_order_creation,update')->put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
-    Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
-    Route::middleware('permission:purchase_order_creation,archive')->post('/purchase-orders/{id}/restore', [PurchaseOrderController::class, 'restore']);
-    Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}/force', [PurchaseOrderController::class, 'forceDestroy']);
+    Route::middleware('role:admin,inventory_analyst')->post('/purchase-orders', [PurchaseOrderController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
+    Route::middleware('role:admin')->delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/purchase-orders/{id}/restore', [PurchaseOrderController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/purchase-orders/{id}/force', [PurchaseOrderController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -516,7 +493,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     // PR approval — gated by the DB permission system (purchase_request_approval, approve).
     // Default grants SA only; admins can grant others via the Role Permissions editor / overrides.
-    Route::middleware('permission:purchase_request_approval,approve')->group(function () {
+    Route::middleware('role:admin')->group(function () {
         Route::get('/purchase-requests/pending/list', [PurchaseRequestController::class, 'pending']);
         Route::patch('/purchase-requests/{id}/approve', [PurchaseRequestController::class, 'approve']);
         Route::patch('/purchase-requests/{id}/reject', [PurchaseRequestController::class, 'reject']);
@@ -542,9 +519,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/receivings', [ReceivingController::class, 'index']);
     Route::get('/receivings/po-scan-status/{poId}', [ReceivingController::class, 'poScanStatus']);
     Route::get('/receivings/{id}', [ReceivingController::class, 'show']);
-    Route::middleware('permission:delivery_receiving,create')->post('/receivings', [ReceivingController::class, 'store']);
-    Route::middleware('permission:delivery_receiving,update')->put('/receivings/{id}', [ReceivingController::class, 'update']);
-    Route::middleware('permission:delivery_receiving,archive')->delete('/receivings/{id}', [ReceivingController::class, 'destroy']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->post('/receivings', [ReceivingController::class, 'store']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->put('/receivings/{id}', [ReceivingController::class, 'update']);
+    Route::middleware('role:admin')->delete('/receivings/{id}', [ReceivingController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -568,9 +545,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/sales', [SaleController::class, 'index']);
     Route::get('/sales/{id}', [SaleController::class, 'show']);
-    Route::middleware('permission:pos_sales_recording,create')->post('/sales', [SaleController::class, 'store']);
-    Route::middleware('permission:pos_sales_recording,update')->put('/sales/{id}', [SaleController::class, 'update']);
-    Route::middleware('permission:pos_sales_recording,archive')->delete('/sales/{id}', [SaleController::class, 'destroy']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->post('/sales', [SaleController::class, 'store']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->put('/sales/{id}', [SaleController::class, 'update']);
+    Route::middleware('role:admin')->delete('/sales/{id}', [SaleController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -579,9 +556,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/delivery-receipts', [DeliveryReceiptController::class, 'index']);
     Route::get('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'show']);
-    Route::middleware('permission:delivery_receipt_generation,create')->post('/delivery-receipts', [DeliveryReceiptController::class, 'store']);
-    Route::middleware('permission:delivery_receipt_generation,update')->put('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'update']);
-    Route::middleware('permission:delivery_receipt_generation,archive')->delete('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'destroy']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->post('/delivery-receipts', [DeliveryReceiptController::class, 'store']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->put('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'update']);
+    Route::middleware('role:admin')->delete('/delivery-receipts/{id}', [DeliveryReceiptController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -591,11 +568,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/issuances/archived', [IssuanceController::class, 'archived']);
     Route::get('/issuances', [IssuanceController::class, 'index']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
-    Route::middleware('permission:inventory_issuance,create')->post('/issuances', [IssuanceController::class, 'store']);
-    Route::middleware('permission:inventory_issuance,update')->put('/issuances/{id}', [IssuanceController::class, 'update']);
-    Route::middleware('permission:inventory_issuance,archive')->delete('/issuances/{id}', [IssuanceController::class, 'destroy']);
-    Route::middleware('permission:inventory_issuance,archive')->post('/issuances/{id}/restore', [IssuanceController::class, 'restore']);
-    Route::middleware('permission:inventory_issuance,archive')->delete('/issuances/{id}/force', [IssuanceController::class, 'forceDestroy']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->post('/issuances', [IssuanceController::class, 'store']);
+    Route::middleware('role:admin,warehouse_personnel')->put('/issuances/{id}', [IssuanceController::class, 'update']);
+    Route::middleware('role:admin')->delete('/issuances/{id}', [IssuanceController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/issuances/{id}/restore', [IssuanceController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/issuances/{id}/force', [IssuanceController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -610,13 +587,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // NOTE: /ist/{id}/receipt/pdf is a browser-download route — defined below with
     // auth.query.token so the <a href> link can authenticate via ?token=.
     Route::get('/ist/{id}', [ISTController::class, 'show']);
-    Route::middleware('permission:inventory_transfers,create')->group(function () {
+    Route::middleware('role:admin,inventory_analyst,branch_manager,warehouse_personnel')->group(function () {
         Route::post('/ist', [ISTController::class, 'store']);
         Route::post('/ist/{transferId}/scan', [ISTController::class, 'scan']);
         Route::delete('/ist/{transferId}/scan/{scanId}', [ISTController::class, 'removeScan']);
         Route::post('/ist/{transferId}/confirm-dispatch', [ISTController::class, 'confirmDispatch']);
     });
-    Route::middleware('permission:inventory_transfers,update')->group(function () {
+    Route::middleware('role:admin,inventory_analyst,branch_manager,warehouse_personnel')->group(function () {
         Route::post('/ist/{id}/receive', [ISTController::class, 'receiveStore']);
         Route::post('/ist/{transferId}/receive-scan', [ISTController::class, 'receiveScan']);
         Route::delete('/ist/{transferId}/receive-scan/{scanId}', [ISTController::class, 'removeReceiveScan']);
@@ -629,8 +606,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/transfer-requests', [TransferRequestController::class, 'index']);
     Route::get('/transfer-requests/{id}', [TransferRequestController::class, 'show']);
-    Route::middleware('permission:inventory_transfers,create')->post('/transfer-requests', [TransferRequestController::class, 'store']);
-    Route::middleware('permission:inventory_transfers,approve')->group(function () {
+    Route::middleware('role:admin,inventory_analyst,branch_manager,warehouse_personnel')->post('/transfer-requests', [TransferRequestController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->group(function () {
         Route::patch('/transfer-requests/{id}/approve', [TransferRequestController::class, 'approve']);
         Route::patch('/transfer-requests/{id}/reject', [TransferRequestController::class, 'reject']);
     });
@@ -662,7 +639,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/adjustments', [AdjustmentController::class, 'index']);
 
     // Barcode Adjustment Module — specific routes BEFORE the {id} wildcard
-    Route::middleware('permission:inventory_adjustments,read')->group(function () {
+    Route::middleware('role:admin,inventory_analyst,branch_manager,warehouse_personnel,auditor')->group(function () {
         Route::get('/adjustments/receiving-history/{po_id}',
             [BarcodeAdjustmentController::class, 'getReceivingHistory']);
         Route::get('/adjustments/lookup-barcode',
@@ -672,7 +649,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::get('/adjustments/corrections/{correction_id}',
             [BarcodeAdjustmentController::class, 'getScanCorrectionDetail']);
     });
-    Route::middleware('permission:inventory_adjustments,create')->group(function () {
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->group(function () {
         Route::post('/adjustments/preview',
             [BarcodeAdjustmentController::class, 'previewCorrection']);
         Route::post('/adjustments/submit',
@@ -680,18 +657,18 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
 
     Route::get('/adjustments/{id}', [AdjustmentController::class, 'show']);
-    Route::middleware('permission:inventory_adjustments,create')->post('/adjustments', [AdjustmentController::class, 'store']);
-    Route::middleware('permission:inventory_adjustments,update')->put('/adjustments/{id}', [AdjustmentController::class, 'update']);
-    Route::middleware('permission:inventory_adjustments,archive')->delete('/adjustments/{id}', [AdjustmentController::class, 'destroy']);
-    Route::middleware('permission:inventory_adjustments,archive')->post('/adjustments/{id}/restore', [AdjustmentController::class, 'restore']);
-    Route::middleware('permission:inventory_adjustments,archive')->delete('/adjustments/{id}/force', [AdjustmentController::class, 'forceDestroy']);
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->post('/adjustments', [AdjustmentController::class, 'store']);
+    Route::middleware('role:admin,warehouse_personnel')->put('/adjustments/{id}', [AdjustmentController::class, 'update']);
+    Route::middleware('role:admin')->delete('/adjustments/{id}', [AdjustmentController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/adjustments/{id}/restore', [AdjustmentController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/adjustments/{id}/force', [AdjustmentController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
     | COMPLIANCE REVIEW
     |--------------------------------------------------------------------------
     */
-    Route::middleware('permission:exception_detection,read')->group(function () {
+    Route::middleware('role:admin,branch_manager,auditor')->group(function () {
         Route::get('/compliance/logs',
             [BarcodeAdjustmentController::class, 'getComplianceLogs']);
     });
@@ -716,7 +693,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: AUDIT_LOG (audit_log)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('permission:audit_trail_viewing,read')->group(function () {
+    Route::middleware('role:admin,branch_manager,auditor')->group(function () {
         Route::get('/audit-log', function (Illuminate\Http\Request $request) {
             $query = \App\Models\AuditLog::with('user')->orderBy('created_at', 'desc');
             if ($request->has('user_id')) {
@@ -746,7 +723,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | AUDIT TRAIL v2 (structured, filterable, with labels)
     |--------------------------------------------------------------------------
     */
-    Route::middleware('permission:audit_trail_viewing,read')->group(function () {
+    Route::middleware('role:admin,branch_manager,auditor')->group(function () {
         Route::get('/audit-trail/v2', [AuditTrailController::class, 'index']);
         Route::get('/audit-trail/v2/filter-options', [AuditTrailController::class, 'filterOptions']);
         Route::get('/audit-trail/v2/{audit_id}', [AuditTrailController::class, 'show']);
@@ -760,7 +737,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/activity-log', [ActivityLogController::class, 'index']);
     Route::get('/activity-log/{id}', [ActivityLogController::class, 'show']);
     Route::post('/activity-log', [ActivityLogController::class, 'store']);
-    Route::middleware('permission:audit_trail_viewing,archive')->delete('/activity-log/{id}', [ActivityLogController::class, 'destroy']);
+    Route::middleware('role:admin')->delete('/activity-log/{id}', [ActivityLogController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -782,7 +759,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | or a per-user override, and it takes effect here with no code change.
     |--------------------------------------------------------------------------
     */
-    Route::middleware('permission:barcode_inventory_processing,create')->group(function () {
+    Route::middleware('role:admin,branch_manager,warehouse_personnel')->group(function () {
         Route::post('/inventory/scan-barcode', [InventoryController::class, 'scanBarcode']);
         Route::post('/inventory/scan-transaction', [InventoryScanTransactionController::class, 'store']);
         Route::post('/barcode/scan', [BarcodeScanController::class, 'scanLookup']);
@@ -866,9 +843,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 | Download endpoints — token passed as ?token= query param (browser download)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,read'])
+Route::middleware(['auth.query.token', 'role:admin,branch_manager,warehouse_personnel,auditor'])
      ->get('/issuance-scan/delivery-receipt/{issuance_id}/csv',
          [IssuanceScanController::class, 'downloadDeliveryReceipt']);
 
-Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
+Route::middleware(['auth.query.token', 'role:admin,inventory_analyst,branch_manager,warehouse_personnel,auditor'])
      ->get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
