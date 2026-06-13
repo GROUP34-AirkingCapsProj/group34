@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
-import { getRoleKey, ROLE_META, ROLES, canAccessRoute } from '../utils/roles';
+import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
+import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
 import '../styles/dashboard_air.css';
@@ -10,7 +11,7 @@ import '../styles/dashboard_air.css';
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession } = useAuth();
+  const { user: _user, clearSession, permissions, refreshPermissions } = useAuth();
   const user = _user || {};
   const { locationName: userLocationName } = useUserLocation();
 
@@ -197,22 +198,12 @@ const AdminLayout = ({ children }) => {
     navigate('/admin/alerts');
   };
 
-  const isAdmin = roleKey === ROLES.ADMIN;
-
-  // Role-based sidebar: keep items whose path the user's role can access
-  // (ROUTE_ACCESS via canAccessRoute), honouring the per-item adminOnly flag.
+  // Permission-driven sidebar: keep items whose nav bundle is granted,
+  // falling back to role check for unbundled pages, honouring adminOnly.
+  const permissionsLoading = !!_user?.user_id && permissions == null;
   const menuSections = useMemo(
-    () =>
-      adminMenuSections
-        .map((section) => ({
-          ...section,
-          items: section.items.filter((item) => {
-            if (item.adminOnly && !isAdmin) return false;
-            return canAccessRoute(user, item.path);
-          }),
-        }))
-        .filter((section) => section.items.length > 0),
-    [user, isAdmin]
+    () => buildSidebar(adminMenuSections, permissions || {}, user),
+    [permissions, user]
   );
 
   // Sync active highlight when navigating from outside the sidebar
@@ -257,6 +248,12 @@ const AdminLayout = ({ children }) => {
     if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [activeItemName]);
 
+  // Re-sync permissions on navigation so mid-session grants/revokes apply
+  useEffect(() => {
+    if (!_user?.user_id) return;
+    refreshPermissions();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div
       className={`admin-shell${mobileNavOpen ? ' admin-shell--mobile-nav-open' : ''}`}
@@ -288,6 +285,7 @@ const AdminLayout = ({ children }) => {
         onLogout={handleLogout}
         pendingApprovalCount={pendingApprovalCount}
         awaitingIstCount={awaitingIstCount}
+        navLoading={permissionsLoading}
       />
 
       {/* Main Content */}

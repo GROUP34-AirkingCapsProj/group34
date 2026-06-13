@@ -390,6 +390,29 @@ const renderIcon = (iconType) => {
   }
 };
 
+const NavSkeleton = () => {
+  const groups = [
+    { items: 5, widths: [70, 58, 64, 50, 66] },
+    { items: 4, widths: [60, 72, 54, 62] },
+    { items: 3, widths: [56, 68, 60] },
+  ];
+  return (
+    <div className="nav-skeleton" aria-hidden="true">
+      {groups.map((g, gi) => (
+        <div key={gi} className="nav-skel-section">
+          <span className="nav-skel-label" style={{ width: 84 }} />
+          {Array.from({ length: g.items }).map((_, i) => (
+            <div key={i} className="nav-skel-item">
+              <span className="nav-skel-icon" />
+              <span className="nav-skel-text" style={{ width: `${g.widths[i]}%` }} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const Sidebar = ({
   mobileNavOpen,
   closeMobileNav,
@@ -407,6 +430,7 @@ const Sidebar = ({
   onLogout,
   pendingApprovalCount = 0,
   awaitingIstCount = 0,
+  navLoading = false,
 }) => {
   const locationLabel = user?.location?.location_name || user?.branch?.branch_name || null;
   const showLocationChip =
@@ -463,7 +487,9 @@ const Sidebar = ({
 
       {/* Navigation Menu */}
       <nav className="nav-menu" ref={navMenuRef}>
-        {menuSections.map((section, si) => {
+        {navLoading ? (
+          <NavSkeleton />
+        ) : menuSections.map((section, si) => {
           const isExpanded = expandedSections.has(section.label);
           return (
             <div
