@@ -3,29 +3,18 @@ import AdminLayout from '../components/AdminLayout';
 import { permissionsAPI, usersAPI, navBundlesAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { ACTIONS, ACTION_META, groupByFeatureGroup } from '../utils/permissions';
-import '../styles/dashboard_air.css';
+import '../styles/rbac_console.css';
 
 const ADMIN_ROLE_ID = 1;
 
 // Tri-state: 'grant' | 'deny' | 'inherit'
-const TRISTATE_LABELS = {
-  grant:   { label: 'Grant',   color: '#059669' },
-  deny:    { label: 'Deny',    color: '#dc2626' },
-  inherit: { label: 'Inherit', color: 'var(--text-muted)' },
-};
-
 const TriStateSelect = ({ value, onChange, baselineGranted }) => (
   <select
+    className="rcx-tri"
     value={value}
     onChange={(e) => onChange(e.target.value)}
     style={{
-      fontSize: '0.78rem',
-      padding: '2px 4px',
-      borderRadius: 4,
-      border: '1px solid var(--border-color, #e2e8f0)',
-      color: TRISTATE_LABELS[value]?.color || 'inherit',
-      background: 'var(--bg-card, #fff)',
-      cursor: 'pointer',
+      color: value === 'grant' ? 'var(--rc-green)' : value === 'deny' ? 'var(--rc-crimson)' : 'var(--rc-ink-soft)',
     }}
     title={`Role default: ${baselineGranted ? 'Granted' : 'Denied'}`}
   >
@@ -107,16 +96,6 @@ const UserPermissionOverrides = () => {
     setReason(''); // don't carry a previous user's reason into a new override save
     setError(null);
     if (id) loadUserPerms(id);
-  };
-
-  // Effective value from API (true/false) — the baseline for displaying "Inherit"
-  const effectiveKey = (feature, action) => `${feature}.${action}`;
-  const effectiveGranted = (permId) => {
-    if (!userPerms?.effective) return false;
-    // Find feature.action key for this permId
-    const p = catalog.find((c) => c.permission_id === Number(permId));
-    if (!p) return false;
-    return !!userPerms.effective[`${p.feature}.${p.action}`];
   };
 
   // Current explicit override from API
@@ -212,32 +191,28 @@ const UserPermissionOverrides = () => {
 
   return (
     <AdminLayout>
-      <div className="cb-page">
-        <div className="cb-page-header">
-          <div>
-            <h1>User Permission Overrides</h1>
-            <p>Grant or deny individual permissions for a specific user, overriding their role defaults.</p>
+      <div className="rbac-console">
+        <header className="rcx-header">
+          <div className="rcx-header-row">
+            <div>
+              <p className="rcx-eyebrow">Access Control · User Overrides</p>
+              <h1 className="rcx-title">User Permission Overrides</h1>
+              <p className="rcx-sub">
+                Grant or deny individual permissions for a specific user, overriding their role
+                defaults. Every change is logged with a reason.
+              </p>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* User picker */}
-        <div className="cb-section" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <label style={{ fontWeight: 600, minWidth: 80 }}>Select user:</label>
+        <div className="rcx-panel" style={{ marginBottom: '1.25rem' }}>
+          <div className="rcx-picker">
+            <span className="rcx-label">Select user</span>
             {usersLoading ? (
-              <span style={{ color: 'var(--text-muted)' }}>Loading users…</span>
+              <span className="rcx-muted">Loading users…</span>
             ) : (
-              <select
-                value={selectedUserId}
-                onChange={handleUserSelect}
-                style={{
-                  padding: '0.4rem 0.75rem',
-                  borderRadius: 6,
-                  border: '1px solid var(--border-color, #e2e8f0)',
-                  minWidth: 240,
-                  background: 'var(--bg-card, #fff)',
-                }}
-              >
+              <select className="rcx-select" value={selectedUserId} onChange={handleUserSelect} style={{ minWidth: 260 }}>
                 <option value="">— Choose a user —</option>
                 {users
                   .filter((u) => {
@@ -256,7 +231,7 @@ const UserPermissionOverrides = () => {
             )}
           </div>
           {isAdminUser && (
-            <div className="cb-error" style={{ marginTop: '0.75rem' }}>
+            <div className="rcx-state rcx-state--error" style={{ marginTop: '0.85rem', padding: '0.75rem 1rem', textAlign: 'left' }}>
               Admin users cannot have permission overrides.
             </div>
           )}
@@ -264,32 +239,21 @@ const UserPermissionOverrides = () => {
 
         {selectedUserId && !isAdminUser && (
           <>
-            {loading && <div className="cb-loading">Loading permissions…</div>}
-            {error   && <div className="cb-error">Error: {error}</div>}
+            {loading && <div className="rcx-state">Loading permissions<span className="rcx-loading-dots" /></div>}
+            {error   && <div className="rcx-state rcx-state--error">Error: {error}</div>}
 
             {!loading && !error && userPerms && (
-              <>
+              <div className="rcx-panel">
                 {/* Tabs */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '2px solid var(--border-color, #e2e8f0)' }}>
+                <div className="rcx-tabs">
                   {['simple', 'advanced'].map((t) => (
                     <button
                       key={t}
                       type="button"
+                      className={`rcx-tab${tab === t ? ' is-active' : ''}`}
                       onClick={() => setTab(t)}
-                      style={{
-                        padding: '0.5rem 1.25rem',
-                        border: 'none',
-                        background: 'none',
-                        cursor: 'pointer',
-                        fontWeight: tab === t ? 700 : 400,
-                        borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent',
-                        marginBottom: -2,
-                        color: tab === t ? '#2563eb' : 'var(--text-muted)',
-                        fontSize: '0.92rem',
-                        textTransform: 'capitalize',
-                      }}
                     >
-                      {t === 'simple' ? 'Navigation Access' : 'Advanced (Full Matrix)'}
+                      {t === 'simple' ? 'Navigation Access' : 'Advanced · Full Matrix'}
                     </button>
                   ))}
                 </div>
@@ -298,9 +262,9 @@ const UserPermissionOverrides = () => {
                 {tab === 'simple' && (
                   <div>
                     {bundles.length === 0 && (
-                      <p style={{ color: 'var(--text-muted)' }}>No navigation bundles found.</p>
+                      <p className="rcx-muted">No navigation bundles found.</p>
                     )}
-                    <table className="cb-table">
+                    <table className="rcx-table">
                       <thead>
                         <tr>
                           <th>Navigation Bundle</th>
@@ -314,27 +278,14 @@ const UserPermissionOverrides = () => {
                           const on = bundleEffective(bundle);
                           return (
                             <tr key={bundle.bundle_id}>
-                              <td style={{ fontWeight: 500 }}>{bundle.name}</td>
-                              <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                                {bundle.sidebar_section || '—'}
-                              </td>
-                              <td style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                {bundle.route_path || '—'}
-                              </td>
+                              <td style={{ fontWeight: 600 }}>{bundle.name}</td>
+                              <td className="rcx-mono rcx-muted" style={{ fontSize: '0.74rem' }}>{bundle.sidebar_section || '—'}</td>
+                              <td className="rcx-mono rcx-muted">{bundle.route_path || '—'}</td>
                               <td style={{ textAlign: 'center' }}>
                                 <button
                                   type="button"
+                                  className={`rcx-access ${on ? 'is-on' : 'is-off'}`}
                                   onClick={() => toggleBundle(bundle, !on)}
-                                  style={{
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: 4,
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    fontWeight: 600,
-                                    fontSize: '0.8rem',
-                                    background: on ? '#dcfce7' : '#fee2e2',
-                                    color: on ? '#15803d' : '#b91c1c',
-                                  }}
                                 >
                                   {on ? 'Granted' : 'Denied'}
                                 </button>
@@ -349,32 +300,19 @@ const UserPermissionOverrides = () => {
 
                 {/* Advanced tab: full matrix */}
                 {tab === 'advanced' && (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="cb-table" style={{ minWidth: 480 }}>
+                  <div className="rcx-matrix-wrap" style={{ boxShadow: 'none', border: '1px solid var(--rc-line)' }}>
+                    <table className="rcx-matrix" style={{ minWidth: 480 }}>
                       <thead>
                         <tr>
-                          <th style={{ minWidth: 220 }}>Feature / Action</th>
-                          <th style={{ textAlign: 'center', minWidth: 160 }}>Override</th>
+                          <th>Feature / Action</th>
+                          <th className="rcx-rolehead" style={{ minWidth: 180 }}>Override</th>
                         </tr>
                       </thead>
                       <tbody>
                         {groups.map((group) => (
                           <React.Fragment key={group.label}>
-                            <tr>
-                              <td
-                                colSpan={2}
-                                style={{
-                                  background: 'var(--bg-surface, #f8fafc)',
-                                  fontWeight: 700,
-                                  fontSize: '0.78rem',
-                                  letterSpacing: '0.04em',
-                                  color: 'var(--text-muted)',
-                                  padding: '0.55rem 0.75rem',
-                                  textTransform: 'uppercase',
-                                }}
-                              >
-                                {group.label}
-                              </td>
+                            <tr className="rcx-group">
+                              <td colSpan={2}>{group.label}</td>
                             </tr>
                             {group.features.map((feat) =>
                               ACTIONS.filter((a) => feat.actions[a] != null).map((action) => {
@@ -382,23 +320,12 @@ const UserPermissionOverrides = () => {
                                 const state  = stateFor(permId);
                                 const base   = roleDefault(permId);
                                 return (
-                                  <tr key={`${feat.feature}.${action}`}>
-                                    <td>
-                                      <span style={{ fontWeight: 500 }}>{feat.title}</span>
-                                      <span
-                                        style={{
-                                          marginLeft: '0.5rem',
-                                          fontSize: '0.75rem',
-                                          color: 'var(--text-muted)',
-                                          background: 'var(--bg-surface, #f1f5f9)',
-                                          borderRadius: 4,
-                                          padding: '1px 6px',
-                                        }}
-                                      >
-                                        {ACTION_META[action]?.label || action}
-                                      </span>
+                                  <tr className="rcx-row" key={`${feat.feature}.${action}`}>
+                                    <td className="rcx-feat">
+                                      <span className="rcx-feat-name">{feat.title}</span>
+                                      <span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span>
                                     </td>
-                                    <td style={{ textAlign: 'center' }}>
+                                    <td className="rcx-cell">
                                       <TriStateSelect
                                         value={state}
                                         onChange={(v) => setPermState(permId, v)}
@@ -417,49 +344,33 @@ const UserPermissionOverrides = () => {
                 )}
 
                 {/* Reason + Save */}
-                <div
-                  style={{
-                    marginTop: '1.5rem',
-                    padding: '1rem',
-                    background: 'var(--bg-surface, #f8fafc)',
-                    borderRadius: 8,
-                    border: '1px solid var(--border-color, #e2e8f0)',
-                  }}
-                >
+                <div className="rcx-reason">
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                      Reason for changes <span style={{ color: '#dc2626' }}>*</span>
+                    <label className="rcx-label" style={{ display: 'block', marginBottom: 6 }}>
+                      Reason for changes <span className="rcx-reason-req">*</span>
                     </label>
                     <input
+                      className="rcx-input"
                       type="text"
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
                       placeholder="Describe why you are changing these permissions…"
-                      style={{
-                        width: '100%',
-                        padding: '0.45rem 0.75rem',
-                        borderRadius: 6,
-                        border: '1px solid var(--border-color, #e2e8f0)',
-                        background: 'var(--bg-card, #fff)',
-                        fontSize: '0.9rem',
-                        boxSizing: 'border-box',
-                      }}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div className="rcx-reason-row">
                     <button
                       type="button"
-                      className="cb-btn-primary"
+                      className="rcx-btn rcx-btn--primary"
                       onClick={handleSave}
                       disabled={saving || pendingCount === 0}
-                      style={{ minWidth: 130 }}
                     >
-                      {saving ? 'Saving…' : `Save${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+                      {saving ? 'Saving…' : `Save${pendingCount > 0 ? ` · ${pendingCount}` : ''}`}
                     </button>
                     {pendingCount > 0 && (
                       <button
                         type="button"
-                        className="cb-btn-secondary"
+                        className="rcx-btn rcx-btn--ghost"
                         onClick={() => setPending({})}
                         disabled={saving}
                       >
@@ -467,28 +378,17 @@ const UserPermissionOverrides = () => {
                       </button>
                     )}
                     {pendingCount === 0 && (
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                        No pending changes.
-                      </span>
+                      <span className="rcx-muted" style={{ fontSize: '0.82rem' }}>No pending changes.</span>
                     )}
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </>
         )}
 
         {!selectedUserId && !usersLoading && (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '3rem',
-              color: 'var(--text-muted)',
-              background: 'var(--bg-surface, #f8fafc)',
-              borderRadius: 8,
-              border: '1px dashed var(--border-color, #e2e8f0)',
-            }}
-          >
+          <div className="rcx-state">
             Select a user above to view and edit their permission overrides.
           </div>
         )}

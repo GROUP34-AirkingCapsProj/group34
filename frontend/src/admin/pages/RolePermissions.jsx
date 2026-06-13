@@ -3,9 +3,15 @@ import AdminLayout from '../components/AdminLayout';
 import { permissionsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { ROLE_COLUMNS, ACTIONS, ACTION_META, groupByFeatureGroup } from '../utils/permissions';
-import '../styles/dashboard_air.css';
+import '../styles/rbac_console.css';
 
 const ADMIN_ROLE_ID = 1;
+
+const CheckGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
 
 const RolePermissions = () => {
   const [catalog, setCatalog]   = useState([]);
@@ -105,142 +111,112 @@ const RolePermissions = () => {
 
   return (
     <AdminLayout>
-      <div className="cb-page">
-        <div className="cb-page-header">
-          <div>
-            <h1>Role &amp; Permissions</h1>
-            <p>Configure default permission grants per role. The System Administrator column is always full-access and cannot be changed.</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {pendingCount > 0 && (
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {pendingCount} unsaved change{pendingCount !== 1 ? 's' : ''}
-              </span>
-            )}
-            <button
-              type="button"
-              className="cb-btn-primary"
-              onClick={handleSave}
-              disabled={!hasPendingChanges || saving}
-              style={{ minWidth: 130 }}
-            >
-              {saving ? 'Saving…' : 'Save Changes'}
-            </button>
-          </div>
-        </div>
-
-        {loading && <div className="cb-loading">Loading permission matrix…</div>}
-        {error   && <div className="cb-error">Error: {error}</div>}
-
-        {!loading && !error && (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="cb-table" style={{ minWidth: 760 }}>
-              <thead>
-                <tr>
-                  <th style={{ minWidth: 200 }}>Feature / Action</th>
-                  {ROLE_COLUMNS.map((r) => (
-                    <th key={r.id} style={{ textAlign: 'center', color: r.accent, minWidth: 70 }}>
-                      <span title={r.name}>{r.label}</span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((group) => (
-                  <React.Fragment key={group.label}>
-                    {/* Group header row */}
-                    <tr>
-                      <td
-                        colSpan={ROLE_COLUMNS.length + 1}
-                        style={{
-                          background: 'var(--bg-surface, #f8fafc)',
-                          fontWeight: 700,
-                          fontSize: '0.78rem',
-                          letterSpacing: '0.04em',
-                          color: 'var(--text-muted)',
-                          padding: '0.55rem 0.75rem',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {group.label}
-                      </td>
-                    </tr>
-
-                    {group.features.map((feat) =>
-                      ACTIONS.filter((a) => feat.actions[a] != null).map((action) => {
-                        const permId = feat.actions[action];
-                        return (
-                          <tr key={`${feat.feature}.${action}`}>
-                            <td>
-                              <span style={{ fontWeight: 500 }}>{feat.title}</span>
-                              <span
-                                style={{
-                                  marginLeft: '0.5rem',
-                                  fontSize: '0.75rem',
-                                  color: 'var(--text-muted)',
-                                  background: 'var(--bg-surface, #f1f5f9)',
-                                  borderRadius: 4,
-                                  padding: '1px 6px',
-                                }}
-                              >
-                                {ACTION_META[action]?.label || action}
-                              </span>
-                            </td>
-                            {ROLE_COLUMNS.map((r) => {
-                              const checked = isGranted(r.id, permId);
-                              const isAdmin = r.id === ADMIN_ROLE_ID;
-                              const isDirty =
-                                !isAdmin &&
-                                pending[r.id] &&
-                                permId in pending[r.id];
-                              return (
-                                <td key={r.id} style={{ textAlign: 'center' }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={isAdmin}
-                                    onChange={() => toggle(r.id, permId)}
-                                    style={{
-                                      accentColor: isDirty ? '#f59e0b' : r.accent,
-                                      width: 16,
-                                      height: 16,
-                                      cursor: isAdmin ? 'not-allowed' : 'pointer',
-                                    }}
-                                    title={isAdmin ? 'Admin always has full access' : `${r.name}: ${ACTION_META[action]?.desc || action}`}
-                                  />
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })
-                    )}
-                  </React.Fragment>
+      <div className="rbac-console">
+        {/* ── command header ── */}
+        <header className="rcx-header">
+          <div className="rcx-header-row">
+            <div>
+              <p className="rcx-eyebrow">Access Control · Role Matrix</p>
+              <h1 className="rcx-title">Role&nbsp;&amp;&nbsp;Permissions</h1>
+              <p className="rcx-sub">
+                Configure default permission grants per role. The System Administrator column is
+                always full-access and is locked.
+              </p>
+            </div>
+            <div className="rcx-header-aside">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                {pendingCount > 0 && (
+                  <span className="rcx-pill">
+                    {pendingCount} unsaved
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="rcx-btn rcx-btn--primary"
+                  onClick={handleSave}
+                  disabled={!hasPendingChanges || saving}
+                >
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+              <div className="rcx-legend">
+                {ROLE_COLUMNS.map((r) => (
+                  <span key={r.id} className="rcx-legend-chip">
+                    <span className="rcx-legend-code" style={{ '--rc-chip': r.accent, background: r.accent }}>{r.label}</span>
+                    {r.name}
+                  </span>
                 ))}
-              </tbody>
-            </table>
-
-            {/* Legend */}
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {ROLE_COLUMNS.map((r) => (
-                <span key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span
-                    style={{
-                      width: 10, height: 10,
-                      borderRadius: '50%',
-                      background: r.accent,
-                      display: 'inline-block',
-                    }}
-                  />
-                  {r.label} — {r.name}
-                </span>
-              ))}
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
-                Unsaved change
-              </span>
+              </div>
             </div>
           </div>
+        </header>
+
+        {loading && <div className="rcx-state">Loading permission matrix<span className="rcx-loading-dots" /></div>}
+        {error   && <div className="rcx-state rcx-state--error">Error: {error}</div>}
+
+        {!loading && !error && (
+          <>
+            <div className="rcx-matrix-wrap">
+              <table className="rcx-matrix">
+                <thead>
+                  <tr>
+                    <th>Feature / Action</th>
+                    {ROLE_COLUMNS.map((r) => (
+                      <th key={r.id} className="rcx-rolehead">
+                        <span className="rcx-rolecode" style={{ '--rc-chip': r.accent, background: r.accent }}>{r.label}</span>
+                        <span className="rcx-rolename" title={r.name}>{r.name}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map((group) => (
+                    <React.Fragment key={group.label}>
+                      <tr className="rcx-group">
+                        <td colSpan={ROLE_COLUMNS.length + 1}>{group.label}</td>
+                      </tr>
+
+                      {group.features.map((feat) =>
+                        ACTIONS.filter((a) => feat.actions[a] != null).map((action) => {
+                          const permId = feat.actions[action];
+                          return (
+                            <tr className="rcx-row" key={`${feat.feature}.${action}`}>
+                              <td className="rcx-feat">
+                                <span className="rcx-feat-name">{feat.title}</span>
+                                <span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span>
+                              </td>
+                              {ROLE_COLUMNS.map((r) => {
+                                const checked = isGranted(r.id, permId);
+                                const isAdmin = r.id === ADMIN_ROLE_ID;
+                                const isDirty = !isAdmin && pending[r.id] && permId in pending[r.id];
+                                return (
+                                  <td key={r.id} className={`rcx-cell${isAdmin ? ' rcx-cell--admin' : ''}`}>
+                                    <button
+                                      type="button"
+                                      className={`rcx-toggle${checked ? ' is-on' : ''}${isAdmin ? ' is-locked' : ''}${isDirty ? ' is-dirty' : ''}`}
+                                      style={{ '--rc-chip': r.accent }}
+                                      disabled={isAdmin}
+                                      aria-pressed={checked}
+                                      onClick={() => toggle(r.id, permId)}
+                                      title={isAdmin
+                                        ? 'System Administrator always has full access'
+                                        : `${r.name}: ${ACTION_META[action]?.desc || action}`}
+                                    >
+                                      {(checked || isAdmin) && <CheckGlyph />}
+                                    </button>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </AdminLayout>
