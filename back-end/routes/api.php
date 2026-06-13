@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\IssuanceScanController;
 use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveSettingsController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\NavBundleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -140,6 +141,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     // Current user's own effective permissions (any authenticated user)
     Route::get('/me/permissions', [PermissionController::class, 'mine']);
+    Route::get('/nav-bundles', [NavBundleController::class, 'index']);
 
     /* PERMISSION MANAGEMENT (ADMIN ONLY) */
     Route::middleware('role:admin')->group(function () {
