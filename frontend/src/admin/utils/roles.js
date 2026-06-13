@@ -121,6 +121,11 @@ export const ROUTE_ACCESS = {
   // Warranties
   '/admin/warranties': Object.values(ROLES),
 
+  // SA Permission Editor
+  '/admin/roles': [ROLES.ADMIN],
+  '/admin/user-permissions': [ROLES.ADMIN],
+  '/admin/permission-audit': [ROLES.ADMIN],
+
   // Legacy pages
   '/admin/branches': [ROLES.ADMIN],
   '/admin/warehouses': [ROLES.ADMIN],
