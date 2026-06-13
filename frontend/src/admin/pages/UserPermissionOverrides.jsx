@@ -4,6 +4,7 @@ import { permissionsAPI, batchAPI, navBundlesAPI } from '../services/api';
 import { groupByFeatureGroup, ACTIONS, ACTION_META } from '../utils/permissions';
 import { toast } from '../utils/toast';
 import PermissionGuide from '../components/PermissionGuide';
+import { renderIcon } from '../components/Sidebar';
 import '../styles/permission_admin.css';
 
 /* ─── Navigation Access helpers ─────────────────────────────────────── */
@@ -25,32 +26,20 @@ function bundleState(bundle, effective) {
   return 'partial';
 }
 
-/** Simple icon renderer — uses a Unicode fallback mapped to known icon slugs. */
-const ICON_MAP = {
-  items: '📦',
-  inventory: '🗄️',
-  users: '👤',
-  roles: '🔒',
-  dashboard: '📊',
-  reports: '📋',
-  sales: '🛒',
-  purchase: '🏪',
-  transfer: '🔄',
-  receiving: '📥',
-  issuance: '📤',
-  adjustment: '⚖️',
-  audit: '🔍',
-  supplier: '🏭',
-  category: '🏷️',
-  brand: '🔖',
-  warranty: '🛡️',
-  budget: '💰',
-  settings: '⚙️',
-};
+/**
+ * Bundle icon — reuses the sidebar's SVG icon set so the panel matches the
+ * navigation it controls. Falls back to a generic document glyph (same stroke
+ * style) for slugs the sidebar doesn't define an icon for.
+ */
+const FALLBACK_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="4" y="3" width="16" height="18" rx="2"></rect>
+    <line x1="8" y1="8" x2="16" y2="8"></line>
+    <line x1="8" y1="12" x2="16" y2="12"></line>
+  </svg>
+);
 const BundleIcon = ({ icon }) => (
-  <span style={{ fontSize: 22, marginRight: 8 }}>
-    {ICON_MAP[icon] ?? '📄'}
-  </span>
+  <span className="nav-bundle-icon">{renderIcon(icon) ?? FALLBACK_ICON}</span>
 );
 
 /* ─── NavigationAccessPanel ──────────────────────────────────────────── */
@@ -293,30 +282,13 @@ const UserPermissionOverrides = ({ initialUserId } = {}) => {
         {userId && (
           <>
             {/* ── View-level tab switcher: Navigation Access | Advanced ── */}
-            <div
-              className="perm-view-tabs"
-              role="tablist"
-              aria-label="Permission editor view"
-              style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '2px solid #e5e7eb' }}
-            >
+            <div className="perm-tabs" role="tablist" aria-label="Permission editor view">
               <button
                 type="button"
                 role="tab"
                 aria-selected={viewTab === 'nav'}
-                className={`perm-view-tab${viewTab === 'nav' ? ' perm-view-tab--active' : ''}`}
+                className={`perm-tab ${viewTab === 'nav' ? 'active' : ''}`}
                 onClick={() => setViewTab('nav')}
-                style={{
-                  padding: '8px 18px',
-                  fontWeight: viewTab === 'nav' ? 700 : 400,
-                  background: 'none',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: 'none',
-                  borderBottom: viewTab === 'nav' ? '2px solid #2563eb' : '2px solid transparent',
-                  cursor: 'pointer',
-                  color: viewTab === 'nav' ? '#2563eb' : '#6b7280',
-                  marginBottom: -2,
-                }}
               >
                 Navigation Access
               </button>
@@ -324,24 +296,12 @@ const UserPermissionOverrides = ({ initialUserId } = {}) => {
                 type="button"
                 role="tab"
                 aria-selected={viewTab === 'advanced'}
-                className={`perm-view-tab${viewTab === 'advanced' ? ' perm-view-tab--active' : ''}`}
+                className={`perm-tab ${viewTab === 'advanced' ? 'active' : ''}`}
                 onClick={() => setViewTab('advanced')}
-                style={{
-                  padding: '8px 18px',
-                  fontWeight: viewTab === 'advanced' ? 700 : 400,
-                  background: 'none',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: 'none',
-                  borderBottom: viewTab === 'advanced' ? '2px solid #2563eb' : '2px solid transparent',
-                  cursor: 'pointer',
-                  color: viewTab === 'advanced' ? '#2563eb' : '#6b7280',
-                  marginBottom: -2,
-                }}
               >
                 Advanced
                 {pendingPermIds.size > 0 && (
-                  <span className="perm-tab-dot" title="Unsaved changes" style={{ marginLeft: 6 }} />
+                  <span className="perm-tab-dot" title="Unsaved changes" />
                 )}
               </button>
             </div>

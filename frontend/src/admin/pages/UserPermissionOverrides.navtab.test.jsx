@@ -77,17 +77,21 @@ test('Navigation Access tab renders bundle cards', async () => {
   await waitFor(() => expect(screen.getByText('Item Master')).toBeInTheDocument());
 });
 
-test('Advanced tab shows the feature-group tablist (perm-tabs)', async () => {
+test('Advanced tab shows the feature-group tablist', async () => {
   render(<UserPermissionOverrides initialUserId={42} />);
 
-  // Find the Advanced tab and click it
-  const advancedTab = await screen.findByRole('tab', { name: /advanced/i });
+  // Both the view switcher and the Advanced feature-group tablist use .perm-tabs.
+  // On the default Nav view only the switcher exists (1); switching to Advanced
+  // adds the feature-group tablist (2). Counting is the reliable marker that the
+  // Advanced panel rendered.
+  await screen.findByRole('tab', { name: /navigation access/i });
+  expect(document.querySelectorAll('.perm-tabs')).toHaveLength(1);
+
+  const advancedTab = screen.getByRole('tab', { name: /advanced/i });
   fireEvent.click(advancedTab);
 
-  // .perm-tabs is the feature-group tablist rendered ONLY inside the Advanced panel.
-  // It must be present after switching to Advanced; it must NOT exist on the Nav tab.
   await waitFor(() => {
-    expect(document.querySelector('.perm-tabs')).toBeInTheDocument();
+    expect(document.querySelectorAll('.perm-tabs')).toHaveLength(2);
   });
 });
 
