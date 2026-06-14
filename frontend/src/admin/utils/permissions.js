@@ -62,3 +62,40 @@ export function groupByFeatureGroup(permissions) {
 
   return groups;
 }
+
+// Display order for action columns/rows (read first so "access" reads naturally).
+const ACTION_DISPLAY_ORDER = ['read', 'create', 'update', 'archive', 'approve'];
+
+/**
+ * The catalog actions that exist for a feature, as [{ action, permission_id }],
+ * in read-first display order. Returns [] for unknown feature or missing catalog.
+ */
+export function actionsForFeature(catalog, feature) {
+  const byAction = {};
+  (catalog || []).forEach((p) => {
+    if (p.feature === feature) byAction[p.action] = p.permission_id;
+  });
+  return ACTION_DISPLAY_ORDER
+    .filter((a) => byAction[a] != null)
+    .map((a) => ({ action: a, permission_id: byAction[a] }));
+}
+
+/**
+ * Summarize a page's access from its primary feature's effective action map.
+ * @param actions [{action, permission_id}] from actionsForFeature
+ * @param effectiveByAction { [action]: boolean } — effective (pending-aware) grants
+ * @returns 'none' | 'view' | 'partial' | 'full'
+ */
+export function pageAccessStatus(actions, effectiveByAction) {
+  if (!actions || actions.length === 0) return 'none';
+  const has = (a) => effectiveByAction?.[a] === true;
+  // "access" gate = read if the feature has it, otherwise its first action (e.g. create).
+  const accessAction = actions.some((x) => x.action === 'read') ? 'read' : actions[0].action;
+  if (!has(accessAction)) return 'none';
+  const writes = actions.filter((x) => x.action !== accessAction);
+  if (writes.length === 0) return 'view';
+  const granted = writes.filter((x) => has(x.action)).length;
+  if (granted === 0) return 'view';
+  if (granted === writes.length) return 'full';
+  return 'partial';
+}
