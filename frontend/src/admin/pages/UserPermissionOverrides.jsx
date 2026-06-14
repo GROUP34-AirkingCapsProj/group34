@@ -489,6 +489,7 @@ const UserPermissionOverrides = () => {
         {/* Per-page action modal */}
         {modalBundle && (
           <Modal isOpen={true} title={`${modalBundle.bundle.name} — actions`} onClose={cancelBundleModal} maxWidth={460}>
+            <div className="rbac-console rbac-console--modal">
             <div className="rcx-actionlist">
               {modalBundle.actions.map(({ action, permission_id }) => {
                 const viaRole = roleDefaultGranted(permission_id);
@@ -537,6 +538,7 @@ const UserPermissionOverrides = () => {
                 <button type="button" className="rcx-btn rcx-btn--ghost" onClick={applyBundleModal} disabled={saving} title="Stage these changes — save later with the page Save button">Stage</button>
                 <button type="button" className="rcx-btn rcx-btn--primary" onClick={saveBundleModal} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
               </div>
+            </div>
             </div>
           </Modal>
         )}
