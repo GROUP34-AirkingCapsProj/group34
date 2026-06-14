@@ -14,34 +14,50 @@ class AlertSettingsController extends Controller
     /**
      * Get current user's alert settings including unread counts.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $userId = Auth::id();
-        if (! $userId) {
+        $user = $request->user();
+        if (! $user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
+        $userId = $user->getKey();
+
+        // Location scoping: non-centralized roles (branch_manager=3, warehouse_personnel=4)
+        // only see their own location's alerts. Centralized (admin=1, inventory_analyst=2, auditor=5)
+        // see all locations — no filter applied.
+        $scoped = ! $user->isCentralized();
+        $locId  = $user->scopedLocationId();
 
         $settings = UserAlertSettings::getOrCreateForUser($userId);
         $lastSeen = $settings?->pending_approvals_last_seen_at;
 
         // Pending POs — status_id 7 = PO Pending
-        $pendingPoCount = \App\Models\PurchaseOrder::where('status_id', 7)->count();
+        $pendingPoCount = \App\Models\PurchaseOrder::where('status_id', 7)
+            ->when($scoped, fn ($q) => $q->where('location_id', $locId))
+            ->count();
 
         // Pending PRs — status_id 13 = PR Pending
-        $pendingPrCount = \App\Models\PurchaseRequest::where('status_id', 13)->count();
+        $pendingPrCount = \App\Models\PurchaseRequest::where('status_id', 13)
+            ->when($scoped, fn ($q) => $q->where('location_id', $locId))
+            ->count();
 
         // Pending item registrations
-        $pendingProductCount = \App\Models\PendingProduct::where('status', 'pending')->count();
+        $pendingProductCount = \App\Models\PendingProduct::where('status', 'pending')
+            ->when($scoped, fn ($q) => $q->where('opening_location_id', $locId))
+            ->count();
 
         $totalPending = $pendingPoCount + $pendingPrCount + $pendingProductCount;
 
         // Unread = items created after last_seen_at
         if ($lastSeen) {
             $unreadPoCount      = \App\Models\PurchaseOrder::where('status_id', 7)
+                ->when($scoped, fn ($q) => $q->where('location_id', $locId))
                 ->where('created_at', '>', $lastSeen)->count();
             $unreadPrCount      = \App\Models\PurchaseRequest::where('status_id', 13)
+                ->when($scoped, fn ($q) => $q->where('location_id', $locId))
                 ->where('created_at', '>', $lastSeen)->count();
             $unreadProductCount = \App\Models\PendingProduct::where('status', 'pending')
+                ->when($scoped, fn ($q) => $q->where('opening_location_id', $locId))
                 ->where('created_at', '>', $lastSeen)->count();
             $unreadCount = $unreadPoCount + $unreadPrCount + $unreadProductCount;
         } else {
@@ -52,6 +68,7 @@ class AlertSettingsController extends Controller
         // Low stock: inventory qty <= safety_stock (or recommended_stocks as fallback)
         $lowStockCount = DB::table('inventory as i')
             ->join('products as p', 'p.product_id', '=', 'i.product_id')
+            ->when($scoped, fn ($q) => $q->where('i.location_id', $locId))
             ->where(function ($q) {
                 $q->where(function ($inner) {
                     $inner->whereNotNull('p.safety_stock')
@@ -66,6 +83,7 @@ class AlertSettingsController extends Controller
 
         // Out of stock
         $outOfStockCount = DB::table('inventory as i')
+            ->when($scoped, fn ($q) => $q->where('i.location_id', $locId))
             ->where('i.quantity_on_hand', '<=', 0)
             ->count();
 
@@ -73,6 +91,7 @@ class AlertSettingsController extends Controller
         $overduePoCount = \App\Models\PurchaseOrder::whereNotNull('expected_delivery_date')
             ->whereDate('expected_delivery_date', '<', now()->toDateString())
             ->whereNotIn('status_id', [9, 11])
+            ->when($scoped, fn ($q) => $q->where('location_id', $locId))
             ->count();
 
         $badgeCount = $unreadCount + $lowStockCount + $outOfStockCount + $overduePoCount;
