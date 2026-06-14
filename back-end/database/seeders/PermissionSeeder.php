@@ -38,11 +38,6 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
-            'uom_management' => [
-                'create'  => ['admin', 'inventory_analyst'],
-                'update'  => ['admin', 'inventory_analyst'],
-                'archive' => ['admin'],
-            ],
             'location_based_inventory' => [
                 'read'    => ['admin'],
                 'create'  => ['admin'],

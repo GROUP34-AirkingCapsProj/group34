@@ -291,11 +291,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/units/archived', [UnitLookupController::class, 'archived']);
     Route::get('/units', [UnitLookupController::class, 'index']);
     Route::get('/units/{id}', [UnitLookupController::class, 'show']);
-    Route::middleware('permission:uom_management,create')->post('/units', [UnitLookupController::class, 'store']);
-    Route::middleware('permission:uom_management,update')->put('/units/{id}', [UnitLookupController::class, 'update']);
-    Route::middleware('permission:uom_management,archive')->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
-    Route::middleware('permission:uom_management,archive')->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
-    Route::middleware('permission:uom_management,archive')->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
+    // Units are a seeded lookup with no dedicated management UI; writes stay on role:
+    // (admin + inventory_analyst create/update, admin-only archive) — no permission feature.
+    Route::middleware('role:admin,inventory_analyst')->post('/units', [UnitLookupController::class, 'store']);
+    Route::middleware('role:admin,inventory_analyst')->put('/units/{id}', [UnitLookupController::class, 'update']);
+    Route::middleware('role:admin')->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
+    Route::middleware('role:admin')->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
+    Route::middleware('role:admin')->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
