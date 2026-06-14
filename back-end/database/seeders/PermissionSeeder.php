@@ -151,6 +151,12 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'approve' => ['admin', 'branch_manager', 'warehouse_personnel'],
             ],
+            'report_viewing' => [
+                'read' => ['admin', 'inventory_analyst', 'auditor'],
+            ],
+            'notification_panel' => [
+                'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+            ],
         ];
     }
 

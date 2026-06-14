@@ -84,9 +84,9 @@ class NavBundleTest extends TestCase
         $count = NavPermissionBundle::where('is_active', true)->count();
 
         $this->assertEquals(
-            18,
+            20,
             $count,
-            "Expected 18 active nav bundles, found {$count}"
+            "Expected 20 active nav bundles, found {$count}"
         );
     }
 
@@ -129,9 +129,9 @@ class NavBundleTest extends TestCase
         $this->assertIsArray($data, 'Response data must be an array');
 
         $this->assertCount(
-            18,
+            20,
             $data,
-            'Expected 18 bundles in API response, got ' . count($data)
+            'Expected 20 bundles in API response, got ' . count($data)
         );
     }
 
