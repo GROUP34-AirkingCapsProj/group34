@@ -389,4 +389,10 @@
 .rcx-actionrow-hint--role { color: var(--rc-green); }
 .rcx-actionrow-hint--deny { color: var(--rc-crimson); }
 .rcx-modal-note { font-size: 0.78rem; color: var(--rc-ink-soft); line-height: 1.5; margin: 0.5rem 0 1rem; }
-.rcx-modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+.rcx-modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap; }
+/* Pinned footer so the Save/Cancel buttons stay visible while the modal body scrolls. */
+.rcx-modal-footer {
+  position: sticky; bottom: 0; z-index: 2;
+  background: var(--rc-card); border-top: 1px solid var(--rc-line);
+  margin: 0.85rem -1.25rem -1.25rem; padding: 0.85rem 1.25rem 1rem;
+}

@@ -99,15 +99,17 @@ const RolePermissions = () => {
         });
       });
     });
-    if (changes.length === 0) return;
+    if (changes.length === 0) return false;
 
     setSaving(true);
     try {
       await permissionsAPI.updateRoleDefaults(changes);
       toast.success('Role permissions saved successfully.');
       await load();
+      return true;
     } catch (err) {
       toast.error(err.message || 'Failed to save permissions.');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -318,9 +320,19 @@ const RolePermissions = () => {
                 </table>
               </div>
             )}
-            <p className="rcx-modal-note">Toggles set each role's <strong>default</strong> access for this page. The System Administrator column is always full and locked. Changes are staged — click <strong>Save Changes</strong> to apply.</p>
-            <div className="rcx-modal-actions">
-              <button type="button" className="rcx-btn rcx-btn--primary" onClick={() => setModalBundle(null)}>Done</button>
+            <div className="rcx-modal-footer">
+              <p className="rcx-modal-note" style={{ margin: '0 0 0.6rem' }}>Toggles set each role's <strong>default</strong> access for this page. The System Administrator column is always full and locked.</p>
+              <div className="rcx-modal-actions">
+                <button type="button" className="rcx-btn rcx-btn--ghost" onClick={() => setModalBundle(null)} disabled={saving}>Close</button>
+                <button
+                  type="button"
+                  className="rcx-btn rcx-btn--primary"
+                  onClick={async () => { const ok = await handleSave(); if (ok) setModalBundle(null); }}
+                  disabled={!hasPendingChanges || saving}
+                >
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
             </div>
           </Modal>
         )}
