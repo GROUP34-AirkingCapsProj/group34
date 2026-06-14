@@ -116,9 +116,8 @@ const PurchaseRequestPage = () => {
   const { user, can }  = useAuth();
   const roleKey   = getRoleKey(user);
   const isAdmin   = roleKey === ROLES.ADMIN;
-  const isIA      = roleKey === ROLES.INVENTORY_ANALYST;
-  const canCreate = isAdmin || isIA;  // both roles can submit PRs and convert to PO
-  // Purchase request approval is admin-only.
+  // Permission-driven: anyone granted purchase_request_creation.create can submit PRs / convert to PO.
+  const canCreate = isAdmin || (typeof can === 'function' && can('purchase_request_creation', 'create'));
   const canApprovePR = isAdmin || (typeof can === 'function' && can('purchase_request_approval', 'approve'));
 
   const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');

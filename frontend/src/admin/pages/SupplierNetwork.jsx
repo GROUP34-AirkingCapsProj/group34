@@ -26,9 +26,12 @@ const EMPTY_FORM = {
 };
 
 const SupplierNetwork = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
-  const isInventoryAnalystViewOnly = roleKey === ROLES.INVENTORY_ANALYST;
+  // Permission-driven: can edit if admin or granted supplier create/update.
+  const canManage = roleKey === ROLES.ADMIN
+    || (typeof can === 'function' && (can('supplier_management', 'create') || can('supplier_management', 'update')));
+  const isViewOnly = !canManage;
 
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -113,7 +116,7 @@ const SupplierNetwork = () => {
 
   /* ── form handlers ── */
   const handleAdd = () => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Supplier Network is view-only for Inventory Analyst.');
       return;
     }
@@ -123,7 +126,7 @@ const SupplierNetwork = () => {
   };
 
   const handleEdit = (s) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Editing suppliers is disabled for Inventory Analyst.');
       return;
     }
@@ -221,7 +224,7 @@ const SupplierNetwork = () => {
   };
 
   const handleAddProduct = async () => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Linking products is disabled for Inventory Analyst.');
       return;
     }
@@ -248,7 +251,7 @@ const SupplierNetwork = () => {
   };
 
   const handleEditProduct = (p) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Editing product links is disabled for Inventory Analyst.');
       return;
     }
@@ -259,7 +262,7 @@ const SupplierNetwork = () => {
   };
 
   const handleSaveEditProduct = async () => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Editing product links is disabled for Inventory Analyst.');
       return;
     }
@@ -283,7 +286,7 @@ const SupplierNetwork = () => {
   };
 
   const handleRemoveProduct = async (productId) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Removing product links is disabled for Inventory Analyst.');
       return;
     }
@@ -311,7 +314,7 @@ const SupplierNetwork = () => {
           <div className="sn-page-header-left">
             <h1>Supplier Network</h1>
             <p>
-              {isInventoryAnalystViewOnly
+              {isViewOnly
                 ? 'View supplier profiles and linked products'
                 : 'Manage local appliance vendors and their linked products'}
             </p>
@@ -333,7 +336,7 @@ const SupplierNetwork = () => {
                 List
               </button>
             </div>
-            {!isInventoryAnalystViewOnly && (
+            {!isViewOnly && (
               <button className="sn-btn-add" onClick={handleAdd}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                   <line x1="12" y1="5" x2="12" y2="19" />
@@ -414,7 +417,7 @@ const SupplierNetwork = () => {
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
             <p>No suppliers found</p>
-            {!isInventoryAnalystViewOnly && (
+            {!isViewOnly && (
               <button className="sn-btn-add" onClick={handleAdd}>Add your first supplier</button>
             )}
           </div>
@@ -465,7 +468,7 @@ const SupplierNetwork = () => {
                       ? s.status.status_name.toUpperCase() + ' VENDOR'
                       : 'ACTIVE VENDOR'}
                   </div>
-                  {!isInventoryAnalystViewOnly && (
+                  {!isViewOnly && (
                     <div className="sn-card-actions" onClick={(e) => e.stopPropagation()}>
                       <button
                         className="sn-action-btn sn-action-products"
@@ -486,7 +489,7 @@ const SupplierNetwork = () => {
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                         </svg>
                       </button>
-                      <ArchiveButton onArchive={() => handleArchive(s)} disabled={isInventoryAnalystViewOnly} />
+                      <ArchiveButton onArchive={() => handleArchive(s)} disabled={isViewOnly} />
                     </div>
                   )}
                 </div>
@@ -529,7 +532,7 @@ const SupplierNetwork = () => {
                         </div>
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        {!isInventoryAnalystViewOnly && (
+                        {!isViewOnly && (
                           <div className="sn-card-actions">
                             <button
                               className="sn-action-btn sn-action-products"
@@ -550,7 +553,7 @@ const SupplierNetwork = () => {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </button>
-                            <ArchiveButton onArchive={() => handleArchive(s)} disabled={isInventoryAnalystViewOnly} />
+                            <ArchiveButton onArchive={() => handleArchive(s)} disabled={isViewOnly} />
                           </div>
                         )}
                       </td>

@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
-import { canActOnApprovalQueue, getRoleKey, ROLES } from '../utils/roles';
+import { getRoleKey, ROLES } from '../utils/roles';
 import { purchaseOrdersAPI, statusAPI, productsAPI, transferRequestsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/approval_queue.css';
@@ -44,11 +44,11 @@ const formatDateTime = (value) => {
 
 const ApprovalQueue = ({ initialTab } = {}) => {
   const { user, can } = useAuth();
-  const canActOnQueue = useMemo(() => canActOnApprovalQueue(user), [user]);
   const isAdmin = getRoleKey(user) === ROLES.ADMIN;
-  // PO approve/reject in the queue goes through a PO update on the backend.
-  // Admin & branch manager act on the approval queue.
+  // PO approve/reject goes through a PO update on the backend (purchase_order_creation.update).
   const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
+  // Branch-transfer approvals are permission-driven (inventory_transfers.approve).
+  const canApproveTransfer = isAdmin || (typeof can === 'function' && can('inventory_transfers', 'approve'));
   const location = useLocation();
 const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'purchase-orders';
@@ -511,14 +511,14 @@ return (
         {/* Page Header */}
         <div className="aq-page-header">
           <h1>Approvals</h1>
-          {!canActOnQueue && !canApprovePO && (
+          {!canApproveTransfer && !canApprovePO && (
             <p className="aq-viewonly-banner">
               <strong>View only.</strong> You don&rsquo;t have permission to authorize purchase orders or restock here.
               You can review and open PO line items with the eye icon.
             </p>
           )}
           <p>
-            {(canActOnQueue || canApprovePO) ? (
+            {(canApproveTransfer || canApprovePO) ? (
               <>
                 <strong>Approve</strong> sets a purchase order to <strong>Authorized</strong> on the server. Receiving
                 stays blocked until authorized and on or after the expected delivery date when set.
@@ -740,7 +740,7 @@ return (
                             <circle cx="12" cy="12" r="3"/>
                           </svg>
                         </button>
-                        {canActOnQueue ? (
+                        {canApproveTransfer ? (
                           <>
                             <button
                               type="button"
@@ -800,7 +800,7 @@ return (
                     <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#6b7280', textAlign: 'left' }}>
                       <th style={{ padding: '6px 8px', fontWeight: 600 }}>Product</th>
                       <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}>Requested</th>
-                      {canActOnQueue && <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}>Approve Qty</th>}
+                      {canApproveTransfer && <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}>Approve Qty</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -812,7 +812,7 @@ return (
                         <td style={{ padding: '8px 8px', textAlign: 'right' }}>
                           {d.quantity_requested}
                         </td>
-                        {canActOnQueue && (
+                        {canApproveTransfer && (
                           <td style={{ padding: '8px 8px', textAlign: 'right' }}>
                             <input
                               type="number"
@@ -830,7 +830,7 @@ return (
                 </table>
               )}
 
-              {canActOnQueue && (
+              {canApproveTransfer && (
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button
                     type="button"
