@@ -196,25 +196,37 @@ const UserPermissionOverrides = () => {
     return (catalog || []).some((c) => c.feature === feature && c.permission_id in pending);
   };
 
-  // Modal open / toggle / apply / cancel handlers
+  // Modal open / toggle / apply / cancel handlers.
+  // The draft stores the DESIRED effective access per action as a boolean
+  // (true = the user should have it). On Apply we compare each to the role
+  // default and derive the override: matches default -> inherit; differs ->
+  // grant (true) or deny (false). This lets the admin BLOCK an action the
+  // role would otherwise allow (e.g. deny view/read), not just add access.
   const openBundleModal = (bundle) => {
     const feature = bundleFeature(bundle);
     const acts = actionsForFeature(catalog, feature);
     const draft = {};
-    acts.forEach(({ permission_id }) => {
-      if (roleDefaultGranted(permission_id)) return; // locked on; not editable here
-      draft[permission_id] = stateFor(permission_id) === 'grant' ? 'grant' : 'inherit';
+    acts.forEach(({ action, permission_id }) => {
+      // Initialise from the user's current effective (pending-aware) access.
+      draft[permission_id] = permGrantedNow({ permission_id, feature, action });
     });
     setModalDraft(draft);
     setModalBundle({ bundle, feature, actions: acts });
   };
 
   const toggleModalAction = (permId) => {
-    setModalDraft((d) => ({ ...d, [permId]: d[permId] === 'grant' ? 'inherit' : 'grant' }));
+    setModalDraft((d) => ({ ...d, [permId]: !d[permId] }));
   };
 
   const applyBundleModal = () => {
-    setPending((prev) => ({ ...prev, ...modalDraft }));
+    const next = {};
+    (modalBundle?.actions || []).forEach(({ permission_id }) => {
+      const desired = !!modalDraft[permission_id];
+      const roleDef = roleDefaultGranted(permission_id);
+      // matches role default -> no override; otherwise explicit grant/deny
+      next[permission_id] = desired === roleDef ? 'inherit' : (desired ? 'grant' : 'deny');
+    });
+    setPending((prev) => ({ ...prev, ...next }));
     setModalBundle(null);
     setModalDraft({});
   };
@@ -454,26 +466,33 @@ const UserPermissionOverrides = () => {
             <div className="rcx-actionlist">
               {modalBundle.actions.map(({ action, permission_id }) => {
                 const viaRole = roleDefaultGranted(permission_id);
-                const checked = viaRole || modalDraft[permission_id] === 'grant';
-                const deniedAdv = !viaRole && currentOverride(permission_id) === 'deny' && modalDraft[permission_id] !== 'grant';
+                const checked = !!modalDraft[permission_id];
+                // Will this checkbox produce an explicit override (differs from role default)?
+                const willOverride = checked !== viaRole;
                 return (
                   <label className="rcx-actionrow" key={permission_id}>
                     <input
                       type="checkbox"
                       checked={checked}
-                      disabled={viaRole}
                       onChange={() => toggleModalAction(permission_id)}
                     />
                     <span className="rcx-actionrow-label">{ACTION_META[action]?.label || action}</span>
-                    {viaRole && <span className="rcx-actionrow-hint rcx-actionrow-hint--role">via role</span>}
-                    {deniedAdv && <span className="rcx-actionrow-hint rcx-actionrow-hint--deny">denied in advanced</span>}
+                    <span className={`rcx-actionrow-hint ${viaRole ? 'rcx-actionrow-hint--role' : ''}`}>
+                      role: {viaRole ? 'allowed' : 'blocked'}
+                    </span>
+                    {willOverride && (
+                      <span className={`rcx-actionrow-hint ${checked ? 'rcx-actionrow-hint--role' : 'rcx-actionrow-hint--deny'}`}>
+                        {checked ? 'grant' : 'deny'}
+                      </span>
+                    )}
                   </label>
                 );
               })}
             </div>
             <p className="rcx-modal-note">
-              Ticking grants this user the action on top of their role. Actions marked
-              <strong> via role </strong> are already granted by their role and can only be blocked in the Advanced tab.
+              Tick to <strong>allow</strong> an action for this user, untick to <strong>block</strong> it.
+              Leaving it the same as the role default keeps it inherited; changing it sets a per-user
+              grant or deny — including denying an action the role normally allows (e.g. view access).
             </p>
             <div className="rcx-modal-actions">
               <button type="button" className="rcx-btn rcx-btn--ghost" onClick={cancelBundleModal}>Cancel</button>
