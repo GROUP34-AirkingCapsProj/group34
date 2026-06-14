@@ -39,11 +39,15 @@ user's current state, and the admin ticks what that WP user may do.
    feature (the bundle's required permission's feature). The modal lists that feature's catalog
    actions only.
 2. **Keep a slim Advanced tab** as the fallback for explicit deny and non-navigation features.
-3. **Checkbox semantics = "grant on top of role" (Option 1).**
-   - **Checked** → an explicit **grant** override for that `feature.action`.
-   - **Unchecked** → **inherit** (no override; the user follows their role default). Unchecking an
-     existing grant override clears it.
-   - The modal never creates a **deny** override (that is Advanced-only).
+3. **Checkbox semantics = "desired effective access" (revised 2026-06-14 to support deny).**
+   - Each checkbox represents whether the user should **have** that `feature.action`: ticked = allow,
+     unticked = block. It is initialised from the user's current effective (pending-aware) access.
+   - On Apply, each action is compared to the user's **role default**:
+     - desired **matches** the role default → **inherit** (no override).
+     - desired is **true** and role default is false → **grant** override.
+     - desired is **false** and role default is true → **deny** override.
+   - This lets the admin **deny** an action the role would otherwise allow (e.g. deny view/read),
+     not just add access. (Supersedes the original "Option 1 / grant-only, deny in Advanced" decision.)
 
 ## Design
 
