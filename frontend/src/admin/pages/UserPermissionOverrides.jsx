@@ -45,7 +45,8 @@ const UserPermissionOverrides = () => {
   const [error, setError]           = useState(null);
   const [allRoleDefaults, setAllRoleDefaults] = useState([]); // [{role_id, permission_id, is_granted}]
   const [modalBundle, setModalBundle] = useState(null);       // { bundle, feature, actions } | null
-  const [modalDraft, setModalDraft]   = useState({});         // { permission_id: 'grant'|'inherit' }
+  const [modalDraft, setModalDraft]   = useState({});         // { permission_id: boolean desired }
+  const [modalReason, setModalReason] = useState('');         // reason used when saving from the modal
 
   // Load users once
   useEffect(() => {
@@ -211,6 +212,7 @@ const UserPermissionOverrides = () => {
       draft[permission_id] = permGrantedNow({ permission_id, feature, action });
     });
     setModalDraft(draft);
+    setModalReason('');
     setModalBundle({ bundle, feature, actions: acts });
   };
 
@@ -234,33 +236,57 @@ const UserPermissionOverrides = () => {
   const cancelBundleModal = () => {
     setModalBundle(null);
     setModalDraft({});
+    setModalReason('');
   };
 
-  const handleSave = async () => {
-    if (!selectedUserId) return;
-    if (!reason.trim()) {
+  // Derive the {permission_id, is_granted} change list for the open modal's draft.
+  const draftToChanges = () =>
+    (modalBundle?.actions || []).map(({ permission_id }) => {
+      const desired = !!modalDraft[permission_id];
+      const roleDef = roleDefaultGranted(permission_id);
+      const state = desired === roleDef ? 'inherit' : (desired ? 'grant' : 'deny');
+      return { permission_id: Number(permission_id), is_granted: state === 'inherit' ? null : state === 'grant' };
+    });
+
+  // Shared commit: validates reason + changes, persists, reloads. Returns true on success.
+  const commitOverrides = async (reasonText, changes) => {
+    if (!selectedUserId) return false;
+    if (!reasonText.trim()) {
       toast.error('A reason is required before saving overrides.');
-      return;
+      return false;
     }
+    if (!changes || changes.length === 0) {
+      toast.info('No changes to save.');
+      return false;
+    }
+    setSaving(true);
+    try {
+      await permissionsAPI.updateUserPermissions(selectedUserId, reasonText.trim(), changes);
+      toast.success('User permission overrides saved.');
+      await loadUserPerms(selectedUserId);
+      return true;
+    } catch (err) {
+      toast.error(err.message || 'Failed to save overrides.');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Page-level Save (Advanced tab / staged pending).
+  const handleSave = async () => {
     const changes = Object.entries(pending).map(([permId, state]) => ({
       permission_id: Number(permId),
       is_granted: state === 'inherit' ? null : state === 'grant',
     }));
-    if (changes.length === 0) {
-      toast.info('No changes to save.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await permissionsAPI.updateUserPermissions(selectedUserId, reason.trim(), changes);
-      toast.success('User permission overrides saved.');
-      setReason('');
-      await loadUserPerms(selectedUserId);
-    } catch (err) {
-      toast.error(err.message || 'Failed to save overrides.');
-    } finally {
-      setSaving(false);
-    }
+    const ok = await commitOverrides(reason, changes);
+    if (ok) setReason('');
+  };
+
+  // Save directly from the per-page modal, using the modal's own reason.
+  const saveBundleModal = async () => {
+    const ok = await commitOverrides(modalReason, draftToChanges());
+    if (ok) { setModalBundle(null); setModalDraft({}); setModalReason(''); }
   };
 
   const pendingCount = Object.keys(pending).length;
@@ -494,9 +520,23 @@ const UserPermissionOverrides = () => {
               Leaving it the same as the role default keeps it inherited; changing it sets a per-user
               grant or deny — including denying an action the role normally allows (e.g. view access).
             </p>
-            <div className="rcx-modal-actions">
-              <button type="button" className="rcx-btn rcx-btn--ghost" onClick={cancelBundleModal}>Cancel</button>
-              <button type="button" className="rcx-btn rcx-btn--primary" onClick={applyBundleModal}>Apply</button>
+            <div className="rcx-modal-footer">
+              <label className="rcx-label" style={{ display: 'block', marginBottom: 6 }}>
+                Reason <span className="rcx-reason-req">*</span>
+              </label>
+              <input
+                className="rcx-input"
+                type="text"
+                value={modalReason}
+                onChange={(e) => setModalReason(e.target.value)}
+                placeholder="Why are you changing this user's access?"
+                style={{ width: '100%', boxSizing: 'border-box', marginBottom: '0.75rem' }}
+              />
+              <div className="rcx-modal-actions">
+                <button type="button" className="rcx-btn rcx-btn--ghost" onClick={cancelBundleModal} disabled={saving}>Cancel</button>
+                <button type="button" className="rcx-btn rcx-btn--ghost" onClick={applyBundleModal} disabled={saving} title="Stage these changes — save later with the page Save button">Stage</button>
+                <button type="button" className="rcx-btn rcx-btn--primary" onClick={saveBundleModal} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+              </div>
             </div>
           </Modal>
         )}
