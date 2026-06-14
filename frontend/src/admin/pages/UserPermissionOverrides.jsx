@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Modal from '../components/Modal';
 import { permissionsAPI, usersAPI, navBundlesAPI } from '../services/api';
 import { toast } from '../utils/toast';
-import { ACTIONS, ACTION_META, groupByFeatureGroup } from '../utils/permissions';
+import { ACTIONS, ACTION_META, groupByFeatureGroup, actionsForFeature, pageAccessStatus } from '../utils/permissions';
 import '../styles/rbac_console.css';
 
 const ADMIN_ROLE_ID = 1;
+
+// Robustly read the is_granted flag from a role-default row (handles boolean, 1, '1').
+const r_is_granted = (row) => row.is_granted === true || row.is_granted === 1 || row.is_granted === '1';
 
 // Tri-state: 'grant' | 'deny' | 'inherit'
 const TriStateSelect = ({ value, onChange, baselineGranted, isPending }) => (
@@ -39,6 +43,9 @@ const UserPermissionOverrides = () => {
   const [saving, setSaving]         = useState(false);
   const [usersLoading, setUsersLoading] = useState(true);
   const [error, setError]           = useState(null);
+  const [allRoleDefaults, setAllRoleDefaults] = useState([]); // [{role_id, permission_id, is_granted}]
+  const [modalBundle, setModalBundle] = useState(null);       // { bundle, feature, actions } | null
+  const [modalDraft, setModalDraft]   = useState({});         // { permission_id: 'grant'|'inherit' }
 
   // Load users once
   useEffect(() => {
@@ -57,16 +64,18 @@ const UserPermissionOverrides = () => {
     loadUsers();
   }, []);
 
-  // Load catalog + nav bundles once
+  // Load catalog + nav bundles + role defaults once
   useEffect(() => {
     const loadCatalogAndBundles = async () => {
       try {
-        const [catRes, bundleRes] = await Promise.all([
+        const [catRes, bundleRes, roleDefRes] = await Promise.all([
           permissionsAPI.catalog(),
           navBundlesAPI.list(),
+          permissionsAPI.getRoleDefaults(),
         ]);
         setCatalog(Array.isArray(catRes?.data)   ? catRes.data   : []);
         setBundles(Array.isArray(bundleRes?.data) ? bundleRes.data : []);
+        setAllRoleDefaults(Array.isArray(roleDefRes?.data) ? roleDefRes.data : []);
       } catch (err) {
         console.error('Failed to load catalog/bundles:', err);
       }
@@ -118,7 +127,7 @@ const UserPermissionOverrides = () => {
     setPending((prev) => ({ ...prev, [permId]: value }));
   };
 
-  // --- Simple tab: nav bundle toggles ---
+  // --- Simple tab: nav bundle helpers ---
   // Resolve a single permission's state with the pending overlay on top of the
   // saved effective state, so the UI reflects unsaved clicks immediately.
   const permGrantedNow = (p) => {
@@ -129,28 +138,6 @@ const UserPermissionOverrides = () => {
       // 'inherit' falls through to the saved effective value
     }
     return !!userPerms?.effective?.[`${p.feature}.${p.action}`];
-  };
-
-  // A bundle is "on" if ALL its required perms are granted (pending-aware).
-  const bundleOnNow = (bundle) => {
-    const required = (bundle.permissions || []).filter((p) => p.is_required);
-    const list = required.length ? required : (bundle.permissions || []);
-    if (list.length === 0) return true;
-    return list.every(permGrantedNow);
-  };
-
-  // A bundle has unsaved changes if any of its perms is in the pending map.
-  const bundleDirty = (bundle) =>
-    (bundle.permissions || []).some((p) => p.permission_id in pending);
-
-  const toggleBundle = (bundle, forceOn) => {
-    const perms = bundle.permissions || [];
-    if (perms.length === 0) return;
-    const updates = {};
-    perms.forEach((p) => {
-      updates[p.permission_id] = forceOn ? 'grant' : 'deny';
-    });
-    setPending((prev) => ({ ...prev, ...updates }));
   };
 
   // Role default for a permId (what "Inherit" would resolve to)
@@ -167,6 +154,74 @@ const UserPermissionOverrides = () => {
       return !!userPerms.effective[`${p.feature}.${p.action}`];
     }
     return !!userPerms.effective[`${p.feature}.${p.action}`];
+  };
+
+  // Determine if selected user is admin (block override attempt)
+  const selectedUser = users.find((u) => String(u.user_id) === String(selectedUserId));
+  const isAdminUser  = selectedUser?.role?.role_id === ADMIN_ROLE_ID ||
+                       selectedUser?.role_id === ADMIN_ROLE_ID;
+
+  const selRoleId = selectedUser?.role?.role_id ?? selectedUser?.role_id ?? null;
+
+  // True if the SELECTED user's role grants this permission by default (pure role baseline).
+  const roleDefaultGranted = (permId) => {
+    if (selRoleId == null) return false;
+    const row = allRoleDefaults.find(
+      (r) => Number(r.role_id) === Number(selRoleId) && Number(r.permission_id) === Number(permId)
+    );
+    return !!(row && r_is_granted(row));
+  };
+
+  // The primary feature behind a nav bundle (its required permission's feature).
+  const bundleFeature = (bundle) => {
+    const perms = bundle.permissions || [];
+    const req = perms.find((p) => p.is_required) || perms[0];
+    return req?.feature || null;
+  };
+
+  // Effective (pending-aware) status badge for a bundle's primary feature.
+  const bundleStatus = (bundle) => {
+    const feature = bundleFeature(bundle);
+    const acts = actionsForFeature(catalog, feature);
+    const eff = {};
+    acts.forEach(({ action, permission_id }) => {
+      eff[action] = permGrantedNow({ permission_id, feature, action });
+    });
+    return pageAccessStatus(acts, eff);
+  };
+
+  // Row has unsaved changes if any of its feature's permission ids are pending.
+  const bundleHasPending = (bundle) => {
+    const feature = bundleFeature(bundle);
+    return (catalog || []).some((c) => c.feature === feature && c.permission_id in pending);
+  };
+
+  // Modal open / toggle / apply / cancel handlers
+  const openBundleModal = (bundle) => {
+    const feature = bundleFeature(bundle);
+    const acts = actionsForFeature(catalog, feature);
+    const draft = {};
+    acts.forEach(({ permission_id }) => {
+      if (roleDefaultGranted(permission_id)) return; // locked on; not editable here
+      draft[permission_id] = stateFor(permission_id) === 'grant' ? 'grant' : 'inherit';
+    });
+    setModalDraft(draft);
+    setModalBundle({ bundle, feature, actions: acts });
+  };
+
+  const toggleModalAction = (permId) => {
+    setModalDraft((d) => ({ ...d, [permId]: d[permId] === 'grant' ? 'inherit' : 'grant' }));
+  };
+
+  const applyBundleModal = () => {
+    setPending((prev) => ({ ...prev, ...modalDraft }));
+    setModalBundle(null);
+    setModalDraft({});
+  };
+
+  const cancelBundleModal = () => {
+    setModalBundle(null);
+    setModalDraft({});
   };
 
   const handleSave = async () => {
@@ -198,11 +253,6 @@ const UserPermissionOverrides = () => {
 
   const pendingCount = Object.keys(pending).length;
   const groups       = groupByFeatureGroup(catalog);
-
-  // Determine if selected user is admin (block override attempt)
-  const selectedUser = users.find((u) => String(u.user_id) === String(selectedUserId));
-  const isAdminUser  = selectedUser?.role?.role_id === ADMIN_ROLE_ID ||
-                       selectedUser?.role_id === ADMIN_ROLE_ID;
 
   return (
     <AdminLayout>
@@ -273,46 +323,32 @@ const UserPermissionOverrides = () => {
                   ))}
                 </div>
 
-                {/* Simple tab: nav bundles */}
+                {/* Simple tab: nav bundle row list */}
                 {tab === 'simple' && (
                   <div>
-                    {bundles.length === 0 && (
-                      <p className="rcx-muted">No navigation bundles found.</p>
-                    )}
-                    <table className="rcx-table">
-                      <thead>
-                        <tr>
-                          <th>Navigation Bundle</th>
-                          <th>Section</th>
-                          <th>Path</th>
-                          <th style={{ textAlign: 'center' }}>Access</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {bundles.map((bundle) => {
-                          const on = bundleOnNow(bundle);
-                          const dirty = bundleDirty(bundle);
-                          const cls = dirty ? 'is-pending' : (on ? 'is-on' : 'is-off');
-                          return (
-                            <tr key={bundle.bundle_id}>
-                              <td style={{ fontWeight: 600 }}>{bundle.name}</td>
-                              <td className="rcx-mono rcx-muted" style={{ fontSize: '0.74rem' }}>{bundle.sidebar_section || '—'}</td>
-                              <td className="rcx-mono rcx-muted">{bundle.route_path || '—'}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  type="button"
-                                  className={`rcx-access ${cls}`}
-                                  onClick={() => toggleBundle(bundle, !on)}
-                                  title={dirty ? 'Unsaved change — save to apply' : (on ? 'Access granted' : 'Access denied')}
-                                >
-                                  {on ? 'Granted' : 'Denied'}{dirty ? ' — unsaved' : ''}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    {bundles.length === 0 && <p className="rcx-muted">No navigation bundles found.</p>}
+                    <div className="rcx-navlist">
+                      {bundles.map((bundle) => {
+                        const status = bundleStatus(bundle);
+                        const dirty = bundleHasPending(bundle);
+                        const labels = { none: 'No access', view: 'View-only', partial: 'Partial', full: 'Full' };
+                        return (
+                          <div key={bundle.bundle_id} className="rcx-navrow">
+                            <div className="rcx-navrow-main">
+                              <span className="rcx-navrow-name">{bundle.name}</span>
+                              <span className="rcx-navrow-section">{bundle.sidebar_section || '—'}</span>
+                            </div>
+                            <div className="rcx-navrow-right">
+                              {dirty && <span className="rcx-navrow-dirty" title="Unsaved changes" />}
+                              <span className={`rcx-statusb rcx-statusb--${status}`}>{labels[status]}</span>
+                              <button type="button" className="rcx-btn rcx-btn--ghost" onClick={() => openBundleModal(bundle)}>
+                                Configure
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -410,6 +446,40 @@ const UserPermissionOverrides = () => {
           <div className="rcx-state">
             Select a user above to view and edit their permission overrides.
           </div>
+        )}
+
+        {/* Per-page action modal */}
+        {modalBundle && (
+          <Modal isOpen={true} title={`${modalBundle.bundle.name} — actions`} onClose={cancelBundleModal} maxWidth={460}>
+            <div className="rcx-actionlist">
+              {modalBundle.actions.map(({ action, permission_id }) => {
+                const viaRole = roleDefaultGranted(permission_id);
+                const checked = viaRole || modalDraft[permission_id] === 'grant';
+                const deniedAdv = !viaRole && currentOverride(permission_id) === 'deny' && modalDraft[permission_id] !== 'grant';
+                return (
+                  <label className="rcx-actionrow" key={permission_id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={viaRole}
+                      onChange={() => toggleModalAction(permission_id)}
+                    />
+                    <span className="rcx-actionrow-label">{ACTION_META[action]?.label || action}</span>
+                    {viaRole && <span className="rcx-actionrow-hint rcx-actionrow-hint--role">via role</span>}
+                    {deniedAdv && <span className="rcx-actionrow-hint rcx-actionrow-hint--deny">denied in advanced</span>}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="rcx-modal-note">
+              Ticking grants this user the action on top of their role. Actions marked
+              <strong> via role </strong> are already granted by their role and can only be blocked in the Advanced tab.
+            </p>
+            <div className="rcx-modal-actions">
+              <button type="button" className="rcx-btn rcx-btn--ghost" onClick={cancelBundleModal}>Cancel</button>
+              <button type="button" className="rcx-btn rcx-btn--primary" onClick={applyBundleModal}>Apply</button>
+            </div>
+          </Modal>
         )}
       </div>
     </AdminLayout>
