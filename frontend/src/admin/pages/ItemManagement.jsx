@@ -12,9 +12,12 @@ import '../styles/item_management.css';
 import '../styles/archive_management.css';
 
 const ItemManagement = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
-  const isInventoryAnalystViewOnly = roleKey === ROLES.INVENTORY_ANALYST;
+  // Permission-driven: can edit items if admin or granted item master create/update.
+  const canManageItems = roleKey === ROLES.ADMIN
+    || (typeof can === 'function' && (can('item_master_management', 'create') || can('item_master_management', 'update')));
+  const isViewOnly = !canManageItems;
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -197,7 +200,7 @@ const ItemManagement = () => {
   };
 
   const handleAdd = () => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Item Master is view-only for Inventory Analyst.');
       return;
     }
@@ -215,7 +218,7 @@ const ItemManagement = () => {
   }, [currentPage]);
 
   const handleEdit = (item) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Editing items is disabled for Inventory Analyst.');
       return;
     }
@@ -268,7 +271,7 @@ const ItemManagement = () => {
   };
 
   const handleCreateCategory = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Creating categories is disabled for Inventory Analyst.');
       return;
     }
@@ -294,7 +297,7 @@ const ItemManagement = () => {
   };
 
   const handleCreateBrand = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Creating brands is disabled for Inventory Analyst.');
       return;
     }
@@ -383,7 +386,7 @@ const ItemManagement = () => {
   };
 
   const handleSubmit = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Saving items is disabled for Inventory Analyst.');
       return;
     }
@@ -548,7 +551,7 @@ const ItemManagement = () => {
                 ))}
               </select>
             </div>
-            {!isInventoryAnalystViewOnly && (
+            {!isViewOnly && (
               <button className="im-btn-create" onClick={handleAdd}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -746,7 +749,7 @@ const ItemManagement = () => {
                                 <circle cx="12" cy="12" r="3"></circle>
                               </svg>
                             </button>
-                            {!isInventoryAnalystViewOnly && (
+                            {!isViewOnly && (
                               <>
                                 <button className="im-action-btn im-action-edit" onClick={() => handleEdit(item)} title="Edit">
                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
@@ -927,7 +930,7 @@ const ItemManagement = () => {
 
             <div className="im-modal-footer">
               <button type="button" className="im-modal-btn-cancel" onClick={() => setViewingItem(null)}>Close</button>
-              {!isInventoryAnalystViewOnly && (
+              {!isViewOnly && (
                 <button type="button" className="im-modal-btn-confirm" onClick={() => { setViewingItem(null); handleEdit(viewingItem); }}>Edit</button>
               )}
             </div>

@@ -43,11 +43,12 @@ const StatusBadge = ({ name }) => {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 const TransferRequestPage = () => {
-  const { user }    = useAuth();
+  const { user, can }    = useAuth();
   const navigate    = useNavigate();
   const roleKey     = getRoleKey(user);
   const isAdmin     = roleKey === ROLES.ADMIN || roleKey === ROLES.INVENTORY_ANALYST;
-  const canCreateIST = isAdmin || roleKey === ROLES.WAREHOUSE_PERSONNEL;
+  // Permission-driven: anyone granted inventory_transfers.create can raise a transfer request.
+  const canCreateIST = roleKey === ROLES.ADMIN || (typeof can === 'function' && can('inventory_transfers', 'create'));
   const userLocId   = String(user?.enforced_location_id ?? user?.location_id ?? '');
 
   const [activeTab, setActiveTab] = useState(isAdmin ? 'approvals' : 'create');
