@@ -28,6 +28,7 @@ export const FEATURE_GROUPS = [
   { label: 'VI. Location',                       features: ['location_based_inventory'] },
   { label: 'VII. Warranty & After-Sales',        features: ['warranty_records', 'warranty_claims'] },
   { label: 'VIII. Audit, Compliance & Archive',  features: ['audit_trail_viewing', 'exception_detection', 'archive_viewing', 'data_archiving'] },
+  { label: 'IX. Reporting & Notifications',      features: ['report_viewing', 'notification_panel'] },
 ];
 
 const prettyFeature = (f) =>
