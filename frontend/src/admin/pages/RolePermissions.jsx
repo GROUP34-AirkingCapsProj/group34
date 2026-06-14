@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { permissionsAPI } from '../services/api';
+import Modal from '../components/Modal';
+import { permissionsAPI, navBundlesAPI } from '../services/api';
 import { toast } from '../utils/toast';
-import { ROLE_COLUMNS, ACTIONS, ACTION_META, groupByFeatureGroup } from '../utils/permissions';
+import { ROLE_COLUMNS, ACTIONS, ACTION_META, groupByFeatureGroup, actionsForFeature } from '../utils/permissions';
 import '../styles/rbac_console.css';
 
 const ADMIN_ROLE_ID = 1;
@@ -20,6 +21,10 @@ const RolePermissions = () => {
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState(null);
+
+  const [tab, setTab]               = useState('navigation'); // 'navigation' | 'advanced'
+  const [bundles, setBundles]       = useState([]);
+  const [modalBundle, setModalBundle] = useState(null); // { bundle, feature, actions } | null
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +54,12 @@ const RolePermissions = () => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    navBundlesAPI.list()
+      .then((res) => setBundles(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => setBundles([]));
+  }, []);
 
   const isGranted = (roleId, permId) => {
     if (pending[roleId] && permId in pending[roleId]) return pending[roleId][permId];
@@ -100,6 +111,17 @@ const RolePermissions = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const bundleFeature = (bundle) => {
+    const perms = bundle.permissions || [];
+    const req = perms.find((p) => p.is_required) || perms[0];
+    return req?.feature || null;
+  };
+
+  const openBundleModal = (bundle) => {
+    const feature = bundleFeature(bundle);
+    setModalBundle({ bundle, feature, actions: actionsForFeature(catalog, feature) });
   };
 
   const groups = groupByFeatureGroup(catalog);
@@ -156,67 +178,151 @@ const RolePermissions = () => {
 
         {!loading && !error && (
           <>
-            <div className="rcx-matrix-wrap">
-              <table className="rcx-matrix">
-                <thead>
-                  <tr>
-                    <th>Feature / Action</th>
-                    {ROLE_COLUMNS.map((r) => (
-                      <th key={r.id} className="rcx-rolehead">
-                        <span className="rcx-rolecode" style={{ '--rc-chip': r.accent, background: r.accent }}>{r.label}</span>
-                        <span className="rcx-rolename" title={r.name}>{r.name}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map((group) => (
-                    <React.Fragment key={group.label}>
-                      <tr className="rcx-group">
-                        <td colSpan={ROLE_COLUMNS.length + 1}>{group.label}</td>
-                      </tr>
-
-                      {group.features.map((feat) =>
-                        ACTIONS.filter((a) => feat.actions[a] != null).map((action) => {
-                          const permId = feat.actions[action];
-                          return (
-                            <tr className="rcx-row" key={`${feat.feature}.${action}`}>
-                              <td className="rcx-feat">
-                                <span className="rcx-feat-name">{feat.title}</span>
-                                <span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span>
-                              </td>
-                              {ROLE_COLUMNS.map((r) => {
-                                const checked = isGranted(r.id, permId);
-                                const isAdmin = r.id === ADMIN_ROLE_ID;
-                                const isDirty = !isAdmin && pending[r.id] && permId in pending[r.id];
-                                return (
-                                  <td key={r.id} className={`rcx-cell${isAdmin ? ' rcx-cell--admin' : ''}`}>
-                                    <button
-                                      type="button"
-                                      className={`rcx-toggle${checked ? ' is-on' : ''}${isAdmin ? ' is-locked' : ''}${isDirty ? ' is-dirty' : ''}`}
-                                      style={{ '--rc-chip': r.accent }}
-                                      disabled={isAdmin}
-                                      aria-pressed={checked}
-                                      onClick={() => toggle(r.id, permId)}
-                                      title={isAdmin
-                                        ? 'System Administrator always has full access'
-                                        : `${r.name}: ${ACTION_META[action]?.desc || action}`}
-                                    >
-                                      {(checked || isAdmin) && <CheckGlyph />}
-                                    </button>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
+            {/* ── tab bar ── */}
+            <div className="rcx-tabs">
+              <button type="button" className={`rcx-tab${tab === 'navigation' ? ' is-active' : ''}`} onClick={() => setTab('navigation')}>Navigation Access</button>
+              <button type="button" className={`rcx-tab${tab === 'advanced' ? ' is-active' : ''}`} onClick={() => setTab('advanced')}>Advanced · Full Matrix</button>
             </div>
+
+            {/* ── Navigation Access tab ── */}
+            {tab === 'navigation' && (
+              <div className="rcx-navlist">
+                {bundles.length === 0 && <p className="rcx-muted">No navigation bundles found.</p>}
+                {bundles.map((bundle) => (
+                  <div key={bundle.bundle_id} className="rcx-navrow">
+                    <div className="rcx-navrow-main">
+                      <span className="rcx-navrow-name">{bundle.name}</span>
+                      <span className="rcx-navrow-section">{bundle.sidebar_section || '—'}</span>
+                    </div>
+                    <div className="rcx-navrow-right">
+                      <button type="button" className="rcx-btn rcx-btn--ghost" onClick={() => openBundleModal(bundle)}>Configure</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Advanced tab: full matrix ── */}
+            {tab === 'advanced' && (
+              <div className="rcx-matrix-wrap">
+                <table className="rcx-matrix">
+                  <thead>
+                    <tr>
+                      <th>Feature / Action</th>
+                      {ROLE_COLUMNS.map((r) => (
+                        <th key={r.id} className="rcx-rolehead">
+                          <span className="rcx-rolecode" style={{ '--rc-chip': r.accent, background: r.accent }}>{r.label}</span>
+                          <span className="rcx-rolename" title={r.name}>{r.name}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groups.map((group) => (
+                      <React.Fragment key={group.label}>
+                        <tr className="rcx-group">
+                          <td colSpan={ROLE_COLUMNS.length + 1}>{group.label}</td>
+                        </tr>
+
+                        {group.features.map((feat) =>
+                          ACTIONS.filter((a) => feat.actions[a] != null).map((action) => {
+                            const permId = feat.actions[action];
+                            return (
+                              <tr className="rcx-row" key={`${feat.feature}.${action}`}>
+                                <td className="rcx-feat">
+                                  <span className="rcx-feat-name">{feat.title}</span>
+                                  <span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span>
+                                </td>
+                                {ROLE_COLUMNS.map((r) => {
+                                  const checked = isGranted(r.id, permId);
+                                  const isAdmin = r.id === ADMIN_ROLE_ID;
+                                  const isDirty = !isAdmin && pending[r.id] && permId in pending[r.id];
+                                  return (
+                                    <td key={r.id} className={`rcx-cell${isAdmin ? ' rcx-cell--admin' : ''}`}>
+                                      <button
+                                        type="button"
+                                        className={`rcx-toggle${checked ? ' is-on' : ''}${isAdmin ? ' is-locked' : ''}${isDirty ? ' is-dirty' : ''}`}
+                                        style={{ '--rc-chip': r.accent }}
+                                        disabled={isAdmin}
+                                        aria-pressed={checked}
+                                        onClick={() => toggle(r.id, permId)}
+                                        title={isAdmin
+                                          ? 'System Administrator always has full access'
+                                          : `${r.name}: ${ACTION_META[action]?.desc || action}`}
+                                      >
+                                        {(checked || isAdmin) && <CheckGlyph />}
+                                      </button>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
+        )}
+
+        {/* ── Per-page mini-matrix modal ── */}
+        {modalBundle && (
+          <Modal isOpen={true} title={`${modalBundle.bundle.name} — role access`} onClose={() => setModalBundle(null)} maxWidth={620}>
+            {modalBundle.actions.length === 0 ? (
+              <p className="rcx-muted">This page has no configurable actions.</p>
+            ) : (
+              <div className="rcx-matrix-wrap" style={{ boxShadow: 'none', border: '1px solid var(--rc-line)', maxHeight: '60vh' }}>
+                <table className="rcx-matrix" style={{ minWidth: 420 }}>
+                  <thead>
+                    <tr>
+                      <th>Action</th>
+                      {ROLE_COLUMNS.map((r) => (
+                        <th key={r.id} className="rcx-rolehead">
+                          <span className="rcx-rolecode" style={{ '--rc-chip': r.accent, background: r.accent }}>{r.label}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalBundle.actions.map(({ action, permission_id }) => (
+                      <tr className="rcx-row" key={permission_id}>
+                        <td className="rcx-feat"><span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span></td>
+                        {ROLE_COLUMNS.map((r) => {
+                          const checked = isGranted(r.id, permission_id);
+                          const isAdmin = r.id === ADMIN_ROLE_ID;
+                          const isDirty = !isAdmin && pending[r.id] && permission_id in pending[r.id];
+                          return (
+                            <td key={r.id} className={`rcx-cell${isAdmin ? ' rcx-cell--admin' : ''}`}>
+                              <button
+                                type="button"
+                                className={`rcx-toggle${checked ? ' is-on' : ''}${isAdmin ? ' is-locked' : ''}${isDirty ? ' is-dirty' : ''}`}
+                                style={{ '--rc-chip': r.accent }}
+                                disabled={isAdmin}
+                                aria-pressed={checked}
+                                onClick={() => toggle(r.id, permission_id)}
+                                title={isAdmin ? 'System Administrator always has full access' : `${r.name}: ${ACTION_META[action]?.desc || action}`}
+                              >
+                                {(checked || isAdmin) && (
+                                  <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                )}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="rcx-modal-note">Toggles set each role's <strong>default</strong> access for this page. The System Administrator column is always full and locked. Changes are staged — click <strong>Save Changes</strong> to apply.</p>
+            <div className="rcx-modal-actions">
+              <button type="button" className="rcx-btn rcx-btn--primary" onClick={() => setModalBundle(null)}>Done</button>
+            </div>
+          </Modal>
         )}
       </div>
     </AdminLayout>
