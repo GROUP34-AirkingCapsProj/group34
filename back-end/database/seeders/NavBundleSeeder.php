@@ -36,7 +36,7 @@ class NavBundleSeeder extends Seeder
             ['Interbranch Transfers','/admin/ist',                  'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
 
             // SALES & LOGISTICS (sort 0–1)
-            ['Transactions',         '/admin/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'pos_sales_recording',     'read'],
+            ['Transactions',         '/admin/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'sales_recording',     'read'],
             ['Scan Barcode',         '/admin/inventory-operation',  'SALES & LOGISTICS',       'scan',               'barcode_inventory_processing', 'create'],
 
             // COMPLIANCE & SUPPORT

@@ -91,7 +91,7 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'archive' => ['admin'],
             ],
-            'pos_sales_recording' => [
+            'sales_recording' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
                 'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],

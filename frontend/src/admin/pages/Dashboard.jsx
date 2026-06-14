@@ -47,7 +47,7 @@ const AdminDashboard = () => {
     can('purchase_order_creation', 'read') && 'po_summary',
     can('inventory_adjustments', 'read') && 'low_stock',
     can('inventory_transfers', 'read') && 'ist_queue',
-    can('pos_sales_recording', 'read') && 'sales_summary',
+    can('sales_recording', 'read') && 'sales_summary',
     can('delivery_receiving', 'read') && 'receiving_summary',
   ].filter(Boolean);
   const [data, setData] = useState(null);
@@ -553,7 +553,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* TRANSACTION TRENDS — gated by pos_sales_recording.read */}
+      {/* TRANSACTION TRENDS — gated by sales_recording.read */}
       {visibleWidgets.includes('sales_summary') && (
         <div className="charts-section charts-section--single">
           <div className="chart-card">

@@ -90,7 +90,7 @@ const AuditorDashboard = () => {
       <div className="rd-module-grid">
         {[
           { label: 'Audit Trail', desc: 'View full system activity log', path: '/admin/audit', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4', color: ACCENT, perm: ['audit_trail_viewing', 'read'] },
-          { label: 'Transaction Logs', desc: 'Review all sales & purchase records', path: '/admin/transactions', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6', color: '#2563eb', perm: ['pos_sales_recording', 'read'] },
+          { label: 'Transaction Logs', desc: 'Review all sales & purchase records', path: '/admin/transactions', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6', color: '#2563eb', perm: ['sales_recording', 'read'] },
           { label: 'Inventory Reports', desc: 'Stock levels across all locations', path: '/admin/inventory', icon: 'M22 12h-4l-3 9L9 3l-3 9H2', color: '#7c3aed' },
           { label: 'System Reports', desc: 'Export and download report data', path: '/admin/reports', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6', color: '#059669' },
         ].filter(card => !card.perm || can(card.perm[0], card.perm[1])).map(({ label, desc, path, icon, color }) => (

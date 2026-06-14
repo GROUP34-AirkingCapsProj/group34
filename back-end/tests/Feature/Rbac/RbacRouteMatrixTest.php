@@ -125,7 +125,7 @@ class RbacRouteMatrixTest extends TestCase
         return [
             // Feature: inventory_issuance.create
             'issuances store'                   => ['POST',  '/api/issuances',                       'warehouse_personnel', 'inventory_analyst'],
-            // Feature: pos_sales_recording.create
+            // Feature: sales_recording.create
             'sales store'                       => ['POST',  '/api/sales',                           'branch_manager',      'inventory_analyst'],
             // Feature: delivery_receiving.create
             'receivings store'                  => ['POST',  '/api/receivings',                      'warehouse_personnel', 'inventory_analyst'],
