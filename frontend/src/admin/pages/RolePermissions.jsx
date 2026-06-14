@@ -273,6 +273,7 @@ const RolePermissions = () => {
         {/* ── Per-page mini-matrix modal ── */}
         {modalBundle && (
           <Modal isOpen={true} title={`${modalBundle.bundle.name} — role access`} onClose={() => setModalBundle(null)} maxWidth={620}>
+            <div className="rbac-console rbac-console--modal">
             {modalBundle.actions.length === 0 ? (
               <p className="rcx-muted">This page has no configurable actions.</p>
             ) : (
@@ -333,6 +334,7 @@ const RolePermissions = () => {
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
+            </div>
             </div>
           </Modal>
         )}

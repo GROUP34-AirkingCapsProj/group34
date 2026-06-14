@@ -390,6 +390,11 @@
 .rcx-actionrow-hint--deny { color: var(--rc-crimson); }
 .rcx-modal-note { font-size: 0.78rem; color: var(--rc-ink-soft); line-height: 1.5; margin: 0.5rem 0 1rem; }
 .rcx-modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap; }
+/* When .rbac-console scopes a portaled Modal's content (so the --rc-* vars + rcx-*
+   styles resolve inside the modal), drop the page padding + entrance animation. */
+.rbac-console--modal { padding-bottom: 0; }
+.rbac-console--modal > * { animation: none; }
+
 /* Pinned footer so the Save/Cancel buttons stay visible while the modal body scrolls. */
 .rcx-modal-footer {
   position: sticky; bottom: 0; z-index: 2;
