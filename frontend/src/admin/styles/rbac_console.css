@@ -354,3 +354,39 @@
   .rcx-header-aside { align-items: flex-start; width: 100%; }
   .rcx-legend { justify-content: flex-start; }
 }
+
+/* ===== Navigation Access rows + per-page action modal ===== */
+.rcx-navlist { display: flex; flex-direction: column; gap: 0.5rem; }
+.rcx-navrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 0.7rem 0.9rem; border: 1px solid var(--rc-line); border-radius: 12px;
+  background: var(--rc-card); transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.rcx-navrow:hover { border-color: var(--rc-ink-faint); box-shadow: 0 6px 18px -12px rgba(20,24,31,0.3); }
+.rcx-navrow-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.rcx-navrow-name { font-weight: 600; font-size: 0.9rem; }
+.rcx-navrow-section { font-family: var(--rc-mono); font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rc-ink-faint); }
+.rcx-navrow-right { display: flex; align-items: center; gap: 0.7rem; flex-shrink: 0; }
+
+/* access status badge */
+.rcx-statusb { font-family: var(--rc-mono); font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+.rcx-statusb--none    { background: #fdecee; color: #b91c1c; }
+.rcx-statusb--view    { background: #eef2f7; color: #475569; }
+.rcx-statusb--partial { background: #fff7ed; color: #b45309; }
+.rcx-statusb--full    { background: #e7f8ef; color: #15803d; }
+.rcx-navrow-dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--rc-amber); box-shadow: 0 0 0 3px rgba(217,119,6,0.16); }
+
+/* modal action list */
+.rcx-actionlist { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.25rem 0 0.5rem; }
+.rcx-actionrow {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem;
+  border: 1px solid var(--rc-line-soft); border-radius: 9px; background: var(--rc-card);
+}
+.rcx-actionrow input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--rc-crimson); cursor: pointer; }
+.rcx-actionrow input[type="checkbox"]:disabled { cursor: not-allowed; accent-color: var(--rc-green); }
+.rcx-actionrow-label { font-weight: 600; font-size: 0.86rem; }
+.rcx-actionrow-hint { margin-left: auto; font-family: var(--rc-mono); font-size: 0.62rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--rc-ink-faint); }
+.rcx-actionrow-hint--role { color: var(--rc-green); }
+.rcx-actionrow-hint--deny { color: var(--rc-crimson); }
+.rcx-modal-note { font-size: 0.78rem; color: var(--rc-ink-soft); line-height: 1.5; margin: 0.5rem 0 1rem; }
+.rcx-modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
