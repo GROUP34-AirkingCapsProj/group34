@@ -31,8 +31,9 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
+            // Brands are managed inside the "Categories & Brands" page (gated by
+            // category_management.read), so brand_management has no standalone read.
             'brand_management' => [
-                'read'    => ['admin', 'inventory_analyst', 'auditor'],
                 'create'  => ['admin', 'inventory_analyst'],
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
@@ -102,8 +103,9 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'archive' => ['admin'],
             ],
+            // Issuances have no dedicated sidebar/list gate (GET /issuances is open),
+            // so inventory_issuance has no standalone read — only the write actions.
             'inventory_issuance' => [
-                'read'    => ['admin', 'branch_manager', 'warehouse_personnel', 'auditor'],
                 'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'update'  => ['admin', 'warehouse_personnel'],
                 'archive' => ['admin'],
