@@ -12,7 +12,7 @@ export const NAV_BUNDLES = [
   { name: 'Categories and Brands', routePath: '/admin/categories',       required: ['category_management.read'] },
   { name: 'Transfer Requests',     routePath: '/admin/transfer-requests',required: ['inventory_transfers.read'] },
   { name: 'Interbranch Transfers', routePath: '/admin/ist',              required: ['inventory_transfers.read'] },
-  { name: 'Transactions',          routePath: '/admin/transactions',     required: ['pos_sales_recording.read'] },
+  { name: 'Transactions',          routePath: '/admin/transactions',     required: ['sales_recording.read'] },
   { name: 'Scan Barcode',          routePath: '/admin/inventory-operation', required: ['barcode_inventory_processing.create'] },
   { name: 'Compliance Review',     routePath: '/admin/compliance',       required: ['exception_detection.read'] },
   { name: 'Warranty Records',      routePath: '/admin/warranties',       required: ['warranty_records.read'] },

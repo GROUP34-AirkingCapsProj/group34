@@ -566,9 +566,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/sales', [SaleController::class, 'index']);
     Route::get('/sales/{id}', [SaleController::class, 'show']);
-    Route::middleware('permission:pos_sales_recording,create')->post('/sales', [SaleController::class, 'store']);
-    Route::middleware('permission:pos_sales_recording,update')->put('/sales/{id}', [SaleController::class, 'update']);
-    Route::middleware('permission:pos_sales_recording,archive')->delete('/sales/{id}', [SaleController::class, 'destroy']);
+    Route::middleware('permission:sales_recording,create')->post('/sales', [SaleController::class, 'store']);
+    Route::middleware('permission:sales_recording,update')->put('/sales/{id}', [SaleController::class, 'update']);
+    Route::middleware('permission:sales_recording,archive')->delete('/sales/{id}', [SaleController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------

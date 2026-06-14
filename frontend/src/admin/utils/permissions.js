@@ -24,7 +24,7 @@ export const FEATURE_GROUPS = [
   { label: 'II. Item & Classification',          features: ['item_master_management', 'category_management', 'brand_management', 'uom_management', 'barcode_assignment'] },
   { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_request_creation', 'purchase_request_approval'] },
   { label: 'IV. Inventory Operations',           features: ['barcode_inventory_processing', 'delivery_receiving', 'inventory_issuance', 'inventory_transfers', 'inventory_adjustments'] },
-  { label: 'V. Sales & Delivery',                features: ['pos_sales_recording', 'delivery_receipt_generation'] },
+  { label: 'V. Sales & Delivery',                features: ['sales_recording', 'delivery_receipt_generation'] },
   { label: 'VI. Location',                       features: ['location_based_inventory'] },
   { label: 'VII. Warranty & After-Sales',        features: ['warranty_records', 'warranty_claims'] },
   { label: 'VIII. Audit, Compliance & Archive',  features: ['audit_trail_viewing', 'exception_detection', 'archive_viewing', 'data_archiving'] },
