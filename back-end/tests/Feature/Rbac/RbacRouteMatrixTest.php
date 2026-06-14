@@ -159,7 +159,7 @@ class RbacRouteMatrixTest extends TestCase
             'roles store'                       => ['POST',  '/api/roles',                           'admin',               'inventory_analyst'],
             // Feature: brand_management.create
             'brands store'                      => ['POST',  '/api/brands',                          'inventory_analyst',   'branch_manager'],
-            // Feature: uom_management.create
+            // No feature: units are a seeded lookup gated role:admin,inventory_analyst (no management UI)
             'units store'                       => ['POST',  '/api/units',                           'inventory_analyst',   'warehouse_personnel'],
             // Feature: barcode_assignment.create
             'serials store'                     => ['POST',  '/api/serials',                         'warehouse_personnel', 'inventory_analyst'],

@@ -127,7 +127,8 @@
       "Bash(curl -s __TRACKED_VAR__/me/permissions -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Accept: application/json')",
       "Bash(curl -s -o /dev/null -w \"backend :8000 -> %{http_code}\\\\n\" http://127.0.0.1:8000/api/)",
       "Bash(curl -s -o /dev/null -w \"frontend :3000 -> %{http_code}\\\\n\" http://localhost:3000)",
-      "Bash(awk '{print $1}')"
+      "Bash(awk '{print $1}')",
+      "PowerShell(Remove-Item *)"
     ]
   },
   "enabledPlugins": {
