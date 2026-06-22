@@ -678,7 +678,7 @@ const BudgetManagementPage = () => {
   if (!isAdmin) {
     return (
       <AdminLayout>
-        <div className="po-recommendation-page">
+        <div className="ak-page po-recommendation-page">
           <div className="po-status-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="44" height="44">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -695,7 +695,7 @@ const BudgetManagementPage = () => {
   // ── Main render ──────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
 
         {/* Page header */}
         <div className="po-creator-header-card">

@@ -708,7 +708,7 @@ const TransferRequestPage = () => {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
             <div className="po-creator-header-main">

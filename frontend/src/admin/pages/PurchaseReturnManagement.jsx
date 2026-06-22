@@ -141,14 +141,19 @@ const PurchaseReturnManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="page-container">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Purchase Returns</h1>
-            <p className="page-subtitle">Return defective or excess items back to suppliers</p>
+      <div className="ak-page page-container">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Procurement · Returns</p>
+              <h1 className="ak-title">Purchase Returns</h1>
+              <p className="ak-sub">Return defective or excess items back to suppliers.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Return</button>
+            </div>
           </div>
-          <button className="btn-primary" onClick={openAddModal}>+ New Return</button>
-        </div>
+        </header>
 
         <div className="stats-row">
           {[

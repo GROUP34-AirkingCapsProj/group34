@@ -276,11 +276,17 @@ const AdminDashboard = () => {
 
   return (
     <AdminLayout>
+     <div className="ak-page">
       {/* HEADER */}
-      <div className="dashboard-header">
-        <h1>System Dashboard</h1>
-        <p>System-wide statistics and overall health monitoring.</p>
-      </div>
+      <header className="ak-header">
+        <div className="ak-header-row">
+          <div>
+            <p className="ak-eyebrow">Overview · System</p>
+            <h1 className="ak-title">System Dashboard</h1>
+            <p className="ak-sub">System-wide statistics and overall health monitoring.</p>
+          </div>
+        </div>
+      </header>
 
       {/* STATS */}
       <div className="stats-container">
@@ -599,7 +605,7 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
-      
+     </div>
     </AdminLayout>
 
   );

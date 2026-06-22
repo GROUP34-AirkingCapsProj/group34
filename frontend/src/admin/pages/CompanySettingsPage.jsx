@@ -50,17 +50,18 @@ const CompanySettingsPage = () => {
 
   return (
     <AdminLayout>
-      <div style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px' }}>
+      <div className="ak-page" style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-            Company Settings
-          </h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-            This information appears on the header of all exported Purchase Order documents.
-          </p>
-        </div>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">System · Company</p>
+              <h1 className="ak-title">Company Settings</h1>
+              <p className="ak-sub">This information appears on the header of all exported Purchase Order documents.</p>
+            </div>
+          </div>
+        </header>
 
         {/* Success banner */}
         {success && (

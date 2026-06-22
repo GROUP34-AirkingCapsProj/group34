@@ -114,7 +114,7 @@ const ISTCreatePage = () => {
   if (loading) {
     return (
       <AdminLayout>
-        <div className="po-recommendation-page">
+        <div className="ak-page po-recommendation-page">
           <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Loading request data…</div>
         </div>
       </AdminLayout>
@@ -124,7 +124,7 @@ const ISTCreatePage = () => {
   if (loadErr || !req) {
     return (
       <AdminLayout>
-        <div className="po-recommendation-page">
+        <div className="ak-page po-recommendation-page">
           <div style={{ padding: 40, textAlign: 'center' }}>
             <p style={{ color: '#dc2626', fontWeight: 600 }}>{loadErr || 'Request not found or not yet approved.'}</p>
             <button type="button" className="po-btn" style={{ marginTop: 16 }} onClick={() => navigate('/admin/transfer-requests')}>
@@ -144,7 +144,7 @@ const ISTCreatePage = () => {
 
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
 
         {/* Page header */}
         <div className="po-creator-header-card">

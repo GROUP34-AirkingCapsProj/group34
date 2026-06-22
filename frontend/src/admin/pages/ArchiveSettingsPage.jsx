@@ -414,16 +414,19 @@ const ArchiveSettingsPage = () => {
 
   return (
     <AdminLayout>
-      <div className="as-page">
+      <div className="ak-page as-page">
 
         {/* ── Page Header ─────────────────────────────────────── */}
         <div className="as-page-header">
-          <div className="as-page-header-row">
-            <div>
-              <h1>Archive Settings</h1>
-              <p>Configure automatic archiving rules, retention policies, and schedule for each module.</p>
+          <header className="ak-header">
+            <div className="ak-header-row as-page-header-row">
+              <div>
+                <p className="ak-eyebrow">System · Archive</p>
+                <h1 className="ak-title">Archive Settings</h1>
+                <p className="ak-sub">Configure automatic archiving rules, retention policies, and schedule for each module.</p>
+              </div>
             </div>
-          </div>
+          </header>
 
           {/* Page-level navigation tabs */}
           <div className="am-page-tabs">

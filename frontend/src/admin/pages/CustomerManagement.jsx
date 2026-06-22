@@ -369,14 +369,16 @@ const CustomerManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="cr-page">
-        <div className="cr-header-row">
-          <div className="cr-header">
-            <h1 className="cr-title">Customer Management</h1>
-            <p className="cr-subtitle">Manage customer records and account information.</p>
-          </div>
-          <div className="cr-header-actions">
-            <button type="button" className="cr-btn-export" onClick={handleExport}>
+      <div className="ak-page cr-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div className="cr-header">
+              <p className="ak-eyebrow">Sales · Customers</p>
+              <h1 className="ak-title">Customer Management</h1>
+              <p className="ak-sub">Manage customer records and account information.</p>
+            </div>
+          <div className="ak-header-aside ak-actions cr-header-actions">
+            <button type="button" className="ak-btn ak-btn--ghost cr-btn-export" onClick={handleExport}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
@@ -384,7 +386,7 @@ const CustomerManagement = () => {
               </svg>
               Export CSV
             </button>
-            <button type="button" className="cr-btn-add" onClick={openAddModal}>
+            <button type="button" className="ak-btn ak-btn--primary cr-btn-add" onClick={openAddModal}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
@@ -392,7 +394,8 @@ const CustomerManagement = () => {
               Add Customer
             </button>
           </div>
-        </div>
+          </div>
+        </header>
 
         <div className="cr-kpi-grid">
           <div className="cr-kpi-card">

@@ -155,19 +155,25 @@ const WarrantyManagement = () => {
 
   return (
     <AdminLayout searchPlaceholder="Search warranties..." onSearch={() => {}}>
-      <div className="war-page-header">
+     <div className="ak-page">
+      <header className="ak-header">
+       <div className="ak-header-row">
         <div className="war-page-header-left">
-          <h1>Warranty Records</h1>
-          <p>View and manage product warranties created from issuances</p>
+          <p className="ak-eyebrow">After-sales · Warranties</p>
+          <h1 className="ak-title">Warranty Records</h1>
+          <p className="ak-sub">View and manage product warranties created from issuances.</p>
         </div>
-        <button type="button" className="war-btn-create" onClick={handleExport}>
+        <div className="ak-header-aside">
+        <button type="button" className="ak-btn ak-btn--ghost war-btn-create" onClick={handleExport}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           Export CSV
         </button>
-      </div>
+        </div>
+       </div>
+      </header>
 
       {/* Stats row */}
       <div className="war-stats-row">
@@ -536,6 +542,7 @@ const WarrantyManagement = () => {
           </div>
         </Modal>
       )}
+     </div>
     </AdminLayout>
   );
 };

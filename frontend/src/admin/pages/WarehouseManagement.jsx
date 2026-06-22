@@ -145,12 +145,15 @@ const WarehouseManagement = () => {
 
   return (
     <AdminLayout searchPlaceholder="Search warehouses..." onSearch={() => {}}>
-      <div className="wh-page-header">
+     <div className="ak-page">
+      <header className="ak-header">
+       <div className="ak-header-row">
         <div className="wh-page-header-left">
-          <h1>Warehouse Management</h1>
-          <p>Manage warehouse records and assignments ({pagination.total || 0} total)</p>
+          <p className="ak-eyebrow">Network · Warehouses</p>
+          <h1 className="ak-title">Warehouse Management</h1>
+          <p className="ak-sub">Manage warehouse records and assignments ({pagination.total || 0} total).</p>
         </div>
-        <div className="wh-header-actions">
+        <div className="ak-header-aside ak-actions wh-header-actions">
           <div className="wh-view-toggle" role="group" aria-label="View mode">
             <button
               type="button"
@@ -167,9 +170,10 @@ const WarehouseManagement = () => {
               List
             </button>
           </div>
-          <button className="btn-create-warehouse" onClick={handleAdd}>+ Create Warehouse</button>
+          <button className="ak-btn ak-btn--primary btn-create-warehouse" onClick={handleAdd}>+ Create Warehouse</button>
         </div>
-      </div>
+       </div>
+      </header>
 
       <div className="wh-toolbar">
         <div className="wh-search">
@@ -380,6 +384,7 @@ const WarehouseManagement = () => {
           </div>
         </form>
       </Modal>
+     </div>
     </AdminLayout>
   );
 };

@@ -906,7 +906,7 @@ const DraftPOCreator = () => {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page po-draft-creator-page">
+      <div className="ak-page po-recommendation-page po-draft-creator-page">
         {submitSuccess && (
           <div className="po-success-banner">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">

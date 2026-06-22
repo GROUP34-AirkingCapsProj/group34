@@ -135,14 +135,19 @@ const AdjustmentManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="page-container">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Adjustment / Stock Correction</h1>
-            <p className="page-subtitle">Correct inventory discrepancies from damage, loss, or stock counts</p>
+      <div className="ak-page page-container">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Stock Correction</p>
+              <h1 className="ak-title">Adjustment / Stock Correction</h1>
+              <p className="ak-sub">Correct inventory discrepancies from damage, loss, or stock counts.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Adjustment</button>
+            </div>
           </div>
-          <button className="btn-primary" onClick={openAddModal}>+ New Adjustment</button>
-        </div>
+        </header>
 
         <div className="stats-row">
           {[

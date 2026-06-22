@@ -955,7 +955,7 @@ const PurchaseOrderPage = () => {
   // ── Main render ────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page po-draft-creator-page">
+      <div className="ak-page po-recommendation-page po-draft-creator-page">
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
             <div className="po-creator-header-main">

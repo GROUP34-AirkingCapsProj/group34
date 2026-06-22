@@ -205,7 +205,7 @@ const PORecommendation = () => {
 
   return (
     <AdminLayout>
-      <div className="sre-page">
+      <div className="ak-page sre-page">
         <div className="sre-banner">
           <div className="sre-banner-left">
             <div className="sre-banner-icon-wrap">

@@ -187,7 +187,7 @@ const TransferScanWorkflow = () => {
 
   return (
     <AdminLayout>
-      <div className="page-container" style={{ maxWidth: 560, margin: '0 auto' }}>
+      <div className="ak-page page-container" style={{ maxWidth: 560, margin: '0 auto' }}>
         <div style={{ background: 'linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)', borderRadius: 12, padding: '16px 18px', color: '#fff', marginBottom: 16 }}>
           <p style={{ fontSize: 11, letterSpacing: '0.12em', opacity: 0.85, margin: 0 }}>TRANSFER SCANNING BARCODES</p>
           <h1 style={{ fontSize: 17, margin: '6px 0 0', fontWeight: 700 }}>{headerTitle}</h1>

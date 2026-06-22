@@ -277,13 +277,19 @@ const UserManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="um-header">
-        <div>
-          <h1>User Management</h1>
-          <p>Create, view, edit, and manage user accounts with location and position assignments</p>
+     <div className="ak-page">
+      <header className="ak-header">
+        <div className="ak-header-row">
+          <div>
+            <p className="ak-eyebrow">Administration · Accounts</p>
+            <h1 className="ak-title">User Management</h1>
+            <p className="ak-sub">Create, view, edit, and manage user accounts with location and position assignments.</p>
+          </div>
+          <div className="ak-header-aside">
+            <button className="ak-btn ak-btn--primary" onClick={handleAdd}>+ Add New User</button>
+          </div>
         </div>
-        <button className="um-btn-primary" onClick={handleAdd}>+ Add New User</button>
-      </div>
+      </header>
 
       {loading && <div className="loading-message">Loading users...</div>}
       {error && <div className="error-message">Error: {error}</div>}
@@ -443,6 +449,7 @@ const UserManagement = () => {
           </div>
         )}
       </div>
+     </div>
 
       {/* Add/Edit User Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Add New User'}>

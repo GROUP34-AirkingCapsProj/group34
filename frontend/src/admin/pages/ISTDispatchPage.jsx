@@ -190,7 +190,7 @@ const ISTDispatchPage = () => {
   if (dispatched) {
     return (
       <AdminLayout>
-        <div className="po-recommendation-page">
+        <div className="ak-page po-recommendation-page">
           <div className="po-details-card" style={{ textAlign: 'center', padding: '40px 32px' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>🚚</div>
             <h2 style={{ color: '#16a34a', fontWeight: 700, marginBottom: 8 }}>Dispatch Confirmed</h2>
@@ -213,7 +213,7 @@ const ISTDispatchPage = () => {
 
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
 
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
