@@ -534,14 +534,19 @@ class DashboardController extends Controller
         $brandId   = $request->filled('brand_id')    ? (int) $request->input('brand_id')    : null;
         $productId = $request->filled('product_id')  ? (int) $request->input('product_id')  : null;
 
+        // Scope the filtered charts to the user's location too, so a scoped
+        // role using the date/category picker never sees other locations' data.
+        $user  = $request->user();
+        $locId = ($user === null || $user->isCentralized()) ? null : $user->scopedLocationId();
+
         return response()->json([
             'success' => true,
             'data'    => [
-                'transaction_trends'       => $this->buildTransactionTrends($dateFrom, $dateTo),
-                'stock_trends'             => $this->buildStockTrends($dateFrom, $dateTo, $catId, $brandId, $productId),
-                'inventory_by_category'    => $this->buildInventoryByCategory($catId, $brandId, $productId),
-                'stock_status_by_location' => $this->buildStockByLocation($catId, $brandId, $productId),
-                'warehouse_capacity'       => $this->getWarehouseCapacity(),
+                'transaction_trends'       => $this->buildTransactionTrends($dateFrom, $dateTo, $locId),
+                'stock_trends'             => $this->buildStockTrends($dateFrom, $dateTo, $catId, $brandId, $productId, $locId),
+                'inventory_by_category'    => $this->buildInventoryByCategory($catId, $brandId, $productId, $locId),
+                'stock_status_by_location' => $this->buildStockByLocation($catId, $brandId, $productId, $locId),
+                'warehouse_capacity'       => $this->getWarehouseCapacity($locId),
             ],
         ]);
     }
@@ -620,7 +625,12 @@ class DashboardController extends Controller
     {
         $q = DB::table('category_lookup')
             ->leftJoin('products', 'category_lookup.category_id', '=', 'products.category_id')
-            ->leftJoin('inventory', 'products.product_id', '=', 'inventory.product_id');
+            ->leftJoin('inventory', function ($join) use ($locId) {
+                $join->on('products.product_id', '=', 'inventory.product_id');
+                // Keep the location filter inside the LEFT JOIN so categories with no
+                // stock at this location still appear (as 0) instead of being dropped.
+                if ($locId !== null) $join->where('inventory.location_id', '=', $locId);
+            });
 
         if ($brandId) {
             $q->leftJoin('appliance_details', 'products.product_id', '=', 'appliance_details.product_id')
@@ -628,7 +638,6 @@ class DashboardController extends Controller
         }
         if ($catId)     $q->where('category_lookup.category_id', $catId);
         if ($productId) $q->where('products.product_id', $productId);
-        if ($locId !== null) $q->where('inventory.location_id', $locId);
 
         $rows = $q->selectRaw('category_lookup.category_name, COALESCE(SUM(inventory.quantity_on_hand), 0) as total_qty')
             ->groupBy('category_lookup.category_id', 'category_lookup.category_name')
