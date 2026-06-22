@@ -1,0 +1,343 @@
+/* ============================================================================
+   AIRKING ADMIN DESIGN SYSTEM  ·  ak-*
+   ----------------------------------------------------------------------------
+   One shared visual language for every admin page, generalised from the
+   Access-Control console (.rbac-console / .rcx-*) that we standardised on:
+   crimson + gold on light, Archivo display + JetBrains Mono labels, 16px
+   rounded cards, a signature "command header", and one set of buttons, fields,
+   tables, badges and states.
+
+   HOW TO USE on a page:
+     <AdminLayout>
+       <div className="ak-page">
+         <header className="ak-header"> … eyebrow / title / sub / aside … </header>
+         <section className="ak-card"> … </section>
+       </div>
+     </AdminLayout>
+
+   Everything is scoped under `.ak-page` so it never collides with legacy
+   per-page CSS. Migrate a page by wrapping it in `.ak-page` and swapping its
+   bespoke header/card/button/table classes for the ak-* equivalents below.
+   ============================================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+.ak-page {
+  /* ---- canvas + ink ---- */
+  --ak-bg:        #f4f5fa;
+  --ak-ink:       #14181f;
+  --ak-ink-soft:  #5b6472;
+  --ak-ink-faint: #939aa8;
+  --ak-card:      #ffffff;
+  --ak-line:      #e7e9f1;
+  --ak-line-soft: #eff1f7;
+  --ak-band:      #f7f8fc;
+  /* ---- brand ---- */
+  --ak-crimson:      #dc143c;
+  --ak-crimson-deep: #a01028;
+  --ak-gold:         #f5b301;
+  --ak-amber:        #d97706;
+  --ak-green:        #059669;
+  --ak-blue:         #2563eb;
+  /* ---- type ---- */
+  --ak-display: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ak-mono:    'JetBrains Mono', 'Courier New', monospace;
+  /* ---- geometry ---- */
+  --ak-radius:   16px;
+  --ak-radius-sm: 10px;
+  --ak-shadow:    0 1px 2px rgba(20, 24, 31, 0.04), 0 12px 32px -18px rgba(20, 24, 31, 0.22);
+  --ak-shadow-lg: 0 1px 2px rgba(20, 24, 31, 0.04), 0 22px 48px -30px rgba(20, 24, 31, 0.28);
+
+  font-family: var(--ak-display);
+  color: var(--ak-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+  padding: 0 0 3rem;
+}
+
+/* ---- staggered load reveal (top-level blocks) --------------------------- */
+@keyframes ak-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ak-pop  { 0% { transform: scale(0.7); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.ak-page > * { animation: ak-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ak-page > *:nth-child(2) { animation-delay: 0.06s; }
+.ak-page > *:nth-child(3) { animation-delay: 0.12s; }
+.ak-page > *:nth-child(4) { animation-delay: 0.18s; }
+.ak-page > *:nth-child(5) { animation-delay: 0.24s; }
+@media (prefers-reduced-motion: reduce) {
+  .ak-page > * { animation: none; }
+}
+
+/* ============================ COMMAND HEADER ============================== */
+.ak-header {
+  position: relative;
+  background: var(--ak-card);
+  border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius);
+  padding: 1.6rem 1.75rem 1.5rem;
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+  box-shadow: var(--ak-shadow);
+}
+/* crimson→gold ignition rule — the AIRKING signature */
+.ak-header::before {
+  content: '';
+  position: absolute; inset: 0 0 auto 0; height: 4px;
+  background: linear-gradient(90deg, var(--ak-crimson) 0%, var(--ak-crimson-deep) 45%, var(--ak-gold) 100%);
+}
+/* faint engineering dot-grid */
+.ak-header::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background-image: radial-gradient(circle at center, rgba(20, 24, 31, 0.05) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(105deg, #000 0%, transparent 62%);
+          mask-image: linear-gradient(105deg, #000 0%, transparent 62%);
+}
+.ak-header-row {
+  position: relative; z-index: 1;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1.5rem; flex-wrap: wrap;
+}
+/* Text primitives are scoped under .ak-page so they out-specify legacy
+   per-page rules like `.xx-page-header-left h1` (0,1,1) that would otherwise
+   override the system's heading sizes/fonts. */
+.ak-page .ak-eyebrow {
+  font-family: var(--ak-mono);
+  font-size: 0.66rem; font-weight: 600; letter-spacing: 0.28em;
+  text-transform: uppercase; color: var(--ak-crimson);
+  display: flex; align-items: center; gap: 0.55rem; margin: 0 0 0.55rem;
+}
+.ak-page .ak-eyebrow::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ak-crimson); box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.16);
+}
+.ak-page .ak-title {
+  font-family: var(--ak-display);
+  font-weight: 800; font-size: clamp(1.5rem, 2.4vw, 2.05rem);
+  line-height: 1.04; letter-spacing: -0.03em; margin: 0; color: var(--ak-ink);
+}
+.ak-page .ak-sub {
+  margin: 0.6rem 0 0; max-width: 64ch;
+  color: var(--ak-ink-soft); font-size: 0.92rem; line-height: 1.5; font-weight: 400;
+}
+.ak-header-aside {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 0.8rem;
+}
+.ak-actions { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+
+/* ============================== BUTTONS ================================== */
+.ak-btn {
+  font-family: var(--ak-display); font-weight: 700; font-size: 0.85rem;
+  letter-spacing: 0.01em; padding: 0.62rem 1.25rem; border-radius: var(--ak-radius-sm);
+  border: 1px solid var(--ak-line); background: var(--ak-card); color: var(--ak-ink);
+  cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.ak-btn:hover:not(:disabled)  { transform: translateY(-1px); border-color: var(--ak-ink-faint); }
+.ak-btn:active:not(:disabled) { transform: translateY(0); }
+.ak-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ak-btn svg { width: 16px; height: 16px; }
+
+.ak-btn--primary {
+  background: var(--ak-crimson); border-color: var(--ak-crimson); color: #fff;
+  box-shadow: 0 8px 20px -8px rgba(220, 20, 60, 0.6);
+}
+.ak-btn--primary:hover:not(:disabled) {
+  background: var(--ak-crimson-deep); border-color: var(--ak-crimson-deep);
+  box-shadow: 0 12px 26px -8px rgba(160, 16, 40, 0.65);
+}
+.ak-btn--ghost  { background: transparent; }
+.ak-btn--danger { color: var(--ak-crimson); border-color: #f3c2ca; background: #fff6f7; }
+.ak-btn--danger:hover:not(:disabled) { background: #fdecee; border-color: var(--ak-crimson); }
+.ak-btn--sm { padding: 0.42rem 0.85rem; font-size: 0.78rem; }
+
+/* =========================== CARDS / PANELS ============================= */
+.ak-card {
+  background: var(--ak-card); border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius); padding: 1.25rem;
+  box-shadow: var(--ak-shadow-lg); margin-bottom: 1.25rem;
+}
+.ak-card--flush { padding: 0; overflow: hidden; }
+.ak-card-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.ak-page .ak-card-title { font-family: var(--ak-display); font-weight: 700; font-size: 1rem; margin: 0; color: var(--ak-ink); }
+.ak-page .ak-card-meta  { font-size: 0.82rem; color: var(--ak-ink-soft); margin: 0.2rem 0 0; }
+
+/* ====================== TOOLBAR / FILTER BAR ============================ */
+.ak-toolbar {
+  display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center;
+  margin-bottom: 1rem;
+}
+.ak-toolbar--push > :last-child { margin-left: auto; }
+/* selects/inputs sitting directly in a toolbar flex to fill the row, then
+   wrap gracefully on smaller screens instead of overflowing */
+.ak-toolbar > .ak-select,
+.ak-toolbar > .ak-input { flex: 1 1 150px; min-width: 140px; }
+.ak-toolbar > .ak-btn { flex: 0 0 auto; }
+
+.ak-field { display: flex; flex-direction: column; gap: 0.38rem; }
+.ak-label {
+  font-family: var(--ak-mono); font-size: 0.66rem; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ak-ink-faint);
+}
+.ak-input, .ak-select {
+  font-family: var(--ak-display); font-size: 0.88rem; color: var(--ak-ink);
+  padding: 0.5rem 0.7rem; border-radius: 9px; border: 1px solid var(--ak-line);
+  background: var(--ak-card); transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ak-input:focus, .ak-select:focus {
+  outline: none; border-color: var(--ak-crimson);
+  box-shadow: 0 0 0 4px rgba(220, 20, 60, 0.1);
+}
+.ak-input::placeholder { color: var(--ak-ink-faint); }
+/* search field with a leading magnifier (set the icon via background or wrap) */
+.ak-search { position: relative; flex: 1 1 240px; min-width: 200px; }
+.ak-search .ak-input { width: 100%; padding-left: 2.1rem; }
+.ak-search::before {
+  content: ''; position: absolute; left: 0.75rem; top: 50%; width: 14px; height: 14px;
+  transform: translateY(-50%); pointer-events: none; opacity: 0.5;
+  background: no-repeat center / contain
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6472' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+}
+
+/* ============================ DATA TABLE ================================ */
+.ak-table-wrap {
+  background: var(--ak-card); border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius); overflow: auto; box-shadow: var(--ak-shadow-lg);
+}
+.ak-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.ak-table thead th {
+  text-align: left; font-family: var(--ak-mono); font-size: 0.64rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ak-ink-faint);
+  padding: 0.8rem 0.95rem; border-bottom: 1px solid var(--ak-line);
+  white-space: nowrap; background: #fbfbfe;
+}
+.ak-table tbody td {
+  padding: 0.75rem 0.95rem; border-bottom: 1px solid var(--ak-line-soft);
+  font-size: 0.88rem; vertical-align: middle;
+}
+.ak-table tbody tr { transition: background 0.12s ease; }
+.ak-table tbody tr:hover { background: var(--ak-band); }
+.ak-table tbody tr:last-child td { border-bottom: none; }
+.ak-mono  { font-family: var(--ak-mono); font-size: 0.8rem; }
+.ak-muted { color: var(--ak-ink-soft); }
+
+/* ====================== STAT CARDS (KPI strip) ========================= */
+.ak-stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem; margin-bottom: 1.25rem;
+}
+.ak-stat {
+  background: var(--ak-card); border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius); padding: 1.15rem 1.25rem;
+  display: flex; align-items: center; gap: 1rem; box-shadow: var(--ak-shadow);
+}
+.ak-stat-icon {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--ak-band); color: var(--ak-crimson);
+}
+.ak-stat-icon svg { width: 22px; height: 22px; }
+.ak-stat-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ak-ink-faint); }
+.ak-stat-value { font-family: var(--ak-display); font-weight: 800; font-size: 1.5rem; line-height: 1.1; letter-spacing: -0.02em; margin-top: 0.15rem; }
+
+/* ============================== BADGES ================================= */
+.ak-badge {
+  font-family: var(--ak-mono); font-size: 0.66rem; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase; padding: 0.2rem 0.55rem;
+  border-radius: 6px; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.ak-badge--green  { background: #e7f8ef; color: #15803d; }
+.ak-badge--red    { background: #fdecee; color: #b91c1c; }
+.ak-badge--amber  { background: #fff7ed; color: #b45309; }
+.ak-badge--blue   { background: #eef4ff; color: #1d4ed8; }
+.ak-badge--gray   { background: #eef1f6; color: #475569; }
+.ak-badge--violet { background: #f1edff; color: #5b21b6; }
+
+.ak-pill {
+  font-family: var(--ak-mono); font-size: 0.74rem; font-weight: 600;
+  letter-spacing: 0.02em; color: var(--ak-amber);
+  background: #fff7ed; border: 1px solid #fde2c2;
+  padding: 0.32rem 0.7rem; border-radius: 999px; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 0.45rem;
+}
+.ak-pill::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ak-amber); animation: ak-pop 1.4s ease-in-out infinite;
+}
+
+/* =============================== TABS ================================== */
+.ak-tabs { display: flex; gap: 0.35rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--ak-line); }
+.ak-tab {
+  font-family: var(--ak-display); font-weight: 600; font-size: 0.85rem;
+  padding: 0.65rem 1.1rem; border: none; background: none; cursor: pointer;
+  color: var(--ak-ink-soft); border-bottom: 2.5px solid transparent; margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.ak-tab:hover { color: var(--ak-ink); }
+.ak-tab.is-active { color: var(--ak-crimson); border-bottom-color: var(--ak-crimson); }
+
+/* ============================== STATES ================================= */
+.ak-state {
+  text-align: center; padding: 3.25rem 1rem; color: var(--ak-ink-soft);
+  font-size: 0.95rem; background: var(--ak-card); border: 1px dashed var(--ak-line-soft);
+  border-radius: var(--ak-radius);
+}
+.ak-state--error { color: var(--ak-crimson-deep); background: #fff4f5; border: 1px solid #f8d2d8; }
+.ak-loading-dots::after {
+  content: '·'; animation: ak-dots 1.2s steps(4, end) infinite; font-weight: 800; letter-spacing: 2px;
+}
+@keyframes ak-dots { 0% { content: '·'; } 33% { content: '··'; } 66% { content: '···'; } 100% { content: ''; } }
+
+/* ============================ RESPONSIVE ===============================
+   Breakpoints: ≤1024 laptop/tablet landscape · ≤768 tablet portrait ·
+   ≤640 large phone · ≤420 small phone. Primitives are fluid by default
+   (flex-wrap, auto-fit grids, overflow-x tables); these just tighten the
+   chrome so nothing overflows or crowds on smaller devices.
+====================================================================== */
+
+/* Tablet / small laptop */
+@media (max-width: 1024px) {
+  .ak-stat-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+}
+
+/* Tablet portrait — header actions drop under the title */
+@media (max-width: 768px) {
+  .ak-page { padding-bottom: 2rem; }
+  .ak-header { padding: 1.35rem 1.4rem; }
+  .ak-header-row { flex-direction: column; gap: 1rem; }
+  .ak-header-aside { align-items: stretch; width: 100%; }
+  .ak-actions { width: 100%; }
+  .ak-card-head { flex-direction: column; }
+}
+
+/* Large phone */
+@media (max-width: 640px) {
+  .ak-header { padding: 1.2rem 1.1rem; border-radius: 14px; }
+  .ak-card { padding: 1.1rem; border-radius: 14px; }
+  .ak-stat-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .ak-stat { padding: 0.95rem 1rem; }
+  .ak-stat-value { font-size: 1.3rem; }
+  /* toolbar collapses to a stack: search + each control full width */
+  .ak-toolbar { gap: 0.6rem; }
+  .ak-toolbar--push > :last-child { margin-left: 0; }
+  .ak-search { flex: 1 1 100%; min-width: 0; }
+  .ak-toolbar > .ak-select,
+  .ak-toolbar > .ak-input { flex: 1 1 100%; min-width: 0; }
+  .ak-toolbar > .ak-btn { width: 100%; justify-content: center; }
+  /* let buttons in a header aside fill the width so they're easy to tap */
+  .ak-header-aside > .ak-btn,
+  .ak-actions > .ak-btn { flex: 1 1 auto; justify-content: center; }
+  .ak-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .ak-tab { white-space: nowrap; }
+}
+
+/* Small phone */
+@media (max-width: 420px) {
+  .ak-stat-grid { grid-template-columns: 1fr; }
+  .ak-title { font-size: 1.35rem; }
+}
