@@ -7,6 +7,7 @@ import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
 import '../styles/dashboard_air.css';
+import '../styles/airking_ds.css';
 
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
