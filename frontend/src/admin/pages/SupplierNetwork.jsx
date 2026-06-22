@@ -308,18 +308,20 @@ const SupplierNetwork = () => {
 
   return (
     <AdminLayout>
-      <div className="sn-page">
+      <div className="ak-page sn-page">
         {/* ── Page Header ── */}
-        <div className="sn-page-header">
+        <header className="ak-header">
+         <div className="ak-header-row">
           <div className="sn-page-header-left">
-            <h1>Supplier Network</h1>
-            <p>
+            <p className="ak-eyebrow">Procurement · Suppliers</p>
+            <h1 className="ak-title">Supplier Network</h1>
+            <p className="ak-sub">
               {isViewOnly
-                ? 'View supplier profiles and linked products'
-                : 'Manage local appliance vendors and their linked products'}
+                ? 'View supplier profiles and linked products.'
+                : 'Manage local appliance vendors and their linked products.'}
             </p>
           </div>
-          <div className="sn-header-actions">
+          <div className="ak-header-aside ak-actions sn-header-actions">
             <div className="sn-view-toggle">
               <button
                 type="button"
@@ -337,7 +339,7 @@ const SupplierNetwork = () => {
               </button>
             </div>
             {!isViewOnly && (
-              <button className="sn-btn-add" onClick={handleAdd}>
+              <button className="ak-btn ak-btn--primary sn-btn-add" onClick={handleAdd}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
@@ -346,7 +348,8 @@ const SupplierNetwork = () => {
               </button>
             )}
           </div>
-        </div>
+         </div>
+        </header>
 
         {/* ── Stats Row ── */}
         <div className="sn-stats-row">

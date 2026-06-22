@@ -250,61 +250,63 @@ const TransactionManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="txn-page">
-        <div className="txn-page-header">
-          <div className="txn-page-header-left">
-            <h1>Transactions</h1>
-            <p>All inventory movements including receiving, issuance, transfers, and adjustments</p>
+      <div className="ak-page txn-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Movement Ledger</p>
+              <h1 className="ak-title">Transactions</h1>
+              <p className="ak-sub">All inventory movements including receiving, issuance, transfers, and adjustments.</p>
+            </div>
           </div>
-        </div>
+        </header>
 
-        {loading && <div className="txn-loading">Loading transactions...</div>}
-        {error && <div className="txn-error">Error: {error}</div>}
+        {loading && <div className="ak-state">Loading transactions<span className="ak-loading-dots" /></div>}
+        {error && <div className="ak-state ak-state--error">Error: {error}</div>}
 
-        <div className="txn-table-card">
-          <div className="txn-table-top">
-            <div className="txn-table-title">
-              <h3>All Transactions</h3>
-              <p>{totalTransactions} total transactions</p>
+        <div className="ak-card txn-table-card">
+          <div className="ak-card-head">
+            <div>
+              <h2 className="ak-card-title">All Transactions</h2>
+              <p className="ak-card-meta">{totalTransactions} total transactions</p>
             </div>
           </div>
 
-          <div className="txn-filter-row">
-            <div className="txn-search-input">
+          <div className="ak-toolbar ak-toolbar--push">
+            <div className="ak-search">
               <input
+                className="ak-input"
                 type="text"
                 placeholder="Search by item, reference, location..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="txn-filter-group">
-              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                <option value="">All Types</option>
-                <option value="Receiving">Receiving</option>
-                <option value="Issuance">Issuance</option>
-                <option value="Transfer">Transfer</option>
-                <option value="Adjustment">Adjustment</option>
-              </select>
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="">All Status</option>
-                <option value="Completed">Completed</option>
-                <option value="Pending">Pending</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
-              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
-                <option value="">All Locations</option>
-                {locations.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-              </select>
-              <button className="txn-btn-reset" onClick={() => {
-                setSearchTerm('');
-                setTypeFilter('');
-                setStatusFilter('');
-                setLocationFilter('');
-              }}>Reset</button>
-            </div>
+            <select className="ak-select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="">All Types</option>
+              <option value="Receiving">Receiving</option>
+              <option value="Issuance">Issuance</option>
+              <option value="Transfer">Transfer</option>
+              <option value="Adjustment">Adjustment</option>
+            </select>
+            <select className="ak-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="Completed">Completed</option>
+              <option value="Pending">Pending</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+            <select className="ak-select" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
+              <option value="">All Locations</option>
+              {locations.map((loc) => (
+                <option key={loc} value={loc}>{loc}</option>
+              ))}
+            </select>
+            <button className="ak-btn ak-btn--ghost" onClick={() => {
+              setSearchTerm('');
+              setTypeFilter('');
+              setStatusFilter('');
+              setLocationFilter('');
+            }}>Reset</button>
           </div>
 
           <div className="txn-feed">

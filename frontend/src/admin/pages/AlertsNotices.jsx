@@ -484,17 +484,19 @@ const AlertsNotices = () => {
 
   return (
     <AdminLayout>
-      <div className="an-page">
-        <div className="an-page-header">
+      <div className="ak-page an-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
           <div className="an-page-header-content">
-            <h1 className="an-page-title">Alerts &amp; Notices</h1>
-            <p className="an-page-subtitle">
+            <p className="ak-eyebrow">System · Alerts</p>
+            <h1 className="ak-title">Alerts &amp; Notices</h1>
+            <p className="ak-sub">
               System alerts and activity — all actions and changes are recorded here.
             </p>
           </div>
           <button
             type="button"
-            className="an-mark-all-read-btn"
+            className="ak-btn ak-btn--ghost an-mark-all-read-btn"
             onClick={handleMarkAllRead}
             disabled={markingRead || (pendingTotal + unreadCount) === 0}
           >
@@ -503,7 +505,8 @@ const AlertsNotices = () => {
             </svg>
             {markingRead ? 'Marking...' : 'Mark All Read'}
           </button>
-        </div>
+          </div>
+        </header>
 
         {/* Pending approvals */}
         <div className="an-card">

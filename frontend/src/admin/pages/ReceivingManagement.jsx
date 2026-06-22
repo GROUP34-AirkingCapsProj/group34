@@ -168,14 +168,19 @@ const ReceivingManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="txn-page">
-        <div className="txn-page-header">
-          <div className="txn-page-header-left">
-            <h1>Receiving of Items</h1>
-            <p>Record goods received from purchase orders — same layout as Transactions</p>
+      <div className="ak-page txn-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Procurement · Receiving</p>
+              <h1 className="ak-title">Receiving of Items</h1>
+              <p className="ak-sub">Record goods received from purchase orders — same layout as Transactions.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button type="button" className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Receiving</button>
+            </div>
           </div>
-          <button type="button" className="txn-btn-create" onClick={openAddModal}>+ New Receiving</button>
-        </div>
+        </header>
 
         <div className="txn-stats-row">
           {[

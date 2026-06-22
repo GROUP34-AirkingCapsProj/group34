@@ -286,13 +286,16 @@ const CategoryBrandManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="cb-page">
-        <div className="cb-page-header">
-          <div>
-            <h1>Category &amp; Brand Management</h1>
-            <p>Manage item categories and brands for classification and reporting.</p>
+      <div className="ak-page cb-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Catalog · Classification</p>
+              <h1 className="ak-title">Category &amp; Brand Management</h1>
+              <p className="ak-sub">Manage item categories and brands for classification and reporting.</p>
+            </div>
           </div>
-        </div>
+        </header>
 
         {loading && <div className="cb-loading">Loading...</div>}
         {error && <div className="cb-error">Error: {error}</div>}

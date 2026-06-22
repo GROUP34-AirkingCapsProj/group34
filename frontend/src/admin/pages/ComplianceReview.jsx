@@ -158,22 +158,27 @@ const ComplianceReview = () => {
 
   return (
     <AdminLayout>
-      <div className="cr-page">
+      <div className="ak-page cr-page">
         {/* Header */}
-        <div className="cr-page-header">
-          <div className="cr-page-header-left">
-            <h1 className="cr-page-title">Compliance Review</h1>
-            <p className="cr-page-subtitle">Audit internal controls and operational adherence</p>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div className="cr-page-header-left">
+              <p className="ak-eyebrow">Governance · Compliance</p>
+              <h1 className="ak-title">Compliance Review</h1>
+              <p className="ak-sub">Audit internal controls and operational adherence.</p>
+            </div>
+            <div className="ak-header-aside">
+            <button className="ak-btn ak-btn--ghost cr-btn-export" onClick={() => window.print()}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              EXPORT AUDIT FINDINGS
+            </button>
+            </div>
           </div>
-          <button className="cr-btn-export" onClick={() => window.print()}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            EXPORT AUDIT FINDINGS
-          </button>
-        </div>
+        </header>
 
         {/* Tabs */}
         <div className="cr-tabs">

@@ -188,16 +188,21 @@ const ProfitLossManagement = () => {
   /* ── Render ─────────────────────────────────────────────── */
   return (
     <AdminLayout>
-      <div className="plm-page">
+      <div className="ak-page plm-page">
 
         {/* Header */}
-        <div className="plm-header">
-          <div>
-            <h1 className="plm-title">Profit / Loss Records</h1>
-            <p className="plm-subtitle">Track inventory losses — damage, theft, expiry, write-offs</p>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Finance · Losses</p>
+              <h1 className="ak-title">Profit / Loss Records</h1>
+              <p className="ak-sub">Track inventory losses — damage, theft, expiry, write-offs.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button className="ak-btn ak-btn--primary" onClick={openAdd}>+ New Record</button>
+            </div>
           </div>
-          <button className="plm-btn-add" onClick={openAdd}>+ New Record</button>
-        </div>
+        </header>
 
         {/* Stats */}
         <div className="plm-stats-row">

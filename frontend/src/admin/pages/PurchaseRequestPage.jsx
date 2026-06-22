@@ -1238,7 +1238,7 @@ const PurchaseRequestPage = () => {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
         {/* Page header */}
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">

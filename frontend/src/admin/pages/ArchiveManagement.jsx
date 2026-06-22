@@ -192,13 +192,18 @@ const ArchiveManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="am-content">
+      <div className="ak-page am-content">
 
         {/* Page Header */}
-        <div className="am-page-header">
-          <h1>Archive Management</h1>
-          <p>Browse, restore, or permanently remove soft-deleted records across all modules</p>
-        </div>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">System · Archive</p>
+              <h1 className="ak-title">Archive Management</h1>
+              <p className="ak-sub">Browse, restore, or permanently remove soft-deleted records across all modules.</p>
+            </div>
+          </div>
+        </header>
 
         {/* Page-level navigation tabs */}
         <div className="am-page-tabs">

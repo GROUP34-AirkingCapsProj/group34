@@ -1408,12 +1408,17 @@ const AnalyticsDashboard = () => {
 
   return (
     <AdminLayout>
-      <div className="analytics-content">
+      <div className="ak-page analytics-content">
         {/* Page Title */}
-        <div className="analytics-page-header">
-          <h1>Analytics Dashboard</h1>
-          <p>Comprehensive stock level, operational analytics, and rule-based restocking insights</p>
-        </div>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Insights · Analytics</p>
+              <h1 className="ak-title">Analytics Dashboard</h1>
+              <p className="ak-sub">Comprehensive stock level, operational analytics, and rule-based restocking insights.</p>
+            </div>
+          </div>
+        </header>
 
         {initialLoading && <div className="loading-message">Loading analytics data...</div>}
         {refreshing && <div className="refreshing-indicator">Updating...</div>}

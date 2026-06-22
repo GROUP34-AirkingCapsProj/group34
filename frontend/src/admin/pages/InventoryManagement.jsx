@@ -333,38 +333,41 @@ const InventoryManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="inv-page">
+      <div className="ak-page inv-page">
 
         {/* ── Page header ── */}
-        <div className="inv-page-header">
-          <div>
-            <h1 className="inv-page-title">Inventory Monitoring</h1>
-            <p className="inv-page-subtitle">
-              {activeTab === 'stock-movement'
-                ? 'Comprehensive stock in/out analysis and inventory velocity'
-                : activeTab === 'activity'
-                ? 'Complete audit trail of all stock movements — receivings, issuances, transfers, and adjustments'
-                : 'Real-time inventory levels and safety stock tracking across all Mindanao locations'}
-            </p>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Stock Control</p>
+              <h1 className="ak-title">Inventory Monitoring</h1>
+              <p className="ak-sub">
+                {activeTab === 'stock-movement'
+                  ? 'Comprehensive stock in/out analysis and inventory velocity.'
+                  : activeTab === 'activity'
+                  ? 'Complete audit trail of all stock movements — receivings, issuances, transfers, and adjustments.'
+                  : 'Real-time inventory levels and safety stock tracking across all Mindanao locations.'}
+              </p>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* ── Tab navigation ── */}
-        <div className="inv-tabs">
+        <div className="ak-tabs inv-tabs">
           <button
-            className={`inv-tab-btn ${activeTab === 'stock-movement' ? 'active' : ''}`}
+            className={`ak-tab ${activeTab === 'stock-movement' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('stock-movement')}
           >
             Stock Movement &amp; Turnover
           </button>
           <button
-            className={`inv-tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
+            className={`ak-tab ${activeTab === 'inventory' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('inventory')}
           >
             Inventory
           </button>
           <button
-            className={`inv-tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
+            className={`ak-tab ${activeTab === 'activity' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('activity')}
           >
             Activity Log

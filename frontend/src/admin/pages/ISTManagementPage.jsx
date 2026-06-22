@@ -142,7 +142,7 @@ const ISTManagementPage = () => {
 
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
 
         {/* Header */}
         <div className="po-creator-header-card">

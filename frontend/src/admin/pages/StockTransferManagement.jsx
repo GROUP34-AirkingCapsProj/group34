@@ -286,19 +286,22 @@ const StockTransferManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="txn-page">
-        <div className="txn-page-header">
-          <div className="txn-page-header-left">
-            <h1>Stock Transfer</h1>
-            <p>Transfer inventory between locations — <strong>In transit</strong> = naka-scan na sa warehouse, papunta sa showroom; <strong>Completed</strong> = natanggap na sa destination</p>
+      <div className="ak-page txn-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div className="txn-page-header-left">
+              <p className="ak-eyebrow">Inventory · Transfers</p>
+              <h1 className="ak-title">Stock Transfer</h1>
+              <p className="ak-sub">Transfer inventory between locations — <strong>In transit</strong> = naka-scan na sa warehouse, papunta sa showroom; <strong>Completed</strong> = natanggap na sa destination.</p>
+            </div>
+            <div className="ak-header-aside ak-actions">
+              <button type="button" className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/ist')}>
+                IST Receive flow
+              </button>
+              <button type="button" className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Transfer</button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" className="txn-btn-print" onClick={() => navigate('/admin/ist')}>
-              IST Receive flow
-            </button>
-            <button type="button" className="txn-btn-create" onClick={openAddModal}>+ New Transfer</button>
-          </div>
-        </div>
+        </header>
 
         <div className="txn-stats-row">
           {[

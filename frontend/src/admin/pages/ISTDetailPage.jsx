@@ -129,7 +129,7 @@ const ISTDetailPage = () => {
 
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
 
         {/* Back + Title */}
         <div className="po-creator-header-card">

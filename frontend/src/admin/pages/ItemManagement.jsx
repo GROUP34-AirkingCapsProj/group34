@@ -515,17 +515,19 @@ const ItemManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="im-page">
+      <div className="ak-page im-page">
         {/* Page Header */}
-        <div className="im-page-header">
+        <header className="ak-header">
+         <div className="ak-header-row">
           <div className="im-page-header-left">
-            <h1>Product Management</h1>
-            <p>Central repository for product specifications and material catalog</p>
+            <p className="ak-eyebrow">Catalog · Products</p>
+            <h1 className="ak-title">Product Management</h1>
+            <p className="ak-sub">Central repository for product specifications and material catalog.</p>
           </div>
-          <div className="im-page-header-right">
+          <div className="ak-header-aside ak-actions im-page-header-right">
             <div className="im-header-filters">
               <select
-                className="im-filter-select"
+                className="ak-select im-filter-select"
                 value={filterCategory}
                 onChange={(e) => {
                   setFilterCategory(e.target.value);
@@ -538,7 +540,7 @@ const ItemManagement = () => {
                 ))}
               </select>
               <select
-                className="im-filter-select"
+                className="ak-select im-filter-select"
                 value={filterBrand}
                 onChange={(e) => {
                   setFilterBrand(e.target.value);
@@ -552,7 +554,7 @@ const ItemManagement = () => {
               </select>
             </div>
             {!isViewOnly && (
-              <button className="im-btn-create" onClick={handleAdd}>
+              <button className="ak-btn ak-btn--primary im-btn-create" onClick={handleAdd}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
                   <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -561,7 +563,8 @@ const ItemManagement = () => {
               </button>
             )}
           </div>
-        </div>
+         </div>
+        </header>
 
         {/* Stats Cards */}
         <div className="im-stats-row">

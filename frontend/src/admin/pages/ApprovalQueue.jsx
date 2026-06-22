@@ -507,17 +507,18 @@ const handlePOAction = async (id, action) => {
 
 return (
     <AdminLayout>
-      <div className="aq-content">
+      <div className="ak-page aq-content">
         {/* Page Header */}
-        <div className="aq-page-header">
-          <h1>Approvals</h1>
+        <header className="ak-header">
+          <p className="ak-eyebrow">Workflow · Approvals</p>
+          <h1 className="ak-title">Approvals</h1>
           {!canApproveTransfer && !canApprovePO && (
             <p className="aq-viewonly-banner">
               <strong>View only.</strong> You don&rsquo;t have permission to authorize purchase orders or restock here.
               You can review and open PO line items with the eye icon.
             </p>
           )}
-          <p>
+          <p className="ak-sub">
             {(canApproveTransfer || canApprovePO) ? (
               <>
                 <strong>Approve</strong> sets a purchase order to <strong>Authorized</strong> on the server. Receiving
@@ -530,7 +531,7 @@ return (
               </>
             )}
           </p>
-        </div>
+        </header>
 
         {/* Tab Navigation */}
         <div className="aq-tabs">

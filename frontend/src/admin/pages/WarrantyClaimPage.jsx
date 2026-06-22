@@ -160,7 +160,16 @@ export default function WarrantyClaimPage() {
 
   return (
     <AdminLayout>
-      <div className="isp-page">
+      <div className="ak-page isp-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">After-sales · Warranty</p>
+              <h1 className="ak-title">Warranty Claim</h1>
+              <p className="ak-sub">File and process a warranty claim for an issued product.</p>
+            </div>
+          </div>
+        </header>
         <Steps />
 
         {/* ── STEP 1: CLAIM DETAILS ── */}

@@ -2643,11 +2643,16 @@ const BarcodeScan = () => {
   if (scanMode === null) {
     return (
       <AdminLayout>
-        <div className="bs-page">
-          <div className="bs-page-header">
-            <h1>Inventory Operation</h1>
-            <p>Scan barcode or QR code to view item details and perform inventory lookups</p>
-          </div>
+        <div className="ak-page bs-page">
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">Inventory · Barcode</p>
+                <h1 className="ak-title">Inventory Operation</h1>
+                <p className="ak-sub">Scan barcode or QR code to view item details and perform inventory lookups.</p>
+              </div>
+            </div>
+          </header>
 
           {/* ── mode action cards ── */}
           <div className="bs-mode-cards">
@@ -3263,7 +3268,7 @@ const BarcodeScan = () => {
   ───────────────────────────────────────────── */
   return (
     <AdminLayout>
-      <div className="bs-page">
+      <div className="ak-page bs-page">
         <div className="bs-page-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <button className="bs-topback-btn" onClick={exitScanMode} type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>

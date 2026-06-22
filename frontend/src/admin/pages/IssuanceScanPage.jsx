@@ -990,7 +990,17 @@ export default function IssuanceScanPage() {
   // ─────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="isp-page">
+      <div className="ak-page isp-page">
+
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Issuance Scan</p>
+              <h1 className="ak-title">Issuance Scanning</h1>
+              <p className="ak-sub">Scan items to issue stock for internal use.</p>
+            </div>
+          </div>
+        </header>
 
         {/* ── Step indicator ── */}
         <div className="isp-steps">

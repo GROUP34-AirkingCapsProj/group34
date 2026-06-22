@@ -483,11 +483,16 @@ const SystemConfiguration = () => {
 
   return (
     <AdminLayout>
-      <div className="sc-content">
-        <div className="sc-page-header">
-          <h1>System Settings</h1>
-          <p>Configure security, branding, inventory rules, and system preferences</p>
-        </div>
+      <div className="ak-page sc-content">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">System · Settings</p>
+              <h1 className="ak-title">System Settings</h1>
+              <p className="ak-sub">Configure security, branding, inventory rules, and system preferences.</p>
+            </div>
+          </div>
+        </header>
 
         <div className="sc-tabs-bar">
           {TABS.map(tab => (
