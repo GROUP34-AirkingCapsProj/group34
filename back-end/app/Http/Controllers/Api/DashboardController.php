@@ -23,16 +23,20 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
+        $user          = $request->user();
+        $isCentralized = $user === null || $user->isCentralized();
+        $locId         = $isCentralized ? null : $user->scopedLocationId();
+
         return response()->json([
-            'stats'                    => $this->getStats($request->user()),
-            'low_stock_items'          => $this->getLowStockItems(),
-            'inventory_by_category'    => $this->getInventoryByCategory(),
-            'location_distribution'    => $this->getLocationDistribution(),
-            'stock_status_by_location' => $this->getStockStatusByLocation(),
-            'warehouse_capacity'       => $this->getWarehouseCapacity(),
-            'stock_trends'             => $this->getStockTrends(),
-            'transaction_trends'       => $this->getSalesTrends(),
-            'recent_activity'          => $this->getRecentActivity(),
+            'stats'                    => $this->getStats($user),
+            'low_stock_items'          => $this->getLowStockItems($locId),
+            'inventory_by_category'    => $this->buildInventoryByCategory(null, null, null, $locId),
+            'location_distribution'    => $this->getLocationDistribution($locId),
+            'stock_status_by_location' => $this->buildStockByLocation(null, null, null, $locId),
+            'warehouse_capacity'       => $this->getWarehouseCapacity($locId),
+            'stock_trends'             => $this->buildStockTrends(now()->subWeeks(3)->toDateString(), now()->toDateString(), null, null, null, $locId),
+            'transaction_trends'       => $this->buildTransactionTrends(now()->subDays(6)->toDateString(), now()->toDateString(), $locId),
+            'recent_activity'          => $this->getRecentActivity($locId),
         ]);
     }
 
@@ -427,9 +431,11 @@ class DashboardController extends Controller
         ];
     }
 
-    private function getLowStockItems(): array
+    private function getLowStockItems(?int $locId = null): array
     {
-        $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
+        $sub = $locId === null
+            ? '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)'
+            : '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id AND inventory.location_id = ' . (int) $locId . ')';
 
         return Product::with(['category', 'applianceDetail.brand'])
             ->selectRaw("products.*, {$sub} AS total_qty")
@@ -456,9 +462,11 @@ class DashboardController extends Controller
         return $this->buildInventoryByCategory(null, null, null);
     }
 
-    private function getLocationDistribution(): array
+    private function getLocationDistribution(?int $locId = null): array
     {
-        $locations = Location::withCount('inventories')->get();
+        $locations = Location::withCount('inventories')
+            ->when($locId !== null, fn ($q) => $q->where('location_id', $locId))
+            ->get();
 
         if ($locations->isEmpty()) {
             return [
@@ -483,9 +491,9 @@ class DashboardController extends Controller
         return $this->buildStockByLocation(null, null, null);
     }
 
-    private function getWarehouseCapacity(): array
+    private function getWarehouseCapacity(?int $locId = null): array
     {
-        $locations = Location::all();
+        $locations = Location::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->get();
 
         if ($locations->isEmpty()) {
             return ['labels' => [], 'capacity' => [], 'occupancy' => []];
@@ -552,7 +560,7 @@ class DashboardController extends Controller
 
     // ─── Shared chart builders (used by both index and filteredCharts) ─────────
 
-    private function buildTransactionTrends(string $dateFrom, string $dateTo): array
+    private function buildTransactionTrends(string $dateFrom, string $dateTo, ?int $locId = null): array
     {
         $from = Carbon::parse($dateFrom)->startOfDay();
         $to   = Carbon::parse($dateTo)->endOfDay();
@@ -565,16 +573,16 @@ class DashboardController extends Controller
             while ($d->lte($to)) {
                 $ds               = $d->toDateString();
                 $labels[]         = $d->format('M d');
-                $saleValues[]     = Sale::whereDate('created_at', $ds)->count();
-                $purchaseValues[] = PurchaseOrder::whereDate('created_at', $ds)->count();
+                $saleValues[]     = Sale::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereDate('created_at', $ds)->count();
+                $purchaseValues[] = PurchaseOrder::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereDate('created_at', $ds)->count();
                 $d->addDay();
             }
         } else {
             $d = $from->copy()->startOfMonth();
             while ($d->lte($to)) {
                 $labels[]         = $d->format('M Y');
-                $saleValues[]     = Sale::whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
-                $purchaseValues[] = PurchaseOrder::whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
+                $saleValues[]     = Sale::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
+                $purchaseValues[] = PurchaseOrder::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
                 $d->addMonth();
             }
         }
@@ -582,7 +590,7 @@ class DashboardController extends Controller
         return ['labels' => $labels, 'values' => $saleValues, 'purchase_values' => $purchaseValues];
     }
 
-    private function buildStockTrends(string $dateFrom, string $dateTo, ?int $catId, ?int $brandId, ?int $productId): array
+    private function buildStockTrends(string $dateFrom, string $dateTo, ?int $catId, ?int $brandId, ?int $productId, ?int $locId = null): array
     {
         $from  = Carbon::parse($dateFrom);
         $to    = Carbon::parse($dateTo);
@@ -596,17 +604,19 @@ class DashboardController extends Controller
             $labels[] = $weeks === 1 ? $from->format('M d') . '–' . $to->format('M d') : 'Wk ' . ($i + 1);
             $q        = DB::table('inventory as inv')->where('inv.updated_at', '<=', $weekEnd);
             $this->applyInventoryFilters($q, $catId, $brandId, $productId, 'inv');
+            if ($locId !== null) $q->where('inv.location_id', $locId);
             $values[] = (int) round((float) ($q->avg('inv.quantity_on_hand') ?? 0));
         }
 
         $rq = DB::table('inventory as inv')->whereNotNull('inv.reorder_level');
         $this->applyInventoryFilters($rq, $catId, $brandId, $productId, 'inv');
+        if ($locId !== null) $rq->where('inv.location_id', $locId);
         $avgReorder = (int) round((float) ($rq->avg('inv.reorder_level') ?? 0));
 
         return ['labels' => $labels, 'values' => $values, 'reorder_level' => $avgReorder];
     }
 
-    private function buildInventoryByCategory(?int $catId, ?int $brandId, ?int $productId): array
+    private function buildInventoryByCategory(?int $catId, ?int $brandId, ?int $productId, ?int $locId = null): array
     {
         $q = DB::table('category_lookup')
             ->leftJoin('products', 'category_lookup.category_id', '=', 'products.category_id')
@@ -618,6 +628,7 @@ class DashboardController extends Controller
         }
         if ($catId)     $q->where('category_lookup.category_id', $catId);
         if ($productId) $q->where('products.product_id', $productId);
+        if ($locId !== null) $q->where('inventory.location_id', $locId);
 
         $rows = $q->selectRaw('category_lookup.category_name, COALESCE(SUM(inventory.quantity_on_hand), 0) as total_qty')
             ->groupBy('category_lookup.category_id', 'category_lookup.category_name')
@@ -630,9 +641,9 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildStockByLocation(?int $catId, ?int $brandId, ?int $productId): array
+    private function buildStockByLocation(?int $catId, ?int $brandId, ?int $productId, ?int $locId = null): array
     {
-        $locations = Location::all();
+        $locations = Location::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->get();
         if ($locations->isEmpty()) {
             return ['labels' => [], 'inStock' => [], 'lowStock' => []];
         }
@@ -672,12 +683,12 @@ class DashboardController extends Controller
         }
     }
 
-    private function getRecentActivity(): array
+    private function getRecentActivity(?int $locId = null): array
     {
         $rows = [];
 
         try {
-            foreach (Sale::with(['customer', 'location', 'soldBy'])->orderBy('created_at', 'desc')->limit(5)->get() as $s) {
+            foreach (Sale::with(['customer', 'location', 'soldBy'])->when($locId !== null, fn ($q) => $q->where('location_id', $locId))->orderBy('created_at', 'desc')->limit(5)->get() as $s) {
                 $rows[] = [
                     'type'        => 'sale',
                     'label'       => 'Sale ' . ($s->invoice_number ?? ('#' . $s->sales_id)),
@@ -691,7 +702,7 @@ class DashboardController extends Controller
         } catch (\Throwable $_) {}
 
         try {
-            foreach (Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'status'])->orderBy('created_at', 'desc')->limit(5)->get() as $t) {
+            foreach (Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'status'])->when($locId !== null, fn ($q) => $q->where(fn ($w) => $w->where('from_location_id', $locId)->orWhere('to_location_id', $locId)))->orderBy('created_at', 'desc')->limit(5)->get() as $t) {
                 $rows[] = [
                     'type'        => 'transfer',
                     'label'       => 'Transfer ' . ($t->transfer_number ?? ('#' . $t->transfer_id)),
@@ -705,7 +716,7 @@ class DashboardController extends Controller
         } catch (\Throwable $_) {}
 
         try {
-            foreach (Receiving::with(['supplier', 'location', 'receivedBy'])->orderBy('created_at', 'desc')->limit(5)->get() as $r) {
+            foreach (Receiving::with(['supplier', 'location', 'receivedBy'])->when($locId !== null, fn ($q) => $q->where('location_id', $locId))->orderBy('created_at', 'desc')->limit(5)->get() as $r) {
                 $rows[] = [
                     'type'        => 'receiving',
                     'label'       => 'Receiving ' . ($r->receiving_number ?? ('#' . $r->receiving_id)),
