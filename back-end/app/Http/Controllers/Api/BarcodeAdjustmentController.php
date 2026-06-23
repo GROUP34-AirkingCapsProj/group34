@@ -14,6 +14,7 @@ use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Models\ScanCorrection;
+use App\Support\RealtimeBroadcaster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -402,6 +403,8 @@ class BarcodeAdjustmentController extends Controller
 
             // ── 12. Re-sync PO receiving status ──────────────────────────────
             $this->syncPoReceivingStatus($validated['po_id']);
+
+            RealtimeBroadcaster::inventoryChanged((int) $resolvedLocationId, 'stock_corrected');
 
             return response()->json([
                 'success'            => true,

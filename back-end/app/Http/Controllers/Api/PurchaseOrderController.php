@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
@@ -155,6 +156,9 @@ class PurchaseOrderController extends Controller
 
             DB::commit();
 
+            RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'po_created');
+            RealtimeBroadcaster::approvalQueueChanged((int) $po->location_id, 'po_created');
+
             return $this->success(
                 $po->load(self::WITH_RELATIONS),
                 'Purchase order created successfully',
@@ -256,6 +260,9 @@ class PurchaseOrderController extends Controller
             }
 
             DB::commit();
+
+            RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'po_updated');
+            RealtimeBroadcaster::approvalQueueChanged((int) $po->location_id, 'po_updated');
 
             return $this->success(
                 $po->fresh()->load(self::WITH_RELATIONS),
