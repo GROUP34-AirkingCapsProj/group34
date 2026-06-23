@@ -305,6 +305,13 @@ export const batchAPI = {
 };
 
 /* ======================
+   LAYOUT SUMMARY API (header badges in one call)
+====================== */
+export const layoutAPI = {
+  getSummary: async () => apiRequest('/layout-summary'),
+};
+
+/* ======================
    DASHBOARD API
 ====================== */
 export const dashboardAPI = {
