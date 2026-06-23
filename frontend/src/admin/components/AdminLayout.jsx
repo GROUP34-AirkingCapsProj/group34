@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
-import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
+import { authAPI, layoutAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
@@ -68,63 +68,31 @@ const AdminLayout = ({ children }) => {
     return () => { document.body.style.overflow = prev; };
   }, [mobileNavOpen]);
 
-// Sync unread notification count from API
+  // One request feeds all header badges (unread, pending approvals, awaiting IST)
   useEffect(() => {
     let mounted = true;
-    const syncUnread = async () => {
+    const syncBadges = async () => {
       try {
-        const res = await alertsAPI.getUnreadCount();
-        // apiRequest returns the parsed body directly; res.data is the payload object
-        const count = res?.data?.badge_count
-                   ?? res?.data?.unread_count
-                   ?? res?.data?.data?.badge_count
-                   ?? res?.data?.data?.unread_count
-                   ?? 0;
-        if (mounted) setUnreadNotifications(Number(count));
+        const res = await layoutAPI.getSummary();
+        const d = res?.data ?? {};
+        if (!mounted) return;
+        setUnreadNotifications(Number(d.badge_count ?? 0));
+        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
       } catch (_) {
-        // API unreachable — keep existing count rather than falling back to stale localStorage
-        if (mounted) setUnreadNotifications(prev => prev);
+        // leave existing counts on transient failure
       }
     };
-    syncUnread();
-    window.addEventListener('approval-notifications-updated', syncUnread);
-    window.addEventListener('storage', syncUnread);
+    syncBadges();
+    const interval = setInterval(syncBadges, 60000);
+    window.addEventListener('approval-notifications-updated', syncBadges);
+    window.addEventListener('storage', syncBadges);
     return () => {
       mounted = false;
-      window.removeEventListener('approval-notifications-updated', syncUnread);
-      window.removeEventListener('storage', syncUnread);
+      clearInterval(interval);
+      window.removeEventListener('approval-notifications-updated', syncBadges);
+      window.removeEventListener('storage', syncBadges);
     };
-  }, []);
-
-  // Poll server for pending approval count (POs + item registrations)
-  useEffect(() => {
-    let mounted = true;
-    const fetchPending = async () => {
-      try {
-        const res = await dashboardAPI.getPendingApprovals();
-        const total = res?.data?.data?.total_pending ?? res?.data?.total_pending ?? 0;
-        if (mounted) setPendingApprovalCount(Number(total));
-      } catch (_) {}
-    };
-    fetchPending();
-    const interval = setInterval(fetchPending, 60000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, []);
-
-  // Poll server for IST awaiting counts (fulfillment + receipt)
-  useEffect(() => {
-    let mounted = true;
-    const fetchIstCounts = async () => {
-      try {
-        const res = await dashboardAPI.getStats();
-        const fulfillment = res?.data?.data?.awaiting_fulfillment ?? res?.data?.awaiting_fulfillment ?? 0;
-        const receipt     = res?.data?.data?.awaiting_receipt     ?? res?.data?.awaiting_receipt     ?? 0;
-        if (mounted) setAwaitingIstCount(Number(fulfillment) + Number(receipt));
-      } catch (_) {}
-    };
-    fetchIstCounts();
-    const interval = setInterval(fetchIstCounts, 60000);
-    return () => { mounted = false; clearInterval(interval); };
   }, []);
 
   // Close profile dropdown on outside click
