@@ -9,20 +9,34 @@ describe('playNotifySound', () => {
     global.AudioContext = original;
   });
 
-  test('drives an oscillator when WebAudio is available', () => {
+  test('plays a two-note pop when WebAudio is available', () => {
     const start = jest.fn();
     const stop = jest.fn();
     const connect = jest.fn();
-    const ctx = {
-      currentTime: 0,
-      destination: {},
-      createOscillator: () => ({ type: '', frequency: { value: 0 }, connect, start, stop }),
-      createGain: () => ({ gain: { value: 0, setValueAtTime: jest.fn(), exponentialRampToValueAtTime: jest.fn() }, connect }),
-      close: jest.fn(),
-    };
+    const createOscillator = jest.fn(() => ({
+      type: '',
+      frequency: { value: 0, setValueAtTime: jest.fn() },
+      connect,
+      start,
+      stop,
+    }));
+    const createGain = jest.fn(() => ({
+      gain: {
+        value: 0,
+        setValueAtTime: jest.fn(),
+        linearRampToValueAtTime: jest.fn(),
+        exponentialRampToValueAtTime: jest.fn(),
+      },
+      connect,
+    }));
+    const ctx = { currentTime: 0, destination: {}, createOscillator, createGain, close: jest.fn() };
     global.AudioContext = jest.fn(() => ctx);
+
     playNotifySound();
-    expect(start).toHaveBeenCalled();
-    expect(stop).toHaveBeenCalled();
+
+    // Two notes → "bu-dup" pop (Messenger-style).
+    expect(createOscillator).toHaveBeenCalledTimes(2);
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalledTimes(2);
   });
 });
