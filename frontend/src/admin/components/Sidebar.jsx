@@ -494,6 +494,38 @@ const Sidebar = ({
         {navLoading ? (
           <NavSkeleton />
         ) : menuSections.map((section, si) => {
+          const renderItem = (item, i) => (
+            <button
+              key={i}
+              className={`nav-item ${isItemActive(item) ? 'active' : ''}`}
+              onClick={() => onNavClick(item)}
+              onMouseEnter={() => onNavHover(item.path)}
+            >
+              <span className="nav-icon">{renderIcon(item.icon)}</span>
+              <span className="nav-text">{item.name}</span>
+              {item.path === '/admin/approval-queue' && pendingApprovalCount > 0 && (
+                <span className="nav-item-badge">
+                  {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                </span>
+              )}
+              {item.path === '/admin/ist' && awaitingIstCount > 0 && (
+                <span className="nav-item-badge">
+                  {awaitingIstCount > 99 ? '99+' : awaitingIstCount}
+                </span>
+              )}
+            </button>
+          );
+
+          // A section with a single item needs no collapse control — render the
+          // lone item directly so it always reads as a plain link, not a dropdown.
+          if (section.items.length === 1) {
+            return (
+              <div key={si} className="nav-section nav-section--solo">
+                {section.items.map(renderItem)}
+              </div>
+            );
+          }
+
           const isExpanded = expandedSections.has(section.label);
           return (
             <div
@@ -521,27 +553,7 @@ const Sidebar = ({
                 </svg>
               </button>
               <div className="nav-section-items">
-                {section.items.map((item, i) => (
-                  <button
-                    key={i}
-                    className={`nav-item ${isItemActive(item) ? 'active' : ''}`}
-                    onClick={() => onNavClick(item)}
-                    onMouseEnter={() => onNavHover(item.path)}
-                  >
-                    <span className="nav-icon">{renderIcon(item.icon)}</span>
-                    <span className="nav-text">{item.name}</span>
-                    {item.path === '/admin/approval-queue' && pendingApprovalCount > 0 && (
-                      <span className="nav-item-badge">
-                        {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
-                      </span>
-                    )}
-                    {item.path === '/admin/ist' && awaitingIstCount > 0 && (
-                      <span className="nav-item-badge">
-                        {awaitingIstCount > 99 ? '99+' : awaitingIstCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {section.items.map(renderItem)}
               </div>
             </div>
           );
