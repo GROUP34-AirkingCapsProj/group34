@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, layoutAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
+import { getEcho } from '../utils/echo';
+import { channelFor, REALTIME_EVENTS, badgeIncreased } from '../utils/realtimeChannel';
+import { playNotifySound } from '../utils/notifySound';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
@@ -28,6 +31,7 @@ const AdminLayout = ({ children }) => {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const prevBadgeRef = useRef(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [awaitingIstCount, setAwaitingIstCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -77,6 +81,7 @@ const AdminLayout = ({ children }) => {
         const d = res?.data ?? {};
         if (!mounted) return;
         setUnreadNotifications(Number(d.badge_count ?? 0));
+        prevBadgeRef.current = Number(d.badge_count ?? 0);
         setPendingApprovalCount(Number(d.total_pending ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
       } catch (_) {
@@ -94,6 +99,53 @@ const AdminLayout = ({ children }) => {
       window.removeEventListener('storage', syncBadges);
     };
   }, []);
+
+  // Realtime: push updates to the bell instantly via Echo/Reverb. Falls back to
+  // the 60s poll above when Reverb is unreachable. Only the push path plays sound.
+  useEffect(() => {
+    if (!can('notification_panel', 'read')) return;
+    const channelName = channelFor(user);
+    if (!channelName) return;
+    const echo = getEcho();
+    if (!echo) return;
+
+    let cancelled = false;
+
+    const onEvent = async () => {
+      try {
+        const res = await layoutAPI.getSummary();
+        const d = res?.data ?? {};
+        if (cancelled) return;
+        const next = Number(d.badge_count ?? 0);
+        const grew = badgeIncreased(prevBadgeRef.current, next);
+        setUnreadNotifications(next);
+        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
+        prevBadgeRef.current = next;
+        if (grew) playNotifySound();
+      } catch (_) {
+        // ignore — poll will reconcile
+      }
+    };
+
+    let channel;
+    try {
+      channel = echo.private(channelName);
+      REALTIME_EVENTS.forEach((evt) => channel.listen(evt, onEvent));
+    } catch (_) {
+      return;
+    }
+
+    return () => {
+      cancelled = true;
+      try {
+        REALTIME_EVENTS.forEach((evt) => channel && channel.stopListening(evt));
+        echo.leave(channelName);
+      } catch (_) {
+        // ignore
+      }
+    };
+  }, [user, can]);
 
   // Close profile dropdown on outside click
   useEffect(() => {
