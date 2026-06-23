@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Pagination from '../components/Pagination';
+import { useAuth } from '../context/AuthContext';
 import { auditAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
@@ -352,6 +353,11 @@ const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle })
 
 const AlertsNotices = () => {
   const navigate = useNavigate();
+  const { can } = useAuth();
+  // Audit trail is a separate privileged compliance feature (own /admin/audit page).
+  // Only admin/branch_manager/auditor hold audit_trail_viewing.read; IA & WP must still
+  // see their location-scoped alerts without that section breaking the page.
+  const canViewAudit = can('audit_trail_viewing', 'read');
   const [allLowStock, setAllLowStock] = useState([]);
   const [allAudit, setAllAudit] = useState([]);
   const [pendingPOs, setPendingPOs] = useState([]);
@@ -381,35 +387,51 @@ const AlertsNotices = () => {
     let mounted = true;
     const loadAlerts = async () => {
       setLoading(true);
-      try {
-        const [lowStockRes, auditRes, pendingRes] = await Promise.all([
-          dashboardAPI.getLowStock(),
-          auditAPI.getTrailV2({ per_page: 100 }),
-          dashboardAPI.getPendingApprovals(),
-        ]);
-        // getLowStock returns { success, data: [...] }
-        const stockPayload = Array.isArray(lowStockRes?.data) ? lowStockRes.data : [];
-        // v2 returns { success, data: [...], pagination } — data is the items array directly
-        const auditPayload = Array.isArray(auditRes?.data)
-          ? auditRes.data
-          : Array.isArray(auditRes?.data?.data) ? auditRes.data.data : [];
-        // pendingApprovals returns { success, data: { pending_pos, pending_prs, pending_products, ... } }
-        const pendingData = pendingRes?.data?.data ?? pendingRes?.data ?? {};
-        if (!mounted) return;
-        setAllLowStock(stockPayload);
-        setAllAudit(auditPayload);
+      // Settle each load independently so a single failure (e.g. a role without
+      // audit_trail_viewing 403ing on /audit-trail/v2) never blanks out the
+      // alerts a user IS allowed to see. Audit is only requested when permitted.
+      const [lowStockR, pendingR, auditR] = await Promise.allSettled([
+        dashboardAPI.getLowStock(),
+        dashboardAPI.getPendingApprovals(),
+        canViewAudit ? auditAPI.getTrailV2({ per_page: 100 }) : Promise.resolve(null),
+      ]);
+      if (!mounted) return;
+
+      let coreFailed = false;
+
+      // getLowStock returns { success, data: [...] }
+      if (lowStockR.status === 'fulfilled') {
+        setAllLowStock(Array.isArray(lowStockR.value?.data) ? lowStockR.value.data : []);
+      } else {
+        coreFailed = true;
+      }
+
+      // pendingApprovals returns { success, data: { pending_pos, pending_prs, pending_products, ... } }
+      if (pendingR.status === 'fulfilled') {
+        const pendingData = pendingR.value?.data?.data ?? pendingR.value?.data ?? {};
         setPendingPOs(Array.isArray(pendingData.pending_pos) ? pendingData.pending_pos : []);
         setPendingPRs(Array.isArray(pendingData.pending_prs) ? pendingData.pending_prs : []);
         setPendingProducts(Array.isArray(pendingData.pending_products) ? pendingData.pending_products : []);
-      } catch (e) {
-        if (mounted) toast.error(e.message || 'Failed to load alerts.');
-      } finally {
-        if (mounted) setLoading(false);
+      } else {
+        coreFailed = true;
       }
+
+      // v2 returns { success, data: [...], pagination } — data is the items array directly.
+      // Audit failure is non-fatal: the section is simply hidden/empty.
+      if (canViewAudit && auditR.status === 'fulfilled' && auditR.value) {
+        const auditRes = auditR.value;
+        setAllAudit(Array.isArray(auditRes?.data)
+          ? auditRes.data
+          : Array.isArray(auditRes?.data?.data) ? auditRes.data.data : []);
+      }
+
+      if (coreFailed) toast.error('Some alerts failed to load.');
+      setLoading(false);
     };
     loadAlerts();
     return () => { mounted = false; };
-  }, []);
+    // Re-run once permissions resolve so audit is fetched for roles that gain the grant.
+  }, [canViewAudit]);
 
   const groupedAudit = useMemo(() => groupRawAuditLogs(allAudit), [allAudit]);
 
@@ -663,7 +685,8 @@ const AlertsNotices = () => {
           )}
         </div>
 
-        {/* Audit trail activity */}
+        {/* Audit trail activity — privileged compliance view (audit_trail_viewing.read) */}
+        {canViewAudit && (
         <div className="an-card">
           <div className="an-card-header">
             <h3 className="an-card-title">
@@ -749,6 +772,7 @@ const AlertsNotices = () => {
               totalItems={auditTotal} pageSize={PAGE_SIZE} label="audit entries" />
           )}
         </div>
+        )}
       </div>
     </AdminLayout>
   );
