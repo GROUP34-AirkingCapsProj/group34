@@ -28,7 +28,8 @@ function getCtx() {
 function playNote(ctx, startAt, freq, duration, peak) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
-  osc.type = 'sine';
+  // Triangle reads louder/brighter than a pure sine on small phone speakers.
+  osc.type = 'triangle';
   osc.frequency.value = freq;
   osc.connect(gain);
   gain.connect(ctx.destination);
@@ -90,8 +91,8 @@ export function playNotifySound() {
   try {
     resumeIfNeeded(ctx);
     const t = ctx.currentTime;
-    playNote(ctx, t,        523.25, 0.12, 0.22); // C5 — the "bu"
-    playNote(ctx, t + 0.09, 783.99, 0.16, 0.25); // G5 — the "dup"
+    playNote(ctx, t,        523.25, 0.14, 0.6);  // C5 — the "bu"
+    playNote(ctx, t + 0.09, 783.99, 0.20, 0.7);  // G5 — the "dup"
   } catch (_) {
     // ignore — sound is non-essential
   }
