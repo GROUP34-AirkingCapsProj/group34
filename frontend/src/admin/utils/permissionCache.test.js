@@ -14,4 +14,8 @@ describe('shouldRefreshPermissions', () => {
   it('refreshes once the TTL has elapsed', () => {
     expect(shouldRefreshPermissions(1_000_000, 1_061_000, TTL)).toBe(true);
   });
+
+  it('refreshes exactly at the TTL boundary', () => {
+    expect(shouldRefreshPermissions(1_000_000, 1_060_000, TTL)).toBe(true);
+  });
 });
