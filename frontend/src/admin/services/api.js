@@ -3,7 +3,7 @@
 const trimSlash = (u) => String(u || '').replace(/\/+$/, '');
 const rawEnvApi = process.env.REACT_APP_API_URL && String(process.env.REACT_APP_API_URL).trim();
 const publicApiOverride = process.env.REACT_APP_API_PUBLIC_URL && String(process.env.REACT_APP_API_PUBLIC_URL).trim();
-const apiPort = String(process.env.REACT_APP_API_PORT || '8000').replace(/^:+/, '');
+const apiPort = String(process.env.REACT_APP_API_PORT || '80').replace(/^:+/, '');
 
 function isLoopbackHost(h) {
   return (
@@ -50,7 +50,8 @@ export const getApiBaseUrl = () => {
       return trimSlash(rawEnvApi);
     }
     const proto = String(process.env.REACT_APP_API_HTTPS || '').toLowerCase() === 'true' ? 'https:' : 'http:';
-    return trimSlash(`${proto}//${h}:${apiPort}/api`);
+    const portSuffix = (apiPort === '80' || apiPort === '') ? '' : `:${apiPort}`;
+    return trimSlash(`${proto}//${h}${portSuffix}/api`);
   }
 
   if (rawEnvApi) return trimSlash(rawEnvApi);
