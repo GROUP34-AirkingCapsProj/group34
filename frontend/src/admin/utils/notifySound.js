@@ -17,6 +17,12 @@ export const NOTIFY_MELODY = [
   { at: 0.48, freq: 1046.50, dur: 0.60, peak: 0.95 }, // C6 — resolves & rings out
 ];
 
+/** How many times the arpeggio repeats per notification (longer = more noticeable). */
+export const NOTIFY_REPEATS = 2;
+
+/** Silent gap (s) between repeats of the arpeggio. */
+const REPEAT_GAP = 0.12;
+
 let audioCtx = null;
 let unlockBound = false;
 
@@ -101,7 +107,12 @@ export function playNotifySound() {
   try {
     resumeIfNeeded(ctx);
     const t = ctx.currentTime;
-    NOTIFY_MELODY.forEach((n) => playNote(ctx, t + n.at, n.freq, n.dur, n.peak));
+    // One full pass of the arpeggio, then repeat it after a short gap.
+    const cycle = Math.max(...NOTIFY_MELODY.map((n) => n.at + n.dur)) + REPEAT_GAP;
+    for (let r = 0; r < NOTIFY_REPEATS; r++) {
+      const base = t + r * cycle;
+      NOTIFY_MELODY.forEach((n) => playNote(ctx, base + n.at, n.freq, n.dur, n.peak));
+    }
   } catch (_) {
     // ignore — sound is non-essential
   }
