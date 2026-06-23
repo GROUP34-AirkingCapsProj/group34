@@ -2,6 +2,7 @@ import {
   playNotifySound,
   unlockNotifySound,
   _resetNotifySoundForTests,
+  NOTIFY_MELODY,
 } from './notifySound';
 
 function mockCtx(state) {
@@ -49,15 +50,19 @@ describe('notifySound', () => {
     expect(() => playNotifySound()).not.toThrow();
   });
 
-  test('playNotifySound emits a two-note pop when WebAudio is available', () => {
+  test('the melody is a multi-note tune, not a single pop', () => {
+    expect(NOTIFY_MELODY.length).toBeGreaterThanOrEqual(3);
+  });
+
+  test('playNotifySound plays every note of the melody when WebAudio is available', () => {
     const { ctx, start, stop, createOscillator } = mockCtx('running');
     global.AudioContext = jest.fn(() => ctx);
 
     playNotifySound();
 
-    expect(createOscillator).toHaveBeenCalledTimes(2); // "bu-dup"
-    expect(start).toHaveBeenCalledTimes(2);
-    expect(stop).toHaveBeenCalledTimes(2);
+    expect(createOscillator).toHaveBeenCalledTimes(NOTIFY_MELODY.length);
+    expect(start).toHaveBeenCalledTimes(NOTIFY_MELODY.length);
+    expect(stop).toHaveBeenCalledTimes(NOTIFY_MELODY.length);
   });
 
   test('playNotifySound resumes a suspended context first (mobile autoplay)', () => {
