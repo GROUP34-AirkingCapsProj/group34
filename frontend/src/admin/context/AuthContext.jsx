@@ -1,5 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { removeToken, authAPI, permissionsAPI } from '../services/api';
+import {
+  shouldRefreshPermissions,
+  readCachedPermissions,
+  writeCachedPermissions,
+  clearCachedPermissions,
+  PERMISSIONS_TTL_MS,
+} from '../utils/permissionCache';
 
 const AuthContext = createContext(null);
 
@@ -13,7 +20,8 @@ const readStoredUser = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readStoredUser);
-  const [permissions, setPermissions] = useState(null);
+  const [permissions, setPermissions] = useState(() => readCachedPermissions()?.map ?? null);
+  const lastPermFetchRef = useRef(readCachedPermissions()?.at ?? null);
 
   const updateUser = useCallback((userData) => {
     setUser(userData);
@@ -26,6 +34,9 @@ export const AuthProvider = ({ children }) => {
 
   const clearSession = useCallback(() => {
     updateUser(null);
+    clearCachedPermissions();
+    lastPermFetchRef.current = null;
+    setPermissions(null);
     removeToken();
   }, [updateUser]);
 
@@ -48,19 +59,33 @@ export const AuthProvider = ({ children }) => {
   }, [updateUser]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const refreshPermissions = useCallback(() => {
+  const refreshPermissions = useCallback((opts = {}) => {
     if (!user?.user_id) return;
+    const now = Date.now();
+    if (!opts.force && !shouldRefreshPermissions(lastPermFetchRef.current, now, PERMISSIONS_TTL_MS)) {
+      return;
+    }
+    lastPermFetchRef.current = now;
     permissionsAPI.getMine()
-      .then((res) => setPermissions(res?.data ?? {}))
-      .catch(() => setPermissions({}));
+      .then((res) => {
+        const map = res?.data ?? {};
+        setPermissions(map);
+        writeCachedPermissions(map, now);
+      })
+      .catch(() => { /* keep cached permissions on transient failure */ });
   }, [user?.user_id]);
 
   useEffect(() => {
     if (!user?.user_id) {
+      clearCachedPermissions();
+      lastPermFetchRef.current = null;
       setPermissions(null);
       return;
     }
-    refreshPermissions();
+    refreshPermissions({ force: true });
+    const onFocus = () => refreshPermissions();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const can = useCallback(

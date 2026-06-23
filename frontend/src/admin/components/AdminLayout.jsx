@@ -12,7 +12,7 @@ import '../styles/airking_ds.css';
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession, permissions, refreshPermissions } = useAuth();
+  const { user: _user, clearSession, permissions } = useAuth();
   const user = _user || {};
   const { locationName: userLocationName } = useUserLocation();
 
@@ -216,12 +216,6 @@ const AdminLayout = ({ children }) => {
     const activeEl = navMenuRef.current.querySelector('.nav-item.active');
     if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [activeItemName]);
-
-  // Re-sync permissions on navigation so mid-session grants/revokes apply
-  useEffect(() => {
-    if (!_user?.user_id) return;
-    refreshPermissions();
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div
