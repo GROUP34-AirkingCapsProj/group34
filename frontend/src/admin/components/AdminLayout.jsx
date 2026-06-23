@@ -12,7 +12,7 @@ import '../styles/airking_ds.css';
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession, permissions } = useAuth();
+  const { user: _user, clearSession, permissions, can } = useAuth();
   const user = _user || {};
   const { locationName: userLocationName } = useUserLocation();
 
@@ -282,9 +282,7 @@ const AdminLayout = ({ children }) => {
               locationName={userLocationName}
               className="header-location-badge"
             />
-            {(roleKey === ROLES.ADMIN
-              || roleKey === ROLES.BRANCH_MANAGER
-              || roleKey === ROLES.INVENTORY_ANALYST) && (
+            {can('notification_panel', 'read') && (
               <button
                 type="button"
                 className="notification-btn"
