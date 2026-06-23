@@ -36,8 +36,8 @@ function playNote(ctx, startAt, freq, duration, peak) {
 
   const end = startAt + duration;
   gain.gain.setValueAtTime(0.0001, startAt);
-  gain.gain.exponentialRampToValueAtTime(peak, startAt + 0.015); // snappy attack → "pop"
-  gain.gain.exponentialRampToValueAtTime(0.0001, end);           // soft tail
+  gain.gain.exponentialRampToValueAtTime(peak, startAt + 0.006); // very fast attack → punch
+  gain.gain.exponentialRampToValueAtTime(0.0001, end);           // longer ringing tail
 
   osc.start(startAt);
   osc.stop(end + 0.02);
@@ -91,8 +91,8 @@ export function playNotifySound() {
   try {
     resumeIfNeeded(ctx);
     const t = ctx.currentTime;
-    playNote(ctx, t,        523.25, 0.14, 0.6);  // C5 — the "bu"
-    playNote(ctx, t + 0.09, 783.99, 0.20, 0.7);  // G5 — the "dup"
+    playNote(ctx, t,        523.25, 0.22, 0.75); // C5 — the "bu"
+    playNote(ctx, t + 0.11, 783.99, 0.38, 0.9);  // G5 — the "dup" (louder, rings longer)
   } catch (_) {
     // ignore — sound is non-essential
   }
