@@ -7,6 +7,7 @@ use App\Models\Transfer;
 use App\Models\TransferDetail;
 use App\Models\TblTransferTracking;
 use App\Models\Inventory;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -137,6 +138,8 @@ class TransferRequestController extends Controller
                 report($e);
             }
 
+            RealtimeBroadcaster::transferChanged((int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed');
+
             return $this->success(
                 $transfer->load(self::WITH_RELATIONS),
                 'Transfer request submitted successfully',
@@ -220,6 +223,8 @@ class TransferRequestController extends Controller
 
             DB::commit();
 
+            RealtimeBroadcaster::transferChanged((int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed');
+
             return $this->success(
                 $transfer->fresh()->load(self::WITH_RELATIONS),
                 'Transfer request approved'
@@ -266,6 +271,8 @@ class TransferRequestController extends Controller
             ]);
 
             DB::commit();
+
+            RealtimeBroadcaster::transferChanged((int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed');
 
             return $this->success(
                 $transfer->fresh()->load(self::WITH_RELATIONS),

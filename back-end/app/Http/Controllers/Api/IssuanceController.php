@@ -8,6 +8,7 @@ use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Support\RealtimeBroadcaster;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -94,6 +95,8 @@ class IssuanceController extends Controller
             }
 
             DB::commit();
+
+            RealtimeBroadcaster::inventoryChanged((int) $issuance->location_id, 'stock_issued');
 
             return $this->success($issuance->load(['location', 'issuedToUser', 'details.product']), 'Issuance created successfully', 201);
         } catch (ValidationException $e) {

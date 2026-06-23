@@ -11,6 +11,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -146,6 +147,12 @@ class ReceivingController extends Controller
             }
 
             DB::commit();
+
+            RealtimeBroadcaster::inventoryChanged((int) $receiving->location_id, 'stock_received');
+            if ($newPoStatus === 11) {
+                $poLocationId = (int) (PurchaseOrder::where('po_id', $poId)->value('location_id') ?? $locationId);
+                RealtimeBroadcaster::purchaseOrderChanged($poLocationId, 'po_received');
+            }
 
             return $this->success(
                 $receiving->load(['purchaseOrder', 'location', 'details.product']),

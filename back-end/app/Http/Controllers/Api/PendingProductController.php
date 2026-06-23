@@ -8,6 +8,7 @@ use App\Models\ConsumableDetail;
 use App\Models\Inventory;
 use App\Models\PendingProduct;
 use App\Models\Product;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -229,6 +230,8 @@ class PendingProductController extends Controller
         } catch (\Throwable $e) {
             return $this->error('Approval failed: '.$e->getMessage(), 500);
         }
+
+        RealtimeBroadcaster::approvalQueueChanged((int) $pendingProduct->opening_location_id, 'product_approved');
 
         $product->load(['category', 'status', 'applianceDetail.brand', 'consumableDetail.unit']);
 
