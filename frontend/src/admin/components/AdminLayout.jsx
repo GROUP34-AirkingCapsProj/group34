@@ -4,8 +4,8 @@ import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, layoutAPI } from '../services/api';
 import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
 import { getEcho } from '../utils/echo';
-import { channelFor, REALTIME_EVENTS, badgeIncreased } from '../utils/realtimeChannel';
-import { playNotifySound } from '../utils/notifySound';
+import { channelFor, REALTIME_EVENTS } from '../utils/realtimeChannel';
+import { playNotifySound, initNotifySound } from '../utils/notifySound';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
@@ -110,22 +110,29 @@ const AdminLayout = ({ children }) => {
     if (!echo) return;
 
     let cancelled = false;
+    let burstTimer = null;
 
-    const onEvent = async () => {
+    const refreshAndChime = async () => {
       try {
         const res = await layoutAPI.getSummary();
         const d = res?.data ?? {};
         if (cancelled) return;
-        const next = Number(d.badge_count ?? 0);
-        const grew = badgeIncreased(prevBadgeRef.current, next);
-        setUnreadNotifications(next);
+        setUnreadNotifications(Number(d.badge_count ?? 0));
+        prevBadgeRef.current = Number(d.badge_count ?? 0);
         setPendingApprovalCount(Number(d.total_pending ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
-        prevBadgeRef.current = next;
-        if (grew) playNotifySound();
+        // Chime on every notification (Messenger-style), not only when a count grew.
+        playNotifySound();
       } catch (_) {
         // ignore — poll will reconcile
       }
+    };
+
+    // One user action can emit several events; coalesce a burst into a single
+    // refetch + a single chime.
+    const onEvent = () => {
+      if (burstTimer) clearTimeout(burstTimer);
+      burstTimer = setTimeout(refreshAndChime, 300);
     };
 
     let channel;
@@ -138,6 +145,7 @@ const AdminLayout = ({ children }) => {
 
     return () => {
       cancelled = true;
+      if (burstTimer) clearTimeout(burstTimer);
       try {
         REALTIME_EVENTS.forEach((evt) => channel && channel.stopListening(evt));
         echo.leave(channelName);
@@ -146,6 +154,9 @@ const AdminLayout = ({ children }) => {
       }
     };
   }, [user, can]);
+
+  // Unlock audio on the first tap/click so socket-triggered chimes can play on mobile.
+  useEffect(() => { initNotifySound(); }, []);
 
   // Close profile dropdown on outside click
   useEffect(() => {
