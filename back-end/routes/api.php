@@ -73,14 +73,12 @@ Route::post('/register', [AuthController::class, 'register']);
 
 Route::post('/password-reset/complete', [PasswordResetController::class, 'complete'])->middleware('throttle:12,1');
 
-Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session'])->group(function () {
+// Broadcasting auth for private channels — bare auth:sanctum (NOT auditor.readonly /
+// location.scope) so auditors can authenticate to the org channel. Channel-level
+// authorization is enforced in routes/channels.php via ChannelAccess.
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
-    /*
-    |--------------------------------------------------------------------------
-    | BROADCASTING AUTH (Sanctum-guarded; frontend calls /api/broadcasting/auth)
-    |--------------------------------------------------------------------------
-    */
-    Broadcast::routes(['middleware' => ['auth:sanctum']]);
+Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
