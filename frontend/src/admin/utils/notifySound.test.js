@@ -3,6 +3,7 @@ import {
   unlockNotifySound,
   _resetNotifySoundForTests,
   NOTIFY_MELODY,
+  NOTIFY_REPEATS,
 } from './notifySound';
 
 function mockCtx(state) {
@@ -54,15 +55,20 @@ describe('notifySound', () => {
     expect(NOTIFY_MELODY.length).toBeGreaterThanOrEqual(3);
   });
 
-  test('playNotifySound plays every note of the melody when WebAudio is available', () => {
+  test('playNotifySound plays the melody NOTIFY_REPEATS times when WebAudio is available', () => {
     const { ctx, start, stop, createOscillator } = mockCtx('running');
     global.AudioContext = jest.fn(() => ctx);
 
     playNotifySound();
 
-    expect(createOscillator).toHaveBeenCalledTimes(NOTIFY_MELODY.length);
-    expect(start).toHaveBeenCalledTimes(NOTIFY_MELODY.length);
-    expect(stop).toHaveBeenCalledTimes(NOTIFY_MELODY.length);
+    const expected = NOTIFY_MELODY.length * NOTIFY_REPEATS;
+    expect(createOscillator).toHaveBeenCalledTimes(expected);
+    expect(start).toHaveBeenCalledTimes(expected);
+    expect(stop).toHaveBeenCalledTimes(expected);
+  });
+
+  test('the chime repeats at least twice so it is longer', () => {
+    expect(NOTIFY_REPEATS).toBeGreaterThanOrEqual(2);
   });
 
   test('playNotifySound resumes a suspended context first (mobile autoplay)', () => {
