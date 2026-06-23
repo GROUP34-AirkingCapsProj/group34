@@ -91,6 +91,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/batch', [BatchController::class, 'index']);
     Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+    Route::get('/layout-summary', [DashboardController::class, 'layoutSummary']);
     Route::get('/dashboard/low-stock', [DashboardController::class, 'lowStock']);
     Route::get('/dashboard/recent-sales', [DashboardController::class, 'recentSales']);
     Route::get('/dashboard/recent-movements', [DashboardController::class, 'recentMovements']);

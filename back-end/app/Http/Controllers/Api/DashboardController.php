@@ -45,6 +45,31 @@ class DashboardController extends Controller
         return response()->json(['success' => true, 'data' => $this->getStats($request->user())]);
     }
 
+    /**
+     * One-shot payload for the admin header badges.
+     * Combines alert badge/unread/pending counts with awaiting-transfer counts so the
+     * layout needs a single request instead of three.
+     */
+    public function layoutSummary(Request $request)
+    {
+        $alertJson = app(\App\Http\Controllers\Api\AlertSettingsController::class)
+            ->index($request);
+        $alert = json_decode($alertJson->getContent(), true)['data'] ?? [];
+
+        $awaiting = $this->awaitingTransferCounts();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'badge_count'          => $alert['badge_count']   ?? 0,
+                'unread_count'         => $alert['unread_count']  ?? 0,
+                'total_pending'        => $alert['total_pending'] ?? 0,
+                'awaiting_fulfillment' => $awaiting['fulfillment'],
+                'awaiting_receipt'     => $awaiting['receipt'],
+            ],
+        ]);
+    }
+
     public function lowStock()
     {
         return response()->json(['success' => true, 'data' => $this->getLowStockItems()]);
