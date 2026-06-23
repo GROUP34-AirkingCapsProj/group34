@@ -7,6 +7,7 @@ import {
   clearCachedPermissions,
   PERMISSIONS_TTL_MS,
 } from '../utils/permissionCache';
+import { disconnectEcho } from '../utils/echo';
 
 const AuthContext = createContext(null);
 
@@ -33,6 +34,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const clearSession = useCallback(() => {
+    disconnectEcho();
     updateUser(null);
     clearCachedPermissions();
     lastPermFetchRef.current = null;
