@@ -1,6 +1,28 @@
-// Soft "pop" notification chime — a short Messenger-style two-note blip via the
-// WebAudio API. Best-effort: any failure (autoplay policy, unsupported browser)
-// is swallowed silently, since the sound is non-essential.
+// Soft Messenger-style two-note pop for new notifications, via the WebAudio API.
+//
+// Mobile browsers (iOS Safari, Android Chrome) block audio that is not started
+// from a user gesture, and an AudioContext starts "suspended" until resumed
+// inside one. A sound triggered by a WebSocket event therefore stays silent on
+// phones unless we (a) keep ONE shared context that was unlocked by an earlier
+// tap, and (b) resume() it before playing. Best-effort throughout: any failure
+// (autoplay policy, unsupported browser, phone on silent) is swallowed.
+
+let audioCtx = null;
+let unlockBound = false;
+
+function getCtx() {
+  if (audioCtx) return audioCtx;
+  const Ctx =
+    typeof window !== 'undefined' &&
+    (window.AudioContext || window.webkitAudioContext);
+  if (!Ctx) return null;
+  try {
+    audioCtx = new Ctx();
+  } catch (_) {
+    audioCtx = null;
+  }
+  return audioCtx;
+}
 
 /** Schedule one short sine "note" with a quick attack and soft exponential decay. */
 function playNote(ctx, startAt, freq, duration, peak) {
@@ -20,25 +42,68 @@ function playNote(ctx, startAt, freq, duration, peak) {
   osc.stop(end + 0.02);
 }
 
+/** Resume the shared context if a browser has parked it in "suspended". */
+function resumeIfNeeded(ctx) {
+  try {
+    if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+      ctx.resume();
+    }
+  } catch (_) {
+    // ignore
+  }
+}
+
 /**
- * Play a brief ascending two-note "bu-dup" pop (C5 → G5), evocative of a
- * messaging-app notification. No-op if WebAudio is unavailable or blocked.
+ * Unlock/resume the shared audio context. Call this from within a real user
+ * gesture (tap/click/keypress) — required so later WebSocket-triggered sounds
+ * can play on mobile. Safe to call repeatedly.
+ */
+export function unlockNotifySound() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  resumeIfNeeded(ctx);
+}
+
+/**
+ * Install one-time listeners that unlock audio on the first user interaction.
+ * Idempotent — installs the listeners only once per page.
+ */
+export function initNotifySound() {
+  if (unlockBound || typeof window === 'undefined' || !window.addEventListener) return;
+  unlockBound = true;
+  const events = ['touchstart', 'pointerdown', 'mousedown', 'keydown'];
+  const handler = () => {
+    unlockNotifySound();
+    events.forEach((evt) => window.removeEventListener(evt, handler));
+  };
+  events.forEach((evt) => window.addEventListener(evt, handler, { passive: true }));
+}
+
+/**
+ * Play a brief ascending two-note "bu-dup" pop (C5 → G5). No-op if WebAudio is
+ * unavailable; resumes a suspended context first so it works on mobile after the
+ * page has been tapped once.
  */
 export function playNotifySound() {
+  const ctx = getCtx();
+  if (!ctx) return;
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    resumeIfNeeded(ctx);
     const t = ctx.currentTime;
-
     playNote(ctx, t,        523.25, 0.12, 0.22); // C5 — the "bu"
     playNote(ctx, t + 0.09, 783.99, 0.16, 0.25); // G5 — the "dup"
-
-    // Free the context shortly after the sound finishes.
-    if (typeof ctx.close === 'function') {
-      setTimeout(() => { try { ctx.close(); } catch (_) {} }, 700);
-    }
   } catch (_) {
     // ignore — sound is non-essential
   }
+}
+
+/** Test-only: reset the module singleton between test cases. */
+export function _resetNotifySoundForTests() {
+  try {
+    if (audioCtx && typeof audioCtx.close === 'function') audioCtx.close();
+  } catch (_) {
+    // ignore
+  }
+  audioCtx = null;
+  unlockBound = false;
 }
