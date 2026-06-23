@@ -19,6 +19,8 @@
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
+    "laravel-echo": "^2.3.7",
+    "pusher-js": "^8.5.0",
     "react": "^19.2.3",
     "react-barcode": "^1.6.1",
     "react-chartjs-2": "^5.3.1",
