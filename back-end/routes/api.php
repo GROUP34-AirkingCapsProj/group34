@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\UserController;
@@ -73,6 +74,13 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/password-reset/complete', [PasswordResetController::class, 'complete'])->middleware('throttle:12,1');
 
 Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session'])->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | BROADCASTING AUTH (Sanctum-guarded; frontend calls /api/broadcasting/auth)
+    |--------------------------------------------------------------------------
+    */
+    Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
     /*
     |--------------------------------------------------------------------------
