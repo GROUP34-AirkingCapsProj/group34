@@ -65,6 +65,7 @@ export const AuthProvider = ({ children }) => {
     if (!opts.force && !shouldRefreshPermissions(lastPermFetchRef.current, now, PERMISSIONS_TTL_MS)) {
       return;
     }
+    const prevFetchedAt = lastPermFetchRef.current;
     lastPermFetchRef.current = now;
     permissionsAPI.getMine()
       .then((res) => {
@@ -72,7 +73,13 @@ export const AuthProvider = ({ children }) => {
         setPermissions(map);
         writeCachedPermissions(map, now);
       })
-      .catch(() => { /* keep cached permissions on transient failure */ });
+      .catch(() => {
+        // Keep the cached map, but don't let a failed attempt suppress retries:
+        // only roll back if no newer fetch updated the timestamp meanwhile.
+        if (lastPermFetchRef.current === now) {
+          lastPermFetchRef.current = prevFetchedAt;
+        }
+      });
   }, [user?.user_id]);
 
   useEffect(() => {
