@@ -7,6 +7,16 @@
 // tap, and (b) resume() it before playing. Best-effort throughout: any failure
 // (autoplay policy, unsupported browser, phone on silent) is swallowed.
 
+// Ascending bell arpeggio (C5–E5–G5–C6) that rises and rings out (~1.1s). Longer
+// and more melodic than a single pop so users actually notice it. Each note:
+// start offset (s), frequency (Hz), duration (s), peak gain.
+export const NOTIFY_MELODY = [
+  { at: 0.00, freq: 523.25,  dur: 0.22, peak: 0.70 }, // C5
+  { at: 0.15, freq: 659.25,  dur: 0.22, peak: 0.78 }, // E5
+  { at: 0.30, freq: 783.99,  dur: 0.26, peak: 0.85 }, // G5
+  { at: 0.48, freq: 1046.50, dur: 0.60, peak: 0.95 }, // C6 — resolves & rings out
+];
+
 let audioCtx = null;
 let unlockBound = false;
 
@@ -81,7 +91,7 @@ export function initNotifySound() {
 }
 
 /**
- * Play a brief ascending two-note "bu-dup" pop (C5 → G5). No-op if WebAudio is
+ * Play the ascending notification arpeggio (NOTIFY_MELODY). No-op if WebAudio is
  * unavailable; resumes a suspended context first so it works on mobile after the
  * page has been tapped once.
  */
@@ -91,8 +101,7 @@ export function playNotifySound() {
   try {
     resumeIfNeeded(ctx);
     const t = ctx.currentTime;
-    playNote(ctx, t,        523.25, 0.22, 0.75); // C5 — the "bu"
-    playNote(ctx, t + 0.11, 783.99, 0.38, 0.9);  // G5 — the "dup" (louder, rings longer)
+    NOTIFY_MELODY.forEach((n) => playNote(ctx, t + n.at, n.freq, n.dur, n.peak));
   } catch (_) {
     // ignore — sound is non-essential
   }
