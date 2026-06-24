@@ -16,7 +16,6 @@ use App\Http\Controllers\Api\SerialController;
 // ERD-aligned controllers
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\ModelLookupController;
-use App\Http\Controllers\Api\SubcategoryLookupController;
 use App\Http\Controllers\Api\BudgetAllocationController;
 use App\Http\Controllers\Api\PurchaseRequestController;
 use App\Http\Controllers\Api\PurchaseOrderController;
@@ -242,21 +241,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:category_management,archive')->delete('/categories/{category}', [CategoryLookupController::class, 'destroy']);
     Route::middleware('permission:category_management,archive')->post('/categories/{category}/restore', [CategoryLookupController::class, 'restore']);
     Route::middleware('permission:category_management,archive')->delete('/categories/{category}/force', [CategoryLookupController::class, 'forceDestroy']);
-
-    /*
-    |--------------------------------------------------------------------------
-    | ERD: SUBCATEGORY (subcategory_lookup)
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/subcategories', [SubcategoryLookupController::class, 'index']);
-    Route::get('/subcategories/{id}', [SubcategoryLookupController::class, 'show']);
-    Route::middleware('role:admin,branch_manager')->group(function () {
-        Route::post('/subcategories', [SubcategoryLookupController::class, 'store']);
-        Route::put('/subcategories/{id}', [SubcategoryLookupController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/subcategories/{id}', [SubcategoryLookupController::class, 'destroy']);
-    });
 
     /*
     |--------------------------------------------------------------------------
