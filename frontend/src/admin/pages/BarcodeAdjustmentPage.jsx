@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import {
   BinaryBitmap,
   DecodeHintType,
@@ -1046,7 +1047,7 @@ export default function BarcodeAdjustmentPage() {
                   })}
                 </div>
 
-                {poLoading && <div className="baj-po-status--loading">Loading PO records…</div>}
+                {poLoading && <Loader label="Loading PO records" />}
                 {poError   && <div className="baj-po-status--err">{poError}</div>}
                 {poData && !poLoading && (
                   <div className="baj-po-status baj-po-status--ok">
@@ -1278,7 +1279,7 @@ export default function BarcodeAdjustmentPage() {
               </div>
               <div>
                 <div className="baj-card-title">CORRECTION HISTORY FOR THIS PO</div>
-                {historyLoading && <div className="baj-card-subtitle">Loading…</div>}
+                {historyLoading && <Loader variant="inline" />}
               </div>
             </div>
             {!historyLoading && history.length === 0 ? (

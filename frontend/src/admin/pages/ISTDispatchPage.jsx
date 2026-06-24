@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
@@ -243,7 +244,7 @@ const ISTDispatchPage = () => {
           </div>
         </div>
 
-        {loading && <div className="po-status-loading">Loading IST…</div>}
+        {loading && <Loader label="Loading IST" />}
         {error && (
           <div className="po-submit-error">
             {error}

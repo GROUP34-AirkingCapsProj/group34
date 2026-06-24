@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
@@ -16,7 +17,7 @@ export default function BranchManagerDashboard() {
   const navigate = useNavigate();
   const { locationName, data, inv, loading, error } = useRoleDashboard();
 
-  if (loading) return <AdminLayout><div className="rd-loading"><div className="rd-loading-spinner" style={{ borderTopColor: PALETTE.green }} /><p>Loading branch data…</p></div></AdminLayout>;
+  if (loading) return <AdminLayout><Loader variant="page" label="Loading branch data" /></AdminLayout>;
   if (error)   return <AdminLayout><div className="rd-error"><p>{error}</p><button onClick={() => window.location.reload()}>Retry</button></div></AdminLayout>;
 
   const stats = data?.stats ?? {};

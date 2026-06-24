@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { purchaseReturnsAPI, purchaseOrdersAPI, suppliersAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -184,7 +185,7 @@ const PurchaseReturnManagement = () => {
               <tr><th>Return #</th><th>PO Number</th><th>Supplier</th><th>Return Date</th><th>Reason</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan="8" className="table-empty">Loading...</td></tr>
+              {loading ? <tr><td colSpan="8"><Loader /></td></tr>
                 : error ? <tr><td colSpan="8" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchReturns(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : returns.length === 0 ? <tr><td colSpan="8" className="table-empty">No purchase returns found.</td></tr>
                     : returns.map(r => (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { companySettingsAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 
@@ -79,7 +80,7 @@ const CompanySettingsPage = () => {
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8', fontSize: 14 }}>Loading…</div>
+          <Loader />
         ) : (
           <form onSubmit={handleSubmit}>
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '24px' }}>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { getApiBaseUrl, getToken } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -333,7 +334,7 @@ const ArchiveManagement = () => {
 
         {/* Records table */}
         {loading ? (
-          <div className="archive-empty">Loading…</div>
+          <Loader />
         ) : records.length === 0 ? (
           <div className="archive-empty">
             No archived {activeLabel} records found.

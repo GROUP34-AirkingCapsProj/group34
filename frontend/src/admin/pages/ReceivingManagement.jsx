@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { receivingsAPI, purchaseOrdersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -244,7 +245,7 @@ const ReceivingManagement = () => {
 
           <div className="txn-feed">
             {loading ? (
-              <div className="txn-empty">Loading receivings...</div>
+              <Loader label="Loading receivings" />
             ) : filteredReceivings.length === 0 ? (
               <div className="txn-empty">No receiving records match your filters.</div>
             ) : (

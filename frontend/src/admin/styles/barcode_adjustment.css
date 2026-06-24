@@ -280,7 +280,6 @@
 }
 .baj-po-status--ok  { background: #f0fdf4; color: #065f46; }
 .baj-po-status--err { color: #dc2626; font-size: 12px; margin-top: 6px; }
-.baj-po-status--loading { color: #6b7280; font-size: 12px; margin-top: 6px; }
 
 /* Search input wrapper */
 .baj-search-wrap {

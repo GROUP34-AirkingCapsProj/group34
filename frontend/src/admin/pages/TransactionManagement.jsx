@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
 import { receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI } from '../services/api';
 import '../styles/dashboard_air.css';
@@ -261,7 +262,7 @@ const TransactionManagement = () => {
           </div>
         </header>
 
-        {loading && <div className="ak-state">Loading transactions<span className="ak-loading-dots" /></div>}
+        {loading && <Loader label="Loading transactions" />}
         {error && <div className="ak-state ak-state--error">Error: {error}</div>}
 
         <div className="ak-card txn-table-card">

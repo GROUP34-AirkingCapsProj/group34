@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { archiveSettingsAPI } from '../services/api';
 import { confirmAction } from '../utils/confirm';
 import { toast } from '../utils/toast';
@@ -475,7 +476,7 @@ const ArchiveSettingsPage = () => {
           </div>
           <div className="as-section-body" style={{ padding: 0 }}>
             {loading ? (
-              <div className="as-empty">Loading settings…</div>
+              <Loader label="Loading settings" />
             ) : (
               <div className="as-module-table-wrap">
                 <table className="as-module-table">
@@ -668,7 +669,7 @@ const ArchiveSettingsPage = () => {
           </div>
           <div className="as-section-body" style={{ padding: 0 }}>
             {logsLoading ? (
-              <div className="as-empty">Loading history…</div>
+              <Loader label="Loading history" />
             ) : logs.length === 0 ? (
               <div className="as-empty">No archive runs recorded yet.</div>
             ) : (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -687,7 +688,7 @@ return (
         {activeTab === 'branch-transfers' && (
           <div className="aq-list">
             {loadingTransfers ? (
-              <p className="aq-meta" style={{ padding: 24 }}>Loading pending transfers…</p>
+              <Loader label="Loading pending transfers" />
             ) : pendingTransfers.length === 0 ? (
               <div className="aq-empty-state">
                 <div className="aq-empty-icon">
@@ -781,7 +782,7 @@ return (
           maxWidth={560}
         >
           {transferDetailLoading ? (
-            <p style={{ color: '#6b7280', fontSize: 13 }}>Loading details…</p>
+            <Loader label="Loading details" />
           ) : (
             <>
               <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
@@ -1082,7 +1083,7 @@ return (
                     <span className="po-detail-items-heading">LINE ITEMS</span>
                     <span className="po-detail-items-count">{itemCount}</span>
                   </div>
-                  {poVerifyLoading && <p className="po-detail-no-items">Loading line items…</p>}
+                  {poVerifyLoading && <Loader variant="inline" label="Loading line items" />}
                   {poVerifyError && !poVerifyLoading && <p className="po-detail-no-items" style={{ color: '#dc2626' }}>{poVerifyError}</p>}
                   {!poVerifyLoading && poVerifyLines.length === 0 && !poVerifyError && (
                     <p className="po-detail-no-items">No line items available for this PO.</p>

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { locationsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -181,7 +182,7 @@ const BranchManagement = () => {
         </div>
       </div>
 
-      {loading && <div className="loading-message">Loading locations...</div>}
+      {loading && <Loader label="Loading locations" />}
       {error && <div className="error-message">Error: {error}</div>}
 
       {viewMode === 'cards' ? (
@@ -239,7 +240,7 @@ const BranchManagement = () => {
               </thead>
               <tbody>
                 {locations.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>{loading ? 'Loading...' : 'No locations found'}</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>{loading ? <Loader /> : 'No locations found'}</td></tr>
                 ) : (
                   locations.map((loc) => (
                     <tr key={loc.id}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { warrantiesAPI, getApiBaseUrl, getToken } from '../services/api';
 import { toast } from '../utils/toast';
@@ -337,7 +338,7 @@ const WarrantyManagement = () => {
           <h3>Warranty Records</h3>
           <span className="war-table-count">{pagination.total} records total</span>
         </div>
-        {loading && <div className="loading-message">Loading...</div>}
+        {loading && <Loader />}
         {error   && <div className="error-message">Error: {error}</div>}
         <div className="war-table-wrapper">
           <table className="war-table">
@@ -358,7 +359,7 @@ const WarrantyManagement = () => {
               {warranties.length === 0 ? (
                 <tr>
                   <td colSpan="9" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
-                    {loading ? 'Loading...' : 'No warranty records found.'}
+                    {loading ? <Loader /> : 'No warranty records found.'}
                   </td>
                 </tr>
               ) : (

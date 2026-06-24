@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { transfersAPI, locationsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
@@ -251,7 +252,7 @@ const TransferScanWorkflow = () => {
         </div>
 
         {loading ? (
-          <p style={{ color: '#64748b' }}>Loading transfers…</p>
+          <Loader label="Loading transfers" />
         ) : filtered.length === 0 ? (
           <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, color: '#64748b', fontSize: 14 }}>
             No in-transit transfers for this location. Create one from{' '}

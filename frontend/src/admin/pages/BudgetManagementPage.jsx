@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
@@ -593,7 +594,7 @@ const BudgetManagementPage = () => {
 
   // ── Tab: Overview ────────────────────────────────────────────────────────────
   const renderOverview = () => {
-    if (loading) return <div className="po-status-loading">Loading budgets…</div>;
+    if (loading) return <Loader label="Loading budgets" />;
     if (loadError) return <div className="po-status-error-msg">{loadError}</div>;
 
     return (

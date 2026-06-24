@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { deliveryReceiptsAPI, salesAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -276,7 +277,7 @@ const DeliveryReceiptManagement = () => {
               <tr><th>DR Number</th><th>Sale Invoice #</th><th>Customer</th><th>Issued By</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan="6" className="table-empty">Loading...</td></tr>
+              {loading ? <tr><td colSpan="6"><Loader /></td></tr>
                 : error ? <tr><td colSpan="6" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchReceipts(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : receipts.length === 0 ? <tr><td colSpan="6" className="table-empty">No delivery receipts found.</td></tr>
                     : receipts.map(r => (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { suppliersAPI, itemsAPI, statusAPI } from '../services/api';
@@ -410,7 +411,7 @@ const SupplierNetwork = () => {
 
         {/* ── Supplier Content ── */}
         {loading ? (
-          <div className="sn-loading">Loading suppliers...</div>
+          <Loader label="Loading suppliers" />
         ) : suppliers.length === 0 ? (
           <div className="sn-empty">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
@@ -689,7 +690,7 @@ const SupplierNetwork = () => {
         >
           <div className="sn-products-modal">
             {loadingViewProducts ? (
-              <div className="sn-loading">Loading...</div>
+              <Loader />
             ) : viewProducts.length === 0 ? (
               <div className="sn-products-empty">No products linked yet.</div>
             ) : (
@@ -847,7 +848,7 @@ const SupplierNetwork = () => {
             )}
 
             {loadingProducts ? (
-              <div className="sn-loading">Loading...</div>
+              <Loader />
             ) : linkedProducts.length === 0 ? (
               <div className="sn-products-empty">No products linked yet.</div>
             ) : (

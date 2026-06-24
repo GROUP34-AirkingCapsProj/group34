@@ -4,6 +4,8 @@ import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
 import SessionIdleGuard from './admin/components/SessionIdleGuard';
+import Loader from './admin/components/Loader';
+import './admin/styles/airking_ds.css';
 import './App.css';
 
 // Core
@@ -82,7 +84,7 @@ function App() {
     <SupabaseAuthProvider>
     <Router>
       <SessionIdleGuard />
-      <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-muted)' }}>Loading...</div>}>
+      <Suspense fallback={<Loader variant="page" />}>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin" element={<Navigate to="/admin/login" replace />} />

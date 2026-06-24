@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { istAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
@@ -115,7 +116,7 @@ const ISTCreatePage = () => {
     return (
       <AdminLayout>
         <div className="ak-page po-recommendation-page">
-          <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Loading request data…</div>
+          <Loader label="Loading request data" />
         </div>
       </AdminLayout>
     );

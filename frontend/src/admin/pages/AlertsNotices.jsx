@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
 import { auditAPI, dashboardAPI, alertsAPI } from '../services/api';
@@ -562,7 +563,7 @@ const AlertsNotices = () => {
 
           <div className="an-approval-list">
             {loading ? (
-              <div className="an-empty">Loading pending approvals...</div>
+              <Loader label="Loading pending approvals" />
             ) : pendingTotal === 0 ? (
               <div className="an-empty">No pending approvals at this time</div>
             ) : (
@@ -650,7 +651,7 @@ const AlertsNotices = () => {
           </div>
           <div className="an-approval-list">
             {loading ? (
-              <div className="an-empty">Loading alerts...</div>
+              <Loader label="Loading alerts" />
             ) : allLowStock.length === 0 ? (
               <div className="an-empty">No low-stock alerts at the moment</div>
             ) : (
@@ -736,7 +737,7 @@ const AlertsNotices = () => {
 
           <div className="an-approval-list">
             {loading ? (
-              <div className="an-empty">Loading...</div>
+              <Loader />
             ) : groupedAudit.length === 0 ? (
               <div className="an-empty">No audit entries yet</div>
             ) : filteredAudit.length === 0 ? (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import Barcode from 'react-barcode';
@@ -676,7 +677,7 @@ const ItemManagement = () => {
             </div>
           </div>
 
-          {loading && <div className="im-loading">Loading products...</div>}
+          {loading && <Loader label="Loading products" />}
           {error && <div className="im-error">Error: {error}</div>}
 
           <div className="im-table-wrapper">
@@ -699,7 +700,7 @@ const ItemManagement = () => {
                 {filteredItems.length === 0 ? (
                   <tr>
                     <td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
-                      {loading ? 'Loading...' : 'No products found'}
+                      {loading ? <Loader /> : 'No products found'}
                     </td>
                   </tr>
                 ) : (

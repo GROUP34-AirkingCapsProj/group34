@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import {
   itemsAPI,
@@ -722,7 +723,7 @@ const DraftPOCreator = () => {
 
   // ── PO Status tab renderer ───────────────────────────────────────────────
   const renderPoStatusView = () => {
-    if (loadingPOStatus) return <div className="po-status-loading">Loading purchase orders…</div>;
+    if (loadingPOStatus) return <Loader label="Loading purchase orders" />;
     if (poStatusError)   return <div className="po-status-error-msg">{poStatusError}</div>;
     if (poStatusList.length === 0) return <div className="po-status-empty">No purchase orders found.</div>;
 

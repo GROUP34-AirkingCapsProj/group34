@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
@@ -441,10 +442,7 @@ const PurchaseRequestPage = () => {
     if (loadingBudget) {
       return (
         <div className="pr-budget-card pr-budget-card--loading">
-          <div style={{ color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Loading budget for {locName}…
-          </div>
+          <Loader variant="inline" label={`Loading budget for ${locName}`} />
         </div>
       );
     }
@@ -769,7 +767,7 @@ const PurchaseRequestPage = () => {
 
   // ── Tab 2: My Requests ────────────────────────────────────────────────────
   const renderMyRequestsTab = () => {
-    if (loadingMyPRs) return <div className="po-status-loading">Loading requests…</div>;
+    if (loadingMyPRs) return <Loader label="Loading requests" />;
     if (!myPRs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">
@@ -869,7 +867,7 @@ const PurchaseRequestPage = () => {
 
   // ── Tab 3: Pending Approvals (Admin) ──────────────────────────────────────
   const renderApprovalsTab = () => {
-    if (loadingPending) return <div className="po-status-loading">Loading pending approvals…</div>;
+    if (loadingPending) return <Loader label="Loading pending approvals" />;
     if (!pendingPRs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">

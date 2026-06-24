@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { barcodeAdjustmentAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/compliance_review.css';
@@ -244,7 +245,7 @@ const ComplianceReview = () => {
                   <p>Live audit trail — inventory and scan events</p>
                 </div>
                 {logsLoading ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>Loading logs...</div>
+                  <Loader label="Loading logs" />
                 ) : logs.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No compliance logs found for the selected filters.</div>
                 ) : (
@@ -301,7 +302,7 @@ const ComplianceReview = () => {
                   <p>All barcode corrections and inventory adjustments</p>
                 </div>
                 {adjLoading ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>Loading adjustments...</div>
+                  <Loader label="Loading adjustments" />
                 ) : adjustments.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No adjustments found for the selected filters.</div>
                 ) : (

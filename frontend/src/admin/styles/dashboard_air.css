@@ -864,11 +864,6 @@
 /* ===============================
    DASHBOARD
 ================================ */
-.dashboard-loading {
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--text-muted);
-}
 
 .dashboard-connection-error {
   padding: 32px 24px;

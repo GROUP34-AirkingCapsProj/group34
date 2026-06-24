@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { profitLossAPI, productsAPI, modelsAPI, statusAPI, usersAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -253,7 +254,7 @@ const ProfitLossManagement = () => {
 
         {/* Table */}
         {loading ? (
-          <div className="plm-loading">Loading records…</div>
+          <Loader label="Loading records" />
         ) : error ? (
           <div className="plm-error">Error: {error}</div>
         ) : (
