@@ -14,7 +14,6 @@ class ModelLookup extends Model
 
     protected $fillable = [
         'brand_id',
-        'subcategory_id',
         'model_code',   // ERD: model_code (was model_name)
         'variant',      // ERD: variant    (was model_number)
         'capacity',     // ERD: capacity   (was specifications) — e.g. 1HP, 2HP, 3HP
@@ -25,11 +24,6 @@ class ModelLookup extends Model
     public function brand()
     {
         return $this->belongsTo(BrandLookup::class, 'brand_id', 'brand_id');
-    }
-
-    public function subcategory()
-    {
-        return $this->belongsTo(SubcategoryLookup::class, 'subcategory_id', 'subcategory_id');
     }
 
     public function status()
