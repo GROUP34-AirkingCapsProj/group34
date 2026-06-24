@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { adjustmentsAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
@@ -178,7 +179,7 @@ const AdjustmentManagement = () => {
               <tr><th>Adjustment #</th><th>Type</th><th>Location</th><th>Date</th><th>Adjusted By</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan="7" className="table-empty">Loading...</td></tr>
+              {loading ? <tr><td colSpan="7"><Loader /></td></tr>
                 : error ? <tr><td colSpan="7" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchAdjustments(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : adjustments.length === 0 ? <tr><td colSpan="7" className="table-empty">No adjustment records found.</td></tr>
                     : adjustments.map(adj => (

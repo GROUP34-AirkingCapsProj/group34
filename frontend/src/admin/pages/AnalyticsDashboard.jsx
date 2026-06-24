@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { batchAPI } from '../services/api';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -1420,7 +1421,7 @@ const AnalyticsDashboard = () => {
           </div>
         </header>
 
-        {initialLoading && <div className="loading-message">Loading analytics data...</div>}
+        {initialLoading && <Loader label="Loading analytics data" />}
         {refreshing && <div className="refreshing-indicator">Updating...</div>}
         {error && !initialLoading && <div className="error-message">Error: {error}</div>}
 

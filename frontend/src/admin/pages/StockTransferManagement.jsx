@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { transfersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
@@ -364,7 +365,7 @@ const StockTransferManagement = () => {
 
           <div className="txn-feed">
             {loading ? (
-              <div className="txn-empty">Loading transfers...</div>
+              <Loader label="Loading transfers" />
             ) : filteredTransfers.length === 0 ? (
               <div className="txn-empty">No transfer records match your filters.</div>
             ) : (

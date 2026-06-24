@@ -257,13 +257,6 @@
 }
 
 /* Loading & Error */
-.im-loading {
-  text-align: center;
-  padding: 24px;
-  color: #6b7280;
-  font-size: 13px;
-}
-
 .im-error {
   text-align: center;
   padding: 16px;

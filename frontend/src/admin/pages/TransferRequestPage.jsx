@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { transferRequestsAPI, locationsAPI, productsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -369,7 +370,7 @@ const TransferRequestPage = () => {
   // RENDER: My Requests tab
   // ─────────────────────────────────────────────────────────────────────────
   const renderMyRequests = () => {
-    if (loadingMine) return <div className="po-status-loading">Loading requests…</div>;
+    if (loadingMine) return <Loader label="Loading requests" />;
     if (!myReqs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">
@@ -436,7 +437,7 @@ const TransferRequestPage = () => {
   // RENDER: Pending Approvals tab
   // ─────────────────────────────────────────────────────────────────────────
   const renderApprovals = () => {
-    if (loadingPend) return <div className="po-status-loading">Loading pending approvals…</div>;
+    if (loadingPend) return <Loader label="Loading pending approvals" />;
     if (!pendingReqs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">
@@ -562,7 +563,7 @@ const TransferRequestPage = () => {
                 <span className="po-detail-items-heading">REQUESTED PRODUCTS</span>
                 <span className="po-detail-items-count">{details.length}</span>
                 {loadingDetail && (
-                  <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>Loading details…</span>
+                  <Loader variant="inline" label="Loading details" />
                 )}
               </div>
 

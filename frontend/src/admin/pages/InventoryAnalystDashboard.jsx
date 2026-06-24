@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js';
 import { useRoleDashboard, Kpi, fmt, PALETTE, baseChartOptions } from './dashboard/dashboardKit';
@@ -14,7 +15,7 @@ export default function InventoryAnalystDashboard() {
   const navigate = useNavigate();
   const { data, inv, loading, error } = useRoleDashboard();
 
-  if (loading) return <AdminLayout><div className="rd-loading"><div className="rd-loading-spinner" style={{ borderTopColor: PALETTE.crimson }} /><p>Loading analytics…</p></div></AdminLayout>;
+  if (loading) return <AdminLayout><Loader variant="page" label="Loading analytics" /></AdminLayout>;
   if (error)   return <AdminLayout><div className="rd-error"><p>{error}</p><button onClick={() => window.location.reload()}>Retry</button></div></AdminLayout>;
 
   const stats = data?.stats ?? {};

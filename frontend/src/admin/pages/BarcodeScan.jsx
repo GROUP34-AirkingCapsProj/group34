@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ProductRegisterModal from '../components/ProductRegisterModal';
 import {
@@ -2776,7 +2777,7 @@ const BarcodeScan = () => {
             </div>
           </div>
           {bsrPoLoading ? (
-            <div className="bsr-empty">Loading purchase orders…</div>
+            <Loader label="Loading purchase orders" />
           ) : bsrFilteredPos.length === 0 ? (
             <div className="bsr-empty">No approved purchase orders found.</div>
           ) : bsrFilteredPos.map((po) => {

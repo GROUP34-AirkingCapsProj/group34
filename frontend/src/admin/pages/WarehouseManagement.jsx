@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { locationsAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -186,7 +187,7 @@ const WarehouseManagement = () => {
         </div>
       </div>
 
-      {loading && <div className="loading-message">Loading warehouses...</div>}
+      {loading && <Loader label="Loading warehouses" />}
       {error && <div className="error-message">Error: {error}</div>}
 
       {viewMode === 'cards' ? (
@@ -244,7 +245,7 @@ const WarehouseManagement = () => {
                 {warehouses.length === 0 ? (
                   <tr>
                     <td colSpan={8} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>
-                      {loading ? 'Loading...' : 'No warehouses found'}
+                      {loading ? <Loader /> : 'No warehouses found'}
                     </td>
                   </tr>
                 ) : (

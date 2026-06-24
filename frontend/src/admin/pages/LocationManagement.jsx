@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { locationsAPI, statusAPI } from '../services/api';
@@ -244,7 +245,7 @@ const LocationManagement = () => {
         </div>
       </div>
 
-      {loading && <div className="loading-message">Loading locations...</div>}
+      {loading && <Loader label="Loading locations" />}
       {error && <div className="error-message">Error: {error}</div>}
 
       {viewMode === 'cards' ? (
@@ -321,7 +322,7 @@ const LocationManagement = () => {
               </thead>
               <tbody>
                 {locations.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>{loading ? 'Loading...' : 'No locations found'}</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>{loading ? <Loader /> : 'No locations found'}</td></tr>
                 ) : (
                   locations.map((loc) => (
                     <tr key={loc.location_id ?? loc.id}>

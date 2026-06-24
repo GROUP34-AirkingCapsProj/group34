@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { istAPI } from '../services/api';
 
 const fmtDate = (v) => {
@@ -79,7 +80,7 @@ const ISTReceiptPage = () => {
       {/* ── Receipt body ── */}
       <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '32px 0' }}>
         {loading && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Loading receipt…</div>
+          <Loader label="Loading receipt" />
         )}
         {error && (
           <div style={{ maxWidth: 600, margin: '40px auto', background: '#fee2e2', color: '#dc2626', padding: 20, borderRadius: 8, textAlign: 'center' }}>

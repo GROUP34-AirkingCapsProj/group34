@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import ArchiveButton from '../components/ArchiveButton';
@@ -480,7 +481,7 @@ const CustomerManagement = () => {
             </label>
           </div>
 
-          {loading && <div className="cr-loading">Loading customers...</div>}
+          {loading && <Loader label="Loading customers" />}
           {error   && <div className="cr-error">Error: {error}</div>}
 
           {!loading && !error && (
@@ -613,7 +614,7 @@ const CustomerManagement = () => {
                 </button>
               </div>
 
-              {historyLoading && <div className="cr-history-loading">Loading history...</div>}
+              {historyLoading && <Loader label="Loading history" />}
               {historyError  && <div className="cr-history-error">{historyError}</div>}
 
               {historyData && historyTab === 'transactions' && (

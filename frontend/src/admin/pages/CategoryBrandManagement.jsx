@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { categoriesAPI, brandsAPI, batchAPI } from '../services/api';
@@ -297,7 +298,7 @@ const CategoryBrandManagement = () => {
           </div>
         </header>
 
-        {loading && <div className="cb-loading">Loading...</div>}
+        {loading && <Loader />}
         {error && <div className="cb-error">Error: {error}</div>}
 
         {!loading && !error && (

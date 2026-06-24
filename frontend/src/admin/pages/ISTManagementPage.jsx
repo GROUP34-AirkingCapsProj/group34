@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { istAPI, getApiBaseUrl } from '../services/api';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -314,7 +315,7 @@ const ISTManagementPage = () => {
           })}
         </div>
 
-        {loading && <div className="po-status-loading">Loading ISTs…</div>}
+        {loading && <Loader label="Loading ISTs" />}
         {error   && <div className="po-submit-error">{error}</div>}
 
         {!loading && filtered.length === 0 && (

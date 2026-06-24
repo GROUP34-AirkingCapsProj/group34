@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { issuancesAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
@@ -223,7 +224,7 @@ const IssuanceManagement = () => {
 
           <div className="txn-feed">
             {loading ? (
-              <div className="txn-empty">Loading issuances...</div>
+              <Loader label="Loading issuances" />
             ) : filteredIssuances.length === 0 ? (
               <div className="txn-empty">
                 No issuance records yet — same clean view as Transactions. Use <strong>+ New Issuance</strong> to add one.

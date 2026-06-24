@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
@@ -356,7 +357,7 @@ const PurchaseOrderPage = () => {
 
   // ── PO Status renderer ─────────────────────────────────────────────────────
   const renderPoStatusView = () => {
-    if (loadingPOStatus) return <div className="po-status-loading">Loading purchase orders…</div>;
+    if (loadingPOStatus) return <Loader label="Loading purchase orders" />;
     if (poStatusError)   return <div className="po-status-error-msg">{poStatusError}</div>;
     if (poStatusList.length === 0) return <div className="po-status-empty">No purchase orders found.</div>;
 
@@ -467,7 +468,7 @@ const PurchaseOrderPage = () => {
             </p>
           </div>
 
-          {loadingPRs && <div className="po-status-loading">Loading approved purchase requests…</div>}
+          {loadingPRs && <Loader label="Loading approved purchase requests" />}
           {prLoadError && <div className="po-status-error-msg">{prLoadError}</div>}
 
           {!loadingPRs && !prLoadError && approvedPRs.length === 0 && (

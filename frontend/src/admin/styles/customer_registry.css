@@ -169,7 +169,6 @@
   background-position: right 10px center;
 }
 
-.cr-loading,
 .cr-error {
   padding: 16px;
   text-align: center;
@@ -723,7 +722,6 @@
   overflow-y: auto;
 }
 
-.cr-history-loading,
 .cr-history-error,
 .cr-history-empty {
   padding: 24px;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { toast } from '../utils/toast';
 import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
 import '../styles/system_configuration.css';
@@ -749,7 +750,7 @@ const SystemConfiguration = () => {
                 <p>Manage user roles and permissions</p>
               </div>
               <div className="sc-card-body">
-{loading && <p className="sc-placeholder">Loading users...</p>}
+{loading && <Loader label="Loading users" />}
                 {error && <p className="sc-placeholder" style={{ color: 'red' }}>{error}</p>}
                 {!loading && !error && (
                   <>
@@ -844,7 +845,7 @@ const SystemConfiguration = () => {
               </div>
               <div className="sc-card-body">
                 {activeCodesLoading && (
-                  <p className="sc-placeholder" style={{ padding: '16px 0' }}>Loading reset codes…</p>
+                  <Loader label="Loading reset codes" />
                 )}
                 {!activeCodesLoading && activeCodes.length === 0 && (
                   <p className="sc-placeholder" style={{ padding: '16px 0' }}>No active reset codes.</p>
@@ -922,7 +923,7 @@ const SystemConfiguration = () => {
               </div>
               <div className="sc-card-body">
                 {companyLoading ? (
-                  <p className="sc-placeholder">Loading company settings…</p>
+                  <Loader label="Loading company settings" />
                 ) : (
                   <>
                     <div className="sc-field-row">

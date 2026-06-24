@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { useLocation } from 'react-router-dom';
 import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
@@ -499,7 +500,7 @@ const InventoryManagement = () => {
                 <p className="sm-card-sub">Ranked by stock movement frequency and turnover ratio</p>
               </div>
 
-              {loading && <div className="inv-loading">Loading...</div>}
+              {loading && <Loader />}
 
               <div className="inv-table-wrapper">
                 <table className="inv-table">
@@ -628,7 +629,7 @@ const InventoryManagement = () => {
               </div>
             </div>
 
-            {loading && <div className="inv-loading">Loading inventory...</div>}
+            {loading && <Loader label="Loading inventory" />}
             {error && <div className="inv-error">Error: {error}</div>}
 
             {/* Inventory Console Table */}
@@ -807,7 +808,7 @@ const InventoryManagement = () => {
                   <p className="sm-card-sub">Every barcode scan that changed inventory — receiving, issuance, transfer, audit</p>
                 </div>
 
-                {activityLoading && <div className="inv-loading" style={{ padding: '40px', textAlign: 'center' }}>Loading activity log…</div>}
+                {activityLoading && <Loader label="Loading activity log" />}
 
                 {!activityLoading && (
                   <div className="inv-table-wrapper">
@@ -903,7 +904,7 @@ const InventoryManagement = () => {
               </div>
 
               {/* ── Loading / error ── */}
-              {historyLoading && <div className="invd-loading">Loading stock history…</div>}
+              {historyLoading && <Loader label="Loading stock history" />}
               {historyError && <div className="invd-error-msg">{historyError}</div>}
 
               {/* ══════════════════════════════

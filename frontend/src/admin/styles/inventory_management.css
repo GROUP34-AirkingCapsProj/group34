@@ -51,7 +51,6 @@
 .inv-stat-info { display: flex; flex-direction: column; }
 
 /* Loading & Error */
-.inv-loading { text-align: center; padding: 24px; color: #6b7280; font-size: 13px; }
 .inv-error { text-align: center; padding: 16px; color: #dc2626; font-size: 13px; background: #fef2f2; border-radius: 8px; margin-bottom: 16px; }
 
 /* Table Card */
@@ -458,12 +457,6 @@
 }
 
 /* Loading / error inside detail */
-.invd-loading {
-  text-align: center;
-  padding: 16px;
-  color: #9ca3af;
-  font-size: 13px;
-}
 .invd-error-msg {
   padding: 10px 14px;
   background: #fef2f2;

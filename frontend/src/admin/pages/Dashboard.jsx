@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../admin/components/AdminLayout';
+import Loader from '../../admin/components/Loader';
 import { useAuth } from '../../admin/context/AuthContext';
 import { getRoleKey, ROLES } from '../../admin/utils/roles';
 import { batchAPI, dashboardAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
@@ -199,9 +200,7 @@ const AdminDashboard = () => {
   if (loading || !data) {
     return (
       <AdminLayout>
-        <div className="dashboard-loading">
-          <p>Loading dashboard...</p>
-        </div>
+        <Loader variant="page" label="Loading dashboard" />
       </AdminLayout>
     );
   }
@@ -615,7 +614,7 @@ const AdminDashboard = () => {
    Dashboard — role-based router (no hooks here
    that would break if called after an early return)
 ───────────────────────────────────────────── */
-const ROLE_FALLBACK = <div className="dashboard-loading"><p>Loading...</p></div>;
+const ROLE_FALLBACK = <Loader variant="page" />;
 
 const Dashboard = () => {
   const { user: _user } = useAuth();

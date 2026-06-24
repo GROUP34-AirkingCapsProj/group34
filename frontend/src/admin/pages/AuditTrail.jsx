@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
 import { auditAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -387,7 +388,7 @@ const AuditTrail = () => {
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan="5" className="at-cell-center">Loading audit logs...</td></tr>
+                  <tr><td colSpan="5"><Loader label="Loading audit logs" /></td></tr>
                 )}
                 {!loading && error && (
                   <tr><td colSpan="5" className="at-cell-center at-cell-error">{error}</td></tr>
