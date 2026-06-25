@@ -276,7 +276,7 @@ const ISTDetailPage = () => {
                     <tbody>
                       {ist.details.map((d) => {
                         const name   = d.product?.product_name || `Product #${d.product_id}`;
-                        const model  = d.product?.model_name   || d.product?.model?.model_name || '—';
+                        const model  = d.product?.model_code || d.product?.applianceDetail?.model_code || '—';
                         const serials = Array.isArray(d.item_serials) ? d.item_serials : [];
                         return (
                           <tr key={d.transfer_detail_id}>

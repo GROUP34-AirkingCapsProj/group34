@@ -159,7 +159,6 @@ class IssuanceScanController extends Controller
             if ($serial) {
                 $product = Product::with([
                     'applianceDetail.brand',
-                    'applianceDetail.modelLookup',
                 ])->find($serial->product_id);
                 $serialRecord = $serial;
                 break;
@@ -187,7 +186,7 @@ class IssuanceScanController extends Controller
                     ->select('product_id')
                     ->first();
                 if ($detail) {
-                    $product = Product::with(['applianceDetail.brand', 'applianceDetail.modelLookup', 'consumableDetail.unit'])
+                    $product = Product::with(['applianceDetail.brand', 'consumableDetail.unit'])
                         ->find($detail->product_id);
                     break;
                 }
@@ -624,7 +623,6 @@ class IssuanceScanController extends Controller
     {
         $issuance = Issuance::with([
             'details.product.applianceDetail.brand',
-            'details.product.applianceDetail.modelLookup',
             'details.product.consumableDetail.unit',
             'details.warrantyRecord',
             'customer', 'location', 'issuedByUser', 'status',

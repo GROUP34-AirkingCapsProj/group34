@@ -15,13 +15,10 @@ class ProfitLossController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = ProfitLoss::with(['model', 'product', 'recordedBy', 'approvedBy', 'status']);
+            $query = ProfitLoss::with(['product', 'recordedBy', 'approvedBy', 'status']);
 
             if ($request->has('product_id')) {
                 $query->where('product_id', $request->product_id);
-            }
-            if ($request->has('model_id')) {
-                $query->where('model_id', $request->model_id);
             }
             if ($request->has('status_id')) {
                 $query->where('status_id', $request->status_id);
@@ -41,7 +38,6 @@ class ProfitLossController extends Controller
     {
         try {
             $validated = $request->validate([
-                'model_id'          => 'nullable|exists:model_lookup,model_id',
                 'product_id'        => 'required|exists:products,product_id',
                 'reference_type'    => 'nullable|string|max:50',
                 'transaction_date'  => 'nullable|date',
@@ -62,7 +58,7 @@ class ProfitLossController extends Controller
 
             $record = ProfitLoss::create($validated);
 
-            return $this->success($record->load(['model', 'product', 'recordedBy', 'status']), 'Profit/loss record created successfully', 201);
+            return $this->success($record->load(['product', 'recordedBy', 'status']), 'Profit/loss record created successfully', 201);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
         } catch (\Exception $e) {
@@ -73,7 +69,7 @@ class ProfitLossController extends Controller
     public function show($id)
     {
         try {
-            $record = ProfitLoss::with(['model', 'product', 'recordedBy', 'approvedBy', 'status', 'receivings'])->findOrFail($id);
+            $record = ProfitLoss::with(['product', 'recordedBy', 'approvedBy', 'status', 'receivings'])->findOrFail($id);
             return $this->success($record, 'Profit/loss record retrieved successfully');
         } catch (\Exception $e) {
             return $this->error('Profit/loss record not found', 404);
@@ -86,7 +82,6 @@ class ProfitLossController extends Controller
             $record = ProfitLoss::findOrFail($id);
 
             $validated = $request->validate([
-                'model_id'          => 'nullable|exists:model_lookup,model_id',
                 'product_id'        => 'sometimes|exists:products,product_id',
                 'reference_type'    => 'nullable|string|max:50',
                 'transaction_date'  => 'nullable|date',
@@ -102,7 +97,7 @@ class ProfitLossController extends Controller
 
             $record->update($validated);
 
-            return $this->success($record->load(['model', 'product', 'recordedBy', 'approvedBy', 'status']), 'Profit/loss record updated successfully');
+            return $this->success($record->load(['product', 'recordedBy', 'approvedBy', 'status']), 'Profit/loss record updated successfully');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
         } catch (\Exception $e) {

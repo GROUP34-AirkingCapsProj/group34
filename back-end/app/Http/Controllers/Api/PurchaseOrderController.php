@@ -28,7 +28,6 @@ class PurchaseOrderController extends Controller
         'status',
         'purchaseRequest',
         'details.product.applianceDetail.brand',
-        'details.product.applianceDetail.modelLookup',
         'details.product.consumableDetail.unit',
         'details.approvedBy',
     ];
@@ -333,7 +332,6 @@ class PurchaseOrderController extends Controller
             ->where('supplier_product.supplier_id', $supplierId)
             ->with([
                 'applianceDetail.brand',
-                'applianceDetail.modelLookup',
                 'consumableDetail.unit',
             ])
             ->select('products.*')

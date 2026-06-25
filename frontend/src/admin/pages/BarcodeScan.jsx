@@ -14,7 +14,7 @@ import {
 } from '@zxing/library';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
-  itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI, modelsAPI,
+  itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI,
   receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI, barcodeScanAPI, locationsAPI, purchaseOrdersAPI,
   istAPI,
 } from '../services/api';
@@ -586,7 +586,6 @@ const BarcodeScan = () => {
   /* ── filters ── */
   const [categories,     setCategories]     = useState([]);
   const [brands,         setBrands]         = useState([]);
-  const [models,         setModels]         = useState([]);
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand,    setFilterBrand]    = useState('');
   const [filterModel,    setFilterModel]    = useState('');
@@ -794,7 +793,6 @@ const BarcodeScan = () => {
   useEffect(() => {
     categoriesAPI.getAll().then((r) => setCategories(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     brandsAPI.getAll().then((r)     => setBrands(Array.isArray(r.data) ? r.data : [])).catch(() => {});
-    modelsAPI.getAll({ per_page: 200 }).then((r) => setModels(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     locationsAPI
       .getAll({ per_page: 500 })
       .then((r) => setLocations(extractApiDataArray(r)))
@@ -3598,10 +3596,12 @@ const BarcodeScan = () => {
           </div>
           <div className="bs-filter-col">
             <label>MODEL CODE</label>
-            <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)}>
-              <option value="">All</option>
-              {models.map((m) => <option key={m.model_id ?? m.id} value={m.model_id ?? m.id}>{m.model_name ?? m.name}</option>)}
-            </select>
+            <input
+              type="text"
+              value={filterModel}
+              onChange={(e) => setFilterModel(e.target.value)}
+              placeholder="Model code"
+            />
           </div>
         </div>
 

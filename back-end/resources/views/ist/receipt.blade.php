@@ -155,7 +155,7 @@
         @php
           $product  = $detail->product;
           $name     = $product?->product_name ?? "Product #{$detail->product_id}";
-          $model    = $product?->model_name ?? ($product?->model?->model_name ?? null);
+          $model    = $product?->model_code ?? ($product?->applianceDetail?->model_code ?? null);
           $label    = $model ? "{$name} — {$model}" : $name;
           $qtyReq   = (int) ($detail->quantity_requested ?? 0);
           $qtyShip  = (int) ($detail->quantity_transferred ?? 0);
