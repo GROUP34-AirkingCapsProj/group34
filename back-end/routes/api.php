@@ -15,7 +15,6 @@ use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SerialController;
 // ERD-aligned controllers
 use App\Http\Controllers\Api\LocationController;
-use App\Http\Controllers\Api\ModelLookupController;
 use App\Http\Controllers\Api\BudgetAllocationController;
 use App\Http\Controllers\Api\PurchaseRequestController;
 use App\Http\Controllers\Api\PurchaseOrderController;
@@ -255,24 +254,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:brand_management,archive')->delete('/brands/{brand}', [BrandLookupController::class, 'destroy']);
     Route::middleware('permission:brand_management,archive')->post('/brands/{brand}/restore', [BrandLookupController::class, 'restore']);
     Route::middleware('permission:brand_management,archive')->delete('/brands/{brand}/force', [BrandLookupController::class, 'forceDestroy']);
-
-    /*
-    |--------------------------------------------------------------------------
-    | ERD: MODEL LOOKUP (model_lookup)
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/models/archived', [ModelLookupController::class, 'archived']);
-    Route::get('/models', [ModelLookupController::class, 'index']);
-    Route::get('/models/{id}', [ModelLookupController::class, 'show']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
-        Route::post('/models', [ModelLookupController::class, 'store']);
-        Route::put('/models/{id}', [ModelLookupController::class, 'update']);
-    });
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/models/{id}', [ModelLookupController::class, 'destroy']);
-        Route::post('/models/{id}/restore', [ModelLookupController::class, 'restore']);
-        Route::delete('/models/{id}/force', [ModelLookupController::class, 'forceDestroy']);
-    });
 
     /*
     |--------------------------------------------------------------------------

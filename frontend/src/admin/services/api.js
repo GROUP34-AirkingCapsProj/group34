@@ -1090,28 +1090,6 @@ export const profitLossAPI = {
 };
 
 /* ======================
-   MODEL LOOKUP API
-====================== */
-export const modelsAPI = {
-  getAll: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/models?${query}` : '/models');
-  },
-  getById: async (id) => apiRequest(`/models/${id}`),
-  create: async (data) =>
-    apiRequest('/models', { method: 'POST', body: JSON.stringify(data) }),
-  update: async (id, data) =>
-    apiRequest(`/models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: async (id) => apiRequest(`/models/${id}`, { method: 'DELETE' }),
-  getArchived: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/models/archived?${query}` : '/models/archived');
-  },
-  restore: async (id) =>
-    apiRequest(`/models/${id}/restore`, { method: 'POST' }),
-};
-
-/* ======================
    CONSUMABLE SUPPLY + PENDING PRODUCT REGISTRATION
 ====================== */
 export const consumableSupplyAPI = {

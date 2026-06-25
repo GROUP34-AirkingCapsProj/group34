@@ -15,7 +15,7 @@ class ApplianceDetail extends Model
     protected $fillable = [
         'product_id',
         'brand_id',
-        'model_id',
+        'model_code',
         'capacity_rating',
         'variant',
         'color',
@@ -75,16 +75,5 @@ class ApplianceDetail extends Model
     public function brand(): BelongsTo
     {
         return $this->belongsTo(BrandLookup::class, 'brand_id', 'brand_id');
-    }
-
-    public function model(): BelongsTo
-    {
-        return $this->belongsTo(ModelLookup::class, 'model_id', 'model_id');
-    }
-
-    // Alias used by eager-load chains (applianceDetail.modelLookup)
-    public function modelLookup(): BelongsTo
-    {
-        return $this->model();
     }
 }

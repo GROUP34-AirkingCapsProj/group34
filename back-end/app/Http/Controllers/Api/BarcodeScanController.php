@@ -89,7 +89,6 @@ class BarcodeScanController extends Controller
                     'category',
                     'status',
                     'applianceDetail.brand',
-                    'applianceDetail.modelLookup',
                     'consumableDetail.unit',
                     'issuableUnits.unit',
                 ]);

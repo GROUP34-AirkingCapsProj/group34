@@ -159,7 +159,7 @@ const ISTReceiptPage = () => {
               <tbody>
                 {(ist.details || []).map((d, idx) => {
                   const name    = d.product?.product_name || `Product #${d.product_id}`;
-                  const model   = d.product?.model_name || d.product?.model?.model_name || null;
+                  const model   = d.product?.model_code || d.product?.applianceDetail?.model_code || null;
                   const label   = model ? `${name} — ${model}` : name;
                   const qty     = (d.quantity_received > 0 ? d.quantity_received : d.quantity_transferred) || 0;
                   const serials = Array.isArray(d.item_serials) ? d.item_serials : [];

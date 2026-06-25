@@ -28,7 +28,6 @@ class PurchaseRequestController extends Controller
         'budget',
         'convertedPO',
         'details.product.applianceDetail.brand',
-        'details.product.applianceDetail.modelLookup',
         'details.product.consumableDetail.unit',
     ];
 
@@ -406,7 +405,6 @@ class PurchaseRequestController extends Controller
     {
         $pr = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
-            'details.product.applianceDetail.modelLookup',
             'details.product.consumableDetail.unit',
             'location',
             'budget',
@@ -590,7 +588,6 @@ class PurchaseRequestController extends Controller
             $po->load([
                 'supplier', 'location', 'status', 'purchaseRequest',
                 'details.product.applianceDetail.brand',
-                'details.product.applianceDetail.modelLookup',
                 'details.product.consumableDetail.unit',
             ]);
             return $this->success($po, 'Purchase request converted to purchase order', 201);

@@ -240,7 +240,7 @@ const ItemManagement = () => {
       category_id: item.category_id ?? item.category?.category_id ?? '',
       // V5 flat shim fields — set directly on product object by backend
       brand_id: item.brand_id ?? '',
-      model_code: item.model_name || '',
+      model_code: item.model_code || item.model_name || '',
       unit_id: item.unit_id ?? '',
       unit_price: item.unit_price ?? item.price ?? '',
       cost_price: item.cost_price ?? item.unit_price ?? item.price ?? '',

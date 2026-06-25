@@ -95,13 +95,6 @@ class ArchiveController extends Controller
             'code_col' => 'dr_number',
             'with'     => ['customer', 'location'],
         ],
-        'models' => [
-            'model'    => \App\Models\ModelLookup::class,
-            'label'    => 'Model',
-            'name_col' => 'model_code',
-            'code_col' => null,
-            'with'     => ['brand'],
-        ],
         'units' => [
             'model'    => \App\Models\UnitLookup::class,
             'label'    => 'Unit',
