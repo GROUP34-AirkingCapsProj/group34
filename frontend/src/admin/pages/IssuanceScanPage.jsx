@@ -1394,8 +1394,8 @@ export default function IssuanceScanPage() {
                   <div className="qty-panel-header">
                     <div className="qty-panel-product-info">
                       <span className="qty-panel-product-name">{pendingScan.product_name}</span>
-                      {pendingScan.product_code && (
-                        <span className="qty-panel-product-code">{pendingScan.product_code}</span>
+                      {pendingScan.model_code && (
+                        <span className="qty-panel-product-code">{pendingScan.model_code}</span>
                       )}
                     </div>
                     <button
@@ -1616,7 +1616,7 @@ export default function IssuanceScanPage() {
                           <td style={{ color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
                           <td>
                             <div className="isp-td-product">{it.product_name}</div>
-                            {it.product_code && <div className="isp-td-code">{it.product_code}</div>}
+                            {it.model_code && <div className="isp-td-code">{it.model_code}</div>}
                           </td>
                           <td>
                             <span className={`isp-ptype-badge isp-ptype-${(it.product_type || '').toLowerCase()}`}>
@@ -1785,7 +1785,7 @@ export default function IssuanceScanPage() {
                         <td>
                           <div>{it.product_name}</div>
                           {it.brand_name && <div className="isp-td-code">{it.brand_name}</div>}
-                          {it.product_code && <div className="isp-td-code">{it.product_code}</div>}
+                          {it.model_code && <div className="isp-td-code">{it.model_code}</div>}
                         </td>
                         <td>{it.product_type === 'appliance' ? 'Appliance' : 'Consumable'}</td>
                         <td>

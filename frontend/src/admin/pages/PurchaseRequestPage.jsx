@@ -981,8 +981,8 @@ const PurchaseRequestPage = () => {
                             <tr key={d.pr_detail_id ?? di}>
                               <td>
                                 <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
-                                {(d.product_code || d.product?.product_code) && (
-                                  <small style={{ color: '#94a3b8' }}>{d.product_code || d.product?.product_code}</small>
+                                {d.product?.applianceDetail?.model_code && (
+                                  <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
                                 )}
                               </td>
                               <td>
@@ -1177,8 +1177,8 @@ const PurchaseRequestPage = () => {
                           <td className="po-detail-table-idx">{di + 1}</td>
                           <td>
                             <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
-                            {(d.product_code || d.product?.product_code) && (
-                              <small style={{ color: '#94a3b8' }}>{d.product_code || d.product?.product_code}</small>
+                            {d.product?.applianceDetail?.model_code && (
+                              <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
                             )}
                           </td>
                           <td style={{ fontSize: 11 }}>

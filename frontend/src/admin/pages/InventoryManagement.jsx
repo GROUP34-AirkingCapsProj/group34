@@ -232,6 +232,8 @@ const InventoryManagement = () => {
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
   const getItemCode    = (item) => item.product?.product_code || item.item?.code || item.sku || '';
+  // Appliance model code for display (consumables have none → '').
+  const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || '';
   const getItemQty     = (item) => Number(item.quantity_on_hand ?? item.quantity ?? 0);
   const getItemReorder = (item) => Number(item.product?.recommended_stocks || item.reorder_level || 5);
   const getItemSafety  = (item) => Number(item.product?.safety_stock) || Math.round(getItemReorder(item) * 0.25) || 1;
@@ -528,7 +530,7 @@ const InventoryManagement = () => {
                             <span className="sm-rank">#{String(rank).padStart(2, '0')}</span>
                             <div>
                               <div className="inv-product-name">{getItemName(item)}</div>
-                              <div className="inv-product-code">{getItemCode(item)}</div>
+                              {getModelCode(item) && <div className="inv-product-code">{getModelCode(item)}</div>}
                             </div>
                           </div>
                         </td>
@@ -672,7 +674,7 @@ const InventoryManagement = () => {
                                 <span className="inv-product-name">{getItemName(item)}</span>
                                 <div className="inv-product-meta">
                                   <span className="inv-product-branch">{getBranchName(item)}</span>
-                                  <span className="inv-product-code">{getItemCode(item)}</span>
+                                  {getModelCode(item) && <span className="inv-product-code">{getModelCode(item)}</span>}
                                 </div>
                               </div>
                             </td>
@@ -856,7 +858,7 @@ const InventoryManagement = () => {
                               </td>
                               <td>
                                 <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{r.product?.product_name || '—'}</div>
-                                {r.product?.product_code && <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.product.product_code}</div>}
+                                {r.product?.applianceDetail?.model_code && <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.product.applianceDetail.model_code}</div>}
                               </td>
                               <td><span className="invd-mono invd-small">{getRef(r)}</span></td>
                               <td style={{ fontSize: 12, color: '#374151' }}>{getLoc(r)}</td>
@@ -921,8 +923,8 @@ const InventoryManagement = () => {
                         <span className="invd-value">{historyData?.product?.product_name ?? getItemName(viewingItem)}</span>
                       </div>
                       <div className="invd-field">
-                        <span className="invd-label">Product Code</span>
-                        <span className="invd-value invd-mono">{historyData?.product?.product_code ?? getItemCode(viewingItem)}</span>
+                        <span className="invd-label">Model Code</span>
+                        <span className="invd-value invd-mono">{historyData?.product?.applianceDetail?.model_code || getModelCode(viewingItem) || '—'}</span>
                       </div>
                       <div className="invd-field">
                         <span className="invd-label">Type</span>

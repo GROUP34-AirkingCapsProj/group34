@@ -153,11 +153,11 @@ class WarrantyClaimController extends Controller
             fputcsv($h, ['Claimed Serial',$claim->serial_number ?? '']);
             fputcsv($h, ['Problem/Notes', $claim->notes ?? '']);
             fputcsv($h, []);
-            fputcsv($h, ['#', 'Product Code', 'Product Name', 'Serial', 'Qty', 'Unit', 'Cost']);
+            fputcsv($h, ['#', 'Model Code', 'Product Name', 'Serial', 'Qty', 'Unit', 'Cost']);
             foreach ($claim->details as $i => $d) {
                 fputcsv($h, [
                     $i + 1,
-                    $d->product?->product_code ?? '',
+                    $d->product?->applianceDetail?->model_code ?? '',
                     $d->product?->product_name ?? '',
                     $d->serial_number ?? '',
                     $d->quantity_issued,
@@ -201,7 +201,7 @@ class WarrantyClaimController extends Controller
                 'detail_id'          => $d->claim_detail_id,
                 'product_id'         => $d->product_id,
                 'product_name'       => $d->product?->product_name,
-                'product_code'       => $d->product?->product_code,
+                'model_code'         => $d->product?->applianceDetail?->model_code,
                 'serial_number'      => $d->serial_number,
                 'quantity_issued'    => $d->quantity_issued,
                 'quantity_in_pieces' => $d->quantity_in_pieces,

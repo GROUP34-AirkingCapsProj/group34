@@ -186,6 +186,7 @@ class SupplierController extends Controller
                 'product_id'       => $p->product_id,
                 'product_name'     => $p->product_name,
                 'product_code'     => $p->product_code,
+                'model_code'       => $p->applianceDetail?->model_code,
                 'category'         => $p->category?->category_name,
                 'brand'            => $p->applianceDetail?->brand?->brand_name,
                 'product_price'    => $p->pivot->product_price,

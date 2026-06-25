@@ -698,7 +698,7 @@ const SupplierNetwork = () => {
                 <thead>
                   <tr>
                     <th>Product</th>
-                    <th>Code</th>
+                    <th>Model Code</th>
                     <th>Category</th>
                     <th>Price</th>
                     <th>Status</th>
@@ -708,7 +708,7 @@ const SupplierNetwork = () => {
                   {viewProducts.map((p) => (
                     <tr key={p.supplier_prod_id}>
                       <td>{p.product_name}</td>
-                      <td className="sn-code-cell">{p.product_code}</td>
+                      <td className="sn-code-cell">{p.model_code || '—'}</td>
                       <td>{p.category || '—'}</td>
                       <td>
                         {p.product_price != null
@@ -751,7 +751,7 @@ const SupplierNetwork = () => {
                   <option value="">Select product to link...</option>
                   {availableProducts.map((p) => (
                     <option key={p.product_id ?? p.id} value={p.product_id ?? p.id}>
-                      {p.product_name || p.name} ({p.product_code || p.code})
+                      {p.product_name || p.name}{p.model_code ? ` (${p.model_code})` : ''}
                     </option>
                   ))}
                 </select>
@@ -856,7 +856,7 @@ const SupplierNetwork = () => {
                 <thead>
                   <tr>
                     <th>Product</th>
-                    <th>Code</th>
+                    <th>Model Code</th>
                     <th>Category</th>
                     <th>Price</th>
                     <th>Status</th>
@@ -867,7 +867,7 @@ const SupplierNetwork = () => {
                   {linkedProducts.map((p) => (
                     <tr key={p.supplier_prod_id} className={editingProduct?.supplier_prod_id === p.supplier_prod_id ? 'sn-row-editing' : ''}>
                       <td>{p.product_name}</td>
-                      <td className="sn-code-cell">{p.product_code}</td>
+                      <td className="sn-code-cell">{p.model_code || '—'}</td>
                       <td>{p.category || '—'}</td>
                       <td>
                         {p.product_price != null

@@ -171,9 +171,6 @@ const ISTReceiptPage = () => {
                       </td>
                       <td style={{ padding: '5px 8px', border: '1px solid #d1d5db' }}>
                         {label}
-                        {d.product?.product_code && (
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>SKU: {d.product.product_code}</div>
-                        )}
                       </td>
                       <td style={{ padding: '5px 8px', border: '1px solid #d1d5db', fontSize: 10, color: '#374151' }}>
                         {serials.length === 0 ? '—' : serials.join(', ')}

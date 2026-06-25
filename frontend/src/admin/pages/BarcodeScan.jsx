@@ -2941,7 +2941,7 @@ const BarcodeScan = () => {
                     const pid = d.product_id || prod.product_id;
                     const detailId = d.po_detail_id;
                     const name = prod.product_name || prod.name || `Product #${pid}`;
-                    const sku = prod.product_code || prod.barcode || prod.sku || '—';
+                    const sku = prod.applianceDetail?.model_code || prod.model_code || prod.barcode || '—';
                     const ordered = Number(d.quantity_ordered || d.quantity || d.quantity_amount || 0);
                     const isSerial = prod.product_type === 'appliance';
                     const pps = Number(prod.pieces_per_package) || 1;
@@ -3629,8 +3629,8 @@ const BarcodeScan = () => {
                 {/* Left column */}
                 <div className="bs-result-col">
                   <div className="bs-result-cell">
-                    <span className="bs-rk">SKU</span>
-                    <span className="bs-rv">{scanResult.item.product_code || scanResult.item.code || '—'}</span>
+                    <span className="bs-rk">MODEL CODE</span>
+                    <span className="bs-rv">{scanResult.item.model_code || scanResult.item.applianceDetail?.model_code || '—'}</span>
                   </div>
                   <div className="bs-result-cell">
                     <span className="bs-rk">Category</span>

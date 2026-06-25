@@ -329,7 +329,7 @@ export default function WarrantyClaimPage() {
                         <tr key={it.detail_id}>
                           <td>
                             <div className="isp-td-product">{it.product_name}</div>
-                            {it.product_code && <div className="isp-td-code">{it.product_code}</div>}
+                            {it.model_code && <div className="isp-td-code">{it.model_code}</div>}
                           </td>
                           <td>{it.serial_number ? <span className="isp-serial">{it.serial_number}</span> : '—'}</td>
                           <td>{it.quantity_issued}{it.quantity_unit ? ` ${it.quantity_unit}` : ''}</td>

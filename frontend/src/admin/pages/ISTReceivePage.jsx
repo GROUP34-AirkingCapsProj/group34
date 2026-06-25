@@ -308,7 +308,7 @@ const ISTReceivePage = () => {
                       const isActive   = activeLine === did;
                       const serialized = isLineSerialized(detail);
                       const name       = detail.product?.product_name || `Product #${detail.product_id}`;
-                      const sku        = detail.product?.product_code || '—';
+                      const sku        = detail.product?.applianceDetail?.model_code || '—';
                       const pct        = dispatched > 0 ? Math.min(100, (received / dispatched) * 100) : 0;
                       return (
                         <div

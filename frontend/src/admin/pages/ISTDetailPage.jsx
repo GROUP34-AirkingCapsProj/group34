@@ -283,9 +283,6 @@ const ISTDetailPage = () => {
                             <td>
                               <div style={{ fontWeight: 600 }}>{name}</div>
                               {model !== '—' && <div style={{ fontSize: 11, color: '#94a3b8' }}>{model}</div>}
-                              {d.product?.product_code && (
-                                <div style={{ fontSize: 11, color: '#94a3b8' }}>SKU: {d.product.product_code}</div>
-                              )}
                             </td>
                             <td style={{ textAlign: 'center' }}>{d.quantity_requested ?? 0}</td>
                             <td style={{ textAlign: 'center' }}>
