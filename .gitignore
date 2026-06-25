@@ -46,3 +46,6 @@ yarn-error.log*
 
 # Local test environment (points at airkingV5_test)
 back-end/.env.testing
+
+# DB backups / dumps (data, not source)
+/db_backups/
