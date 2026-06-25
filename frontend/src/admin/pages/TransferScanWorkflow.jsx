@@ -164,7 +164,7 @@ const TransferScanWorkflow = () => {
         (d) => `
       <tr>
         <td class="tc">${d.quantity_transferred ?? ''}</td>
-        <td>${d.product?.product_name || d.product?.product_code || ''}</td>
+        <td>${d.product?.product_name || d.product?.applianceDetail?.model_code || ''}</td>
         <td>${Number(d.quantity_received ?? 0)} / ${Number(d.quantity_transferred ?? 0)}</td>
       </tr>`
       )

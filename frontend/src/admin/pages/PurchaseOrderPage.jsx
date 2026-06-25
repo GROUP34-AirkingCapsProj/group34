@@ -231,6 +231,7 @@ const PurchaseOrderPage = () => {
         product_id:        d.product_id,
         product:           d.product_name || d.product?.product_name || `Product ${d.product_id}`,
         product_code:      d.product_code || d.product?.product_code || '',
+        model_code:        d.product?.applianceDetail?.model_code || d.model_code || '',
         product_type:      d.product_type || d.product?.product_type || '',
         brand_name:        d.brand_name ?? null,
         capacity_rating:   d.capacity_rating ?? null,
@@ -726,7 +727,7 @@ const PurchaseOrderPage = () => {
                             <tr className={isPartial ? 'pr-item-remaining' : ''}>
                               <td>
                                 <strong>{li.product}</strong>
-                                {li.product_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.product_code}</div>}
+                                {li.model_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.model_code}</div>}
                               </td>
                               <td>
                                 <span className={`po-type-badge ${li.product_type === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`}>
@@ -858,7 +859,7 @@ const PurchaseOrderPage = () => {
                         <tr>
                           <th>Quantity</th>
                           <th>Unit</th>
-                          <th>Item Code</th>
+                          <th>Model Code</th>
                           <th>Description</th>
                           <th>Unit Price</th>
                           <th>Amount</th>
@@ -869,7 +870,7 @@ const PurchaseOrderPage = () => {
                           <tr key={idx}>
                             <td>{li.quantity_ordered}</td>
                             <td>{getUnitForExport(li)}</td>
-                            <td>{li.product_code || '—'}</td>
+                            <td>{li.model_code || '—'}</td>
                             <td>{getDescriptionForExport(li)}</td>
                             <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
                             <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
@@ -1129,8 +1130,8 @@ const PurchaseOrderPage = () => {
                               <td className="po-detail-table-idx">{idx + 1}</td>
                               <td>
                                 <div>{item.product_name || item.product?.product_name || `Item ${idx + 1}`}</div>
-                                {(item.product_code || item.product?.product_code) && (
-                                  <small style={{ color: '#94a3b8' }}>{item.product_code || item.product?.product_code}</small>
+                                {item.product?.applianceDetail?.model_code && (
+                                  <small style={{ color: '#94a3b8' }}>{item.product.applianceDetail.model_code}</small>
                                 )}
                                 {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
                               </td>
@@ -1195,7 +1196,7 @@ const PurchaseOrderPage = () => {
                   order_date:             d.order_date ? String(d.order_date).slice(0, 10) : '—',
                   expected_delivery_date: d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—',
                   items: details.map(item => ({
-                    product_code:      item.product_code || '—',
+                    product_code:      item.product?.applianceDetail?.model_code || item.model_code || '—',
                     name:              item.product_name || '—',
                     unit:              item.unit_abbreviation || (item.product_type === 'appliance' ? 'unit' : item.unit_name || 'pc'),
                     qty:               item.quantity_ordered,

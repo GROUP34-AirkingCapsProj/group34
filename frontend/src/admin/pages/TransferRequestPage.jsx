@@ -328,7 +328,7 @@ const TransferRequestPage = () => {
                       <option value="">{loadingProd ? 'Loading…' : 'Select product…'}</option>
                       {products.map(p => (
                         <option key={p.product_id} value={String(p.product_id)}>
-                          {p.product_code ? `[${p.product_code}] ` : ''}{p.product_name}
+                          {p.model_code ? `[${p.model_code}] ` : ''}{p.product_name}
                         </option>
                       ))}
                     </select>
@@ -596,7 +596,7 @@ const TransferRequestPage = () => {
                           <td className="po-detail-table-idx">{di + 1}</td>
                           <td>
                             <div>{d.product?.product_name || '—'}</div>
-                            {d.product?.product_code && <small style={{ color: '#94a3b8' }}>{d.product.product_code}</small>}
+                            {d.product?.applianceDetail?.model_code && <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>}
                           </td>
                           <td>
                             {d.quantity_requested}

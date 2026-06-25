@@ -140,7 +140,16 @@
       "PowerShell(& \"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\" -u root airkingV5 -e \"SHOW INDEX FROM sales_details;\")",
       "PowerShell(& \"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\" -u root airkingV5 -e \"SHOW COLUMNS FROM sales_details;\")",
       "PowerShell(& \"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\" -u root airkingV5 -e \"SHOW INDEX FROM transfers;\")",
-      "PowerShell(& \"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\" -u root airkingV5 -e \"SHOW COLUMNS FROM transfers;\")"
+      "PowerShell(& \"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\" -u root airkingV5 -e \"SHOW COLUMNS FROM transfers;\")",
+      "PowerShell(cd back-end; php artisan tinker --execute=\"foreach\\(['jobs','job_batches','failed_jobs'] as \\\\$t\\){echo \\\\$t.': '.\\(Schema::hasTable\\(\\\\$t\\)?'EXISTS':'gone'\\).PHP_EOL;}\")",
+      "Bash(php _verify_tables.php)",
+      "PowerShell($m=\"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\"; & $m -uroot airkingV5 -N -e \"SHOW CREATE TABLE subcategory_lookup\\\\G\"; \"----- model_lookup.subcategory_id column -----\"; & $m -uroot airkingV5 -N -e \"SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='airkingV5' AND TABLE_NAME='model_lookup' AND COLUMN_NAME='subcategory_id';\")",
+      "PowerShell($m=\"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\"; & $m -uroot airkingV5 -N -e \"SELECT CONSTRAINT_NAME, DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA='airkingV5' AND CONSTRAINT_NAME IN \\('model_lookup_subcategory_id_foreign','subcategory_lookup_category_id_foreign'\\);\")",
+      "PowerShell($php=\"C:\\\\XAMPP1\\\\php\\\\php.exe\"; foreach\\($f in @\\(\"routes\\\\api.php\",\"app\\\\Models\\\\ModelLookup.php\",\"app\\\\Models\\\\CategoryLookup.php\",\"database\\\\migrations\\\\2026_06_25_100000_drop_subcategory_lookup.php\"\\)\\){ & $php -l \"C:\\\\XAMPP1\\\\htdocs\\\\Airking_Inventory\\\\back-end\\\\$f\" })",
+      "PowerShell($m=\"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\"; \"=== model_lookup live DDL \\(subcategory_id + FK\\) ===\"; & $m -uroot airkingV5 -N -e \"SHOW CREATE TABLE model_lookup\\\\G\")",
+      "Bash(DB_DATABASE=airking_migtest /c/XAMPP1/php/php.exe artisan *)",
+      "PowerShell($m=\"C:\\\\XAMPP1\\\\mysql\\\\bin\\\\mysql.exe\"; & $m -uroot airkingV5 -N -e \"SHOW CREATE TABLE appliance_details\\\\G\")",
+      "Bash(/c/XAMPP1/php/php.exe artisan *)"
     ]
   },
   "enabledPlugins": {

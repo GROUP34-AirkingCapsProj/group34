@@ -725,7 +725,9 @@ const ItemManagement = () => {
                       <tr key={item.product_id ?? item.id}>
                         <td>
                           <div className="im-product-cell">
-                            <span className="im-product-code">{item.product_code || item.code}</span>
+                            {item.model_code && (
+                              <span className="im-product-code">{item.model_code}</span>
+                            )}
                             <span className="im-product-name">{item.product_name || item.name}</span>
                           </div>
                         </td>
@@ -821,15 +823,17 @@ const ItemManagement = () => {
                 <label>Product name</label>
                 <p>{viewingItem.product_name || viewingItem.name}</p>
               </div>
-              <div className="im-view-field">
-                <label>Code / SKU</label>
-                <p>{viewingItem.product_code || viewingItem.code}</p>
-              </div>
             </div>
 
             {/* Appliance-specific fields */}
             {resolveType(viewingItem) === 'appliance' && (
               <>
+                <div className="im-view-row">
+                  <div className="im-view-field">
+                    <label>Model Code</label>
+                    <p>{viewingItem.model_code || '—'}</p>
+                  </div>
+                </div>
                 <div className="im-view-row">
                   <div className="im-view-field">
                     <label>Capacity Rating</label>
@@ -1010,9 +1014,9 @@ const ItemManagement = () => {
                     <label>MODEL CODE *</label>
                     <input
                       type="text"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      placeholder="e.g. AS-20-PRO"
+                      value={formData.model_code}
+                      onChange={(e) => setFormData({ ...formData, model_code: e.target.value })}
+                      placeholder="e.g. AMNB12AAJLH5"
                       required
                     />
                   </div>
@@ -1079,15 +1083,6 @@ const ItemManagement = () => {
                   </div>
                 </div>
                 <div className="im-form-row">
-                  <div className="im-form-field">
-                    <label>MODEL CODE</label>
-                    <input
-                      type="text"
-                      value={formData.model_code}
-                      onChange={(e) => setFormData({ ...formData, model_code: e.target.value })}
-                      placeholder="e.g. AMNB12AAJLH5 (optional)"
-                    />
-                  </div>
                   <div className="im-form-field">
                     <label>STATUS</label>
                     <select

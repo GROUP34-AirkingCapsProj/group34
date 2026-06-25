@@ -57,7 +57,7 @@ const emptyConsumable = (barcode) => ({
 const emptyAppliance = (barcode) => ({
   barcode: barcode || '',
   product_name: '',
-  product_code: '',
+  model_code: '',
   capacity_rating: '',
   variant: '',
   category_id: '',
@@ -237,7 +237,7 @@ export default function ProductRegisterModal({
           barcode: app.barcode.trim(),
           appliance: {
             product_name: app.product_name.trim(),
-            product_code: showApplianceModelCode && app.product_code.trim() ? app.product_code.trim() : null,
+            model_code: app.model_code.trim() || null,
             capacity_rating: app.capacity_rating.trim() || null,
             variant: app.variant.trim() || null,
             category_id: Number(app.category_id),
@@ -459,12 +459,12 @@ export default function ProductRegisterModal({
             {showApplianceModelCode ? (
               <div className="im-form-row">
                 <div className="im-form-field">
-                  <label>MODEL / PRODUCT CODE</label>
+                  <label>MODEL CODE</label>
                   <input
                     type="text"
-                    value={app.product_code}
-                    onChange={(e) => setApp((a) => ({ ...a, product_code: e.target.value }))}
-                    placeholder="e.g. AS-20-PRO"
+                    value={app.model_code}
+                    onChange={(e) => setApp((a) => ({ ...a, model_code: e.target.value }))}
+                    placeholder="e.g. AMNB12AAJLH5"
                   />
                 </div>
                 <div className="im-form-field">

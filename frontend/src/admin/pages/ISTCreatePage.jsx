@@ -246,8 +246,8 @@ const ISTCreatePage = () => {
                       <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
                       <td>
                         <div style={{ fontWeight: 500 }}>{d.product?.product_name || '—'}</div>
-                        {d.product?.product_code && (
-                          <small style={{ color: '#94a3b8' }}>{d.product.product_code}</small>
+                        {d.product?.applianceDetail?.model_code && (
+                          <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
                         )}
                       </td>
                       <td>

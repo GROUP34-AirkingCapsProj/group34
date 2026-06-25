@@ -222,7 +222,7 @@ const DraftPOCreator = () => {
             next.push({
               id:        `reco-${pid}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
               productId: Number(pid),
-              product:   r.product_name || r.product_code || `Product ${pid}`,
+              product:   r.product_name || r.model_code || `Product ${pid}`,
               brand:     r.brand || '—',
               category:  r.category || '—',
               type:      (r.product_type || '').toLowerCase() === 'consumable' ? 'PART' : 'APPLIANCES',

@@ -132,7 +132,7 @@ const StockTransferManagement = () => {
     const itemRows = items.map((d) => `
       <tr>
         <td class="tc">${d.quantity_transferred || ''}</td>
-        <td>${d.product?.product_name || d.product?.product_code || ''}</td>
+        <td>${d.product?.product_name || d.product?.applianceDetail?.model_code || ''}</td>
         <td></td>
       </tr>`).join('') + Array(blankCount).fill('<tr><td>&nbsp;</td><td></td><td></td></tr>').join('');
 

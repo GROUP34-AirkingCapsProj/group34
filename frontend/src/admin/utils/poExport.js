@@ -207,7 +207,7 @@ export function exportPOToDocument(payload) {
       <tr>
         <th style="text-align:center;width:65px">Quantity</th>
         <th style="text-align:center;width:55px">Unit</th>
-        <th style="width:130px">Item Code</th>
+        <th style="width:130px">Model Code</th>
         <th>Description</th>
         <th style="text-align:right;width:95px">Unit Price</th>
         <th style="text-align:right;width:95px">Amount</th>
@@ -304,7 +304,7 @@ export function exportPOToExcel(payload) {
   aoa.push([]);
 
   // ── Column headers ──
-  const COL_HEADERS = ['Quantity', 'Unit', 'Item Code', 'Description', 'Unit Price', 'Amount'];
+  const COL_HEADERS = ['Quantity', 'Unit', 'Model Code', 'Description', 'Unit Price', 'Amount'];
   aoa.push(COL_HEADERS);
   const headerRowIdx = aoa.length; // 1-based after push
 
@@ -343,7 +343,7 @@ export function exportPOToExcel(payload) {
   ws['!cols'] = [
     { wch: 12 }, // Quantity / Supplier
     { wch: 10 }, // Unit
-    { wch: 18 }, // Item Code
+    { wch: 18 }, // Model Code
     { wch: 48 }, // Description
     { wch: 14 }, // Unit Price
     { wch: 14 }, // Amount
