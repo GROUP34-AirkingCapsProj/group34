@@ -49,3 +49,6 @@ back-end/.env.testing
 
 # DB backups / dumps (data, not source)
 /db_backups/
+
+# Local Claude settings (machine-specific)
+.claude/settings.local.json
