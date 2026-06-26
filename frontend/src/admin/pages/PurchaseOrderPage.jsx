@@ -11,6 +11,7 @@ import {
   locationsAPI,
   usersAPI,
   companySettingsAPI,
+  statusAPI,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -100,6 +101,9 @@ const PurchaseOrderPage = () => {
   const isAdmin = roleKey === ROLES.ADMIN;
   // Purchase order creation: admin and inventory analyst.
   const canCreatePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'create'));
+  // Purchase order approval: admin and branch manager (update permission). Mirrors the
+  // gate the retired Approval Queue used for approve/reject.
+  const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');
@@ -148,6 +152,8 @@ const PurchaseOrderPage = () => {
   const [loadingPOStatus, setLoadingPOStatus] = useState(false);
   const [poStatusError,   setPoStatusError]   = useState('');
   const [selectedPO,      setSelectedPO]      = useState(null);
+  // Per-PO approve/reject in-flight flag (holds the po_id being acted on)
+  const [poActionLoading, setPoActionLoading] = useState(null);
 
   // ── Load suppliers once ────────────────────────────────────────────────────
   useEffect(() => {
@@ -356,6 +362,82 @@ const PurchaseOrderPage = () => {
     setPoStatusList(Array.isArray(res?.data) ? res.data : []);
   }, []);
 
+  // ── Approve / Reject pending PO ─────────────────────────────────────────────
+  const refreshPOStatusList = useCallback(async () => {
+    const res = await purchaseOrdersAPI.getAll({ per_page: 100 });
+    setPoStatusList(Array.isArray(res?.data) ? res.data : []);
+  }, []);
+
+  const handleApprovePO = useCallback(async (po) => {
+    setPoActionLoading(po.po_id);
+    try {
+      const stRes = await statusAPI.getAll({ category: 'purchase_order' });
+      const stRows = Array.isArray(stRes?.data) ? stRes.data : [];
+      const authorizedId = stRows.find((s) => {
+        const n = String(s.status_name || '').toLowerCase();
+        return n === 'authorized' || n.includes('authori');
+      })?.status_id;
+      if (!authorizedId) {
+        toast.error("Couldn't authorize PO", 'No "Authorized" status for purchase orders. Run backend migrations, then try again.');
+        return;
+      }
+      await purchaseOrdersAPI.update(String(po.po_id), {
+        status_id: authorizedId,
+        ...(authUser?.user_id ? { approved_by: authUser.user_id } : {}),
+      });
+      await refreshPOStatusList();
+      setSelectedPO(null);
+      toast.success('PO authorized', `${po.po_number} is now Approved.`);
+    } catch (err) {
+      if (err?.status === 403) {
+        toast.error("Couldn't authorize PO", 'This account cannot update purchase orders.');
+        return;
+      }
+      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || 'Could not authorize this PO.';
+      toast.error("Couldn't authorize PO", msg);
+    } finally {
+      setPoActionLoading(null);
+    }
+  }, [authUser, refreshPOStatusList]);
+
+  const handleRejectPO = useCallback(async (po) => {
+    if (!(await confirmAction({
+      title: 'Reject this purchase order?',
+      text: `${po.po_number} will be marked Rejected and cannot proceed to receiving.`,
+      confirmText: 'Reject',
+      tone: 'danger',
+    }))) return;
+    setPoActionLoading(po.po_id);
+    try {
+      const stRes = await statusAPI.getAll({ category: 'purchase_order' });
+      const stRows = Array.isArray(stRes?.data) ? stRes.data : [];
+      const rejectedId = stRows.find((s) => {
+        const n = String(s.status_name || '').toLowerCase();
+        return n === 'rejected' || n.includes('reject');
+      })?.status_id;
+      if (!rejectedId) {
+        toast.error("Couldn't reject PO", 'No "Rejected" status for purchase orders. Run backend migrations, then try again.');
+        return;
+      }
+      await purchaseOrdersAPI.update(String(po.po_id), {
+        status_id: rejectedId,
+        ...(authUser?.user_id ? { approved_by: authUser.user_id } : {}),
+      });
+      await refreshPOStatusList();
+      setSelectedPO(null);
+      toast.success('PO rejected', `${po.po_number} has been rejected.`);
+    } catch (err) {
+      if (err?.status === 403) {
+        toast.error("Couldn't reject PO", 'This account cannot update purchase orders.');
+        return;
+      }
+      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || 'Could not reject this PO.';
+      toast.error("Couldn't reject PO", msg);
+    } finally {
+      setPoActionLoading(null);
+    }
+  }, [authUser, refreshPOStatusList]);
+
   // ── PO Status renderer ─────────────────────────────────────────────────────
   const renderPoStatusView = () => {
     if (loadingPOStatus) return <Loader label="Loading purchase orders" />;
@@ -436,6 +518,26 @@ const PurchaseOrderPage = () => {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                     VIEW DETAILS
                   </button>
+                  {statusCfg.color === 'pending' && canApprovePO && (
+                    <div className="po-status-approve-actions">
+                      <button
+                        type="button"
+                        className="aq-btn-reject"
+                        disabled={poActionLoading === po.po_id}
+                        onClick={() => handleRejectPO(po)}
+                      >
+                        REJECT
+                      </button>
+                      <button
+                        type="button"
+                        className="aq-btn-approve"
+                        disabled={poActionLoading === po.po_id}
+                        onClick={() => handleApprovePO(po)}
+                      >
+                        {poActionLoading === po.po_id ? 'SAVING…' : 'APPROVE'}
+                      </button>
+                    </div>
+                  )}
                   <ArchiveButton
                     onArchive={() => handleArchivePO(po.po_id)}
                     disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
@@ -1213,6 +1315,26 @@ const PurchaseOrderPage = () => {
                 };
                 return (
                   <div className="po-detail-footer">
+                    {statusCfg.color === 'pending' && canApprovePO && (
+                      <>
+                        <button
+                          type="button"
+                          className="aq-btn-reject"
+                          disabled={poActionLoading === d.po_id}
+                          onClick={() => handleRejectPO(d)}
+                        >
+                          REJECT
+                        </button>
+                        <button
+                          type="button"
+                          className="aq-btn-approve"
+                          disabled={poActionLoading === d.po_id}
+                          onClick={() => handleApprovePO(d)}
+                        >
+                          {poActionLoading === d.po_id ? 'SAVING…' : 'APPROVE'}
+                        </button>
+                      </>
+                    )}
                     <button type="button" className="po-detail-btn po-detail-btn--excel" onClick={() => exportPOToExcel(poPayload)}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       EXPORT EXCEL
