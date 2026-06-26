@@ -75,10 +75,12 @@ Port the PO approval logic from `ApprovalQueue.jsx` (`handlePOAction`) into
 - `approve`: look up the purchase-order status whose name matches `authorized`, call
   `purchaseOrdersAPI.update(po_id, { status_id: authorizedId, approved_by: currentUserId })`,
   then refresh the PO Status list.
-- `reject`: look up the `rejected` status id, prompt for a rejection reason using the shared
-  confirm-with-reason dialog (`confirmAction`, consistent with PR/Transfer reject), call
+- `reject`: prompt with a plain danger confirmation (`confirmAction`), look up the `rejected`
+  status id, call
   `purchaseOrdersAPI.update(po_id, { status_id: rejectedId, approved_by: currentUserId })`,
-  then refresh the list.
+  then refresh the list. (The PO update endpoint has no `rejection_reason` field — matching
+  the original queue behavior, no reason is captured. Persisting a reason would require a
+  backend schema change, which is out of scope.)
 - Status ids are resolved via `statusAPI.getAll({ category: 'purchase_order' })` (same as the
   existing queue). Surface the existing fallback toasts when a status id is missing or the
   server returns 403.
@@ -142,8 +144,9 @@ they too prove orphaned. No behavior change.
 3. On the Purchase Orders page → *PO Status* tab, a user with
    `purchase_order_creation.update` (or admin) sees Reject/Approve on pending POs, on both
    the card and the detail modal; a user without it does not.
-4. Approving sets the PO to Authorized (with `approved_by`) on the server; rejecting (with a
-   reason) sets it to Rejected; the list refreshes to reflect the new status.
+4. Approving sets the PO to Authorized (with `approved_by`) on the server; rejecting (after a
+   confirmation) sets it to Rejected (with `approved_by`); the list refreshes to reflect the
+   new status.
 5. The pending-approval count badge renders on the Purchase Orders nav item.
 6. `ApprovalQueue.jsx` is deleted and no longer imported anywhere; `navBundles.js` and
    `NavBundleSeeder.php` no longer contain the Approval Queue entry.
