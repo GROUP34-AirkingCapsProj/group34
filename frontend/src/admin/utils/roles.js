@@ -139,12 +139,6 @@ export const canAccessRoute = (user, path) => {
   return allowed.includes(role);
 };
 
-/** Approve / reject in Approval Queue (PO + restock local queue). Admin & branch manager only. */
-export const canActOnApprovalQueue = (user) => {
-  const r = getRoleKey(user);
-  return r === ROLES.ADMIN || r === ROLES.BRANCH_MANAGER;
-};
-
 /** Approve pending product registrations (Item registration tab) — matches API pending-products/approve. */
 export const canApprovePendingRegistrations = (user) => {
   const r = getRoleKey(user);
