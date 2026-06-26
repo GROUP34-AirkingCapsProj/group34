@@ -355,50 +355,58 @@ const PurchaseOrderPage = () => {
     }
   }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, verifiedById, shipToName, shipToAddress]);
 
-  // ── Archive PO ───────────────────────────────────────────────────────────────
-  const handleArchivePO = useCallback(async (poId) => {
-    await purchaseOrdersAPI.delete(poId);
-    const res = await purchaseOrdersAPI.getAll({ per_page: 100 });
-    setPoStatusList(Array.isArray(res?.data) ? res.data : []);
-  }, []);
-
-  // ── Approve / Reject pending PO ─────────────────────────────────────────────
+  // ── PO Status list refresh (single source of truth) ──────────────────────────
   const refreshPOStatusList = useCallback(async () => {
     const res = await purchaseOrdersAPI.getAll({ per_page: 100 });
     setPoStatusList(Array.isArray(res?.data) ? res.data : []);
   }, []);
 
-  const handleApprovePO = useCallback(async (po) => {
+  // ── Archive PO ───────────────────────────────────────────────────────────────
+  const handleArchivePO = useCallback(async (poId) => {
+    await purchaseOrdersAPI.delete(poId);
+    await refreshPOStatusList();
+  }, [refreshPOStatusList]);
+
+  // Shared approve/reject flow: resolve the target status_id from the lookup,
+  // update the PO, refresh the list, and surface the right toasts. Both the
+  // approve and reject handlers delegate here with their own copy.
+  const applyPOStatus = useCallback(async (po, { match, missingLabel, successTitle, successText, errorTitle, genericError }) => {
     setPoActionLoading(po.po_id);
     try {
       const stRes = await statusAPI.getAll({ category: 'purchase_order' });
       const stRows = Array.isArray(stRes?.data) ? stRes.data : [];
-      const authorizedId = stRows.find((s) => {
-        const n = String(s.status_name || '').toLowerCase();
-        return n === 'authorized' || n.includes('authori');
-      })?.status_id;
-      if (!authorizedId) {
-        toast.error("Couldn't authorize PO", 'No "Authorized" status for purchase orders. Run backend migrations, then try again.');
+      const statusId = stRows.find((s) => match(String(s.status_name || '').toLowerCase()))?.status_id;
+      if (!statusId) {
+        toast.error(errorTitle, `No "${missingLabel}" status for purchase orders. Run backend migrations, then try again.`);
         return;
       }
       await purchaseOrdersAPI.update(String(po.po_id), {
-        status_id: authorizedId,
+        status_id: statusId,
         ...(authUser?.user_id ? { approved_by: authUser.user_id } : {}),
       });
       await refreshPOStatusList();
       setSelectedPO(null);
-      toast.success('PO authorized', `${po.po_number} is now Approved.`);
+      toast.success(successTitle, successText(po));
     } catch (err) {
       if (err?.status === 403) {
-        toast.error("Couldn't authorize PO", 'This account cannot update purchase orders.');
+        toast.error(errorTitle, 'This account cannot update purchase orders.');
         return;
       }
-      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || 'Could not authorize this PO.';
-      toast.error("Couldn't authorize PO", msg);
+      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || genericError;
+      toast.error(errorTitle, msg);
     } finally {
       setPoActionLoading(null);
     }
   }, [authUser, refreshPOStatusList]);
+
+  const handleApprovePO = useCallback((po) => applyPOStatus(po, {
+    match: (n) => n.includes('authori'),
+    missingLabel: 'Authorized',
+    successTitle: 'PO authorized',
+    successText: (p) => `${p.po_number} is now Approved.`,
+    errorTitle: "Couldn't authorize PO",
+    genericError: 'Could not authorize this PO.',
+  }), [applyPOStatus]);
 
   const handleRejectPO = useCallback(async (po) => {
     if (!(await confirmAction({
@@ -407,36 +415,15 @@ const PurchaseOrderPage = () => {
       confirmText: 'Reject',
       tone: 'danger',
     }))) return;
-    setPoActionLoading(po.po_id);
-    try {
-      const stRes = await statusAPI.getAll({ category: 'purchase_order' });
-      const stRows = Array.isArray(stRes?.data) ? stRes.data : [];
-      const rejectedId = stRows.find((s) => {
-        const n = String(s.status_name || '').toLowerCase();
-        return n === 'rejected' || n.includes('reject');
-      })?.status_id;
-      if (!rejectedId) {
-        toast.error("Couldn't reject PO", 'No "Rejected" status for purchase orders. Run backend migrations, then try again.');
-        return;
-      }
-      await purchaseOrdersAPI.update(String(po.po_id), {
-        status_id: rejectedId,
-        ...(authUser?.user_id ? { approved_by: authUser.user_id } : {}),
-      });
-      await refreshPOStatusList();
-      setSelectedPO(null);
-      toast.success('PO rejected', `${po.po_number} has been rejected.`);
-    } catch (err) {
-      if (err?.status === 403) {
-        toast.error("Couldn't reject PO", 'This account cannot update purchase orders.');
-        return;
-      }
-      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || 'Could not reject this PO.';
-      toast.error("Couldn't reject PO", msg);
-    } finally {
-      setPoActionLoading(null);
-    }
-  }, [authUser, refreshPOStatusList]);
+    await applyPOStatus(po, {
+      match: (n) => n.includes('reject'),
+      missingLabel: 'Rejected',
+      successTitle: 'PO rejected',
+      successText: (p) => `${p.po_number} has been rejected.`,
+      errorTitle: "Couldn't reject PO",
+      genericError: 'Could not reject this PO.',
+    });
+  }, [applyPOStatus]);
 
   // ── PO Status renderer ─────────────────────────────────────────────────────
   const renderPoStatusView = () => {
