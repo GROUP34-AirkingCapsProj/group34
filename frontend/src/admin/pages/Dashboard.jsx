@@ -341,7 +341,7 @@ const AdminDashboard = () => {
             <h3>Pending Approvals Queue</h3>
             <p>There are {pendingActions} items awaiting your authorization.</p>
           </div>
-          <button type="button" className="approval-alert-btn" onClick={() => navigate('/admin/approval-queue')}>
+          <button type="button" className="approval-alert-btn" onClick={() => navigate('/admin/draft-po-creator')}>
             GO TO APPROVALS
           </button>
         </div>
