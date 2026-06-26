@@ -61,7 +61,6 @@ const adminMenuSections = [
     label: 'ADMINISTRATION',
     items: [
       { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
-      { name: 'Approval Queue', path: '/admin/approval-queue', icon: 'approval' },
       { name: 'Analytics Dashboard', path: '/admin/analytics', icon: 'analytics' },
       { name: 'User Management', path: '/admin/users', icon: 'users' },
       { name: 'Role & Permissions', path: '/admin/roles', icon: 'roles' },
@@ -503,7 +502,7 @@ const Sidebar = ({
             >
               <span className="nav-icon">{renderIcon(item.icon)}</span>
               <span className="nav-text">{item.name}</span>
-              {item.path === '/admin/approval-queue' && pendingApprovalCount > 0 && (
+              {item.path === '/admin/draft-po-creator' && pendingApprovalCount > 0 && (
                 <span className="nav-item-badge">
                   {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
                 </span>
