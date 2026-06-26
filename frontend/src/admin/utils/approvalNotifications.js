@@ -1,5 +1,3 @@
-export const APPROVAL_QUEUE_STORAGE_KEY = 'approval_queue_purchase_orders';
-const APPROVAL_QUEUE_KEY = APPROVAL_QUEUE_STORAGE_KEY;
 const RESTOCK_QUEUE_KEY = 'approval_queue_restock_requests';
 const NOTIFICATIONS_KEY = 'system_notifications';
 
@@ -17,55 +15,6 @@ const emitUpdate = () => {
 };
 
 const nowIso = () => new Date().toISOString();
-
-export const getApprovalQueuePurchaseOrders = () => {
-  return safeParse(localStorage.getItem(APPROVAL_QUEUE_KEY), []);
-};
-
-export const saveApprovalQueuePurchaseOrders = (items) => {
-  localStorage.setItem(APPROVAL_QUEUE_KEY, JSON.stringify(items));
-  emitUpdate();
-};
-
-export const addApprovalQueuePurchaseOrder = (po) => {
-  const current = getApprovalQueuePurchaseOrders();
-  const next = [{ ...po, created_at: po.created_at || nowIso() }, ...current];
-  saveApprovalQueuePurchaseOrders(next);
-  return next;
-};
-
-export const updateApprovalQueuePurchaseOrderStatus = (id, status) => {
-  const current = getApprovalQueuePurchaseOrders();
-  const next = current.map((po) =>
-    String(po.id) === String(id)
-      ? {
-          ...po,
-          status,
-          ...(status === 'authorized' ? { approved_at: nowIso() } : {}),
-        }
-      : po
-  );
-  saveApprovalQueuePurchaseOrders(next);
-  return next;
-};
-
-/** Merge fields onto a queued PO (e.g. after API sync). */
-export const mergeApprovalQueuePurchaseOrder = (id, patch) => {
-  const current = getApprovalQueuePurchaseOrders();
-  const next = current.map((po) =>
-    String(po.id) === String(id) ? { ...po, ...patch } : po
-  );
-  saveApprovalQueuePurchaseOrders(next);
-  return next;
-};
-
-/** Remove a queued PO from localStorage (e.g. after it is synced to API or no longer needed). */
-export const removeApprovalQueuePurchaseOrder = (id) => {
-  const current = getApprovalQueuePurchaseOrders();
-  const next = current.filter((po) => String(po.id) !== String(id));
-  saveApprovalQueuePurchaseOrders(next);
-  return next;
-};
 
 export const getSystemNotifications = () => {
   return safeParse(localStorage.getItem(NOTIFICATIONS_KEY), []);
