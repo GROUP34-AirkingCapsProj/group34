@@ -1,6 +1,5 @@
 /** Frontend mirror of NavBundleSeeder. Keep in sync. A page is visible iff ALL `required` perms are granted. */
 export const NAV_BUNDLES = [
-  { name: 'Approval Queue',        routePath: '/admin/approval-queue',   required: ['purchase_order_creation.read'] },
   { name: 'User Management',       routePath: '/admin/users',            required: ['user_account_management.read'] },
   { name: 'Location Management',   routePath: '/admin/branches',         required: ['location_based_inventory.read'] },
   { name: 'Archive Management',    routePath: '/admin/archive',          required: ['archive_viewing.read'] },

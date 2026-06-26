@@ -17,8 +17,7 @@ class NavBundleSeeder extends Seeder
     private static function bundles(): array
     {
         return [
-            // ADMINISTRATION (sort 0–3)
-            ['Approval Queue',       '/admin/approval-queue',       'ADMINISTRATION',          'approval',           'purchase_order_creation', 'read'],
+            // ADMINISTRATION (sort 0–2)
             ['User Management',      '/admin/users',                'ADMINISTRATION',          'users',              'user_account_management', 'read'],
             ['Location Management',  '/admin/branches',             'ADMINISTRATION',          'location',           'location_based_inventory','read'],
             ['Archive Management',   '/admin/archive',              'ADMINISTRATION',          'archive',            'archive_viewing',         'read'],
@@ -89,6 +88,6 @@ class NavBundleSeeder extends Seeder
             }
         });
 
-        $this->command->info('NavBundleSeeder: 20 bundles seeded.');
+        $this->command->info('NavBundleSeeder: 19 bundles seeded.');
     }
 }
