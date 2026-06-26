@@ -51,7 +51,6 @@ const AuditTrail = lazy(() => import('./admin/pages/AuditTrail'));
 const ProfitLossManagement = lazy(() => import('./admin/pages/ProfitLossManagement'));
 
 // Legacy / other pages
-const ApprovalQueue = lazy(() => import('./admin/pages/ApprovalQueue'));
 const SystemConfiguration = lazy(() => import('./admin/pages/SystemConfiguration'));
 const ArchiveManagement = lazy(() => import('./admin/pages/ArchiveManagement'));
 const ArchiveSettingsPage = lazy(() => import('./admin/pages/ArchiveSettingsPage'));
@@ -121,7 +120,7 @@ function App() {
           {/* Procurement */}
           <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
           <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
-          <Route path="/admin/purchase-orders" element={<RoleRoute><ApprovalQueue initialTab="purchase-orders" /></RoleRoute>} />
+          <Route path="/admin/purchase-orders" element={<Navigate to="/admin/draft-po-creator" replace />} />
           <Route path="/admin/budget-management" element={<RoleRoute><BudgetManagementPage /></RoleRoute>} />
           <Route path="/admin/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
           <Route path="/admin/draft-po-creator" element={<RoleRoute><PurchaseOrderPage /></RoleRoute>} />
@@ -158,7 +157,7 @@ function App() {
           <Route path="/admin/profit-loss" element={<RoleRoute><ProfitLossManagement /></RoleRoute>} />
 
           {/* Legacy routes */}
-          <Route path="/admin/approval-queue" element={<RoleRoute><ApprovalQueue /></RoleRoute>} />
+          <Route path="/admin/approval-queue" element={<Navigate to="/admin/draft-po-creator" replace />} />
           <Route path="/admin/config" element={<RoleRoute><SystemConfiguration /></RoleRoute>} />
           <Route path="/admin/archive" element={<RoleRoute><ArchiveManagement /></RoleRoute>} />
           <Route path="/admin/archive-settings" element={<RoleRoute><ArchiveSettingsPage /></RoleRoute>} />
