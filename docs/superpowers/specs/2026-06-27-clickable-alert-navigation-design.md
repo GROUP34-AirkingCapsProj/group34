@@ -67,7 +67,7 @@ Mapping table:
 |---|---|---|
 | Pending PO | `/admin/draft-po-creator` (status tab) | `po:<id>` |
 | Pending PR | `/admin/purchase-requests` (approvals tab) | `pr:<id>` |
-| Pending item registration | `/admin/items` (pending tab) | `product:<id>` |
+| Pending item registration | _(none — non-clickable)_ | `null` — no approval destination exists in the current UI (`canApprovePendingRegistrations` / `pendingProductsAPI.getAll`/`approve` are defined but unused). Revisit when an approval page exists. |
 | Low-stock row | `/admin/inventory` | `inv:<inventory_id>` (fallback `product:<product_id>` if no inventory_id) |
 | Audit — `purchase_orders` | `/admin/draft-po-creator` (status tab) | `po:<id>` |
 | Audit — `purchase_requests` | `/admin/purchase-requests` (approvals tab) | `pr:<id>` |
