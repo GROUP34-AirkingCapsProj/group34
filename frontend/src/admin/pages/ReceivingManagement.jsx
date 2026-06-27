@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { receivingsAPI, purchaseOrdersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 import { getReceivingWorkflow, receivingReceivedQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
@@ -43,6 +46,9 @@ const ReceivingManagement = () => {
   const [statuses, setStatuses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingReceiving, setViewingReceiving] = useState(null);
+  const focusReceivingId = useFocusTarget('receiving');
+  const focusHandledRef = useRef(false);
+  const [recPulse, fireRecPulse] = useFocusPulse();
   const [editingReceiving, setEditingReceiving] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(emptyForm());
@@ -78,6 +84,15 @@ const ReceivingManagement = () => {
 
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
   useEffect(() => { fetchReceivings(); }, [fetchReceivings]);
+
+  useEffect(() => {
+    if (!focusReceivingId || focusHandledRef.current) return;
+    if (loading) return;
+    focusHandledRef.current = true;
+    const rec = findById(receivings, ['receiving_id', 'id'], focusReceivingId);
+    if (rec) { setViewingReceiving(rec); fireRecPulse(); }
+    else toast.error('That receiving record is not available.');
+  }, [focusReceivingId, loading, receivings, fireRecPulse]);
 
   const workflowCounts = useMemo(() => {
     let tbr = 0;
@@ -290,7 +305,7 @@ const ReceivingManagement = () => {
 
       {viewingReceiving && (
         <Modal title={`Receiving: ${viewingReceiving.receiving_number}`} onClose={() => setViewingReceiving(null)}>
-          <div className="detail-grid">
+          <div className={`detail-grid${recPulse ? ' ak-focus-pulse' : ''}`}>
             <div><span className="detail-label">Workflow</span><span className="detail-value">{getReceivingWorkflow(viewingReceiving).label}</span></div>
             <div><span className="detail-label">PO Number</span><span className="detail-value">{viewingReceiving.purchase_order?.po_number || '—'}</span></div>
             <div><span className="detail-label">Location</span><span className="detail-value">{viewingReceiving.location?.location_name || '—'}</span></div>
