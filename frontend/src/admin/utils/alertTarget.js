@@ -22,8 +22,8 @@ export function pendingPrTarget(pr) {
 }
 
 // No wired approval destination yet — intentionally non-clickable.
-export function pendingRegistrationTarget() {
-  return null;
+export function pendingRegistrationTarget(/* _item */) {
+  return null; // No destination wired yet — non-clickable.
 }
 
 export function lowStockTarget(item) {
