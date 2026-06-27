@@ -6,6 +6,9 @@ import ArchiveButton from '../components/ArchiveButton';
 import Barcode from 'react-barcode';
 import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
@@ -26,6 +29,9 @@ const ItemManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [viewingItem, setViewingItem] = useState(null);
+  const focusProductId = useFocusTarget('product');
+  const focusHandledRef = useRef(false);
+  const [itemPulse, fireItemPulse] = useFocusPulse();
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, last_page: 1 });
   const [productType, setProductType] = useState('appliance');
@@ -149,6 +155,15 @@ const ItemManagement = () => {
   useEffect(() => {
     fetchItems(currentPage);
   }, [currentPage, fetchItems]);
+
+  useEffect(() => {
+    if (!focusProductId || focusHandledRef.current) return;
+    if (loading) return;
+    focusHandledRef.current = true;
+    const item = findById(items, ['product_id', 'id'], focusProductId);
+    if (item) { setViewingItem(item); fireItemPulse(); }
+    else toast.error('That product is not available.');
+  }, [focusProductId, loading, items, fireItemPulse]);
 
   useEffect(() => {
     const fetchTypeCounts = async () => {
@@ -810,7 +825,7 @@ const ItemManagement = () => {
       {/* View Modal */}
       {viewingItem && (
         <Modal isOpen={!!viewingItem} onClose={() => setViewingItem(null)} title="Product Details">
-          <div className="im-view-details">
+          <div className={`im-view-details${itemPulse ? ' ak-focus-pulse' : ''}`}>
             {/* Type badge */}
             <div style={{ marginBottom: '12px' }}>
               <span className={`im-type-badge ${resolveType(viewingItem) === 'appliance' ? 'im-type-unit' : 'im-type-consumable'}`}>
