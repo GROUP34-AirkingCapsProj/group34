@@ -25,7 +25,6 @@ class NavBundleSeeder extends Seeder
             // PROCUREMENT & PLANNING
             ['Purchase Requests',    '/admin/purchase-requests',    'PROCUREMENT & PLANNING',  'approval',           'purchase_request_creation','read'],
             ['Purchase Orders',      '/admin/draft-po-creator',     'PROCUREMENT & PLANNING',  'procurement',        'purchase_order_creation', 'read'],
-            ['PO Receiving',         '/admin/receivings',           'PROCUREMENT & PLANNING',  'receiving',          'delivery_receiving',      'read'],
             ['Supplier Network',     '/admin/suppliers',            'PROCUREMENT & PLANNING',  'supplier',           'supplier_management',     'read'],
             ['Item Master',          '/admin/items',                'PROCUREMENT & PLANNING',  'items',              'item_master_management',  'read'],
             ['Categories and Brands','/admin/categories',           'PROCUREMENT & PLANNING',  'category',           'category_management',     'read'],
@@ -88,6 +87,6 @@ class NavBundleSeeder extends Seeder
             }
         });
 
-        $this->command->info('NavBundleSeeder: 19 bundles seeded.');
+        $this->command->info('NavBundleSeeder: 18 bundles seeded.');
     }
 }
