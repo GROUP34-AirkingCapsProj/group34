@@ -404,3 +404,14 @@
   .ak-stat-grid { grid-template-columns: 1fr; }
   .ak-title { font-size: 1.35rem; }
 }
+
+/* Focus pulse — flashes a record opened via an alert deep-link (?focus=). */
+@keyframes ak-focus-pulse-kf {
+  0%   { box-shadow: 0 0 0 0 var(--role-accent, #2563eb); }
+  35%  { box-shadow: 0 0 0 6px color-mix(in srgb, var(--role-accent, #2563eb) 35%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.ak-focus-pulse {
+  animation: ak-focus-pulse-kf 1s ease-out 2;
+  border-radius: 8px;
+}
