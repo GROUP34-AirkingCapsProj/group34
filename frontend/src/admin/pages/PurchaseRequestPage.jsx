@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
@@ -12,6 +12,9 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { getRoleKey, ROLES } from '../utils/roles';
 import PRProgressBar, { getPRStatusText } from '../components/PRProgressBar';
@@ -149,11 +152,17 @@ const PurchaseRequestPage = () => {
   // ── Tab 3: Pending Approvals ──────────────────────────────────────────────
   const [pendingPRs,        setPendingPRs]        = useState([]);
   const [loadingPending,    setLoadingPending]    = useState(false);
+  const [pendingPRsLoaded,  setPendingPRsLoaded]  = useState(false);
   const [expandedCards,     setExpandedCards]     = useState(new Set());
 
   // ── Shared: modals ────────────────────────────────────────────────────────
   const [selectedPR,   setSelectedPR]   = useState(null);
   const [actionLoading, setActionLoading] = useState({});
+
+  // ── Focus / deep-link ─────────────────────────────────────────────────────
+  const focusPrId = useFocusTarget('pr');
+  const focusHandledRef = useRef(false);
+  const [prPulse, firePrPulse] = useFocusPulse();
 
   // ── Load locations ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -241,9 +250,26 @@ const PurchaseRequestPage = () => {
       purchaseRequestsAPI.getPending()
         .then(res => setPendingPRs(Array.isArray(res?.data) ? res.data : []))
         .catch(console.error)
-        .finally(() => setLoadingPending(false));
+        .finally(() => { setLoadingPending(false); setPendingPRsLoaded(true); });
     }
   }, [activeTab, canApprovePR]);
+
+  // ── Focus deep-link: switch approvers to the approvals tab ───────────────
+  useEffect(() => {
+    if (focusPrId && !focusHandledRef.current && canApprovePR) setActiveTab('approvals');
+  }, [focusPrId, canApprovePR]);
+
+  // ── Focus deep-link: open the PR once the pending list has loaded ─────────
+  useEffect(() => {
+    if (!focusPrId || focusHandledRef.current) return;
+    if (!pendingPRsLoaded) return;
+    focusHandledRef.current = true;
+    const pr =
+      findById(pendingPRs, ['pr_id', 'id'], focusPrId) ||
+      findById(myPRs, ['pr_id', 'id'], focusPrId);
+    if (pr) { setSelectedPR(pr); firePrPulse(); }
+    else toast.error('That purchase request is not available.');
+  }, [focusPrId, pendingPRsLoaded, pendingPRs, myPRs, firePrPulse]);
 
   // ── Line item helpers ─────────────────────────────────────────────────────
   const addLine = useCallback(() => setLineItems(p => [...p, newLine()]), []);
@@ -1056,7 +1082,7 @@ const PurchaseRequestPage = () => {
 
     return (
       <Modal isOpen={!!selectedPR} onClose={() => setSelectedPR(null)} title="" hideHeader maxWidth={740}>
-        <div className="po-detail-modal">
+        <div className={`po-detail-modal${prPulse ? ' ak-focus-pulse' : ''}`}>
           {/* Header */}
           <div className="po-detail-head">
             <div className="po-detail-head-icon">
