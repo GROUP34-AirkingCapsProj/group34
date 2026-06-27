@@ -6,6 +6,10 @@ import { useLocation } from 'react-router-dom';
 import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/inventory_management.css';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
+import { toast } from '../utils/toast';
 
 /* ── SVG trend chart ─────────────────────────────────────────────────── */
 const TrendChart = ({ data, loading }) => {
@@ -107,6 +111,9 @@ const InventoryManagement = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [detailTab, setDetailTab] = useState('overview');
+  const focusInvId = useFocusTarget('inv');
+  const focusHandledRef = useRef(false);
+  const [invPulse, fireInvPulse] = useFocusPulse();
   const [searchTerm, setSearchTerm] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
@@ -209,6 +216,22 @@ const InventoryManagement = () => {
     debounceRef.current = setTimeout(() => setCurrentPage(1), 400);
     return () => clearTimeout(debounceRef.current);
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (!focusInvId || focusHandledRef.current) return;
+    if (loading) return;
+    focusHandledRef.current = true;
+    const item = findById(inventory, ['inventory_id', 'id'], focusInvId);
+    if (item) {
+      setViewingItem(item);
+      setHistoryData(null);
+      setDetailTab('overview');
+      loadInventoryHistory(item.inventory_id);
+      fireInvPulse();
+    } else {
+      toast.error('That inventory item is not available.');
+    }
+  }, [focusInvId, loading, inventory, loadInventoryHistory, fireInvPulse]);
 
   useEffect(() => {
     if (activeTab !== 'activity') return;
@@ -886,7 +909,7 @@ const InventoryManagement = () => {
             title={getItemName(viewingItem)}
             maxWidth={920}
           >
-            <div className="inv-view-details">
+            <div className={`inv-view-details${invPulse ? ' ak-focus-pulse' : ''}`}>
 
               {/* ── Tab navigation ── */}
               <div className="invd-tabs">
