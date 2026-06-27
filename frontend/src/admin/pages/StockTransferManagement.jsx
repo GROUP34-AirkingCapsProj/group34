@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
@@ -7,6 +7,9 @@ import ArchiveButton from '../components/ArchiveButton';
 import { transfersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 import { getTransferWorkflow, transferShippedQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
@@ -45,6 +48,9 @@ const StockTransferManagement = () => {
   const [statuses, setStatuses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingTransfer, setViewingTransfer] = useState(null);
+  const focusTransferId = useFocusTarget('transfer');
+  const focusHandledRef = useRef(false);
+  const [trPulse, fireTrPulse] = useFocusPulse();
   const [editingTransfer, setEditingTransfer] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(emptyForm());
@@ -79,6 +85,15 @@ const StockTransferManagement = () => {
 
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
   useEffect(() => { fetchTransfers(); }, [fetchTransfers]);
+
+  useEffect(() => {
+    if (!focusTransferId || focusHandledRef.current) return;
+    if (loading) return;
+    focusHandledRef.current = true;
+    const tr = findById(transfers, ['transfer_id', 'id'], focusTransferId);
+    if (tr) { setViewingTransfer(tr); fireTrPulse(); }
+    else toast.error('That transfer is not available.');
+  }, [focusTransferId, loading, transfers, fireTrPulse]);
 
   const workflowCounts = useMemo(() => {
     let transit = 0;
@@ -415,7 +430,7 @@ const StockTransferManagement = () => {
 
       {viewingTransfer && (
         <Modal title={`Transfer: ${viewingTransfer.transfer_number}`} onClose={() => setViewingTransfer(null)}>
-          <div className="detail-grid">
+          <div className={`detail-grid${trPulse ? ' ak-focus-pulse' : ''}`}>
             <div><span className="detail-label">Status</span><span className="detail-value">{getTransferWorkflow(viewingTransfer).label}</span></div>
             <div><span className="detail-label">From Location</span><span className="detail-value">{viewingTransfer.from_location?.location_name || viewingTransfer.fromLocation?.location_name || '—'}</span></div>
             <div><span className="detail-label">To Location</span><span className="detail-value">{viewingTransfer.to_location?.location_name || viewingTransfer.toLocation?.location_name || '—'}</span></div>
