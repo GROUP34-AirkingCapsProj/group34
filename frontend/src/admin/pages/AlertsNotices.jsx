@@ -225,7 +225,7 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle, onOpen }) => {
                 className="an-audit-open-link"
                 onClick={(e) => { e.stopPropagation(); onOpen(); }}
               >
-                Open record →
+                Open record <span aria-hidden="true">→</span>
               </button>
             </>
           )}
@@ -331,7 +331,7 @@ const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle, o
                 className="an-audit-open-link"
                 onClick={(e) => { e.stopPropagation(); onOpen(); }}
               >
-                Open record →
+                Open record <span aria-hidden="true">→</span>
               </button>
             </>
           )}
@@ -616,7 +616,7 @@ const AlertsNotices = () => {
                     </div>
                     {pendingPOs.map((po) => (
                       <div
-                        className="an-approval-item an-approval-item--urgent an-clickable"
+                        className={`an-approval-item an-approval-item--urgent${pendingPoTarget(po) ? ' an-clickable' : ''}`}
                         key={`po-${po.id}`}
                         {...clickProps(pendingPoTarget(po))}
                       >
@@ -645,7 +645,7 @@ const AlertsNotices = () => {
                     </div>
                     {pendingPRs.map((pr) => (
                       <div
-                        className="an-approval-item an-approval-item--urgent an-clickable"
+                        className={`an-approval-item an-approval-item--urgent${pendingPrTarget(pr) ? ' an-clickable' : ''}`}
                         key={`pr-${pr.id}`}
                         {...clickProps(pendingPrTarget(pr))}
                       >
@@ -706,7 +706,7 @@ const AlertsNotices = () => {
             ) : (
               stockVisible.map((item, idx) => (
                 <div
-                  className="an-approval-item an-clickable"
+                  className={`an-approval-item${lowStockTarget(item) ? ' an-clickable' : ''}`}
                   key={item.product_id || item.inventory_id || idx}
                   {...clickProps(lowStockTarget(item))}
                 >
