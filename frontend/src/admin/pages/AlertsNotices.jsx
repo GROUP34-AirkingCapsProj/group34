@@ -9,6 +9,7 @@ import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/alerts_notices.css';
 import DateInput from '../components/DateInput';
+import { pendingPoTarget, pendingPrTarget, lowStockTarget, auditTarget, targetHref } from '../utils/alertTarget';
 
 const PAGE_SIZE = 10;
 const AUDIT_LAST_SEEN_KEY = 'airking_audit_last_seen';
@@ -157,7 +158,7 @@ const Chevron = ({ open }) => (
 );
 
 // Single audit entry (UPDATE / DELETE / ungrouped CREATE)
-const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
+const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle, onOpen }) => {
   const id = item?.audit_id ?? item?.id;
   const userName =
     item?.user_full_name ||
@@ -216,6 +217,18 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
           <span className="an-audit-time">
             {item?.created_at ? new Date(item.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
           </span>
+          {onOpen && (
+            <>
+              <span className="an-audit-sep">·</span>
+              <button
+                type="button"
+                className="an-audit-open-link"
+                onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              >
+                Open record →
+              </button>
+            </>
+          )}
           {item?.ip_address && (
             <><span className="an-audit-sep">·</span><span className="an-audit-ip">{item.ip_address}</span></>
           )}
@@ -266,7 +279,7 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
 };
 
 // Grouped entry: parent header + all line items in one collapsible card
-const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle }) => {
+const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle, onOpen }) => {
   const id = primary?.audit_id ?? primary?.id;
   const userName =
     primary?.user_full_name ||
@@ -310,6 +323,18 @@ const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle })
           <span className="an-audit-time">
             {primary?.created_at ? new Date(primary.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
           </span>
+          {onOpen && (
+            <>
+              <span className="an-audit-sep">·</span>
+              <button
+                type="button"
+                className="an-audit-open-link"
+                onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              >
+                Open record →
+              </button>
+            </>
+          )}
           {primary?.ip_address && (
             <><span className="an-audit-sep">·</span><span className="an-audit-ip">{primary.ip_address}</span></>
           )}
@@ -354,6 +379,22 @@ const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle })
 
 const AlertsNotices = () => {
   const navigate = useNavigate();
+
+  // Turns a non-null alert target into spreadable props that navigate on
+  // click/Enter/Space. Returns {} when the item is not navigable.
+  const clickProps = useCallback((target) => {
+    if (!target) return {};
+    const go = () => navigate(targetHref(target));
+    return {
+      role: 'button',
+      tabIndex: 0,
+      onClick: go,
+      onKeyDown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+      },
+    };
+  }, [navigate]);
+
   const { can } = useAuth();
   // Audit trail is a separate privileged compliance feature (own /admin/audit page).
   // Only admin/branch_manager/auditor hold audit_trail_viewing.read; IA & WP must still
@@ -574,7 +615,11 @@ const AlertsNotices = () => {
                       Purchase Orders <span className="an-approval-group-count">{pendingPOs.length}</span>
                     </div>
                     {pendingPOs.map((po) => (
-                      <div className="an-approval-item an-approval-item--urgent" key={`po-${po.id}`}>
+                      <div
+                        className="an-approval-item an-approval-item--urgent an-clickable"
+                        key={`po-${po.id}`}
+                        {...clickProps(pendingPoTarget(po))}
+                      >
                         <div className="an-approval-left">
                           <span className="an-approval-title">
                             {po.po_number || `PO #${po.id}`}
@@ -599,7 +644,11 @@ const AlertsNotices = () => {
                       Purchase Requests <span className="an-approval-group-count">{pendingPRs.length}</span>
                     </div>
                     {pendingPRs.map((pr) => (
-                      <div className="an-approval-item an-approval-item--urgent" key={`pr-${pr.id}`}>
+                      <div
+                        className="an-approval-item an-approval-item--urgent an-clickable"
+                        key={`pr-${pr.id}`}
+                        {...clickProps(pendingPrTarget(pr))}
+                      >
                         <div className="an-approval-left">
                           <span className="an-approval-title">
                             {pr.pr_number || `PR #${pr.id}`}
@@ -656,7 +705,11 @@ const AlertsNotices = () => {
               <div className="an-empty">No low-stock alerts at the moment</div>
             ) : (
               stockVisible.map((item, idx) => (
-                <div className="an-approval-item" key={item.product_id || item.inventory_id || idx}>
+                <div
+                  className="an-approval-item an-clickable"
+                  key={item.product_id || item.inventory_id || idx}
+                  {...clickProps(lowStockTarget(item))}
+                >
                   <div className="an-approval-left">
                     <span className="an-approval-title">
                       {item.product_name || `Item ${idx + 1}`}
@@ -747,6 +800,8 @@ const AlertsNotices = () => {
                 const gId = group.primary?.audit_id ?? group.primary?.id ?? idx;
                 const expanded = expandedIds.has(gId);
                 const unread = isUnread(group.primary?.created_at);
+                const target = auditTarget(group.primary);
+                const onOpen = target ? () => navigate(targetHref(target)) : null;
                 return group.type === 'grouped' ? (
                   <GroupedAuditEntry
                     key={gId}
@@ -755,6 +810,7 @@ const AlertsNotices = () => {
                     isUnread={unread}
                     isExpanded={expanded}
                     onToggle={toggleExpanded}
+                    onOpen={onOpen}
                   />
                 ) : (
                   <SingleAuditEntry
@@ -763,6 +819,7 @@ const AlertsNotices = () => {
                     isUnread={unread}
                     isExpanded={expanded}
                     onToggle={toggleExpanded}
+                    onOpen={onOpen}
                   />
                 );
               })
