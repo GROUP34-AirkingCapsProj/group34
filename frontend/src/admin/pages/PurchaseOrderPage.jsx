@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
@@ -23,6 +23,9 @@ import PRProgressBar from '../components/PRProgressBar';
 import DateInput from '../components/DateInput';
 import { confirmAction } from '../utils/confirm';
 import { toast } from '../utils/toast';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -155,6 +158,11 @@ const PurchaseOrderPage = () => {
   // Per-PO approve/reject in-flight flag (holds the po_id being acted on)
   const [poActionLoading, setPoActionLoading] = useState(null);
 
+  // Deep-link focus state
+  const focusPoId = useFocusTarget('po');
+  const focusHandledRef = useRef(false);
+  const [poPulse, firePoPulse] = useFocusPulse();
+
   // ── Load suppliers once ────────────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
@@ -223,6 +231,21 @@ const PurchaseOrderPage = () => {
       .finally(() => { if (mounted) setLoadingPOStatus(false); });
     return () => { mounted = false; };
   }, [activeTab]);
+
+  // Deep-link: a ?focus=po:<id> arrival switches to the status tab…
+  useEffect(() => {
+    if (focusPoId && !focusHandledRef.current) setActiveTab('status');
+  }, [focusPoId]);
+
+  // …then, once the status list has loaded, opens that PO (or toasts if gone).
+  useEffect(() => {
+    if (!focusPoId || focusHandledRef.current) return;
+    if (activeTab !== 'status' || loadingPOStatus) return;
+    focusHandledRef.current = true;
+    const po = findById(poStatusList, ['po_id', 'id'], focusPoId);
+    if (po) { setSelectedPO(po); firePoPulse(); }
+    else toast.error('That purchase order is no longer available.');
+  }, [focusPoId, activeTab, loadingPOStatus, poStatusList, firePoPulse]);
 
   // ── PR selection ───────────────────────────────────────────────────────────
   const handleSelectPR = useCallback((pr) => {
@@ -1104,7 +1127,7 @@ const PurchaseOrderPage = () => {
           const details = Array.isArray(d.details) ? d.details : [];
 
           return (
-            <div className="po-detail-modal">
+            <div className={`po-detail-modal${poPulse ? ' ak-focus-pulse' : ''}`}>
               <div className="po-detail-head">
                 <div className="po-detail-head-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="26" height="26">
