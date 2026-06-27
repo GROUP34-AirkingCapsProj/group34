@@ -584,9 +584,6 @@ const AlertsNotices = () => {
               </h3>
               <p className="an-card-subtitle">Items waiting for your approval</p>
             </div>
-            <button type="button" className="an-go-queue-btn" onClick={() => navigate('/admin/draft-po-creator')}>
-              Open approval queue
-            </button>
           </div>
 
           {!loading && pendingTotal > 0 && (
