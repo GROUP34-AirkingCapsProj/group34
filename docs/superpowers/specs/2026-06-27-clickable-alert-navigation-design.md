@@ -65,17 +65,22 @@ Mapping table:
 
 | Alert source | Destination path | focusKey |
 |---|---|---|
-| Pending PO | `/admin/draft-po-creator` | `po:<id>` |
-| Pending PR | `/admin/purchase-requests` | `pr:<id>` |
+| Pending PO | `/admin/draft-po-creator` (status tab) | `po:<id>` |
+| Pending PR | `/admin/purchase-requests` (approvals tab) | `pr:<id>` |
 | Pending item registration | `/admin/items` (pending tab) | `product:<id>` |
-| Low-stock row | `/admin/inventory` | `product:<id>` |
-| Audit — `purchase_orders` | `/admin/draft-po-creator` | `po:<id>` |
-| Audit — `purchase_requests` | `/admin/purchase-requests` | `pr:<id>` |
+| Low-stock row | `/admin/inventory` | `inv:<inventory_id>` (fallback `product:<product_id>` if no inventory_id) |
+| Audit — `purchase_orders` | `/admin/draft-po-creator` (status tab) | `po:<id>` |
+| Audit — `purchase_requests` | `/admin/purchase-requests` (approvals tab) | `pr:<id>` |
 | Audit — `transfers` | `/admin/transfers` | `transfer:<id>` |
 | Audit — `receivings` | `/admin/receivings` | `receiving:<id>` |
-| Audit — `products` / `inventory` | `/admin/inventory` | `product:<id>` |
+| Audit — `products` | `/admin/items` | `product:<id>` |
+| Audit — `inventory` | `/admin/inventory` | `inv:<id>` |
 | Audit — `issuances`, `sales`, `adjustments`, … | mapped only if that page has a detail view; else `null` |
 | Audit — `users`, login/logout, any `delete` | `null` (not clickable) |
+
+Record-id matching on each target page uses a shared `findById(list, idFields, focusId)`
+helper that checks several candidate id fields (e.g. `['po_id','id']`), so a field-name
+mismatch degrades safely to the not-found toast rather than throwing.
 
 > During planning, confirm per page whether a detail view exists for `issuances`,
 > `sales`, `adjustments` before adding them to the map; ship `null` for any without one.
