@@ -5,7 +5,6 @@ export const NAV_BUNDLES = [
   { name: 'Archive Management',    routePath: '/admin/archive',          required: ['archive_viewing.read'] },
   { name: 'Purchase Requests',     routePath: '/admin/purchase-requests',required: ['purchase_request_creation.read'] },
   { name: 'Purchase Orders',       routePath: '/admin/draft-po-creator', required: ['purchase_order_creation.read'] },
-  { name: 'PO Receiving',          routePath: '/admin/receivings',       required: ['delivery_receiving.read'] },
   { name: 'Supplier Network',      routePath: '/admin/suppliers',        required: ['supplier_management.read'] },
   { name: 'Item Master',           routePath: '/admin/items',            required: ['item_master_management.read'] },
   { name: 'Categories and Brands', routePath: '/admin/categories',       required: ['category_management.read'] },

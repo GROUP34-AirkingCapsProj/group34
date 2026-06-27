@@ -184,7 +184,6 @@ const AdminLayout = ({ children }) => {
         '/admin/draft-po-creator',
         '/admin/items',
         '/admin/transactions',
-        '/admin/receivings',
         '/admin/purchase-orders',
       ].forEach(prefetchRoute);
     }, 1000);

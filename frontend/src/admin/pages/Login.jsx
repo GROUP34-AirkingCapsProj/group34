@@ -266,7 +266,6 @@ const Login = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>Security check</label>
                     {challengeLoading ? (
                       <p className="login-challenge-loading">Loading challenge…</p>
                     ) : captchaA != null && captchaB != null ? (

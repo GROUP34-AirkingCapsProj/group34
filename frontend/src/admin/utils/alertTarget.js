@@ -6,7 +6,6 @@ const AUDIT_TABLE_TARGETS = {
   purchase_orders:   (id) => ({ path: '/admin/draft-po-creator', focusKey: `po:${id}` }),
   purchase_requests: (id) => ({ path: '/admin/purchase-requests', focusKey: `pr:${id}` }),
   transfers:         (id) => ({ path: '/admin/transfers',         focusKey: `transfer:${id}` }),
-  receivings:        (id) => ({ path: '/admin/receivings',        focusKey: `receiving:${id}` }),
   products:          (id) => ({ path: '/admin/items',             focusKey: `product:${id}` }),
   inventory:         (id) => ({ path: '/admin/inventory',         focusKey: `inv:${id}` }),
 };
