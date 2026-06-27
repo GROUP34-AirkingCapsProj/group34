@@ -153,6 +153,7 @@ const PurchaseOrderPage = () => {
   // PO Status tab
   const [poStatusList,    setPoStatusList]    = useState([]);
   const [loadingPOStatus, setLoadingPOStatus] = useState(false);
+  const [poStatusLoaded,  setPoStatusLoaded]  = useState(false);
   const [poStatusError,   setPoStatusError]   = useState('');
   const [selectedPO,      setSelectedPO]      = useState(null);
   // Per-PO approve/reject in-flight flag (holds the po_id being acted on)
@@ -228,7 +229,7 @@ const PurchaseOrderPage = () => {
         if (!mounted) return;
         setPoStatusError(err?.message || 'Failed to load purchase orders.');
       })
-      .finally(() => { if (mounted) setLoadingPOStatus(false); });
+      .finally(() => { if (mounted) { setLoadingPOStatus(false); setPoStatusLoaded(true); } });
     return () => { mounted = false; };
   }, [activeTab]);
 
@@ -240,12 +241,12 @@ const PurchaseOrderPage = () => {
   // …then, once the status list has loaded, opens that PO (or toasts if gone).
   useEffect(() => {
     if (!focusPoId || focusHandledRef.current) return;
-    if (activeTab !== 'status' || loadingPOStatus) return;
+    if (activeTab !== 'status' || !poStatusLoaded) return;
     focusHandledRef.current = true;
     const po = findById(poStatusList, ['po_id', 'id'], focusPoId);
     if (po) { setSelectedPO(po); firePoPulse(); }
     else toast.error('That purchase order is no longer available.');
-  }, [focusPoId, activeTab, loadingPOStatus, poStatusList, firePoPulse]);
+  }, [focusPoId, activeTab, poStatusLoaded, poStatusList, firePoPulse]);
 
   // ── PR selection ───────────────────────────────────────────────────────────
   const handleSelectPR = useCallback((pr) => {
