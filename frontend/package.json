@@ -41,7 +41,9 @@
     "start:lan": "cross-env HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "dev": "concurrently -k -n api,reverb,web -c \"#93c5fd,#fb7185,#86efac\" \"cd ../back-end && php artisan serve --host=0.0.0.0 --port=8000\" \"cd ../back-end && php artisan reverb:start --host=0.0.0.0 --port=8080\" \"npm start\"",
+    "dev:lan": "concurrently -k -n api,reverb,web -c \"#93c5fd,#fb7185,#86efac\" \"cd ../back-end && php artisan serve --host=0.0.0.0 --port=8000\" \"cd ../back-end && php artisan reverb:start --host=0.0.0.0 --port=8080\" \"npm run start:lan\""
   },
   "eslintConfig": {
     "extends": [
@@ -50,6 +52,7 @@
     ]
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
     "cross-env": "^7.0.3"
   },
   "jest": {
