@@ -28,6 +28,18 @@ describe('useFocusTarget', () => {
     );
   });
 
+  it('strips focus but preserves other params', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/draft-po-creator?focus=po:42&tab=status']}>
+        <Probe />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId('focus').textContent).toBe('42');
+    await waitFor(() =>
+      expect(screen.getByTestId('search').textContent).toBe('?tab=status')
+    );
+  });
+
   it('returns none for a mismatched type', () => {
     render(
       <MemoryRouter initialEntries={['/admin/draft-po-creator?focus=pr:42']}>
