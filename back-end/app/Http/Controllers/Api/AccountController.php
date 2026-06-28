@@ -40,7 +40,11 @@ class AccountController extends Controller
 
     public function show(Request $request)
     {
-        return $this->success($this->presentProfile($request->user()), 'Profile retrieved');
+        try {
+            return $this->success($this->presentProfile($request->user()), 'Profile retrieved');
+        } catch (\Exception $e) {
+            return $this->error('Failed to load profile: ' . $e->getMessage(), 500);
+        }
     }
 
     public function update(Request $request)
@@ -93,14 +97,18 @@ class AccountController extends Controller
 
     public function deleteAvatar(Request $request)
     {
-        $user = $request->user();
+        try {
+            $user = $request->user();
 
-        if ($user->avatar_path) {
-            Storage::disk('public')->delete($user->avatar_path);
-            $user->update(['avatar_path' => null]);
+            if ($user->avatar_path) {
+                Storage::disk('public')->delete($user->avatar_path);
+                $user->update(['avatar_path' => null]);
+            }
+
+            return $this->success($this->presentProfile($user->fresh()), 'Avatar removed');
+        } catch (\Exception $e) {
+            return $this->error('Failed to remove avatar: ' . $e->getMessage(), 500);
         }
-
-        return $this->success($this->presentProfile($user->fresh()), 'Avatar removed');
     }
 
     public function updatePassword(Request $request)

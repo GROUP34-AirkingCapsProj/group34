@@ -46,6 +46,11 @@ class AccountProfileTest extends TestCase
         );
     }
 
+    public function test_profile_requires_authentication(): void
+    {
+        $this->getJson('/api/me/profile')->assertStatus(401);
+    }
+
     public function test_show_returns_own_profile_with_email_local_split(): void
     {
         $user = $this->makeUser(['email' => 'jdela.cruz@airking.com']);
