@@ -93,4 +93,16 @@ class AccountProfileTest extends TestCase
         $this->assertSame($originalEmail, $fresh->email);
         $this->assertSame(1, (int) $fresh->role_id);
     }
+
+    public function test_auditor_can_update_own_profile(): void
+    {
+        $user = $this->makeUser(['role_id' => 5]);
+
+        $this->actingAs($user, 'sanctum')->putJson('/api/me/profile', [
+            'first_name' => 'Audit',
+            'last_name'  => 'Self',
+        ])->assertStatus(200);
+
+        $this->assertSame('Audit', $user->fresh()->first_name);
+    }
 }

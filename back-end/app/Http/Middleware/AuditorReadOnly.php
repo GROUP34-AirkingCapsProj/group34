@@ -37,6 +37,13 @@ class AuditorReadOnly
         }
 
         $path = '/' . ltrim($request->path(), '/');
+
+        // Self-service account routes are always allowed — every user, including
+        // auditors, may manage their own account (profile, avatar, email, password).
+        if (str_starts_with($path, '/api/me/')) {
+            return $next($request);
+        }
+
         foreach (self::ALLOWED_PATH_SUFFIXES as $suffix) {
             if (str_ends_with($path, $suffix)) {
                 return $next($request);
