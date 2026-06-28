@@ -62,6 +62,7 @@ const AlertsNotices = lazy(() => import('./admin/pages/AlertsNotices'));
 const WarrantyManagement = lazy(() => import('./admin/pages/WarrantyManagement'));
 const WarrantyClaimPage = lazy(() => import('./admin/pages/WarrantyClaimPage'));
 const IssuanceScanPage  = lazy(() => import('./admin/pages/IssuanceScanPage'));
+const AccountSettingsPage = lazy(() => import('./admin/pages/AccountSettingsPage'));
 
 // SA Permission Editor
 const RolePermissions       = lazy(() => import('./admin/pages/RolePermissions'));
@@ -107,6 +108,7 @@ function App() {
 
           {/* Dashboard */}
           <Route path="/admin/dashboard" element={<RoleRoute><Dashboard /></RoleRoute>} />
+          <Route path="/admin/account" element={<RoleRoute><AccountSettingsPage /></RoleRoute>} />
 
           {/* System Setup */}
           <Route path="/admin/users" element={<RoleRoute><UserManagement /></RoleRoute>} />
