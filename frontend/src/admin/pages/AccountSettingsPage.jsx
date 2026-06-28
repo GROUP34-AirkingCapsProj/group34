@@ -213,14 +213,14 @@ const AccountSettingsPage = () => {
           <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Personal information</h2>
           <Banner kind={msg.info?.kind}>{msg.info?.text}</Banner>
           <form onSubmit={saveInfo}>
-            <label style={lbl}>First name</label>
-            <input style={inp} value={info.first_name} onChange={(e) => setInfo({ ...info, first_name: e.target.value })} required />
-            <label style={lbl}>Last name</label>
-            <input style={inp} value={info.last_name} onChange={(e) => setInfo({ ...info, last_name: e.target.value })} required />
-            <label style={lbl}>Phone</label>
-            <input style={inp} value={info.phone} onChange={(e) => setInfo({ ...info, phone: e.target.value })} />
-            <label style={lbl}>Address</label>
-            <input style={inp} value={info.address} onChange={(e) => setInfo({ ...info, address: e.target.value })} />
+            <label htmlFor="first_name" style={lbl}>First name</label>
+            <input id="first_name" style={inp} value={info.first_name} onChange={(e) => setInfo({ ...info, first_name: e.target.value })} required />
+            <label htmlFor="last_name" style={lbl}>Last name</label>
+            <input id="last_name" style={inp} value={info.last_name} onChange={(e) => setInfo({ ...info, last_name: e.target.value })} required />
+            <label htmlFor="phone" style={lbl}>Phone</label>
+            <input id="phone" style={inp} value={info.phone} onChange={(e) => setInfo({ ...info, phone: e.target.value })} />
+            <label htmlFor="address" style={lbl}>Address</label>
+            <input id="address" style={inp} value={info.address} onChange={(e) => setInfo({ ...info, address: e.target.value })} />
             <button type="submit" style={btn} disabled={busy.info}>{busy.info ? 'Saving…' : 'Save changes'}</button>
           </form>
         </section>
@@ -230,9 +230,10 @@ const AccountSettingsPage = () => {
           <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Email address</h2>
           <Banner kind={msg.email?.kind}>{msg.email?.text}</Banner>
           <form onSubmit={saveEmail}>
-            <label style={lbl}>Email</label>
+            <label htmlFor="email_local" style={lbl}>Email</label>
             <div style={{ display: 'flex', alignItems: 'stretch', marginBottom: 14 }}>
               <input
+                id="email_local"
                 style={{ ...inp, marginBottom: 0, borderTopRightRadius: 0, borderBottomRightRadius: 0, flex: 1 }}
                 value={emailLocal}
                 onChange={(e) => setEmailLocal(e.target.value)}
@@ -245,8 +246,8 @@ const AccountSettingsPage = () => {
                 whiteSpace: 'nowrap',
               }}>{EMAIL_DOMAIN}</span>
             </div>
-            <label style={lbl}>Current password</label>
-            <input style={inp} type="password" value={emailPw} onChange={(e) => setEmailPw(e.target.value)} required />
+            <label htmlFor="email_current_password" style={lbl}>Current password</label>
+            <input id="email_current_password" style={inp} type="password" value={emailPw} onChange={(e) => setEmailPw(e.target.value)} required />
             <button type="submit" style={btn} disabled={busy.email}>{busy.email ? 'Saving…' : 'Update email'}</button>
           </form>
         </section>
@@ -256,12 +257,12 @@ const AccountSettingsPage = () => {
           <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Password</h2>
           <Banner kind={msg.password?.kind}>{msg.password?.text}</Banner>
           <form onSubmit={savePassword}>
-            <label style={lbl}>Current password</label>
-            <input style={inp} type="password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} required />
-            <label style={lbl}>New password</label>
-            <input style={inp} type="password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} required />
-            <label style={lbl}>Confirm new password</label>
-            <input style={inp} type="password" value={pw.new_password_confirmation} onChange={(e) => setPw({ ...pw, new_password_confirmation: e.target.value })} required />
+            <label htmlFor="pw_current" style={lbl}>Current password</label>
+            <input id="pw_current" style={inp} type="password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} required />
+            <label htmlFor="pw_new" style={lbl}>New password</label>
+            <input id="pw_new" style={inp} type="password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} required />
+            <label htmlFor="pw_confirm" style={lbl}>Confirm new password</label>
+            <input id="pw_confirm" style={inp} type="password" value={pw.new_password_confirmation} onChange={(e) => setPw({ ...pw, new_password_confirmation: e.target.value })} required />
             <button type="submit" style={btn} disabled={busy.password}>{busy.password ? 'Saving…' : 'Change password'}</button>
           </form>
         </section>
