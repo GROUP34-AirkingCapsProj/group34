@@ -69,6 +69,7 @@ class AccountEmailTest extends TestCase
     {
         $taken = $this->makeUser('taken.handle');
         $user  = $this->makeUser();
+        $original = $user->email;
 
         $resp = $this->actingAs($user, 'sanctum')->putJson('/api/me/email', [
             'email_local'      => 'taken.handle',
@@ -76,5 +77,19 @@ class AccountEmailTest extends TestCase
         ]);
 
         $resp->assertStatus(422);
+        $resp->assertJsonValidationErrors('email_local');
+        $this->assertSame($original, $user->fresh()->email);
+    }
+
+    public function test_local_part_is_lowercased(): void
+    {
+        $user = $this->makeUser();
+
+        $this->actingAs($user, 'sanctum')->putJson('/api/me/email', [
+            'email_local'      => 'John.Doe',
+            'current_password' => 'Secret123!',
+        ])->assertStatus(200);
+
+        $this->assertSame('john.doe@airking.com', $user->fresh()->email);
     }
 }
