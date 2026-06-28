@@ -102,4 +102,38 @@ class AccountController extends Controller
 
         return $this->success($this->presentProfile($user->fresh()), 'Avatar removed');
     }
+
+    public function updateEmail(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            $validated = $request->validate([
+                // Local-part only: letters, digits, dot, underscore, %, +, -. No '@'.
+                'email_local'      => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9._%+\-]+$/'],
+                'current_password' => ['required', 'string'],
+            ]);
+
+            if (! Hash::check($validated['current_password'], $user->password_hash)) {
+                return $this->error('Current password is incorrect', 422);
+            }
+
+            $newEmail = $validated['email_local'] . self::EMAIL_DOMAIN;
+
+            $exists = User::where('email', $newEmail)
+                ->where('user_id', '!=', $user->user_id)
+                ->exists();
+            if ($exists) {
+                throw ValidationException::withMessages([
+                    'email_local' => ['That email address is already taken.'],
+                ]);
+            }
+
+            $user->update(['email' => $newEmail]);
+
+            return $this->success($this->presentProfile($user->fresh()), 'Email updated');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+    }
 }
