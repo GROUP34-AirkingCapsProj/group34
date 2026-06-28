@@ -359,15 +359,19 @@ const AdminLayout = ({ children }) => {
             >
               <div
                 className="header-user-avatar"
-                style={{ background: avatarColor(user.first_name || user.username || 'S'), color: '#fff' }}
+                style={{ background: avatarColor(user.first_name || user.username || 'S'), color: '#fff', overflow: 'hidden' }}
               >
-                <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1 }}>
-                  {user.first_name && user.last_name
-                    ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
-                    : user.username
-                    ? user.username.charAt(0).toUpperCase()
-                    : 'S'}
-                </span>
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1 }}>
+                    {user.first_name && user.last_name
+                      ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
+                      : user.username
+                      ? user.username.charAt(0).toUpperCase()
+                      : 'S'}
+                  </span>
+                )}
               </div>
               <div className="header-user-info">
                 <span className="header-user-name">
@@ -392,13 +396,17 @@ const AdminLayout = ({ children }) => {
                   <div className="hpd-header">
                     <div
                       className="hpd-avatar"
-                      style={{ background: avatarColor(user.first_name || user.username || 'S') }}
+                      style={{ background: avatarColor(user.first_name || user.username || 'S'), overflow: 'hidden' }}
                     >
-                      {user.first_name && user.last_name
-                        ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
-                        : user.username
-                        ? user.username.charAt(0).toUpperCase()
-                        : 'S'}
+                      {user.avatar_url ? (
+                        <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        user.first_name && user.last_name
+                          ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
+                          : user.username
+                          ? user.username.charAt(0).toUpperCase()
+                          : 'S'
+                      )}
                     </div>
                     <div className="hpd-identity">
                       <div className="hpd-fullname">
@@ -419,6 +427,17 @@ const AdminLayout = ({ children }) => {
                     </span>
                   </div>
 
+                  <button
+                    className="hpd-logout"
+                    style={{ marginBottom: 8 }}
+                    onClick={() => { setProfileOpen(false); navigate('/admin/account'); }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    Account Settings
+                  </button>
                   <button className="hpd-logout" onClick={handleLogout}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
