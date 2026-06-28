@@ -171,7 +171,7 @@ class SystemSetting extends Model
         }
 
         $out = $defaults;
-        foreach ($defaults as $key => $_default) {
+        foreach ($defaults as $key => $_) {
             if (array_key_exists($key, $stored)) {
                 $out[$key] = (bool) $stored[$key];
             }
