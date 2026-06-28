@@ -45,4 +45,52 @@ class AccountProfileTest extends TestCase
             $user->fresh()->avatar_url
         );
     }
+
+    public function test_show_returns_own_profile_with_email_local_split(): void
+    {
+        $user = $this->makeUser(['email' => 'jdela.cruz@airking.com']);
+
+        $resp = $this->actingAs($user, 'sanctum')->getJson('/api/me/profile');
+
+        $resp->assertStatus(200);
+        $resp->assertJsonPath('data.email', 'jdela.cruz@airking.com');
+        $resp->assertJsonPath('data.email_local', 'jdela.cruz');
+        $resp->assertJsonPath('data.email_domain', '@airking.com');
+    }
+
+    public function test_update_persists_name_phone_address(): void
+    {
+        $user = $this->makeUser();
+
+        $resp = $this->actingAs($user, 'sanctum')->putJson('/api/me/profile', [
+            'first_name' => 'New',
+            'last_name'  => 'Name',
+            'phone'      => '09171234567',
+            'address'    => '5th Ave, Makati',
+        ]);
+
+        $resp->assertStatus(200);
+        $fresh = $user->fresh();
+        $this->assertSame('New', $fresh->first_name);
+        $this->assertSame('Name', $fresh->last_name);
+        $this->assertSame('09171234567', $fresh->phone);
+        $this->assertSame('5th Ave, Makati', $fresh->address);
+    }
+
+    public function test_update_does_not_change_email_or_role(): void
+    {
+        $user = $this->makeUser(['role_id' => 1]);
+        $originalEmail = $user->email;
+
+        $this->actingAs($user, 'sanctum')->putJson('/api/me/profile', [
+            'first_name' => 'X',
+            'last_name'  => 'Y',
+            'email'      => 'hacker@evil.com',
+            'role_id'    => 99,
+        ])->assertStatus(200);
+
+        $fresh = $user->fresh();
+        $this->assertSame($originalEmail, $fresh->email);
+        $this->assertSame(1, (int) $fresh->role_id);
+    }
 }

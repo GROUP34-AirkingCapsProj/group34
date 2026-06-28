@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveSettingsController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\NavBundleController;
+use App\Http\Controllers\Api\AccountController;
 
 /*
 |--------------------------------------------------------------------------
@@ -146,6 +147,15 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     // Current user's own effective permissions (any authenticated user)
     Route::get('/me/permissions', [PermissionController::class, 'mine']);
+
+    // Self-service account settings (any authenticated user, own account only)
+    Route::get('/me/profile', [AccountController::class, 'show']);
+    Route::put('/me/profile', [AccountController::class, 'update']);
+    Route::post('/me/avatar', [AccountController::class, 'uploadAvatar']);
+    Route::delete('/me/avatar', [AccountController::class, 'deleteAvatar']);
+    Route::put('/me/email', [AccountController::class, 'updateEmail']);
+    Route::put('/me/password', [AccountController::class, 'updatePassword']);
+
     Route::get('/nav-bundles', [NavBundleController::class, 'index']);
 
     /* PERMISSION MANAGEMENT (ADMIN ONLY) */
