@@ -196,6 +196,35 @@ const apiRequest = async (endpoint, options = {}) => {
   return data;
 };
 
+/* Upload helper: sends FormData; never sets Content-Type so the browser can
+   add the multipart boundary. Mirrors apiRequest's auth + error handling. */
+const uploadRequest = async (endpoint, formData, method = 'POST') => {
+  const token = getToken();
+  const headers = { Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const base = getApiBaseUrl();
+  const url = endpoint.startsWith('/') ? `${base}${endpoint}` : `${base}/${endpoint}`;
+
+  const response = await fetch(url, { method, headers, body: formData });
+
+  let data;
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : { message: 'Server error.' };
+  } catch (_) {
+    throw new Error(`Server returned ${response.status} with non-JSON response.`);
+  }
+
+  if (!response.ok) {
+    const err = new Error(data.message || 'Request failed');
+    err.errors = data.errors;
+    err.status = response.status;
+    throw err;
+  }
+  return data;
+};
+
 /* ======================
    AUTH API FIXED
 ====================== */
@@ -390,6 +419,25 @@ export const companySettingsAPI = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+};
+
+/* ======================
+   ACCOUNT (SELF-SERVICE) API
+====================== */
+export const accountAPI = {
+  getProfile: async () => apiRequest('/me/profile'),
+  updateProfile: async (data) =>
+    apiRequest('/me/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  uploadAvatar: async (file) => {
+    const fd = new FormData();
+    fd.append('avatar', file);
+    return uploadRequest('/me/avatar', fd, 'POST');
+  },
+  deleteAvatar: async () => apiRequest('/me/avatar', { method: 'DELETE' }),
+  updateEmail: async (data) =>
+    apiRequest('/me/email', { method: 'PUT', body: JSON.stringify(data) }),
+  updatePassword: async (data) =>
+    apiRequest('/me/password', { method: 'PUT', body: JSON.stringify(data) }),
 };
 
 /* ======================
