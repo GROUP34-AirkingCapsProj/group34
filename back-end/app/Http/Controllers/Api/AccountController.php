@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -20,14 +21,18 @@ class AccountController extends Controller
     /**
      * Serialize the authenticated user for the settings page, splitting email
      * into its editable local-part and the fixed domain.
+     *
+     * Note: this mutates and returns the passed model (eager-loads relations via
+     * loadMissing). The resulting array includes avatar_url plus the role, status,
+     * and location relations, alongside email_local/email_domain.
      */
-    private function presentProfile($user): array
+    private function presentProfile(User $user): array
     {
         $email = (string) $user->email;
         $atPos = strrpos($email, '@');
         $local = $atPos === false ? $email : substr($email, 0, $atPos);
 
-        return array_merge($user->load(['role', 'status', 'location'])->toArray(), [
+        return array_merge($user->loadMissing(['role', 'status', 'location'])->toArray(), [
             'email_local'  => $local,
             'email_domain' => self::EMAIL_DOMAIN,
         ]);
@@ -54,6 +59,8 @@ class AccountController extends Controller
             return $this->success($this->presentProfile($user->fresh()), 'Profile updated');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->error('Failed to update profile: ' . $e->getMessage(), 500);
         }
     }
 }
