@@ -103,6 +103,30 @@ class AccountController extends Controller
         return $this->success($this->presentProfile($user->fresh()), 'Avatar removed');
     }
 
+    public function updatePassword(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            $validated = $request->validate([
+                'current_password' => ['required', 'string'],
+                'new_password'     => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
+            ]);
+
+            if (! Hash::check($validated['current_password'], $user->password_hash)) {
+                return $this->error('Current password is incorrect', 422);
+            }
+
+            $user->update(['password_hash' => Hash::make($validated['new_password'])]);
+
+            return $this->success(null, 'Password changed successfully');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->error('Failed to change password: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function updateEmail(Request $request)
     {
         try {
