@@ -51,11 +51,20 @@ class MarkAllReadTest extends TestCase
             'role_id'       => 1,
         ]);
 
+        $seenAt = now()->subDay()->startOfSecond();
+        $user->alerts_last_seen_at = $seenAt;
+        $user->save();
+
         $resp = $this->actingAs($user, 'sanctum')->getJson('/api/alerts/settings');
 
         $resp->assertStatus(200);
         $resp->assertJsonStructure([
             'data' => ['badge_count', 'unread_count', 'pending_approvals_last_seen_at'],
         ]);
+        $this->assertSame(
+            $seenAt->toIso8601String(),
+            $resp->json('data.pending_approvals_last_seen_at'),
+            'index() must read pending_approvals_last_seen_at back from users.alerts_last_seen_at.'
+        );
     }
 }
