@@ -63,4 +63,41 @@ class AccountController extends Controller
             return $this->error('Failed to update profile: ' . $e->getMessage(), 500);
         }
     }
+
+    public function uploadAvatar(Request $request)
+    {
+        try {
+            $request->validate([
+                'avatar' => 'required|image|mimes:jpeg,jpg,png,webp|max:2048',
+            ]);
+
+            $user = $request->user();
+            $oldPath = $user->avatar_path;
+
+            // Store the new file first; only delete the old one once this succeeds.
+            $newPath = $request->file('avatar')->store('avatars', 'public');
+
+            $user->update(['avatar_path' => $newPath]);
+
+            if ($oldPath && $oldPath !== $newPath) {
+                Storage::disk('public')->delete($oldPath);
+            }
+
+            return $this->success($this->presentProfile($user->fresh()), 'Avatar updated');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+    }
+
+    public function deleteAvatar(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->avatar_path) {
+            Storage::disk('public')->delete($user->avatar_path);
+            $user->update(['avatar_path' => null]);
+        }
+
+        return $this->success($this->presentProfile($user->fresh()), 'Avatar removed');
+    }
 }
