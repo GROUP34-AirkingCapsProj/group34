@@ -18,6 +18,7 @@ class SystemSetting extends Model
     public const KEY_ARCHIVE_SCHEDULE        = 'archive_schedule';
     public const KEY_ARCHIVE_NOTIFICATIONS   = 'archive_notifications';
     public const KEY_ARCHIVE_LAST_RUN        = 'archive_last_run';
+    public const KEY_ACCOUNT_POLICY          = 'account_self_service_policy';
 
     protected $fillable = ['key', 'value'];
 
@@ -155,5 +156,35 @@ class SystemSetting extends Model
                 $row->save();
             }
         }
+    }
+
+    /**
+     * Which self-service fields non-admin users may edit, merged over an
+     * all-true default so missing keys never lock a field unexpectedly.
+     */
+    public static function accountPolicy(): array
+    {
+        $defaults = ['avatar' => true, 'email' => true, 'phone' => true, 'address' => true];
+        $stored   = static::getValue(self::KEY_ACCOUNT_POLICY, []);
+        if (! is_array($stored)) {
+            $stored = [];
+        }
+
+        $out = $defaults;
+        foreach ($defaults as $key => $_default) {
+            if (array_key_exists($key, $stored)) {
+                $out[$key] = (bool) $stored[$key];
+            }
+        }
+        return $out;
+    }
+
+    public static function setAccountPolicy(array $policy): void
+    {
+        $clean = [];
+        foreach (['avatar', 'email', 'phone', 'address'] as $key) {
+            $clean[$key] = array_key_exists($key, $policy) ? (bool) $policy[$key] : true;
+        }
+        static::setValue(self::KEY_ACCOUNT_POLICY, $clean);
     }
 }
