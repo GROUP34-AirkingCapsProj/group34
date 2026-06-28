@@ -88,6 +88,17 @@ class AccountAvatarTest extends TestCase
         Storage::disk('public')->assertExists($secondPath);
     }
 
+    public function test_delete_is_idempotent_when_no_avatar(): void
+    {
+        Storage::fake('public');
+        $user = $this->makeUser();
+
+        $resp = $this->actingAs($user, 'sanctum')->deleteJson('/api/me/avatar');
+
+        $resp->assertStatus(200);
+        $this->assertNull($user->fresh()->avatar_path);
+    }
+
     public function test_delete_removes_avatar(): void
     {
         Storage::fake('public');
