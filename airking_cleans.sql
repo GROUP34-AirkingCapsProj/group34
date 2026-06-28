@@ -1321,7 +1321,8 @@ CREATE TABLE `users` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `otp_code` varchar(255) DEFAULT NULL,
-  `otp_expires_at` timestamp NULL DEFAULT NULL
+  `otp_expires_at` timestamp NULL DEFAULT NULL,
+  `alerts_last_seen_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1338,27 +1339,6 @@ INSERT INTO `users` (`user_id`, `first_name`, `last_name`, `username`, `email`, 
 (8, 'john', 'baloro', 'john baloro', 'zsyntax7@gmail.com', '09756026160', 3, 2, 1, NULL, '$2y$12$gsgz0q1ibpBK.3/OunuVVOOQtTCEND2aoqEa2aOiak6Z.WUCPxQRm', NULL, NULL, NULL, '2026-05-09 20:57:41', '2026-05-10 03:13:30', NULL, NULL);
 
 -- --------------------------------------------------------
-
---
--- Table structure for table `user_alert_settings`
---
-
-CREATE TABLE `user_alert_settings` (
-  `id` bigint(20) UNSIGNED NOT NULL,
-  `user_id` bigint(20) UNSIGNED NOT NULL,
-  `pending_approvals_last_seen_at` timestamp NULL DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `user_alert_settings`
---
-
-INSERT INTO `user_alert_settings` (`id`, `user_id`, `pending_approvals_last_seen_at`, `created_at`, `updated_at`) VALUES
-(1, 2, '2026-05-01 00:09:11', '2026-04-30 23:07:24', '2026-05-01 00:09:11'),
-(2, 6, NULL, '2026-05-09 20:45:56', '2026-05-09 20:45:56'),
-(3, 8, NULL, '2026-05-10 03:06:23', '2026-05-10 03:06:23');
 
 --
 -- Indexes for dumped tables
@@ -1789,12 +1769,6 @@ ALTER TABLE `users`
   ADD KEY `users_location_id_foreign` (`location_id`);
 
 --
--- Indexes for table `user_alert_settings`
---
-ALTER TABLE `user_alert_settings`
-  ADD PRIMARY KEY (`id`);
-
---
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -2055,12 +2029,6 @@ ALTER TABLE `unit_lookup`
 --
 ALTER TABLE `users`
   MODIFY `user_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
-
---
--- AUTO_INCREMENT for table `user_alert_settings`
---
-ALTER TABLE `user_alert_settings`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- Constraints for dumped tables
