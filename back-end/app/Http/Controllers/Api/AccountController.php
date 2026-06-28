@@ -118,6 +118,7 @@ class AccountController extends Controller
                 return $this->error('Current password is incorrect', 422);
             }
 
+            $validated['email_local'] = strtolower($validated['email_local']);
             $newEmail = $validated['email_local'] . self::EMAIL_DOMAIN;
 
             $exists = User::where('email', $newEmail)
@@ -129,11 +130,17 @@ class AccountController extends Controller
                 ]);
             }
 
-            $user->update(['email' => $newEmail]);
+            try {
+                $user->update(['email' => $newEmail]);
+            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                return $this->validationError(['email_local' => ['That email address is already taken.']]);
+            }
 
             return $this->success($this->presentProfile($user->fresh()), 'Email updated');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->error('Failed to update email: ' . $e->getMessage(), 500);
         }
     }
 }
