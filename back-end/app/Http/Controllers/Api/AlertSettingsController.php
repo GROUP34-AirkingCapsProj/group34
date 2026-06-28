@@ -19,8 +19,6 @@ class AlertSettingsController extends Controller
         if (! $user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
-        $userId = $user->getKey();
-
         // Location scoping: non-centralized roles (branch_manager=3, warehouse_personnel=4)
         // only see their own location's alerts. Centralized (admin=1, inventory_analyst=2, auditor=5)
         // see all locations — no filter applied.
