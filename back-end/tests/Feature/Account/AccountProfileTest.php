@@ -35,4 +35,14 @@ class AccountProfileTest extends TestCase
         $user = $this->makeUser(['address' => '123 Cooling St']);
         $this->assertSame('123 Cooling St', $user->fresh()->address);
     }
+
+    public function test_avatar_url_is_built_from_avatar_path(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $user = $this->makeUser(['avatar_path' => 'avatars/test.png']);
+        $this->assertSame(
+            \Illuminate\Support\Facades\Storage::disk('public')->url('avatars/test.png'),
+            $user->fresh()->avatar_url
+        );
+    }
 }

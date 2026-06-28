@@ -57,6 +57,8 @@ class User extends Authenticatable
         'alerts_last_seen_at' => 'datetime',
     ];
 
+    // avatar_url is appended to every User serialization (incl. /api/user, /api/login)
+    // so the frontend header/sidebar can render the photo without extra endpoints.
     protected $appends = ['avatar_url'];
 
     /**
