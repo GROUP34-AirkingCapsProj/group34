@@ -86,6 +86,8 @@ class AccountController extends Controller
             return $this->success($this->presentProfile($user->fresh()), 'Avatar updated');
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->error('Failed to upload avatar: ' . $e->getMessage(), 500);
         }
     }
 
