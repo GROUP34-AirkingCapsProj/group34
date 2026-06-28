@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import { useAuth } from '../context/AuthContext';
-import { accountAPI } from '../services/api';
+import { accountAPI, resolveStorageUrl } from '../services/api';
 import '../styles/dashboard_air.css';
 
 const EMAIL_DOMAIN = '@airking.com';
@@ -191,7 +191,7 @@ const AccountSettingsPage = () => {
               flexShrink: 0,
             }}>
               {profile?.avatar_url
-                ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={resolveStorageUrl(profile.avatar_url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : initials}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

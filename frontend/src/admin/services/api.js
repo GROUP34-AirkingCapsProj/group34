@@ -58,6 +58,19 @@ export const getApiBaseUrl = () => {
   return `http://127.0.0.1:${apiPort}/api`;
 };
 
+/**
+ * Resolve a backend-relative asset path (e.g. "/storage/avatars/x.png") to an
+ * absolute URL against the API origin computed at runtime. The backend returns
+ * avatar paths host-agnostically so the same value works on localhost, LAN IP,
+ * and mobile. Absolute URLs (legacy/external) are returned unchanged.
+ */
+export const resolveStorageUrl = (path) => {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  const origin = getApiBaseUrl().replace(/\/api\/?$/, '');
+  return `${origin}/${String(path).replace(/^\/+/, '')}`;
+};
+
 const TOKEN_KEY = 'token';
 
 /** Synced from login and system settings; drives client idle logout. */

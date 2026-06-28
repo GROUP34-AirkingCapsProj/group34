@@ -36,14 +36,13 @@ class AccountProfileTest extends TestCase
         $this->assertSame('123 Cooling St', $user->fresh()->address);
     }
 
-    public function test_avatar_url_is_built_from_avatar_path(): void
+    public function test_avatar_url_is_relative_storage_path(): void
     {
-        \Illuminate\Support\Facades\Storage::fake('public');
+        // Host-agnostic: the accessor returns a relative "/storage/..." path so the
+        // frontend can resolve it against the API origin it computes at runtime.
+        // Baking in APP_URL (via Storage::url) breaks under `php artisan serve`.
         $user = $this->makeUser(['avatar_path' => 'avatars/test.png']);
-        $this->assertSame(
-            \Illuminate\Support\Facades\Storage::disk('public')->url('avatars/test.png'),
-            $user->fresh()->avatar_url
-        );
+        $this->assertSame('/storage/avatars/test.png', $user->fresh()->avatar_url);
     }
 
     public function test_profile_requires_authentication(): void

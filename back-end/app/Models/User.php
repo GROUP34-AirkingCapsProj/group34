@@ -10,7 +10,6 @@ use Laravel\Sanctum\HasApiTokens;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -70,12 +69,18 @@ class User extends Authenticatable
     }
 
     /**
-     * Public URL for the user's avatar, or null when none is set.
+     * Relative public path for the user's avatar (e.g. "/storage/avatars/x.png"),
+     * or null when none is set.
+     *
+     * Deliberately host-agnostic: the frontend resolves this against the API
+     * origin it computes at runtime, so the same value works on localhost, a LAN
+     * IP, and mobile. Storage::url() would bake in APP_URL, which is wrong when the
+     * app is served by `php artisan serve` on a different host/port than APP_URL.
      */
     public function getAvatarUrlAttribute(): ?string
     {
         return $this->avatar_path
-            ? Storage::disk('public')->url($this->avatar_path)
+            ? '/storage/' . ltrim($this->avatar_path, '/')
             : null;
     }
 
