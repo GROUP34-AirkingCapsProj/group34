@@ -217,8 +217,15 @@ const uploadRequest = async (endpoint, formData, method = 'POST') => {
   }
 
   if (!response.ok) {
+    // Token expired or missing — clear storage and bounce to login
+    if (response.status === 401) {
+      removeToken();
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/admin/login';
+      }
+    }
     const err = new Error(data.message || 'Request failed');
-    err.errors = data.errors;
+    err.errors = data.errors || null;
     err.status = response.status;
     throw err;
   }
