@@ -1,0 +1,169 @@
+/* ============================================================================
+   ACCOUNT SETTINGS  ·  as-*
+   Layout helpers that sit on top of the shared ak-* design system
+   (airking_ds.css). Every value derives from --ak-* tokens, so this surface
+   reads as the same product as the rest of the admin. Scoped under .ak-page
+   for token access + to out-specify any stray legacy rules.
+   ============================================================================ */
+
+/* ----- identity card: avatar + who you are + photo actions --------------- */
+.ak-page .as-identity {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+/* crimson→gold ring echoes the header's ignition top-rule */
+.ak-page .as-avatar {
+  width: 92px;
+  height: 92px;
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ak-crimson) 0%, var(--ak-crimson-deep) 48%, var(--ak-gold) 100%);
+  box-shadow: var(--ak-shadow);
+}
+.ak-page .as-avatar-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--ak-card);
+  background: var(--ak-band);
+  color: var(--ak-crimson);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ak-display);
+  font-weight: 800;
+  font-size: 1.9rem;
+  letter-spacing: -0.02em;
+}
+.ak-page .as-avatar-inner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ak-page .as-identity-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.ak-page .as-identity-name {
+  font-family: var(--ak-display);
+  font-weight: 800;
+  font-size: 1.3rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ak-ink);
+}
+.ak-page .as-identity-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.ak-page .as-identity-handle {
+  font-family: var(--ak-mono);
+  font-size: 0.8rem;
+  color: var(--ak-ink-soft);
+}
+.ak-page .as-identity-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* ----- form layout ------------------------------------------------------- */
+.ak-page .as-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.25rem;
+}
+.ak-page .as-grid--single {
+  grid-template-columns: 1fr;
+  max-width: 440px;
+}
+.ak-page .as-col-full {
+  grid-column: 1 / -1;
+}
+
+/* ----- locked-domain email input group ----------------------------------- */
+.ak-page .as-emailgroup {
+  display: flex;
+  align-items: stretch;
+}
+.ak-page .as-emailgroup .ak-input {
+  flex: 1;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.ak-page .as-emaildomain {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.8rem;
+  background: var(--ak-band);
+  border: 1px solid var(--ak-line);
+  border-left: none;
+  border-top-right-radius: 9px;
+  border-bottom-right-radius: 9px;
+  font-family: var(--ak-mono);
+  font-size: 0.8rem;
+  color: var(--ak-ink-soft);
+  white-space: nowrap;
+}
+.ak-page .as-emaildomain svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.7;
+}
+/* one shared crimson seam on focus instead of two mismatched borders */
+.ak-page .as-emailgroup:focus-within .ak-input,
+.ak-page .as-emailgroup:focus-within .as-emaildomain {
+  border-color: var(--ak-crimson);
+}
+.ak-page .as-emailgroup:focus-within .ak-input {
+  box-shadow: none;
+}
+
+/* ----- inline messaging -------------------------------------------------- */
+.ak-page .as-error {
+  font-family: var(--ak-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: var(--ak-crimson);
+  margin-top: 0.1rem;
+}
+.ak-page .as-hint {
+  font-size: 0.78rem;
+  color: var(--ak-ink-faint);
+  margin: 0.5rem 0 0;
+  line-height: 1.45;
+}
+
+/* ----- per-card save row ------------------------------------------------- */
+.ak-page .as-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ak-line-soft);
+}
+
+/* ----- responsive -------------------------------------------------------- */
+@media (max-width: 640px) {
+  .ak-page .as-grid { grid-template-columns: 1fr; }
+  .ak-page .as-identity-actions { margin-left: 0; width: 100%; }
+  .ak-page .as-identity-actions > .ak-btn { flex: 1 1 auto; justify-content: center; }
+  .ak-page .as-card-foot > .ak-btn { flex: 1 1 auto; justify-content: center; }
+  .ak-page .as-avatar { width: 76px; height: 76px; }
+  .ak-page .as-avatar-inner { font-size: 1.55rem; }
+}
