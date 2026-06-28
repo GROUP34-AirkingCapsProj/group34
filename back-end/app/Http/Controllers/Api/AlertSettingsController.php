@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\UserAlertSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,8 +27,7 @@ class AlertSettingsController extends Controller
         $scoped = ! $user->isCentralized();
         $locId  = $user->scopedLocationId();
 
-        $settings = UserAlertSettings::getOrCreateForUser($userId);
-        $lastSeen = $settings?->pending_approvals_last_seen_at;
+        $lastSeen = $user->alerts_last_seen_at;
 
         // Pending POs — status_id 7 = PO Pending
         $pendingPoCount = \App\Models\PurchaseOrder::where('status_id', 7)
@@ -155,7 +153,7 @@ class AlertSettingsController extends Controller
                 'out_of_stock_count'             => $outOfStockCount,
                 'overdue_po_count'               => $overduePoCount,
                 'alerts'                         => $alerts,
-                'pending_approvals_last_seen_at' => $settings?->pending_approvals_last_seen_at?->toIso8601String(),
+                'pending_approvals_last_seen_at' => $user->alerts_last_seen_at?->toIso8601String(),
             ],
         ]);
     }
@@ -165,25 +163,20 @@ class AlertSettingsController extends Controller
      */
     public function markAllRead(): JsonResponse
     {
-        $userId = Auth::id();
-        
-        if (!$userId) {
+        $user = Auth::user();
+
+        if (! $user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
-        
-        $settings = UserAlertSettings::getOrCreateForUser($userId);
-        
-        if (!$settings) {
-            return response()->json(['success' => false, 'message' => 'Failed to get or create alert settings'], 500);
-        }
 
-        $settings->markPendingApprovalsSeen();
-        
+        $user->alerts_last_seen_at = now();
+        $user->save();
+
         return response()->json([
             'success' => true,
             'message' => 'All alerts marked as read',
             'data' => [
-                'pending_approvals_last_seen_at' => $settings->pending_approvals_last_seen_at?->toIso8601String(),
+                'pending_approvals_last_seen_at' => $user->alerts_last_seen_at?->toIso8601String(),
                 'unread_count' => 0,
             ],
         ]);

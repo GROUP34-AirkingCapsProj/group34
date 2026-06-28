@@ -41,6 +41,7 @@ class User extends Authenticatable
         'status_id',
         'otp_code',
         'otp_expires_at',
+        'alerts_last_seen_at',
     ];
 
     protected $hidden = [
@@ -50,6 +51,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'alerts_last_seen_at' => 'datetime',
     ];
 
     /**
