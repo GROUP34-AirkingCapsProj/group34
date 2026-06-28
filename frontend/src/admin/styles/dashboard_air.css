@@ -66,44 +66,12 @@
 }
 
 /* User Profile Section at Top of Sidebar */
-.sidebar-user-section {
+.sidebar-brand {
   padding: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-elevated);
-}
-
-.sidebar-user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.sidebar-user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sidebar-user-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-dark);
-}
-
-.sidebar-user-role {
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 /* Logout Button in Sidebar */
@@ -468,6 +436,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  margin-left: auto;
 }
 
 .notification-btn {

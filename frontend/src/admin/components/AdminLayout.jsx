@@ -330,14 +330,6 @@ const AdminLayout = ({ children }) => {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <div className="header-brand">
-            <img src="/images/air.png" alt="" className="header-brand-logo" />
-            <div className="header-brand-text">
-              <span className="brand-name">AIRKING</span>
-              <span className="brand-subtitle">Air Conditioning</span>
-            </div>
-          </div>
-
           <div className="header-actions">
             <LocationBadge
               isCentralized={isCentralized}

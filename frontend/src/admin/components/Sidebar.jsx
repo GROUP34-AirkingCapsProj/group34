@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
-import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
 
 /* Deterministic avatar colour from a string */
 const AVATAR_COLORS = ['#dc2626', '#d97706', '#059669', '#2563eb', '#7c3aed', '#db2777'];
@@ -425,18 +424,11 @@ const Sidebar = ({
   expandedSections,
   onToggleSection,
   navMenuRef,
-  user,
-  roleKey,
-  roleMeta,
   onLogout,
   pendingApprovalCount = 0,
   awaitingIstCount = 0,
   navLoading = false,
 }) => {
-  const locationLabel = user?.location?.location_name || user?.branch?.branch_name || null;
-  const showLocationChip =
-    (roleKey === ROLES.BRANCH_MANAGER || roleKey === ROLES.WAREHOUSE_PERSONNEL) && locationLabel;
-
   return (
     <aside className="sidebar">
       <div className="sidebar-mobile-bar">
@@ -453,36 +445,14 @@ const Sidebar = ({
         </button>
       </div>
 
-      {/* User Profile Section */}
-      <div className="sidebar-user-section">
-        <div
-          className="sidebar-user-avatar"
-          style={{ background: avatarColor(user.first_name || user.username || 'S') }}
-        >
-          <span>
-            {user.first_name && user.last_name
-              ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
-              : user.username
-              ? user.username.charAt(0).toUpperCase()
-              : 'S'}
-          </span>
-        </div>
-        <div className="sidebar-user-info">
-          <span className="sidebar-user-name">
-            {user.first_name && user.last_name
-              ? `${user.first_name} ${user.last_name}`
-              : user.username || 'System Admin'}
-          </span>
-          <span className="sidebar-user-role">{roleMeta.label}</span>
-          {showLocationChip && (
-            <span className="sidebar-location-chip">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
-              {locationLabel}
-            </span>
-          )}
+      {/* Brand */}
+      <div className="sidebar-brand">
+        <div className="header-brand">
+          <img src="/images/air.png" alt="" className="header-brand-logo" />
+          <div className="header-brand-text">
+            <span className="brand-name">AIRKING</span>
+            <span className="brand-subtitle">Air Conditioning</span>
+          </div>
         </div>
       </div>
 
