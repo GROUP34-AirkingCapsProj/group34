@@ -10,6 +10,7 @@ use Laravel\Sanctum\HasApiTokens;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -36,6 +37,8 @@ class User extends Authenticatable
         'username',
         'password_hash',
         'phone',
+        'avatar_path',
+        'address',
         'role_id',
         'location_id',
         'status_id',
@@ -54,12 +57,24 @@ class User extends Authenticatable
         'alerts_last_seen_at' => 'datetime',
     ];
 
+    protected $appends = ['avatar_url'];
+
     /**
      * Get the password attribute for authentication.
      */
     public function getAuthPassword(): string
     {
         return $this->password_hash;
+    }
+
+    /**
+     * Public URL for the user's avatar, or null when none is set.
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->avatar_path
+            ? Storage::disk('public')->url($this->avatar_path)
+            : null;
     }
 
     /**
