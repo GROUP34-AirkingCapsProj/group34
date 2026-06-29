@@ -2,8 +2,8 @@ import { NAV_BUNDLES, bundleVisible } from './navBundles';
 import { canAccessRoute, getRoleKey, ROLES } from './roles';
 
 /** Pages with no permission bundle that remain visible to all authenticated roles.
- *  (Warranty pages are now permission-backed via nav bundles, so this is empty.) */
-export const ROLE_OPEN_PATHS = new Set([]);
+ *  Self-service account settings must be reachable by every user (own account). */
+export const ROLE_OPEN_PATHS = new Set(['/admin/account']);
 
 /**
  * Build sidebar sections: keep a page if its bundle is visible (perm granted),
