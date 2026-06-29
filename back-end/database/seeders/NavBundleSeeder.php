@@ -41,7 +41,6 @@ class NavBundleSeeder extends Seeder
             // COMPLIANCE & SUPPORT
             ['Compliance Review',    '/admin/compliance',           'COMPLIANCE & SUPPORT',    'compliance',         'exception_detection',     'read'],
             ['Warranty Records',     '/admin/warranties',           'COMPLIANCE & SUPPORT',    'warranty',           'warranty_records',        'read'],
-            ['Warranty Claims',      '/admin/warranty-claims',      'COMPLIANCE & SUPPORT',    'warranty',           'warranty_claims',         'read'],
             ['System Reports',       '/admin/reports',              'COMPLIANCE & SUPPORT',    'reports',            'report_viewing',          'read'],
             ['Alerts & Notices',     '/admin/alerts',               'COMPLIANCE & SUPPORT',    'notifications',      'notification_panel',      'read'],
             ['Audit Trail',          '/admin/audit',                'COMPLIANCE & SUPPORT',    'audit',              'audit_trail_viewing',     'read'],
