@@ -167,3 +167,21 @@
   .ak-page .as-avatar { width: 76px; height: 76px; }
   .ak-page .as-avatar-inner { font-size: 1.55rem; }
 }
+
+/* ----- admin-locked fields ---------------------------------------------- */
+.ak-page .as-managed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  font-family: var(--ak-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--ak-ink-faint);
+}
+.ak-page .as-managed svg { width: 12px; height: 12px; }
+.ak-page .ak-input:disabled {
+  background: var(--ak-band);
+  color: var(--ak-ink-faint);
+  cursor: not-allowed;
+}

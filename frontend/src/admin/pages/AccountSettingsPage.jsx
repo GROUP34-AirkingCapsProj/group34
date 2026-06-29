@@ -36,6 +36,10 @@ const LockIcon = () => (
   </svg>
 );
 
+const ManagedNote = () => (
+  <span className="as-managed"><LockIcon /> Managed by your administrator</span>
+);
+
 const AccountSettingsPage = () => {
   const { user, updateUser, refreshUser } = useAuth();
   const fileRef = useRef(null);
@@ -198,6 +202,8 @@ const AccountSettingsPage = () => {
   const roleTone = ROLE_TONE[roleName] || 'gray';
   const roleLabel = roleName ? roleName.replace(/_/g, ' ') : 'User';
 
+  const policy = profile?.policy || { avatar: true, email: true, phone: true, address: true };
+
   return (
     <AdminLayout>
       <div className="ak-page" style={{ maxWidth: 860, margin: '0 auto', padding: '1.75rem 1rem 0' }}>
@@ -233,15 +239,21 @@ const AccountSettingsPage = () => {
               </div>
             </div>
             <div className="as-identity-actions">
-              <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: 'none' }} />
-              <button type="button" className="ak-btn ak-btn--primary" disabled={busy.avatar} onClick={() => fileRef.current?.click()}>
-                {busy.avatar ? <span className="ak-spin" /> : <CameraIcon />}
-                {profile?.avatar_url ? 'Change photo' : 'Upload photo'}
-              </button>
-              {profile?.avatar_url && (
-                <button type="button" className="ak-btn ak-btn--danger" disabled={busy.avatar} onClick={removeAvatar}>
-                  <TrashIcon /> Remove
-                </button>
+              {policy.avatar ? (
+                <>
+                  <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: 'none' }} />
+                  <button type="button" className="ak-btn ak-btn--primary" disabled={busy.avatar} onClick={() => fileRef.current?.click()}>
+                    {busy.avatar ? <span className="ak-spin" /> : <CameraIcon />}
+                    {profile?.avatar_url ? 'Change photo' : 'Upload photo'}
+                  </button>
+                  {profile?.avatar_url && (
+                    <button type="button" className="ak-btn ak-btn--danger" disabled={busy.avatar} onClick={removeAvatar}>
+                      <TrashIcon /> Remove
+                    </button>
+                  )}
+                </>
+              ) : (
+                <ManagedNote />
               )}
             </div>
           </div>
@@ -269,13 +281,15 @@ const AccountSettingsPage = () => {
               </div>
               <div className="ak-field">
                 <label className="ak-label" htmlFor="phone">Phone</label>
-                <input id="phone" className="ak-input" value={info.phone}
+                <input id="phone" className="ak-input" value={info.phone} disabled={!policy.phone}
                   onChange={(e) => setInfo({ ...info, phone: e.target.value })} placeholder="e.g. 0917 123 4567" />
+                {!policy.phone && <ManagedNote />}
               </div>
               <div className="ak-field as-col-full">
                 <label className="ak-label" htmlFor="address">Address</label>
-                <input id="address" className="ak-input" value={info.address}
+                <input id="address" className="ak-input" value={info.address} disabled={!policy.address}
                   onChange={(e) => setInfo({ ...info, address: e.target.value })} placeholder="Street, city" />
+                {!policy.address && <ManagedNote />}
               </div>
             </div>
             <div className="as-card-foot">
@@ -299,21 +313,22 @@ const AccountSettingsPage = () => {
               <div className="ak-field">
                 <label className="ak-label" htmlFor="email_local">Email</label>
                 <div className="as-emailgroup">
-                  <input id="email_local" className="ak-input" value={emailLocal}
+                  <input id="email_local" className="ak-input" value={emailLocal} disabled={!policy.email}
                     onChange={(e) => setEmailLocal(e.target.value)} autoComplete="username" required />
                   <span className="as-emaildomain"><LockIcon />{EMAIL_DOMAIN}</span>
                 </div>
+                {!policy.email && <ManagedNote />}
                 {emailErr.local && <span className="as-error">{emailErr.local}</span>}
               </div>
               <div className="ak-field">
                 <label className="ak-label" htmlFor="email_current_password">Current password</label>
-                <input id="email_current_password" className="ak-input" type="password" value={emailPw}
-                  onChange={(e) => setEmailPw(e.target.value)} autoComplete="current-password" required />
+                <input id="email_current_password" className="ak-input" type="password" value={emailPw} disabled={!policy.email}
+                  onChange={(e) => setEmailPw(e.target.value)} autoComplete="current-password" required={policy.email} />
                 {emailErr.pw && <span className="as-error">{emailErr.pw}</span>}
               </div>
             </div>
             <div className="as-card-foot">
-              <button type="submit" className="ak-btn ak-btn--primary" disabled={busy.email}>
+              <button type="submit" className="ak-btn ak-btn--primary" disabled={busy.email || !policy.email}>
                 {busy.email && <span className="ak-spin" />}{busy.email ? 'Saving' : 'Update email'}
               </button>
             </div>
