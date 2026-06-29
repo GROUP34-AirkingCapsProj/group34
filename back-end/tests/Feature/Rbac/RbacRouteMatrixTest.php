@@ -143,6 +143,9 @@ class RbacRouteMatrixTest extends TestCase
             'inventory scan-barcode'            => ['POST',  '/api/inventory/scan-barcode',          'warehouse_personnel', 'inventory_analyst'],
             // Feature: user_account_management.create
             'users store'                       => ['POST',  '/api/users',                           'admin',               'branch_manager'],
+            // Feature: user_account_management.read — admin-only since User Management
+            // moved into System Configuration (auditor read access was removed).
+            'users index'                       => ['GET',   '/api/users',                           'admin',               'auditor'],
             // Feature: purchase_request_approval.approve
             'purchase-requests approve'         => ['PATCH', '/api/purchase-requests/999999/approve', 'admin',              'inventory_analyst'],
             // Feature: inventory_transfers.approve

@@ -14,8 +14,10 @@ class PermissionSeeder extends Seeder
     public static function matrix(): array
     {
         return [
+            // Admin-only: User Management now lives inside the admin-only System
+            // Configuration page, so the auditor no longer has read access here.
             'user_account_management' => [
-                'read'    => ['admin', 'auditor'],
+                'read'    => ['admin'],
                 'create'  => ['admin'],
                 'update'  => ['admin'],
                 'archive' => ['admin'],
