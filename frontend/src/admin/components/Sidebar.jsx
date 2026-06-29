@@ -105,7 +105,6 @@ const adminMenuSections = [
       { name: 'Compliance Review', path: '/admin/compliance', icon: 'compliance' },
       { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
       { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
-      { name: 'Warranty Claims', path: '/admin/warranty-claims', icon: 'warranty' },
       { name: 'Alerts & Notices', path: '/admin/alerts', icon: 'notifications' },
       { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
     ],
