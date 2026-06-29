@@ -29,7 +29,7 @@ const TriStateSelect = ({ value, onChange, baselineGranted, isPending }) => (
   </select>
 );
 
-const UserPermissionOverrides = () => {
+const UserPermissionOverrides = ({ tabSwitcher = null }) => {
   const [users, setUsers]           = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [userPerms, setUserPerms]   = useState(null); // {effective:{...}, overrides:[...]}
@@ -305,6 +305,8 @@ const UserPermissionOverrides = () => {
             </div>
           </div>
         </header>
+
+        {tabSwitcher}
 
         {/* User picker */}
         <div className="rcx-panel" style={{ marginBottom: '1.25rem' }}>
