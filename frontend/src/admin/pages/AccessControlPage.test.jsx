@@ -41,3 +41,9 @@ test('clicking the inactive tab navigates to its path', () => {
   fireEvent.click(screen.getByRole('button', { name: 'User Overrides' }));
   expect(mockNavigate).toHaveBeenCalledWith('/admin/user-permissions');
 });
+
+test('clicking the already-active tab does not navigate', () => {
+  renderAt('/admin/roles');
+  fireEvent.click(screen.getByRole('button', { name: 'Role Permissions' }));
+  expect(mockNavigate).not.toHaveBeenCalled();
+});
