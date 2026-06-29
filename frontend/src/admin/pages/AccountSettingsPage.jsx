@@ -36,8 +36,8 @@ const LockIcon = () => (
   </svg>
 );
 
-const ManagedNote = () => (
-  <span className="as-managed"><LockIcon /> Managed by your administrator</span>
+const ManagedNote = ({ id }) => (
+  <span id={id} className="as-managed"><LockIcon /> Managed by your administrator</span>
 );
 
 const AccountSettingsPage = () => {
@@ -282,14 +282,16 @@ const AccountSettingsPage = () => {
               <div className="ak-field">
                 <label className="ak-label" htmlFor="phone">Phone</label>
                 <input id="phone" className="ak-input" value={info.phone} disabled={!policy.phone}
+                  aria-describedby={!policy.phone ? 'phone-note' : undefined}
                   onChange={(e) => setInfo({ ...info, phone: e.target.value })} placeholder="e.g. 0917 123 4567" />
-                {!policy.phone && <ManagedNote />}
+                {!policy.phone && <ManagedNote id="phone-note" />}
               </div>
               <div className="ak-field as-col-full">
                 <label className="ak-label" htmlFor="address">Address</label>
                 <input id="address" className="ak-input" value={info.address} disabled={!policy.address}
+                  aria-describedby={!policy.address ? 'address-note' : undefined}
                   onChange={(e) => setInfo({ ...info, address: e.target.value })} placeholder="Street, city" />
-                {!policy.address && <ManagedNote />}
+                {!policy.address && <ManagedNote id="address-note" />}
               </div>
             </div>
             <div className="as-card-foot">
@@ -314,10 +316,11 @@ const AccountSettingsPage = () => {
                 <label className="ak-label" htmlFor="email_local">Email</label>
                 <div className="as-emailgroup">
                   <input id="email_local" className="ak-input" value={emailLocal} disabled={!policy.email}
-                    onChange={(e) => setEmailLocal(e.target.value)} autoComplete="username" required />
+                    aria-describedby={!policy.email ? 'email-note' : undefined}
+                    onChange={(e) => setEmailLocal(e.target.value)} autoComplete="username" required={policy.email} />
                   <span className="as-emaildomain"><LockIcon />{EMAIL_DOMAIN}</span>
                 </div>
-                {!policy.email && <ManagedNote />}
+                {!policy.email && <ManagedNote id="email-note" />}
                 {emailErr.local && <span className="as-error">{emailErr.local}</span>}
               </div>
               <div className="ak-field">
