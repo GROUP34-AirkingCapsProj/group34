@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import { toast } from '../utils/toast';
-import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
+import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, accountPolicyAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
 import '../styles/system_configuration.css';
 
 const LockIcon = () => (
@@ -53,12 +53,6 @@ const SaveIcon = () => (
   </svg>
 );
 
-const CameraIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 15.2c1.768 0 3.2-1.432 3.2-3.2S13.768 8.8 12 8.8 8.8 10.232 8.8 12s1.432 3.2 3.2 3.2zM9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-  </svg>
-);
-
 const AvatarPersonIcon = () => (
   <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
@@ -80,18 +74,6 @@ const PhoneIcon = () => (
 const MapPinIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-  </svg>
-);
-
-const CalendarIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/>
-  </svg>
-);
-
-const BriefcaseIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
   </svg>
 );
 
@@ -131,9 +113,22 @@ const BuildingIcon = () => (
 // - Roles are fetched from /api/roles
 // - Locations are fetched from /api/locations
 
+const PolicyToggle = ({ id, label, desc, checked, onChange }) => (
+  <div className="sc-checkbox-row sc-checkbox-row--accent">
+    <span className="sc-checkbox-icon sc-checkbox-icon--indigo">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    </span>
+    <input type="checkbox" id={id} checked={checked} onChange={onChange} />
+    <label htmlFor={id}>
+      <span className="sc-checkbox-label">{label}</span>
+      <span className="sc-checkbox-desc">{desc}</span>
+    </label>
+  </div>
+);
+
 const TABS = [
   { id: 'security', label: 'Security', icon: <LockIcon /> },
-  { id: 'profile', label: 'Profile Settings', icon: <PersonIcon /> },
+  { id: 'accounts', label: 'User Accounts', icon: <PersonIcon /> },
   { id: 'users', label: 'User Management', icon: <PersonAddIcon />, badge: 2 },
   { id: 'company', label: 'Company Settings', icon: <BuildingIcon /> },
 ];
@@ -148,15 +143,6 @@ const DEFAULT_SETTINGS = {
   allowSelfServiceReset: true,
 };
 
-const DEFAULT_PROFILE = {
-  fullName: 'Admin User',
-  email: 'admin@airking.com',
-  phone: '+63 912 345 6789',
-  address: 'Cagayan de Oro City, Philippines',
-  dateJoined: 'January 15, 2024',
-  position: 'System Administrator',
-};
-
 function formatResetCodeDate(iso) {
   if (!iso) return '—';
   try {
@@ -169,8 +155,9 @@ function formatResetCodeDate(iso) {
 const SystemConfiguration = () => {
   const [activeTab, setActiveTab] = useState('security');
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [profile, setProfile] = useState(DEFAULT_PROFILE);
-  const fileInputRef = useRef(null);
+  const [policy, setPolicy] = useState({ avatar: true, email: true, phone: true, address: true });
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policySaving, setPolicySaving] = useState(false);
 
   // API data states
   const [users, setUsers] = useState([]);
@@ -256,21 +243,18 @@ const SystemConfiguration = () => {
   };
 
   useEffect(() => {
-    // Load user profile from localStorage
-    const stored = localStorage.getItem('user');
-    if (stored) {
+    const loadPolicy = async () => {
+      setPolicyLoading(true);
       try {
-        const user = JSON.parse(stored);
-        setProfile(prev => ({
-          ...prev,
-          fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || prev.fullName,
-          email: user.email || prev.email,
-          phone: user.phone || prev.phone,
-          address: user.address || prev.address,
-          position: user.role?.role_name || prev.position,
-        }));
-      } catch {}
-    }
+        const p = await accountPolicyAPI.get();
+        setPolicy({ avatar: !!p.avatar, email: !!p.email, phone: !!p.phone, address: !!p.address });
+      } catch {
+        // keep permissive defaults if unavailable
+      } finally {
+        setPolicyLoading(false);
+      }
+    };
+    loadPolicy();
 
     // Fetch API data
     fetchData();
@@ -360,12 +344,20 @@ const SystemConfiguration = () => {
     }
   };
 
-  const handleProfileChange = (field, value) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
-  };
+  const togglePolicy = (field) =>
+    setPolicy((prev) => ({ ...prev, [field]: !prev[field] }));
 
-  const handleProfileSave = () => {
-    toast.success('Profile updated successfully!');
+  const handlePolicySave = async () => {
+    setPolicySaving(true);
+    try {
+      const saved = await accountPolicyAPI.update(policy);
+      setPolicy({ avatar: !!saved.avatar, email: !!saved.email, phone: !!saved.phone, address: !!saved.address });
+      toast.success('Account policy saved');
+    } catch (err) {
+      toast.error("Couldn't save account policy", err.message);
+    } finally {
+      setPolicySaving(false);
+    }
   };
 
   const handleCompanyChange = (field, value) =>
@@ -624,118 +616,32 @@ const SystemConfiguration = () => {
           </div>
         )}
 
-        {activeTab === 'profile' && (
+        {activeTab === 'accounts' && (
           <div className="sc-tab-content">
             <div className="sc-card">
               <div className="sc-card-header">
-                <h3>Profile Picture</h3>
-                <p>Upload your profile picture</p>
+                <h3>User Account Editing</h3>
+                <p>Choose what non-admin users can change on their own Account Settings page. Admins always manage their own account.</p>
               </div>
               <div className="sc-card-body">
-                <div className="sc-profile-picture-row">
-                  <div className="sc-avatar-wrapper">
-                    <div className="sc-avatar">
-                      <AvatarPersonIcon />
-                    </div>
-                    <button
-                      className="sc-avatar-badge"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <CameraIcon />
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/gif"
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-                  <div className="sc-upload-info">
-                    <span className="sc-upload-title">Upload a new profile picture</span>
-                    <span className="sc-upload-hint">JPG, PNG or GIF. Max size 2MB.</span>
-                    <button
-                      className="sc-choose-file-btn"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Choose File
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="sc-card">
-              <div className="sc-card-header">
-                <h3>Personal Details</h3>
-                <p>Update your personal information</p>
-              </div>
-              <div className="sc-card-body">
-                <div className="sc-field-row">
-                  <div className="sc-field">
-                    <label>Full Name</label>
-                    <input
-                      type="text"
-                      value={profile.fullName}
-                      onChange={(e) => handleProfileChange('fullName', e.target.value)}
-                    />
-                  </div>
-                  <div className="sc-field">
-                    <label>Email Address</label>
-                    <div className="sc-input-with-icon">
-                      <span className="sc-input-icon"><MailIcon /></span>
-                      <input
-                        type="email"
-                        value={profile.email}
-                        onChange={(e) => handleProfileChange('email', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="sc-field-row">
-                  <div className="sc-field">
-                    <label>Phone Number</label>
-                    <div className="sc-input-with-icon">
-                      <span className="sc-input-icon"><PhoneIcon /></span>
-                      <input
-                        type="tel"
-                        value={profile.phone}
-                        onChange={(e) => handleProfileChange('phone', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="sc-field">
-                    <label>Address</label>
-                    <div className="sc-input-with-icon">
-                      <span className="sc-input-icon"><MapPinIcon /></span>
-                      <input
-                        type="text"
-                        value={profile.address}
-                        onChange={(e) => handleProfileChange('address', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="sc-field-row">
-                  <div className="sc-field">
-                    <label>Date Joined</label>
-                    <div className="sc-input-with-icon">
-                      <span className="sc-input-icon"><CalendarIcon /></span>
-                      <input type="text" value={profile.dateJoined} readOnly />
-                    </div>
-                  </div>
-                  <div className="sc-field">
-                    <label>Position</label>
-                    <div className="sc-input-with-icon">
-                      <span className="sc-input-icon"><BriefcaseIcon /></span>
-                      <input type="text" value={profile.position} readOnly />
-                    </div>
-                  </div>
-                </div>
-                <div className="sc-profile-save-row">
-                  <button className="sc-btn-save" onClick={handleProfileSave}>
-                    <SaveIcon /> Save Changes
-                  </button>
-                </div>
+                {policyLoading ? (
+                  <Loader label="Loading account policy" />
+                ) : (
+                  <>
+                    <PolicyToggle id="policy-avatar" label="Profile picture"
+                      desc="Upload or remove their own profile photo."
+                      checked={policy.avatar} onChange={() => togglePolicy('avatar')} />
+                    <PolicyToggle id="policy-email" label="Email address"
+                      desc="Change the part of their sign-in email before @airking.com."
+                      checked={policy.email} onChange={() => togglePolicy('email')} />
+                    <PolicyToggle id="policy-phone" label="Phone number"
+                      desc="Edit their contact number."
+                      checked={policy.phone} onChange={() => togglePolicy('phone')} />
+                    <PolicyToggle id="policy-address" label="Address"
+                      desc="Edit their address."
+                      checked={policy.address} onChange={() => togglePolicy('address')} />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1012,21 +918,23 @@ const SystemConfiguration = () => {
           </div>
         )}
 
-        {(activeTab === 'security' || activeTab === 'users' || activeTab === 'company') && (
+        {(activeTab === 'security' || activeTab === 'accounts' || activeTab === 'users' || activeTab === 'company') && (
           <div className="sc-footer">
-            <button className="sc-btn-reset" onClick={handleResetDefaults} style={{ visibility: activeTab === 'company' ? 'hidden' : 'visible' }}>Reset to Defaults</button>
+            <button className="sc-btn-reset" onClick={handleResetDefaults} style={{ visibility: (activeTab === 'company' || activeTab === 'accounts') ? 'hidden' : 'visible' }}>Reset to Defaults</button>
             <button
               className="sc-btn-save"
-              disabled={activeTab === 'company' && companySaving}
+              disabled={(activeTab === 'company' && companySaving) || (activeTab === 'accounts' && policySaving)}
               onClick={
                 activeTab === 'security' ? handleSave :
                 activeTab === 'company' ? handleCompanySave :
+                activeTab === 'accounts' ? handlePolicySave :
                 () => toast.success('User settings saved!')
               }
             >
               <SaveIcon />
               {activeTab === 'security' ? 'Save Security Settings' :
                activeTab === 'company' ? (companySaving ? 'Saving…' : 'Save Company Settings') :
+               activeTab === 'accounts' ? (policySaving ? 'Saving…' : 'Save Account Policy') :
                'Save User Settings'}
             </button>
           </div>
