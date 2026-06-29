@@ -51,4 +51,60 @@ class AccountPolicyTest extends TestCase
             SystemSetting::accountPolicy()
         );
     }
+
+    private function makeUser(int $roleId): \App\Models\User
+    {
+        $uid = uniqid();
+        return \App\Models\User::create([
+            'first_name'    => 'Pol',
+            'last_name'     => 'Icy',
+            'username'      => 'pol_' . $uid,
+            'email'         => 'pol_' . $uid . '@airking.com',
+            'password_hash' => bcrypt('Secret123!'),
+            'role_id'       => $roleId,
+            'status_id'     => 1,
+        ]);
+    }
+
+    public function test_admin_can_read_policy(): void
+    {
+        $admin = $this->makeUser(1);
+
+        $resp = $this->actingAs($admin, 'sanctum')->getJson('/api/system/account-policy');
+
+        $resp->assertStatus(200);
+        $resp->assertJson(['avatar' => true, 'email' => true, 'phone' => true, 'address' => true]);
+    }
+
+    public function test_admin_can_update_policy(): void
+    {
+        $admin = $this->makeUser(1);
+
+        $resp = $this->actingAs($admin, 'sanctum')->putJson('/api/system/account-policy', [
+            'avatar' => false, 'email' => false, 'phone' => true, 'address' => true,
+        ]);
+
+        $resp->assertStatus(200);
+        $resp->assertJson(['avatar' => false, 'email' => false, 'phone' => true, 'address' => true]);
+        $this->assertFalse(SystemSetting::accountPolicy()['avatar']);
+    }
+
+    public function test_non_admin_cannot_read_or_update_policy(): void
+    {
+        $user = $this->makeUser(2); // inventory_analyst
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/system/account-policy')->assertStatus(403);
+        $this->actingAs($user, 'sanctum')->putJson('/api/system/account-policy', [
+            'avatar' => false, 'email' => false, 'phone' => false, 'address' => false,
+        ])->assertStatus(403);
+    }
+
+    public function test_update_requires_all_four_booleans(): void
+    {
+        $admin = $this->makeUser(1);
+
+        $this->actingAs($admin, 'sanctum')->putJson('/api/system/account-policy', [
+            'avatar' => true,
+        ])->assertStatus(422);
+    }
 }

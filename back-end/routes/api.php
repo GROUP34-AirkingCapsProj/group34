@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\AlertSettingsController;
 use App\Http\Controllers\Api\AuditTrailController;
 use App\Http\Controllers\Api\SystemSessionSettingsController;
 use App\Http\Controllers\Api\CompanySettingsController;
+use App\Http\Controllers\Api\AccountPolicyController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\IssuanceScanController;
@@ -117,6 +118,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('role:admin')->put('/system/session-settings', [SystemSessionSettingsController::class, 'update']);
     Route::get('/system/company-settings', [CompanySettingsController::class, 'show']);
     Route::middleware('role:admin')->put('/system/company-settings', [CompanySettingsController::class, 'update']);
+    Route::middleware('role:admin')->get('/system/account-policy', [AccountPolicyController::class, 'show']);
+    Route::middleware('role:admin')->put('/system/account-policy', [AccountPolicyController::class, 'update']);
     Route::middleware(['role:admin', 'throttle:30,1'])->post('/password-reset/issue', [PasswordResetController::class, 'issue']);
     Route::middleware(['role:admin', 'throttle:60,1'])->get('/password-reset/active', [PasswordResetController::class, 'active']);
     Route::middleware(['role:admin', 'throttle:60,1'])->post('/password-reset/active/{passwordResetCode}/revoke', [PasswordResetController::class, 'revoke']);
