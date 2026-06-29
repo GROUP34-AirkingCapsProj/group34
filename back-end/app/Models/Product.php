@@ -214,7 +214,8 @@ class Product extends Model
         if ($issuableUnits->isNotEmpty()) {
             foreach ($issuableUnits as $iu) {
                 $conversionFactor = (float) $iu->conversion_factor;
-                $piecesDeducted   = max(1, (int) ceil($conversionFactor));
+                // round before ceil so float dust (e.g. 5.000001) can't bump a whole number up
+                $piecesDeducted   = max(1, (int) ceil(round($conversionFactor, 4)));
                 $subtotal         = round($pricePerPiece * $piecesDeducted, 2);
 
                 $actions[] = [

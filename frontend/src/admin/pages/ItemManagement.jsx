@@ -49,8 +49,13 @@ const ItemManagement = () => {
   const [issuableUnits, setIssuableUnits] = useState([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddBrandOpen, setIsAddBrandOpen] = useState(false);
+  const [isAddUnitOpen, setIsAddUnitOpen] = useState(false);
+  // null = consumable "Unit of Measure" field; number = issuable-unit row index
+  const [addUnitTargetIdx, setAddUnitTargetIdx] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newBrandName, setNewBrandName] = useState('');
+  const [newUnitName, setNewUnitName] = useState('');
+  const [newUnitAbbrev, setNewUnitAbbrev] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -335,6 +340,37 @@ const ItemManagement = () => {
       toast.success('Brand added.');
     } catch (err) {
       toast.error(err.message || 'Failed to add brand');
+    }
+  };
+
+  const handleCreateUnit = async (e) => {
+    e.preventDefault();
+    const name = newUnitName.trim();
+    if (!name) return;
+    try {
+      const res = await unitsAPI.create({
+        unit_name: name,
+        unit_abbreviation: newUnitAbbrev.trim() || null,
+      });
+      const created = res?.data || res;
+      if (created) {
+        setUnits((prev) => [...prev, created]);
+        if (addUnitTargetIdx === null) {
+          setFormData((prev) => ({
+            ...prev,
+            unit_id: created.unit_id ?? prev.unit_id,
+          }));
+        } else if (created.unit_id != null) {
+          updateIssuableUnit(addUnitTargetIdx, 'unit_id', created.unit_id);
+        }
+      }
+      setNewUnitName('');
+      setNewUnitAbbrev('');
+      setAddUnitTargetIdx(null);
+      setIsAddUnitOpen(false);
+      toast.success('Unit added.');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add unit');
     }
   };
 
@@ -877,7 +913,7 @@ const ItemManagement = () => {
               <>
                 <div className="im-view-row">
                   <div className="im-view-field">
-                    <label>Packaging Unit</label>
+                    <label>Unit of Measure</label>
                     <p>{viewingItem.unit_name || '—'}</p>
                   </div>
                   <div className="im-view-field">
@@ -1270,16 +1306,26 @@ const ItemManagement = () => {
                     </div>
                   </div>
                   <div className="im-form-field">
-                    <label>PACKAGING UNIT</label>
-                    <select
-                      value={formData.unit_id}
-                      onChange={(e) => setFormData({ ...formData, unit_id: e.target.value })}
-                    >
-                      <option value="">Select Unit</option>
-                      {units.map((u) => (
-                        <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
-                      ))}
-                    </select>
+                    <label>UNIT OF MEASURE</label>
+                    <div className="im-inline-field">
+                      <select
+                        value={formData.unit_id}
+                        onChange={(e) => setFormData({ ...formData, unit_id: e.target.value })}
+                      >
+                        <option value="">Select Unit</option>
+                        {units.map((u) => (
+                          <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="im-inline-add-btn"
+                        onClick={() => { setAddUnitTargetIdx(null); setIsAddUnitOpen(true); }}
+                        title="Add new unit of measure"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="im-form-row">
@@ -1328,7 +1374,7 @@ const ItemManagement = () => {
                     />
                   </div>
                   <div className="im-form-field">
-                    <label>PACKAGE UNIT</label>
+                    <label>PACKAGE / CONTAINER</label>
                     <input
                       type="text"
                       value={formData.package_unit}
@@ -1418,25 +1464,35 @@ const ItemManagement = () => {
                               />
                             </td>
                             <td>
-                              <select
-                                value={iu.unit_id}
-                                onChange={e => updateIssuableUnit(idx, 'unit_id', parseInt(e.target.value))}
-                                className="issuable-unit-select"
-                              >
-                                <option value="">Select unit</option>
-                                {units.map(u => (
-                                  <option key={u.unit_id} value={u.unit_id}>
-                                    {u.unit_name} ({u.unit_abbreviation})
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="im-inline-field">
+                                <select
+                                  value={iu.unit_id}
+                                  onChange={e => updateIssuableUnit(idx, 'unit_id', parseInt(e.target.value))}
+                                  className="issuable-unit-select"
+                                >
+                                  <option value="">Select unit</option>
+                                  {units.map(u => (
+                                    <option key={u.unit_id} value={u.unit_id}>
+                                      {u.unit_name} ({u.unit_abbreviation})
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="im-inline-add-btn"
+                                  onClick={() => { setAddUnitTargetIdx(idx); setIsAddUnitOpen(true); }}
+                                  title="Add new unit of measure"
+                                >
+                                  +
+                                </button>
+                              </div>
                             </td>
                             <td>
                               <div className="issuable-conversion-row">
                                 <input
                                   type="number"
-                                  min="0.000001"
-                                  step="0.001"
+                                  min="0.001"
+                                  step="any"
                                   value={iu.conversion_factor}
                                   onChange={e => updateIssuableUnit(idx, 'conversion_factor', parseFloat(e.target.value))}
                                   className="issuable-conversion-input"
@@ -1665,6 +1721,49 @@ const ItemManagement = () => {
               </button>
               <button type="submit" className="im-modal-btn-confirm">
                 SAVE BRAND
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Quick Add Unit of Measure */}
+      {isAddUnitOpen && (
+        <Modal
+          isOpen={isAddUnitOpen}
+          onClose={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+          title="Add Unit of Measure"
+        >
+          <form onSubmit={handleCreateUnit} className="im-add-simple-form">
+            <div className="im-form-field">
+              <label>Unit Name</label>
+              <input
+                type="text"
+                value={newUnitName}
+                onChange={(e) => setNewUnitName(e.target.value)}
+                placeholder="e.g. Meter, Liter, Roll"
+                autoFocus
+              />
+            </div>
+            <div className="im-form-field">
+              <label>Abbreviation (optional)</label>
+              <input
+                type="text"
+                value={newUnitAbbrev}
+                onChange={(e) => setNewUnitAbbrev(e.target.value)}
+                placeholder="e.g. m, L, roll"
+              />
+            </div>
+            <div className="im-modal-footer">
+              <button
+                type="button"
+                className="im-modal-btn-cancel"
+                onClick={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+              >
+                CANCEL
+              </button>
+              <button type="submit" className="im-modal-btn-confirm">
+                SAVE UNIT
               </button>
             </div>
           </form>

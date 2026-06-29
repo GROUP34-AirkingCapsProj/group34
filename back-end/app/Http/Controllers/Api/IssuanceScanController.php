@@ -319,7 +319,8 @@ class IssuanceScanController extends Controller
         $requestedQty = (float) ($validated['quantity'] ?? 1);
         $quantityUnit = $validated['quantity_unit']
                        ?? ($product->consumableDetail?->unit?->unit_abbreviation ?? 'piece');
-        $quantityInPieces = (int) ceil($requestedQty);
+        // round before ceil so float dust (e.g. 5.000001) can't bump a whole number up
+        $quantityInPieces = (int) ceil(round($requestedQty, 4));
 
         $packagePrice  = $product->unit_price;
         $pricePerPiece = $piecesPerPackage > 0
