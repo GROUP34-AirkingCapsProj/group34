@@ -70,7 +70,6 @@ export const ROUTE_ACCESS = {
   '/admin/notifications': [ROLES.ADMIN],
 
   // Admin/security
-  '/admin/users': [ROLES.ADMIN],
   '/admin/config': [ROLES.ADMIN],
   '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/archive-settings': [ROLES.ADMIN],
