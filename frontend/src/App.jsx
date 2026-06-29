@@ -64,8 +64,7 @@ const IssuanceScanPage  = lazy(() => import('./admin/pages/IssuanceScanPage'));
 const AccountSettingsPage = lazy(() => import('./admin/pages/AccountSettingsPage'));
 
 // SA Permission Editor
-const RolePermissions       = lazy(() => import('./admin/pages/RolePermissions'));
-const UserPermissionOverrides = lazy(() => import('./admin/pages/UserPermissionOverrides'));
+const AccessControlPage     = lazy(() => import('./admin/pages/AccessControlPage'));
 const PermissionAuditLog    = lazy(() => import('./admin/pages/PermissionAuditLog'));
 
 // Supabase PWA (parallel to Laravel admin)
@@ -169,8 +168,8 @@ function App() {
           <Route path="/admin/issuance-scan" element={<RoleRoute><IssuanceScanPage /></RoleRoute>} />
 
           {/* SA Permission Editor */}
-          <Route path="/admin/roles" element={<RoleRoute><RolePermissions /></RoleRoute>} />
-          <Route path="/admin/user-permissions" element={<RoleRoute><UserPermissionOverrides /></RoleRoute>} />
+          <Route path="/admin/roles" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
+          <Route path="/admin/user-permissions" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
           <Route path="/admin/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
         </Routes>
       </Suspense>
