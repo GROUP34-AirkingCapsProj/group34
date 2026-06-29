@@ -280,7 +280,7 @@ const WarrantyManagement = () => {
                     className="war-btn-assign"
                     onClick={() => openClaimModal(sr.warranty_id, sr.product?.product_name ?? sr.serial_number, sr.serial_number)}
                   >
-                    Mark as Claimed
+                    Claim Warranty
                   </button>
                 )}
               </div>
@@ -390,7 +390,7 @@ const WarrantyManagement = () => {
                             className="war-btn-assign"
                             onClick={() => openClaimModal(w.warranty_id, w.product?.product_name ?? w.serial_number, w.serial_number)}
                           >
-                            Claim
+                            Claim Warranty
                           </button>
                         )}
                       </div>
@@ -504,7 +504,7 @@ const WarrantyManagement = () => {
                   className="btn-save"
                   onClick={() => openClaimModal(viewingWarranty.warranty_id, viewingWarranty.product?.product_name ?? viewingWarranty.serial_number, viewingWarranty.serial_number)}
                 >
-                  Mark as Claimed
+                  Claim Warranty
                 </button>
               )}
             </div>
