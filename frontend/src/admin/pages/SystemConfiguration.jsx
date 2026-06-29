@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
+import UserManagementPanel from '../components/UserManagementPanel';
 import { toast } from '../utils/toast';
 import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, accountPolicyAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
 import '../styles/system_configuration.css';
@@ -108,10 +109,9 @@ const BuildingIcon = () => (
   </svg>
 );
 
-// NOTE: Fake data has been removed. Data is now fetched from the API.
-// - Users are fetched from /api/users
-// - Roles are fetched from /api/roles
-// - Locations are fetched from /api/locations
+// NOTE: User management lives in the shared <UserManagementPanel/>, which fetches its
+// own users/roles/locations. This page only fetches /api/users for the Manual Password
+// Reset dropdown.
 
 const PolicyToggle = ({ id, label, desc, checked, onChange }) => (
   <div className="sc-checkbox-row sc-checkbox-row--accent">
@@ -159,15 +159,10 @@ const SystemConfiguration = () => {
   const [policyLoading, setPolicyLoading] = useState(true);
   const [policySaving, setPolicySaving] = useState(false);
 
-  // API data states
+  // API data states — `users` feeds the Manual Password Reset dropdown
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  const [userRoleFilter, setUserRoleFilter] = useState('');
-  const [userLocFilter, setUserLocFilter]  = useState('');
   const [resetRequests, setResetRequests]  = useState([]);
   const [activeCodes, setActiveCodes]      = useState([]);
   const [activeCodesLoading, setActiveCodesLoading] = useState(false);
@@ -202,14 +197,12 @@ const SystemConfiguration = () => {
     }
   }, []);
 
-  // Fetch data from API
+  // Fetch users for the Manual Password Reset dropdown
   const fetchData = async () => {
     setLoading(true);
-    setError(null);
     const token = getToken();
-    
+
     if (!token) {
-      setError('Authentication required. Please log in.');
       setLoading(false);
       return;
     }
@@ -220,23 +213,11 @@ const SystemConfiguration = () => {
         'Content-Type': 'application/json',
       };
 
-      // Fetch users, roles, and locations in parallel
-      const [usersRes, rolesRes, locationsRes] = await Promise.all([
-        fetch(`${getApiBaseUrl()}/users?per_page=100`, { headers }),
-        fetch(`${getApiBaseUrl()}/roles`, { headers }),
-        fetch(`${getApiBaseUrl()}/locations?per_page=100`, { headers }),
-      ]);
-
+      const usersRes = await fetch(`${getApiBaseUrl()}/users?per_page=100`, { headers });
       const usersData = usersRes.ok ? await usersRes.json() : { data: [] };
-      const rolesData = rolesRes.ok ? await rolesRes.json() : { data: [] };
-      const locationsData = locationsRes.ok ? await locationsRes.json() : { data: [] };
-
       setUsers(usersData.data || []);
-      setRoles(rolesData.data || rolesData || []);
-      setLocations(locationsData.data || locationsData || []);
     } catch (err) {
-      console.error('Failed to fetch data:', err);
-      setError('Failed to load data from server');
+      console.error('Failed to fetch users:', err);
     } finally {
       setLoading(false);
     }
@@ -461,19 +442,6 @@ const SystemConfiguration = () => {
     return na.localeCompare(nb, undefined, { sensitivity: 'base' });
   });
 
-// Filter users based on selected role and location
-  const filteredUsers = users.filter(u => {
-    const userRole = u.role?.role_name || '';
-    const userLocation = u.location?.location_name || '';
-    const matchesRole = !userRoleFilter || userRole === userRoleFilter;
-    const matchesLocation = !userLocFilter || userLocation === userLocFilter;
-    return matchesRole && matchesLocation;
-  });
-
-  // Build role options for filter dropdown
-  const roleOptions = roles.map(r => r.role_name).filter(Boolean);
-  const locationOptions = locations.map(l => l.location_name).filter(Boolean);
-
   return (
     <AdminLayout>
       <div className="ak-page sc-content">
@@ -649,66 +617,8 @@ const SystemConfiguration = () => {
 
         {activeTab === 'users' && (
           <div className="sc-tab-content">
-            {/* User Accounts */}
-            <div className="sc-card">
-              <div className="sc-card-header">
-                <h3>User Accounts</h3>
-                <p>Manage user roles and permissions</p>
-              </div>
-              <div className="sc-card-body">
-{loading && <Loader label="Loading users" />}
-                {error && <p className="sc-placeholder" style={{ color: 'red' }}>{error}</p>}
-                {!loading && !error && (
-                  <>
-                <div className="sc-um-filter-row">
-                  <span className="sc-um-filter-label">Filter by:</span>
-                  <select className="sc-um-select" value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)}>
-                    <option value="">All Roles</option>
-                    {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <select className="sc-um-select" value={userLocFilter} onChange={e => setUserLocFilter(e.target.value)}>
-                    <option value="">All Locations</option>
-                    {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </div>
-                <table className="sc-um-table">
-                  <thead>
-                    <tr>
-                      <th className="sc-um-th">EMPLOYEE ID</th>
-                      <th className="sc-um-th">NAME</th>
-                      <th className="sc-um-th">ROLE</th>
-                      <th className="sc-um-th">LOCATION</th>
-                      <th className="sc-um-th">STATUS</th>
-                      <th className="sc-um-th sc-um-th--right">ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(u => (
-                      <tr key={u.user_id} className="sc-um-tr">
-                        <td className="sc-um-td sc-um-td--id">{u.username || u.user_id}</td>
-                        <td className="sc-um-td sc-um-td--name">{[u.first_name, u.last_name].filter(Boolean).join(' ') || 'N/A'}</td>
-                        <td className="sc-um-td">{u.role?.role_name || 'N/A'}</td>
-                        <td className="sc-um-td">{u.location?.location_name || 'N/A'}</td>
-                        <td className="sc-um-td">
-                          <span className={`sc-um-status-badge sc-um-status-badge--${u.status?.status_name?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{u.status?.status_name || 'N/A'}</span>
-                        </td>
-                        <td className="sc-um-td sc-um-td--actions">
-                          <button className="sc-um-btn-edit">Edit</button>
-                          <button className="sc-um-btn-deactivate">Deactivate</button>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredUsers.length === 0 && (
-                      <tr>
-                        <td colSpan="6" className="sc-um-td" style={{ textAlign: 'center' }}>No users found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-                  </>
-                )}
-              </div>
-            </div>
+            {/* User Management (shared panel) */}
+            <UserManagementPanel />
 
             {/* Password Reset Requests */}
             <div className="sc-card">
@@ -918,7 +828,7 @@ const SystemConfiguration = () => {
           </div>
         )}
 
-        {(activeTab === 'security' || activeTab === 'accounts' || activeTab === 'users' || activeTab === 'company') && (
+        {(activeTab === 'security' || activeTab === 'accounts' || activeTab === 'company') && (
           <div className="sc-footer">
             <button className="sc-btn-reset" onClick={handleResetDefaults} style={{ visibility: (activeTab === 'company' || activeTab === 'accounts') ? 'hidden' : 'visible' }}>Reset to Defaults</button>
             <button
