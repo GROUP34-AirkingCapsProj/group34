@@ -20,13 +20,14 @@ class InventoryController extends Controller
     {
         // Only rows whose product still exists in `products` (same catalog as Item Master).
         $query = Inventory::query()
+            ->forUser($request->user())
             ->whereHas('product')
             ->with(['location'])
             ->with(['product' => function ($q) {
                 $q->with([
                         'category',
                         'status',
-                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'modelLookup']),
+                        'applianceDetail' => fn($aq) => $aq->with(['brand']),
                         'consumableDetail' => fn($cq) => $cq->with('unit'),
                     ])
                     ->withSum(['inventories as stock_on_hand_total' => function ($sub) {
@@ -66,9 +67,7 @@ class InventoryController extends Controller
             'location',
             'product.category',
             'product.status',
-            'product.applianceDetail.brand',
-            'product.applianceDetail.modelLookup',
-            'product.consumableDetail.unit',
+            'product.applianceDetail.brand',            'product.consumableDetail.unit',
         ])->find($id);
 
         if (!$inventory) {
@@ -84,9 +83,7 @@ class InventoryController extends Controller
             ->with([
                 'product.category',
                 'product.status',
-                'product.applianceDetail.brand',
-                'product.applianceDetail.modelLookup',
-                'product.consumableDetail.unit',
+                'product.applianceDetail.brand',                'product.consumableDetail.unit',
             ])
             ->get();
 
@@ -116,9 +113,7 @@ class InventoryController extends Controller
             'status',
             'product.category',
             'product.status',
-            'product.applianceDetail.brand',
-            'product.applianceDetail.modelLookup',
-            'product.consumableDetail.unit',
+            'product.applianceDetail.brand',            'product.consumableDetail.unit',
         ])->find($id);
 
         if (! $inventory) {
@@ -233,7 +228,7 @@ class InventoryController extends Controller
                 'category_name'      => $product?->category?->category_name,
                 'description'        => $product?->description,
                 'brand_name'         => $product?->applianceDetail?->brand?->brand_name ?? null,
-                'model_name'         => $product?->applianceDetail?->modelLookup?->model_name ?? null,
+                'model_name'         => $product?->applianceDetail?->model_code ?? null,
                 'capacity_rating'    => $product?->applianceDetail?->capacity_rating ?? null,
                 'variant'            => $product?->applianceDetail?->variant ?? null,
                 'warranty_months'    => $product?->applianceDetail?->warranty_period_months ?? null,
@@ -286,7 +281,7 @@ class InventoryController extends Controller
                     })
                     ->with([
                         'category', 'status',
-                        'applianceDetail' => fn($aq) => $aq->with(['brand', 'modelLookup']),
+                        'applianceDetail' => fn($aq) => $aq->with(['brand']),
                         'consumableDetail' => fn($cq) => $cq->with('unit'),
                     ])
                     ->first();
@@ -306,7 +301,7 @@ class InventoryController extends Controller
                             ->where('product_id', $serial->product_id)
                             ->with([
                                 'category', 'status',
-                                'applianceDetail' => fn($aq) => $aq->with(['brand', 'modelLookup']),
+                                'applianceDetail' => fn($aq) => $aq->with(['brand']),
                                 'consumableDetail' => fn($cq) => $cq->with('unit'),
                             ])
                             ->first();
@@ -330,8 +325,9 @@ class InventoryController extends Controller
                 $product->setAttribute('variant',                $ad->variant);
                 $product->setAttribute('warranty_period_months', $ad->warranty_period_months);
                 $product->setAttribute('is_serialized',          $ad->is_serialized);
+                $product->setAttribute('model_code',             $ad->model_code);
+                $product->setAttribute('model_name',             $ad->model_code);
                 $product->setRelation('brand', $ad->brand);
-                $product->setRelation('model', $ad->model);
             }
             if ($product->consumableDetail) {
                 $cd = $product->consumableDetail;

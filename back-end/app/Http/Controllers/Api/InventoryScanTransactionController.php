@@ -103,7 +103,7 @@ class InventoryScanTransactionController extends Controller
                     $q->whereRaw("LOWER(TRIM(COALESCE(barcode,''))) = ?",       [$norm])
                       ->orWhereRaw("LOWER(TRIM(COALESCE(product_code,''))) = ?", [$norm]);
                 })
-                ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                ->with(['applianceDetail.brand',
                         'consumableDetail.unit'])
                 ->first();
             if ($p) {
@@ -119,7 +119,7 @@ class InventoryScanTransactionController extends Controller
             if ($serial && $serial->product_id) {
                 $p = Product::query()
                     ->where('product_id', $serial->product_id)
-                    ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                    ->with(['applianceDetail.brand',
                             'consumableDetail.unit'])
                     ->first();
                 if ($p) {
@@ -136,7 +136,7 @@ class InventoryScanTransactionController extends Controller
                     ->where(function ($q) use ($ean) {
                         $q->where('barcode', $ean)->orWhere('product_code', $ean);
                     })
-                    ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                    ->with(['applianceDetail.brand',
                             'consumableDetail.unit'])
                     ->first();
                 if ($p) {
@@ -158,7 +158,7 @@ class InventoryScanTransactionController extends Controller
             if ($detail) {
                 $p = Product::query()
                     ->where('product_id', $detail->product_id)
-                    ->with(['applianceDetail.brand', 'applianceDetail.modelLookup',
+                    ->with(['applianceDetail.brand',
                             'consumableDetail.unit'])
                     ->first();
                 if ($p) {
@@ -455,9 +455,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',
-                'applianceDetail.modelLookup',
-                'consumableDetail.unit',
+                'applianceDetail.brand',                'consumableDetail.unit',
             ]);
 
             $payload = [
@@ -664,9 +662,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',
-                'applianceDetail.modelLookup',
-                'consumableDetail.unit',
+                'applianceDetail.brand',                'consumableDetail.unit',
             ]);
 
             return $this->success([
@@ -717,7 +713,6 @@ class InventoryScanTransactionController extends Controller
             'category',
             'status',
             'applianceDetail.brand',
-            'applianceDetail.modelLookup',
             'consumableDetail.unit',
         ]);
 
@@ -791,9 +786,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',
-                'applianceDetail.modelLookup',
-                'consumableDetail.unit',
+                'applianceDetail.brand',                'consumableDetail.unit',
             ]);
 
             return $this->success([

@@ -8,6 +8,7 @@ use App\Models\Adjustment;
 use App\Models\AdjustmentDetail;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Support\RealtimeBroadcaster;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,9 @@ class AdjustmentController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Adjustment::with(['location', 'createdBy', 'approvedBy', 'status']);
+            $query = Adjustment::query()
+                ->forUser($request->user())
+                ->with(['location', 'createdBy', 'approvedBy', 'status']);
 
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);
@@ -98,6 +101,8 @@ class AdjustmentController extends Controller
             }
 
             DB::commit();
+
+            RealtimeBroadcaster::inventoryChanged((int) $adjustment->location_id, 'stock_adjusted');
 
             return $this->success($adjustment->load(['location', 'createdBy', 'details.product']), 'Adjustment created successfully', 201);
         } catch (ValidationException $e) {

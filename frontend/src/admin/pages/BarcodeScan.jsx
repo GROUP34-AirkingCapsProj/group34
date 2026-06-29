@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ProductRegisterModal from '../components/ProductRegisterModal';
 import {
@@ -13,7 +14,7 @@ import {
 } from '@zxing/library';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
-  itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI, modelsAPI,
+  itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI,
   receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI, barcodeScanAPI, locationsAPI, purchaseOrdersAPI,
   istAPI,
 } from '../services/api';
@@ -102,19 +103,6 @@ const MODES = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
         <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-      </svg>
-    ),
-  },
-  {
-    key: 'transfer',
-    label: 'Transfer',
-    apiLabel: 'TRANSFER',
-    color: '#f59e0b',
-    bg: '#fffbeb',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
-        <path d="M17 3l4 4-4 4"/><path d="M3 7h18"/>
-        <path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>
       </svg>
     ),
   },
@@ -541,10 +529,12 @@ function pickPreferredCameraDeviceId(devices, savedId) {
 
 const BarcodeScan = () => {
   const navigate = useNavigate();
-  const { user: _user, refreshUser } = useAuth();
+  const { user: _user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName: enforcedLocationName, locationType: enforcedLocationType, isStrictLocation, allowedLocations } = useUserLocation();
   const roleKey = useMemo(() => getRoleKey(_user || {}), [_user]);
   const isAdminRole = roleKey === ROLES.ADMIN;
+  // Barcode inventory processing: admin, branch manager, and warehouse personnel.
+  const canScan = isAdminRole || (typeof can === 'function' && can('barcode_inventory_processing', 'create'));
   /** Browsers block getUserMedia on plain http:// unless hostname is localhost. */
   const cameraBlockedPlainHttp = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -596,7 +586,6 @@ const BarcodeScan = () => {
   /* ── filters ── */
   const [categories,     setCategories]     = useState([]);
   const [brands,         setBrands]         = useState([]);
-  const [models,         setModels]         = useState([]);
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand,    setFilterBrand]    = useState('');
   const [filterModel,    setFilterModel]    = useState('');
@@ -608,8 +597,7 @@ const BarcodeScan = () => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [txSubmitting, setTxSubmitting] = useState(false);
   const [txLogs, setTxLogs] = useState([]);
-  const [transferSubmode, setTransferSubmode] = useState('out'); // 'out' = ship from warehouse, 'in' = receive at showroom
-  const [inTransitTransfers, setInTransitTransfers] = useState([]);
+  const [transferSubmode, setTransferSubmode] = useState('out'); // kept for legacy: no longer used by a selectable mode
   const [txForm, setTxForm] = useState({
     quantity: 1,
     condition: 'Good',
@@ -664,11 +652,6 @@ const BarcodeScan = () => {
   const [notFoundPromptOpen, setNotFoundPromptOpen] = useState(false);
   const [pendingRegisterBarcode, setPendingRegisterBarcode] = useState('');
   const [registerProductOpen, setRegisterProductOpen] = useState(false);
-
-  const transferDestinationLocations = useMemo(
-    () => sortLocationsCarmenFirst(locations),
-    [locations],
-  );
 
   const bsrFilteredPos = useMemo(
     () => bsrPoList.filter((po) => {
@@ -810,7 +793,6 @@ const BarcodeScan = () => {
   useEffect(() => {
     categoriesAPI.getAll().then((r) => setCategories(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     brandsAPI.getAll().then((r)     => setBrands(Array.isArray(r.data) ? r.data : [])).catch(() => {});
-    modelsAPI.getAll({ per_page: 200 }).then((r) => setModels(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     locationsAPI
       .getAll({ per_page: 500 })
       .then((r) => setLocations(extractApiDataArray(r)))
@@ -1131,11 +1113,9 @@ const BarcodeScan = () => {
       const engineTransactionType =
         modeEarly?.key === 'receive-po'
           ? 'receiving'
-          : modeEarly?.key === 'transfer' && transferSubmode === 'out'
-            ? 'transfer'
-            : modeEarly?.key === 'audit'
-              ? 'audit'
-              : null;
+          : modeEarly?.key === 'audit'
+            ? 'audit'
+            : null;
 
       if (engineTransactionType) {
         if (engineTransactionType === 'audit') {
@@ -1144,13 +1124,6 @@ const BarcodeScan = () => {
             return;
           }
         }
-        if (engineTransactionType === 'transfer') {
-          if (!txForm.location_id || !txForm.to_location_id) {
-            toast.error('Select source and destination locations before scanning.');
-            return;
-          }
-        }
-
         const qtyEngine = Math.max(1, Number(txForm.quantity) || 1);
         const body = {
           barcode: code,
@@ -1161,11 +1134,6 @@ const BarcodeScan = () => {
             body.po_id = Number(txForm.pc_id);
           }
           body.location_id = Number(txForm.location_id);
-          body.quantity = qtyEngine;
-        }
-        if (engineTransactionType === 'transfer') {
-          body.from_location_id = Number(txForm.location_id);
-          body.to_location_id = Number(txForm.to_location_id);
           body.quantity = qtyEngine;
         }
         if (engineTransactionType === 'audit') {
@@ -1235,11 +1203,6 @@ const BarcodeScan = () => {
               window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
                 detail: { transaction_type: 'receiving', po_id: body.po_id || null },
               }));
-            }
-            if (engineTransactionType === 'transfer') {
-              transfersAPI.getAll({ per_page: 100 }).then((r) => {
-                setInTransitTransfers(Array.isArray(r?.data) ? r.data : []);
-              }).catch(() => {});
             }
           });
         }
@@ -2311,36 +2274,6 @@ const BarcodeScan = () => {
 
   const currentModeKey = (scanMode || MODES[modeIndex])?.key;
 
-  useEffect(() => {
-    if (currentModeKey !== 'transfer') {
-      setTransferSubmode('out');
-      return;
-    }
-    setIstLoading(true);
-    istAPI.getAll({ per_page: 100 })
-      .then((r) => {
-        const all = Array.isArray(r?.data) ? r.data : [];
-        // Show only Approved ISTs where the user's location is the source
-        const locId = String(enforcedLocationId || '');
-        const filtered = isAdminRole
-          ? all.filter(t => t.status?.status_name === 'Approved')
-          : all.filter(t =>
-              t.status?.status_name === 'Approved' &&
-              (!locId || String(t.from_location_id) === locId)
-            );
-        setIstList(filtered);
-      })
-      .catch(() => setIstList([]))
-      .finally(() => setIstLoading(false));
-  }, [currentModeKey, enforcedLocationId, isAdminRole]);
-
-  const transfersToReceive = useMemo(() => {
-    if (!txForm.to_location_id) return [];
-    return inTransitTransfers.filter(
-      (t) => t.status?.status_name === 'In Transit' && String(t.to_location_id) === String(txForm.to_location_id),
-    );
-  }, [inTransitTransfers, txForm.to_location_id]);
-
   /* When FROM LOCATION changes, show stock for that row (or null if no record there) */
   useEffect(() => {
     if (!scanResult?.inventoryRows?.length || !txForm.location_id) return;
@@ -2385,8 +2318,7 @@ const BarcodeScan = () => {
     }
 
     const available = availableAtLocation(scanResult.inventory);
-    const isTransferIn = mode.key === 'transfer' && transferSubmode === 'in';
-    if ((mode.key === 'issue-out' || (mode.key === 'transfer' && !isTransferIn))) {
+    if (mode.key === 'issue-out') {
       if (!scanResult.inventory) {
         toast.error('No inventory record for this product at the selected location. Receive stock first or pick another location.');
         return;
@@ -2555,71 +2487,6 @@ const BarcodeScan = () => {
           location: getLocationName(locationId),
           at: new Date().toLocaleTimeString(),
         }, ...prev].slice(0, 8));
-      } else if (mode.key === 'transfer' && isTransferIn) {
-        if (!txForm.to_location_id) {
-          toast.error('Select the showroom (destination) where stock is arriving.');
-          return;
-        }
-        if (!txForm.pending_transfer_id) {
-          toast.error('Select the in-transit transfer to receive against.');
-          return;
-        }
-        const res = await transfersAPI.receive(txForm.pending_transfer_id, {
-          barcode: scanResult.barcode,
-          quantity: qtyNum,
-        });
-        toast.success('Showroom receipt recorded — destination stock updated.');
-        setTxLogs((prev) => [{
-          id: Date.now(),
-          mode: `${mode.label} (IN)`,
-          ref: res?.data?.transfer_number || res?.data?.transfer_id || 'Received',
-          barcode: scanResult.barcode,
-          qty: qtyNum,
-          location: getLocationName(txForm.to_location_id),
-          at: new Date().toLocaleTimeString(),
-        }, ...prev].slice(0, 8));
-        try {
-          const trRes = await transfersAPI.getAll({ per_page: 100 });
-          setInTransitTransfers(Array.isArray(trRes?.data) ? trRes.data : []);
-        } catch { /* ignore */ }
-      } else if (mode.key === 'transfer') {
-        if (!locationId) {
-          toast.error('Select source location.');
-          return;
-        }
-        if (!txForm.to_location_id) {
-          toast.error('Select destination showroom/location.');
-          return;
-        }
-        if (String(locationId) === String(txForm.to_location_id)) {
-          toast.error('From and To locations must be different.');
-          return;
-        }
-        const res = await transfersAPI.create({
-          from_location_id: locationId,
-          to_location_id: txForm.to_location_id,
-          transfer_number: `TR-${Date.now()}`,
-          transfer_date: today,
-          ship_only: !!txForm.ship_transfer_first,
-          details: [
-            {
-              product_id: productId,
-              quantity_transferred: qtyNum,
-            },
-          ],
-        });
-        toast.success(txForm.ship_transfer_first
-          ? 'Transfer shipped — showroom must scan to receive stock at destination.'
-          : 'Transfer posted successfully.');
-        setTxLogs((prev) => [{
-          id: Date.now(),
-          mode: mode.label,
-          ref: res?.data?.transfer_number || res?.transfer_number || 'Posted',
-          barcode: scanResult.barcode,
-          qty: qtyNum,
-          location: `${getLocationName(locationId)} -> ${getLocationName(txForm.to_location_id)}`,
-          at: new Date().toLocaleTimeString(),
-        }, ...prev].slice(0, 8));
       } else if (mode.key === 'adjust') {
         if (!locationId) {
           toast.error('Select a location for adjustment.');
@@ -2660,18 +2527,12 @@ const BarcodeScan = () => {
       );
       reloadRecentMovement();
       if (mode.key === 'receive-po') loadPurchaseOrders();
-      if (mode.key === 'transfer' && !isTransferIn) {
-        try {
-          const trRes = await transfersAPI.getAll({ per_page: 100 });
-          setInTransitTransfers(Array.isArray(trRes?.data) ? trRes.data : []);
-        } catch { /* ignore */ }
-      }
     } catch (err) {
       toast.error(err.message || 'Failed to execute inventory action.');
     } finally {
       setTxSubmitting(false);
     }
-  }, [scanResult, scanMode, modeIndex, txForm, scannedByName, getLocationName, mergeFreshInventoryForSession, reloadRecentMovement, loadPurchaseOrders, transferSubmode, purchaseOrders, receivePoProductIds]);
+  }, [scanResult, scanMode, modeIndex, txForm, scannedByName, getLocationName, mergeFreshInventoryForSession, reloadRecentMovement, loadPurchaseOrders, purchaseOrders, receivePoProductIds]);
 
   /* ── mode-aware field labels ── */
   const getModeLabels = (modeKey) => {
@@ -2781,11 +2642,16 @@ const BarcodeScan = () => {
   if (scanMode === null) {
     return (
       <AdminLayout>
-        <div className="bs-page">
-          <div className="bs-page-header">
-            <h1>Inventory Operation</h1>
-            <p>Scan barcode or QR code to view item details and perform inventory lookups</p>
-          </div>
+        <div className="ak-page bs-page">
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">Inventory · Barcode</p>
+                <h1 className="ak-title">Inventory Operation</h1>
+                <p className="ak-sub">Scan barcode or QR code to view item details and perform inventory lookups.</p>
+              </div>
+            </div>
+          </header>
 
           {/* ── mode action cards ── */}
           <div className="bs-mode-cards">
@@ -2909,7 +2775,7 @@ const BarcodeScan = () => {
             </div>
           </div>
           {bsrPoLoading ? (
-            <div className="bsr-empty">Loading purchase orders…</div>
+            <Loader label="Loading purchase orders" />
           ) : bsrFilteredPos.length === 0 ? (
             <div className="bsr-empty">No approved purchase orders found.</div>
           ) : bsrFilteredPos.map((po) => {
@@ -3075,7 +2941,7 @@ const BarcodeScan = () => {
                     const pid = d.product_id || prod.product_id;
                     const detailId = d.po_detail_id;
                     const name = prod.product_name || prod.name || `Product #${pid}`;
-                    const sku = prod.product_code || prod.barcode || prod.sku || '—';
+                    const sku = prod.applianceDetail?.model_code || prod.model_code || prod.barcode || '—';
                     const ordered = Number(d.quantity_ordered || d.quantity || d.quantity_amount || 0);
                     const isSerial = prod.product_type === 'appliance';
                     const pps = Number(prod.pieces_per_package) || 1;
@@ -3235,7 +3101,7 @@ const BarcodeScan = () => {
                     <p className="bs-cam-hint">Position the barcode in the frame and tap <strong>Scan</strong> — auto-capture is disabled; only the button triggers a scan.</p>
                   )}
                   {cameraError && <p className="bs-cam-err">{cameraError}</p>}
-                  {cameraActive && (
+                  {cameraActive && canScan && (
                     <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Scan barcode from current camera frame">
                       <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">Scan</span>
                     </button>
@@ -3279,7 +3145,7 @@ const BarcodeScan = () => {
                     type="button"
                     className="bsr-capture-btn"
                     onClick={handleBsrCaptureClick}
-                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrScanInput.trim().length < 4}
+                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrScanInput.trim().length < 4}
                     aria-label="Submit barcode"
                   >
                     {bsrScanning ? 'Scanning…' : 'Submit'}
@@ -3386,423 +3252,8 @@ const BarcodeScan = () => {
                       });
                     }
                   }}
-                  disabled={totalScanned === 0 && !isFullyReceived}
+                  disabled={!canScan || (totalScanned === 0 && !isFullyReceived)}
                 ><BsrCheckIcon /> {isFullyReceived ? 'Complete Receiving' : 'Save & Exit'}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  /* ─────────────────────────────────────────────
-     RENDER: IST TRANSFER — IST list view
-  ───────────────────────────────────────────── */
-  if (scanMode?.key === 'transfer' && !istSelectedIst) {
-    const fmtDate = (v) => v ? String(v).slice(0, 10) : '—';
-    return (
-      <AdminLayout>
-        <div className="bsr-page">
-          <div className="bsr-header-card">
-            <button className="bs-topback-btn" onClick={exitScanMode} style={{ marginRight: 12, flexShrink: 0 }} type="button">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
-              Back
-            </button>
-            <div className="bsr-header-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" width="26" height="26">
-                <path d="M17 3l4 4-4 4"/><path d="M3 7h18"/>
-                <path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>
-              </svg>
-            </div>
-            <div className="bsr-header-text">
-              <h1>TRANSFER SCAN</h1>
-              <p>Select an approved IST to scan items for dispatch</p>
-            </div>
-          </div>
-
-          {istLoading ? (
-            <div className="bsr-empty">Loading approved ISTs…</div>
-          ) : istList.length === 0 ? (
-            <div className="bsr-empty">
-              <p>No approved ISTs assigned to your location.</p>
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>ISTs are created from approved Transfer Requests.</span>
-            </div>
-          ) : istList.map((ist) => {
-            const from  = ist.fromLocation?.location_name || ist.from_location?.location_name || '—';
-            const to    = ist.toLocation?.location_name   || ist.to_location?.location_name   || '—';
-            const total = Array.isArray(ist.details) ? ist.details.reduce((s, d) => s + (parseInt(d.quantity_requested) || 0), 0) : 0;
-            const scanned = Array.isArray(ist.details) ? ist.details.reduce((s, d) => s + (parseInt(d.quantity_scanned) || 0), 0) : 0;
-            return (
-              <button key={ist.transfer_id} type="button" className="bsr-po-card" onClick={() => handleIstSelectIst(ist)}>
-                <div className="bsr-po-card-top">
-                  <div className="bsr-po-left">
-                    <span className="bsr-po-number">{ist.transfer_number}</span>
-                    <span className="bsr-badge bsr-badge--approved">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
-                      APPROVED
-                    </span>
-                    {scanned > 0 && <span className="bsr-badge bsr-badge--partial">{scanned}/{total} scanned</span>}
-                  </div>
-                  <div className="bsr-po-amount">
-                    <span className="bsr-amount-label">TRANSFER DATE</span>
-                    <span className="bsr-amount-value" style={{ fontSize: 14 }}>{fmtDate(ist.transfer_date)}</span>
-                  </div>
-                </div>
-                <div className="bsr-po-card-meta">
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">FROM</span><span className="bsr-meta-value">{from}</span></div>
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">TO</span><span className="bsr-meta-value">{to}</span></div>
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">PRODUCTS</span><span className="bsr-meta-value">{Array.isArray(ist.details) ? ist.details.length : 0} line(s)</span></div>
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">TOTAL QTY</span><span className="bsr-meta-value">{total} unit(s)</span></div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  /* ─────────────────────────────────────────────
-     RENDER: IST TRANSFER — 2-column scan workflow
-  ───────────────────────────────────────────── */
-  if (scanMode?.key === 'transfer' && istSelectedIst) {
-    const istDetails     = istSelectedIst?.details || [];
-    const totalScanned   = istScannedItems.length;
-    const allFullyScanned = istDetails.length > 0 && istDetails.every((d) => {
-      const prog = istProgress[d.transfer_detail_id] || 0;
-      return prog >= (parseInt(d.quantity_requested) || 0);
-    });
-    const anyScanned = istDetails.some((d) => (istProgress[d.transfer_detail_id] || 0) > 0);
-    const from = istSelectedIst.fromLocation?.location_name || istSelectedIst.from_location?.location_name || '—';
-    const to   = istSelectedIst.toLocation?.location_name   || istSelectedIst.to_location?.location_name   || '—';
-
-    return (
-      <AdminLayout>
-        <div className="bsr-page">
-          <div className="bsr-header-card">
-            <div className="bsr-header-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" width="26" height="26">
-                <path d="M17 3l4 4-4 4"/><path d="M3 7h18"/>
-                <path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>
-              </svg>
-            </div>
-            <div className="bsr-header-text">
-              <h1>TRANSFER SCAN</h1>
-              <p>{from} → {to}</p>
-            </div>
-            <div className="bsr-receiving-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
-              {istSelectedIst.transfer_number}
-            </div>
-          </div>
-
-          {/* Alert modal */}
-          {istAlertModal && (
-            <div className="bsr-alert-overlay" role="dialog" aria-modal="true">
-              <div className={`bsr-alert-modal bsr-alert-modal--${istAlertModal.type}`}>
-                <div className="bsr-alert-icon">
-                  {istAlertModal.type === 'success' ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="36" height="36"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  ) : istAlertModal.type === 'warning' ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" width="36" height="36"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" width="36" height="36"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  )}
-                </div>
-                <h3 className="bsr-alert-title">{istAlertModal.title}</h3>
-                <p className="bsr-alert-message">{istAlertModal.message}</p>
-                <button type="button" className={`bsr-alert-dismiss-btn bsr-alert-dismiss-btn--${istAlertModal.type}`} onClick={handleIstAlertDismiss} autoFocus>
-                  {istAlertModal.type === 'success' ? 'OK' : 'Dismiss'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Confirm dispatch modal */}
-          {istConfirmOpen && (
-            <div className="bsr-alert-overlay" role="dialog" aria-modal="true">
-              <div className="bsr-alert-modal bsr-alert-modal--warning">
-                <div className="bsr-alert-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" width="36" height="36">
-                    <path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>
-                  </svg>
-                </div>
-                <h3 className="bsr-alert-title">Confirm Dispatch</h3>
-                <p className="bsr-alert-message">
-                  You have scanned <strong>{istDetails.reduce((s, d) => s + (istProgress[d.transfer_detail_id] || 0), 0)}</strong> of{' '}
-                  <strong>{istDetails.reduce((s, d) => s + (parseInt(d.quantity_requested) || 0), 0)}</strong> units.
-                  {!allFullyScanned && ' Not all items are fully scanned.'}
-                  {' '}Confirm dispatch to set this IST to In Transit?
-                </p>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 8 }}>
-                  <button type="button" className="bsr-btn-cancel" style={{ minWidth: 100 }} onClick={() => setIstConfirmOpen(false)} disabled={istConfirming}>
-                    Cancel
-                  </button>
-                  <button type="button" className="bsr-alert-dismiss-btn bsr-alert-dismiss-btn--warning" style={{ minWidth: 160 }} onClick={handleIstConfirmDispatch} disabled={istConfirming}>
-                    {istConfirming ? 'Dispatching…' : 'Confirm Transfer'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="bsr-workflow">
-            {/* LEFT: IST header + product list */}
-            <div className="bsr-left">
-              <div className="bsr-card">
-                <div className="bsr-card-head">
-                  <div className="bsr-card-icon bsr-card-icon--doc">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
-                      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-                    </svg>
-                  </div>
-                  <span className="bsr-card-title">IST DOCUMENT</span>
-                  <button type="button" className="bsr-close-btn" onClick={() => { setIstSelectedIst(null); setIstScannedItems([]); setIstProgress({}); setIstActiveLine(null); }} title="Back to IST list">×</button>
-                </div>
-                <div className="bsr-po-details">
-                  <div className="bsr-detail-row"><span className="bsr-detail-label">IST Number:</span><span className="bsr-detail-value bsr-detail-value--bold">{istSelectedIst.transfer_number}</span></div>
-                  <div className="bsr-detail-row"><span className="bsr-detail-label">From:</span><span className="bsr-detail-value bsr-detail-value--bold">{from}</span></div>
-                  <div className="bsr-detail-row"><span className="bsr-detail-label">To:</span><span className="bsr-detail-value bsr-detail-value--bold">{to}</span></div>
-                  <div className="bsr-detail-row"><span className="bsr-detail-label">Transfer Date:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrFmtDate(istSelectedIst.transfer_date)}</span></div>
-                </div>
-              </div>
-
-              <div className="bsr-card">
-                <div className="bsr-card-head">
-                  <div className="bsr-card-icon bsr-card-icon--box">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-                    </svg>
-                  </div>
-                  <span className="bsr-card-title">ITEMS TO TRANSFER</span>
-                  {istLoadingStatus && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>Loading…</span>}
-                </div>
-                <div className="bsr-items-list">
-                  {istDetails.length === 0 ? (
-                    <p className="bsr-items-empty">No line items on this IST.</p>
-                  ) : istDetails.map((d) => {
-                    const name      = d.product?.product_name || `Product #${d.product_id}`;
-                    const sku       = d.product?.product_code || '—';
-                    const requested = parseInt(d.quantity_requested) || 0;
-                    const scanned   = istProgress[d.transfer_detail_id] || 0;
-                    const pct       = requested > 0 ? Math.min(100, (scanned / requested) * 100) : 0;
-                    const done      = scanned >= requested && requested > 0;
-                    const isActive  = istActiveLine?.transfer_detail_id === d.transfer_detail_id;
-                    return (
-                      <div
-                        key={d.transfer_detail_id}
-                        className={`bsr-item-row bsr-item-row--clickable${isActive ? ' bsr-item-row--active' : ''}${done ? ' bsr-item-row--done' : ''}`}
-                        onClick={() => !done && setIstActiveLine(d)}
-                        title={done ? 'Fully scanned' : 'Click to scan this item'}
-                      >
-                        <div className="bsr-item-info">
-                          <span className="bsr-item-name">{name}</span>
-                          <span className="bsr-item-sku">SKU: {sku}</span>
-                          <div className="bsr-item-badges">
-                            {d.product?.product_type === 'appliance'
-                              ? <span className="bsr-serialized-badge">SERIAL</span>
-                              : <span className="bsr-bulk-badge">BULK</span>}
-                            {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
-                          </div>
-                        </div>
-                        <div className="bsr-item-progress-row">
-                          <span className="bsr-item-progress-label">Progress:</span>
-                          <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>
-                            {scanned} / {requested} unit(s)
-                          </span>
-                        </div>
-                        <div className="bsr-progress-bar-wrap">
-                          <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%`, background: '#f59e0b' }}/>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT: Scan input + scanned list + confirm */}
-            <div className="bsr-right">
-              {/* Scan success overlay */}
-              {istScanSuccess && (
-                <div className="bsr-success-overlay">
-                  <div className="bsr-success-modal">
-                    <div className="bsr-success-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="40" height="40">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-                      </svg>
-                    </div>
-                    <h3 className="bsr-success-title">Scan Recorded</h3>
-                    <p className="bsr-success-product">{istScanSuccess.productName}</p>
-                    <div className="bsr-success-details">
-                      <div className="bsr-success-row"><span className="bsr-success-label">Barcode</span><span className="bsr-success-value bsr-success-code">{istScanSuccess.barcode}</span></div>
-                      <div className="bsr-success-row">
-                        <span className="bsr-success-label">Progress</span>
-                        <span className="bsr-success-value">
-                          {istScanSuccess.totalScanned} / {istScanSuccess.quantityReq} unit(s)
-                          {istScanSuccess.lineComplete && <span className="bsr-success-complete-tag">COMPLETE</span>}
-                        </span>
-                      </div>
-                      <div className="bsr-success-row">
-                        <span className="bsr-success-label">Remaining</span>
-                        <span className="bsr-success-value" style={{ color: istScanSuccess.remaining <= 0 ? '#16a34a' : '#d97706' }}>
-                          {istScanSuccess.remaining <= 0 ? '0 — fully scanned' : `${istScanSuccess.remaining} more`}
-                        </span>
-                      </div>
-                      {istScanSuccess.istFull && (
-                        <div className="bsr-success-row">
-                          <span className="bsr-success-label">IST Status</span>
-                          <span className="bsr-success-value" style={{ color: '#16a34a', fontWeight: 700 }}>ALL ITEMS SCANNED</span>
-                        </div>
-                      )}
-                    </div>
-                    <button type="button" className="bsr-success-done-btn" onClick={handleIstScanSuccessDone}>Done</button>
-                  </div>
-                </div>
-              )}
-
-              <div className="bsr-card">
-                <div className="bsr-card-head">
-                  <div className="bsr-card-icon bsr-card-icon--scan">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
-                      <path d="M3 5v4"/><path d="M3 15v4"/><path d="M7 5v2"/><path d="M7 17v2"/>
-                      <path d="M7 9v6"/><path d="M11 5v14"/><path d="M15 5v2"/><path d="M15 17v2"/>
-                      <path d="M15 9v6"/><path d="M19 5v4"/><path d="M19 15v4"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <span className="bsr-card-title">SCAN BARCODE</span>
-                    {istActiveLine ? (
-                      <p className="bsr-card-subtitle"><strong>{istActiveLine.product?.product_name || 'Selected Item'}</strong></p>
-                    ) : (
-                      <p className="bsr-card-subtitle bsr-card-subtitle--warn">Select an item from the left panel to begin</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Camera */}
-                <div className="bs-camera-box" style={{ marginBottom: 12 }}>
-                  <div id={HTML5_QR_MOUNT_ID} className="bs-html5qrcode-mount" style={{ display: cameraActive ? 'block' : 'none' }} />
-                  {!cameraActive && (
-                    <div className="bs-cam-idle">
-                      <div className="bs-cam-icon-wrap">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" width="38" height="38">
-                          <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-                  <div className="bs-bracket bs-tl"/><div className="bs-bracket bs-tr"/>
-                  <div className="bs-bracket bs-bl"/><div className="bs-bracket bs-br"/>
-                  {cameraActive && <div className="bs-scan-line"/>}
-                  {cameraActive && <p className="bs-cam-hint">Position barcode in frame and tap <strong>Scan</strong>.</p>}
-                  {cameraError && <p className="bs-cam-err">{cameraError}</p>}
-                  {cameraActive && (
-                    <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Scan barcode">
-                      <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">Scan</span>
-                    </button>
-                  )}
-                  {cameraActive
-                    ? <button className="bs-cam-btn bs-cam-stop" onClick={stopCamera} type="button">Stop Camera</button>
-                    : <button className="bs-cam-btn bs-cam-start" onClick={startCamera} type="button">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                        Start Camera
-                      </button>}
-                </div>
-                {cameraDevices.length > 0 && (
-                  <div className="bs-cam-select-bar" style={{ marginBottom: 10 }}>
-                    <label htmlFor="ist-camera-device" className="bs-cam-select-bar-label">Camera</label>
-                    <select id="ist-camera-device" className="bs-cam-select-bar-input" value={cameraSelectValue} onChange={onCameraDeviceChange}>
-                      {cameraDevices.map((d) => (
-                        <option key={d.deviceId} value={d.deviceId}>{d.label}{isLikelyVirtualCameraLabel(d.label) ? ' (virtual)' : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="bsr-scan-row">
-                  <input
-                    ref={istInputRef}
-                    type="text"
-                    className={`bsr-scan-input${istScanning ? ' bsr-scan-input--scanning' : ''}`}
-                    placeholder={istActiveLine ? 'Scan or type barcode / serial…' : 'Select an item from the left panel first…'}
-                    value={istScanInput}
-                    onChange={(e) => setIstScanInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === 'Tab') {
-                        e.preventDefault();
-                        const raw = istScanInput.trim();
-                        if (raw.length >= 1) handleIstScan(raw);
-                      }
-                    }}
-                    autoComplete="off"
-                    disabled={istScanning || !istActiveLine || !!istScanSuccess || !!istAlertModal || istLoadingStatus}
-                  />
-                  <button
-                    type="button"
-                    className="bsr-capture-btn"
-                    onClick={() => { const raw = istScanInput.trim(); if (raw.length >= 1) handleIstScan(raw); }}
-                    disabled={istScanning || !istActiveLine || !!istScanSuccess || !!istAlertModal || istLoadingStatus || istScanInput.trim().length < 1}
-                    aria-label="Submit barcode"
-                  >
-                    {istScanning ? 'Scanning…' : 'Submit'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="bsr-card">
-                <div className="bsr-card-head">
-                  <div className="bsr-card-icon bsr-card-icon--cart">
-                    <BsrCartIcon size={18} />
-                  </div>
-                  <span className="bsr-card-title">SCANNED ITEMS</span>
-                  <span className="bsr-scanned-count">{totalScanned} {totalScanned === 1 ? 'item' : 'items'}</span>
-                </div>
-                {istScannedItems.length === 0 ? (
-                  <div className="bsr-scanned-empty">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
-                      <rect x="2" y="5" width="3" height="14" rx="1"/><rect x="7" y="5" width="1.5" height="14" rx="0.5"/>
-                      <rect x="10" y="5" width="3" height="14" rx="1"/><rect x="15" y="5" width="1.5" height="14" rx="0.5"/>
-                      <rect x="18" y="5" width="3" height="14" rx="1"/>
-                    </svg>
-                    <p>No items scanned yet</p>
-                  </div>
-                ) : (
-                  <div className="bsr-scanned-list">
-                    {istScannedItems.map((item) => (
-                      <div key={item.id} className="bsr-scanned-item" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="bsr-scanned-item-info" style={{ flex: 1 }}>
-                          <span className="bsr-scanned-item-name">{item.productName}</span>
-                          <span className="bsr-scanned-item-serial">{item.barcode}</span>
-                        </div>
-                        <span className="bsr-scanned-item-time">{item.at}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleIstRemoveScan(item)}
-                          title="Remove this scan"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: '2px 6px', fontSize: 16, lineHeight: 1 }}
-                        >✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="bsr-action-btns">
-                <button type="button" className="bsr-btn-cancel" onClick={() => { setIstSelectedIst(null); setIstScannedItems([]); setIstProgress({}); setIstActiveLine(null); }}>
-                  Back to IST List
-                </button>
-                <button
-                  type="button"
-                  className={`bsr-btn-complete${!anyScanned ? ' bsr-btn-complete--disabled' : ''}`}
-                  disabled={!anyScanned || istConfirming}
-                  onClick={() => setIstConfirmOpen(true)}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
-                  {allFullyScanned ? 'Confirm Transfer' : 'Confirm Dispatch (Partial)'}
-                </button>
               </div>
             </div>
           </div>
@@ -3816,7 +3267,7 @@ const BarcodeScan = () => {
   ───────────────────────────────────────────── */
   return (
     <AdminLayout>
-      <div className="bs-page">
+      <div className="ak-page bs-page">
         <div className="bs-page-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <button className="bs-topback-btn" onClick={exitScanMode} type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
@@ -3875,7 +3326,7 @@ const BarcodeScan = () => {
           {/* camera error */}
           {cameraError && <p className="bs-cam-err">{cameraError}</p>}
 
-          {cameraActive && (
+          {cameraActive && canScan && (
             <button
               type="button"
               className="bs-cam-shutter"
@@ -4121,8 +3572,8 @@ const BarcodeScan = () => {
                 ? 'Ship from warehouse. Use “Ship first” so stock only appears at the showroom after someone scans to receive here.'
                 : 'Truck arrived? Pick your showroom and the in-transit transfer, then scan each barcode to add stock at this location.'}
             </p>
-            <button type="button" className="btn-link" style={{ padding: 0, marginTop: 10, fontSize: 13 }} onClick={() => navigate('/admin/transfer-scan')}>
-              Open full checklist (print DR) →
+            <button type="button" className="btn-link" style={{ padding: 0, marginTop: 10, fontSize: 13 }} onClick={() => navigate('/admin/ist')}>
+              Open IST receive flow →
             </button>
           </div>
         )}
@@ -4145,10 +3596,12 @@ const BarcodeScan = () => {
           </div>
           <div className="bs-filter-col">
             <label>MODEL CODE</label>
-            <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)}>
-              <option value="">All</option>
-              {models.map((m) => <option key={m.model_id ?? m.id} value={m.model_id ?? m.id}>{m.model_name ?? m.name}</option>)}
-            </select>
+            <input
+              type="text"
+              value={filterModel}
+              onChange={(e) => setFilterModel(e.target.value)}
+              placeholder="Model code"
+            />
           </div>
         </div>
 
@@ -4176,8 +3629,8 @@ const BarcodeScan = () => {
                 {/* Left column */}
                 <div className="bs-result-col">
                   <div className="bs-result-cell">
-                    <span className="bs-rk">SKU</span>
-                    <span className="bs-rv">{scanResult.item.product_code || scanResult.item.code || '—'}</span>
+                    <span className="bs-rk">MODEL CODE</span>
+                    <span className="bs-rv">{scanResult.item.model_code || scanResult.item.applianceDetail?.model_code || '—'}</span>
                   </div>
                   <div className="bs-result-cell">
                     <span className="bs-rk">Category</span>
@@ -4406,41 +3859,6 @@ const BarcodeScan = () => {
                         onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
                         allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
                       />
-                    )}
-                  </div>
-                )}
-                {mode.key === 'transfer' && (
-                  <div className="bs-filter-col">
-                    <label>{transferSubmode === 'in' ? 'SHOWROOM (receiving here)' : 'TO SHOWROOM / LOCATION'}</label>
-                    <select
-                      value={txForm.to_location_id}
-                      onChange={(e) => setTxForm((p) => ({ ...p, to_location_id: e.target.value, pending_transfer_id: '' }))}
-                    >
-                      <option value="">Select showroom / location</option>
-                      {transferDestinationLocations.map((l) => (
-                        <option key={l.id ?? l.location_id} value={l.id ?? l.location_id}>
-                          {l.location_name || l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {mode.key === 'transfer' && transferSubmode === 'in' && (
-                  <div className="bs-filter-col" style={{ gridColumn: '1 / -1' }}>
-                    <label>IN-TRANSIT TRANSFER #</label>
-                    <select
-                      value={txForm.pending_transfer_id}
-                      onChange={(e) => setTxForm((p) => ({ ...p, pending_transfer_id: e.target.value }))}
-                    >
-                      <option value="">Select transfer (In Transit)</option>
-                      {transfersToReceive.map((t) => (
-                        <option key={t.transfer_id} value={t.transfer_id}>
-                          {t.transfer_number} — {t.from_location?.location_name || '—'} → {t.to_location?.location_name || '—'}
-                        </option>
-                      ))}
-                    </select>
-                    {transfersToReceive.length === 0 && txForm.to_location_id && (
-                      <p style={{ margin: '6px 0 0', fontSize: 12, color: '#b45309' }}>No in-transit transfers for this showroom. Create one using Transfer OUT (with Ship first) or Stock Transfer.</p>
                     )}
                   </div>
                 )}

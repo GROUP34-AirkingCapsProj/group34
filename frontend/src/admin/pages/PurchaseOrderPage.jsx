@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
@@ -10,15 +11,21 @@ import {
   locationsAPI,
   usersAPI,
   companySettingsAPI,
+  statusAPI,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { toast } from '../utils/toast';
+import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
 import DateInput from '../components/DateInput';
+import { confirmAction } from '../utils/confirm';
+import { toast } from '../utils/toast';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -92,7 +99,14 @@ const poLineLabel = (item) => {
 
 const PurchaseOrderPage = () => {
   const navigate = useNavigate();
-  const { user: authUser } = useAuth();
+  const { user: authUser, can } = useAuth();
+  const roleKey = getRoleKey(authUser);
+  const isAdmin = roleKey === ROLES.ADMIN;
+  // Purchase order creation: admin and inventory analyst.
+  const canCreatePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'create'));
+  // Purchase order approval: admin and branch manager (update permission). Mirrors the
+  // gate the retired Approval Queue used for approve/reject.
+  const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');
@@ -139,8 +153,16 @@ const PurchaseOrderPage = () => {
   // PO Status tab
   const [poStatusList,    setPoStatusList]    = useState([]);
   const [loadingPOStatus, setLoadingPOStatus] = useState(false);
+  const [poStatusLoaded,  setPoStatusLoaded]  = useState(false);
   const [poStatusError,   setPoStatusError]   = useState('');
   const [selectedPO,      setSelectedPO]      = useState(null);
+  // Per-PO approve/reject in-flight flag (holds the po_id being acted on)
+  const [poActionLoading, setPoActionLoading] = useState(null);
+
+  // Deep-link focus state
+  const focusPoId = useFocusTarget('po');
+  const focusHandledRef = useRef(false);
+  const [poPulse, firePoPulse] = useFocusPulse();
 
   // ── Load suppliers once ────────────────────────────────────────────────────
   useEffect(() => {
@@ -207,9 +229,24 @@ const PurchaseOrderPage = () => {
         if (!mounted) return;
         setPoStatusError(err?.message || 'Failed to load purchase orders.');
       })
-      .finally(() => { if (mounted) setLoadingPOStatus(false); });
+      .finally(() => { if (mounted) { setLoadingPOStatus(false); setPoStatusLoaded(true); } });
     return () => { mounted = false; };
   }, [activeTab]);
+
+  // Deep-link: a ?focus=po:<id> arrival switches to the status tab…
+  useEffect(() => {
+    if (focusPoId && !focusHandledRef.current) setActiveTab('status');
+  }, [focusPoId]);
+
+  // …then, once the status list has loaded, opens that PO (or toasts if gone).
+  useEffect(() => {
+    if (!focusPoId || focusHandledRef.current) return;
+    if (activeTab !== 'status' || !poStatusLoaded) return;
+    focusHandledRef.current = true;
+    const po = findById(poStatusList, ['po_id', 'id'], focusPoId);
+    if (po) { setSelectedPO(po); firePoPulse(); }
+    else toast.error('That purchase order is no longer available.');
+  }, [focusPoId, activeTab, poStatusLoaded, poStatusList, firePoPulse]);
 
   // ── PR selection ───────────────────────────────────────────────────────────
   const handleSelectPR = useCallback((pr) => {
@@ -224,6 +261,7 @@ const PurchaseOrderPage = () => {
         product_id:        d.product_id,
         product:           d.product_name || d.product?.product_name || `Product ${d.product_id}`,
         product_code:      d.product_code || d.product?.product_code || '',
+        model_code:        d.product?.applianceDetail?.model_code || d.model_code || '',
         product_type:      d.product_type || d.product?.product_type || '',
         brand_name:        d.brand_name ?? null,
         capacity_rating:   d.capacity_rating ?? null,
@@ -302,18 +340,10 @@ const PurchaseOrderPage = () => {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmitPO = useCallback(async () => {
-    if (!selectedPR) {
-      toast.error('Please select an approved Purchase Request first.');
-      return;
-    }
-    if (!selectedSupplierId) {
-      toast.error('Please select a supplier.');
-      return;
-    }
-    if (lineItems.length === 0) {
-      toast.error('No line items to submit.');
-      return;
-    }
+    if (!selectedPR)         { toast.error("Couldn't create PO", 'Please select an approved Purchase Request first.'); return; }
+    if (!selectedSupplierId) { toast.error("Couldn't create PO", 'Please select a supplier.'); return; }
+    if (lineItems.length === 0) { toast.error("Couldn't create PO", 'No line items to submit.'); return; }
+    if (!(await confirmAction({ title: 'Submit this purchase order?', confirmText: 'Submit PO', tone: 'primary' }))) return;
     setSubmitting(true);
     try {
       const payload = {
@@ -335,31 +365,93 @@ const PurchaseOrderPage = () => {
       const res   = await purchaseRequestsAPI.convertToPO(selectedPR.pr_id, payload);
       const data  = res?.data;
       const poNum = data?.po_number || data?.po?.po_number || 'New PO';
-      const prNum = selectedPR.pr_number;
+      toast.success('Purchase Order created', `${poNum} from ${selectedPR.pr_number} — waiting for admin approval`);
       setApprovedPRs(prev => prev.filter(p => p.pr_id !== selectedPR.pr_id));
       setSelectedPR(null);
       setLineItems([]);
-      toast.success(`${poNum} created from ${prNum}! Waiting for Admin approval.`);
     } catch (err) {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to create purchase order.';
-      toast.error(msg);
+      toast.error("Couldn't create PO", msg);
     } finally {
       setSubmitting(false);
     }
   }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, verifiedById, shipToName, shipToAddress]);
 
-  // ── Archive PO ───────────────────────────────────────────────────────────────
-  const handleArchivePO = useCallback(async (poId) => {
-    await purchaseOrdersAPI.delete(poId);
+  // ── PO Status list refresh (single source of truth) ──────────────────────────
+  const refreshPOStatusList = useCallback(async () => {
     const res = await purchaseOrdersAPI.getAll({ per_page: 100 });
     setPoStatusList(Array.isArray(res?.data) ? res.data : []);
   }, []);
 
+  // ── Archive PO ───────────────────────────────────────────────────────────────
+  const handleArchivePO = useCallback(async (poId) => {
+    await purchaseOrdersAPI.delete(poId);
+    await refreshPOStatusList();
+  }, [refreshPOStatusList]);
+
+  // Shared approve/reject flow: resolve the target status_id from the lookup,
+  // update the PO, refresh the list, and surface the right toasts. Both the
+  // approve and reject handlers delegate here with their own copy.
+  const applyPOStatus = useCallback(async (po, { match, missingLabel, successTitle, successText, errorTitle, genericError }) => {
+    setPoActionLoading(po.po_id);
+    try {
+      const stRes = await statusAPI.getAll({ category: 'purchase_order' });
+      const stRows = Array.isArray(stRes?.data) ? stRes.data : [];
+      const statusId = stRows.find((s) => match(String(s.status_name || '').toLowerCase()))?.status_id;
+      if (!statusId) {
+        toast.error(errorTitle, `No "${missingLabel}" status for purchase orders. Run backend migrations, then try again.`);
+        return;
+      }
+      await purchaseOrdersAPI.update(String(po.po_id), {
+        status_id: statusId,
+        ...(authUser?.user_id ? { approved_by: authUser.user_id } : {}),
+      });
+      await refreshPOStatusList();
+      setSelectedPO(null);
+      toast.success(successTitle, successText(po));
+    } catch (err) {
+      if (err?.status === 403) {
+        toast.error(errorTitle, 'This account cannot update purchase orders.');
+        return;
+      }
+      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || genericError;
+      toast.error(errorTitle, msg);
+    } finally {
+      setPoActionLoading(null);
+    }
+  }, [authUser, refreshPOStatusList]);
+
+  const handleApprovePO = useCallback((po) => applyPOStatus(po, {
+    match: (n) => n.includes('authori'),
+    missingLabel: 'Authorized',
+    successTitle: 'PO authorized',
+    successText: (p) => `${p.po_number} is now Approved.`,
+    errorTitle: "Couldn't authorize PO",
+    genericError: 'Could not authorize this PO.',
+  }), [applyPOStatus]);
+
+  const handleRejectPO = useCallback(async (po) => {
+    if (!(await confirmAction({
+      title: 'Reject this purchase order?',
+      text: `${po.po_number} will be marked Rejected and cannot proceed to receiving.`,
+      confirmText: 'Reject',
+      tone: 'danger',
+    }))) return;
+    await applyPOStatus(po, {
+      match: (n) => n.includes('reject'),
+      missingLabel: 'Rejected',
+      successTitle: 'PO rejected',
+      successText: (p) => `${p.po_number} has been rejected.`,
+      errorTitle: "Couldn't reject PO",
+      genericError: 'Could not reject this PO.',
+    });
+  }, [applyPOStatus]);
+
   // ── PO Status renderer ─────────────────────────────────────────────────────
   const renderPoStatusView = () => {
-    if (loadingPOStatus) return <div className="po-status-loading">Loading purchase orders…</div>;
+    if (loadingPOStatus) return <Loader label="Loading purchase orders" />;
     if (poStatusError)   return <div className="po-status-error-msg">{poStatusError}</div>;
     if (poStatusList.length === 0) return <div className="po-status-empty">No purchase orders found.</div>;
 
@@ -437,6 +529,26 @@ const PurchaseOrderPage = () => {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                     VIEW DETAILS
                   </button>
+                  {statusCfg.color === 'pending' && canApprovePO && (
+                    <div className="po-status-approve-actions">
+                      <button
+                        type="button"
+                        className="aq-btn-reject"
+                        disabled={poActionLoading === po.po_id}
+                        onClick={() => handleRejectPO(po)}
+                      >
+                        REJECT
+                      </button>
+                      <button
+                        type="button"
+                        className="aq-btn-approve"
+                        disabled={poActionLoading === po.po_id}
+                        onClick={() => handleApprovePO(po)}
+                      >
+                        {poActionLoading === po.po_id ? 'SAVING…' : 'APPROVE'}
+                      </button>
+                    </div>
+                  )}
                   <ArchiveButton
                     onArchive={() => handleArchivePO(po.po_id)}
                     disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
@@ -470,7 +582,7 @@ const PurchaseOrderPage = () => {
             </p>
           </div>
 
-          {loadingPRs && <div className="po-status-loading">Loading approved purchase requests…</div>}
+          {loadingPRs && <Loader label="Loading approved purchase requests" />}
           {prLoadError && <div className="po-status-error-msg">{prLoadError}</div>}
 
           {!loadingPRs && !prLoadError && approvedPRs.length === 0 && (
@@ -728,7 +840,7 @@ const PurchaseOrderPage = () => {
                             <tr className={isPartial ? 'pr-item-remaining' : ''}>
                               <td>
                                 <strong>{li.product}</strong>
-                                {li.product_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.product_code}</div>}
+                                {li.model_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.model_code}</div>}
                               </td>
                               <td>
                                 <span className={`po-type-badge ${li.product_type === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`}>
@@ -860,7 +972,7 @@ const PurchaseOrderPage = () => {
                         <tr>
                           <th>Quantity</th>
                           <th>Unit</th>
-                          <th>Item Code</th>
+                          <th>Model Code</th>
                           <th>Description</th>
                           <th>Unit Price</th>
                           <th>Amount</th>
@@ -871,7 +983,7 @@ const PurchaseOrderPage = () => {
                           <tr key={idx}>
                             <td>{li.quantity_ordered}</td>
                             <td>{getUnitForExport(li)}</td>
-                            <td>{li.product_code || '—'}</td>
+                            <td>{li.model_code || '—'}</td>
                             <td>{getDescriptionForExport(li)}</td>
                             <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
                             <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
@@ -937,15 +1049,18 @@ const PurchaseOrderPage = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="po-btn po-btn-final-submission"
-              style={{ width: '100%', marginTop: 12 }}
-              onClick={handleSubmitPO}
-              disabled={submitting}
-            >
-              {submitting ? 'SUBMITTING…' : 'SUBMIT PURCHASE ORDER'}
-            </button>
+            {canCreatePO && (
+              <button
+                type="button"
+                className="po-btn po-btn-final-submission"
+                style={{ width: '100%', marginTop: 12 }}
+                onClick={handleSubmitPO}
+                disabled={submitting}
+              >
+                {submitting ? 'SUBMITTING…' : 'SUBMIT PURCHASE ORDER'}
+              </button>
+            )}
+
           </div>
         </div>
       </div>
@@ -955,7 +1070,7 @@ const PurchaseOrderPage = () => {
   // ── Main render ────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page po-draft-creator-page">
+      <div className="ak-page po-recommendation-page po-draft-creator-page">
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
             <div className="po-creator-header-main">
@@ -1013,7 +1128,7 @@ const PurchaseOrderPage = () => {
           const details = Array.isArray(d.details) ? d.details : [];
 
           return (
-            <div className="po-detail-modal">
+            <div className={`po-detail-modal${poPulse ? ' ak-focus-pulse' : ''}`}>
               <div className="po-detail-head">
                 <div className="po-detail-head-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="26" height="26">
@@ -1128,8 +1243,8 @@ const PurchaseOrderPage = () => {
                               <td className="po-detail-table-idx">{idx + 1}</td>
                               <td>
                                 <div>{item.product_name || item.product?.product_name || `Item ${idx + 1}`}</div>
-                                {(item.product_code || item.product?.product_code) && (
-                                  <small style={{ color: '#94a3b8' }}>{item.product_code || item.product?.product_code}</small>
+                                {item.product?.applianceDetail?.model_code && (
+                                  <small style={{ color: '#94a3b8' }}>{item.product.applianceDetail.model_code}</small>
                                 )}
                                 {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
                               </td>
@@ -1194,7 +1309,7 @@ const PurchaseOrderPage = () => {
                   order_date:             d.order_date ? String(d.order_date).slice(0, 10) : '—',
                   expected_delivery_date: d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—',
                   items: details.map(item => ({
-                    product_code:      item.product_code || '—',
+                    product_code:      item.product?.applianceDetail?.model_code || item.model_code || '—',
                     name:              item.product_name || '—',
                     unit:              item.unit_abbreviation || (item.product_type === 'appliance' ? 'unit' : item.unit_name || 'pc'),
                     qty:               item.quantity_ordered,
@@ -1211,6 +1326,26 @@ const PurchaseOrderPage = () => {
                 };
                 return (
                   <div className="po-detail-footer">
+                    {statusCfg.color === 'pending' && canApprovePO && (
+                      <>
+                        <button
+                          type="button"
+                          className="aq-btn-reject"
+                          disabled={poActionLoading === d.po_id}
+                          onClick={() => handleRejectPO(d)}
+                        >
+                          REJECT
+                        </button>
+                        <button
+                          type="button"
+                          className="aq-btn-approve"
+                          disabled={poActionLoading === d.po_id}
+                          onClick={() => handleApprovePO(d)}
+                        >
+                          {poActionLoading === d.po_id ? 'SAVING…' : 'APPROVE'}
+                        </button>
+                      </>
+                    )}
                     <button type="button" className="po-detail-btn po-detail-btn--excel" onClick={() => exportPOToExcel(poPayload)}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       EXPORT EXCEL

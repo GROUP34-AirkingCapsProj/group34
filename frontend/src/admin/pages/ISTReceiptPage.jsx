@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
-import { istAPI, getApiBaseUrl } from '../services/api';
+import Loader from '../components/Loader';
+import { istAPI } from '../services/api';
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -31,7 +32,7 @@ const ISTReceiptPage = () => {
 
   useEffect(() => { fetchIst(); }, [fetchIst]);
 
-  const pdfUrl = `${getApiBaseUrl()}/ist/${id}/receipt/pdf`;
+  const pdfUrl = istAPI.receiptPdfUrl(id);
 
   return (
     <>
@@ -79,7 +80,7 @@ const ISTReceiptPage = () => {
       {/* ── Receipt body ── */}
       <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '32px 0' }}>
         {loading && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Loading receipt…</div>
+          <Loader label="Loading receipt" />
         )}
         {error && (
           <div style={{ maxWidth: 600, margin: '40px auto', background: '#fee2e2', color: '#dc2626', padding: 20, borderRadius: 8, textAlign: 'center' }}>
@@ -94,18 +95,19 @@ const ISTReceiptPage = () => {
             fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#111',
           }}>
 
-            {/* Company Header */}
-            <div style={{ fontWeight: 700, fontSize: 15, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              LGM Global Industries, Inc.
+            {/* Company Header — centered letterhead; address reflects the SOURCE location */}
+            <div style={{ textAlign: 'center', borderBottom: '2px solid #111', paddingBottom: 10, marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 22, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                LGM Global Industries, Inc.
+              </div>
+              {ist.from_location?.location_name && (
+                <div style={{ fontSize: 11, color: '#333', marginTop: 3 }}>{ist.from_location.location_name}</div>
+              )}
+              {ist.from_location?.address && (
+                <div style={{ fontSize: 11, color: '#333', marginTop: 1 }}>{ist.from_location.address}</div>
+              )}
+              <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>Vat Reg. TIN#: 771-347-425-000</div>
             </div>
-            <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
-              Bluz Bldg. Tadeco Road San Francisco Panabo City
-            </div>
-            <div style={{ fontSize: 10, color: '#444', marginTop: 1 }}>
-              Vat Reg. TIN#: 771-347-425-000
-            </div>
-
-            <hr style={{ border: 'none', borderTop: '1.5px solid #111', margin: '10px 0' }} />
 
             {/* Title + IST Number */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '10px 0 6px' }}>
@@ -122,14 +124,14 @@ const ISTReceiptPage = () => {
               <tbody>
                 <tr>
                   <td style={{ fontWeight: 700, width: 55, paddingBottom: 3 }}>FROM:</td>
-                  <td style={{ paddingLeft: 6, paddingBottom: 3 }}>{ist.fromLocation?.location_name || '—'}</td>
+                  <td style={{ paddingLeft: 6, paddingBottom: 3 }}>{ist.from_location?.location_name || '—'}</td>
                   <td style={{ width: 20 }}></td>
                   <td style={{ fontWeight: 700, width: 45, paddingBottom: 3 }}>DATE:</td>
                   <td style={{ paddingLeft: 6, paddingBottom: 3 }}>{fmtDate(ist.transfer_date)}</td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 700 }}>TO:</td>
-                  <td style={{ paddingLeft: 6 }}>{ist.toLocation?.location_name || '—'}</td>
+                  <td style={{ paddingLeft: 6 }}>{ist.to_location?.location_name || '—'}</td>
                   <td></td>
                   <td style={{ fontWeight: 700 }}>MR #:</td>
                   <td style={{ paddingLeft: 6 }}>{ist.transfer_number}</td>
@@ -157,7 +159,7 @@ const ISTReceiptPage = () => {
               <tbody>
                 {(ist.details || []).map((d, idx) => {
                   const name    = d.product?.product_name || `Product #${d.product_id}`;
-                  const model   = d.product?.model_name || d.product?.model?.model_name || null;
+                  const model   = d.product?.model_code || d.product?.applianceDetail?.model_code || null;
                   const label   = model ? `${name} — ${model}` : name;
                   const qty     = (d.quantity_received > 0 ? d.quantity_received : d.quantity_transferred) || 0;
                   const serials = Array.isArray(d.item_serials) ? d.item_serials : [];
@@ -169,9 +171,6 @@ const ISTReceiptPage = () => {
                       </td>
                       <td style={{ padding: '5px 8px', border: '1px solid #d1d5db' }}>
                         {label}
-                        {d.product?.product_code && (
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>SKU: {d.product.product_code}</div>
-                        )}
                       </td>
                       <td style={{ padding: '5px 8px', border: '1px solid #d1d5db', fontSize: 10, color: '#374151' }}>
                         {serials.length === 0 ? '—' : serials.join(', ')}
@@ -196,15 +195,15 @@ const ISTReceiptPage = () => {
               <tbody>
                 <tr>
                   <td style={{ padding: '3px 0', width: '50%' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Prepared by:</span>&nbsp;{fullName(ist.preparedBy)}
+                    <span style={{ fontWeight: 700, color: '#374151' }}>Prepared by:</span>&nbsp;{fullName(ist.prepared_by)}
                   </td>
                   <td style={{ padding: '3px 0' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Approved by:</span>&nbsp;{fullName(ist.approvedBy)}
+                    <span style={{ fontWeight: 700, color: '#374151' }}>Approved by:</span>&nbsp;{fullName(ist.approved_by)}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ padding: '3px 0' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Received by:</span>&nbsp;{fullName(ist.receivedBy)}
+                    <span style={{ fontWeight: 700, color: '#374151' }}>Received by:</span>&nbsp;{fullName(ist.received_by)}
                   </td>
                   <td></td>
                 </tr>

@@ -27,6 +27,7 @@ class WarrantyRecord extends Model
         'warranty_end_date'      => 'date',
         'claim_date'             => 'date',
         'warranty_period_months' => 'integer',
+        'status_id'              => 'integer',
     ];
 
     protected $appends = ['days_remaining', 'is_expired'];
@@ -55,6 +56,11 @@ class WarrantyRecord extends Model
     public function claimedByUser()
     {
         return $this->belongsTo(User::class, 'claimed_by', 'user_id');
+    }
+
+    public function claims()
+    {
+        return $this->hasMany(WarrantyClaim::class, 'warranty_id', 'warranty_id');
     }
 
     public function issuanceDetail()

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { categoriesAPI, brandsAPI, batchAPI } from '../services/api';
@@ -31,9 +32,15 @@ const formatDate = (d) => {
 };
 
 const CategoryBrandManagement = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
-  const isInventoryAnalystViewOnly = roleKey === ROLES.INVENTORY_ANALYST;
+  // Permission-driven: can edit if admin or granted category/brand create/update.
+  const canManage = roleKey === ROLES.ADMIN
+    || (typeof can === 'function' && (
+      can('category_management', 'create') || can('category_management', 'update')
+      || can('brand_management', 'create') || can('brand_management', 'update')
+    ));
+  const isViewOnly = !canManage;
 
   const location = useLocation();
   const [categories, setCategories] = useState([]);
@@ -111,7 +118,7 @@ const CategoryBrandManagement = () => {
   }, [location.pathname, loading]);
 
   const openAddCategory = () => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Categories & Brands is view-only for Inventory Analyst.');
       return;
     }
@@ -120,7 +127,7 @@ const CategoryBrandManagement = () => {
     setCategoryModal(true);
   };
   const openEditCategory = (c) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Editing categories is disabled for Inventory Analyst.');
       return;
     }
@@ -133,7 +140,7 @@ const CategoryBrandManagement = () => {
     setCategoryModal(true);
   };
   const openAddBrand = () => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Categories & Brands is view-only for Inventory Analyst.');
       return;
     }
@@ -142,7 +149,7 @@ const CategoryBrandManagement = () => {
     setBrandModal(true);
   };
   const openEditBrand = (b) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Editing brands is disabled for Inventory Analyst.');
       return;
     }
@@ -152,7 +159,7 @@ const CategoryBrandManagement = () => {
   };
 
   const handleCategorySubmit = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Saving categories is disabled for Inventory Analyst.');
       return;
     }
@@ -177,7 +184,7 @@ const CategoryBrandManagement = () => {
   };
 
   const handleBrandSubmit = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Saving brands is disabled for Inventory Analyst.');
       return;
     }
@@ -222,7 +229,7 @@ const CategoryBrandManagement = () => {
   };
 
   const handleRestoreCategory = async (c) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Restoring categories is disabled for Inventory Analyst.');
       return;
     }
@@ -236,7 +243,7 @@ const CategoryBrandManagement = () => {
   };
 
   const handleRestoreBrand = async (b) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Restoring brands is disabled for Inventory Analyst.');
       return;
     }
@@ -280,15 +287,18 @@ const CategoryBrandManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="cb-page">
-        <div className="cb-page-header">
-          <div>
-            <h1>Category &amp; Brand Management</h1>
-            <p>Manage item categories and brands for classification and reporting.</p>
+      <div className="ak-page cb-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Catalog · Classification</p>
+              <h1 className="ak-title">Category &amp; Brand Management</h1>
+              <p className="ak-sub">Manage item categories and brands for classification and reporting.</p>
+            </div>
           </div>
-        </div>
+        </header>
 
-        {loading && <div className="cb-loading">Loading...</div>}
+        {loading && <Loader />}
         {error && <div className="cb-error">Error: {error}</div>}
 
         {!loading && !error && (
@@ -301,7 +311,7 @@ const CategoryBrandManagement = () => {
                     <h2>Categories</h2>
                     <p className="cb-section-summary">{categories.length} active categories</p>
                   </div>
-                  {!isInventoryAnalystViewOnly && (
+                  {!isViewOnly && (
                     <button type="button" className="cb-btn-add" onClick={openAddCategory}>+ Add Category</button>
                   )}
                 </div>
@@ -320,7 +330,7 @@ const CategoryBrandManagement = () => {
                             {n} {n === 1 ? 'item' : 'items'} • {formatMoney(c.total_value, { decimals: 0 })}
                           </div>
                         </div>
-                        {!isInventoryAnalystViewOnly && (
+                        {!isViewOnly && (
                           <div className="cb-card-actions">
                             <button type="button" className="cb-btn-edit" onClick={() => openEditCategory(c)}>Edit</button>
                             <ArchiveButton onArchive={() => handleArchiveCategory(c)} />
@@ -338,7 +348,7 @@ const CategoryBrandManagement = () => {
                     <h2>Brands</h2>
                     <p className="cb-section-summary">{brands.length} active brands</p>
                   </div>
-                  {!isInventoryAnalystViewOnly && (
+                  {!isViewOnly && (
                     <button type="button" className="cb-btn-add" onClick={openAddBrand}>+ Add Brand</button>
                   )}
                 </div>
@@ -359,7 +369,7 @@ const CategoryBrandManagement = () => {
                             {n} {n === 1 ? 'item' : 'items'} • {formatMoney(b.total_value, { decimals: 0 })}
                           </div>
                         </div>
-                        {!isInventoryAnalystViewOnly && (
+                        {!isViewOnly && (
                           <div className="cb-card-actions">
                             <button type="button" className="cb-btn-edit" onClick={() => openEditBrand(b)}>Edit</button>
                             <ArchiveButton onArchive={() => handleArchiveBrand(b)} />
@@ -471,7 +481,7 @@ const CategoryBrandManagement = () => {
                             <td className="cb-archive-desc">{c.description || '—'}</td>
                             <td className="cb-archive-date">{formatDate(c.deleted_at)}</td>
                             <td>
-                              {!isInventoryAnalystViewOnly && (
+                              {!isViewOnly && (
                                 <button
                                   type="button"
                                   className="cb-btn-restore"
@@ -510,7 +520,7 @@ const CategoryBrandManagement = () => {
                             <td className="cb-archive-desc">{b.description || '—'}</td>
                             <td className="cb-archive-date">{formatDate(b.deleted_at)}</td>
                             <td>
-                              {!isInventoryAnalystViewOnly && (
+                              {!isViewOnly && (
                                 <button
                                   type="button"
                                   className="cb-btn-restore"

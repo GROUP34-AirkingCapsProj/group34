@@ -66,44 +66,12 @@
 }
 
 /* User Profile Section at Top of Sidebar */
-.sidebar-user-section {
+.sidebar-brand {
   padding: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-elevated);
-}
-
-.sidebar-user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.sidebar-user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sidebar-user-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-dark);
-}
-
-.sidebar-user-role {
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 /* Logout Button in Sidebar */
@@ -304,6 +272,34 @@
   flex-shrink: 0;
 }
 
+/* Loading skeleton — shown while effective permissions load (no partial flash) */
+.nav-skeleton { padding: 4px 0; }
+.nav-skel-section { margin-bottom: 18px; }
+.nav-skel-label {
+  display: block; height: 9px; border-radius: 4px;
+  margin: 0 12px 12px; opacity: 0.7;
+}
+.nav-skel-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; margin-bottom: 2px;
+}
+.nav-skel-icon { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; }
+.nav-skel-text { height: 10px; border-radius: 5px; }
+.nav-skel-label,
+.nav-skel-icon,
+.nav-skel-text {
+  background: linear-gradient(90deg, var(--bg-hover, #f3f4f6) 25%, rgba(0,0,0,0.04) 37%, var(--bg-hover, #f3f4f6) 63%);
+  background-size: 400% 100%;
+  animation: nav-skel-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes nav-skel-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-skel-label, .nav-skel-icon, .nav-skel-text { animation: none; }
+}
+
 .nav-icon svg {
   width: 18px;
   height: 18px;
@@ -440,6 +436,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  margin-left: auto;
 }
 
 .notification-btn {
@@ -518,6 +515,32 @@
   transition: transform 0.2s;
 }
 .hup-caret.open { transform: rotate(180deg); }
+
+/* ── Phone: collapse the user pill to just the avatar icon so the header
+      doesn't crowd (notification + name + location were overlapping). The
+      avatar stays the click target and the dropdown still opens. ── */
+@media (max-width: 640px) {
+  .header-actions { gap: 8px; }
+  .header-user-profile {
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    gap: 0;
+  }
+  .header-user-profile:hover { background: transparent; }
+  .header-user-info,
+  .hup-caret { display: none; }
+  .header-user-avatar { width: 34px; height: 34px; }
+  /* keep the location badge compact instead of pushing other items */
+  .header-location-badge { max-width: 150px; min-width: 0; }
+  .header-location-badge .location-badge__text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+}
 
 /* ── Profile Dropdown ── */
 .header-profile-dropdown {
@@ -810,11 +833,6 @@
 /* ===============================
    DASHBOARD
 ================================ */
-.dashboard-loading {
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--text-muted);
-}
 
 .dashboard-connection-error {
   padding: 32px 24px;

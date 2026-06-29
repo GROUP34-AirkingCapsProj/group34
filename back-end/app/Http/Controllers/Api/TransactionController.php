@@ -15,7 +15,17 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
+        $user  = $request->user();
         $query = Transaction::with(['branch', 'user']);
+
+        if (! $user->isCentralized()) {
+            $loc = $user->scopedLocationId();
+            if ($loc === null) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where('branch_id', $loc);
+            }
+        }
 
         // Search (item relation removed - items table dropped; use item_name if column exists)
         if ($request->has('search')) {

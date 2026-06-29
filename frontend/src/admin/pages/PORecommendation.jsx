@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { inventoryAPI, productsAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
@@ -205,7 +206,7 @@ const PORecommendation = () => {
 
   return (
     <AdminLayout>
-      <div className="sre-page">
+      <div className="ak-page sre-page">
         <div className="sre-banner">
           <div className="sre-banner-left">
             <div className="sre-banner-icon-wrap">
@@ -307,10 +308,7 @@ const PORecommendation = () => {
               </div>
             )}
             {loadingInventory ? (
-              <div className="sre-state-box">
-                <div className="sre-spinner"></div>
-                <p>Loading inventory data...</p>
-              </div>
+              <Loader label="Loading inventory data" />
             ) : filteredInventory.length === 0 ? (
               <div className="sre-state-box sre-state-empty">
                 <p>No replenishment targets found.</p>

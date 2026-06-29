@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
-import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
 
 /* Deterministic avatar colour from a string */
 const AVATAR_COLORS = ['#dc2626', '#d97706', '#059669', '#2563eb', '#7c3aed', '#db2777'];
@@ -16,11 +15,10 @@ const avatarColor = (str = '') => {
 const routePrefetchMap = {
   '/admin/dashboard': () => import('../pages/Dashboard'),
   '/admin/analytics': () => import('../pages/AnalyticsDashboard'),
-  '/admin/users': () => import('../pages/UserManagement'),
+  '/admin/roles': () => import('../pages/AccessControlPage'),
   '/admin/locations': () => import('../pages/LocationManagement'),
   '/admin/branches': () => import('../pages/LocationManagement'),
   '/admin/warehouses': () => import('../pages/LocationManagement'),
-  '/admin/roles': () => import('../pages/RolePermissions'),
   '/admin/categories': () => import('../pages/CategoryBrandManagement'),
   '/admin/brands': () => import('../pages/CategoryBrandManagement'),
   '/admin/items': () => import('../pages/ItemManagement'),
@@ -29,7 +27,6 @@ const routePrefetchMap = {
   '/admin/purchase-requests': () => import('../pages/PurchaseRequestPage'),
   '/admin/po-recommendations': () => import('../pages/PORecommendation'),
   '/admin/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
-  '/admin/receivings': () => import('../pages/ReceivingManagement'),
   '/admin/inventory': () => import('../pages/InventoryManagement'),
   '/admin/transfer-requests': () => import('../pages/TransferRequestPage'),
   '/admin/transfers': () => import('../pages/StockTransferManagement'),
@@ -46,6 +43,7 @@ const routePrefetchMap = {
   '/admin/profit-loss': () => import('../pages/ProfitLossManagement'),
   '/admin/issuance-scan': () => import('../pages/IssuanceScanPage'),
   '/admin/warranties': () => import('../pages/WarrantyManagement'),
+  '/admin/warranty-claims': () => import('../pages/WarrantyClaimPage'),
 };
 
 const prefetchedRoutes = new Set();
@@ -60,9 +58,10 @@ const adminMenuSections = [
     label: 'ADMINISTRATION',
     items: [
       { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
-      { name: 'Approval Queue', path: '/admin/approval-queue', icon: 'approval' },
       { name: 'Analytics Dashboard', path: '/admin/analytics', icon: 'analytics' },
-      { name: 'User Management', path: '/admin/users', icon: 'users' },
+      // User Management now lives in System Configuration → User Management tab.
+      { name: 'Role & Permissions', path: '/admin/roles', icon: 'roles' },
+      { name: 'Permission Audit', path: '/admin/permission-audit', icon: 'audit' },
       { name: 'Location Management', path: '/admin/branches', icon: 'location' },
       { name: 'System Configuration', path: '/admin/config', icon: 'config' },
       { name: 'Archive Management', path: '/admin/archive', icon: 'archive' },
@@ -75,7 +74,6 @@ const adminMenuSections = [
       { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: 'approval' },
       { name: 'Purchase Orders', path: '/admin/draft-po-creator', icon: 'procurement' },
       { name: 'PO Recommendation', path: '/admin/po-recommendations', icon: 'po' },
-      { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
       { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
       { name: 'Item Master', path: '/admin/items', icon: 'items' },
       { name: 'Categories and Brands', path: '/admin/categories', icon: 'category' },
@@ -86,7 +84,7 @@ const adminMenuSections = [
     items: [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       { name: 'Transfer Requests', path: '/admin/transfer-requests', icon: 'transfer' },
-      { name: 'Stock Transfers', path: '/admin/transfers', icon: 'transfer' },
+      { name: 'Stock Transfers', path: '/admin/transfers', icon: 'transfer', adminOnly: true },
       { name: 'Interbranch Transfers', path: '/admin/ist', icon: 'transfer' },
     ],
   },
@@ -94,9 +92,7 @@ const adminMenuSections = [
     label: 'SALES & LOGISTICS',
 
     items: [
-      { name: 'POS Operations', path: '/admin/transactions', icon: 'transactions' },
       { name: 'Transactions', path: '/admin/transactions', icon: 'globaltransactions' },
-      { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
       { name: 'Customer Registry', path: '/admin/customers', icon: 'customers' },
       { name: 'Scan Barcode', path: '/admin/inventory-operation', icon: 'scan' },
     ],
@@ -108,7 +104,6 @@ const adminMenuSections = [
       { name: 'Compliance Review', path: '/admin/compliance', icon: 'compliance' },
       { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
       { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
-      { name: 'Warranty Hub', path: '/admin/warranty', icon: 'warranty' },
       { name: 'Alerts & Notices', path: '/admin/alerts', icon: 'notifications' },
       { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
     ],
@@ -392,6 +387,29 @@ const renderIcon = (iconType) => {
   }
 };
 
+const NavSkeleton = () => {
+  const groups = [
+    { items: 5, widths: [70, 58, 64, 50, 66] },
+    { items: 4, widths: [60, 72, 54, 62] },
+    { items: 3, widths: [56, 68, 60] },
+  ];
+  return (
+    <div className="nav-skeleton" aria-hidden="true">
+      {groups.map((g, gi) => (
+        <div key={gi} className="nav-skel-section">
+          <span className="nav-skel-label" style={{ width: 84 }} />
+          {Array.from({ length: g.items }).map((_, i) => (
+            <div key={i} className="nav-skel-item">
+              <span className="nav-skel-icon" />
+              <span className="nav-skel-text" style={{ width: `${g.widths[i]}%` }} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const Sidebar = ({
   mobileNavOpen,
   closeMobileNav,
@@ -403,16 +421,11 @@ const Sidebar = ({
   expandedSections,
   onToggleSection,
   navMenuRef,
-  user,
-  roleKey,
-  roleMeta,
   onLogout,
   pendingApprovalCount = 0,
+  awaitingIstCount = 0,
+  navLoading = false,
 }) => {
-  const locationLabel = user?.location?.location_name || user?.branch?.branch_name || null;
-  const showLocationChip =
-    (roleKey === ROLES.BRANCH_MANAGER || roleKey === ROLES.WAREHOUSE_PERSONNEL) && locationLabel;
-
   return (
     <aside className="sidebar">
       <div className="sidebar-mobile-bar">
@@ -429,42 +442,54 @@ const Sidebar = ({
         </button>
       </div>
 
-      {/* User Profile Section */}
-      <div className="sidebar-user-section">
-        <div
-          className="sidebar-user-avatar"
-          style={{ background: avatarColor(user.first_name || user.username || 'S') }}
-        >
-          <span>
-            {user.first_name && user.last_name
-              ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
-              : user.username
-              ? user.username.charAt(0).toUpperCase()
-              : 'S'}
-          </span>
-        </div>
-        <div className="sidebar-user-info">
-          <span className="sidebar-user-name">
-            {user.first_name && user.last_name
-              ? `${user.first_name} ${user.last_name}`
-              : user.username || 'System Admin'}
-          </span>
-          <span className="sidebar-user-role">{roleMeta.label}</span>
-          {showLocationChip && (
-            <span className="sidebar-location-chip">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
-              {locationLabel}
-            </span>
-          )}
+      {/* Brand */}
+      <div className="sidebar-brand">
+        <div className="header-brand">
+          <img src="/images/air.png" alt="" className="header-brand-logo" />
+          <div className="header-brand-text">
+            <span className="brand-name">AIRKING</span>
+            <span className="brand-subtitle">Air Conditioning</span>
+          </div>
         </div>
       </div>
 
       {/* Navigation Menu */}
       <nav className="nav-menu" ref={navMenuRef}>
-        {menuSections.map((section, si) => {
+        {navLoading ? (
+          <NavSkeleton />
+        ) : menuSections.map((section, si) => {
+          const renderItem = (item, i) => (
+            <button
+              key={i}
+              className={`nav-item ${isItemActive(item) ? 'active' : ''}`}
+              onClick={() => onNavClick(item)}
+              onMouseEnter={() => onNavHover(item.path)}
+            >
+              <span className="nav-icon">{renderIcon(item.icon)}</span>
+              <span className="nav-text">{item.name}</span>
+              {item.path === '/admin/draft-po-creator' && pendingApprovalCount > 0 && (
+                <span className="nav-item-badge">
+                  {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                </span>
+              )}
+              {item.path === '/admin/ist' && awaitingIstCount > 0 && (
+                <span className="nav-item-badge">
+                  {awaitingIstCount > 99 ? '99+' : awaitingIstCount}
+                </span>
+              )}
+            </button>
+          );
+
+          // A section with a single item needs no collapse control — render the
+          // lone item directly so it always reads as a plain link, not a dropdown.
+          if (section.items.length === 1) {
+            return (
+              <div key={si} className="nav-section nav-section--solo">
+                {section.items.map(renderItem)}
+              </div>
+            );
+          }
+
           const isExpanded = expandedSections.has(section.label);
           return (
             <div
@@ -492,22 +517,7 @@ const Sidebar = ({
                 </svg>
               </button>
               <div className="nav-section-items">
-                {section.items.map((item, i) => (
-                  <button
-                    key={i}
-                    className={`nav-item ${isItemActive(item) ? 'active' : ''}`}
-                    onClick={() => onNavClick(item)}
-                    onMouseEnter={() => onNavHover(item.path)}
-                  >
-                    <span className="nav-icon">{renderIcon(item.icon)}</span>
-                    <span className="nav-text">{item.name}</span>
-                    {item.path === '/admin/approval-queue' && pendingApprovalCount > 0 && (
-                      <span className="nav-item-badge">
-                        {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {section.items.map(renderItem)}
               </div>
             </div>
           );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { barcodeAdjustmentAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
@@ -156,22 +157,27 @@ const ComplianceReview = () => {
 
   return (
     <AdminLayout>
-      <div className="cr-page">
+      <div className="ak-page cr-page">
         {/* Header */}
-        <div className="cr-page-header">
-          <div className="cr-page-header-left">
-            <h1 className="cr-page-title">Compliance Review</h1>
-            <p className="cr-page-subtitle">Audit internal controls and operational adherence</p>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div className="cr-page-header-left">
+              <p className="ak-eyebrow">Governance · Compliance</p>
+              <h1 className="ak-title">Compliance Review</h1>
+              <p className="ak-sub">Audit internal controls and operational adherence.</p>
+            </div>
+            <div className="ak-header-aside">
+            <button className="ak-btn ak-btn--ghost cr-btn-export" onClick={() => window.print()}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              EXPORT AUDIT FINDINGS
+            </button>
+            </div>
           </div>
-          <button className="cr-btn-export" onClick={() => window.print()}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            EXPORT AUDIT FINDINGS
-          </button>
-        </div>
+        </header>
 
         {/* Tabs */}
         <div className="cr-tabs">
@@ -231,7 +237,7 @@ const ComplianceReview = () => {
                   <p>Live audit trail — inventory and scan events</p>
                 </div>
                 {logsLoading ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>Loading logs...</div>
+                  <Loader label="Loading logs" />
                 ) : logs.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No compliance logs found for the selected filters.</div>
                 ) : (
@@ -288,7 +294,7 @@ const ComplianceReview = () => {
                   <p>All barcode corrections and inventory adjustments</p>
                 </div>
                 {adjLoading ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>Loading adjustments...</div>
+                  <Loader label="Loading adjustments" />
                 ) : adjustments.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No adjustments found for the selected filters.</div>
                 ) : (

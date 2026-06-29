@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
-import { profitLossAPI, productsAPI, modelsAPI, statusAPI, usersAPI } from '../services/api';
+import { profitLossAPI, productsAPI, statusAPI, usersAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/profit_loss_management.css';
 import DateInput from '../components/DateInput';
 
 const REFERENCE_TYPES = ['Damage', 'Theft', 'Expiry', 'Lost', 'Write-off', 'Other'];
 
 const emptyForm = () => ({
-  model_id: '',
   product_id: '',
   reference_type: 'Damage',
   transaction_date: '',
@@ -33,7 +34,6 @@ const ProfitLossManagement = () => {
   const [filterType, setFilterType] = useState('');
 
   const [products, setProducts]     = useState([]);
-  const [models, setModels]         = useState([]);
   const [statuses, setStatuses]     = useState([]);
   const [users, setUsers]           = useState([]);
 
@@ -48,14 +48,12 @@ const ProfitLossManagement = () => {
   /* ── Dropdowns ─────────────────────────────────────────── */
   const fetchDropdowns = useCallback(async () => {
     try {
-      const [prodRes, modRes, statRes, userRes] = await Promise.all([
+      const [prodRes, statRes, userRes] = await Promise.all([
         productsAPI.getAll({ per_page: 500 }),
-        modelsAPI.getAll(),
         statusAPI.getAll(),
         usersAPI.getAll({ per_page: 200 }),
       ]);
       setProducts(Array.isArray(prodRes?.data) ? prodRes.data : []);
-      setModels(Array.isArray(modRes?.data) ? modRes.data : modRes?.data ? [modRes.data] : []);
       setStatuses(Array.isArray(statRes?.data) ? statRes.data : []);
       setUsers(Array.isArray(userRes?.data) ? userRes.data : []);
     } catch (e) { console.error('Dropdowns failed:', e); }
@@ -86,7 +84,6 @@ const ProfitLossManagement = () => {
 
   /* ── Helpers ────────────────────────────────────────────── */
   const productName = (id) => products.find(p => p.product_id === id)?.product_name || id || '—';
-  const modelCode   = (id) => models.find(m => m.model_id === id)?.model_code || '—';
   const statusName  = (id) => statuses.find(s => s.status_id === id)?.status_name || '—';
   const userName    = (id) => {
     const u = users.find(u => u.user_id === id);
@@ -118,7 +115,6 @@ const ProfitLossManagement = () => {
   const openEdit = (rec) => {
     setEditingRecord(rec);
     setFormData({
-      model_id:           rec.model_id         || '',
       product_id:         rec.product_id        || '',
       reference_type:     rec.reference_type    || 'Damage',
       transaction_date:   rec.transaction_date  ? rec.transaction_date.split('T')[0] : '',
@@ -147,7 +143,6 @@ const ProfitLossManagement = () => {
     try {
       const payload = {
         ...formData,
-        model_id:          formData.model_id          || null,
         recorded_by:       formData.recorded_by       || null,
         approved_by:       formData.approved_by       || null,
         status_id:         formData.status_id         || null,
@@ -173,7 +168,7 @@ const ProfitLossManagement = () => {
 
   /* ── Delete ─────────────────────────────────────────────── */
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this profit/loss record?')) return;
+    if (!(await confirmAction({ title: 'Delete this profit/loss record?', confirmText: 'Delete', tone: 'danger' }))) return;
     try {
       await profitLossAPI.delete(id);
       toast.success('Record deleted.');
@@ -187,16 +182,21 @@ const ProfitLossManagement = () => {
   /* ── Render ─────────────────────────────────────────────── */
   return (
     <AdminLayout>
-      <div className="plm-page">
+      <div className="ak-page plm-page">
 
         {/* Header */}
-        <div className="plm-header">
-          <div>
-            <h1 className="plm-title">Profit / Loss Records</h1>
-            <p className="plm-subtitle">Track inventory losses — damage, theft, expiry, write-offs</p>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Finance · Losses</p>
+              <h1 className="ak-title">Profit / Loss Records</h1>
+              <p className="ak-sub">Track inventory losses — damage, theft, expiry, write-offs.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button className="ak-btn ak-btn--primary" onClick={openAdd}>+ New Record</button>
+            </div>
           </div>
-          <button className="plm-btn-add" onClick={openAdd}>+ New Record</button>
-        </div>
+        </header>
 
         {/* Stats */}
         <div className="plm-stats-row">
@@ -247,7 +247,7 @@ const ProfitLossManagement = () => {
 
         {/* Table */}
         {loading ? (
-          <div className="plm-loading">Loading records…</div>
+          <Loader label="Loading records" />
         ) : error ? (
           <div className="plm-error">Error: {error}</div>
         ) : (
@@ -257,7 +257,6 @@ const ProfitLossManagement = () => {
                 <tr>
                   <th>#</th>
                   <th>Product</th>
-                  <th>Model</th>
                   <th>Type</th>
                   <th>Serial No.</th>
                   <th>Qty Lost</th>
@@ -270,12 +269,11 @@ const ProfitLossManagement = () => {
               </thead>
               <tbody>
                 {records.length === 0 ? (
-                  <tr><td colSpan={11} className="plm-empty">No records found.</td></tr>
+                  <tr><td colSpan={10} className="plm-empty">No records found.</td></tr>
                 ) : records.map((r, i) => (
                   <tr key={r.profit_loss_id}>
                     <td>{(currentPage - 1) * 10 + i + 1}</td>
                     <td>{r.product?.product_name || productName(r.product_id)}</td>
-                    <td>{r.model?.model_code || modelCode(r.model_id)}</td>
                     <td>
                       <span className={`plm-type-badge plm-type-${(r.reference_type || '').toLowerCase().replace(/[^a-z]/g, '')}`}>
                         {r.reference_type || '—'}
@@ -319,7 +317,6 @@ const ProfitLossManagement = () => {
           <Modal isOpen onClose={() => setViewingRecord(null)} title="Profit / Loss Detail">
             <div className="plm-view-grid">
               <div className="plm-view-row"><span>Product</span><strong>{viewingRecord.product?.product_name || productName(viewingRecord.product_id)}</strong></div>
-              <div className="plm-view-row"><span>Model</span><strong>{viewingRecord.model?.model_code || modelCode(viewingRecord.model_id)}</strong></div>
               <div className="plm-view-row"><span>Reference Type</span><strong>{viewingRecord.reference_type}</strong></div>
               <div className="plm-view-row"><span>Serial Number</span><strong>{viewingRecord.serial_number || '—'}</strong></div>
               <div className="plm-view-row"><span>Quantity Lost</span><strong>{viewingRecord.quantity_lost}</strong></div>
@@ -346,13 +343,6 @@ const ProfitLossManagement = () => {
                 <select value={formData.product_id} onChange={e => handleFormChange('product_id', e.target.value)} required>
                   <option value="">— Select Product —</option>
                   {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_name}</option>)}
-                </select>
-              </div>
-              <div className="plm-form-group">
-                <label>Model</label>
-                <select value={formData.model_id} onChange={e => handleFormChange('model_id', e.target.value)}>
-                  <option value="">— Select Model —</option>
-                  {models.map(m => <option key={m.model_id} value={m.model_id}>{m.model_code}{m.variant ? ` (${m.variant})` : ''}</option>)}
                 </select>
               </div>
               <div className="plm-form-group">

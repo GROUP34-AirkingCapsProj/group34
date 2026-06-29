@@ -7,6 +7,7 @@ use App\Models\Transfer;
 use App\Models\TransferDetail;
 use App\Models\TblTransferTracking;
 use App\Models\Inventory;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,23 +38,13 @@ class TransferRequestController extends Controller
     public function index(Request $request)
     {
         try {
-            $user   = $request->user();
-            $roleId = $user->role?->role_id ?? 0;
-            $isAdmin = in_array($user->role?->role_name, ['admin', 'inventory_analyst'], true) || $roleId === 1;
+            $user = $request->user();
 
             // Only request records (transfer_request_id IS NULL)
             $query = Transfer::with(self::WITH_RELATIONS)
                 ->whereNull('transfer_request_id');
 
-            if (!$isAdmin) {
-                $locId = $user->enforced_location_id ?? $user->location_id;
-                if ($locId) {
-                    $query->where(function ($q) use ($locId) {
-                        $q->where('from_location_id', $locId)
-                          ->orWhere('to_location_id', $locId);
-                    });
-                }
-            }
+            $query->forUser($user);
 
             if ($request->filled('status_id')) {
                 $query->where('status_id', $request->integer('status_id'));
@@ -92,22 +83,20 @@ class TransferRequestController extends Controller
 
             $pendingId = $this->statusId('Pending');
 
-            // Generate transfer number: TR-REQ-YYYYMMDD-XXXX
-            $nextId = (int) DB::table('transfers')->max('transfer_id') + 1;
-            $transferNumber = 'TR-REQ-' . date('Ymd') . '-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
-
             $transfer = Transfer::create([
-                'transfer_request_id'       => null,
-                'from_location_id'          => $validated['from_location_id'],
-                'to_location_id'            => $validated['to_location_id'],
-                'transfer_number'           => $transferNumber,
-                'transfer_date'             => $validated['transfer_date'],
-                'requested_by'              => $user->user_id,
-                'status_id'                 => $pendingId,
-                'notes'                     => $validated['notes'] ?? null,
+                'transfer_request_id'        => null,
+                'from_location_id'           => $validated['from_location_id'],
+                'to_location_id'             => $validated['to_location_id'],
+                'transfer_number'            => 'TR-REQ-PENDING-' . uniqid('', true),
+                'transfer_date'              => $validated['transfer_date'],
+                'requested_by'               => $user->user_id,
+                'status_id'                  => $pendingId,
+                'notes'                      => $validated['notes'] ?? null,
                 'total_quantity_transferred' => 0,
                 'total_quantity_received'    => 0,
             ]);
+            $transfer->transfer_number = 'TR-REQ-' . date('Ymd') . '-' . str_pad((string) $transfer->transfer_id, 4, '0', STR_PAD_LEFT);
+            $transfer->save();
 
             foreach ($validated['products'] as $row) {
                 $transfer->details()->create([
@@ -149,6 +138,8 @@ class TransferRequestController extends Controller
                 report($e);
             }
 
+            RealtimeBroadcaster::transferChanged((int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed');
+
             return $this->success(
                 $transfer->load(self::WITH_RELATIONS),
                 'Transfer request submitted successfully',
@@ -169,12 +160,17 @@ class TransferRequestController extends Controller
                 ->whereNull('transfer_request_id')
                 ->findOrFail($id);
 
-            // Attach current stock at source for each line item
+            // Attach current stock at source for each line item (single query)
             $fromLocId = $transfer->from_location_id;
+            $availability = \App\Models\Inventory::where('location_id', $fromLocId)
+                ->whereIn('product_id', $transfer->details->pluck('product_id'))
+                ->pluck('available_quantity', 'product_id');
+
             foreach ($transfer->details as $detail) {
-                $detail->stock_at_source = (int) Inventory::where('location_id', $fromLocId)
-                    ->where('product_id', $detail->product_id)
-                    ->value('quantity_on_hand') ?? 0;
+                $available = (int) ($availability[$detail->product_id] ?? 0);
+                $detail->available_at_source = $available;
+                $detail->stock_at_source     = $available; // backward-compat alias
+                $detail->shortfall           = max(0, (int) $detail->quantity_requested - $available);
             }
 
             return $this->success($transfer, 'Transfer request retrieved');
@@ -227,6 +223,8 @@ class TransferRequestController extends Controller
 
             DB::commit();
 
+            RealtimeBroadcaster::transferChanged((int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed');
+
             return $this->success(
                 $transfer->fresh()->load(self::WITH_RELATIONS),
                 'Transfer request approved'
@@ -273,6 +271,8 @@ class TransferRequestController extends Controller
             ]);
 
             DB::commit();
+
+            RealtimeBroadcaster::transferChanged((int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed');
 
             return $this->success(
                 $transfer->fresh()->load(self::WITH_RELATIONS),

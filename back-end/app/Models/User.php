@@ -36,11 +36,14 @@ class User extends Authenticatable
         'username',
         'password_hash',
         'phone',
+        'avatar_path',
+        'address',
         'role_id',
         'location_id',
         'status_id',
         'otp_code',
         'otp_expires_at',
+        'alerts_last_seen_at',
     ];
 
     protected $hidden = [
@@ -50,7 +53,12 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'alerts_last_seen_at' => 'datetime',
     ];
+
+    // avatar_url is appended to every User serialization (incl. /api/user, /api/login)
+    // so the frontend header/sidebar can render the photo without extra endpoints.
+    protected $appends = ['avatar_url'];
 
     /**
      * Get the password attribute for authentication.
@@ -58,6 +66,22 @@ class User extends Authenticatable
     public function getAuthPassword(): string
     {
         return $this->password_hash;
+    }
+
+    /**
+     * Relative public path for the user's avatar (e.g. "/storage/avatars/x.png"),
+     * or null when none is set.
+     *
+     * Deliberately host-agnostic: the frontend resolves this against the API
+     * origin it computes at runtime, so the same value works on localhost, a LAN
+     * IP, and mobile. Storage::url() would bake in APP_URL, which is wrong when the
+     * app is served by `php artisan serve` on a different host/port than APP_URL.
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->avatar_path
+            ? '/storage/' . ltrim($this->avatar_path, '/')
+            : null;
     }
 
     /**
@@ -157,11 +181,37 @@ class User extends Authenticatable
     }
 
     /**
-     * Returns true for roles that must use a single enforced location
-     * with no override allowed (inventory_analyst=2, warehouse_personnel=4).
+     * Roles that must transact at a single enforced location with no override.
+     * Now derived from the scope source of truth: strict == location-scoped == !centralized.
+     * (branch_manager=3, warehouse_personnel=4)
      */
     public function hasStrictLocation(): bool
     {
-        return in_array((int) $this->role_id, [2, 4], true);
+        return ! $this->isCentralized();
     }
+
+    /**
+     * Centralized roles see all locations' data and may choose a location on writes.
+     * CENTRALIZED = admin(1), inventory_analyst(2), auditor(5). Single source of truth
+     * for BOTH read scoping and write enforcement (see spec §5).
+     */
+    public function isCentralized(): bool
+    {
+        return in_array((int) $this->role_id, [1, 2, 5], true);
+    }
+
+    /**
+     * The location_id this user's data is restricted to.
+     * Returns null for centralized users (no restriction). For location-scoped
+     * roles (branch_manager=3, warehouse_personnel=4) returns users.location_id,
+     * which may itself be null when unassigned (callers then deny — spec D3).
+     */
+    public function scopedLocationId(): ?int
+    {
+        if ($this->isCentralized()) {
+            return null;
+        }
+        return $this->location_id ? (int) $this->location_id : null;
+    }
+
 }

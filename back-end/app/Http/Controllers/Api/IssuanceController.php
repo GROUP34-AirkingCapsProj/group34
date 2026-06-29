@@ -8,6 +8,7 @@ use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Support\RealtimeBroadcaster;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,9 @@ class IssuanceController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Issuance::with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product']);
+            $query = Issuance::query()
+                ->forUser($request->user())
+                ->with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product']);
 
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);
@@ -92,6 +95,8 @@ class IssuanceController extends Controller
             }
 
             DB::commit();
+
+            RealtimeBroadcaster::inventoryChanged((int) $issuance->location_id, 'stock_issued');
 
             return $this->success($issuance->load(['location', 'issuedToUser', 'details.product']), 'Issuance created successfully', 201);
         } catch (ValidationException $e) {

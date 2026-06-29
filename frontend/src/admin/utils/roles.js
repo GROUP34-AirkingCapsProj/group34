@@ -56,152 +56,6 @@ export const ROLE_META = {
 };
 
 /**
- * Role-specific sidebar menus.
- * Each item: { name, path, icon }
- * Admin uses the full menuSections array in AdminLayout directly.
- */
-export const ROLE_MENUS = {
-  [ROLES.ADMIN]: null, // null = show all sections (handled in AdminLayout)
-
-  [ROLES.INVENTORY_ANALYST]: [
-    {
-      label: 'PROCUREMENT & PLANNING',
-      items: [
-        { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
-        {
-          name: 'Item Registration Approval',
-          path: '/admin/approval-queue',
-          to: '/admin/approval-queue?tab=item-registration',
-          icon: 'approval',
-        },
-        { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: 'approval' },
-        { name: 'Purchase Orders', path: '/admin/draft-po-creator', icon: 'procurement' },
-        { name: 'PO Recommendation', path: '/admin/po-recommendations', icon: 'po' },
-        { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
-        { name: 'Item Master', path: '/admin/items', icon: 'items' },
-        { name: 'Categories & Brands', path: '/admin/categories', icon: 'category' },
-      ],
-    },
-    {
-      label: 'INVENTORY INTELLIGENCE',
-      items: [
-        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-      ],
-    },
-    {
-      label: 'REPORTS / COMPLIANCE',
-      items: [
-        { name: 'Transactions', path: '/admin/transactions', icon: 'globaltransactions' },
-        { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
-        { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
-      ],
-    },
-  ],
-
-  [ROLES.AUDITOR]: [
-    {
-      label: 'DASHBOARD',
-      items: [
-        { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
-      ],
-    },
-    {
-      label: 'ARCHIVE MANAGEMENT',
-      items: [
-        { name: 'Archive Management', path: '/admin/archive', icon: 'archive' },
-      ],
-    },
-    {
-      label: 'INVENTORY INTELLIGENCE',
-      items: [
-        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-      ],
-    },
-    {
-      label: 'COMPLIANCE & SUPPORT',
-      items: [
-        { name: 'Compliance Review', path: '/admin/compliance', icon: 'compliance' },
-        { name: 'Transactions', path: '/admin/transactions', icon: 'globaltransactions' },
-        { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
-        { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
-      ],
-    },
-  ],
-
-  [ROLES.BRANCH_MANAGER]: [
-    {
-      label: 'DASHBOARD',
-      items: [
-        { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
-        {
-          name: 'Item Registration Approval',
-          path: '/admin/approval-queue',
-          to: '/admin/approval-queue?tab=item-registration',
-          icon: 'approval',
-        },
-        { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
-      ],
-    },
-    {
-      label: 'PROCUREMENT & PLANNING',
-      items: [
-        { name: 'PO Recommendation', path: '/admin/po-recommendations', icon: 'po' },
-        { name: 'Draft PO Creator', path: '/admin/draft-po-creator', icon: 'procurement' },
-        { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
-      ],
-    },
-    {
-      label: 'SALES & REPORTS',
-      items: [
-        { name: 'POS Operations', path: '/admin/transactions', icon: 'transactions' },
-        { name: 'Customer Registry', path: '/admin/customers', icon: 'customers' },
-        { name: 'Issuance Scan', path: '/admin/issuance-scan', icon: 'issuance-scan' },
-        { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'inventoryop' },
-        { name: 'Transactions', path: '/admin/transfers', icon: 'transfer' },
-      ],
-    },
-    {
-      label: 'INVENTORY MOVEMENT',
-      items: [
-        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-      ],
-    },
-    {
-      label: 'COMPLIANCE & SUPPORT',
-      items: [
-        { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
-      ],
-    },
-  ],
-
-  [ROLES.WAREHOUSE_PERSONNEL]: [
-    {
-      label: 'DASHBOARD',
-      items: [
-        { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
-      ],
-    },
-    {
-      label: 'INVENTORY INTELLIGENCE',
-      items: [
-        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-      ],
-    },
-    {
-      label: 'INVENTORY EXECUTION',
-      items: [
-        { name: 'PO Receiving', path: '/admin/receivings', icon: 'receiving' },
-        { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: 'purchaseorders' },
-        { name: 'Issuance Scan', path: '/admin/issuance-scan', icon: 'issuance-scan' },
-        { name: 'Inventory Operation', path: '/admin/inventory-operation', icon: 'barcode' },
-        { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-        { name: 'Transactions (With Transfers)', path: '/admin/transfers', icon: 'transfer' },
-      ],
-    },
-  ],
-};
-
-/**
  * Route-level RBAC (frontend guard).
  * Keep this in sync with backend route middleware.
  */
@@ -216,13 +70,9 @@ export const ROUTE_ACCESS = {
   '/admin/notifications': [ROLES.ADMIN],
 
   // Admin/security
-  '/admin/users': [ROLES.ADMIN],
-  '/admin/roles': [ROLES.ADMIN],
   '/admin/config': [ROLES.ADMIN],
   '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/archive-settings': [ROLES.ADMIN],
-  // Approval Queue: analysts approve item registration; auditors read-only; PO/restock actions: admin & branch manager (canActOnApprovalQueue).
-  '/admin/approval-queue': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.AUDITOR, ROLES.INVENTORY_ANALYST],
 
   // Item/barcode/classification
   '/admin/items': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
@@ -235,7 +85,6 @@ export const ROUTE_ACCESS = {
   // Inventory operations
   '/admin/inventory': Object.values(ROLES),
   '/admin/transfers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
-  '/admin/receivings': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
   '/admin/issuances': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
   '/admin/adjustments': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
 
@@ -268,6 +117,11 @@ export const ROUTE_ACCESS = {
   // Warranties
   '/admin/warranties': Object.values(ROLES),
 
+  // SA Permission Editor
+  '/admin/roles': [ROLES.ADMIN],
+  '/admin/user-permissions': [ROLES.ADMIN],
+  '/admin/permission-audit': [ROLES.ADMIN],
+
   // Legacy pages
   '/admin/branches': [ROLES.ADMIN],
   '/admin/warehouses': [ROLES.ADMIN],
@@ -281,12 +135,6 @@ export const canAccessRoute = (user, path) => {
   const allowed = ROUTE_ACCESS[path];
   if (!allowed) return role === ROLES.ADMIN;
   return allowed.includes(role);
-};
-
-/** Approve / reject in Approval Queue (PO + restock local queue). Admin & branch manager only. */
-export const canActOnApprovalQueue = (user) => {
-  const r = getRoleKey(user);
-  return r === ROLES.ADMIN || r === ROLES.BRANCH_MANAGER;
 };
 
 /** Approve pending product registrations (Item registration tab) — matches API pending-products/approve. */

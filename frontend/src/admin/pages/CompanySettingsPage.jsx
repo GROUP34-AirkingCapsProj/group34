@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { companySettingsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
@@ -46,20 +47,21 @@ const CompanySettingsPage = () => {
 
   return (
     <AdminLayout>
-      <div style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px' }}>
+      <div className="ak-page" style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-            Company Settings
-          </h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-            This information appears on the header of all exported Purchase Order documents.
-          </p>
-        </div>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">System · Company</p>
+              <h1 className="ak-title">Company Settings</h1>
+              <p className="ak-sub">This information appears on the header of all exported Purchase Order documents.</p>
+            </div>
+          </div>
+        </header>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8', fontSize: 14 }}>Loading…</div>
+          <Loader />
         ) : (
           <form onSubmit={handleSubmit}>
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '24px' }}>

@@ -120,7 +120,7 @@
 .plm-btn-clear:hover { background: #f3f4f6; }
 
 /* Loading / Error / Empty */
-.plm-loading, .plm-error, .plm-empty {
+.plm-error, .plm-empty {
   text-align: center;
   padding: 40px;
   color: #6b7280;

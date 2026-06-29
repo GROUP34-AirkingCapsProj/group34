@@ -27,7 +27,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::with(['category', 'status'])
-            ->with(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
+            ->with(['applianceDetail' => fn($q) => $q->with(['brand'])])
             ->with(['consumableDetail' => fn($q) => $q->with('unit')])
             ->withSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -75,7 +75,7 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         $product->load(['category', 'status'])
-                ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
+                ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
                 ->load(['consumableDetail' => fn($q) => $q->with('unit')])
                 ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -120,16 +120,6 @@ class ProductController extends Controller
                 $input['brand_id'] = $brand->brand_id;
             }
 
-            // Resolve model_code free-text → model_id via model_lookup
-            if (empty($input['model_id']) && !empty($input['model_code'])) {
-                $modelData = ['model_code' => trim($input['model_code'])];
-                if (!empty($input['brand_id'])) {
-                    $modelData['brand_id'] = $input['brand_id'];
-                }
-                $model = \App\Models\ModelLookup::firstOrCreate($modelData);
-                $input['model_id'] = $model->model_id;
-            }
-
             $request->merge($input);
 
             $type = $request->input('product_type', 'appliance');
@@ -165,7 +155,7 @@ class ProductController extends Controller
                     ApplianceDetail::create([
                         'product_id'             => $product->product_id,
                         'brand_id'               => $request->input('brand_id') ?: null,
-                        'model_id'               => $request->input('model_id') ?: null,
+                        'model_code'             => $request->input('model_code') ?: null,
                         'capacity_rating'        => $request->input('capacity_rating') ?: null,
                         'variant'                => $request->input('variant') ?: null,
                         'color'                  => $request->input('color') ?: null,
@@ -194,7 +184,7 @@ class ProductController extends Controller
             });
 
             $product->load(['category', 'status'])
-                    ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
+                    ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
                     ->load(['consumableDetail' => fn($q) => $q->with('unit')]);
 
             $product->setAttribute('quantity', 0);
@@ -218,15 +208,6 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         try {
-            // Resolve model_code free-text → model_id
-            if (!$request->has('model_id') && $request->filled('model_code')) {
-                $modelData = ['model_code' => trim($request->input('model_code'))];
-                $brandId = $request->input('brand_id');
-                if ($brandId) $modelData['brand_id'] = $brandId;
-                $model = \App\Models\ModelLookup::firstOrCreate($modelData);
-                $request->merge(['model_id' => $model->model_id]);
-            }
-
             $sharedValidated = $request->validate([
                 'product_name'       => 'sometimes|string|max:255',
                 'description'        => 'nullable|string',
@@ -255,7 +236,7 @@ class ProductController extends Controller
                         ['product_id' => $product->product_id],
                         [
                             'brand_id'               => $request->input('brand_id') ?: null,
-                            'model_id'               => $request->input('model_id') ?: null,
+                            'model_code'             => $request->input('model_code') ?: null,
                             'capacity_rating'        => $request->input('capacity_rating') ?: null,
                             'variant'                => $request->input('variant') ?: null,
                             'color'                  => $request->input('color') ?: null,
@@ -286,7 +267,7 @@ class ProductController extends Controller
 
             $fresh = $product->fresh();
             $fresh->load(['category', 'status'])
-                  ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'modelLookup'])])
+                  ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
                   ->load(['consumableDetail' => fn($q) => $q->with('unit')])
                   ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -436,7 +417,6 @@ class ProductController extends Controller
             'category',
             'status',
             'applianceDetail.brand',
-            'applianceDetail.modelLookup',
             'consumableDetail.unit',
         ])->orderBy('product_id')->get();
 
@@ -471,7 +451,7 @@ class ProductController extends Controller
                     $p->category?->category_name   ?? '',
                     $p->status?->status_name        ?? '',
                     $ad?->brand?->brand_name                   ?? '',
-                    $ad?->modelLookup?->model_code             ?? '',
+                    $ad?->model_code                            ?? '',
                     $ad?->capacity_rating                       ?? '',
                     $ad?->variant                               ?? '',
                     $ad?->color                                 ?? '',
@@ -507,8 +487,8 @@ class ProductController extends Controller
             $ad = $p->applianceDetail;
             $p->setAttribute('brand_id',               $ad->brand_id);
             $p->setAttribute('brand_name',             $ad->brand?->brand_name);
-            $p->setAttribute('model_id',               $ad->model_id);
-            $p->setAttribute('model_name',             $ad->modelLookup?->model_code);
+            $p->setAttribute('model_code',             $ad->model_code);
+            $p->setAttribute('model_name',             $ad->model_code);
             $p->setAttribute('capacity_rating',        $ad->capacity_rating);
             $p->setAttribute('variant',                $ad->variant);
             $p->setAttribute('color',                  $ad->color);
@@ -518,7 +498,6 @@ class ProductController extends Controller
             $p->setAttribute('warranty_display',       $ad->warranty_display);
             $p->setAttribute('is_serialized',          (bool) $ad->is_serialized);
             $p->setRelation('brand',       $ad->brand);
-            $p->setRelation('modelLookup', $ad->modelLookup);
         }
 
         if ($p->consumableDetail) {

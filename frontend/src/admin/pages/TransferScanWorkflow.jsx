@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { transfersAPI, locationsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
@@ -163,7 +164,7 @@ const TransferScanWorkflow = () => {
         (d) => `
       <tr>
         <td class="tc">${d.quantity_transferred ?? ''}</td>
-        <td>${d.product?.product_name || d.product?.product_code || ''}</td>
+        <td>${d.product?.product_name || d.product?.applianceDetail?.model_code || ''}</td>
         <td>${Number(d.quantity_received ?? 0)} / ${Number(d.quantity_transferred ?? 0)}</td>
       </tr>`
       )
@@ -187,7 +188,7 @@ const TransferScanWorkflow = () => {
 
   return (
     <AdminLayout>
-      <div className="page-container" style={{ maxWidth: 560, margin: '0 auto' }}>
+      <div className="ak-page page-container" style={{ maxWidth: 560, margin: '0 auto' }}>
         <div style={{ background: 'linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)', borderRadius: 12, padding: '16px 18px', color: '#fff', marginBottom: 16 }}>
           <p style={{ fontSize: 11, letterSpacing: '0.12em', opacity: 0.85, margin: 0 }}>TRANSFER SCANNING BARCODES</p>
           <h1 style={{ fontSize: 17, margin: '6px 0 0', fontWeight: 700 }}>{headerTitle}</h1>
@@ -251,7 +252,7 @@ const TransferScanWorkflow = () => {
         </div>
 
         {loading ? (
-          <p style={{ color: '#64748b' }}>Loading transfers…</p>
+          <Loader label="Loading transfers" />
         ) : filtered.length === 0 ? (
           <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, color: '#64748b', fontSize: 14 }}>
             No in-transit transfers for this location. Create one from{' '}

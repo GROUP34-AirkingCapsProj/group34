@@ -8,6 +8,7 @@ use App\Models\ConsumableDetail;
 use App\Models\Inventory;
 use App\Models\PendingProduct;
 use App\Models\Product;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -153,7 +154,7 @@ class PendingProductController extends Controller
             'cost_price'                                   => 'nullable|numeric|min:0',
             'appliance'                                    => 'required|array',
             'appliance.product_name'                       => 'required|string|max:255',
-            'appliance.product_code'                       => 'nullable|string|max:50',
+            'appliance.model_code'                         => 'nullable|string|max:100',
             'appliance.capacity_rating'                    => 'nullable|string|max:20',
             'appliance.variant'                            => 'nullable|string|max:255',
             'appliance.category_id'                        => 'required|exists:category_lookup,category_id',
@@ -230,6 +231,8 @@ class PendingProductController extends Controller
             return $this->error('Approval failed: '.$e->getMessage(), 500);
         }
 
+        RealtimeBroadcaster::approvalQueueChanged((int) $pendingProduct->opening_location_id, 'product_approved');
+
         $product->load(['category', 'status', 'applianceDetail.brand', 'consumableDetail.unit']);
 
         return $this->success($product, 'Product approved and added to Item Master');
@@ -302,7 +305,7 @@ class PendingProductController extends Controller
         ApplianceDetail::create([
             'product_id'             => $product->product_id,
             'brand_id'               => (int) ($snap['brand_id'] ?? $pending->brand_id) ?: null,
-            'model_id'               => null,
+            'model_code'             => $snap['model_code'] ?? null,
             'capacity_rating'        => $snap['capacity_rating'] ?? null,
             'variant'                => $snap['variant'] ?? null,
             'warranty_period_months' => isset($snap['warranty_period_months']) ? (int) $snap['warranty_period_months'] : 0,

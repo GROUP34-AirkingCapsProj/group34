@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { locationsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -152,19 +153,23 @@ const BranchManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="branch-page-header">
-        <div className="branch-page-header-left">
-          <h1>Location Management</h1>
-          <p>Manage location records (showrooms, warehouses, service centers)</p>
-        </div>
-        <div className="branch-header-actions">
-          <div className="branch-view-toggle" role="group" aria-label="View mode">
-            <button type="button" className={`branch-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`} onClick={() => setViewMode('cards')}>Cards</button>
-            <button type="button" className={`branch-toggle-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>List</button>
+     <div className="ak-page">
+      <header className="ak-header">
+        <div className="ak-header-row">
+          <div className="branch-page-header-left">
+            <p className="ak-eyebrow">Network · Locations</p>
+            <h1 className="ak-title">Location Management</h1>
+            <p className="ak-sub">Manage location records (showrooms, warehouses, service centers).</p>
           </div>
-          <button className="btn-create-branch" onClick={handleAdd}>+ Add Location</button>
+          <div className="ak-header-aside ak-actions branch-header-actions">
+            <div className="branch-view-toggle" role="group" aria-label="View mode">
+              <button type="button" className={`branch-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`} onClick={() => setViewMode('cards')}>Cards</button>
+              <button type="button" className={`branch-toggle-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>List</button>
+            </div>
+            <button className="ak-btn ak-btn--primary btn-create-branch" onClick={handleAdd}>+ Add Location</button>
+          </div>
         </div>
-      </div>
+      </header>
 
       <div className="branch-toolbar">
         <div className="branch-search">
@@ -177,7 +182,7 @@ const BranchManagement = () => {
         </div>
       </div>
 
-      {loading && <div className="loading-message">Loading locations...</div>}
+      {loading && <Loader label="Loading locations" />}
       {error && <div className="error-message">Error: {error}</div>}
 
       {viewMode === 'cards' ? (
@@ -235,7 +240,7 @@ const BranchManagement = () => {
               </thead>
               <tbody>
                 {locations.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>{loading ? 'Loading...' : 'No locations found'}</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>{loading ? <Loader /> : 'No locations found'}</td></tr>
                 ) : (
                   locations.map((loc) => (
                     <tr key={loc.id}>
@@ -325,6 +330,7 @@ const BranchManagement = () => {
           </div>
         </form>
       </Modal>
+     </div>
     </AdminLayout>
   );
 };

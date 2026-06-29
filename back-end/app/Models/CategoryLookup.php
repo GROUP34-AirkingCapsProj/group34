@@ -17,10 +17,4 @@ class CategoryLookup extends Model
         'category_type',
         'description',
     ];
-
-    // Relationship
-    public function subcategories()
-    {
-        return $this->hasMany(SubcategoryLookup::class, 'category_id', 'category_id');
-    }
 }

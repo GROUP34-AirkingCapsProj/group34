@@ -43,3 +43,12 @@ yarn-error.log*
 .idea/
 *.swp
 *.swo
+
+# Local test environment (points at airkingV5_test)
+back-end/.env.testing
+
+# DB backups / dumps (data, not source)
+/db_backups/
+
+# Local Claude settings (machine-specific)
+.claude/settings.local.json

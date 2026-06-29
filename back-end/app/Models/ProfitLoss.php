@@ -16,7 +16,6 @@ class ProfitLoss extends Model
     protected $primaryKey = 'profit_loss_id';
 
     protected $fillable = [
-        'model_id',
         'product_id',
         'reference_type',
         'transaction_date',
@@ -37,11 +36,6 @@ class ProfitLoss extends Model
         'unit_cost'         => 'decimal:2',
         'total_loss_amount' => 'decimal:2',
     ];
-
-    public function model(): BelongsTo
-    {
-        return $this->belongsTo(ModelLookup::class, 'model_id', 'model_id');
-    }
 
     public function product(): BelongsTo
     {

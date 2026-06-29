@@ -9,6 +9,7 @@ use App\Models\PurchaseOrderDetail;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use App\Models\Supplier;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +28,6 @@ class PurchaseRequestController extends Controller
         'budget',
         'convertedPO',
         'details.product.applianceDetail.brand',
-        'details.product.applianceDetail.modelLookup',
         'details.product.consumableDetail.unit',
     ];
 
@@ -319,6 +319,8 @@ class PurchaseRequestController extends Controller
                 return $pr;
             });
 
+            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+
             $pr->load(self::WITH_RELATIONS);
             return $this->success($pr, 'Purchase request submitted', 201);
         } catch (\Throwable $e) {
@@ -353,6 +355,8 @@ class PurchaseRequestController extends Controller
                 }
             });
 
+            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+
             $pr->load(self::WITH_RELATIONS);
             return $this->success($pr, 'Purchase request approved');
         } catch (\Throwable $e) {
@@ -386,6 +390,8 @@ class PurchaseRequestController extends Controller
             'rejection_reason' => $validated['rejection_reason'],
         ]);
 
+        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+
         $pr->load(self::WITH_RELATIONS);
         return $this->success($pr, 'Purchase request rejected');
     }
@@ -399,7 +405,6 @@ class PurchaseRequestController extends Controller
     {
         $pr = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
-            'details.product.applianceDetail.modelLookup',
             'details.product.consumableDetail.unit',
             'location',
             'budget',
@@ -577,10 +582,12 @@ class PurchaseRequestController extends Controller
                 return $po;
             });
 
+            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+            RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'pr_converted');
+
             $po->load([
                 'supplier', 'location', 'status', 'purchaseRequest',
                 'details.product.applianceDetail.brand',
-                'details.product.applianceDetail.modelLookup',
                 'details.product.consumableDetail.unit',
             ]);
             return $this->success($po, 'Purchase request converted to purchase order', 201);

@@ -21,24 +21,53 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $user          = $request->user();
+        $isCentralized = $user === null || $user->isCentralized();
+        $locId         = $isCentralized ? null : $user->scopedLocationId();
+
         return response()->json([
-            'stats'                    => $this->getStats(),
-            'low_stock_items'          => $this->getLowStockItems(),
-            'inventory_by_category'    => $this->getInventoryByCategory(),
-            'location_distribution'    => $this->getLocationDistribution(),
-            'stock_status_by_location' => $this->getStockStatusByLocation(),
-            'warehouse_capacity'       => $this->getWarehouseCapacity(),
-            'stock_trends'             => $this->getStockTrends(),
-            'transaction_trends'       => $this->getSalesTrends(),
-            'recent_activity'          => $this->getRecentActivity(),
+            'stats'                    => $this->getStats($user),
+            'low_stock_items'          => $this->getLowStockItems($locId),
+            'inventory_by_category'    => $this->buildInventoryByCategory(null, null, null, $locId),
+            'location_distribution'    => $this->getLocationDistribution($locId),
+            'stock_status_by_location' => $this->buildStockByLocation(null, null, null, $locId),
+            'warehouse_capacity'       => $this->getWarehouseCapacity($locId),
+            'stock_trends'             => $this->buildStockTrends(now()->subWeeks(3)->toDateString(), now()->toDateString(), null, null, null, $locId),
+            'transaction_trends'       => $this->buildTransactionTrends(now()->subDays(6)->toDateString(), now()->toDateString(), $locId),
+            'recent_activity'          => $this->getRecentActivity($locId),
         ]);
     }
 
-    public function stats()
+    public function stats(Request $request)
     {
-        return response()->json(['success' => true, 'data' => $this->getStats()]);
+        return response()->json(['success' => true, 'data' => $this->getStats($request->user())]);
+    }
+
+    /**
+     * One-shot payload for the admin header badges.
+     * Combines alert badge/unread/pending counts with awaiting-transfer counts so the
+     * layout needs a single request instead of three.
+     */
+    public function layoutSummary(Request $request)
+    {
+        $alertJson = app(\App\Http\Controllers\Api\AlertSettingsController::class)
+            ->index($request);
+        $alert = json_decode($alertJson->getContent(), true)['data'] ?? [];
+
+        $awaiting = $this->awaitingTransferCounts();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'badge_count'          => $alert['badge_count']   ?? 0,
+                'unread_count'         => $alert['unread_count']  ?? 0,
+                'total_pending'        => $alert['total_pending'] ?? 0,
+                'awaiting_fulfillment' => $awaiting['fulfillment'],
+                'awaiting_receipt'     => $awaiting['receipt'],
+            ],
+        ]);
     }
 
     public function lowStock()
@@ -312,50 +341,126 @@ class DashboardController extends Controller
             ]);
 
         $totalPending = $pendingPos->count() + $pendingPrs->count() + $pendingProducts->count();
+        $awaiting     = $this->awaitingTransferCounts();
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'pending_pos'           => $pendingPos->values(),
-                'pending_prs'           => $pendingPrs->values(),
-                'pending_products'      => $pendingProducts->values(),
-                'pending_po_count'      => $pendingPos->count(),
-                'pending_pr_count'      => $pendingPrs->count(),
-                'pending_product_count' => $pendingProducts->count(),
-                'total_pending'         => $totalPending,
+                'pending_pos'                => $pendingPos->values(),
+                'pending_prs'                => $pendingPrs->values(),
+                'pending_products'           => $pendingProducts->values(),
+                'pending_po_count'           => $pendingPos->count(),
+                'pending_pr_count'           => $pendingPrs->count(),
+                'pending_product_count'      => $pendingProducts->count(),
+                'total_pending'              => $totalPending,
+                'awaiting_fulfillment_count' => $awaiting['fulfillment'],
+                'awaiting_receipt_count'     => $awaiting['receipt'],
             ],
         ]);
     }
 
-    private function getStats(): array
+    private function awaitingTransferCounts(): array
     {
-        $pendingTransfers     = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'))->count();
-        $pendingPOs          = PurchaseOrder::where('status_id', 7)->count();
-        $pendingRegistrations = PendingProduct::where('status', 'pending')->count();
-        $activeLocations     = Location::count();
-        $totalProducts       = Product::count();
+        $user          = request()->user();
+        $isCentralized = $user === null || $user->isCentralized();
+        $locId         = $isCentralized ? null : $user->scopedLocationId();
 
-        return [
-            'total_users'          => User::count(),
-            'active_locations'     => $activeLocations,
-            'active_branches'      => $activeLocations,
-            'total_products'       => $totalProducts,
-            'total_items'          => $totalProducts,
-            'low_stock'            => (int) DB::table('products')
+        if (!$isCentralized && $locId === null) {
+            return ['fulfillment' => 0, 'receipt' => 0];
+        }
+
+        $fulfillment = Transfer::whereNotNull('transfer_request_id')
+            ->whereHas('status', fn ($q) => $q->where('status_name', 'Approved')->where('status_category', 'transfer'))
+            ->when(!$isCentralized, fn ($q) => $q->where('from_location_id', $locId))
+            ->count();
+
+        $receipt = Transfer::whereNotNull('transfer_request_id')
+            ->whereHas('status', fn ($q) => $q->where('status_name', 'In Transit')->where('status_category', 'transfer'))
+            ->when(!$isCentralized, fn ($q) => $q->where('to_location_id', $locId))
+            ->count();
+
+        return ['fulfillment' => $fulfillment, 'receipt' => $receipt];
+    }
+
+    private function getStats(?User $user = null): array
+    {
+        $isCentralized = $user === null || $user->isCentralized();
+        $locId         = $isCentralized ? null : $user->scopedLocationId();
+        $noData        = !$isCentralized && $locId === null;
+
+        // ── pending_transfers: Transfer has from_location_id / to_location_id (no trait)
+        // Scoped users see pending transfers that originate from OR arrive at their location.
+        $pendingTransfersQuery = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'));
+        if ($noData) {
+            $pendingTransfers = 0;
+        } elseif (!$isCentralized) {
+            $pendingTransfers = (clone $pendingTransfersQuery)
+                ->where(fn($q) => $q->where('from_location_id', $locId)->orWhere('to_location_id', $locId))
+                ->count();
+        } else {
+            $pendingTransfers = $pendingTransfersQuery->count();
+        }
+
+        // ── pending_pos: PurchaseOrder has location_id (no trait)
+        $pendingPOsQuery = PurchaseOrder::where('status_id', 7);
+        if ($noData) {
+            $pendingPOs = 0;
+        } elseif (!$isCentralized) {
+            $pendingPOs = (clone $pendingPOsQuery)->where('location_id', $locId)->count();
+        } else {
+            $pendingPOs = $pendingPOsQuery->count();
+        }
+
+        // ── pending_registrations: PendingProduct has no location_id — always global
+        $pendingRegistrations = PendingProduct::where('status', 'pending')->count();
+
+        $activeLocations = Location::count();
+        $totalProducts   = Product::count();
+        $awaiting        = $this->awaitingTransferCounts();
+
+        // ── total_sales: Sale has ScopesToUserLocation trait
+        $totalSales = $noData ? 0 : ($user !== null ? Sale::forUser($user)->count() : Sale::count());
+
+        // ── low_stock: correlated subquery over inventory — scope to user's location when scoped
+        if ($noData) {
+            $lowStock = 0;
+        } elseif (!$isCentralized) {
+            $lowStock = (int) DB::table('products')
+                ->where('recommended_stocks', '>', 0)
+                ->whereRaw(
+                    '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id AND inventory.location_id = ?) < products.recommended_stocks',
+                    [$locId]
+                )
+                ->count();
+        } else {
+            $lowStock = (int) DB::table('products')
                 ->where('recommended_stocks', '>', 0)
                 ->whereRaw('(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id) < products.recommended_stocks')
-                ->count(),
-            'total_sales'          => Sale::count(),
-            'pending_transfers'    => $pendingTransfers,
-            'pending_pos'          => $pendingPOs,
+                ->count();
+        }
+
+        return [
+            'total_users'           => User::count(),
+            'active_locations'      => $activeLocations,
+            'active_branches'       => $activeLocations,
+            'total_products'        => $totalProducts,
+            'total_items'           => $totalProducts,
+            'low_stock'             => $lowStock,
+            'total_sales'           => $totalSales,
+            'pending_transfers'     => $pendingTransfers,
+            'pending_pos'           => $pendingPOs,
             'pending_registrations' => $pendingRegistrations,
-            'pending_actions'      => $pendingTransfers + $pendingPOs + $pendingRegistrations,
+            'pending_actions'       => $pendingTransfers + $pendingPOs + $pendingRegistrations,
+            'awaiting_fulfillment'  => $awaiting['fulfillment'],
+            'awaiting_receipt'      => $awaiting['receipt'],
         ];
     }
 
-    private function getLowStockItems(): array
+    private function getLowStockItems(?int $locId = null): array
     {
-        $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
+        $sub = $locId === null
+            ? '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)'
+            : '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id AND inventory.location_id = ' . (int) $locId . ')';
 
         return Product::with(['category', 'applianceDetail.brand'])
             ->selectRaw("products.*, {$sub} AS total_qty")
@@ -382,9 +487,11 @@ class DashboardController extends Controller
         return $this->buildInventoryByCategory(null, null, null);
     }
 
-    private function getLocationDistribution(): array
+    private function getLocationDistribution(?int $locId = null): array
     {
-        $locations = Location::withCount('inventories')->get();
+        $locations = Location::withCount('inventories')
+            ->when($locId !== null, fn ($q) => $q->where('location_id', $locId))
+            ->get();
 
         if ($locations->isEmpty()) {
             return [
@@ -409,9 +516,9 @@ class DashboardController extends Controller
         return $this->buildStockByLocation(null, null, null);
     }
 
-    private function getWarehouseCapacity(): array
+    private function getWarehouseCapacity(?int $locId = null): array
     {
-        $locations = Location::all();
+        $locations = Location::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->get();
 
         if ($locations->isEmpty()) {
             return ['labels' => [], 'capacity' => [], 'occupancy' => []];
@@ -452,14 +559,19 @@ class DashboardController extends Controller
         $brandId   = $request->filled('brand_id')    ? (int) $request->input('brand_id')    : null;
         $productId = $request->filled('product_id')  ? (int) $request->input('product_id')  : null;
 
+        // Scope the filtered charts to the user's location too, so a scoped
+        // role using the date/category picker never sees other locations' data.
+        $user  = $request->user();
+        $locId = ($user === null || $user->isCentralized()) ? null : $user->scopedLocationId();
+
         return response()->json([
             'success' => true,
             'data'    => [
-                'transaction_trends'       => $this->buildTransactionTrends($dateFrom, $dateTo),
-                'stock_trends'             => $this->buildStockTrends($dateFrom, $dateTo, $catId, $brandId, $productId),
-                'inventory_by_category'    => $this->buildInventoryByCategory($catId, $brandId, $productId),
-                'stock_status_by_location' => $this->buildStockByLocation($catId, $brandId, $productId),
-                'warehouse_capacity'       => $this->getWarehouseCapacity(),
+                'transaction_trends'       => $this->buildTransactionTrends($dateFrom, $dateTo, $locId),
+                'stock_trends'             => $this->buildStockTrends($dateFrom, $dateTo, $catId, $brandId, $productId, $locId),
+                'inventory_by_category'    => $this->buildInventoryByCategory($catId, $brandId, $productId, $locId),
+                'stock_status_by_location' => $this->buildStockByLocation($catId, $brandId, $productId, $locId),
+                'warehouse_capacity'       => $this->getWarehouseCapacity($locId),
             ],
         ]);
     }
@@ -478,7 +590,7 @@ class DashboardController extends Controller
 
     // ─── Shared chart builders (used by both index and filteredCharts) ─────────
 
-    private function buildTransactionTrends(string $dateFrom, string $dateTo): array
+    private function buildTransactionTrends(string $dateFrom, string $dateTo, ?int $locId = null): array
     {
         $from = Carbon::parse($dateFrom)->startOfDay();
         $to   = Carbon::parse($dateTo)->endOfDay();
@@ -491,16 +603,16 @@ class DashboardController extends Controller
             while ($d->lte($to)) {
                 $ds               = $d->toDateString();
                 $labels[]         = $d->format('M d');
-                $saleValues[]     = Sale::whereDate('created_at', $ds)->count();
-                $purchaseValues[] = PurchaseOrder::whereDate('created_at', $ds)->count();
+                $saleValues[]     = Sale::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereDate('created_at', $ds)->count();
+                $purchaseValues[] = PurchaseOrder::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereDate('created_at', $ds)->count();
                 $d->addDay();
             }
         } else {
             $d = $from->copy()->startOfMonth();
             while ($d->lte($to)) {
                 $labels[]         = $d->format('M Y');
-                $saleValues[]     = Sale::whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
-                $purchaseValues[] = PurchaseOrder::whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
+                $saleValues[]     = Sale::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
+                $purchaseValues[] = PurchaseOrder::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
                 $d->addMonth();
             }
         }
@@ -508,7 +620,7 @@ class DashboardController extends Controller
         return ['labels' => $labels, 'values' => $saleValues, 'purchase_values' => $purchaseValues];
     }
 
-    private function buildStockTrends(string $dateFrom, string $dateTo, ?int $catId, ?int $brandId, ?int $productId): array
+    private function buildStockTrends(string $dateFrom, string $dateTo, ?int $catId, ?int $brandId, ?int $productId, ?int $locId = null): array
     {
         $from  = Carbon::parse($dateFrom);
         $to    = Carbon::parse($dateTo);
@@ -522,21 +634,28 @@ class DashboardController extends Controller
             $labels[] = $weeks === 1 ? $from->format('M d') . '–' . $to->format('M d') : 'Wk ' . ($i + 1);
             $q        = DB::table('inventory as inv')->where('inv.updated_at', '<=', $weekEnd);
             $this->applyInventoryFilters($q, $catId, $brandId, $productId, 'inv');
+            if ($locId !== null) $q->where('inv.location_id', $locId);
             $values[] = (int) round((float) ($q->avg('inv.quantity_on_hand') ?? 0));
         }
 
         $rq = DB::table('inventory as inv')->whereNotNull('inv.reorder_level');
         $this->applyInventoryFilters($rq, $catId, $brandId, $productId, 'inv');
+        if ($locId !== null) $rq->where('inv.location_id', $locId);
         $avgReorder = (int) round((float) ($rq->avg('inv.reorder_level') ?? 0));
 
         return ['labels' => $labels, 'values' => $values, 'reorder_level' => $avgReorder];
     }
 
-    private function buildInventoryByCategory(?int $catId, ?int $brandId, ?int $productId): array
+    private function buildInventoryByCategory(?int $catId, ?int $brandId, ?int $productId, ?int $locId = null): array
     {
         $q = DB::table('category_lookup')
             ->leftJoin('products', 'category_lookup.category_id', '=', 'products.category_id')
-            ->leftJoin('inventory', 'products.product_id', '=', 'inventory.product_id');
+            ->leftJoin('inventory', function ($join) use ($locId) {
+                $join->on('products.product_id', '=', 'inventory.product_id');
+                // Keep the location filter inside the LEFT JOIN so categories with no
+                // stock at this location still appear (as 0) instead of being dropped.
+                if ($locId !== null) $join->where('inventory.location_id', '=', $locId);
+            });
 
         if ($brandId) {
             $q->leftJoin('appliance_details', 'products.product_id', '=', 'appliance_details.product_id')
@@ -556,9 +675,9 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildStockByLocation(?int $catId, ?int $brandId, ?int $productId): array
+    private function buildStockByLocation(?int $catId, ?int $brandId, ?int $productId, ?int $locId = null): array
     {
-        $locations = Location::all();
+        $locations = Location::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->get();
         if ($locations->isEmpty()) {
             return ['labels' => [], 'inStock' => [], 'lowStock' => []];
         }
@@ -598,12 +717,12 @@ class DashboardController extends Controller
         }
     }
 
-    private function getRecentActivity(): array
+    private function getRecentActivity(?int $locId = null): array
     {
         $rows = [];
 
         try {
-            foreach (Sale::with(['customer', 'location', 'soldBy'])->orderBy('created_at', 'desc')->limit(5)->get() as $s) {
+            foreach (Sale::with(['customer', 'location', 'soldBy'])->when($locId !== null, fn ($q) => $q->where('location_id', $locId))->orderBy('created_at', 'desc')->limit(5)->get() as $s) {
                 $rows[] = [
                     'type'        => 'sale',
                     'label'       => 'Sale ' . ($s->invoice_number ?? ('#' . $s->sales_id)),
@@ -617,7 +736,7 @@ class DashboardController extends Controller
         } catch (\Throwable $_) {}
 
         try {
-            foreach (Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'status'])->orderBy('created_at', 'desc')->limit(5)->get() as $t) {
+            foreach (Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'status'])->when($locId !== null, fn ($q) => $q->where(fn ($w) => $w->where('from_location_id', $locId)->orWhere('to_location_id', $locId)))->orderBy('created_at', 'desc')->limit(5)->get() as $t) {
                 $rows[] = [
                     'type'        => 'transfer',
                     'label'       => 'Transfer ' . ($t->transfer_number ?? ('#' . $t->transfer_id)),
@@ -631,7 +750,7 @@ class DashboardController extends Controller
         } catch (\Throwable $_) {}
 
         try {
-            foreach (Receiving::with(['supplier', 'location', 'receivedBy'])->orderBy('created_at', 'desc')->limit(5)->get() as $r) {
+            foreach (Receiving::with(['supplier', 'location', 'receivedBy'])->when($locId !== null, fn ($q) => $q->where('location_id', $locId))->orderBy('created_at', 'desc')->limit(5)->get() as $r) {
                 $rows[] = [
                     'type'        => 'receiving',
                     'label'       => 'Receiving ' . ($r->receiving_number ?? ('#' . $r->receiving_id)),

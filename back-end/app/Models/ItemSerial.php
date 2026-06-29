@@ -11,6 +11,9 @@ class ItemSerial extends Model
 {
     use Auditable;
     protected $table = 'item_serial';
+
+    /** Inventory status_id for "In Stock" (status_lookup category 'inventory'). */
+    public const IN_STOCK_STATUS_ID = 26;
     protected $primaryKey = 'serial_id';
 
     protected $fillable = [
@@ -52,5 +55,20 @@ class ItemSerial extends Model
     public function purchaseReturnDetails(): HasMany
     {
         return $this->hasMany(PurchaseReturnDetails::class, 'serial_id', 'serial_id');
+    }
+
+    /**
+     * Serials that may be issued/sold at a location: physically here,
+     * In Stock (inventory status 26), and not shipped out on a transfer
+     * (serial_type stays 'received' until dispatched; receive() restores it).
+     * Case/space-insensitive on the serial number to match scanner input.
+     */
+    public function scopeIssuableAt($query, int $locationId, string $serialNumber)
+    {
+        return $query
+            ->where('location_id', $locationId)
+            ->where('serial_type', 'received')
+            ->where('status_id', self::IN_STOCK_STATUS_ID)
+            ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($serialNumber))]);
     }
 }

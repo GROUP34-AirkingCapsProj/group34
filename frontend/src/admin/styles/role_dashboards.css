@@ -2,29 +2,7 @@
    ROLE DASHBOARDS — shared styles for all role-specific pages
    ============================================================ */
 
-/* ── Loading / Error states ───────────────────────────────── */
-.rd-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 320px;
-  gap: 14px;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.rd-loading-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #dc2626;
-  border-radius: 50%;
-  animation: rd-spin 0.7s linear infinite;
-}
-
-@keyframes rd-spin { to { transform: rotate(360deg); } }
-
+/* ── Error state (loading uses the shared <Loader />) ─────── */
 .rd-error {
   display: flex;
   flex-direction: column;

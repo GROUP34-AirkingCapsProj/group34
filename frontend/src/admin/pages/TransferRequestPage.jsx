@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { transferRequestsAPI, locationsAPI, productsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
+import { confirmAction, confirmWithReason } from '../utils/confirm';
+import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
-import { toast } from '../utils/toast';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -42,11 +44,12 @@ const StatusBadge = ({ name }) => {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 const TransferRequestPage = () => {
-  const { user }    = useAuth();
+  const { user, can }    = useAuth();
   const navigate    = useNavigate();
   const roleKey     = getRoleKey(user);
   const isAdmin     = roleKey === ROLES.ADMIN || roleKey === ROLES.INVENTORY_ANALYST;
-  const canCreateIST = isAdmin || roleKey === ROLES.WAREHOUSE_PERSONNEL;
+  // Permission-driven: anyone granted inventory_transfers.create can raise a transfer request.
+  const canCreateIST = roleKey === ROLES.ADMIN || (typeof can === 'function' && can('inventory_transfers', 'create'));
   const userLocId   = String(user?.enforced_location_id ?? user?.location_id ?? '');
 
   const [activeTab, setActiveTab] = useState(isAdmin ? 'approvals' : 'create');
@@ -77,6 +80,8 @@ const TransferRequestPage = () => {
   const [lines,        setLines]        = useState([newLine()]);
   const [submitting,   setSubmitting]   = useState(false);
   const [submitErr,    setSubmitErr]    = useState('');
+  const [submitOk,     setSubmitOk]     = useState(false);
+  const [createdNum,   setCreatedNum]   = useState('');
 
   const addLine    = useCallback(() => setLines(p => [...p, newLine()]), []);
   const removeLine = useCallback((id) => setLines(p => p.filter(l => l.id !== id)), []);
@@ -103,8 +108,8 @@ const TransferRequestPage = () => {
           quantity_requested: Math.max(1, parseInt(l.qty) || 1),
         })),
       });
-      const createdNum = res?.data?.transfer_number || 'Transfer Request';
-      toast.success(`${createdNum} submitted — waiting for approval.`);
+      setCreatedNum(res?.data?.transfer_number || 'Transfer Request');
+      setSubmitOk(true);
       setLines([newLine()]);
       setNotes('');
       setFromLocId('');
@@ -172,6 +177,11 @@ const TransferRequestPage = () => {
 
   // ── Approve ───────────────────────────────────────────────────────────────
   const handleApprove = useCallback(async (id) => {
+    if (!(await confirmAction({
+      title: 'Approve this transfer request?',
+      confirmText: 'Approve',
+      tone: 'primary',
+    }))) return;
     setActionLoading(p => ({ ...p, [id]: 'approving' }));
     try {
       const quantities = Object.entries(approvedQtys).map(([detailId, qty]) => ({
@@ -181,26 +191,31 @@ const TransferRequestPage = () => {
       await transferRequestsAPI.approve(id, { quantities });
       setPendingReqs(p => p.filter(r => r.transfer_id !== id));
       closeDetail();
-    } catch (err) { toast.error(err?.message || 'Approval failed.'); }
+      toast.success('Transfer approved');
+    } catch (err) { toast.error("Couldn't approve transfer", err?.message || 'Approval failed.'); }
     finally { setActionLoading(p => { const n = { ...p }; delete n[id]; return n; }); }
   }, [approvedQtys, closeDetail]);
 
   // ── Reject ────────────────────────────────────────────────────────────────
-  const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '', submitting: false });
-  const openReject  = useCallback((id) => setRejectModal({ open: true, id, reason: '', submitting: false }), []);
-  const handleReject = useCallback(async () => {
-    if (!rejectModal.reason.trim()) return;
-    setRejectModal(p => ({ ...p, submitting: true }));
+  const handleReject = useCallback(async (id) => {
+    const { confirmed, reason } = await confirmWithReason({
+      title: 'Reject this transfer request?',
+      confirmText: 'Reject',
+      tone: 'danger',
+      reasonRequired: true,
+      reasonLabel: 'Reason for rejection',
+    });
+    if (!confirmed) return;
+    setActionLoading(p => ({ ...p, [id]: 'rejecting' }));
     try {
-      await transferRequestsAPI.reject(rejectModal.id, { rejection_reason: rejectModal.reason });
-      setPendingReqs(p => p.filter(r => r.transfer_id !== rejectModal.id));
-      setRejectModal({ open: false, id: null, reason: '', submitting: false });
+      await transferRequestsAPI.reject(id, { rejection_reason: reason });
+      setPendingReqs(p => p.filter(r => r.transfer_id !== id));
       closeDetail();
+      toast.success('Transfer rejected');
     } catch (err) {
-      toast.error(err?.message || 'Rejection failed.');
-      setRejectModal(p => ({ ...p, submitting: false }));
-    }
-  }, [rejectModal, closeDetail]);
+      toast.error("Couldn't reject transfer", err?.message || 'Rejection failed.');
+    } finally { setActionLoading(p => { const n = { ...p }; delete n[id]; return n; }); }
+  }, [closeDetail]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const locName = useCallback((id) => {
@@ -220,6 +235,20 @@ const TransferRequestPage = () => {
   // ─────────────────────────────────────────────────────────────────────────
   const renderCreate = () => (
     <div className="pr-create-form-layout">
+      {submitOk && (
+        <div className="po-success-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <strong>{createdNum}</strong> submitted — waiting for approval.
+          <button type="button" className="po-success-close" onClick={() => setSubmitOk(false)} aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
       <div className="po-details-card">
         <div className="pr-form-grid">
           <div className="po-field">
@@ -299,7 +328,7 @@ const TransferRequestPage = () => {
                       <option value="">{loadingProd ? 'Loading…' : 'Select product…'}</option>
                       {products.map(p => (
                         <option key={p.product_id} value={String(p.product_id)}>
-                          {p.product_code ? `[${p.product_code}] ` : ''}{p.product_name}
+                          {p.model_code ? `[${p.model_code}] ` : ''}{p.product_name}
                         </option>
                       ))}
                     </select>
@@ -341,7 +370,7 @@ const TransferRequestPage = () => {
   // RENDER: My Requests tab
   // ─────────────────────────────────────────────────────────────────────────
   const renderMyRequests = () => {
-    if (loadingMine) return <div className="po-status-loading">Loading requests…</div>;
+    if (loadingMine) return <Loader label="Loading requests" />;
     if (!myReqs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">
@@ -408,7 +437,7 @@ const TransferRequestPage = () => {
   // RENDER: Pending Approvals tab
   // ─────────────────────────────────────────────────────────────────────────
   const renderApprovals = () => {
-    if (loadingPend) return <div className="po-status-loading">Loading pending approvals…</div>;
+    if (loadingPend) return <Loader label="Loading pending approvals" />;
     if (!pendingReqs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">
@@ -446,8 +475,8 @@ const TransferRequestPage = () => {
                     <button type="button" className="po-status-view-btn" onClick={() => openDetail(r)}>
                       REVIEW &amp; APPROVE
                     </button>
-                    <button type="button" className="pr-btn-reject" onClick={() => openReject(r.transfer_id)}>
-                      REJECT
+                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(r.transfer_id)} disabled={actionLoading[r.transfer_id] === 'rejecting'}>
+                      {actionLoading[r.transfer_id] === 'rejecting' ? 'REJECTING…' : 'REJECT'}
                     </button>
                   </div>
                 </div>
@@ -468,7 +497,8 @@ const TransferRequestPage = () => {
     const cfg       = statusCfg(r.status?.status_name);
     const { from, to } = reqLocNames(r);
     const isPending = r.status?.status_name === STATUS.PENDING;
-    const isApproving = actionLoading[r.transfer_id] === 'approving';
+    const isApproving  = actionLoading[r.transfer_id] === 'approving';
+    const isRejecting  = actionLoading[r.transfer_id] === 'rejecting';
     const details   = Array.isArray(r.details) ? r.details : [];
     const tracking  = Array.isArray(r.transferTracking) ? [...r.transferTracking].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)) : [];
 
@@ -533,7 +563,7 @@ const TransferRequestPage = () => {
                 <span className="po-detail-items-heading">REQUESTED PRODUCTS</span>
                 <span className="po-detail-items-count">{details.length}</span>
                 {loadingDetail && (
-                  <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>Loading details…</span>
+                  <Loader variant="inline" label="Loading details" />
                 )}
               </div>
 
@@ -552,7 +582,7 @@ const TransferRequestPage = () => {
                       <th>#</th>
                       <th>PRODUCT</th>
                       <th>REQUESTED</th>
-                      <th>STOCK AT SOURCE</th>
+                      <th>AVAIL AT SOURCE</th>
                       {isPending && isAdmin ? <th>APPROVED QTY</th> : <th>TRANSFERRED</th>}
                     </tr>
                   </thead>
@@ -566,9 +596,22 @@ const TransferRequestPage = () => {
                           <td className="po-detail-table-idx">{di + 1}</td>
                           <td>
                             <div>{d.product?.product_name || '—'}</div>
-                            {d.product?.product_code && <small style={{ color: '#94a3b8' }}>{d.product.product_code}</small>}
+                            {d.product?.applianceDetail?.model_code && <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>}
                           </td>
-                          <td>{d.quantity_requested}</td>
+                          <td>
+                            {d.quantity_requested}
+                            {!loadingDetail && (
+                              <span className="line-stock" style={{ display: 'block', fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                {'avail: '}
+                                <span style={{ fontWeight: 600 }}>{d.available_at_source ?? d.stock_at_source ?? 0}</span>
+                                {Number(d.shortfall) > 0 && (
+                                  <span className="line-shortfall" style={{ color: '#b45309', fontWeight: 600, marginLeft: 4 }}>
+                                    ⚠ short {d.shortfall}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </td>
                           <td>
                             {loadingDetail ? (
                               <span style={{ color: '#94a3b8' }}>—</span>
@@ -640,9 +683,10 @@ const TransferRequestPage = () => {
                 <button
                   type="button"
                   className="pr-btn-reject"
-                  onClick={() => { closeDetail(); openReject(r.transfer_id); }}
+                  onClick={() => handleReject(r.transfer_id)}
+                  disabled={isRejecting}
                 >
-                  REJECT
+                  {isRejecting ? 'REJECTING…' : 'REJECT'}
                 </button>
                 <button
                   type="button"
@@ -661,51 +705,11 @@ const TransferRequestPage = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: Reject modal
-  // ─────────────────────────────────────────────────────────────────────────
-  const renderRejectModal = () => (
-    <Modal isOpen={rejectModal.open} onClose={() => setRejectModal(p => ({ ...p, open: false }))} title="Reject Transfer Request" maxWidth={480}>
-      <div style={{ padding: '8px 0' }}>
-        <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#374151' }}>
-          REJECTION REASON <span style={{ color: '#dc2626' }}>*</span>
-        </label>
-        <textarea
-          style={{ width: '100%', minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
-          value={rejectModal.reason}
-          onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))}
-          placeholder="Explain why this request is being rejected…"
-        />
-        {!rejectModal.reason.trim() && (
-          <p style={{ color: '#dc2626', fontSize: 12, marginTop: 6 }}>Rejection reason is required.</p>
-        )}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button
-            type="button"
-            style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 13 }}
-            onClick={() => setRejectModal(p => ({ ...p, open: false }))}
-            disabled={rejectModal.submitting}
-          >
-            CANCEL
-          </button>
-          <button
-            type="button"
-            className="pr-btn-reject"
-            onClick={handleReject}
-            disabled={rejectModal.submitting || !rejectModal.reason.trim()}
-          >
-            {rejectModal.submitting ? 'REJECTING…' : 'CONFIRM REJECT'}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-
-  // ─────────────────────────────────────────────────────────────────────────
   // MAIN RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
             <div className="po-creator-header-main">
@@ -770,7 +774,6 @@ const TransferRequestPage = () => {
       </div>
 
       {renderDetailModal()}
-      {renderRejectModal()}
     </AdminLayout>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { warrantiesAPI, getApiBaseUrl, getToken } from '../services/api';
-import { toast } from '../utils/toast';
+import { useAuth } from '../context/AuthContext';
 import '../styles/dashboard_air.css';
 import '../styles/warranty_management.css';
 
@@ -35,6 +36,8 @@ const DaysChip = ({ endDate, statusId }) => {
 };
 
 const WarrantyManagement = () => {
+  const { can } = useAuth();
+  const canClaim = can('warranty_claims', 'create');
   const [warranties, setWarranties]     = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
@@ -50,12 +53,6 @@ const WarrantyManagement = () => {
   const [serialResult, setSerialResult]   = useState(null);
   const [serialLoading, setSerialLoading] = useState(false);
   const [serialError, setSerialError]     = useState('');
-
-  // Claim notes modal
-  const [claimTarget, setClaimTarget]   = useState(null);  // { id, name }
-  const [claimNotes, setClaimNotes]     = useState('');
-  const [claimError, setClaimError]     = useState('');
-  const [claiming, setClaiming]         = useState(false);
 
   const rowsPerPage = 15;
   const debounceRef = useRef(null);
@@ -104,31 +101,9 @@ const WarrantyManagement = () => {
     }
   };
 
-  const openClaimModal = (warrantyId, productName) => {
-    setClaimTarget({ id: warrantyId, name: productName });
-    setClaimNotes('');
-    setClaimError('');
-  };
-
-  const submitClaim = async () => {
-    if (!claimNotes.trim() || claimNotes.trim().length < 10) {
-      setClaimError('Claim notes are required (minimum 10 characters).');
-      return;
-    }
-    setClaiming(true);
-    setClaimError('');
-    try {
-      await warrantiesAPI.markClaimed(claimTarget.id, { claim_notes: claimNotes.trim() });
-      toast.success('Warranty marked as Claimed.');
-      setClaimTarget(null);
-      setViewingWarranty(null);
-      setSerialResult(null);
-      fetchWarranties(currentPage);
-    } catch (err) {
-      setClaimError(err.message || 'Failed to mark as claimed.');
-    } finally {
-      setClaiming(false);
-    }
+  const goToClaim = (serialNumber) => {
+    const serial = encodeURIComponent(serialNumber || '');
+    window.location.href = `/admin/warranty-claims${serial ? `?serial=${serial}` : ''}`;
   };
 
   const handleExport = () => {
@@ -156,19 +131,25 @@ const WarrantyManagement = () => {
 
   return (
     <AdminLayout searchPlaceholder="Search warranties..." onSearch={() => {}}>
-      <div className="war-page-header">
+     <div className="ak-page">
+      <header className="ak-header">
+       <div className="ak-header-row">
         <div className="war-page-header-left">
-          <h1>Warranty Records</h1>
-          <p>View and manage product warranties created from issuances</p>
+          <p className="ak-eyebrow">After-sales · Warranties</p>
+          <h1 className="ak-title">Warranty Records</h1>
+          <p className="ak-sub">View and manage product warranties created from issuances.</p>
         </div>
-        <button type="button" className="war-btn-create" onClick={handleExport}>
+        <div className="ak-header-aside">
+        <button type="button" className="ak-btn ak-btn--ghost war-btn-create" onClick={handleExport}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           Export CSV
         </button>
-      </div>
+        </div>
+       </div>
+      </header>
 
       {/* Stats row */}
       <div className="war-stats-row">
@@ -268,13 +249,13 @@ const WarrantyManagement = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
                 <StatusBadge statusId={sr.status_id} />
                 <DaysChip endDate={sr.warranty_end_date} statusId={sr.status_id} />
-                {srClaimable && (
+                {srClaimable && canClaim && (
                   <button
                     type="button"
                     className="war-btn-assign"
-                    onClick={() => openClaimModal(sr.warranty_id, sr.product?.product_name ?? sr.serial_number)}
+                    onClick={() => goToClaim(sr.serial_number)}
                   >
-                    Mark as Claimed
+                    Claim Warranty
                   </button>
                 )}
               </div>
@@ -332,7 +313,7 @@ const WarrantyManagement = () => {
           <h3>Warranty Records</h3>
           <span className="war-table-count">{pagination.total} records total</span>
         </div>
-        {loading && <div className="loading-message">Loading...</div>}
+        {loading && <Loader />}
         {error   && <div className="error-message">Error: {error}</div>}
         <div className="war-table-wrapper">
           <table className="war-table">
@@ -353,7 +334,7 @@ const WarrantyManagement = () => {
               {warranties.length === 0 ? (
                 <tr>
                   <td colSpan="9" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
-                    {loading ? 'Loading...' : 'No warranty records found.'}
+                    {loading ? <Loader /> : 'No warranty records found.'}
                   </td>
                 </tr>
               ) : (
@@ -379,12 +360,12 @@ const WarrantyManagement = () => {
                     <td>
                       <div className="war-cell-actions">
                         <button className="war-btn-view" onClick={() => setViewingWarranty(w)}>View</button>
-                        {w.status_id === 33 && (
+                        {w.status_id === 33 && canClaim && (
                           <button
                             className="war-btn-assign"
-                            onClick={() => openClaimModal(w.warranty_id, w.product?.product_name ?? w.serial_number)}
+                            onClick={() => goToClaim(w.serial_number)}
                           >
-                            Claim
+                            Claim Warranty
                           </button>
                         )}
                       </div>
@@ -492,13 +473,13 @@ const WarrantyManagement = () => {
             )}
             <div className="modal-footer">
               <button type="button" className="btn-cancel" onClick={() => setViewingWarranty(null)}>Close</button>
-              {viewingWarranty.status_id === 33 && (
+              {viewingWarranty.status_id === 33 && canClaim && (
                 <button
                   type="button"
                   className="btn-save"
-                  onClick={() => openClaimModal(viewingWarranty.warranty_id, viewingWarranty.product?.product_name ?? viewingWarranty.serial_number)}
+                  onClick={() => goToClaim(viewingWarranty.serial_number)}
                 >
-                  Mark as Claimed
+                  Claim Warranty
                 </button>
               )}
             </div>
@@ -506,37 +487,7 @@ const WarrantyManagement = () => {
         </Modal>
       )}
 
-      {/* Claim notes modal */}
-      {claimTarget && (
-        <Modal isOpen title="Mark Warranty as Claimed" onClose={() => setClaimTarget(null)}>
-          <div style={{ padding: '4px 0' }}>
-            <p style={{ marginBottom: 12, color: '#374151', fontSize: 14 }}>
-              Record claim details for: <strong>{claimTarget.name}</strong>
-            </p>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                Claim Notes *
-              </label>
-              <textarea
-                value={claimNotes}
-                onChange={(e) => { setClaimNotes(e.target.value); setClaimError(''); }}
-                placeholder="Describe the claim reason, defect, or service performed (minimum 10 characters)..."
-                rows={4}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
-              />
-              {claimError && (
-                <p style={{ marginTop: 4, color: '#dc2626', fontSize: 12 }}>{claimError}</p>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn-cancel" onClick={() => setClaimTarget(null)}>Cancel</button>
-              <button type="button" className="btn-save" onClick={submitClaim} disabled={claiming}>
-                {claiming ? 'Processing...' : 'Confirm Claim'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+     </div>
     </AdminLayout>
   );
 };

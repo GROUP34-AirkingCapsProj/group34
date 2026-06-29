@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 class Adjustment extends Model
 {
-    use SoftDeletes, Auditable;
+    use SoftDeletes, Auditable, ScopesToUserLocation;
 
     protected $table      = 'adjustments';
     protected $primaryKey = 'adjustment_id';

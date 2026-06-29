@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { transfersAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 import { getTransferWorkflow, transferShippedQty } from '../utils/moduleFeedStatus';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
@@ -43,6 +48,9 @@ const StockTransferManagement = () => {
   const [statuses, setStatuses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingTransfer, setViewingTransfer] = useState(null);
+  const focusTransferId = useFocusTarget('transfer');
+  const focusHandledRef = useRef(false);
+  const [trPulse, fireTrPulse] = useFocusPulse();
   const [editingTransfer, setEditingTransfer] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(emptyForm());
@@ -77,6 +85,15 @@ const StockTransferManagement = () => {
 
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
   useEffect(() => { fetchTransfers(); }, [fetchTransfers]);
+
+  useEffect(() => {
+    if (!focusTransferId || focusHandledRef.current) return;
+    if (loading) return;
+    focusHandledRef.current = true;
+    const tr = findById(transfers, ['transfer_id', 'id'], focusTransferId);
+    if (tr) { setViewingTransfer(tr); fireTrPulse(); }
+    else toast.error('That transfer is not available.');
+  }, [focusTransferId, loading, transfers, fireTrPulse]);
 
   const workflowCounts = useMemo(() => {
     let transit = 0;
@@ -130,7 +147,7 @@ const StockTransferManagement = () => {
     const itemRows = items.map((d) => `
       <tr>
         <td class="tc">${d.quantity_transferred || ''}</td>
-        <td>${d.product?.product_name || d.product?.product_code || ''}</td>
+        <td>${d.product?.product_name || d.product?.applianceDetail?.model_code || ''}</td>
         <td></td>
       </tr>`).join('') + Array(blankCount).fill('<tr><td>&nbsp;</td><td></td><td></td></tr>').join('');
 
@@ -243,6 +260,7 @@ const StockTransferManagement = () => {
       return;
     }
     if (!formData.details[0]?.product_id) { toast.error('Add at least one product.'); return; }
+    if (!(await confirmAction({ title: editingTransfer ? 'Save changes to this transfer?' : 'Save this transfer?', confirmText: 'Save', tone: 'primary' }))) return;
     setSubmitting(true);
     try {
       const payload = {
@@ -284,19 +302,22 @@ const StockTransferManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="txn-page">
-        <div className="txn-page-header">
-          <div className="txn-page-header-left">
-            <h1>Stock Transfer</h1>
-            <p>Transfer inventory between locations — <strong>In transit</strong> = naka-scan na sa warehouse, papunta sa showroom; <strong>Completed</strong> = natanggap na sa destination</p>
+      <div className="ak-page txn-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div className="txn-page-header-left">
+              <p className="ak-eyebrow">Inventory · Transfers</p>
+              <h1 className="ak-title">Stock Transfer</h1>
+              <p className="ak-sub">Transfer inventory between locations — <strong>In transit</strong> = naka-scan na sa warehouse, papunta sa showroom; <strong>Completed</strong> = natanggap na sa destination.</p>
+            </div>
+            <div className="ak-header-aside ak-actions">
+              <button type="button" className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/ist')}>
+                IST Receive flow
+              </button>
+              <button type="button" className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Transfer</button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" className="txn-btn-print" onClick={() => navigate('/admin/transfer-scan')}>
-              Transfer scan (OUT / IN)
-            </button>
-            <button type="button" className="txn-btn-create" onClick={openAddModal}>+ New Transfer</button>
-          </div>
-        </div>
+        </header>
 
         <div className="txn-stats-row">
           {[
@@ -359,7 +380,7 @@ const StockTransferManagement = () => {
 
           <div className="txn-feed">
             {loading ? (
-              <div className="txn-empty">Loading transfers...</div>
+              <Loader label="Loading transfers" />
             ) : filteredTransfers.length === 0 ? (
               <div className="txn-empty">No transfer records match your filters.</div>
             ) : (
@@ -409,7 +430,7 @@ const StockTransferManagement = () => {
 
       {viewingTransfer && (
         <Modal title={`Transfer: ${viewingTransfer.transfer_number}`} onClose={() => setViewingTransfer(null)}>
-          <div className="detail-grid">
+          <div className={`detail-grid${trPulse ? ' ak-focus-pulse' : ''}`}>
             <div><span className="detail-label">Status</span><span className="detail-value">{getTransferWorkflow(viewingTransfer).label}</span></div>
             <div><span className="detail-label">From Location</span><span className="detail-value">{viewingTransfer.from_location?.location_name || viewingTransfer.fromLocation?.location_name || '—'}</span></div>
             <div><span className="detail-label">To Location</span><span className="detail-value">{viewingTransfer.to_location?.location_name || viewingTransfer.toLocation?.location_name || '—'}</span></div>
@@ -446,8 +467,8 @@ const StockTransferManagement = () => {
           {getTransferWorkflow(viewingTransfer).key === 'transit' && (
             <p style={{ marginTop: 12, fontSize: 14, color: '#b45309' }}>
               Stock has left the warehouse. The showroom must scan items on{' '}
-              <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => { setViewingTransfer(null); navigate(`/admin/transfer-scan?mode=in&transfer=${viewingTransfer.transfer_id}`); }}>
-                Transfer scan → TRANSFER IN
+              <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => { setViewingTransfer(null); navigate('/admin/ist'); }}>
+                IST Receive flow
               </button>
               {' '}before units appear at the destination.
             </p>

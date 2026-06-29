@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { batchAPI } from '../services/api';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -1408,14 +1409,19 @@ const AnalyticsDashboard = () => {
 
   return (
     <AdminLayout>
-      <div className="analytics-content">
+      <div className="ak-page analytics-content">
         {/* Page Title */}
-        <div className="analytics-page-header">
-          <h1>Analytics Dashboard</h1>
-          <p>Comprehensive stock level, operational analytics, and rule-based restocking insights</p>
-        </div>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Insights · Analytics</p>
+              <h1 className="ak-title">Analytics Dashboard</h1>
+              <p className="ak-sub">Comprehensive stock level, operational analytics, and rule-based restocking insights.</p>
+            </div>
+          </div>
+        </header>
 
-        {initialLoading && <div className="loading-message">Loading analytics data...</div>}
+        {initialLoading && <Loader label="Loading analytics data" />}
         {refreshing && <div className="refreshing-indicator">Updating...</div>}
         {error && !initialLoading && <div className="error-message">Error: {error}</div>}
 

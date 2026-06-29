@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { useAuth, useUserLocation } from '../context/AuthContext';
+import { getRoleKey, ROLES } from '../utils/roles';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
 import {
@@ -21,6 +22,7 @@ import {
   unitsAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/dashboard_air.css';
 import '../styles/barcode_scan.css';
 import '../styles/issuance_scan.css';
@@ -32,6 +34,9 @@ const fmt = (val) => {
   if (val === null || val === undefined || Number.isNaN(n)) return '—';
   return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+// Round to 4 dp so float dust (e.g. 5.000001) can't bump a whole number up when ceil'd.
+const round4 = (n) => Math.round((Number(n) + Number.EPSILON) * 1e4) / 1e4;
 
 const fmtDate = (d) => {
   if (!d) return '—';
@@ -331,8 +336,13 @@ function QuickAddModal({ onSave, onClose }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IssuanceScanPage() {
-  const { refreshUser } = useAuth();
+  const { user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations } = useUserLocation();
+
+  const roleKey = getRoleKey(user || {});
+  const isAdmin = roleKey === ROLES.ADMIN;
+  // Inventory issuance: admin, branch manager, and warehouse personnel.
+  const canIssue = isAdmin || (typeof can === 'function' && can('inventory_issuance', 'create'));
 
   const [step, setStep]               = useState(STEPS.SETUP);
   const [form, setForm]               = useState({ ...EMPTY_FORM });
@@ -381,8 +391,8 @@ export default function IssuanceScanPage() {
     const unitName = customUnit || pendingScan.base_unit_name;
     const match = (pendingScan.quick_actions ?? [])
       .find(a => a.unit_name === unitName && !a.is_custom);
-    if (match) return Math.max(1, Math.ceil(qty * (match.conversion_factor ?? 1)));
-    return Math.max(1, Math.ceil(qty));
+    if (match) return Math.max(1, Math.ceil(round4(qty * (match.conversion_factor ?? 1))));
+    return Math.max(1, Math.ceil(round4(qty)));
   }, [selectedAction, customQty, customUnit, pendingScan]);
 
   const computedSubtotal = useMemo(() => {
@@ -862,7 +872,7 @@ export default function IssuanceScanPage() {
       // Quick action — use pre-computed values from the API
       finalUnitName = selectedAction.unit_name;
       finalPieces   = selectedAction.quantity_in_pieces
-        ?? Math.max(1, Math.ceil(selectedAction.conversion_factor ?? 1));
+        ?? Math.max(1, Math.ceil(round4(selectedAction.conversion_factor ?? 1)));
     } else if (showCustomInput && parseFloat(customQty) > 0) {
       // Custom entry — qty is in the selected unit; derive pieces via conversion_factor
       const enteredQty = parseFloat(customQty);
@@ -870,9 +880,9 @@ export default function IssuanceScanPage() {
       const match = (pendingScan.quick_actions ?? [])
         .find(a => a.unit_name === finalUnitName && !a.is_custom);
       if (match) {
-        finalPieces = Math.max(1, Math.ceil(enteredQty * (match.conversion_factor ?? 1)));
+        finalPieces = Math.max(1, Math.ceil(round4(enteredQty * (match.conversion_factor ?? 1))));
       } else {
-        finalPieces = Math.max(1, Math.ceil(enteredQty));
+        finalPieces = Math.max(1, Math.ceil(round4(enteredQty)));
       }
     } else {
       customQtyRef.current?.focus();
@@ -910,7 +920,7 @@ export default function IssuanceScanPage() {
 
   // ── Remove item ──────────────────────────────────────────────
   const handleRemoveItem = async (detailId, productName) => {
-    if (!window.confirm(`Remove ${productName} from this issuance?`)) return;
+    if (!(await confirmAction({ title: `Remove ${productName} from this issuance?`, confirmText: 'Remove', tone: 'danger' }))) return;
     try {
       await issuanceScanAPI.removeItem(detailId);
       await refreshSession();
@@ -956,11 +966,11 @@ export default function IssuanceScanPage() {
     setCameraDevices([]);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     const msg = itemCount > 0
       ? `Reset this issuance? ${itemCount} scanned item${itemCount !== 1 ? 's' : ''} will be discarded and you will start over.`
       : 'Reset this issuance and start over?';
-    if (!window.confirm(msg)) return;
+    if (!(await confirmAction({ title: msg, confirmText: 'Confirm', tone: 'danger' }))) return;
     handleNewIssuance();
   };
 
@@ -983,7 +993,17 @@ export default function IssuanceScanPage() {
   // ─────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="isp-page">
+      <div className="ak-page isp-page">
+
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Issuance Scan</p>
+              <h1 className="ak-title">Issuance Scanning</h1>
+              <p className="ak-sub">Scan items to issue stock for internal use.</p>
+            </div>
+          </div>
+        </header>
 
         {/* ── Step indicator ── */}
         <div className="isp-steps">
@@ -1146,11 +1166,10 @@ export default function IssuanceScanPage() {
                   <label>Issuance Type *</label>
                   <select
                     value={form.issuance_type}
-                    onChange={(e) => setForm((f) => ({ ...f, issuance_type: e.target.value, discount_percent: e.target.value === 'warranty' ? 100 : 0 }))}
+                    onChange={(e) => setForm((f) => ({ ...f, issuance_type: e.target.value, discount_percent: 0 }))}
                   >
                     <option value="individual">Individual</option>
                     <option value="business">Business</option>
-                    <option value="warranty">Warranty (free replacement)</option>
                   </select>
                 </div>
                 <div className="isp-form-group">
@@ -1197,21 +1216,16 @@ export default function IssuanceScanPage() {
                 </div>
               )}
 
-              {form.issuance_type === 'warranty' && (
-                <div className="isp-info-banner">
-                  Warranty issuance applies 100% discount. No charge for replacement items.
-                </div>
-              )}
-
               <div className="isp-form-group">
                 <label>Notes (optional)</label>
                 <textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
 
               <div className="isp-form-actions">
-                <button type="submit" className="isp-btn-primary" disabled={setupSaving}>
+                <button type="submit" className="isp-btn-primary" disabled={setupSaving || !canIssue}>
                   {setupSaving ? 'Starting...' : 'Start Issuance'}
                 </button>
+                {!canIssue && <span style={{ fontSize: 12, color: '#dc2626', marginLeft: 8 }}>You do not have permission to issue stock.</span>}
               </div>
             </form>
           </div>
@@ -1285,7 +1299,7 @@ export default function IssuanceScanPage() {
                     type="button"
                     className="bs-cam-shutter"
                     onClick={manualFrameScan}
-                    disabled={scanProcessing || !!pendingScan}
+                    disabled={scanProcessing || !!pendingScan || !canIssue}
                     aria-label="Scan barcode from current camera frame"
                   >
                     <span className="bs-cam-shutter-inner"/>
@@ -1351,7 +1365,7 @@ export default function IssuanceScanPage() {
                   <button
                     type="button"
                     onClick={() => { if (scanValue.trim()) handleScan(scanValue); }}
-                    disabled={!scanValue.trim() || scanProcessing || !!pendingScan}
+                    disabled={!scanValue.trim() || scanProcessing || !!pendingScan || !canIssue}
                     className="scan-submit-btn"
                   >
                     {scanProcessing ? 'Scanning...' : 'Apply'}
@@ -1383,8 +1397,8 @@ export default function IssuanceScanPage() {
                   <div className="qty-panel-header">
                     <div className="qty-panel-product-info">
                       <span className="qty-panel-product-name">{pendingScan.product_name}</span>
-                      {pendingScan.product_code && (
-                        <span className="qty-panel-product-code">{pendingScan.product_code}</span>
+                      {pendingScan.model_code && (
+                        <span className="qty-panel-product-code">{pendingScan.model_code}</span>
                       )}
                     </div>
                     <button
@@ -1473,7 +1487,7 @@ export default function IssuanceScanPage() {
                         ref={customQtyRef}
                         type="number"
                         min="0.001"
-                        step="1"
+                        step="any"
                         value={customQty}
                         onChange={(e) => setCustomQty(e.target.value)}
                         onKeyDown={(e) => {
@@ -1535,6 +1549,7 @@ export default function IssuanceScanPage() {
                       type="button"
                       className="qty-add-btn"
                       disabled={
+                        !canIssue ||
                         scanProcessing ||
                         (!selectedAction && (!customQty || parseFloat(customQty) <= 0))
                       }
@@ -1604,7 +1619,7 @@ export default function IssuanceScanPage() {
                           <td style={{ color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
                           <td>
                             <div className="isp-td-product">{it.product_name}</div>
-                            {it.product_code && <div className="isp-td-code">{it.product_code}</div>}
+                            {it.model_code && <div className="isp-td-code">{it.model_code}</div>}
                           </td>
                           <td>
                             <span className={`isp-ptype-badge isp-ptype-${(it.product_type || '').toLowerCase()}`}>
@@ -1773,7 +1788,7 @@ export default function IssuanceScanPage() {
                         <td>
                           <div>{it.product_name}</div>
                           {it.brand_name && <div className="isp-td-code">{it.brand_name}</div>}
-                          {it.product_code && <div className="isp-td-code">{it.product_code}</div>}
+                          {it.model_code && <div className="isp-td-code">{it.model_code}</div>}
                         </td>
                         <td>{it.product_type === 'appliance' ? 'Appliance' : 'Consumable'}</td>
                         <td>
@@ -1870,7 +1885,7 @@ export default function IssuanceScanPage() {
                   </svg>
                   Go Back
                 </button>
-                <button type="button" className="isp-btn-complete" onClick={handleComplete} disabled={completing}>
+                <button type="button" className="isp-btn-complete" onClick={handleComplete} disabled={completing || !canIssue}>
                   {completing ? 'Completing...' : 'Confirm and Complete'}
                 </button>
               </div>

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
@@ -10,13 +11,17 @@ import {
   budgetAllocationsAPI,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toast } from '../utils/toast';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
+import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { getRoleKey, ROLES } from '../utils/roles';
 import PRProgressBar, { getPRStatusText } from '../components/PRProgressBar';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
-import { toast } from '../utils/toast';
 
 // ─── formatters ──────────────────────────────────────────────────────────────
 
@@ -112,13 +117,14 @@ const newLine = () => ({
 const PurchaseRequestPage = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user }  = useAuth();
+  const { user, can }  = useAuth();
   const roleKey   = getRoleKey(user);
   const isAdmin   = roleKey === ROLES.ADMIN;
-  const isIA      = roleKey === ROLES.INVENTORY_ANALYST;
-  const canCreate = isAdmin || isIA;  // both roles can submit PRs and convert to PO
+  // Permission-driven: anyone granted purchase_request_creation.create can submit PRs / convert to PO.
+  const canCreate = isAdmin || (typeof can === 'function' && can('purchase_request_creation', 'create'));
+  const canApprovePR = isAdmin || (typeof can === 'function' && can('purchase_request_approval', 'approve'));
 
-  const initialTab = location.state?.tab ?? (isAdmin ? 'approvals' : 'create');
+  const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // ── Tab 1: Create ─────────────────────────────────────────────────────────
@@ -138,7 +144,6 @@ const PurchaseRequestPage = () => {
   const [filterBrand, setFilterBrand] = useState('');
   const [lineItems, setLineItems] = useState([newLine()]);
   const [submitting,  setSubmitting]  = useState(false);
-  const [submitError, setSubmitError] = useState('');
 
   // ── Tab 2: My Requests ────────────────────────────────────────────────────
   const [myPRs,        setMyPRs]        = useState([]);
@@ -147,12 +152,17 @@ const PurchaseRequestPage = () => {
   // ── Tab 3: Pending Approvals ──────────────────────────────────────────────
   const [pendingPRs,        setPendingPRs]        = useState([]);
   const [loadingPending,    setLoadingPending]    = useState(false);
+  const [pendingPRsLoaded,  setPendingPRsLoaded]  = useState(false);
   const [expandedCards,     setExpandedCards]     = useState(new Set());
 
   // ── Shared: modals ────────────────────────────────────────────────────────
   const [selectedPR,   setSelectedPR]   = useState(null);
-  const [rejectModal,  setRejectModal]  = useState({ open: false, prId: null, reason: '', submitting: false });
   const [actionLoading, setActionLoading] = useState({});
+
+  // ── Focus / deep-link ─────────────────────────────────────────────────────
+  const focusPrId = useFocusTarget('pr');
+  const focusHandledRef = useRef(false);
+  const [prPulse, firePrPulse] = useFocusPulse();
 
   // ── Load locations ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -235,14 +245,31 @@ const PurchaseRequestPage = () => {
         .catch(console.error)
         .finally(() => setLoadingMyPRs(false));
     }
-    if (activeTab === 'approvals' && isAdmin) {
+    if (activeTab === 'approvals' && canApprovePR) {
       setLoadingPending(true);
       purchaseRequestsAPI.getPending()
         .then(res => setPendingPRs(Array.isArray(res?.data) ? res.data : []))
         .catch(console.error)
-        .finally(() => setLoadingPending(false));
+        .finally(() => { setLoadingPending(false); setPendingPRsLoaded(true); });
     }
-  }, [activeTab, isAdmin]);
+  }, [activeTab, canApprovePR]);
+
+  // ── Focus deep-link: switch approvers to the approvals tab ───────────────
+  useEffect(() => {
+    if (focusPrId && !focusHandledRef.current && canApprovePR) setActiveTab('approvals');
+  }, [focusPrId, canApprovePR]);
+
+  // ── Focus deep-link: open the PR once the pending list has loaded ─────────
+  useEffect(() => {
+    if (!focusPrId || focusHandledRef.current) return;
+    if (!pendingPRsLoaded) return;
+    focusHandledRef.current = true;
+    const pr =
+      findById(pendingPRs, ['pr_id', 'id'], focusPrId) ||
+      findById(myPRs, ['pr_id', 'id'], focusPrId);
+    if (pr) { setSelectedPR(pr); firePrPulse(); }
+    else toast.error('That purchase request is not available.');
+  }, [focusPrId, pendingPRsLoaded, pendingPRs, myPRs, firePrPulse]);
 
   // ── Line item helpers ─────────────────────────────────────────────────────
   const addLine = useCallback(() => setLineItems(p => [...p, newLine()]), []);
@@ -344,15 +371,14 @@ const PurchaseRequestPage = () => {
 
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
-    setSubmitError('');
-    if (!selectedLocId) { setSubmitError('Please select a location.'); return; }
-    if (!neededByDate)  { setSubmitError('Please set a needed-by date.'); return; }
+    if (!selectedLocId) { toast.error("Couldn't send request", 'Please select a location.'); return; }
+    if (!neededByDate)  { toast.error("Couldn't send request", 'Please set a needed-by date.'); return; }
     if (neededByDate <= new Date().toISOString().slice(0, 10)) {
-      setSubmitError('Needed-by date must be a future date.'); return;
+      toast.error("Couldn't send request", 'Needed-by date must be a future date.'); return;
     }
     const validLines = lineItems.filter(li => li.productId && li.qty > 0);
     if (!validLines.length) {
-      setSubmitError('Add at least one item with a selected product.'); return;
+      toast.error("Couldn't send request", 'Add at least one item with a selected product.'); return;
     }
 
     setSubmitting(true);
@@ -370,15 +396,15 @@ const PurchaseRequestPage = () => {
       if (budget?.budget_id) payload.budget_id = budget.budget_id;
 
       const res = await purchaseRequestsAPI.create(payload);
-      const createdPRNum = res?.data?.pr_number || 'Purchase Request';
-      toast.success(`${createdPRNum} submitted! Waiting for Admin approval.`);
+      const prNum = res?.data?.pr_number || 'Purchase Request';
+      toast.success('Purchase Request sent', `${prNum} — waiting for admin approval`);
       setLineItems([newLine()]);
       setPurpose('');
     } catch (err) {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to submit purchase request.';
-      setSubmitError(msg);
+      toast.error("Couldn't send request", msg);
     } finally {
       setSubmitting(false);
     }
@@ -393,32 +419,42 @@ const PurchaseRequestPage = () => {
 
   // ── Approve / Reject ──────────────────────────────────────────────────────
   const handleApprove = useCallback(async (prId) => {
+    if (!(await confirmAction({
+      title: 'Approve this purchase request?',
+      confirmText: 'Approve',
+      tone: 'primary',
+    }))) return;
     setActionLoading(p => ({ ...p, [prId]: 'approving' }));
     try {
       await purchaseRequestsAPI.approve(prId);
       setPendingPRs(p => p.filter(pr => pr.pr_id !== prId));
       if (selectedPR?.pr_id === prId) setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.APPROVED } : null);
-    } catch (err) { toast.error(err?.message || 'Approval failed.'); }
+      toast.success('Request approved');
+    } catch (err) { toast.error("Couldn't approve request", err?.message || 'Approval failed.'); }
     finally { setActionLoading(p => { const n = { ...p }; delete n[prId]; return n; }); }
   }, [selectedPR]);
 
-  const openRejectModal = useCallback((prId) =>
-    setRejectModal({ open: true, prId, reason: '', submitting: false }), []);
-
-  const handleReject = useCallback(async () => {
-    if (!rejectModal.reason.trim()) return;
-    setRejectModal(p => ({ ...p, submitting: true }));
+  const handleReject = useCallback(async (prId) => {
+    const { confirmed, reason } = await confirmWithReason({
+      title: 'Reject this purchase request?',
+      confirmText: 'Reject',
+      tone: 'danger',
+      reasonRequired: true,
+      reasonLabel: 'Reason for rejection',
+      reasonPlaceholder: 'Explain why this purchase request is being rejected…',
+    });
+    if (!confirmed) return;
+    setActionLoading(p => ({ ...p, [prId]: 'rejecting' }));
     try {
-      await purchaseRequestsAPI.reject(rejectModal.prId, { rejection_reason: rejectModal.reason });
-      setPendingPRs(p => p.filter(pr => pr.pr_id !== rejectModal.prId));
-      if (selectedPR?.pr_id === rejectModal.prId)
-        setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.REJECTED, rejection_reason: rejectModal.reason } : null);
-      setRejectModal({ open: false, prId: null, reason: '', submitting: false });
+      await purchaseRequestsAPI.reject(prId, { rejection_reason: reason });
+      setPendingPRs(p => p.filter(pr => pr.pr_id !== prId));
+      if (selectedPR?.pr_id === prId)
+        setSelectedPR(p => p ? { ...p, status_id: PR_STATUS.REJECTED, rejection_reason: reason } : null);
+      toast.success('Request rejected');
     } catch (err) {
-      toast.error(err?.message || 'Rejection failed.');
-      setRejectModal(p => ({ ...p, submitting: false }));
-    }
-  }, [rejectModal, selectedPR]);
+      toast.error("Couldn't reject request", err?.message || 'Rejection failed.');
+    } finally { setActionLoading(p => { const n = { ...p }; delete n[prId]; return n; }); }
+  }, [selectedPR]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER HELPERS
@@ -432,10 +468,7 @@ const PurchaseRequestPage = () => {
     if (loadingBudget) {
       return (
         <div className="pr-budget-card pr-budget-card--loading">
-          <div style={{ color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Loading budget for {locName}…
-          </div>
+          <Loader variant="inline" label={`Loading budget for ${locName}`} />
         </div>
       );
     }
@@ -742,8 +775,6 @@ const PurchaseRequestPage = () => {
         )}
       </div>
 
-      {submitError && <div className="po-submit-error">{submitError}</div>}
-
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
         <button
           type="button"
@@ -762,7 +793,7 @@ const PurchaseRequestPage = () => {
 
   // ── Tab 2: My Requests ────────────────────────────────────────────────────
   const renderMyRequestsTab = () => {
-    if (loadingMyPRs) return <div className="po-status-loading">Loading requests…</div>;
+    if (loadingMyPRs) return <Loader label="Loading requests" />;
     if (!myPRs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">
@@ -862,7 +893,7 @@ const PurchaseRequestPage = () => {
 
   // ── Tab 3: Pending Approvals (Admin) ──────────────────────────────────────
   const renderApprovalsTab = () => {
-    if (loadingPending) return <div className="po-status-loading">Loading pending approvals…</div>;
+    if (loadingPending) return <Loader label="Loading pending approvals" />;
     if (!pendingPRs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">
@@ -891,6 +922,7 @@ const PurchaseRequestPage = () => {
           const itemCount  = pr.details?.length ?? 0;
           const isExpanded = expandedCards.has(pr.pr_id);
           const isApproving = actionLoading[pr.pr_id] === 'approving';
+          const isRejecting = actionLoading[pr.pr_id] === 'rejecting';
 
           return (
             <div key={pr.pr_id} className="po-status-card">
@@ -975,8 +1007,8 @@ const PurchaseRequestPage = () => {
                             <tr key={d.pr_detail_id ?? di}>
                               <td>
                                 <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
-                                {(d.product_code || d.product?.product_code) && (
-                                  <small style={{ color: '#94a3b8' }}>{d.product_code || d.product?.product_code}</small>
+                                {d.product?.applianceDetail?.model_code && (
+                                  <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
                                 )}
                               </td>
                               <td>
@@ -999,8 +1031,8 @@ const PurchaseRequestPage = () => {
                     <button type="button" className="po-status-view-btn" onClick={() => setSelectedPR(pr)}>
                       VIEW DETAILS
                     </button>
-                    <button type="button" className="pr-btn-reject" onClick={() => openRejectModal(pr.pr_id)}>
-                      REJECT
+                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(pr.pr_id)} disabled={isRejecting}>
+                      {isRejecting ? 'REJECTING…' : 'REJECT'}
                     </button>
                     <button
                       type="button"
@@ -1046,11 +1078,11 @@ const PurchaseRequestPage = () => {
     const details = Array.isArray(pr.details) ? pr.details : [];
 
     const isApproving = actionLoading[pr.pr_id] === 'approving';
-    const canAct      = pr.status_id === PR_STATUS.PENDING && isAdmin;
+    const canAct      = pr.status_id === PR_STATUS.PENDING && canApprovePR;
 
     return (
       <Modal isOpen={!!selectedPR} onClose={() => setSelectedPR(null)} title="" hideHeader maxWidth={740}>
-        <div className="po-detail-modal">
+        <div className={`po-detail-modal${prPulse ? ' ak-focus-pulse' : ''}`}>
           {/* Header */}
           <div className="po-detail-head">
             <div className="po-detail-head-icon">
@@ -1171,8 +1203,8 @@ const PurchaseRequestPage = () => {
                           <td className="po-detail-table-idx">{di + 1}</td>
                           <td>
                             <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
-                            {(d.product_code || d.product?.product_code) && (
-                              <small style={{ color: '#94a3b8' }}>{d.product_code || d.product?.product_code}</small>
+                            {d.product?.applianceDetail?.model_code && (
+                              <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
                             )}
                           </td>
                           <td style={{ fontSize: 11 }}>
@@ -1210,7 +1242,7 @@ const PurchaseRequestPage = () => {
             {/* Admin actions */}
             {canAct && (
               <div className="pr-modal-action-row">
-                <button type="button" className="pr-btn-reject" onClick={() => { setSelectedPR(null); openRejectModal(pr.pr_id); }}>
+                <button type="button" className="pr-btn-reject" onClick={() => { setSelectedPR(null); handleReject(pr.pr_id); }}>
                   REJECT
                 </button>
                 <button type="button" className="pr-btn-approve" onClick={() => handleApprove(pr.pr_id)} disabled={isApproving}>
@@ -1224,45 +1256,13 @@ const PurchaseRequestPage = () => {
     );
   };
 
-  // ── Reject Modal ──────────────────────────────────────────────────────────
-  const renderRejectModal = () => (
-    <Modal isOpen={rejectModal.open} onClose={() => setRejectModal(p => ({ ...p, open: false }))} title="Reject Purchase Request" maxWidth={480}>
-      <div style={{ padding: '8px 0' }}>
-        <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#374151' }}>
-          REJECTION REASON <span style={{ color: '#dc2626' }}>*</span>
-        </label>
-        <textarea
-          style={{ width: '100%', minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
-          value={rejectModal.reason}
-          onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))}
-          placeholder="Explain why this purchase request is being rejected…"
-        />
-        {!rejectModal.reason.trim() && (
-          <p style={{ color: '#dc2626', fontSize: 12, marginTop: 6 }}>Rejection reason is required.</p>
-        )}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button
-            type="button"
-            style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 13 }}
-            onClick={() => setRejectModal(p => ({ ...p, open: false }))}
-            disabled={rejectModal.submitting}
-          >
-            CANCEL
-          </button>
-          <button type="button" className="pr-btn-reject" onClick={handleReject} disabled={rejectModal.submitting || !rejectModal.reason.trim()}>
-            {rejectModal.submitting ? 'REJECTING…' : 'CONFIRM REJECT'}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
 
   // ─────────────────────────────────────────────────────────────────────────
   // MAIN RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
         {/* Page header */}
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
@@ -1308,7 +1308,7 @@ const PurchaseRequestPage = () => {
             </svg>
             My Requests
           </button>
-          {isAdmin && (
+          {canApprovePR && (
             <button
               type="button"
               className={`po-tab-btn${activeTab === 'approvals' ? ' po-tab-btn--active' : ''}`}
@@ -1328,11 +1328,10 @@ const PurchaseRequestPage = () => {
         {/* Tab content */}
         {activeTab === 'create'       && canCreate  && renderCreateTab()}
         {activeTab === 'my-requests'               && renderMyRequestsTab()}
-        {activeTab === 'approvals'    && isAdmin   && renderApprovalsTab()}
+        {activeTab === 'approvals'    && canApprovePR && renderApprovalsTab()}
       </div>
 
       {renderDetailModal()}
-      {renderRejectModal()}
     </AdminLayout>
   );
 };

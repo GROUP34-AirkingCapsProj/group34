@@ -3,7 +3,7 @@
 const trimSlash = (u) => String(u || '').replace(/\/+$/, '');
 const rawEnvApi = process.env.REACT_APP_API_URL && String(process.env.REACT_APP_API_URL).trim();
 const publicApiOverride = process.env.REACT_APP_API_PUBLIC_URL && String(process.env.REACT_APP_API_PUBLIC_URL).trim();
-const apiPort = String(process.env.REACT_APP_API_PORT || '8000').replace(/^:+/, '');
+const apiPort = String(process.env.REACT_APP_API_PORT || '80').replace(/^:+/, '');
 
 function isLoopbackHost(h) {
   return (
@@ -50,11 +50,25 @@ export const getApiBaseUrl = () => {
       return trimSlash(rawEnvApi);
     }
     const proto = String(process.env.REACT_APP_API_HTTPS || '').toLowerCase() === 'true' ? 'https:' : 'http:';
-    return trimSlash(`${proto}//${h}:${apiPort}/api`);
+    const portSuffix = (apiPort === '80' || apiPort === '') ? '' : `:${apiPort}`;
+    return trimSlash(`${proto}//${h}${portSuffix}/api`);
   }
 
   if (rawEnvApi) return trimSlash(rawEnvApi);
   return `http://127.0.0.1:${apiPort}/api`;
+};
+
+/**
+ * Resolve a backend-relative asset path (e.g. "/storage/avatars/x.png") to an
+ * absolute URL against the API origin computed at runtime. The backend returns
+ * avatar paths host-agnostically so the same value works on localhost, LAN IP,
+ * and mobile. Absolute URLs (legacy/external) are returned unchanged.
+ */
+export const resolveStorageUrl = (path) => {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  const origin = getApiBaseUrl().replace(/\/api\/?$/, '');
+  return `${origin}/${String(path).replace(/^\/+/, '')}`;
 };
 
 const TOKEN_KEY = 'token';
@@ -224,6 +238,42 @@ const apiRequest = async (endpoint, options = {}) => {
   return data;
 };
 
+/* Upload helper: sends FormData; never sets Content-Type so the browser can
+   add the multipart boundary. Mirrors apiRequest's auth + error handling. */
+const uploadRequest = async (endpoint, formData, method = 'POST') => {
+  const token = getToken();
+  const headers = { Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const base = getApiBaseUrl();
+  const url = endpoint.startsWith('/') ? `${base}${endpoint}` : `${base}/${endpoint}`;
+
+  const response = await fetch(url, { method, headers, body: formData });
+
+  let data;
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : { message: 'Server error.' };
+  } catch (_) {
+    throw new Error(`Server returned ${response.status} with non-JSON response.`);
+  }
+
+  if (!response.ok) {
+    // Token expired or missing — clear storage and bounce to login
+    if (response.status === 401) {
+      removeToken();
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/admin/login';
+      }
+    }
+    const err = new Error(data.message || 'Request failed');
+    err.errors = data.errors || null;
+    err.status = response.status;
+    throw err;
+  }
+  return data;
+};
+
 /* ======================
    AUTH API FIXED
 ====================== */
@@ -334,6 +384,13 @@ export const batchAPI = {
 };
 
 /* ======================
+   LAYOUT SUMMARY API (header badges in one call)
+====================== */
+export const layoutAPI = {
+  getSummary: async () => apiRequest('/layout-summary'),
+};
+
+/* ======================
    DASHBOARD API
 ====================== */
 export const dashboardAPI = {
@@ -378,6 +435,13 @@ export const systemSettingsAPI = {
     }),
 };
 
+/** Account self-service policy (admin only): which fields users may edit. */
+export const accountPolicyAPI = {
+  get: async () => apiRequest('/system/account-policy'),
+  update: async (policy) =>
+    apiRequest('/system/account-policy', { method: 'PUT', body: JSON.stringify(policy) }),
+};
+
 /** Archive configuration settings (admin only). */
 export const archiveSettingsAPI = {
   get: async () => apiRequest('/archive-settings'),
@@ -411,6 +475,25 @@ export const companySettingsAPI = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+};
+
+/* ======================
+   ACCOUNT (SELF-SERVICE) API
+====================== */
+export const accountAPI = {
+  getProfile: async () => apiRequest('/me/profile'),
+  updateProfile: async (data) =>
+    apiRequest('/me/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  uploadAvatar: async (file) => {
+    const fd = new FormData();
+    fd.append('avatar', file);
+    return uploadRequest('/me/avatar', fd, 'POST');
+  },
+  deleteAvatar: async () => apiRequest('/me/avatar', { method: 'DELETE' }),
+  updateEmail: async (data) =>
+    apiRequest('/me/email', { method: 'PUT', body: JSON.stringify(data) }),
+  updatePassword: async (data) =>
+    apiRequest('/me/password', { method: 'PUT', body: JSON.stringify(data) }),
 };
 
 /* ======================
@@ -744,10 +827,15 @@ export const istAPI = {
   scan:            async (id, data)   => apiRequest(`/ist/${id}/scan`, { method: 'POST', body: JSON.stringify(data) }),
   removeScan:      async (id, scanId) => apiRequest(`/ist/${id}/scan/${scanId}`, { method: 'DELETE' }),
   confirmDispatch: async (id)         => apiRequest(`/ist/${id}/confirm-dispatch`, { method: 'POST' }),
-  receiveForm:     async (id)         => apiRequest(`/ist/${id}/receive`),
-  receive:         async (id, data)   => apiRequest(`/ist/${id}/receive`, { method: 'POST', body: JSON.stringify(data) }),
-  receipt:         async (id)         => apiRequest(`/ist/${id}/receipt`),
-  receiptPdfUrl:   (id)               => `${getApiBaseUrl()}/ist/${id}/receipt/pdf`,
+  receiveForm:       async (id)         => apiRequest(`/ist/${id}/receive`),
+  receive:           async (id, data)   => apiRequest(`/ist/${id}/receive`, { method: 'POST', body: JSON.stringify(data) }),
+  receiveScan:       async (id, data)   => apiRequest(`/ist/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data) }),
+  removeReceiveScan: async (id, scanId) => apiRequest(`/ist/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
+  receipt:           async (id)         => apiRequest(`/ist/${id}/receipt`),
+  receiptPdfUrl:     (id)               => {
+    const token = getToken();
+    return `${getApiBaseUrl()}/ist/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
 };
 
 /* ======================
@@ -802,15 +890,23 @@ export const deliveryReceiptsAPI = {
 };
 
 /* ======================
-   WARRANTY CLAIMS API (not in ERD — returns empty gracefully)
+   WARRANTY CLAIMS API
 ====================== */
-const _emptyPage = { success: true, data: [], pagination: { total: 0, last_page: 1, per_page: 10, current_page: 1 } };
 export const warrantyClaimsAPI = {
-  getAll: async () => _emptyPage,
-  getById: async () => null,
-  create: async () => { throw new Error('Warranty claims are not available in this version.'); },
-  update: async () => { throw new Error('Warranty claims are not available in this version.'); },
-  delete: async () => { throw new Error('Warranty claims are not available in this version.'); },
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/warranty-claims?${query}` : '/warranty-claims');
+  },
+  getById: async (id) => apiRequest(`/warranty-claims/${id}`),
+  init: async (data) =>
+    apiRequest('/warranty-claims/init', { method: 'POST', body: JSON.stringify(data) }),
+  addItem: async (id, data) =>
+    apiRequest(`/warranty-claims/${id}/item`, { method: 'POST', body: JSON.stringify(data) }),
+  removeItem: async (id, detailId) =>
+    apiRequest(`/warranty-claims/${id}/item/${detailId}`, { method: 'DELETE' }),
+  complete: async (id) =>
+    apiRequest(`/warranty-claims/${id}/complete`, { method: 'POST' }),
+  slipUrl: (id) => `/warranty-claims/${id}/slip`,
 };
 
 /* ======================
@@ -976,6 +1072,24 @@ export const suppliersAPI = {
 };
 
 /* ======================
+   PERMISSIONS API
+====================== */
+export const permissionsAPI = {
+  catalog: async () => apiRequest('/permissions'),
+  getMine: async () => apiRequest('/me/permissions'),
+  getRoleDefaults: async () => apiRequest('/role-permissions'),
+  updateRoleDefaults: async (changes) =>
+    apiRequest('/role-permissions', { method: 'PUT', body: JSON.stringify({ changes }) }),
+  getUserPermissions: async (userId) => apiRequest(`/users/${userId}/permissions`),
+  updateUserPermissions: async (userId, reason, changes) =>
+    apiRequest(`/users/${userId}/permissions`, { method: 'PUT', body: JSON.stringify({ reason, changes }) }),
+  getAuditLogs: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/permission-audit-logs?${query}` : '/permission-audit-logs');
+  },
+};
+
+/* ======================
    ROLES API
 ====================== */
 export const rolesAPI = {
@@ -1077,28 +1191,6 @@ export const profitLossAPI = {
   update: async (id, data) =>
     apiRequest(`/profit-loss/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/profit-loss/${id}`, { method: 'DELETE' }),
-};
-
-/* ======================
-   MODEL LOOKUP API
-====================== */
-export const modelsAPI = {
-  getAll: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/models?${query}` : '/models');
-  },
-  getById: async (id) => apiRequest(`/models/${id}`),
-  create: async (data) =>
-    apiRequest('/models', { method: 'POST', body: JSON.stringify(data) }),
-  update: async (id, data) =>
-    apiRequest(`/models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: async (id) => apiRequest(`/models/${id}`, { method: 'DELETE' }),
-  getArchived: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/models/archived?${query}` : '/models/archived');
-  },
-  restore: async (id) =>
-    apiRequest(`/models/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
@@ -1237,6 +1329,13 @@ export const budgetAllocationsAPI = {
 
   restore: async (id) =>
     apiRequest(`/budget-allocations/${id}/restore`, { method: 'POST' }),
+};
+
+/* ======================
+   NAV BUNDLES API
+====================== */
+export const navBundlesAPI = {
+  list: async () => apiRequest('/nav-bundles'),
 };
 
 /* ======================

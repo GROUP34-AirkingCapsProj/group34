@@ -11,6 +11,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,21 +25,9 @@ class ReceivingController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Receiving::with(['purchaseOrder.details', 'purchaseOrder.supplier', 'location', 'receivedBy', 'details.product']);
-
-            // Location visibility: admin sees everything; all others see receivings for their
-            // assigned location OR receivings they personally recorded.
-            $authUser = $request->user();
-            if ($authUser && (int) $authUser->role_id !== 1) {
-                $userId     = (int) $authUser->user_id;
-                $locationId = $authUser->location_id ? (int) $authUser->location_id : null;
-                $query->where(function ($q) use ($userId, $locationId) {
-                    $q->where('received_by', $userId);
-                    if ($locationId) {
-                        $q->orWhere('location_id', $locationId);
-                    }
-                });
-            }
+            $query = Receiving::query()
+                ->forUser($request->user())
+                ->with(['purchaseOrder.details', 'purchaseOrder.supplier', 'location', 'receivedBy', 'details.product']);
 
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);
@@ -158,6 +147,12 @@ class ReceivingController extends Controller
             }
 
             DB::commit();
+
+            RealtimeBroadcaster::inventoryChanged((int) $receiving->location_id, 'stock_received');
+            if ($newPoStatus === 11) {
+                $poLocationId = (int) (PurchaseOrder::where('po_id', $poId)->value('location_id') ?? $locationId);
+                RealtimeBroadcaster::purchaseOrderChanged($poLocationId, 'po_received');
+            }
 
             return $this->success(
                 $receiving->load(['purchaseOrder', 'location', 'details.product']),

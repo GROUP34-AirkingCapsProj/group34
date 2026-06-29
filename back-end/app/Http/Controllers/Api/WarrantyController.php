@@ -67,7 +67,6 @@ class WarrantyController extends Controller
     {
         $warranty = WarrantyRecord::with([
             'product.applianceDetail.brand',
-            'product.applianceDetail.modelLookup',
             'customer',
             'status',
             'issuance.location',

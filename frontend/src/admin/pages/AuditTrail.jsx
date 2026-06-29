@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
 import { auditAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -338,11 +339,16 @@ const AuditTrail = () => {
 
   return (
     <AdminLayout>
-      <div className="at-page">
-        <div className="at-page-header">
-          <h1 className="at-page-title">Audit Trail</h1>
-          <p className="at-page-subtitle">Comprehensive historical record of all system interactions</p>
-        </div>
+      <div className="ak-page at-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Governance · Audit</p>
+              <h1 className="ak-title">Audit Trail</h1>
+              <p className="ak-sub">Comprehensive historical record of all system interactions.</p>
+            </div>
+          </div>
+        </header>
 
         <div className="at-search-row">
           <div className="at-search-input">
@@ -382,7 +388,7 @@ const AuditTrail = () => {
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan="5" className="at-cell-center">Loading audit logs...</td></tr>
+                  <tr><td colSpan="5"><Loader label="Loading audit logs" /></td></tr>
                 )}
                 {!loading && error && (
                   <tr><td colSpan="5" className="at-cell-center at-cell-error">{error}</td></tr>

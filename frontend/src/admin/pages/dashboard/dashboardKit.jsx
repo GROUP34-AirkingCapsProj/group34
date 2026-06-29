@@ -1,0 +1,84 @@
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { batchAPI, inventoryAPI } from '../../services/api';
+
+export const PALETTE = {
+  crimson: '#dc143c', crimsonSoft: 'rgba(220,20,60,0.12)',
+  gold: '#f5b301', green: '#059669', greenSoft: 'rgba(5,150,105,0.12)',
+  blue: '#2563eb', amber: '#d97706', gray: '#9ca3af', grid: '#eef1f7', ink: '#5b6472',
+};
+
+export const fmt = (n) => Number(n || 0).toLocaleString();
+
+/** Centralized roles (admin=1, inventory_analyst=2, auditor=5) see all locations. */
+export const isCentralizedRole = (user) => [1, 2, 5].includes(Number(user?.role?.role_id));
+
+/**
+ * Fetches the (server-scoped) dashboard payload plus an inventory list.
+ * Scoped roles request inventory for their own location only; centralized
+ * roles request unfiltered (capped) inventory.
+ */
+export function useRoleDashboard() {
+  const { user: _user } = useAuth();
+  const user = _user || {};
+  const centralized = isCentralizedRole(user);
+  const locationId = centralized ? null : (user?.location?.location_id ?? null);
+
+  const [data, setData] = useState(null);
+  const [inv, setInv] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const invParams = { per_page: 300, ...(locationId ? { location_id: locationId } : {}) };
+        const [dashRes, invRes] = await Promise.allSettled([
+          batchAPI.get({ include: ['dashboard'] }),
+          inventoryAPI.getAll(invParams),
+        ]);
+        if (!alive) return;
+        if (dashRes.status === 'fulfilled') {
+          const d = dashRes.value?.data?.dashboard ?? null;
+          setData(d && d.success === false ? null : d);
+        }
+        if (invRes.status === 'fulfilled') {
+          const items = invRes.value?.data ?? invRes.value?.inventory ?? [];
+          setInv(Array.isArray(items) ? items : []);
+        }
+      } catch (e) {
+        if (alive) setError(e.message || 'Failed to load dashboard.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [locationId]);
+
+  return { user, centralized, locationName: user?.location?.location_name || user?.branch?.branch_name || 'All Locations', data, inv, loading, error };
+}
+
+/** A single KPI stat card using the ak- design system. */
+export function Kpi({ label, value, icon, tone = 'crimson' }) {
+  return (
+    <div className="ak-stat">
+      <div className="ak-stat-icon" style={{ color: PALETTE[tone] || PALETTE.crimson, background: 'var(--ak-band)' }}>
+        {icon}
+      </div>
+      <div>
+        <div className="ak-stat-label">{label}</div>
+        <div className="ak-stat-value">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+export const baseChartOptions = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false }, tooltip: { backgroundColor: '#14181f', padding: 10, cornerRadius: 8 } },
+  scales: {
+    x: { grid: { display: false }, ticks: { color: PALETTE.ink, font: { size: 11 } } },
+    y: { grid: { color: PALETTE.grid }, ticks: { color: PALETTE.ink, font: { size: 11 } }, beginAtZero: true },
+  },
+};

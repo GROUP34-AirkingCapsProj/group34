@@ -142,11 +142,16 @@ const SystemReports = () => {
 
   return (
     <AdminLayout>
-      <div className="sr-page">
-        <div className="sr-page-header">
-          <h1 className="sr-page-title">Reports</h1>
-          <p className="sr-page-subtitle">Generate and view system-wide inventory and transaction reports</p>
-        </div>
+      <div className="ak-page sr-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Insights · Reports</p>
+              <h1 className="ak-title">Reports</h1>
+              <p className="ak-sub">Generate and view system-wide inventory and transaction reports.</p>
+            </div>
+          </div>
+        </header>
 
         <div className="sr-cards-grid">
           {reportCards.map((r) => (

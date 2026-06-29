@@ -545,7 +545,7 @@
   border-radius: 8px;
   font-size: 14px;
   outline: none;
-  font-family: Arial, sans-serif;
+  font-family: inherit;
 }
 
 .form-group input:focus,

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { purchaseReturnsAPI, purchaseOrdersAPI, suppliersAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../../admin/styles/dashboard_air.css';
 import DateInput from '../components/DateInput';
 
@@ -108,7 +110,7 @@ const PurchaseReturnManagement = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this purchase return?')) return;
+    if (!(await confirmAction({ title: 'Delete this purchase return?', confirmText: 'Delete', tone: 'danger' }))) return;
     try { await purchaseReturnsAPI.delete(id); toast.success('Deleted.'); fetchReturns(currentPage); }
     catch (e) { toast.error(e.message || 'Failed to delete.'); }
   };
@@ -140,14 +142,19 @@ const PurchaseReturnManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="page-container">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Purchase Returns</h1>
-            <p className="page-subtitle">Return defective or excess items back to suppliers</p>
+      <div className="ak-page page-container">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Procurement · Returns</p>
+              <h1 className="ak-title">Purchase Returns</h1>
+              <p className="ak-sub">Return defective or excess items back to suppliers.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Return</button>
+            </div>
           </div>
-          <button className="btn-primary" onClick={openAddModal}>+ New Return</button>
-        </div>
+        </header>
 
         <div className="stats-row">
           {[
@@ -178,7 +185,7 @@ const PurchaseReturnManagement = () => {
               <tr><th>Return #</th><th>PO Number</th><th>Supplier</th><th>Return Date</th><th>Reason</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan="8" className="table-empty">Loading...</td></tr>
+              {loading ? <tr><td colSpan="8"><Loader /></td></tr>
                 : error ? <tr><td colSpan="8" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchReturns(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : returns.length === 0 ? <tr><td colSpan="8" className="table-empty">No purchase returns found.</td></tr>
                     : returns.map(r => (

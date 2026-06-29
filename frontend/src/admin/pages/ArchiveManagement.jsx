@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { getApiBaseUrl, getToken } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/archive_management.css';
 import '../styles/archive_settings.css';
 import DateInput from '../components/DateInput';
@@ -30,9 +32,12 @@ const MODULES = [
 const PER_PAGE = 15;
 
 const ArchiveManagement = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
   const isAdmin = roleKey === ROLES.ADMIN;
+  // Restore and force-delete from the archive are admin-only.
+  const canRestore     = isAdmin || (typeof can === 'function' && can('data_archiving', 'update'));
+  const canForceDelete = isAdmin || (typeof can === 'function' && can('data_archiving', 'archive'));
 
   const [summary, setSummary]         = useState({});
   const [activeModule, setActiveModule] = useState('products');
@@ -96,7 +101,7 @@ const ArchiveManagement = () => {
 
   // ── Restore ───────────────────────────────────────────────────────────────
   const handleRestore = async (module, id) => {
-    if (!window.confirm('Restore this record? It will become active again.')) return;
+    if (!(await confirmAction({ title: 'Restore this record?', text: 'It will become active again.', confirmText: 'Restore', tone: 'primary' }))) return;
     try {
       const res = await fetch(
         apiUrl(`/archive/${module}/${id}/restore`),
@@ -120,10 +125,8 @@ const ArchiveManagement = () => {
 
   // ── Force delete ──────────────────────────────────────────────────────────
   const handleForceDelete = async (module, id) => {
-    if (!window.confirm(
-      'PERMANENTLY DELETE this record?\n\nThis action cannot be undone. The record will be completely removed from the database and cannot be recovered.'
-    )) return;
-    if (!window.confirm('Are you absolutely sure? This is permanent.')) return;
+    if (!(await confirmAction({ title: 'Permanently delete this record?', text: 'This action cannot be undone. The record will be completely removed from the database and cannot be recovered.', confirmText: 'Continue', tone: 'danger' }))) return;
+    if (!(await confirmAction({ title: 'Are you absolutely sure?', text: 'This is permanent.', confirmText: 'Delete permanently', tone: 'danger' }))) return;
 
     try {
       const res = await fetch(
@@ -148,7 +151,7 @@ const ArchiveManagement = () => {
 
   // ── Restore all ───────────────────────────────────────────────────────────
   const handleRestoreAll = async () => {
-    if (!window.confirm(`Restore all ${totalItems} archived ${activeModule} records?`)) return;
+    if (!(await confirmAction({ title: `Restore all ${totalItems} archived ${activeModule} records?`, confirmText: 'Restore all', tone: 'primary' }))) return;
     try {
       const res = await fetch(
         apiUrl(`/archive/${activeModule}/restore-all`),
@@ -190,13 +193,18 @@ const ArchiveManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="am-content">
+      <div className="ak-page am-content">
 
         {/* Page Header */}
-        <div className="am-page-header">
-          <h1>Archive Management</h1>
-          <p>Browse, restore, or permanently remove soft-deleted records across all modules</p>
-        </div>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">System · Archive</p>
+              <h1 className="ak-title">Archive Management</h1>
+              <p className="ak-sub">Browse, restore, or permanently remove soft-deleted records across all modules.</p>
+            </div>
+          </div>
+        </header>
 
         {/* Page-level navigation tabs */}
         <div className="am-page-tabs">
@@ -318,7 +326,7 @@ const ArchiveManagement = () => {
         </div>
 
         {/* Restore All */}
-        {isAdmin && totalItems > 0 && (
+        {canRestore && totalItems > 0 && (
           <button type="button" className="archive-restore-all-btn" onClick={handleRestoreAll}>
             Restore All ({totalItems})
           </button>
@@ -326,7 +334,7 @@ const ArchiveManagement = () => {
 
         {/* Records table */}
         {loading ? (
-          <div className="archive-empty">Loading…</div>
+          <Loader />
         ) : records.length === 0 ? (
           <div className="archive-empty">
             No archived {activeLabel} records found.
@@ -362,14 +370,16 @@ const ArchiveManagement = () => {
                   </td>
                   <td>
                     <div className="archive-actions">
-                      <button
-                        type="button"
-                        className="archive-restore-btn"
-                        onClick={() => handleRestore(item.module, item.id)}
-                      >
-                        Restore
-                      </button>
-                      {isAdmin && (
+                      {canRestore && (
+                        <button
+                          type="button"
+                          className="archive-restore-btn"
+                          onClick={() => handleRestore(item.module, item.id)}
+                        >
+                          Restore
+                        </button>
+                      )}
+                      {canForceDelete && (
                         <button
                           type="button"
                           className="archive-force-delete-btn"

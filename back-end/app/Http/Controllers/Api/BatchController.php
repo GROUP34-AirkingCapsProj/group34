@@ -186,7 +186,7 @@ class BatchController extends Controller
 
         if (in_array('dashboard', $parts)) {
             try {
-                $dashboard = app(DashboardController::class)->index();
+                $dashboard = app(DashboardController::class)->index(request());
                 $data['dashboard'] = json_decode($dashboard->getContent(), true);
             } catch (\Throwable $e) {
                 $data['dashboard'] = ['success' => false, 'message' => $e->getMessage()];

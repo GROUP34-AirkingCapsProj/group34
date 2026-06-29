@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { istAPI, getApiBaseUrl } from '../services/api';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
-import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 
@@ -75,14 +75,9 @@ const ISTManagementPage = () => {
   const [ists,       setIsts]       = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
+  const [success,    setSuccess]    = useState(loc.state?.success || '');
   const [statusTab,  setStatusTab]  = useState('all');
   const [viewTab,    setViewTab]    = useState('outgoing');
-
-  useEffect(() => {
-    if (loc.state?.success) {
-      toast.success(loc.state.success);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchIsts = useCallback(() => {
     setLoading(true);
@@ -121,9 +116,34 @@ const ISTManagementPage = () => {
     ? baseList.length
     : baseList.filter((t) => t.status?.status_name === key).length;
 
+  // Preset counts (always from full list, regardless of current viewTab)
+  const toFulfillCount = ists.filter((t) =>
+    t.status?.status_name === 'Approved' &&
+    (isAdmin || !myLocId || String(t.from_location_id) === myLocId)
+  ).length;
+  const toReceiveCount = ists.filter((t) =>
+    t.status?.status_name === 'In Transit' &&
+    (isAdmin || String(t.to_location_id) === myLocId)
+  ).length;
+
+  const applyPreset = (preset) => {
+    if (preset === 'fulfill') {
+      setViewTab('outgoing');
+      setStatusTab('Approved');
+    } else if (preset === 'receive') {
+      setViewTab('incoming');
+      setStatusTab('In Transit');
+    }
+  };
+
+  const activePreset =
+    viewTab === 'outgoing' && statusTab === 'Approved' ? 'fulfill' :
+    viewTab === 'incoming' && statusTab === 'In Transit' ? 'receive' :
+    null;
+
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
 
         {/* Header */}
         <div className="po-creator-header-card">
@@ -160,6 +180,72 @@ const ISTManagementPage = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Success banner */}
+        {success && (
+          <div className="po-success-banner" style={{ marginBottom: 12 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            {success}
+            <button type="button" className="po-success-close" onClick={() => setSuccess('')} aria-label="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Quick-filter presets */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', alignSelf: 'center', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Worklist:
+          </span>
+          <button
+            type="button"
+            onClick={() => applyPreset('fulfill')}
+            style={{
+              padding: '6px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              border: activePreset === 'fulfill' ? '2px solid #16a34a' : '1.5px solid #bbf7d0',
+              background: activePreset === 'fulfill' ? '#16a34a' : '#f0fdf4',
+              color: activePreset === 'fulfill' ? '#fff' : '#16a34a',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            To Fulfill
+            {toFulfillCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
+                background: activePreset === 'fulfill' ? 'rgba(255,255,255,0.25)' : '#dcfce7',
+                color: activePreset === 'fulfill' ? '#fff' : '#16a34a',
+              }}>
+                {toFulfillCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('receive')}
+            style={{
+              padding: '6px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              border: activePreset === 'receive' ? '2px solid #2563eb' : '1.5px solid #bfdbfe',
+              background: activePreset === 'receive' ? '#2563eb' : '#eff6ff',
+              color: activePreset === 'receive' ? '#fff' : '#2563eb',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            To Receive
+            {toReceiveCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
+                background: activePreset === 'receive' ? 'rgba(255,255,255,0.25)' : '#dbeafe',
+                color: activePreset === 'receive' ? '#fff' : '#2563eb',
+              }}>
+                {toReceiveCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* View tabs: Outgoing / Incoming */}
@@ -229,7 +315,7 @@ const ISTManagementPage = () => {
           })}
         </div>
 
-        {loading && <div className="po-status-loading">Loading ISTs…</div>}
+        {loading && <Loader label="Loading ISTs" />}
         {error   && <div className="po-submit-error">{error}</div>}
 
         {!loading && filtered.length === 0 && (
@@ -280,18 +366,18 @@ const ISTManagementPage = () => {
                       >
                         <td>
                           <span style={{ fontWeight: 600, color: '#1e293b' }}>{ist.transfer_number}</span>
-                          {ist.transferRequest?.transfer_number && (
+                          {(ist.transfer_request?.transfer_number || ist.transferRequest?.transfer_number) && (
                             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                              from {ist.transferRequest.transfer_number}
+                              from {ist.transfer_request?.transfer_number || ist.transferRequest?.transfer_number}
                             </div>
                           )}
                         </td>
                         <td>{from}</td>
                         <td>{to}</td>
                         <td>{fmtDate(ist.transfer_date)}</td>
-                        <td>{userName(ist.preparedBy)}</td>
+                        <td>{userName(ist.prepared_by || ist.preparedBy)}</td>
                         <td style={{ fontSize: 12 }}>{dispatch ? fmtDateTime(dispatch.recorded_at) : '—'}</td>
-                        <td>{dispatch ? userName(dispatch.recordedBy) : '—'}</td>
+                        <td>{dispatch ? userName(dispatch.recorded_by || dispatch.recordedBy) : '—'}</td>
                         <td style={{ textAlign: 'center' }}>{(ist.details || []).length} line(s)</td>
                         <td style={{ textAlign: 'center' }}>
                           {(ist.total_quantity_transferred || 0)} / {totalReq}
@@ -338,6 +424,25 @@ const ISTManagementPage = () => {
                                 onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/receive`); }}
                               >
                                 Confirm Receipt
+                              </button>
+                            </div>
+                          ) : ist.status?.status_name === 'Approved' ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                type="button"
+                                className="po-btn"
+                                style={{ fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}`); }}
+                              >
+                                View
+                              </button>
+                              <button
+                                type="button"
+                                className="po-btn"
+                                style={{ fontSize: 11, padding: '4px 10px', background: '#1e293b', color: '#fff' }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/dispatch`); }}
+                              >
+                                Scan / Dispatch
                               </button>
                             </div>
                           ) : (

@@ -41,7 +41,7 @@ class IssuanceScanController extends Controller
     {
         $validated = $request->validate([
             'customer_id'      => 'required|integer|exists:customers,customer_id',
-            'issuance_type'    => ['required', Rule::in(['business', 'individual', 'warranty'])],
+            'issuance_type'    => ['required', Rule::in(['business', 'individual'])],
             'discount_type'    => ['nullable', Rule::in(['none', 'business', 'senior', 'custom'])],
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'location_id'      => 'nullable|integer|exists:locations,location_id',
@@ -61,9 +61,6 @@ class IssuanceScanController extends Controller
         if ($validated['issuance_type'] === 'business') {
             $discountPercent = (float) ($validated['discount_percent'] ?? 0);
             $discountType    = $validated['discount_type'] ?? 'business';
-        } elseif ($validated['issuance_type'] === 'warranty') {
-            $discountPercent = 100;
-            $discountType    = 'none';
         }
 
         $drNumber = 'DR-' . now()->format('Ymd') . '-'
@@ -158,14 +155,10 @@ class IssuanceScanController extends Controller
         $serialRecord = null;
 
         foreach ($candidates as $candidate) {
-            $serial = ItemSerial::where('location_id', $locationId)
-                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($candidate)])
-                ->where('status_id', self::STATUS_SERIAL_IN_STOCK)
-                ->first();
+            $serial = ItemSerial::issuableAt($locationId, $candidate)->first();
             if ($serial) {
                 $product = Product::with([
                     'applianceDetail.brand',
-                    'applianceDetail.modelLookup',
                 ])->find($serial->product_id);
                 $serialRecord = $serial;
                 break;
@@ -193,7 +186,7 @@ class IssuanceScanController extends Controller
                     ->select('product_id')
                     ->first();
                 if ($detail) {
-                    $product = Product::with(['applianceDetail.brand', 'applianceDetail.modelLookup', 'consumableDetail.unit'])
+                    $product = Product::with(['applianceDetail.brand', 'consumableDetail.unit'])
                         ->find($detail->product_id);
                     break;
                 }
@@ -292,6 +285,7 @@ class IssuanceScanController extends Controller
                     'product_id'      => $product->product_id,
                     'product_name'    => $product->product_name,
                     'product_code'    => $product->product_code,
+                    'model_code'      => $product->applianceDetail?->model_code,
                     'brand_name'      => $product->applianceDetail?->brand?->brand_name,
                     'capacity_rating' => $product->applianceDetail?->capacity_rating,
                     'variant'         => $product->applianceDetail?->variant,
@@ -325,7 +319,8 @@ class IssuanceScanController extends Controller
         $requestedQty = (float) ($validated['quantity'] ?? 1);
         $quantityUnit = $validated['quantity_unit']
                        ?? ($product->consumableDetail?->unit?->unit_abbreviation ?? 'piece');
-        $quantityInPieces = (int) ceil($requestedQty);
+        // round before ceil so float dust (e.g. 5.000001) can't bump a whole number up
+        $quantityInPieces = (int) ceil(round($requestedQty, 4));
 
         $packagePrice  = $product->unit_price;
         $pricePerPiece = $piecesPerPackage > 0
@@ -630,7 +625,6 @@ class IssuanceScanController extends Controller
     {
         $issuance = Issuance::with([
             'details.product.applianceDetail.brand',
-            'details.product.applianceDetail.modelLookup',
             'details.product.consumableDetail.unit',
             'details.warrantyRecord',
             'customer', 'location', 'issuedByUser', 'status',
@@ -821,6 +815,7 @@ class IssuanceScanController extends Controller
                     'product_id'         => $d->product_id,
                     'product_name'       => $p?->product_name,
                     'product_code'       => $p?->product_code,
+                    'model_code'         => $ad?->model_code,
                     'product_type'       => $p?->product_type,
                     'brand_name'         => $ad?->brand?->brand_name,
                     'capacity_rating'    => $ad?->capacity_rating,

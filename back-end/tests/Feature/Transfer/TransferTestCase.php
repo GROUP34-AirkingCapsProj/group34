@@ -1,0 +1,132 @@
+<?php
+
+namespace Tests\Feature\Transfer;
+
+use Tests\TestCase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
+use App\Models\Location;
+use App\Models\Product;
+use App\Models\Inventory;
+use App\Models\ItemSerial;
+use App\Models\Transfer;
+use App\Models\User;
+
+abstract class TransferTestCase extends TestCase
+{
+    use DatabaseTransactions;
+
+    protected function statusId(string $name): int
+    {
+        $id = DB::table('status_lookup')
+            ->where('status_category', 'transfer')
+            ->where('status_name', $name)
+            ->value('status_id');
+        if ($id === null) {
+            throw new \RuntimeException("Unknown transfer status: {$name}");
+        }
+        return (int) $id;
+    }
+
+    protected function makeLocation(string $name): Location
+    {
+        return Location::create([
+            'location_code' => 'LOC-' . uniqid(),
+            'location_name' => $name,
+            'location_type' => 'warehouse',
+        ]);
+    }
+
+    protected function makeUser(): User
+    {
+        $roleId = (int) (\Illuminate\Support\Facades\DB::table('roles')->min('role_id') ?? 1);
+        return User::create([
+            'username'      => 'tester_' . uniqid(),
+            'first_name'    => 'Test',
+            'last_name'     => 'User',
+            'email'         => uniqid() . '@example.test',
+            'password_hash' => bcrypt('secret'),
+            'role_id'       => $roleId,
+        ]);
+    }
+
+    protected function makeConsumable(): Product
+    {
+        return Product::create([
+            'product_code' => 'CON-' . uniqid(),
+            'product_name' => 'Test Consumable',
+            'product_type' => 'consumable',
+        ]);
+    }
+
+    protected function makeAppliance(): Product
+    {
+        return Product::create([
+            'product_code' => 'APP-' . uniqid(),
+            'product_name' => 'Test Appliance',
+            'product_type' => 'appliance',
+        ]);
+    }
+
+    protected function setStock(int $locationId, int $productId, int $qty): Inventory
+    {
+        return Inventory::create([
+            'location_id'        => $locationId,
+            'product_id'         => $productId,
+            'quantity_on_hand'   => $qty,
+            'available_quantity' => $qty,
+            'reorder_level'      => 0,
+        ]);
+    }
+
+    /** Create $count 'received' serials for an appliance at a location. Returns serial_number strings. */
+    protected function makeSerials(int $locationId, int $productId, int $count): array
+    {
+        $numbers = [];
+        for ($i = 0; $i < $count; $i++) {
+            $sn = 'SN-' . uniqid();
+            ItemSerial::create([
+                'product_id'    => $productId,
+                'location_id'   => $locationId,
+                'serial_number' => $sn,
+                'serial_type'   => 'received',
+            ]);
+            $numbers[] = $sn;
+        }
+        return $numbers;
+    }
+
+    /** Create an IST (transfer_request_id set) at status Approved with given lines. */
+    protected function makeApprovedIst(int $from, int $to, array $lines): Transfer
+    {
+        $req = Transfer::create([
+            'transfer_request_id' => null,
+            'from_location_id'    => $from,
+            'to_location_id'      => $to,
+            'transfer_number'     => 'TR-REQ-TEST-' . uniqid(),
+            'transfer_date'       => now(),
+            'status_id'           => $this->statusId('Pending'),
+        ]);
+
+        $ist = Transfer::create([
+            'transfer_request_id' => $req->transfer_id,
+            'from_location_id'    => $from,
+            'to_location_id'      => $to,
+            'transfer_number'     => 'IST-TEST-' . uniqid(),
+            'transfer_date'       => now(),
+            'status_id'           => $this->statusId('Approved'),
+        ]);
+
+        foreach ($lines as $line) {
+            $ist->details()->create([
+                'product_id'           => $line['product_id'],
+                'quantity_requested'   => $line['quantity_requested'],
+                'quantity_scanned'     => $line['quantity_scanned'] ?? 0,
+                'quantity_transferred' => 0,
+                'quantity_received'    => 0,
+            ]);
+        }
+
+        return $ist->fresh('details');
+    }
+}

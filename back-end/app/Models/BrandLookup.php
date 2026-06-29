@@ -22,9 +22,4 @@ class BrandLookup extends Model
     {
         return $this->hasMany(Product::class, 'brand_id', 'brand_id');
     }
-
-    public function models()
-    {
-        return $this->hasMany(ModelLookup::class, 'brand_id', 'brand_id');
-    }
 }

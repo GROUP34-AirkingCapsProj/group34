@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import Barcode from 'react-barcode';
 import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
@@ -12,9 +16,12 @@ import '../styles/item_management.css';
 import '../styles/archive_management.css';
 
 const ItemManagement = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
-  const isInventoryAnalystViewOnly = roleKey === ROLES.INVENTORY_ANALYST;
+  // Permission-driven: can edit items if admin or granted item master create/update.
+  const canManageItems = roleKey === ROLES.ADMIN
+    || (typeof can === 'function' && (can('item_master_management', 'create') || can('item_master_management', 'update')));
+  const isViewOnly = !canManageItems;
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -22,6 +29,9 @@ const ItemManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [viewingItem, setViewingItem] = useState(null);
+  const focusProductId = useFocusTarget('product');
+  const focusHandledRef = useRef(false);
+  const [itemPulse, fireItemPulse] = useFocusPulse();
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, last_page: 1 });
   const [productType, setProductType] = useState('appliance');
@@ -39,8 +49,13 @@ const ItemManagement = () => {
   const [issuableUnits, setIssuableUnits] = useState([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddBrandOpen, setIsAddBrandOpen] = useState(false);
+  const [isAddUnitOpen, setIsAddUnitOpen] = useState(false);
+  // null = consumable "Unit of Measure" field; number = issuable-unit row index
+  const [addUnitTargetIdx, setAddUnitTargetIdx] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newBrandName, setNewBrandName] = useState('');
+  const [newUnitName, setNewUnitName] = useState('');
+  const [newUnitAbbrev, setNewUnitAbbrev] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -147,6 +162,15 @@ const ItemManagement = () => {
   }, [currentPage, fetchItems]);
 
   useEffect(() => {
+    if (!focusProductId || focusHandledRef.current) return;
+    if (loading) return;
+    focusHandledRef.current = true;
+    const item = findById(items, ['product_id', 'id'], focusProductId);
+    if (item) { setViewingItem(item); fireItemPulse(); }
+    else toast.error('That product is not available.');
+  }, [focusProductId, loading, items, fireItemPulse]);
+
+  useEffect(() => {
     const fetchTypeCounts = async () => {
       try {
         const shared = {};
@@ -197,7 +221,7 @@ const ItemManagement = () => {
   };
 
   const handleAdd = () => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Item Master is view-only for Inventory Analyst.');
       return;
     }
@@ -215,7 +239,7 @@ const ItemManagement = () => {
   }, [currentPage]);
 
   const handleEdit = (item) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Editing items is disabled for Inventory Analyst.');
       return;
     }
@@ -236,7 +260,7 @@ const ItemManagement = () => {
       category_id: item.category_id ?? item.category?.category_id ?? '',
       // V5 flat shim fields — set directly on product object by backend
       brand_id: item.brand_id ?? '',
-      model_code: item.model_name || '',
+      model_code: item.model_code || item.model_name || '',
       unit_id: item.unit_id ?? '',
       unit_price: item.unit_price ?? item.price ?? '',
       cost_price: item.cost_price ?? item.unit_price ?? item.price ?? '',
@@ -268,7 +292,7 @@ const ItemManagement = () => {
   };
 
   const handleCreateCategory = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Creating categories is disabled for Inventory Analyst.');
       return;
     }
@@ -294,7 +318,7 @@ const ItemManagement = () => {
   };
 
   const handleCreateBrand = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Creating brands is disabled for Inventory Analyst.');
       return;
     }
@@ -316,6 +340,37 @@ const ItemManagement = () => {
       toast.success('Brand added.');
     } catch (err) {
       toast.error(err.message || 'Failed to add brand');
+    }
+  };
+
+  const handleCreateUnit = async (e) => {
+    e.preventDefault();
+    const name = newUnitName.trim();
+    if (!name) return;
+    try {
+      const res = await unitsAPI.create({
+        unit_name: name,
+        unit_abbreviation: newUnitAbbrev.trim() || null,
+      });
+      const created = res?.data || res;
+      if (created) {
+        setUnits((prev) => [...prev, created]);
+        if (addUnitTargetIdx === null) {
+          setFormData((prev) => ({
+            ...prev,
+            unit_id: created.unit_id ?? prev.unit_id,
+          }));
+        } else if (created.unit_id != null) {
+          updateIssuableUnit(addUnitTargetIdx, 'unit_id', created.unit_id);
+        }
+      }
+      setNewUnitName('');
+      setNewUnitAbbrev('');
+      setAddUnitTargetIdx(null);
+      setIsAddUnitOpen(false);
+      toast.success('Unit added.');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add unit');
     }
   };
 
@@ -383,7 +438,7 @@ const ItemManagement = () => {
   };
 
   const handleSubmit = async (e) => {
-    if (isInventoryAnalystViewOnly) {
+    if (isViewOnly) {
       toast.info('Saving items is disabled for Inventory Analyst.');
       return;
     }
@@ -512,17 +567,19 @@ const ItemManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="im-page">
+      <div className="ak-page im-page">
         {/* Page Header */}
-        <div className="im-page-header">
+        <header className="ak-header">
+         <div className="ak-header-row">
           <div className="im-page-header-left">
-            <h1>Product Management</h1>
-            <p>Central repository for product specifications and material catalog</p>
+            <p className="ak-eyebrow">Catalog · Products</p>
+            <h1 className="ak-title">Product Management</h1>
+            <p className="ak-sub">Central repository for product specifications and material catalog.</p>
           </div>
-          <div className="im-page-header-right">
+          <div className="ak-header-aside ak-actions im-page-header-right">
             <div className="im-header-filters">
               <select
-                className="im-filter-select"
+                className="ak-select im-filter-select"
                 value={filterCategory}
                 onChange={(e) => {
                   setFilterCategory(e.target.value);
@@ -535,7 +592,7 @@ const ItemManagement = () => {
                 ))}
               </select>
               <select
-                className="im-filter-select"
+                className="ak-select im-filter-select"
                 value={filterBrand}
                 onChange={(e) => {
                   setFilterBrand(e.target.value);
@@ -548,8 +605,8 @@ const ItemManagement = () => {
                 ))}
               </select>
             </div>
-            {!isInventoryAnalystViewOnly && (
-              <button className="im-btn-create" onClick={handleAdd}>
+            {!isViewOnly && (
+              <button className="ak-btn ak-btn--primary im-btn-create" onClick={handleAdd}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
                   <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -558,7 +615,8 @@ const ItemManagement = () => {
               </button>
             )}
           </div>
-        </div>
+         </div>
+        </header>
 
         {/* Stats Cards */}
         <div className="im-stats-row">
@@ -670,7 +728,7 @@ const ItemManagement = () => {
             </div>
           </div>
 
-          {loading && <div className="im-loading">Loading products...</div>}
+          {loading && <Loader label="Loading products" />}
           {error && <div className="im-error">Error: {error}</div>}
 
           <div className="im-table-wrapper">
@@ -693,7 +751,7 @@ const ItemManagement = () => {
                 {filteredItems.length === 0 ? (
                   <tr>
                     <td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
-                      {loading ? 'Loading...' : 'No products found'}
+                      {loading ? <Loader /> : 'No products found'}
                     </td>
                   </tr>
                 ) : (
@@ -718,7 +776,9 @@ const ItemManagement = () => {
                       <tr key={item.product_id ?? item.id}>
                         <td>
                           <div className="im-product-cell">
-                            <span className="im-product-code">{item.product_code || item.code}</span>
+                            {item.model_code && (
+                              <span className="im-product-code">{item.model_code}</span>
+                            )}
                             <span className="im-product-name">{item.product_name || item.name}</span>
                           </div>
                         </td>
@@ -746,7 +806,7 @@ const ItemManagement = () => {
                                 <circle cx="12" cy="12" r="3"></circle>
                               </svg>
                             </button>
-                            {!isInventoryAnalystViewOnly && (
+                            {!isViewOnly && (
                               <>
                                 <button className="im-action-btn im-action-edit" onClick={() => handleEdit(item)} title="Edit">
                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
@@ -801,7 +861,7 @@ const ItemManagement = () => {
       {/* View Modal */}
       {viewingItem && (
         <Modal isOpen={!!viewingItem} onClose={() => setViewingItem(null)} title="Product Details">
-          <div className="im-view-details">
+          <div className={`im-view-details${itemPulse ? ' ak-focus-pulse' : ''}`}>
             {/* Type badge */}
             <div style={{ marginBottom: '12px' }}>
               <span className={`im-type-badge ${resolveType(viewingItem) === 'appliance' ? 'im-type-unit' : 'im-type-consumable'}`}>
@@ -814,15 +874,17 @@ const ItemManagement = () => {
                 <label>Product name</label>
                 <p>{viewingItem.product_name || viewingItem.name}</p>
               </div>
-              <div className="im-view-field">
-                <label>Code / SKU</label>
-                <p>{viewingItem.product_code || viewingItem.code}</p>
-              </div>
             </div>
 
             {/* Appliance-specific fields */}
             {resolveType(viewingItem) === 'appliance' && (
               <>
+                <div className="im-view-row">
+                  <div className="im-view-field">
+                    <label>Model Code</label>
+                    <p>{viewingItem.model_code || '—'}</p>
+                  </div>
+                </div>
                 <div className="im-view-row">
                   <div className="im-view-field">
                     <label>Capacity Rating</label>
@@ -851,7 +913,7 @@ const ItemManagement = () => {
               <>
                 <div className="im-view-row">
                   <div className="im-view-field">
-                    <label>Packaging Unit</label>
+                    <label>Unit of Measure</label>
                     <p>{viewingItem.unit_name || '—'}</p>
                   </div>
                   <div className="im-view-field">
@@ -927,7 +989,7 @@ const ItemManagement = () => {
 
             <div className="im-modal-footer">
               <button type="button" className="im-modal-btn-cancel" onClick={() => setViewingItem(null)}>Close</button>
-              {!isInventoryAnalystViewOnly && (
+              {!isViewOnly && (
                 <button type="button" className="im-modal-btn-confirm" onClick={() => { setViewingItem(null); handleEdit(viewingItem); }}>Edit</button>
               )}
             </div>
@@ -1003,9 +1065,9 @@ const ItemManagement = () => {
                     <label>MODEL CODE *</label>
                     <input
                       type="text"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      placeholder="e.g. AS-20-PRO"
+                      value={formData.model_code}
+                      onChange={(e) => setFormData({ ...formData, model_code: e.target.value })}
+                      placeholder="e.g. AMNB12AAJLH5"
                       required
                     />
                   </div>
@@ -1072,15 +1134,6 @@ const ItemManagement = () => {
                   </div>
                 </div>
                 <div className="im-form-row">
-                  <div className="im-form-field">
-                    <label>MODEL CODE</label>
-                    <input
-                      type="text"
-                      value={formData.model_code}
-                      onChange={(e) => setFormData({ ...formData, model_code: e.target.value })}
-                      placeholder="e.g. AMNB12AAJLH5 (optional)"
-                    />
-                  </div>
                   <div className="im-form-field">
                     <label>STATUS</label>
                     <select
@@ -1253,16 +1306,26 @@ const ItemManagement = () => {
                     </div>
                   </div>
                   <div className="im-form-field">
-                    <label>PACKAGING UNIT</label>
-                    <select
-                      value={formData.unit_id}
-                      onChange={(e) => setFormData({ ...formData, unit_id: e.target.value })}
-                    >
-                      <option value="">Select Unit</option>
-                      {units.map((u) => (
-                        <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
-                      ))}
-                    </select>
+                    <label>UNIT OF MEASURE</label>
+                    <div className="im-inline-field">
+                      <select
+                        value={formData.unit_id}
+                        onChange={(e) => setFormData({ ...formData, unit_id: e.target.value })}
+                      >
+                        <option value="">Select Unit</option>
+                        {units.map((u) => (
+                          <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="im-inline-add-btn"
+                        onClick={() => { setAddUnitTargetIdx(null); setIsAddUnitOpen(true); }}
+                        title="Add new unit of measure"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="im-form-row">
@@ -1311,7 +1374,7 @@ const ItemManagement = () => {
                     />
                   </div>
                   <div className="im-form-field">
-                    <label>PACKAGE UNIT</label>
+                    <label>PACKAGE / CONTAINER</label>
                     <input
                       type="text"
                       value={formData.package_unit}
@@ -1401,25 +1464,35 @@ const ItemManagement = () => {
                               />
                             </td>
                             <td>
-                              <select
-                                value={iu.unit_id}
-                                onChange={e => updateIssuableUnit(idx, 'unit_id', parseInt(e.target.value))}
-                                className="issuable-unit-select"
-                              >
-                                <option value="">Select unit</option>
-                                {units.map(u => (
-                                  <option key={u.unit_id} value={u.unit_id}>
-                                    {u.unit_name} ({u.unit_abbreviation})
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="im-inline-field">
+                                <select
+                                  value={iu.unit_id}
+                                  onChange={e => updateIssuableUnit(idx, 'unit_id', parseInt(e.target.value))}
+                                  className="issuable-unit-select"
+                                >
+                                  <option value="">Select unit</option>
+                                  {units.map(u => (
+                                    <option key={u.unit_id} value={u.unit_id}>
+                                      {u.unit_name} ({u.unit_abbreviation})
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="im-inline-add-btn"
+                                  onClick={() => { setAddUnitTargetIdx(idx); setIsAddUnitOpen(true); }}
+                                  title="Add new unit of measure"
+                                >
+                                  +
+                                </button>
+                              </div>
                             </td>
                             <td>
                               <div className="issuable-conversion-row">
                                 <input
                                   type="number"
-                                  min="0.000001"
-                                  step="0.001"
+                                  min="0.001"
+                                  step="any"
                                   value={iu.conversion_factor}
                                   onChange={e => updateIssuableUnit(idx, 'conversion_factor', parseFloat(e.target.value))}
                                   className="issuable-conversion-input"
@@ -1648,6 +1721,49 @@ const ItemManagement = () => {
               </button>
               <button type="submit" className="im-modal-btn-confirm">
                 SAVE BRAND
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Quick Add Unit of Measure */}
+      {isAddUnitOpen && (
+        <Modal
+          isOpen={isAddUnitOpen}
+          onClose={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+          title="Add Unit of Measure"
+        >
+          <form onSubmit={handleCreateUnit} className="im-add-simple-form">
+            <div className="im-form-field">
+              <label>Unit Name</label>
+              <input
+                type="text"
+                value={newUnitName}
+                onChange={(e) => setNewUnitName(e.target.value)}
+                placeholder="e.g. Meter, Liter, Roll"
+                autoFocus
+              />
+            </div>
+            <div className="im-form-field">
+              <label>Abbreviation (optional)</label>
+              <input
+                type="text"
+                value={newUnitAbbrev}
+                onChange={(e) => setNewUnitAbbrev(e.target.value)}
+                placeholder="e.g. m, L, roll"
+              />
+            </div>
+            <div className="im-modal-footer">
+              <button
+                type="button"
+                className="im-modal-btn-cancel"
+                onClick={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+              >
+                CANCEL
+              </button>
+              <button type="submit" className="im-modal-btn-confirm">
+                SAVE UNIT
               </button>
             </div>
           </form>

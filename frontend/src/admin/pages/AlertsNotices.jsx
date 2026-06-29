@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
+import { useAuth } from '../context/AuthContext';
 import { auditAPI, dashboardAPI, alertsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/alerts_notices.css';
 import DateInput from '../components/DateInput';
+import { pendingPoTarget, pendingPrTarget, lowStockTarget, auditTarget, targetHref } from '../utils/alertTarget';
 
 const PAGE_SIZE = 10;
 const AUDIT_LAST_SEEN_KEY = 'airking_audit_last_seen';
@@ -155,7 +158,7 @@ const Chevron = ({ open }) => (
 );
 
 // Single audit entry (UPDATE / DELETE / ungrouped CREATE)
-const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
+const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle, onOpen }) => {
   const id = item?.audit_id ?? item?.id;
   const userName =
     item?.user_full_name ||
@@ -214,6 +217,18 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
           <span className="an-audit-time">
             {item?.created_at ? new Date(item.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
           </span>
+          {onOpen && (
+            <>
+              <span className="an-audit-sep">·</span>
+              <button
+                type="button"
+                className="an-audit-open-link"
+                onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              >
+                Open record <span aria-hidden="true">→</span>
+              </button>
+            </>
+          )}
           {item?.ip_address && (
             <><span className="an-audit-sep">·</span><span className="an-audit-ip">{item.ip_address}</span></>
           )}
@@ -264,7 +279,7 @@ const SingleAuditEntry = ({ item, isUnread, isExpanded, onToggle }) => {
 };
 
 // Grouped entry: parent header + all line items in one collapsible card
-const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle }) => {
+const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle, onOpen }) => {
   const id = primary?.audit_id ?? primary?.id;
   const userName =
     primary?.user_full_name ||
@@ -308,6 +323,18 @@ const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle })
           <span className="an-audit-time">
             {primary?.created_at ? new Date(primary.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
           </span>
+          {onOpen && (
+            <>
+              <span className="an-audit-sep">·</span>
+              <button
+                type="button"
+                className="an-audit-open-link"
+                onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              >
+                Open record <span aria-hidden="true">→</span>
+              </button>
+            </>
+          )}
           {primary?.ip_address && (
             <><span className="an-audit-sep">·</span><span className="an-audit-ip">{primary.ip_address}</span></>
           )}
@@ -352,6 +379,27 @@ const GroupedAuditEntry = ({ primary, details, isUnread, isExpanded, onToggle })
 
 const AlertsNotices = () => {
   const navigate = useNavigate();
+
+  // Turns a non-null alert target into spreadable props that navigate on
+  // click/Enter/Space. Returns {} when the item is not navigable.
+  const clickProps = useCallback((target) => {
+    if (!target) return {};
+    const go = () => navigate(targetHref(target));
+    return {
+      role: 'button',
+      tabIndex: 0,
+      onClick: go,
+      onKeyDown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+      },
+    };
+  }, [navigate]);
+
+  const { can } = useAuth();
+  // Audit trail is a separate privileged compliance feature (own /admin/audit page).
+  // Only admin/branch_manager/auditor hold audit_trail_viewing.read; IA & WP must still
+  // see their location-scoped alerts without that section breaking the page.
+  const canViewAudit = can('audit_trail_viewing', 'read');
   const [allLowStock, setAllLowStock] = useState([]);
   const [allAudit, setAllAudit] = useState([]);
   const [pendingPOs, setPendingPOs] = useState([]);
@@ -381,35 +429,51 @@ const AlertsNotices = () => {
     let mounted = true;
     const loadAlerts = async () => {
       setLoading(true);
-      try {
-        const [lowStockRes, auditRes, pendingRes] = await Promise.all([
-          dashboardAPI.getLowStock(),
-          auditAPI.getTrailV2({ per_page: 100 }),
-          dashboardAPI.getPendingApprovals(),
-        ]);
-        // getLowStock returns { success, data: [...] }
-        const stockPayload = Array.isArray(lowStockRes?.data) ? lowStockRes.data : [];
-        // v2 returns { success, data: [...], pagination } — data is the items array directly
-        const auditPayload = Array.isArray(auditRes?.data)
-          ? auditRes.data
-          : Array.isArray(auditRes?.data?.data) ? auditRes.data.data : [];
-        // pendingApprovals returns { success, data: { pending_pos, pending_prs, pending_products, ... } }
-        const pendingData = pendingRes?.data?.data ?? pendingRes?.data ?? {};
-        if (!mounted) return;
-        setAllLowStock(stockPayload);
-        setAllAudit(auditPayload);
+      // Settle each load independently so a single failure (e.g. a role without
+      // audit_trail_viewing 403ing on /audit-trail/v2) never blanks out the
+      // alerts a user IS allowed to see. Audit is only requested when permitted.
+      const [lowStockR, pendingR, auditR] = await Promise.allSettled([
+        dashboardAPI.getLowStock(),
+        dashboardAPI.getPendingApprovals(),
+        canViewAudit ? auditAPI.getTrailV2({ per_page: 100 }) : Promise.resolve(null),
+      ]);
+      if (!mounted) return;
+
+      let coreFailed = false;
+
+      // getLowStock returns { success, data: [...] }
+      if (lowStockR.status === 'fulfilled') {
+        setAllLowStock(Array.isArray(lowStockR.value?.data) ? lowStockR.value.data : []);
+      } else {
+        coreFailed = true;
+      }
+
+      // pendingApprovals returns { success, data: { pending_pos, pending_prs, pending_products, ... } }
+      if (pendingR.status === 'fulfilled') {
+        const pendingData = pendingR.value?.data?.data ?? pendingR.value?.data ?? {};
         setPendingPOs(Array.isArray(pendingData.pending_pos) ? pendingData.pending_pos : []);
         setPendingPRs(Array.isArray(pendingData.pending_prs) ? pendingData.pending_prs : []);
         setPendingProducts(Array.isArray(pendingData.pending_products) ? pendingData.pending_products : []);
-      } catch (e) {
-        if (mounted) toast.error(e.message || 'Failed to load alerts.');
-      } finally {
-        if (mounted) setLoading(false);
+      } else {
+        coreFailed = true;
       }
+
+      // v2 returns { success, data: [...], pagination } — data is the items array directly.
+      // Audit failure is non-fatal: the section is simply hidden/empty.
+      if (canViewAudit && auditR.status === 'fulfilled' && auditR.value) {
+        const auditRes = auditR.value;
+        setAllAudit(Array.isArray(auditRes?.data)
+          ? auditRes.data
+          : Array.isArray(auditRes?.data?.data) ? auditRes.data.data : []);
+      }
+
+      if (coreFailed) toast.error('Some alerts failed to load.');
+      setLoading(false);
     };
     loadAlerts();
     return () => { mounted = false; };
-  }, []);
+    // Re-run once permissions resolve so audit is fetched for roles that gain the grant.
+  }, [canViewAudit]);
 
   const groupedAudit = useMemo(() => groupRawAuditLogs(allAudit), [allAudit]);
 
@@ -484,17 +548,19 @@ const AlertsNotices = () => {
 
   return (
     <AdminLayout>
-      <div className="an-page">
-        <div className="an-page-header">
+      <div className="ak-page an-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
           <div className="an-page-header-content">
-            <h1 className="an-page-title">Alerts &amp; Notices</h1>
-            <p className="an-page-subtitle">
+            <p className="ak-eyebrow">System · Alerts</p>
+            <h1 className="ak-title">Alerts &amp; Notices</h1>
+            <p className="ak-sub">
               System alerts and activity — all actions and changes are recorded here.
             </p>
           </div>
           <button
             type="button"
-            className="an-mark-all-read-btn"
+            className="ak-btn ak-btn--ghost an-mark-all-read-btn"
             onClick={handleMarkAllRead}
             disabled={markingRead || (pendingTotal + unreadCount) === 0}
           >
@@ -503,7 +569,8 @@ const AlertsNotices = () => {
             </svg>
             {markingRead ? 'Marking...' : 'Mark All Read'}
           </button>
-        </div>
+          </div>
+        </header>
 
         {/* Pending approvals */}
         <div className="an-card">
@@ -517,9 +584,6 @@ const AlertsNotices = () => {
               </h3>
               <p className="an-card-subtitle">Items waiting for your approval</p>
             </div>
-            <button type="button" className="an-go-queue-btn" onClick={() => navigate('/admin/approval-queue')}>
-              Open approval queue
-            </button>
           </div>
 
           {!loading && pendingTotal > 0 && (
@@ -537,7 +601,7 @@ const AlertsNotices = () => {
 
           <div className="an-approval-list">
             {loading ? (
-              <div className="an-empty">Loading pending approvals...</div>
+              <Loader label="Loading pending approvals" />
             ) : pendingTotal === 0 ? (
               <div className="an-empty">No pending approvals at this time</div>
             ) : (
@@ -548,7 +612,11 @@ const AlertsNotices = () => {
                       Purchase Orders <span className="an-approval-group-count">{pendingPOs.length}</span>
                     </div>
                     {pendingPOs.map((po) => (
-                      <div className="an-approval-item an-approval-item--urgent" key={`po-${po.id}`}>
+                      <div
+                        className={`an-approval-item an-approval-item--urgent${pendingPoTarget(po) ? ' an-clickable' : ''}`}
+                        key={`po-${po.id}`}
+                        {...clickProps(pendingPoTarget(po))}
+                      >
                         <div className="an-approval-left">
                           <span className="an-approval-title">
                             {po.po_number || `PO #${po.id}`}
@@ -573,7 +641,11 @@ const AlertsNotices = () => {
                       Purchase Requests <span className="an-approval-group-count">{pendingPRs.length}</span>
                     </div>
                     {pendingPRs.map((pr) => (
-                      <div className="an-approval-item an-approval-item--urgent" key={`pr-${pr.id}`}>
+                      <div
+                        className={`an-approval-item an-approval-item--urgent${pendingPrTarget(pr) ? ' an-clickable' : ''}`}
+                        key={`pr-${pr.id}`}
+                        {...clickProps(pendingPrTarget(pr))}
+                      >
                         <div className="an-approval-left">
                           <span className="an-approval-title">
                             {pr.pr_number || `PR #${pr.id}`}
@@ -625,12 +697,16 @@ const AlertsNotices = () => {
           </div>
           <div className="an-approval-list">
             {loading ? (
-              <div className="an-empty">Loading alerts...</div>
+              <Loader label="Loading alerts" />
             ) : allLowStock.length === 0 ? (
               <div className="an-empty">No low-stock alerts at the moment</div>
             ) : (
               stockVisible.map((item, idx) => (
-                <div className="an-approval-item" key={item.product_id || item.inventory_id || idx}>
+                <div
+                  className={`an-approval-item${lowStockTarget(item) ? ' an-clickable' : ''}`}
+                  key={item.product_id || item.inventory_id || idx}
+                  {...clickProps(lowStockTarget(item))}
+                >
                   <div className="an-approval-left">
                     <span className="an-approval-title">
                       {item.product_name || `Item ${idx + 1}`}
@@ -660,7 +736,8 @@ const AlertsNotices = () => {
           )}
         </div>
 
-        {/* Audit trail activity */}
+        {/* Audit trail activity — privileged compliance view (audit_trail_viewing.read) */}
+        {canViewAudit && (
         <div className="an-card">
           <div className="an-card-header">
             <h3 className="an-card-title">
@@ -710,7 +787,7 @@ const AlertsNotices = () => {
 
           <div className="an-approval-list">
             {loading ? (
-              <div className="an-empty">Loading...</div>
+              <Loader />
             ) : groupedAudit.length === 0 ? (
               <div className="an-empty">No audit entries yet</div>
             ) : filteredAudit.length === 0 ? (
@@ -720,6 +797,8 @@ const AlertsNotices = () => {
                 const gId = group.primary?.audit_id ?? group.primary?.id ?? idx;
                 const expanded = expandedIds.has(gId);
                 const unread = isUnread(group.primary?.created_at);
+                const target = auditTarget(group.primary);
+                const onOpen = target ? () => navigate(targetHref(target)) : null;
                 return group.type === 'grouped' ? (
                   <GroupedAuditEntry
                     key={gId}
@@ -728,6 +807,7 @@ const AlertsNotices = () => {
                     isUnread={unread}
                     isExpanded={expanded}
                     onToggle={toggleExpanded}
+                    onOpen={onOpen}
                   />
                 ) : (
                   <SingleAuditEntry
@@ -736,6 +816,7 @@ const AlertsNotices = () => {
                     isUnread={unread}
                     isExpanded={expanded}
                     onToggle={toggleExpanded}
+                    onOpen={onOpen}
                   />
                 );
               })
@@ -746,6 +827,7 @@ const AlertsNotices = () => {
               totalItems={auditTotal} pageSize={PAGE_SIZE} label="audit entries" />
           )}
         </div>
+        )}
       </div>
     </AdminLayout>
   );

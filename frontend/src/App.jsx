@@ -5,6 +5,8 @@ import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
 import SessionIdleGuard from './admin/components/SessionIdleGuard';
+import Loader from './admin/components/Loader';
+import './admin/styles/airking_ds.css';
 import './App.css';
 
 // Core
@@ -13,25 +15,22 @@ const ForgotPassword = lazy(() => import('./admin/pages/ForgotPassword'));
 const Dashboard = lazy(() => import('./admin/pages/Dashboard'));
 
 // System Setup
-const UserManagement = lazy(() => import('./admin/pages/UserManagement'));
 const LocationManagement = lazy(() => import('./admin/pages/LocationManagement'));
-const RolePermissions = lazy(() => import('./admin/pages/RolePermissions'));
 const CategoryBrandManagement = lazy(() => import('./admin/pages/CategoryBrandManagement'));
 
 // Procurement
 const ItemManagement = lazy(() => import('./admin/pages/ItemManagement'));
 const SupplierNetwork = lazy(() => import('./admin/pages/SupplierNetwork'));
-const ReceivingManagement = lazy(() => import('./admin/pages/ReceivingManagement'));
 
 // Inventory
 const InventoryManagement = lazy(() => import('./admin/pages/InventoryManagement'));
 const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferManagement'));
-const TransferScanWorkflow = lazy(() => import('./admin/pages/TransferScanWorkflow'));
 const TransferRequestPage = lazy(() => import('./admin/pages/TransferRequestPage'));
 const ISTCreatePage = lazy(() => import('./admin/pages/ISTCreatePage'));
 const ISTManagementPage = lazy(() => import('./admin/pages/ISTManagementPage'));
 const ISTDetailPage = lazy(() => import('./admin/pages/ISTDetailPage'));
 const ISTReceivePage = lazy(() => import('./admin/pages/ISTReceivePage'));
+const ISTDispatchPage = lazy(() => import('./admin/pages/ISTDispatchPage'));
 const ISTReceiptPage = lazy(() => import('./admin/pages/ISTReceiptPage'));
 const IssuanceManagement = lazy(() => import('./admin/pages/IssuanceManagement'));
 const AdjustmentManagement = lazy(() => import('./admin/pages/AdjustmentManagement'));
@@ -51,7 +50,6 @@ const AuditTrail = lazy(() => import('./admin/pages/AuditTrail'));
 const ProfitLossManagement = lazy(() => import('./admin/pages/ProfitLossManagement'));
 
 // Legacy / other pages
-const ApprovalQueue = lazy(() => import('./admin/pages/ApprovalQueue'));
 const SystemConfiguration = lazy(() => import('./admin/pages/SystemConfiguration'));
 const ArchiveManagement = lazy(() => import('./admin/pages/ArchiveManagement'));
 const ArchiveSettingsPage = lazy(() => import('./admin/pages/ArchiveSettingsPage'));
@@ -62,7 +60,13 @@ const PurchaseOrderPage = lazy(() => import('./admin/pages/PurchaseOrderPage'));
 const ComplianceReview = lazy(() => import('./admin/pages/ComplianceReview'));
 const AlertsNotices = lazy(() => import('./admin/pages/AlertsNotices'));
 const WarrantyManagement = lazy(() => import('./admin/pages/WarrantyManagement'));
+const WarrantyClaimPage = lazy(() => import('./admin/pages/WarrantyClaimPage'));
 const IssuanceScanPage  = lazy(() => import('./admin/pages/IssuanceScanPage'));
+const AccountSettingsPage = lazy(() => import('./admin/pages/AccountSettingsPage'));
+
+// SA Permission Editor
+const AccessControlPage     = lazy(() => import('./admin/pages/AccessControlPage'));
+const PermissionAuditLog    = lazy(() => import('./admin/pages/PermissionAuditLog'));
 
 // Supabase PWA (parallel to Laravel admin)
 const PwaLogin = lazy(() => import('./pwa/pages/PwaLogin'));
@@ -86,11 +90,7 @@ function App() {
         }}
       />
       <SessionIdleGuard />
-      <Suspense fallback={
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#080d16' }}>
-          <div style={{ width: 44, height: 44, border: '3px solid rgba(220,20,60,0.2)', borderTopColor: '#dc143c', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-        </div>
-      }>
+      <Suspense fallback={<Loader variant="page" />}>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
@@ -115,33 +115,33 @@ function App() {
 
           {/* Dashboard */}
           <Route path="/admin/dashboard" element={<RoleRoute><Dashboard /></RoleRoute>} />
+          <Route path="/admin/account" element={<RoleRoute><AccountSettingsPage /></RoleRoute>} />
 
           {/* System Setup */}
-          <Route path="/admin/users" element={<RoleRoute><UserManagement /></RoleRoute>} />
           <Route path="/admin/locations" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/branches" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/warehouses" element={<RoleRoute><LocationManagement /></RoleRoute>} />
-          <Route path="/admin/roles" element={<RoleRoute><RolePermissions /></RoleRoute>} />
           <Route path="/admin/categories" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
           <Route path="/admin/brands" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
 
           {/* Procurement */}
           <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
           <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
-          <Route path="/admin/purchase-orders" element={<RoleRoute><ApprovalQueue initialTab="purchase-orders" /></RoleRoute>} />
+          <Route path="/admin/purchase-orders" element={<Navigate to="/admin/draft-po-creator" replace />} />
           <Route path="/admin/budget-management" element={<RoleRoute><BudgetManagementPage /></RoleRoute>} />
           <Route path="/admin/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
           <Route path="/admin/draft-po-creator" element={<RoleRoute><PurchaseOrderPage /></RoleRoute>} />
-          <Route path="/admin/receivings" element={<RoleRoute><ReceivingManagement /></RoleRoute>} />
 
           {/* Inventory */}
           <Route path="/admin/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
           <Route path="/admin/transfers" element={<RoleRoute><StockTransferManagement /></RoleRoute>} />
-          <Route path="/admin/transfer-scan" element={<RoleRoute><TransferScanWorkflow /></RoleRoute>} />
+          {/* /admin/transfer-scan retired — receiving is now handled via IST flow (/admin/ist/:id/receive) */}
+          <Route path="/admin/transfer-scan" element={<Navigate to="/admin/ist" replace />} />
           <Route path="/admin/transfer-requests" element={<RoleRoute><TransferRequestPage /></RoleRoute>} />
           <Route path="/admin/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
           <Route path="/admin/ist" element={<RoleRoute><ISTManagementPage /></RoleRoute>} />
           <Route path="/admin/ist/create/:requestId" element={<RoleRoute><ISTCreatePage /></RoleRoute>} />
+          <Route path="/admin/ist/:id/dispatch" element={<RoleRoute><ISTDispatchPage /></RoleRoute>} />
           <Route path="/admin/ist/:id/receive" element={<RoleRoute><ISTReceivePage /></RoleRoute>} />
           <Route path="/admin/ist/:id/receipt" element={<RoleRoute><ISTReceiptPage /></RoleRoute>} />
           <Route path="/admin/ist/:id" element={<RoleRoute><ISTDetailPage /></RoleRoute>} />
@@ -163,7 +163,7 @@ function App() {
           <Route path="/admin/profit-loss" element={<RoleRoute><ProfitLossManagement /></RoleRoute>} />
 
           {/* Legacy routes */}
-          <Route path="/admin/approval-queue" element={<RoleRoute><ApprovalQueue /></RoleRoute>} />
+          <Route path="/admin/approval-queue" element={<Navigate to="/admin/draft-po-creator" replace />} />
           <Route path="/admin/config" element={<RoleRoute><SystemConfiguration /></RoleRoute>} />
           <Route path="/admin/archive" element={<RoleRoute><ArchiveManagement /></RoleRoute>} />
           <Route path="/admin/archive-settings" element={<RoleRoute><ArchiveSettingsPage /></RoleRoute>} />
@@ -173,7 +173,13 @@ function App() {
           <Route path="/admin/notifications" element={<RoleRoute><Navigate to="/admin/alerts" replace /></RoleRoute>} />
           <Route path="/admin/warranty" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
           <Route path="/admin/warranties" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
+          <Route path="/admin/warranty-claims" element={<RoleRoute><WarrantyClaimPage /></RoleRoute>} />
           <Route path="/admin/issuance-scan" element={<RoleRoute><IssuanceScanPage /></RoleRoute>} />
+
+          {/* SA Permission Editor */}
+          <Route path="/admin/roles" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
+          <Route path="/admin/user-permissions" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
+          <Route path="/admin/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
         </Routes>
       </Suspense>
     </Router>

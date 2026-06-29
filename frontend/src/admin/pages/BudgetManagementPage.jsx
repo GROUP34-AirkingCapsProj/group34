@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
@@ -9,11 +10,12 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
+import { confirmAction } from '../utils/confirm';
+import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
-import { toast } from '../utils/toast';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,14 +133,12 @@ const BudgetManagementPage = () => {
   const [form,         setForm]         = useState(emptyForm);
   const [formErrors,   setFormErrors]   = useState({});
   const [submitting,   setSubmitting]   = useState(false);
-  const [createError,  setCreateError]  = useState('');
 
   // Edit modal
   const [editBudget,   setEditBudget]   = useState(null); // budget object
   const [editForm,     setEditForm]     = useState({});
   const [editErrors,   setEditErrors]   = useState({});
   const [editSaving,   setEditSaving]   = useState(false);
-  const [editError,    setEditError]    = useState('');
 
 
   // ── Load budgets ────────────────────────────────────────────────────────────
@@ -206,8 +206,8 @@ const BudgetManagementPage = () => {
     const errs = validateForm(form);
     setFormErrors(errs);
     if (Object.keys(errs).length) return;
+    if (!(await confirmAction({ title: 'Create this budget allocation?', confirmText: 'Create', tone: 'primary' }))) return;
     setSubmitting(true);
-    setCreateError('');
     try {
       const payload = {
         location_id:  Number(form.location_id),
@@ -219,8 +219,7 @@ const BudgetManagementPage = () => {
         ...(form.notes?.trim() ? { notes: form.notes.trim() } : {}),
       };
       await budgetAllocationsAPI.create(payload);
-      const loc = locations.find(l => String(l.location_id) === String(form.location_id));
-      toast.success(`Budget created for ${loc?.location_name || 'location'}!`);
+      toast.success('Budget created');
       setForm(emptyForm());
       setFormErrors({});
       await loadBudgets();
@@ -229,11 +228,11 @@ const BudgetManagementPage = () => {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to create budget.';
-      setCreateError(msg);
+      toast.error("Couldn't create budget", msg);
     } finally {
       setSubmitting(false);
     }
-  }, [form, locations, loadBudgets]);
+  }, [form, loadBudgets]);
 
   // ── Edit open ────────────────────────────────────────────────────────────────
   const openEdit = useCallback((b) => {
@@ -248,7 +247,6 @@ const BudgetManagementPage = () => {
       notes:        b.notes || '',
     });
     setEditErrors({});
-    setEditError('');
   }, []);
 
   // ── Edit save ────────────────────────────────────────────────────────────────
@@ -262,8 +260,8 @@ const BudgetManagementPage = () => {
     }
     setEditErrors(errs);
     if (Object.keys(errs).length) return;
+    if (!(await confirmAction({ title: 'Save changes to this budget?', confirmText: 'Save', tone: 'primary' }))) return;
     setEditSaving(true);
-    setEditError('');
     try {
       const payload = {
         period_label: editForm.period_label.trim(),
@@ -276,11 +274,12 @@ const BudgetManagementPage = () => {
       await budgetAllocationsAPI.update(editBudget.budget_id, payload);
       setEditBudget(null);
       await loadBudgets();
+      toast.success('Budget updated');
     } catch (err) {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
         : err?.message || 'Failed to update budget.';
-      setEditError(msg);
+      toast.error("Couldn't save budget", msg);
     } finally {
       setEditSaving(false);
     }
@@ -291,8 +290,9 @@ const BudgetManagementPage = () => {
     try {
       await budgetAllocationsAPI.delete(budgetId);
       await loadBudgets();
+      toast.success('Budget archived');
     } catch (err) {
-      toast.error(err?.message || 'Failed to delete budget.');
+      toast.error("Couldn't archive budget", err?.message || 'Failed to delete budget.');
     }
   }, [loadBudgets]);
 
@@ -594,7 +594,7 @@ const BudgetManagementPage = () => {
 
   // ── Tab: Overview ────────────────────────────────────────────────────────────
   const renderOverview = () => {
-    if (loading) return <div className="po-status-loading">Loading budgets…</div>;
+    if (loading) return <Loader label="Loading budgets" />;
     if (loadError) return <div className="po-status-error-msg">{loadError}</div>;
 
     return (
@@ -659,10 +659,6 @@ const BudgetManagementPage = () => {
 
       {renderPreview()}
 
-      {createError && (
-        <div className="po-submit-error" style={{ marginTop: 14 }}>{createError}</div>
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
         <button
           type="button"
@@ -683,7 +679,7 @@ const BudgetManagementPage = () => {
   if (!isAdmin) {
     return (
       <AdminLayout>
-        <div className="po-recommendation-page">
+        <div className="ak-page po-recommendation-page">
           <div className="po-status-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="44" height="44">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -700,7 +696,8 @@ const BudgetManagementPage = () => {
   // ── Main render ──────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
+
         {/* Page header */}
         <div className="po-creator-header-card">
           <div className="po-creator-header-grid">
@@ -756,10 +753,6 @@ const BudgetManagementPage = () => {
         {editBudget && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
             {renderFormFields(editForm, setEF, editErrors, true)}
-
-            {editError && (
-              <div className="po-submit-error">{editError}</div>
-            )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8 }}>
               <button

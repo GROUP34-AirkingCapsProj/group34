@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { issuancesAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
@@ -152,14 +153,19 @@ const IssuanceManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="txn-page">
-        <div className="txn-page-header">
-          <div className="txn-page-header-left">
-            <h1>Issuance for Internal Use</h1>
-            <p>Issue stock for internal use — Transactions-style list (empty until you add records)</p>
+      <div className="ak-page txn-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Internal Issuance</p>
+              <h1 className="ak-title">Issuance for Internal Use</h1>
+              <p className="ak-sub">Issue stock for internal use — Transactions-style list (empty until you add records).</p>
+            </div>
+            <div className="ak-header-aside">
+              <button type="button" className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Issuance</button>
+            </div>
           </div>
-          <button type="button" className="txn-btn-create" onClick={openAddModal}>+ New Issuance</button>
-        </div>
+        </header>
 
         <div className="txn-stats-row">
           {[
@@ -218,7 +224,7 @@ const IssuanceManagement = () => {
 
           <div className="txn-feed">
             {loading ? (
-              <div className="txn-empty">Loading issuances...</div>
+              <Loader label="Loading issuances" />
             ) : filteredIssuances.length === 0 ? (
               <div className="txn-empty">
                 No issuance records yet — same clean view as Transactions. Use <strong>+ New Issuance</strong> to add one.

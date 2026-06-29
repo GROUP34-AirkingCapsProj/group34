@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../admin/components/AdminLayout';
+import Loader from '../../admin/components/Loader';
 import { useAuth } from '../../admin/context/AuthContext';
 import { getRoleKey, ROLES } from '../../admin/utils/roles';
 import { batchAPI, dashboardAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
@@ -42,6 +43,14 @@ ChartJS.register(
 ───────────────────────────────────────────── */
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { can } = useAuth();
+  const visibleWidgets = [
+    can('purchase_order_creation', 'read') && 'po_summary',
+    can('inventory_adjustments', 'read') && 'low_stock',
+    can('inventory_transfers', 'read') && 'ist_queue',
+    can('sales_recording', 'read') && 'sales_summary',
+    can('delivery_receiving', 'read') && 'receiving_summary',
+  ].filter(Boolean);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
@@ -191,9 +200,7 @@ const AdminDashboard = () => {
   if (loading || !data) {
     return (
       <AdminLayout>
-        <div className="dashboard-loading">
-          <p>Loading dashboard...</p>
-        </div>
+        <Loader variant="page" label="Loading dashboard" />
       </AdminLayout>
     );
   }
@@ -268,11 +275,17 @@ const AdminDashboard = () => {
 
   return (
     <AdminLayout>
+     <div className="ak-page">
       {/* HEADER */}
-      <div className="dashboard-header">
-        <h1>System Dashboard</h1>
-        <p>System-wide statistics and overall health monitoring.</p>
-      </div>
+      <header className="ak-header">
+        <div className="ak-header-row">
+          <div>
+            <p className="ak-eyebrow">Overview · System</p>
+            <h1 className="ak-title">System Dashboard</h1>
+            <p className="ak-sub">System-wide statistics and overall health monitoring.</p>
+          </div>
+        </div>
+      </header>
 
       {/* STATS */}
       <div className="stats-container">
@@ -315,25 +328,27 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* APPROVAL ALERT PANEL */}
-      <div className="approval-alert-panel">
-        <div className="approval-alert-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            <path d="M9 12l2 2 4-4"></path>
-          </svg>
+      {/* APPROVAL ALERT PANEL — gated by po_status_tracking.read */}
+      {visibleWidgets.includes('po_summary') && (
+        <div className="approval-alert-panel">
+          <div className="approval-alert-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="M9 12l2 2 4-4"></path>
+            </svg>
+          </div>
+          <div className="approval-alert-content">
+            <h3>Pending Approvals Queue</h3>
+            <p>There are {pendingActions} items awaiting your authorization.</p>
+          </div>
+          <button type="button" className="approval-alert-btn" onClick={() => navigate('/admin/draft-po-creator')}>
+            GO TO APPROVALS
+          </button>
         </div>
-        <div className="approval-alert-content">
-          <h3>Pending Approvals Queue</h3>
-          <p>There are {pendingActions} items awaiting your authorization.</p>
-        </div>
-        <button type="button" className="approval-alert-btn" onClick={() => navigate('/admin/approval-queue')}>
-          GO TO APPROVALS
-        </button>
-      </div>
+      )}
 
-      {/* LOW STOCK ALERT */}
-      {lowStockItems.length > 0 && (
+      {/* LOW STOCK ALERT — gated by automated_inventory_monitoring.read */}
+      {visibleWidgets.includes('low_stock') && lowStockItems.length > 0 && (
         <div className="low-stock-section">
           <div className="low-stock-header">
             <div className="low-stock-header-left">
@@ -402,7 +417,6 @@ const AdminDashboard = () => {
           </div>
           <div className="quick-actions-grid quick-actions-grid--compact">
             {[
-              { label: 'CREATE USER', path: '/admin/users', cls: 'red', icon: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></> },
               { label: 'LOCATIONS', path: '/admin/locations', cls: 'yellow', icon: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></> },
               { label: 'CUSTOMER', path: '/admin/customers', cls: 'green', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></> },
               { label: 'CLAIM', path: '/admin/warranty', cls: 'purple', icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> },
@@ -543,15 +557,17 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* TRANSACTION TRENDS */}
-      <div className="charts-section charts-section--single">
-        <div className="chart-card">
-          <h3>Transaction Trends</h3>
-          <div className="chart-wrapper">
-            <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Sales', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+      {/* TRANSACTION TRENDS — gated by sales_recording.read */}
+      {visibleWidgets.includes('sales_summary') && (
+        <div className="charts-section charts-section--single">
+          <div className="chart-card">
+            <h3>Transaction Trends</h3>
+            <div className="chart-wrapper">
+              <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Sales', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
       
 
       {/* CHARTS ROW 2 */}
@@ -587,7 +603,7 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
-      
+     </div>
     </AdminLayout>
 
   );
@@ -597,7 +613,7 @@ const AdminDashboard = () => {
    Dashboard — role-based router (no hooks here
    that would break if called after an early return)
 ───────────────────────────────────────────── */
-const ROLE_FALLBACK = <div className="dashboard-loading"><p>Loading...</p></div>;
+const ROLE_FALLBACK = <Loader variant="page" />;
 
 const Dashboard = () => {
   const { user: _user } = useAuth();

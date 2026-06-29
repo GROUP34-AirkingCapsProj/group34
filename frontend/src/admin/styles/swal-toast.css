@@ -38,3 +38,55 @@
   height: 3px !important;
   background: rgba(0, 0, 0, 0.15) !important;
 }
+
+/* Colored left accent bar per level */
+.swal2-popup.swal-toast {
+  border-left: 4px solid #9ca3af !important;
+}
+.swal2-popup.swal-toast-success { border-left-color: #059669 !important; }
+.swal2-popup.swal-toast-error   { border-left-color: #dc2626 !important; }
+.swal2-popup.swal-toast-warning { border-left-color: #d97706 !important; }
+.swal2-popup.swal-toast-info    { border-left-color: #2563eb !important; }
+
+/* Bold title is the SweetAlert2 default .swal2-title (already styled).
+   Subtitle: small, muted, on its own line. */
+.swal-toast-subtitle {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+/* ── Confirm dialog (shared confirm.js) ── */
+.swal2-popup.swal-confirm {
+  border-radius: 0.75rem !important;
+  padding: 1.5rem !important;
+}
+.swal-confirm-title { font-size: 1.125rem !important; color: #111827 !important; }
+.swal-confirm-text  { font-size: 0.875rem !important; color: #4b5563 !important; }
+.swal-confirm-actions { gap: 0.5rem !important; }
+.swal-confirm-btn {
+  border: none !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 1.25rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  cursor: pointer !important;
+}
+.swal-confirm-btn.swal-confirm-danger  { background: #dc2626 !important; }
+.swal-confirm-btn.swal-confirm-primary { background: #2563eb !important; }
+.swal-cancel-btn {
+  border: 1px solid #d1d5db !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 1.25rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  background: #fff !important;
+  color: #374151 !important;
+  cursor: pointer !important;
+}
+.swal-confirm-input {
+  font-size: 0.875rem !important;
+}

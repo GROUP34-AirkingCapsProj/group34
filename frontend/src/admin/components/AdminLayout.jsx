@@ -1,18 +1,29 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, startTransition } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { authAPI, dashboardAPI, alertsAPI } from '../services/api';
-import { getRoleKey, ROLE_META, ROLE_MENUS, ROLES } from '../utils/roles';
-import Sidebar, { adminMenuSections, prefetchRoute, routePrefetchMap, avatarColor } from '../components/Sidebar';
+import { useAuth, useUserLocation } from '../context/AuthContext';
+import { authAPI, layoutAPI, resolveStorageUrl } from '../services/api';
+import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
+import { getEcho } from '../utils/echo';
+import { channelFor, REALTIME_EVENTS } from '../utils/realtimeChannel';
+import { playNotifySound, initNotifySound } from '../utils/notifySound';
+import { buildSidebar } from '../utils/sidebarBuilder';
+import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
+import LocationBadge from '../components/LocationBadge';
 import '../styles/dashboard_air.css';
+import '../styles/airking_ds.css';
 import '../styles/global_overrides.css';
 import '../styles/responsive.css';
 
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: _user, clearSession } = useAuth();
+  const { user: _user, clearSession, permissions, can } = useAuth();
   const user = _user || {};
+  const { locationName: userLocationName } = useUserLocation();
+
+  // Centralized roles: admin=1, inventory_analyst=2, auditor=5
+  // Scoped roles: branch_manager=3, warehouse_personnel=4
+  const isCentralized = [1, 2, 5].includes(Number(user?.role?.role_id));
 
   // Role-based setup
   const roleKey = useMemo(() => getRoleKey(user), [user]);
@@ -22,7 +33,9 @@ const AdminLayout = ({ children }) => {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const prevBadgeRef = useRef(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [awaitingIstCount, setAwaitingIstCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState(() => new Set());
 
@@ -61,48 +74,91 @@ const AdminLayout = ({ children }) => {
     return () => { document.body.style.overflow = prev; };
   }, [mobileNavOpen]);
 
-// Sync unread notification count from API
+  // One request feeds all header badges (unread, pending approvals, awaiting IST)
   useEffect(() => {
     let mounted = true;
-    const syncUnread = async () => {
+    const syncBadges = async () => {
       try {
-        const res = await alertsAPI.getUnreadCount();
-        // apiRequest returns the parsed body directly; res.data is the payload object
-        const count = res?.data?.badge_count
-                   ?? res?.data?.unread_count
-                   ?? res?.data?.data?.badge_count
-                   ?? res?.data?.data?.unread_count
-                   ?? 0;
-        if (mounted) setUnreadNotifications(Number(count));
+        const res = await layoutAPI.getSummary();
+        const d = res?.data ?? {};
+        if (!mounted) return;
+        setUnreadNotifications(Number(d.badge_count ?? 0));
+        prevBadgeRef.current = Number(d.badge_count ?? 0);
+        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
       } catch (_) {
-        // API unreachable — keep existing count rather than falling back to stale localStorage
-        if (mounted) setUnreadNotifications(prev => prev);
+        // leave existing counts on transient failure
       }
     };
-    syncUnread();
-    window.addEventListener('approval-notifications-updated', syncUnread);
-    window.addEventListener('storage', syncUnread);
+    syncBadges();
+    const interval = setInterval(syncBadges, 60000);
+    window.addEventListener('approval-notifications-updated', syncBadges);
+    window.addEventListener('storage', syncBadges);
     return () => {
       mounted = false;
-      window.removeEventListener('approval-notifications-updated', syncUnread);
-      window.removeEventListener('storage', syncUnread);
+      clearInterval(interval);
+      window.removeEventListener('approval-notifications-updated', syncBadges);
+      window.removeEventListener('storage', syncBadges);
     };
   }, []);
 
-  // Poll server for pending approval count (POs + item registrations)
+  // Realtime: push updates to the bell instantly via Echo/Reverb. Falls back to
+  // the 60s poll above when Reverb is unreachable. Only the push path plays sound.
   useEffect(() => {
-    let mounted = true;
-    const fetchPending = async () => {
+    if (!can('notification_panel', 'read')) return;
+    const channelName = channelFor(user);
+    if (!channelName) return;
+    const echo = getEcho();
+    if (!echo) return;
+
+    let cancelled = false;
+    let burstTimer = null;
+
+    const refreshAndChime = async () => {
       try {
-        const res = await dashboardAPI.getPendingApprovals();
-        const total = res?.data?.data?.total_pending ?? res?.data?.total_pending ?? 0;
-        if (mounted) setPendingApprovalCount(Number(total));
-      } catch (_) {}
+        const res = await layoutAPI.getSummary();
+        const d = res?.data ?? {};
+        if (cancelled) return;
+        setUnreadNotifications(Number(d.badge_count ?? 0));
+        prevBadgeRef.current = Number(d.badge_count ?? 0);
+        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
+        // Chime on every notification (Messenger-style), not only when a count grew.
+        playNotifySound();
+      } catch (_) {
+        // ignore — poll will reconcile
+      }
     };
-    fetchPending();
-    const interval = setInterval(fetchPending, 60000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, []);
+
+    // One user action can emit several events; coalesce a burst into a single
+    // refetch + a single chime.
+    const onEvent = () => {
+      if (burstTimer) clearTimeout(burstTimer);
+      burstTimer = setTimeout(refreshAndChime, 300);
+    };
+
+    let channel;
+    try {
+      channel = echo.private(channelName);
+      REALTIME_EVENTS.forEach((evt) => channel.listen(evt, onEvent));
+    } catch (_) {
+      return;
+    }
+
+    return () => {
+      cancelled = true;
+      if (burstTimer) clearTimeout(burstTimer);
+      try {
+        REALTIME_EVENTS.forEach((evt) => channel && channel.stopListening(evt));
+        echo.leave(channelName);
+      } catch (_) {
+        // ignore
+      }
+    };
+  }, [user, can]);
+
+  // Unlock audio on the first tap/click so socket-triggered chimes can play on mobile.
+  useEffect(() => { initNotifySound(); }, []);
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -124,8 +180,15 @@ const AdminLayout = ({ children }) => {
   // is already in the browser cache before the user clicks anything.
   useEffect(() => {
     const timer = setTimeout(() => {
-      Object.keys(routePrefetchMap).forEach(prefetchRoute);
-    }, 100);
+      [
+        '/admin/dashboard',
+        '/admin/inventory',
+        '/admin/po-recommendations',
+        '/admin/items',
+        '/admin/transactions',
+        '/admin/purchase-orders',
+      ].forEach(prefetchRoute);
+    }, 1000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -170,8 +233,13 @@ const AdminLayout = ({ children }) => {
     navigate('/admin/alerts');
   };
 
-  // Use role-specific menu or fall back to full admin menu
-  const menuSections = ROLE_MENUS[roleKey] || adminMenuSections;
+  // Permission-driven sidebar: keep items whose nav bundle is granted,
+  // falling back to role check for unbundled pages, honouring adminOnly.
+  const permissionsLoading = !!_user?.user_id && permissions == null;
+  const menuSections = useMemo(
+    () => buildSidebar(adminMenuSections, permissions || {}, user),
+    [permissions, user]
+  );
 
   // Sync active highlight when navigating from outside the sidebar
   useEffect(() => {
@@ -245,6 +313,8 @@ const AdminLayout = ({ children }) => {
         roleMeta={roleMeta}
         onLogout={handleLogout}
         pendingApprovalCount={pendingApprovalCount}
+        awaitingIstCount={awaitingIstCount}
+        navLoading={permissionsLoading}
       />
 
       {/* Main Content */}
@@ -264,18 +334,13 @@ const AdminLayout = ({ children }) => {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <div className="header-brand">
-            <img src="/images/air.png" alt="" className="header-brand-logo" />
-            <div className="header-brand-text">
-              <span className="brand-name">AIRKING</span>
-              <span className="brand-subtitle">Air Conditioning</span>
-            </div>
-          </div>
-
           <div className="header-actions">
-            {(roleKey === ROLES.ADMIN
-              || roleKey === ROLES.BRANCH_MANAGER
-              || roleKey === ROLES.INVENTORY_ANALYST) && (
+            <LocationBadge
+              isCentralized={isCentralized}
+              locationName={userLocationName}
+              className="header-location-badge"
+            />
+            {can('notification_panel', 'read') && (
               <button
                 type="button"
                 className="notification-btn"
@@ -298,15 +363,19 @@ const AdminLayout = ({ children }) => {
             >
               <div
                 className="header-user-avatar"
-                style={{ background: avatarColor(user.first_name || user.username || 'S'), color: '#fff' }}
+                style={{ background: avatarColor(user.first_name || user.username || 'S'), color: '#fff', overflow: 'hidden' }}
               >
-                <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1 }}>
-                  {user.first_name && user.last_name
-                    ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
-                    : user.username
-                    ? user.username.charAt(0).toUpperCase()
-                    : 'S'}
-                </span>
+                {user.avatar_url ? (
+                  <img src={resolveStorageUrl(user.avatar_url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1 }}>
+                    {user.first_name && user.last_name
+                      ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
+                      : user.username
+                      ? user.username.charAt(0).toUpperCase()
+                      : 'S'}
+                  </span>
+                )}
               </div>
               <div className="header-user-info">
                 <span className="header-user-name">
@@ -331,13 +400,17 @@ const AdminLayout = ({ children }) => {
                   <div className="hpd-header">
                     <div
                       className="hpd-avatar"
-                      style={{ background: avatarColor(user.first_name || user.username || 'S') }}
+                      style={{ background: avatarColor(user.first_name || user.username || 'S'), overflow: 'hidden' }}
                     >
-                      {user.first_name && user.last_name
-                        ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
-                        : user.username
-                        ? user.username.charAt(0).toUpperCase()
-                        : 'S'}
+                      {user.avatar_url ? (
+                        <img src={resolveStorageUrl(user.avatar_url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        user.first_name && user.last_name
+                          ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
+                          : user.username
+                          ? user.username.charAt(0).toUpperCase()
+                          : 'S'
+                      )}
                     </div>
                     <div className="hpd-identity">
                       <div className="hpd-fullname">
@@ -358,6 +431,17 @@ const AdminLayout = ({ children }) => {
                     </span>
                   </div>
 
+                  <button
+                    className="hpd-logout"
+                    style={{ marginBottom: 8 }}
+                    onClick={() => { setProfileOpen(false); navigate('/admin/account'); }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    Account Settings
+                  </button>
                   <button className="hpd-logout" onClick={handleLogout}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

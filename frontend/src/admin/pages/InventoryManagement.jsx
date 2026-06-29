@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { useLocation } from 'react-router-dom';
 import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/inventory_management.css';
+import { useFocusTarget } from '../hooks/useFocusTarget';
+import { useFocusPulse } from '../hooks/useFocusPulse';
+import { findById } from '../utils/findById';
+import { toast } from '../utils/toast';
 
 /* ── SVG trend chart ─────────────────────────────────────────────────── */
 const TrendChart = ({ data, loading }) => {
@@ -106,6 +111,9 @@ const InventoryManagement = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [detailTab, setDetailTab] = useState('overview');
+  const focusInvId = useFocusTarget('inv');
+  const focusHandledRef = useRef(false);
+  const [invPulse, fireInvPulse] = useFocusPulse();
   const [searchTerm, setSearchTerm] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
@@ -210,6 +218,22 @@ const InventoryManagement = () => {
   }, [searchTerm]);
 
   useEffect(() => {
+    if (!focusInvId || focusHandledRef.current) return;
+    if (loading) return;
+    focusHandledRef.current = true;
+    const item = findById(inventory, ['inventory_id', 'id'], focusInvId);
+    if (item) {
+      setViewingItem(item);
+      setHistoryData(null);
+      setDetailTab('overview');
+      loadInventoryHistory(item.inventory_id);
+      fireInvPulse();
+    } else {
+      toast.error('That inventory item is not available.');
+    }
+  }, [focusInvId, loading, inventory, loadInventoryHistory, fireInvPulse]);
+
+  useEffect(() => {
     if (activeTab !== 'activity') return;
     let cancelled = false;
     const fetchActivity = async () => {
@@ -231,6 +255,8 @@ const InventoryManagement = () => {
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
   const getItemCode    = (item) => item.product?.product_code || item.item?.code || item.sku || '';
+  // Appliance model code for display (consumables have none → '').
+  const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || '';
   const getItemQty     = (item) => Number(item.quantity_on_hand ?? item.quantity ?? 0);
   const getItemReorder = (item) => Number(item.product?.recommended_stocks || item.reorder_level || 5);
   const getItemSafety  = (item) => Number(item.product?.safety_stock) || Math.round(getItemReorder(item) * 0.25) || 1;
@@ -333,38 +359,41 @@ const InventoryManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="inv-page">
+      <div className="ak-page inv-page">
 
         {/* ── Page header ── */}
-        <div className="inv-page-header">
-          <div>
-            <h1 className="inv-page-title">Inventory Monitoring</h1>
-            <p className="inv-page-subtitle">
-              {activeTab === 'stock-movement'
-                ? 'Comprehensive stock in/out analysis and inventory velocity'
-                : activeTab === 'activity'
-                ? 'Complete audit trail of all stock movements — receivings, issuances, transfers, and adjustments'
-                : 'Real-time inventory levels and safety stock tracking across all Mindanao locations'}
-            </p>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Stock Control</p>
+              <h1 className="ak-title">Inventory Monitoring</h1>
+              <p className="ak-sub">
+                {activeTab === 'stock-movement'
+                  ? 'Comprehensive stock in/out analysis and inventory velocity.'
+                  : activeTab === 'activity'
+                  ? 'Complete audit trail of all stock movements — receivings, issuances, transfers, and adjustments.'
+                  : 'Real-time inventory levels and safety stock tracking across all Mindanao locations.'}
+              </p>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* ── Tab navigation ── */}
-        <div className="inv-tabs">
+        <div className="ak-tabs inv-tabs">
           <button
-            className={`inv-tab-btn ${activeTab === 'stock-movement' ? 'active' : ''}`}
+            className={`ak-tab ${activeTab === 'stock-movement' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('stock-movement')}
           >
             Stock Movement &amp; Turnover
           </button>
           <button
-            className={`inv-tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
+            className={`ak-tab ${activeTab === 'inventory' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('inventory')}
           >
             Inventory
           </button>
           <button
-            className={`inv-tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
+            className={`ak-tab ${activeTab === 'activity' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('activity')}
           >
             Activity Log
@@ -496,7 +525,7 @@ const InventoryManagement = () => {
                 <p className="sm-card-sub">Ranked by stock movement frequency and turnover ratio</p>
               </div>
 
-              {loading && <div className="inv-loading">Loading...</div>}
+              {loading && <Loader />}
 
               <div className="inv-table-wrapper">
                 <table className="inv-table">
@@ -524,7 +553,7 @@ const InventoryManagement = () => {
                             <span className="sm-rank">#{String(rank).padStart(2, '0')}</span>
                             <div>
                               <div className="inv-product-name">{getItemName(item)}</div>
-                              <div className="inv-product-code">{getItemCode(item)}</div>
+                              {getModelCode(item) && <div className="inv-product-code">{getModelCode(item)}</div>}
                             </div>
                           </div>
                         </td>
@@ -625,7 +654,7 @@ const InventoryManagement = () => {
               </div>
             </div>
 
-            {loading && <div className="inv-loading">Loading inventory...</div>}
+            {loading && <Loader label="Loading inventory" />}
             {error && <div className="inv-error">Error: {error}</div>}
 
             {/* Inventory Console Table */}
@@ -668,7 +697,7 @@ const InventoryManagement = () => {
                                 <span className="inv-product-name">{getItemName(item)}</span>
                                 <div className="inv-product-meta">
                                   <span className="inv-product-branch">{getBranchName(item)}</span>
-                                  <span className="inv-product-code">{getItemCode(item)}</span>
+                                  {getModelCode(item) && <span className="inv-product-code">{getModelCode(item)}</span>}
                                 </div>
                               </div>
                             </td>
@@ -804,7 +833,7 @@ const InventoryManagement = () => {
                   <p className="sm-card-sub">Every barcode scan that changed inventory — receiving, issuance, transfer, audit</p>
                 </div>
 
-                {activityLoading && <div className="inv-loading" style={{ padding: '40px', textAlign: 'center' }}>Loading activity log…</div>}
+                {activityLoading && <Loader label="Loading activity log" />}
 
                 {!activityLoading && (
                   <div className="inv-table-wrapper">
@@ -852,7 +881,7 @@ const InventoryManagement = () => {
                               </td>
                               <td>
                                 <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{r.product?.product_name || '—'}</div>
-                                {r.product?.product_code && <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.product.product_code}</div>}
+                                {r.product?.applianceDetail?.model_code && <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.product.applianceDetail.model_code}</div>}
                               </td>
                               <td><span className="invd-mono invd-small">{getRef(r)}</span></td>
                               <td style={{ fontSize: 12, color: '#374151' }}>{getLoc(r)}</td>
@@ -880,7 +909,7 @@ const InventoryManagement = () => {
             title={getItemName(viewingItem)}
             maxWidth={920}
           >
-            <div className="inv-view-details">
+            <div className={`inv-view-details${invPulse ? ' ak-focus-pulse' : ''}`}>
 
               {/* ── Tab navigation ── */}
               <div className="invd-tabs">
@@ -900,7 +929,7 @@ const InventoryManagement = () => {
               </div>
 
               {/* ── Loading / error ── */}
-              {historyLoading && <div className="invd-loading">Loading stock history…</div>}
+              {historyLoading && <Loader label="Loading stock history" />}
               {historyError && <div className="invd-error-msg">{historyError}</div>}
 
               {/* ══════════════════════════════
@@ -917,8 +946,8 @@ const InventoryManagement = () => {
                         <span className="invd-value">{historyData?.product?.product_name ?? getItemName(viewingItem)}</span>
                       </div>
                       <div className="invd-field">
-                        <span className="invd-label">Product Code</span>
-                        <span className="invd-value invd-mono">{historyData?.product?.product_code ?? getItemCode(viewingItem)}</span>
+                        <span className="invd-label">Model Code</span>
+                        <span className="invd-value invd-mono">{historyData?.product?.applianceDetail?.model_code || getModelCode(viewingItem) || '—'}</span>
                       </div>
                       <div className="invd-field">
                         <span className="invd-label">Type</span>

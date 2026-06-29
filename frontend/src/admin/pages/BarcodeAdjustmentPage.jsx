@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import {
   BinaryBitmap,
   DecodeHintType,
@@ -12,7 +13,9 @@ import {
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { barcodeAdjustmentAPI, productsAPI, locationsAPI, purchaseOrdersAPI, categoriesAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import { useAuth, useUserLocation } from '../context/AuthContext';
+import { getRoleKey, ROLES } from '../utils/roles';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
 import '../styles/barcode_scan.css';
@@ -407,9 +410,14 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
 
 /* ─── Main page ──────────────────────────────────────────────────────── */
 export default function BarcodeAdjustmentPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations, canChooseLocation } = useUserLocation();
   const navigate = useNavigate();
+
+  const roleKey = getRoleKey(user);
+  const isAdmin = roleKey === ROLES.ADMIN;
+  // Inventory adjustments may be created by admin, branch manager, and warehouse personnel.
+  const canSubmitCorrection = isAdmin || (typeof can === 'function' && can('inventory_adjustments', 'create'));
 
   // Reference data
   const [allPOs, setAllPOs]         = useState([]);
@@ -801,7 +809,7 @@ export default function BarcodeAdjustmentPage() {
   const handleSubmit = async () => {
     if (!preview) { toast.error('Run a preview first.'); return; }
     if (!effectiveLocationId) { toast.error('Select a location.'); return; }
-    if (!window.confirm('This will permanently modify inventory records.\n\nConfirm?')) return;
+    if (!(await confirmAction({ title: 'Modify inventory records?', text: 'This will permanently modify inventory records.', confirmText: 'Confirm', tone: 'danger' }))) return;
     setSubmitting(true);
     try {
       const res = await barcodeAdjustmentAPI.submit({
@@ -833,30 +841,37 @@ export default function BarcodeAdjustmentPage() {
 
   return (
     <AdminLayout>
-      <div className="baj-page">
+      <div className="ak-page baj-page">
 
         {/* Header */}
-        <div className="baj-header-card">
-          <div className="baj-header-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#DC143C" strokeWidth="2" width="26" height="26">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-          </div>
-          <div className="baj-header-text">
-            <h1>Barcode Adjustment</h1>
-            <p>Correct scan mistakes made during PO receiving — full compliance trail included</p>
-          </div>
-          <button type="button" className="baj-back-btn" onClick={() => navigate('/admin/inventory-operation')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-            Back
-          </button>
-          {lastSubmitted && (
-            <div className="baj-last-badge">
-              Last: <strong>{lastSubmitted.adjustment_number}</strong>
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+              <div className="baj-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#DC143C" strokeWidth="2" width="26" height="26">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </div>
+              <div className="baj-header-text">
+                <p className="ak-eyebrow">Inventory · Barcode</p>
+                <h1 className="ak-title">Barcode Adjustment</h1>
+                <p className="ak-sub">Correct scan mistakes made during PO receiving — full compliance trail included.</p>
+              </div>
             </div>
-          )}
-        </div>
+            <div className="ak-header-aside ak-actions">
+              <button type="button" className="ak-btn ak-btn--ghost baj-back-btn" onClick={() => navigate('/admin/inventory-operation')}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                Back
+              </button>
+              {lastSubmitted && (
+                <div className="baj-last-badge">
+                  Last: <strong>{lastSubmitted.adjustment_number}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
 
         {/* STEP 1 — PO + LOCATION */}
         <div className="baj-card">
@@ -1032,7 +1047,7 @@ export default function BarcodeAdjustmentPage() {
                   })}
                 </div>
 
-                {poLoading && <div className="baj-po-status--loading">Loading PO records…</div>}
+                {poLoading && <Loader label="Loading PO records" />}
                 {poError   && <div className="baj-po-status--err">{poError}</div>}
                 {poData && !poLoading && (
                   <div className="baj-po-status baj-po-status--ok">
@@ -1241,10 +1256,11 @@ export default function BarcodeAdjustmentPage() {
                     ))}
                   </ul>
                   <div className="ba-submit-row">
-                    <button className="baj-btn-primary" onClick={handleSubmit} disabled={submitting || !effectiveLocationId}>
+                    <button className="baj-btn-primary" onClick={handleSubmit} disabled={submitting || !effectiveLocationId || !canSubmitCorrection}>
                       {submitting ? 'Submitting…' : 'Confirm & Submit Correction'}
                     </button>
                     {!effectiveLocationId && <span style={{ fontSize: 12, color: '#dc2626' }}>Select a location in Step 1 first.</span>}
+                    {effectiveLocationId && !canSubmitCorrection && <span style={{ fontSize: 12, color: '#dc2626' }}>You do not have permission to submit corrections.</span>}
                   </div>
                 </div>
               )}
@@ -1263,7 +1279,7 @@ export default function BarcodeAdjustmentPage() {
               </div>
               <div>
                 <div className="baj-card-title">CORRECTION HISTORY FOR THIS PO</div>
-                {historyLoading && <div className="baj-card-subtitle">Loading…</div>}
+                {historyLoading && <Loader variant="inline" />}
               </div>
             </div>
             {!historyLoading && history.length === 0 ? (

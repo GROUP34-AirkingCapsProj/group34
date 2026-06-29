@@ -40,7 +40,7 @@ All routes are configured in `src/App.js`:
 - `/admin/inventory` - Inventory Management
 - `/admin/items` - Item Management
 - `/admin/transactions` - Transaction Management
-- `/admin/users` - User Management
+- `/admin/config` - System Configuration (includes User Management)
 - `/admin/warehouses` - Warehouse Management
 
 ## Features

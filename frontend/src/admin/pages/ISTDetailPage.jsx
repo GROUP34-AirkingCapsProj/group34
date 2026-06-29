@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import { istAPI } from '../services/api';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -102,12 +103,17 @@ const ISTDetailPage = () => {
   useEffect(() => { fetchIst(); }, [fetchIst]);
 
   const statusName = ist?.status?.status_name || '';
-  const from = ist?.fromLocation?.location_name || '—';
-  const to   = ist?.toLocation?.location_name   || '—';
+  const from = ist?.from_location?.location_name || '—';
+  const to   = ist?.to_location?.location_name   || '—';
 
   // Dispatch entry from tracking
   const dispatchEntry = ist?.transfer_tracking
     ?.filter((t) => (t.status_note || '').toLowerCase().includes('dispatched'))
+    .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))[0];
+
+  // Receive entry from tracking
+  const receiveEntry = ist?.transfer_tracking
+    ?.filter((t) => (t.status_note || '').toLowerCase().includes('received'))
     .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))[0];
 
   // Tracking sorted ASC for timeline
@@ -124,7 +130,7 @@ const ISTDetailPage = () => {
 
   return (
     <AdminLayout>
-      <div className="po-recommendation-page">
+      <div className="ak-page po-recommendation-page">
 
         {/* Back + Title */}
         <div className="po-creator-header-card">
@@ -155,6 +161,16 @@ const ISTDetailPage = () => {
             {ist && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <StatusBadge name={statusName} />
+                {statusName === 'Approved' && (
+                  <button
+                    type="button"
+                    className="po-btn"
+                    style={{ background: '#1e293b', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
+                    onClick={() => navigate(`/admin/ist/${id}/dispatch`)}
+                  >
+                    Scan / Dispatch
+                  </button>
+                )}
                 {canReceive && (
                   <button
                     type="button"
@@ -191,7 +207,7 @@ const ISTDetailPage = () => {
           </div>
         </div>
 
-        {loading && <div className="po-status-loading">Loading IST…</div>}
+        {loading && <Loader label="Loading IST" />}
         {error   && <div className="po-submit-error">{error}</div>}
 
         {ist && !loading && (
@@ -204,18 +220,25 @@ const ISTDetailPage = () => {
                   { label: 'FROM',              value: from,                                   bold: true },
                   { label: 'TO',                value: to,                                     bold: true },
                   { label: 'TRANSFER DATE',     value: fmtDate(ist.transfer_date) },
-                  { label: 'PREPARED BY',       value: userName(ist.preparedBy) },
-                  { label: 'APPROVED BY',       value: userName(ist.approvedBy) },
-                  ...(ist.transferRequest?.transfer_number
-                    ? [{ label: 'FROM REQUEST', value: ist.transferRequest.transfer_number }]
+                  { label: 'PREPARED BY',       value: userName(ist.prepared_by) },
+                  { label: 'APPROVED BY',       value: userName(ist.approved_by) },
+                  ...(ist.transfer_request?.transfer_number
+                    ? [{ label: 'FROM REQUEST', value: ist.transfer_request.transfer_number }]
                     : []),
                   ...(dispatchEntry
                     ? [
                         { label: 'DISPATCHED DATE', value: fmtDateTime(dispatchEntry.recorded_at) },
-                        { label: 'DISPATCHED BY',   value: userName(dispatchEntry.recordedBy) },
+                        { label: 'DISPATCHED BY',   value: userName(dispatchEntry.recorded_by) },
+                      ]
+                    : []),
+                  ...(receiveEntry || ist.received_by
+                    ? [
+                        { label: 'RECEIVED DATE', value: fmtDateTime(receiveEntry?.recorded_at) },
+                        { label: 'RECEIVED BY',   value: userName(ist.received_by || receiveEntry?.recorded_by) },
                       ]
                     : []),
                   { label: 'TOTAL DISPATCHED', value: `${ist.total_quantity_transferred ?? 0} unit(s)` },
+                  { label: 'TOTAL RECEIVED',   value: `${ist.total_quantity_received ?? 0} unit(s)` },
                 ].map(({ label, value, bold }) => (
                   <div key={label} className="po-field">
                     <span className="po-field-label">{label}</span>
@@ -253,16 +276,13 @@ const ISTDetailPage = () => {
                     <tbody>
                       {ist.details.map((d) => {
                         const name   = d.product?.product_name || `Product #${d.product_id}`;
-                        const model  = d.product?.model_name   || d.product?.model?.model_name || '—';
+                        const model  = d.product?.model_code || d.product?.applianceDetail?.model_code || '—';
                         const serials = Array.isArray(d.item_serials) ? d.item_serials : [];
                         return (
                           <tr key={d.transfer_detail_id}>
                             <td>
                               <div style={{ fontWeight: 600 }}>{name}</div>
                               {model !== '—' && <div style={{ fontSize: 11, color: '#94a3b8' }}>{model}</div>}
-                              {d.product?.product_code && (
-                                <div style={{ fontSize: 11, color: '#94a3b8' }}>SKU: {d.product.product_code}</div>
-                              )}
                             </td>
                             <td style={{ textAlign: 'center' }}>{d.quantity_requested ?? 0}</td>
                             <td style={{ textAlign: 'center' }}>
@@ -327,8 +347,8 @@ const ISTDetailPage = () => {
                         </div>
                         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#64748b' }}>
                           <span>{fmtDateTime(entry.recorded_at)}</span>
-                          {entry.recordedBy && (
-                            <span>by <strong style={{ color: '#475569' }}>{userName(entry.recordedBy)}</strong></span>
+                          {entry.recorded_by && (
+                            <span>by <strong style={{ color: '#475569' }}>{userName(entry.recorded_by)}</strong></span>
                           )}
                         </div>
                       </div>

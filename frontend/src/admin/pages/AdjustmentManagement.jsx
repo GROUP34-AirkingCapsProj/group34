@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import { adjustmentsAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
@@ -83,6 +85,7 @@ const AdjustmentManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.details[0]?.product_id) { toast.error('Add at least one product.'); return; }
+    if (!(await confirmAction({ title: editingAdj ? 'Save changes to this adjustment?' : 'Save this adjustment?', text: 'Inventory will be corrected accordingly.', confirmText: 'Save', tone: 'primary' }))) return;
     setSubmitting(true);
     try {
       const payload = {
@@ -133,14 +136,19 @@ const AdjustmentManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="page-container">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Adjustment / Stock Correction</h1>
-            <p className="page-subtitle">Correct inventory discrepancies from damage, loss, or stock counts</p>
+      <div className="ak-page page-container">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">Inventory · Stock Correction</p>
+              <h1 className="ak-title">Adjustment / Stock Correction</h1>
+              <p className="ak-sub">Correct inventory discrepancies from damage, loss, or stock counts.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Adjustment</button>
+            </div>
           </div>
-          <button className="btn-primary" onClick={openAddModal}>+ New Adjustment</button>
-        </div>
+        </header>
 
         <div className="stats-row">
           {[
@@ -171,7 +179,7 @@ const AdjustmentManagement = () => {
               <tr><th>Adjustment #</th><th>Type</th><th>Location</th><th>Date</th><th>Adjusted By</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan="7" className="table-empty">Loading...</td></tr>
+              {loading ? <tr><td colSpan="7"><Loader /></td></tr>
                 : error ? <tr><td colSpan="7" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchAdjustments(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : adjustments.length === 0 ? <tr><td colSpan="7" className="table-empty">No adjustment records found.</td></tr>
                     : adjustments.map(adj => (

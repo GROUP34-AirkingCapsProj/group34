@@ -1,5 +1,13 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-import { removeToken, authAPI } from '../services/api';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { removeToken, authAPI, permissionsAPI } from '../services/api';
+import {
+  shouldRefreshPermissions,
+  readCachedPermissions,
+  writeCachedPermissions,
+  clearCachedPermissions,
+  PERMISSIONS_TTL_MS,
+} from '../utils/permissionCache';
+import { disconnectEcho } from '../utils/echo';
 
 const AuthContext = createContext(null);
 
@@ -13,6 +21,8 @@ const readStoredUser = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readStoredUser);
+  const [permissions, setPermissions] = useState(() => readCachedPermissions()?.map ?? null);
+  const lastPermFetchRef = useRef(readCachedPermissions()?.at ?? null);
 
   const updateUser = useCallback((userData) => {
     setUser(userData);
@@ -24,7 +34,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const clearSession = useCallback(() => {
+    disconnectEcho();
     updateUser(null);
+    clearCachedPermissions();
+    lastPermFetchRef.current = null;
+    setPermissions(null);
     removeToken();
   }, [updateUser]);
 
@@ -46,8 +60,51 @@ export const AuthProvider = ({ children }) => {
     }
   }, [updateUser]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const refreshPermissions = useCallback((opts = {}) => {
+    if (!user?.user_id) return;
+    const now = Date.now();
+    if (!opts.force && !shouldRefreshPermissions(lastPermFetchRef.current, now, PERMISSIONS_TTL_MS)) {
+      return;
+    }
+    const prevFetchedAt = lastPermFetchRef.current;
+    lastPermFetchRef.current = now;
+    permissionsAPI.getMine()
+      .then((res) => {
+        const map = res?.data ?? {};
+        setPermissions(map);
+        writeCachedPermissions(map, now);
+      })
+      .catch(() => {
+        // Keep the cached map, but don't let a failed attempt suppress retries:
+        // only roll back if no newer fetch updated the timestamp meanwhile.
+        if (lastPermFetchRef.current === now) {
+          lastPermFetchRef.current = prevFetchedAt;
+        }
+      });
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (!user?.user_id) {
+      clearCachedPermissions();
+      lastPermFetchRef.current = null;
+      setPermissions(null);
+      return;
+    }
+    refreshPermissions({ force: true });
+    const onFocus = () => refreshPermissions();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const can = useCallback(
+    (feature, action) =>
+      permissions != null && permissions[`${feature}.${action}`] === true,
+    [permissions],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, updateUser, refreshUser, clearSession }}>
+    <AuthContext.Provider value={{ user, updateUser, refreshUser, clearSession, permissions, can, refreshPermissions }}>
       {children}
     </AuthContext.Provider>
   );

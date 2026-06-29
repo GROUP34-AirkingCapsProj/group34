@@ -343,14 +343,7 @@
 }
 .sn-action-delete:hover { background: #fee2e2; }
 
-/* ── Loading / Empty states ── */
-.sn-loading {
-  text-align: center;
-  color: #9ca3af;
-  padding: 60px 0;
-  font-size: 14px;
-}
-
+/* ── Empty state (loading uses the shared <Loader />) ── */
 .sn-empty {
   display: flex;
   flex-direction: column;

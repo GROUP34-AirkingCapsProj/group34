@@ -9,6 +9,7 @@ use App\Models\TransferDetail;
 use App\Models\TblTransferTracking;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Services\TransferService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,10 @@ class TransferController extends Controller
     public function index(Request $request)
     {
         try {
+            $user = $request->user();
             $query = Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'receivedBy', 'status', 'details.product']);
+
+            $query->forUser($user);
 
             if ($request->has('from_location_id')) {
                 $query->where('from_location_id', $request->from_location_id);
@@ -56,120 +60,62 @@ class TransferController extends Controller
         }
     }
 
-    public function store(Request $request)
+    public function store(Request $request, TransferService $service)
     {
         try {
             $validated = $request->validate([
-                'from_location_id'            => 'required|exists:locations,location_id',
-                'to_location_id'              => 'required|different:from_location_id|exists:locations,location_id',
-                'transfer_number'             => 'required|string|max:50|unique:transfers,transfer_number',
-                'transfer_date'               => 'required|date',
-                'requested_by'                => 'nullable|exists:users,user_id',
-                'approved_by'                 => 'nullable|exists:users,user_id',
-                'received_by'                 => 'nullable|exists:users,user_id',
-                'status_id'                   => 'nullable|exists:status_lookup,status_id',
-                'ship_only'                   => 'sometimes|boolean',
-                'details'                     => 'required|array|min:1',
-                'details.*.product_id'        => 'required|exists:products,product_id',
+                'from_location_id'           => 'required|exists:locations,location_id',
+                'to_location_id'             => 'required|different:from_location_id|exists:locations,location_id',
+                'transfer_date'              => 'required|date',
+                'details'                    => 'required|array|min:1',
+                'details.*.product_id'       => 'required|exists:products,product_id',
                 'details.*.quantity_transferred' => 'required|integer|min:1',
+                'details.*.serials'          => 'sometimes|array',
+                'details.*.serials.*'        => 'string',
             ]);
 
-            $shipOnly = (bool) ($validated['ship_only'] ?? false);
-            unset($validated['ship_only']);
+            $lines = array_map(fn ($d) => [
+                'product_id' => (int) $d['product_id'],
+                'quantity'   => (int) $d['quantity_transferred'],
+                'serials'    => $d['serials'] ?? [],
+            ], $validated['details']);
 
-            DB::beginTransaction();
-
-            if ($shipOnly) {
-                $inTransitId = $this->transferStatusId('In Transit');
-                if ($inTransitId && empty($validated['status_id'])) {
-                    $validated['status_id'] = $inTransitId;
-                }
-                $validated['received_by'] = null;
-            }
-
-            $transfer = Transfer::create(Arr::except($validated, ['details']));
-
-            $total = 0;
-            $totalReceived = 0;
-            foreach ($validated['details'] as $detail) {
-                $qty = (int) ($detail['quantity_transferred'] ?? 0);
-                $total += $qty;
-
-                $detailPayload = array_merge($detail, [
-                    'quantity_received' => $shipOnly ? 0 : $qty,
-                ]);
-                $transfer->details()->create($detailPayload);
-
-                // Deduct from source location
-                $fromInventory = Inventory::where('location_id', $validated['from_location_id'])
-                    ->where('product_id', $detail['product_id'])
-                    ->first();
-                if (!$fromInventory) {
-                    throw new \RuntimeException('Source inventory record not found for selected location/product.');
-                }
-                $available = (int) ($fromInventory->available_quantity ?? $fromInventory->quantity_on_hand ?? 0);
-                if ($available < $qty) {
-                    throw new \RuntimeException("Insufficient stock for transfer product_id {$detail['product_id']}.");
-                }
-                $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $qty);
-                $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $qty);
-                $fromInventory->save();
-
-                if (!$shipOnly) {
-                    // Add to destination location (immediate transfer)
-                    $toInventory = Inventory::firstOrCreate(
-                        [
-                            'location_id' => $validated['to_location_id'],
-                            'product_id' => $detail['product_id'],
-                        ],
-                        [
-                            'quantity_on_hand' => 0,
-                            'available_quantity' => 0,
-                            'reorder_level' => 0,
-                        ]
-                    );
-                    $toInventory->quantity_on_hand = max(0, (int) $toInventory->quantity_on_hand + $qty);
-                    $toInventory->available_quantity = max(0, (int) $toInventory->available_quantity + $qty);
-                    $toInventory->save();
-                    $totalReceived += $qty;
-                }
-            }
-
-            if (Schema::hasColumn('transfers', 'total_quantity_transferred')) {
-                $transfer->update(['total_quantity_transferred' => $total]);
-            }
-            if (Schema::hasColumn('transfers', 'total_quantity_received')) {
-                $transfer->update(['total_quantity_received' => $totalReceived]);
-            }
-
-            DB::commit();
+            $transfer = $service->directOverride(
+                (int) $validated['from_location_id'],
+                (int) $validated['to_location_id'],
+                $lines,
+                $request->user()->user_id,
+                $validated['transfer_date']
+            );
 
             try {
                 \App\Models\AuditTrail::create([
                     'user_id'    => $request->user()?->user_id,
-                    'action'     => 'stock_transferred',
+                    'action'     => 'admin_direct_transfer',
                     'table_name' => 'transfers',
                     'record_id'  => $transfer->transfer_id,
                     'old_values' => null,
                     'new_values' => [
                         'transfer_number'  => $transfer->transfer_number,
-                        'from_location_id' => $validated['from_location_id'] ?? null,
-                        'to_location_id'   => $validated['to_location_id'] ?? null,
-                        'total_quantity'   => $total,
+                        'from_location_id' => $validated['from_location_id'],
+                        'to_location_id'   => $validated['to_location_id'],
                     ],
                     'ip_address' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                 ]);
-            } catch (\Throwable $e) {
-                report($e);
-            }
+            } catch (\Throwable $e) { report($e); }
 
-            return $this->success($transfer->load(['fromLocation', 'toLocation', 'details.product']), 'Transfer created successfully', 201);
+            return $this->success(
+                $transfer->load(['fromLocation', 'toLocation', 'details.product']),
+                'Direct transfer completed',
+                201
+            );
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return $this->error('Failed to create transfer: ' . $e->getMessage(), 500);
+            return $this->error('Failed to complete direct transfer: ' . $e->getMessage(), 500);
         }
     }
 
@@ -319,37 +265,9 @@ class TransferController extends Controller
         try {
             $transfer = Transfer::with(['details'])->findOrFail($id);
 
-            $productIds = $transfer->details->pluck('product_id')->map(fn ($x) => (int) $x)->unique()->values()->all();
-
             DB::beginTransaction();
 
-            // Reverse inventory movement on delete (restore source by shipped qty; remove only what was received at dest)
-            foreach ($transfer->details as $detail) {
-                $qtyTrans = (int) ($detail->quantity_transferred ?? 0);
-                $qtyRecv = (int) ($detail->quantity_received ?? 0);
-                if ($qtyTrans <= 0) {
-                    continue;
-                }
-
-                $srcInv = Inventory::firstOrCreate(
-                    ['location_id' => $transfer->from_location_id, 'product_id' => $detail->product_id],
-                    ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
-                );
-                $srcInv->quantity_on_hand = (int) $srcInv->quantity_on_hand + $qtyTrans;
-                $srcInv->available_quantity = (int) $srcInv->available_quantity + $qtyTrans;
-                $srcInv->save();
-
-                if ($qtyRecv > 0) {
-                    $dstInv = Inventory::where('location_id', $transfer->to_location_id)
-                        ->where('product_id', $detail->product_id)
-                        ->first();
-                    if ($dstInv) {
-                        $dstInv->quantity_on_hand = max(0, (int) $dstInv->quantity_on_hand - $qtyRecv);
-                        $dstInv->available_quantity = max(0, (int) $dstInv->available_quantity - $qtyRecv);
-                        $dstInv->save();
-                    }
-                }
-            }
+            app(\App\Services\TransferService::class)->reverse($transfer);
 
             $transfer->details()->delete();
             $transfer->delete();
