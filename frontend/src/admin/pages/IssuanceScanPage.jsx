@@ -35,6 +35,9 @@ const fmt = (val) => {
   return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// Round to 4 dp so float dust (e.g. 5.000001) can't bump a whole number up when ceil'd.
+const round4 = (n) => Math.round((Number(n) + Number.EPSILON) * 1e4) / 1e4;
+
 const fmtDate = (d) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -388,8 +391,8 @@ export default function IssuanceScanPage() {
     const unitName = customUnit || pendingScan.base_unit_name;
     const match = (pendingScan.quick_actions ?? [])
       .find(a => a.unit_name === unitName && !a.is_custom);
-    if (match) return Math.max(1, Math.ceil(qty * (match.conversion_factor ?? 1)));
-    return Math.max(1, Math.ceil(qty));
+    if (match) return Math.max(1, Math.ceil(round4(qty * (match.conversion_factor ?? 1))));
+    return Math.max(1, Math.ceil(round4(qty)));
   }, [selectedAction, customQty, customUnit, pendingScan]);
 
   const computedSubtotal = useMemo(() => {
@@ -869,7 +872,7 @@ export default function IssuanceScanPage() {
       // Quick action — use pre-computed values from the API
       finalUnitName = selectedAction.unit_name;
       finalPieces   = selectedAction.quantity_in_pieces
-        ?? Math.max(1, Math.ceil(selectedAction.conversion_factor ?? 1));
+        ?? Math.max(1, Math.ceil(round4(selectedAction.conversion_factor ?? 1)));
     } else if (showCustomInput && parseFloat(customQty) > 0) {
       // Custom entry — qty is in the selected unit; derive pieces via conversion_factor
       const enteredQty = parseFloat(customQty);
@@ -877,9 +880,9 @@ export default function IssuanceScanPage() {
       const match = (pendingScan.quick_actions ?? [])
         .find(a => a.unit_name === finalUnitName && !a.is_custom);
       if (match) {
-        finalPieces = Math.max(1, Math.ceil(enteredQty * (match.conversion_factor ?? 1)));
+        finalPieces = Math.max(1, Math.ceil(round4(enteredQty * (match.conversion_factor ?? 1))));
       } else {
-        finalPieces = Math.max(1, Math.ceil(enteredQty));
+        finalPieces = Math.max(1, Math.ceil(round4(enteredQty)));
       }
     } else {
       customQtyRef.current?.focus();
@@ -1484,7 +1487,7 @@ export default function IssuanceScanPage() {
                         ref={customQtyRef}
                         type="number"
                         min="0.001"
-                        step="1"
+                        step="any"
                         value={customQty}
                         onChange={(e) => setCustomQty(e.target.value)}
                         onKeyDown={(e) => {
