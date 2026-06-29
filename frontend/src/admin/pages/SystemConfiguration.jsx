@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import { toast } from '../utils/toast';
@@ -116,7 +116,7 @@ const BuildingIcon = () => (
 const PolicyToggle = ({ id, label, desc, checked, onChange }) => (
   <div className="sc-checkbox-row sc-checkbox-row--accent">
     <span className="sc-checkbox-icon sc-checkbox-icon--indigo">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
     </span>
     <input type="checkbox" id={id} checked={checked} onChange={onChange} />
     <label htmlFor={id}>
@@ -156,7 +156,7 @@ const SystemConfiguration = () => {
   const [activeTab, setActiveTab] = useState('security');
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [policy, setPolicy] = useState({ avatar: true, email: true, phone: true, address: true });
-  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policyLoading, setPolicyLoading] = useState(true);
   const [policySaving, setPolicySaving] = useState(false);
 
   // API data states
@@ -559,7 +559,7 @@ const SystemConfiguration = () => {
 
                 <div className="sc-checkbox-row sc-checkbox-row--accent">
                   <span className="sc-checkbox-icon sc-checkbox-icon--indigo">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                   </span>
                   <input type="checkbox" id="twoFactorAuth" checked={settings.twoFactorAuth} onChange={() => handleToggle('twoFactorAuth')} />
                   <label htmlFor="twoFactorAuth">
