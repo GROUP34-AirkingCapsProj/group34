@@ -13,7 +13,6 @@ export const NAV_BUNDLES = [
   { name: 'Scan Barcode',          routePath: '/admin/inventory-operation', required: ['barcode_inventory_processing.create'] },
   { name: 'Compliance Review',     routePath: '/admin/compliance',       required: ['exception_detection.read'] },
   { name: 'Warranty Records',      routePath: '/admin/warranties',       required: ['warranty_records.read'] },
-  { name: 'Warranty Claims',       routePath: '/admin/warranty-claims',  required: ['warranty_claims.read'] },
   { name: 'Audit Trail',           routePath: '/admin/audit',            required: ['audit_trail_viewing.read'] },
   { name: 'System Reports',        routePath: '/admin/reports',          required: ['report_viewing.read'] },
   { name: 'Alerts & Notices',      routePath: '/admin/alerts',           required: ['notification_panel.read'] },
