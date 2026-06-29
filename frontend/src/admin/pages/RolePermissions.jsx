@@ -13,7 +13,7 @@ const CheckGlyph = () => (
   </svg>
 );
 
-const RolePermissions = () => {
+const RolePermissions = ({ tabSwitcher = null }) => {
   const [catalog, setCatalog]   = useState([]);
   const [granted, setGranted]   = useState({}); // granted[role_id][permission_id] = bool
   const [pending, setPending]   = useState({}); // pending[role_id][permission_id] = bool (diff only)
@@ -172,6 +172,8 @@ const RolePermissions = () => {
             </div>
           </div>
         </header>
+
+        {tabSwitcher}
 
         {loading && <div className="rcx-state">Loading permission matrix<span className="rcx-loading-dots" /></div>}
         {error   && <div className="rcx-state rcx-state--error">Error: {error}</div>}

@@ -10,8 +10,8 @@ jest.mock('react-router-dom', () => ({
 
 // Keep the parent isolated from the panels' API calls / layout chrome.
 jest.mock('../components/AdminLayout', () => ({ children }) => <div>{children}</div>);
-jest.mock('./RolePermissions', () => () => <div>ROLE PANEL</div>);
-jest.mock('./UserPermissionOverrides', () => () => <div>OVERRIDES PANEL</div>);
+jest.mock('./RolePermissions', () => ({ tabSwitcher }) => <div>ROLE PANEL{tabSwitcher}</div>);
+jest.mock('./UserPermissionOverrides', () => ({ tabSwitcher }) => <div>OVERRIDES PANEL{tabSwitcher}</div>);
 
 const renderAt = (path) =>
   render(

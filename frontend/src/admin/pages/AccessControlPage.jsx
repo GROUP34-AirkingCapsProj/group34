@@ -15,21 +15,30 @@ const AccessControlPage = () => {
   const location = useLocation();
   const activeKey = location.pathname === '/admin/user-permissions' ? 'overrides' : 'roles';
 
-  return (
-    <AdminLayout>
-      <div className="rcx-toptabs">
+  // Segmented toggle, rendered by the active panel in a right-aligned bar
+  // below its header (each panel owns its own header).
+  const switcher = (
+    <div className="rcx-viewtoggle-bar">
+      <div className="rcx-viewtoggle" role="group" aria-label="Access control view">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
-            className={`rcx-toptab${activeKey === t.key ? ' is-active' : ''}`}
+            className={`rcx-viewtoggle-btn${activeKey === t.key ? ' is-active' : ''}`}
             onClick={() => { if (activeKey !== t.key) navigate(t.path); }}
           >
             {t.label}
           </button>
         ))}
       </div>
-      {activeKey === 'roles' ? <RolePermissions /> : <UserPermissionOverrides />}
+    </div>
+  );
+
+  return (
+    <AdminLayout>
+      {activeKey === 'roles'
+        ? <RolePermissions tabSwitcher={switcher} />
+        : <UserPermissionOverrides tabSwitcher={switcher} />}
     </AdminLayout>
   );
 };
