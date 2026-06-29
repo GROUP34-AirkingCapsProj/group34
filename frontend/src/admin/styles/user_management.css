@@ -290,6 +290,32 @@
   background: #f9fafb;
 }
 
+.um-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.um-avatar {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.um-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* User Info Cell */
 .um-user-info {
   display: flex;

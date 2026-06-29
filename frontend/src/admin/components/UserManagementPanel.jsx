@@ -3,7 +3,8 @@ import Loader from './Loader';
 import Modal from './Modal';
 import PasswordFieldWithToggle from './PasswordFieldWithToggle';
 import ArchiveButton from './ArchiveButton';
-import { usersAPI, authAPI, batchAPI } from '../services/api';
+import { usersAPI, authAPI, batchAPI, resolveStorageUrl } from '../services/api';
+import { avatarColor } from './Sidebar';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import '../styles/dashboard_air.css';
@@ -110,6 +111,11 @@ const UserManagementPanel = () => {
     return user.status_id === 1 ? 'Active' : 'Inactive';
   };
   const getUserId = (user) => user.user_id || user.id || 'N/A';
+  const getUserInitials = (user) => {
+    if (user.first_name && user.last_name) return (user.first_name.charAt(0) + user.last_name.charAt(0)).toUpperCase();
+    if (user.username) return user.username.charAt(0).toUpperCase();
+    return 'U';
+  };
 
   // Stats from pagination metadata
   const totalUsers = pagination.total || 0;
@@ -387,9 +393,16 @@ const UserManagementPanel = () => {
                   <tr key={user.user_id || user.id}>
                     <td className="um-id">{getUserId(user)}</td>
                     <td>
-                      <div className="um-user-info">
-                        <span className="um-user-name">{getUserName(user)}</span>
-                        <span className="um-user-username">@{user.username || 'N/A'}</span>
+                      <div className="um-user-cell">
+                        <span className="um-avatar" style={{ background: avatarColor(user.first_name || user.username || 'U') }}>
+                          {user.avatar_url
+                            ? <img src={resolveStorageUrl(user.avatar_url)} alt="" />
+                            : getUserInitials(user)}
+                        </span>
+                        <div className="um-user-info">
+                          <span className="um-user-name">{getUserName(user)}</span>
+                          <span className="um-user-username">@{user.username || 'N/A'}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="um-email">{user.email || 'N/A'}</td>
