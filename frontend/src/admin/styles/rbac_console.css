@@ -268,6 +268,17 @@
 .rcx-tab:hover { color: var(--rc-ink); }
 .rcx-tab.is-active { color: var(--rc-crimson); border-bottom-color: var(--rc-crimson); }
 
+/* ===================== TOP-LEVEL PAGE TABS ===================== */
+.rcx-toptabs { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
+.rcx-toptab {
+  font-family: var(--rc-display); font-weight: 700; font-size: 0.95rem;
+  padding: 0.7rem 1.4rem; border: 1px solid var(--rc-line); border-radius: 10px;
+  background: var(--rc-card); cursor: pointer; color: var(--rc-ink-soft);
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.rcx-toptab:hover { color: var(--rc-ink); }
+.rcx-toptab.is-active { color: #fff; background: var(--rc-crimson); border-color: var(--rc-crimson); }
+
 /* ============================ PICKER / FIELDS =========================== */
 .rcx-picker { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
 .rcx-label {
