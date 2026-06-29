@@ -60,7 +60,6 @@ const adminMenuSections = [
       { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
       { name: 'Analytics Dashboard', path: '/admin/analytics', icon: 'analytics' },
       // User Management now lives in System Configuration → User Management tab.
-      // The /admin/users route is kept for the Dashboard "Create User" quick action.
       { name: 'Role & Permissions', path: '/admin/roles', icon: 'roles' },
       { name: 'User Overrides', path: '/admin/user-permissions', icon: 'roles' },
       { name: 'Permission Audit', path: '/admin/permission-audit', icon: 'audit' },
