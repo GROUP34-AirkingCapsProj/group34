@@ -17,8 +17,9 @@ class NavBundleSeeder extends Seeder
     private static function bundles(): array
     {
         return [
-            // ADMINISTRATION (sort 0–2)
-            ['User Management',      '/admin/users',                'ADMINISTRATION',          'users',              'user_account_management', 'read'],
+            // ADMINISTRATION (sort 0–1)
+            // User Management was removed — it now lives inside System Configuration
+            // (/admin/config), which is admin-only and has no standalone nav bundle.
             ['Location Management',  '/admin/branches',             'ADMINISTRATION',          'location',           'location_based_inventory','read'],
             ['Archive Management',   '/admin/archive',              'ADMINISTRATION',          'archive',            'archive_viewing',         'read'],
 
@@ -87,6 +88,6 @@ class NavBundleSeeder extends Seeder
             }
         });
 
-        $this->command->info('NavBundleSeeder: 18 bundles seeded.');
+        $this->command->info('NavBundleSeeder: ' . count(self::bundles()) . ' bundles seeded.');
     }
 }
