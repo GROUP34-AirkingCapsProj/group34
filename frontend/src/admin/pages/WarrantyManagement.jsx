@@ -3,7 +3,6 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { warrantiesAPI, getApiBaseUrl, getToken } from '../services/api';
-import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/warranty_management.css';
 
@@ -99,7 +98,7 @@ const WarrantyManagement = () => {
     }
   };
 
-  const openClaimModal = (warrantyId, productName, serialNumber) => {
+  const goToClaim = (serialNumber) => {
     const serial = encodeURIComponent(serialNumber || '');
     window.location.href = `/admin/warranty-claims${serial ? `?serial=${serial}` : ''}`;
   };
@@ -251,7 +250,7 @@ const WarrantyManagement = () => {
                   <button
                     type="button"
                     className="war-btn-assign"
-                    onClick={() => openClaimModal(sr.warranty_id, sr.product?.product_name ?? sr.serial_number, sr.serial_number)}
+                    onClick={() => goToClaim(sr.serial_number)}
                   >
                     Claim Warranty
                   </button>
@@ -361,7 +360,7 @@ const WarrantyManagement = () => {
                         {w.status_id === 33 && (
                           <button
                             className="war-btn-assign"
-                            onClick={() => openClaimModal(w.warranty_id, w.product?.product_name ?? w.serial_number, w.serial_number)}
+                            onClick={() => goToClaim(w.serial_number)}
                           >
                             Claim Warranty
                           </button>
@@ -475,7 +474,7 @@ const WarrantyManagement = () => {
                 <button
                   type="button"
                   className="btn-save"
-                  onClick={() => openClaimModal(viewingWarranty.warranty_id, viewingWarranty.product?.product_name ?? viewingWarranty.serial_number, viewingWarranty.serial_number)}
+                  onClick={() => goToClaim(viewingWarranty.serial_number)}
                 >
                   Claim Warranty
                 </button>
