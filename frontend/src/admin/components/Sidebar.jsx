@@ -15,7 +15,7 @@ const avatarColor = (str = '') => {
 const routePrefetchMap = {
   '/admin/dashboard': () => import('../pages/Dashboard'),
   '/admin/analytics': () => import('../pages/AnalyticsDashboard'),
-  '/admin/roles': () => import('../pages/RolePermissions'),
+  '/admin/roles': () => import('../pages/AccessControlPage'),
   '/admin/locations': () => import('../pages/LocationManagement'),
   '/admin/branches': () => import('../pages/LocationManagement'),
   '/admin/warehouses': () => import('../pages/LocationManagement'),
@@ -61,7 +61,6 @@ const adminMenuSections = [
       { name: 'Analytics Dashboard', path: '/admin/analytics', icon: 'analytics' },
       // User Management now lives in System Configuration → User Management tab.
       { name: 'Role & Permissions', path: '/admin/roles', icon: 'roles' },
-      { name: 'User Overrides', path: '/admin/user-permissions', icon: 'roles' },
       { name: 'Permission Audit', path: '/admin/permission-audit', icon: 'audit' },
       { name: 'Location Management', path: '/admin/branches', icon: 'location' },
       { name: 'System Configuration', path: '/admin/config', icon: 'config' },
