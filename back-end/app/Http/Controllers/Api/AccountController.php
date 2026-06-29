@@ -23,6 +23,10 @@ class AccountController extends Controller
      * Which fields this user may self-edit. Admins (role_id 1) always manage
      * their own account, so their effective policy is fully permissive
      * regardless of the global setting.
+     *
+     * role_id 1 is the admin role by seeder convention, matching the model-layer
+     * checks in User::getEnforcedLocationId()/getAllowedLocationIds(). Route
+     * middleware (`role:admin`) guards use role_name instead.
      */
     private function effectivePolicy(User $user): array
     {
@@ -100,7 +104,8 @@ class AccountController extends Controller
     public function uploadAvatar(Request $request)
     {
         try {
-            if (! $this->effectivePolicy($request->user())['avatar']) {
+            $user = $request->user();
+            if (! $this->effectivePolicy($user)['avatar']) {
                 return $this->forbidden('Profile photo changes are turned off by your administrator.');
             }
 
@@ -108,7 +113,6 @@ class AccountController extends Controller
                 'avatar' => 'required|image|mimes:jpeg,jpg,png,webp|max:2048',
             ]);
 
-            $user = $request->user();
             $oldPath = $user->avatar_path;
 
             // Store the new file first; only delete the old one once this succeeds.
@@ -131,11 +135,10 @@ class AccountController extends Controller
     public function deleteAvatar(Request $request)
     {
         try {
-            if (! $this->effectivePolicy($request->user())['avatar']) {
+            $user = $request->user();
+            if (! $this->effectivePolicy($user)['avatar']) {
                 return $this->forbidden('Profile photo changes are turned off by your administrator.');
             }
-
-            $user = $request->user();
 
             if ($user->avatar_path) {
                 Storage::disk('public')->delete($user->avatar_path);

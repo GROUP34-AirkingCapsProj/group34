@@ -75,6 +75,16 @@ class AccountPolicyEnforcementTest extends TestCase
         $this->assertNull($user->fresh()->avatar_path);
     }
 
+    public function test_locked_avatar_blocks_delete_for_non_admin(): void
+    {
+        $this->lockAll();
+        $user = $this->makeUser(4);
+
+        $this->actingAs($user, 'sanctum')
+            ->deleteJson('/api/me/avatar')
+            ->assertStatus(403);
+    }
+
     public function test_locked_email_blocks_change_for_non_admin(): void
     {
         $this->lockAll();
