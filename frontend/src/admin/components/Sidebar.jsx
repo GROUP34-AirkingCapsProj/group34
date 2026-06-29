@@ -15,7 +15,6 @@ const avatarColor = (str = '') => {
 const routePrefetchMap = {
   '/admin/dashboard': () => import('../pages/Dashboard'),
   '/admin/analytics': () => import('../pages/AnalyticsDashboard'),
-  '/admin/users': () => import('../pages/UserManagement'),
   '/admin/roles': () => import('../pages/RolePermissions'),
   '/admin/locations': () => import('../pages/LocationManagement'),
   '/admin/branches': () => import('../pages/LocationManagement'),

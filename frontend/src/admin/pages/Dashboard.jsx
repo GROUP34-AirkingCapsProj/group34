@@ -417,7 +417,6 @@ const AdminDashboard = () => {
           </div>
           <div className="quick-actions-grid quick-actions-grid--compact">
             {[
-              { label: 'CREATE USER', path: '/admin/users', cls: 'red', icon: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></> },
               { label: 'LOCATIONS', path: '/admin/locations', cls: 'yellow', icon: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></> },
               { label: 'CUSTOMER', path: '/admin/customers', cls: 'green', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></> },
               { label: 'CLAIM', path: '/admin/warranty', cls: 'purple', icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> },
