@@ -663,3 +663,9 @@
     width: 100%;
   }
 }
+
+.um-panel-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
