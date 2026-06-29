@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,19 @@ class AccountController extends Controller
 
     /** The single fixed email domain. The local-part is user-editable; this is not. */
     private const EMAIL_DOMAIN = '@airking.com';
+
+    /**
+     * Which fields this user may self-edit. Admins (role_id 1) always manage
+     * their own account, so their effective policy is fully permissive
+     * regardless of the global setting.
+     */
+    private function effectivePolicy(User $user): array
+    {
+        if ((int) $user->role_id === 1) {
+            return ['avatar' => true, 'email' => true, 'phone' => true, 'address' => true];
+        }
+        return SystemSetting::accountPolicy();
+    }
 
     /**
      * Serialize the authenticated user for the settings page, splitting email
@@ -35,6 +49,7 @@ class AccountController extends Controller
         return array_merge($user->loadMissing(['role', 'status', 'location'])->toArray(), [
             'email_local'  => $local,
             'email_domain' => self::EMAIL_DOMAIN,
+            'policy'       => $this->effectivePolicy($user),
         ]);
     }
 
@@ -57,8 +72,22 @@ class AccountController extends Controller
                 'address'    => 'nullable|string|max:255',
             ]);
 
-            $user = $request->user();
-            $user->update($validated);
+            $user   = $request->user();
+            $policy = $this->effectivePolicy($user);
+
+            // Name is always editable; phone/address only when policy allows.
+            $fields = [
+                'first_name' => $validated['first_name'],
+                'last_name'  => $validated['last_name'],
+            ];
+            if ($policy['phone'] && array_key_exists('phone', $validated)) {
+                $fields['phone'] = $validated['phone'];
+            }
+            if ($policy['address'] && array_key_exists('address', $validated)) {
+                $fields['address'] = $validated['address'];
+            }
+
+            $user->update($fields);
 
             return $this->success($this->presentProfile($user->fresh()), 'Profile updated');
         } catch (ValidationException $e) {
@@ -71,6 +100,10 @@ class AccountController extends Controller
     public function uploadAvatar(Request $request)
     {
         try {
+            if (! $this->effectivePolicy($request->user())['avatar']) {
+                return $this->forbidden('Profile photo changes are turned off by your administrator.');
+            }
+
             $request->validate([
                 'avatar' => 'required|image|mimes:jpeg,jpg,png,webp|max:2048',
             ]);
@@ -98,6 +131,10 @@ class AccountController extends Controller
     public function deleteAvatar(Request $request)
     {
         try {
+            if (! $this->effectivePolicy($request->user())['avatar']) {
+                return $this->forbidden('Profile photo changes are turned off by your administrator.');
+            }
+
             $user = $request->user();
 
             if ($user->avatar_path) {
@@ -139,6 +176,10 @@ class AccountController extends Controller
     {
         try {
             $user = $request->user();
+
+            if (! $this->effectivePolicy($user)['email']) {
+                return $this->forbidden('Email changes are turned off by your administrator.');
+            }
 
             $validated = $request->validate([
                 // Local-part only: letters, digits, dot, underscore, %, +, -. No '@'.
