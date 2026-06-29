@@ -406,6 +406,13 @@ export const systemSettingsAPI = {
     }),
 };
 
+/** Account self-service policy (admin only): which fields users may edit. */
+export const accountPolicyAPI = {
+  get: async () => apiRequest('/system/account-policy'),
+  update: async (policy) =>
+    apiRequest('/system/account-policy', { method: 'PUT', body: JSON.stringify(policy) }),
+};
+
 /** Archive configuration settings (admin only). */
 export const archiveSettingsAPI = {
   get: async () => apiRequest('/archive-settings'),
