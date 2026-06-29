@@ -24,6 +24,9 @@ class AccountPolicyController extends Controller
 
         SystemSetting::setAccountPolicy($validated);
 
-        return response()->json(SystemSetting::accountPolicy());
+        return response()->json(array_merge(
+            ['message' => 'Account policy updated.'],
+            SystemSetting::accountPolicy()
+        ));
     }
 }
