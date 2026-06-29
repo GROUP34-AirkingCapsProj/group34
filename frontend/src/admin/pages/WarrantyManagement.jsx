@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { warrantiesAPI, getApiBaseUrl, getToken } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import '../styles/dashboard_air.css';
 import '../styles/warranty_management.css';
 
@@ -35,6 +36,8 @@ const DaysChip = ({ endDate, statusId }) => {
 };
 
 const WarrantyManagement = () => {
+  const { can } = useAuth();
+  const canClaim = can('warranty_claims', 'create');
   const [warranties, setWarranties]     = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
@@ -246,7 +249,7 @@ const WarrantyManagement = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
                 <StatusBadge statusId={sr.status_id} />
                 <DaysChip endDate={sr.warranty_end_date} statusId={sr.status_id} />
-                {srClaimable && (
+                {srClaimable && canClaim && (
                   <button
                     type="button"
                     className="war-btn-assign"
@@ -357,7 +360,7 @@ const WarrantyManagement = () => {
                     <td>
                       <div className="war-cell-actions">
                         <button className="war-btn-view" onClick={() => setViewingWarranty(w)}>View</button>
-                        {w.status_id === 33 && (
+                        {w.status_id === 33 && canClaim && (
                           <button
                             className="war-btn-assign"
                             onClick={() => goToClaim(w.serial_number)}
@@ -470,7 +473,7 @@ const WarrantyManagement = () => {
             )}
             <div className="modal-footer">
               <button type="button" className="btn-cancel" onClick={() => setViewingWarranty(null)}>Close</button>
-              {viewingWarranty.status_id === 33 && (
+              {viewingWarranty.status_id === 33 && canClaim && (
                 <button
                   type="button"
                   className="btn-save"

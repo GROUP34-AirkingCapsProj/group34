@@ -18,6 +18,17 @@ export const NAV_BUNDLES = [
   { name: 'Alerts & Notices',      routePath: '/admin/alerts',           required: ['notification_panel.read'] },
 ];
 
+/**
+ * Routes that are permission-gated but intentionally NOT shown in the sidebar.
+ * Map of routePath -> required permission key. RoleRoute enforces these the same
+ * way it enforces NAV_BUNDLES, so access stays permission-driven even without a
+ * sidebar entry. (Warranty Claims is reached via the "Claim Warranty" button on
+ * the Warranty Records page, not the sidebar.)
+ */
+export const PERMISSION_GATED_ROUTES = {
+  '/admin/warranty-claims': 'warranty_claims.create',
+};
+
 const granted = (perms, key) => perms != null && perms[key] === true;
 
 export function bundleVisible(bundle, perms) {
