@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { permissionsAPI, navBundlesAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -134,7 +133,6 @@ const RolePermissions = () => {
   );
 
   return (
-    <AdminLayout>
       <div className="rbac-console">
         {/* ── command header ── */}
         <header className="rcx-header">
@@ -339,7 +337,6 @@ const RolePermissions = () => {
           </Modal>
         )}
       </div>
-    </AdminLayout>
   );
 };
 
