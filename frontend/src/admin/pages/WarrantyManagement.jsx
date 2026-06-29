@@ -52,12 +52,6 @@ const WarrantyManagement = () => {
   const [serialLoading, setSerialLoading] = useState(false);
   const [serialError, setSerialError]     = useState('');
 
-  // Claim notes modal
-  const [claimTarget, setClaimTarget]   = useState(null);  // { id, name }
-  const [claimNotes, setClaimNotes]     = useState('');
-  const [claimError, setClaimError]     = useState('');
-  const [claiming, setClaiming]         = useState(false);
-
   const rowsPerPage = 15;
   const debounceRef = useRef(null);
 
@@ -108,27 +102,6 @@ const WarrantyManagement = () => {
   const openClaimModal = (warrantyId, productName, serialNumber) => {
     const serial = encodeURIComponent(serialNumber || '');
     window.location.href = `/admin/warranty-claims${serial ? `?serial=${serial}` : ''}`;
-  };
-
-  const submitClaim = async () => {
-    if (!claimNotes.trim() || claimNotes.trim().length < 10) {
-      setClaimError('Claim notes are required (minimum 10 characters).');
-      return;
-    }
-    setClaiming(true);
-    setClaimError('');
-    try {
-      await warrantiesAPI.markClaimed(claimTarget.id, { claim_notes: claimNotes.trim() });
-      toast.success('Warranty marked as Claimed.');
-      setClaimTarget(null);
-      setViewingWarranty(null);
-      setSerialResult(null);
-      fetchWarranties(currentPage);
-    } catch (err) {
-      setClaimError(err.message || 'Failed to mark as claimed.');
-    } finally {
-      setClaiming(false);
-    }
   };
 
   const handleExport = () => {
@@ -512,37 +485,6 @@ const WarrantyManagement = () => {
         </Modal>
       )}
 
-      {/* Claim notes modal */}
-      {claimTarget && (
-        <Modal isOpen title="Mark Warranty as Claimed" onClose={() => setClaimTarget(null)}>
-          <div style={{ padding: '4px 0' }}>
-            <p style={{ marginBottom: 12, color: '#374151', fontSize: 14 }}>
-              Record claim details for: <strong>{claimTarget.name}</strong>
-            </p>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                Claim Notes *
-              </label>
-              <textarea
-                value={claimNotes}
-                onChange={(e) => { setClaimNotes(e.target.value); setClaimError(''); }}
-                placeholder="Describe the claim reason, defect, or service performed (minimum 10 characters)..."
-                rows={4}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
-              />
-              {claimError && (
-                <p style={{ marginTop: 4, color: '#dc2626', fontSize: 12 }}>{claimError}</p>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn-cancel" onClick={() => setClaimTarget(null)}>Cancel</button>
-              <button type="button" className="btn-save" onClick={submitClaim} disabled={claiming}>
-                {claiming ? 'Processing...' : 'Confirm Claim'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
      </div>
     </AdminLayout>
   );
