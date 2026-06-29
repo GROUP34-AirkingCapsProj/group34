@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import AdminLayout from '../components/AdminLayout';
 import Modal from '../components/Modal';
 import { permissionsAPI, usersAPI, navBundlesAPI } from '../services/api';
 import { toast } from '../utils/toast';
@@ -293,7 +292,6 @@ const UserPermissionOverrides = () => {
   const groups       = groupByFeatureGroup(catalog);
 
   return (
-    <AdminLayout>
       <div className="rbac-console">
         <header className="rcx-header">
           <div className="rcx-header-row">
@@ -543,7 +541,6 @@ const UserPermissionOverrides = () => {
           </Modal>
         )}
       </div>
-    </AdminLayout>
   );
 };
 
