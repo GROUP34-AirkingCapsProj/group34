@@ -14,7 +14,6 @@ const ForgotPassword = lazy(() => import('./admin/pages/ForgotPassword'));
 const Dashboard = lazy(() => import('./admin/pages/Dashboard'));
 
 // System Setup
-const UserManagement = lazy(() => import('./admin/pages/UserManagement'));
 const LocationManagement = lazy(() => import('./admin/pages/LocationManagement'));
 const CategoryBrandManagement = lazy(() => import('./admin/pages/CategoryBrandManagement'));
 
@@ -111,7 +110,6 @@ function App() {
           <Route path="/admin/account" element={<RoleRoute><AccountSettingsPage /></RoleRoute>} />
 
           {/* System Setup */}
-          <Route path="/admin/users" element={<RoleRoute><UserManagement /></RoleRoute>} />
           <Route path="/admin/locations" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/branches" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/warehouses" element={<RoleRoute><LocationManagement /></RoleRoute>} />
