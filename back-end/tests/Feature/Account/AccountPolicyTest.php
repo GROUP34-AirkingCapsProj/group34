@@ -107,4 +107,13 @@ class AccountPolicyTest extends TestCase
             'avatar' => true,
         ])->assertStatus(422);
     }
+
+    public function test_update_rejects_non_boolean_value(): void
+    {
+        $admin = $this->makeUser(1);
+
+        $this->actingAs($admin, 'sanctum')->putJson('/api/system/account-policy', [
+            'avatar' => 'yes', 'email' => 'yes', 'phone' => 'yes', 'address' => 'yes',
+        ])->assertStatus(422);
+    }
 }
