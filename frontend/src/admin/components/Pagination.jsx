@@ -1,4 +1,5 @@
 import React from 'react';
+import { getPageBatch } from '../utils/pageBatch';
 
 const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSize, label = 'items' }) => {
   if (!totalPages || totalPages <= 1) return null;
@@ -6,18 +7,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSiz
   const start = Math.min((currentPage - 1) * pageSize + 1, totalItems);
   const end   = Math.min(currentPage * pageSize, totalItems);
 
-  const getPageNumbers = () => {
-    const pages = [];
-    const delta = 2;
-    for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
-        pages.push(i);
-      } else if (pages[pages.length - 1] !== '...') {
-        pages.push('...');
-      }
-    }
-    return pages;
-  };
+  const batch = getPageBatch(currentPage, totalPages);
 
   return (
     <div className="pg-container">
@@ -27,26 +17,32 @@ const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSiz
       <div className="pg-controls">
         <button
           type="button"
+          className="pg-btn pg-btn--jump"
+          disabled={!batch.hasPrevBatch}
+          onClick={() => onPageChange(batch.prevBatchPage)}
+          aria-label="Previous batch"
+          title="Previous batch"
+        >
+          «
+        </button>
+        <button
+          type="button"
           className="pg-btn"
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
         >
           ← Prev
         </button>
-        {getPageNumbers().map((page, idx) =>
-          page === '...' ? (
-            <span key={`e-${idx}`} className="pg-ellipsis">…</span>
-          ) : (
-            <button
-              key={page}
-              type="button"
-              className={`pg-btn${currentPage === page ? ' pg-btn--active' : ''}`}
-              onClick={() => onPageChange(page)}
-            >
-              {page}
-            </button>
-          )
-        )}
+        {batch.pages.map((page) => (
+          <button
+            key={page}
+            type="button"
+            className={`pg-btn${currentPage === page ? ' pg-btn--active' : ''}`}
+            onClick={() => onPageChange(page)}
+          >
+            {page}
+          </button>
+        ))}
         <button
           type="button"
           className="pg-btn"
@@ -54,6 +50,16 @@ const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSiz
           onClick={() => onPageChange(currentPage + 1)}
         >
           Next →
+        </button>
+        <button
+          type="button"
+          className="pg-btn pg-btn--jump"
+          disabled={!batch.hasNextBatch}
+          onClick={() => onPageChange(batch.nextBatchPage)}
+          aria-label="Next batch"
+          title="Next batch"
+        >
+          »
         </button>
       </div>
     </div>
