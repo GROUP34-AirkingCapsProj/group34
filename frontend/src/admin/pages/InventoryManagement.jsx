@@ -10,6 +10,7 @@ import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
 import { toast } from '../utils/toast';
+import { getPageBatch } from '../utils/pageBatch';
 
 /* ── SVG trend chart ─────────────────────────────────────────────────── */
 const TrendChart = ({ data, loading }) => {
@@ -728,15 +729,20 @@ const InventoryManagement = () => {
                 </table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="inv-pagination">
-                  <button className="inv-page-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>Previous</button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button key={page} className={`inv-page-btn ${currentPage === page ? 'inv-page-btn-active' : ''}`} onClick={() => setCurrentPage(page)}>{page}</button>
-                  ))}
-                  <button className="inv-page-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
-                </div>
-              )}
+              {totalPages > 1 && (() => {
+                const batch = getPageBatch(currentPage, totalPages);
+                return (
+                  <div className="inv-pagination">
+                    <button className="inv-page-btn inv-page-btn--jump" disabled={!batch.hasPrevBatch} onClick={() => setCurrentPage(batch.prevBatchPage)} aria-label="Previous batch" title="Previous batch">«</button>
+                    <button className="inv-page-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>Previous</button>
+                    {batch.pages.map((page) => (
+                      <button key={page} className={`inv-page-btn ${currentPage === page ? 'inv-page-btn-active' : ''}`} onClick={() => setCurrentPage(page)}>{page}</button>
+                    ))}
+                    <button className="inv-page-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
+                    <button className="inv-page-btn inv-page-btn--jump" disabled={!batch.hasNextBatch} onClick={() => setCurrentPage(batch.nextBatchPage)} aria-label="Next batch" title="Next batch">»</button>
+                  </div>
+                );
+              })()}
             </div>
           </>
         )}

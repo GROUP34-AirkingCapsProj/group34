@@ -9,6 +9,7 @@ import { toast } from '../utils/toast';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
+import { getPageBatch } from '../utils/pageBatch';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
@@ -828,33 +829,54 @@ const ItemManagement = () => {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="im-pagination">
-              <button
-                className="im-page-btn"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+          {totalPages > 1 && (() => {
+            const batch = getPageBatch(currentPage, totalPages);
+            return (
+              <div className="im-pagination">
                 <button
-                  key={page}
-                  className={`im-page-btn ${currentPage === page ? 'im-page-btn-active' : ''}`}
-                  onClick={() => setCurrentPage(page)}
+                  className="im-page-btn im-page-btn--jump"
+                  disabled={!batch.hasPrevBatch}
+                  onClick={() => setCurrentPage(batch.prevBatchPage)}
+                  aria-label="Previous batch"
+                  title="Previous batch"
                 >
-                  {page}
+                  «
                 </button>
-              ))}
-              <button
-                className="im-page-btn"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-              >
-                Next
-              </button>
-            </div>
-          )}
+                <button
+                  className="im-page-btn"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                >
+                  Previous
+                </button>
+                {batch.pages.map((page) => (
+                  <button
+                    key={page}
+                    className={`im-page-btn ${currentPage === page ? 'im-page-btn-active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  className="im-page-btn"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                >
+                  Next
+                </button>
+                <button
+                  className="im-page-btn im-page-btn--jump"
+                  disabled={!batch.hasNextBatch}
+                  onClick={() => setCurrentPage(batch.nextBatchPage)}
+                  aria-label="Next batch"
+                  title="Next batch"
+                >
+                  »
+                </button>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

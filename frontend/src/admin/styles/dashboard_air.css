@@ -2034,6 +2034,17 @@
   border-color: var(--primary-dark);
 }
 
+.pg-btn--jump {
+  padding: 0 8px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pg-btn--jump:hover:not(:disabled) {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 .pg-ellipsis {
   font-size: 13px;
   color: var(--text-muted);

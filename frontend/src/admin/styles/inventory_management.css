@@ -113,6 +113,8 @@
 .inv-page-btn:hover:not(:disabled) { background: #f9fafb; }
 .inv-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .inv-page-btn-active { background: #dc2626; color: #fff; border-color: #dc2626; }
+.inv-page-btn--jump { min-width: 30px; padding: 6px 8px; font-weight: 600; line-height: 1; color: #6b7280; }
+.inv-page-btn--jump:hover:not(:disabled) { color: #dc2626; border-color: #dc2626; }
 
 /* View Modal */
 .inv-view-details { padding: 4px 0; }
