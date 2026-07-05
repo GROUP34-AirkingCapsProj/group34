@@ -14,6 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // API-only app: treat every /api/* request as expecting JSON so auth and
+        // validation failures always return proper JSON (not a redirect to `login`).
+        $middleware->api(prepend: [
+            \App\Http\Middleware\ForceJsonResponse::class,
+        ]);
+
         // Register your custom middleware aliases
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
@@ -38,5 +44,17 @@ return Application::configure(basePath: dirname(__DIR__))
         // Always return JSON for API routes (fixes "Response was not JSON" on 404/500)
         $exceptions->shouldRenderJsonWhen(function (Request $request, \Throwable $e) {
             return $request->is('api/*') || $request->expectsJson();
+        });
+
+        // Unauthenticated API requests must return a clean 401 JSON response.
+        // Without this, the default handler tries to redirect to a `login` route
+        // (which does not exist in this API-only app) and surfaces a 500 instead.
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated.',
+                ], 401);
+            }
         });
     })->create();
