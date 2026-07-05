@@ -94,8 +94,10 @@ All per product, org-wide demand, computed over a 90-day lookback:
    HIGH = cover < lead time or stock < safety stock; MEDIUM = stock ≤ reorder point.
 8. **Reason codes** (JSON array; each is a rule that fired):
    `OUT_OF_STOCK`, `BELOW_SAFETY_STOCK`, `STOCKOUT_RISK` (cover < lead time),
-   `LOW_STOCK` (≤ reorder point), `FAST_MOVING`, `HIGH_TURNOVER` (large received
-   *and* issued volumes inside the window), `SLOW_MOVING`, `NO_MOVEMENT`.
+   `LOW_STOCK` (≤ reorder point), `FAST_MOVING`, `HIGH_TURNOVER` (at least one
+   receiving in the 90-day window **and** 90-day demand ≥ 3 × current on-hand —
+   i.e. stock cycles through roughly monthly or faster), `SLOW_MOVING`,
+   `NO_MOVEMENT`.
    The UI renders chips plus a plain-language summary sentence, e.g.
    *"Demand is 2.1/day (up 60% vs the 90-day average); stock covers 4 days but
    delivery takes 7."*
