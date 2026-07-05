@@ -39,7 +39,10 @@
   "scripts": {
     "start": "react-scripts start",
     "start:lan": "cross-env HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true react-scripts start",
-    "build": "react-scripts build",
+    "build": "cross-env GENERATE_SOURCEMAP=false react-scripts build",
+    "serve:build": "npx --yes serve -s build -l 5000",
+    "serve:build:lan": "npx --yes serve -s build -l 5000 --no-clipboard",
+    "demo": "npm run build && npm run serve:build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "concurrently -k -n api,reverb,web -c \"#93c5fd,#fb7185,#86efac\" \"cd ../back-end && php artisan serve --host=0.0.0.0 --port=8000\" \"cd ../back-end && php artisan reverb:start --host=0.0.0.0 --port=8080\" \"npm start\"",
