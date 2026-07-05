@@ -30,8 +30,8 @@ npm run build
 This creates `frontend/build/` (pre-compiled + minified). **Do not** run
 `react-scripts start` on a client machine.
 
-To run it: `npm run demo` (builds + serves on http://localhost:5000),
-or serve `frontend/build/` through Apache (recommended — see step 4).
+For a quick local check: `npm run demo` (builds + serves on http://localhost:5000).
+For real deployment it is served by Apache on port 80 (see step 4).
 
 ### 2. Backend — enable OPcache in this device's php.ini
 Edit `C:\XAMPP1\php\php.ini` (or wherever XAMPP is installed) and set:
@@ -61,6 +61,7 @@ CACHE_STORE=file
 Then run once (from `back-end/`):
 ```
 composer install --optimize-autoloader --no-dev
+php artisan storage:link
 php artisan config:cache
 php artisan route:cache
 php artisan migrate --force   # if using migrations
@@ -69,17 +70,57 @@ php artisan migrate --force   # if using migrations
 > Re-run `php artisan config:cache` any time you change `.env`.
 > During development instead run `php artisan config:clear`.
 
-### 4. Serve the backend through Apache (not `php artisan serve`)
-`php artisan serve` handles **one request at a time**. Apache handles many at once
-and is faster. Point a XAMPP virtual host (or the docroot) at
-`back-end/public`, and serve `frontend/build` as the site root.
+### 4. Serve everything through Apache on port 80
+
+The app is served as a **single origin** on port 80 (no CORS): Apache serves the
+React build at `/` and reverse-proxies `/api` + `/storage` to Laravel, which runs
+natively at the site root on an internal loopback port (`127.0.0.1:8081`).
+
+> **Why the internal port?** Serving Laravel under `Alias /api` makes it strip the
+> `/api` prefix, so its `api/*` routes stop matching (you get 404s). Running Laravel
+> at root on `:8081` and proxying to it keeps the full path intact — and keeps
+> mod_php's multi-request concurrency (unlike `php artisan serve`).
+
+The full vhost lives in the repo at **`apache/airking.conf`**. To enable it:
+
+1. Enable the proxy module in `C:\XAMPP1\apache\conf\httpd.conf` — uncomment:
+   ```
+   LoadModule proxy_http_module modules/mod_proxy_http.so
+   ```
+   (`mod_proxy`, `mod_rewrite`, `mod_alias` are already on in XAMPP.)
+2. Include the repo vhost from `C:\XAMPP1\apache\conf\extra\httpd-vhosts.conf`:
+   ```
+   Include "C:/XAMPP1/htdocs/Airking_Inventory/apache/airking.conf"
+   ```
+3. Adjust the paths inside `apache/airking.conf` only if XAMPP or the project
+   is not at `C:\XAMPP1\...`. Change the internal port (8081) if it is taken.
+4. Test and restart:
+   ```
+   C:\XAMPP1\apache\bin\httpd.exe -t     # must say "Syntax OK"
+   ```
+   then restart Apache (XAMPP Control Panel → Apache → Stop, then Start).
+
+Access after restart:
+- This PC: **http://localhost/**
+- Phone/tablet on same Wi-Fi: **http://<this-PC-IP>/**
+- phpMyAdmin: **http://localhost/phpmyadmin** (preserved)
+- Realtime (optional): `php artisan reverb:start --host=0.0.0.0 --port=8080`
+
+> **If an Apache restart "doesn't take":** the XAMPP Control Panel sometimes fails to
+> cycle the process. Verify with `netstat -ano | findstr :8081` — if 8081 is not
+> listed, the new config did not load. Kill `httpd.exe` in Task Manager, then Start
+> Apache again.
 
 ---
 
 ## Quick setup
 
-Run **`setup-deploy.bat`** in the project root — it runs the build + composer +
-artisan caching steps automatically and reminds you about the php.ini OPcache step.
+Run **`setup-deploy.bat`** in the project root. It automates: composer install,
+`storage:link`, config/route caching, the frontend build, enabling
+`mod_proxy_http`, and including `apache/airking.conf` — then runs `httpd -t`.
+It still cannot edit `php.ini` (OPcache) or create `.env` for you, and you must
+restart Apache at the end; the script prints exactly what to do. Set the `XAMPP`
+path at the top of the script if XAMPP is not at `C:\XAMPP1`.
 
 ---
 
