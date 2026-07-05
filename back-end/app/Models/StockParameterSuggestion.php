@@ -9,7 +9,21 @@ class StockParameterSuggestion extends Model
 {
     protected $table = 'stock_parameter_suggestions';
     protected $primaryKey = 'suggestion_id';
-    protected $guarded = [];
+    protected $fillable = [
+        'product_id',
+        'current_recommended',
+        'suggested_recommended',
+        'current_safety',
+        'suggested_safety',
+        'current_max',
+        'suggested_max',
+        'reason_codes',
+        'summary',
+        'status',
+        'reviewed_by',
+        'reviewed_at',
+        'run_at',
+    ];
 
     protected $casts = [
         'reason_codes' => 'array',

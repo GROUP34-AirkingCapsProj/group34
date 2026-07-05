@@ -9,7 +9,23 @@ class RestockRecommendation extends Model
 {
     protected $table = 'restock_recommendations';
     protected $primaryKey = 'recommendation_id';
-    protected $guarded = [];
+    protected $fillable = [
+        'product_id',
+        'location_id',
+        'current_stock',
+        'reorder_level',
+        'recommended_quantity',
+        'reason',
+        'priority',
+        'reason_codes',
+        'avg_daily_demand',
+        'demand_trend',
+        'days_of_cover',
+        'lead_time_days',
+        'on_order_quantity',
+        'status_id',
+        'run_at',
+    ];
 
     protected $casts = [
         'reason_codes'     => 'array',
