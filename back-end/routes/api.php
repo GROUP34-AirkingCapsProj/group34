@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\ArchiveSettingsController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\NavBundleController;
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\RestockRecommendationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -517,6 +518,24 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_request_creation,archive')->group(function () {
         Route::post('/purchase-requests/{id}/restore', [PurchaseRequestController::class, 'restore']);
         Route::delete('/purchase-requests/{id}/force', [PurchaseRequestController::class, 'forceDestroy']);
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | PO Recommendation analytics (restock engine)
+    |----------------------------------------------------------------------
+    */
+    Route::middleware('permission:po_recommendations,read')->group(function () {
+        Route::get('/restock/recommendations', [RestockRecommendationController::class, 'index']);
+        Route::get('/restock/suggestions', [RestockRecommendationController::class, 'suggestions']);
+    });
+    Route::middleware('permission:po_recommendations,create')->group(function () {
+        Route::post('/restock/recalculate', [RestockRecommendationController::class, 'recalculate']);
+        Route::post('/restock/create-pr', [RestockRecommendationController::class, 'createPr']);
+    });
+    Route::middleware('permission:po_recommendations,update')->group(function () {
+        Route::post('/restock/suggestions/{id}/apply', [RestockRecommendationController::class, 'applySuggestion']);
+        Route::post('/restock/suggestions/{id}/dismiss', [RestockRecommendationController::class, 'dismissSuggestion']);
     });
 
     /*
