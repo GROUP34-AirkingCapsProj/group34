@@ -219,4 +219,7 @@ Artisan::command('analytics:restock', function (RestockAnalyticsService $service
     return 0;
 })->purpose('Recompute PO restock recommendations and stock parameter suggestions');
 
-Schedule::command('analytics:restock')->dailyAt('06:00');
+Schedule::command('analytics:restock')
+    ->dailyAt('06:00')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/analytics-restock.log'));
