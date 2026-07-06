@@ -336,6 +336,22 @@ class RestockAnalyticsService
             }
         }
 
+        // Product→supplier association from ALL POs (not just received ones),
+        // so a product with no receiving history can inherit its supplier's
+        // measured average lead time.
+        $associations = DB::table('purchase_order_details as pod')
+            ->join('purchase_orders as po', 'po.po_id', '=', 'pod.po_id')
+            ->whereNotNull('po.supplier_id')
+            ->whereNull('po.deleted_at')
+            ->orderByDesc('po.order_date')
+            ->select('pod.product_id', 'po.supplier_id')
+            ->get();
+
+        foreach ($associations as $row) {
+            $pid = (int) $row->product_id;
+            $productSupplier[$pid] = $productSupplier[$pid] ?? (int) $row->supplier_id;
+        }
+
         $avg = fn (array $set) => array_map(
             fn ($vals) => array_sum($vals) / count($vals), $set
         );
