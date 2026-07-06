@@ -136,4 +136,84 @@ class RestockRecommendationController extends Controller
             'pr_number' => $pr->pr_number,
         ], 'Draft purchase request created', 201);
     }
+
+    /** GET /api/restock/suggestions?status=pending|applied|dismissed|all */
+    public function suggestions(Request $request)
+    {
+        $status = $request->input('status', 'pending');
+
+        $query = StockParameterSuggestion::with('product')
+            ->orderByDesc('created_at');
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        return $this->success($query->get(), 'Stock parameter suggestions retrieved');
+    }
+
+    /**
+     * POST /api/restock/suggestions/{id}/apply
+     * Writes the suggested values to the product; the suggestion row stays
+     * as the audit trail. Rejects double-applies and stale snapshots.
+     */
+    public function applySuggestion(Request $request, $id)
+    {
+        return DB::transaction(function () use ($request, $id) {
+            $s = StockParameterSuggestion::lockForUpdate()->find($id);
+            if (!$s) {
+                return $this->notFound('Suggestion not found');
+            }
+            if ($s->status !== 'pending') {
+                return $this->error('Suggestion is no longer pending', 422);
+            }
+
+            $product = Product::lockForUpdate()->find($s->product_id);
+            if (!$product) {
+                return $this->error('Product no longer exists', 422);
+            }
+
+            $stale = (int) $product->recommended_stocks !== (int) $s->current_recommended
+                || (int) ($product->safety_stock ?? 0) !== (int) ($s->current_safety ?? 0)
+                || (int) ($product->max_stock_level ?? 0) !== (int) ($s->current_max ?? 0);
+            if ($stale) {
+                return $this->error(
+                    'Product stock parameters changed since this suggestion was computed. Recalculate first.',
+                    409
+                );
+            }
+
+            $product->update([
+                'recommended_stocks' => $s->suggested_recommended,
+                'safety_stock'       => $s->suggested_safety,
+                'max_stock_level'    => $s->suggested_max,
+            ]);
+            $s->update([
+                'status'      => 'applied',
+                'reviewed_by' => $request->user()->user_id,
+                'reviewed_at' => now(),
+            ]);
+
+            return $this->success($s->fresh('product'), 'Suggestion applied');
+        });
+    }
+
+    /** POST /api/restock/suggestions/{id}/dismiss */
+    public function dismissSuggestion(Request $request, $id)
+    {
+        $s = StockParameterSuggestion::find($id);
+        if (!$s) {
+            return $this->notFound('Suggestion not found');
+        }
+        if ($s->status !== 'pending') {
+            return $this->error('Suggestion is no longer pending', 422);
+        }
+
+        $s->update([
+            'status'      => 'dismissed',
+            'reviewed_by' => $request->user()->user_id,
+            'reviewed_at' => now(),
+        ]);
+
+        return $this->success($s->fresh(), 'Suggestion dismissed');
+    }
 }
