@@ -354,12 +354,13 @@ class RestockAnalyticsServiceTest extends TestCase
         $this->setStock($pid, 1);
         $this->issueDaily($pid, 2, 30);
 
-        $this->service->run($this->asOf);
+        $result = $this->service->run($this->asOf);
 
         $this->assertDatabaseHas('restock_recommendations', ['product_id' => $pid]);
         $first = DB::table('restock_recommendations')->where('product_id', $pid)->first();
         $this->assertNotNull($first->run_at);
-        $this->assertSame($this->warehouseId, (int) $first->location_id);
+        $this->assertSame($result['warehouse_location_id'], (int) $first->location_id);
+        $this->assertNotNull($result['warehouse_location_id']);
 
         // Second run replaces the batch (no duplicate rows)
         $this->service->run($this->asOf);
