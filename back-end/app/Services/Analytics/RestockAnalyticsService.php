@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\RestockRecommendation;
 use App\Models\StockParameterSuggestion;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -220,9 +221,13 @@ class RestockAnalyticsService
     /** Compute and persist in one go. Returns the analyze() result. */
     public function run(?Carbon $asOf = null): array
     {
-        $result = $this->analyze($asOf);
-        $this->persist($result);
-        return $result;
+        // Serialize scheduled + manual (API) runs: both delete and rewrite the
+        // recommendations batch, so exactly one run may persist at a time.
+        return Cache::lock('analytics-restock-run', 120)->block(15, function () use ($asOf) {
+            $result = $this->analyze($asOf);
+            $this->persist($result);
+            return $result;
+        });
     }
 
     /**
