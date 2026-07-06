@@ -406,7 +406,7 @@ class RestockAnalyticsServiceTest extends TestCase
         );
     }
 
-    public function test_stale_pending_suggestions_are_removed_when_no_longer_warranted(): void
+    public function test_leftover_pending_row_is_replaced_with_engine_values(): void
     {
         $pid = $this->makeProduct(['recommended_stocks' => 20]);
         DB::table('stock_parameter_suggestions')->insert([
@@ -431,5 +431,27 @@ class RestockAnalyticsServiceTest extends TestCase
         if ($pending->count() === 1) {
             $this->assertNotSame(40, (int) $pending->first()->suggested_recommended);
         }
+    }
+
+    public function test_pending_suggestion_is_deleted_when_no_longer_warranted(): void
+    {
+        // No movement and no params: the engine emits no suggestion for this
+        // product, so a leftover pending row must be deleted by the run.
+        $pid = $this->makeProduct();
+        DB::table('stock_parameter_suggestions')->insert([
+            'product_id'            => $pid,
+            'current_recommended'   => 0,
+            'suggested_recommended' => 40,
+            'status'                => 'pending',
+            'created_at'            => now(),
+            'updated_at'            => now(),
+        ]);
+
+        $this->service->run($this->asOf);
+
+        $this->assertSame(
+            0,
+            DB::table('stock_parameter_suggestions')->where('product_id', $pid)->count()
+        );
     }
 }

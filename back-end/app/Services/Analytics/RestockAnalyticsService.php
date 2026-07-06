@@ -249,6 +249,7 @@ class RestockAnalyticsService
             foreach ($result['suggestions'] as $sug) {
                 $pending = StockParameterSuggestion::where('product_id', $sug['product_id'])
                     ->where('status', 'pending')
+                    ->lockForUpdate()
                     ->first();
                 if ($pending) {
                     $pending->update($sug + ['run_at' => $result['run_at']]);
