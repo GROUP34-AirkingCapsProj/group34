@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\ReceivingController;
 use App\Http\Controllers\Api\IssuanceController;
 use App\Services\TransferService;
 use App\Http\Controllers\Api\AdjustmentController;
+use App\Services\Analytics\RestockAnalyticsService;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -206,3 +208,15 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
         return 1;
     }
 })->purpose('Validate receiving, issuance, transfer, adjustment inventory effects');
+
+Artisan::command('analytics:restock', function (RestockAnalyticsService $service) {
+    $result = $service->run();
+    $this->info(sprintf(
+        'Restock analytics complete: %d recommendation(s), %d parameter suggestion(s).',
+        count($result['recommendations']),
+        count($result['suggestions'])
+    ));
+    return 0;
+})->purpose('Recompute PO restock recommendations and stock parameter suggestions');
+
+Schedule::command('analytics:restock')->dailyAt('06:00');
