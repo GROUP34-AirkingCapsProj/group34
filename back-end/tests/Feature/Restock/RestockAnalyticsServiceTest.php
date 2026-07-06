@@ -166,10 +166,15 @@ class RestockAnalyticsServiceTest extends TestCase
             'po_id' => $poId, 'product_id' => $pid, 'quantity_ordered' => 5,
             'unit_price' => 80, 'subtotal' => 400, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        DB::table('receivings')->insert([
+        $receivingId = DB::table('receivings')->insertGetId([
             'po_id' => $poId, 'location_id' => $this->warehouseId,
             'receiving_number' => 'RCV-TST-' . uniqid(),
             'receiving_date'   => $this->asOf->copy()->subDays(4)->toDateString(),
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'receiving_id');
+        DB::table('receiving_details')->insert([
+            'receiving_id' => $receivingId, 'product_id' => $pid,
+            'quantity_amount' => 5, 'prod_price' => 80,
             'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -180,6 +185,65 @@ class RestockAnalyticsServiceTest extends TestCase
         $this->assertEqualsWithDelta(6.0, (float) $rec['lead_time_days'], 0.001);
         $this->assertSame(8, $rec['reorder_level']);
         $this->assertSame(0, $rec['on_order_quantity']);
+        $this->assertContains('HIGH_TURNOVER', $rec['reason_codes']);
+    }
+
+    public function test_supplier_average_lead_time_is_used_when_product_has_no_receiving_history(): void
+    {
+        // Supplier S: product A's completed PO establishes supplier avg lead = 6 days.
+        $supplierId = (int) DB::table('suppliers')->insertGetId([
+            'supplier_name' => 'TST Supplier ' . uniqid(),
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'supplier_id');
+
+        $pidA = $this->makeProduct();
+        $poA = DB::table('purchase_orders')->insertGetId([
+            'po_number'   => 'PO-TST-' . uniqid(),
+            'supplier_id' => $supplierId,
+            'order_date'  => $this->asOf->copy()->subDays(10)->toDateString(),
+            'status_id'   => 11, // Completed
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poA, 'product_id' => $pidA, 'quantity_ordered' => 5,
+            'unit_price' => 80, 'subtotal' => 400, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('receivings')->insert([
+            'po_id' => $poA, 'location_id' => $this->warehouseId,
+            'receiving_number' => 'RCV-TST-' . uniqid(),
+            'receiving_date'   => $this->asOf->copy()->subDays(4)->toDateString(),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        // Product B: same supplier, only a pending (never-received) PO -> must
+        // inherit the supplier's 6-day average, not the 7-day default.
+        // Demand 1/day for 30 days: sigma=0.4714 -> safety=ceil(1.65*0.4714*sqrt(6))=2
+        // reorder=6+2=8 ; target=30+2=32 ; qty=32-3-1(open)=28
+        $pidB = $this->makeProduct();
+        $this->setStock($pidB, 3);
+        $this->issueDaily($pidB, 1, 30);
+        $poB = DB::table('purchase_orders')->insertGetId([
+            'po_number'   => 'PO-TST-' . uniqid(),
+            'supplier_id' => $supplierId,
+            'order_date'  => $this->asOf->copy()->subDays(2)->toDateString(),
+            'status_id'   => 7, // Pending -> open, no receivings
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poB, 'product_id' => $pidB, 'quantity_ordered' => 1,
+            'unit_price' => 80, 'subtotal' => 80, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $rec = $this->findRec($result, $pidB);
+
+        $this->assertNotNull($rec);
+        $this->assertEqualsWithDelta(6.0, (float) $rec['lead_time_days'], 0.001);
+        $this->assertSame(1, $rec['on_order_quantity']);
+        $this->assertSame(28, $rec['recommended_quantity']);
     }
 
     // ---------------------------------------------------------------
