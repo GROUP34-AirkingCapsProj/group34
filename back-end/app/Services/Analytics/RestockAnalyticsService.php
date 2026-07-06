@@ -4,6 +4,8 @@ namespace App\Services\Analytics;
 
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\RestockRecommendation;
+use App\Models\StockParameterSuggestion;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -213,6 +215,63 @@ class RestockAnalyticsService
             'recommendations'       => $recommendations,
             'suggestions'           => $suggestions,
         ];
+    }
+
+    /** Compute and persist in one go. Returns the analyze() result. */
+    public function run(?Carbon $asOf = null): array
+    {
+        $result = $this->analyze($asOf);
+        $this->persist($result);
+        return $result;
+    }
+
+    /**
+     * Replace the recommendations batch; upsert pending suggestions.
+     * Applied/dismissed suggestion rows are never touched (audit trail);
+     * a dismissed suggestion is only re-raised when its values change.
+     */
+    public function persist(array $result): void
+    {
+        DB::transaction(function () use ($result) {
+            DB::table('restock_recommendations')->delete();
+            foreach ($result['recommendations'] as $rec) {
+                RestockRecommendation::create($rec + [
+                    'location_id' => $result['warehouse_location_id'],
+                    'run_at'      => $result['run_at'],
+                ]);
+            }
+
+            $suggestedIds = array_map(fn ($s) => $s['product_id'], $result['suggestions']);
+            StockParameterSuggestion::where('status', 'pending')
+                ->whereNotIn('product_id', $suggestedIds ?: [0])
+                ->delete();
+
+            foreach ($result['suggestions'] as $sug) {
+                $pending = StockParameterSuggestion::where('product_id', $sug['product_id'])
+                    ->where('status', 'pending')
+                    ->first();
+                if ($pending) {
+                    $pending->update($sug + ['run_at' => $result['run_at']]);
+                    continue;
+                }
+
+                $lastDismissed = StockParameterSuggestion::where('product_id', $sug['product_id'])
+                    ->where('status', 'dismissed')
+                    ->orderByDesc('reviewed_at')
+                    ->first();
+                if ($lastDismissed
+                    && (int) $lastDismissed->suggested_recommended === (int) $sug['suggested_recommended']
+                    && (int) ($lastDismissed->suggested_safety ?? 0) === (int) ($sug['suggested_safety'] ?? 0)
+                    && (int) ($lastDismissed->suggested_max ?? 0) === (int) ($sug['suggested_max'] ?? 0)) {
+                    continue;
+                }
+
+                StockParameterSuggestion::create($sug + [
+                    'status' => 'pending',
+                    'run_at' => $result['run_at'],
+                ]);
+            }
+        });
     }
 
     // -------------------------------------------------------------------

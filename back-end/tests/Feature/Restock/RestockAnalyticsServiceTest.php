@@ -344,4 +344,91 @@ class RestockAnalyticsServiceTest extends TestCase
         $this->assertNull($this->findRec($result, $pid));
         $this->assertNull($this->findSug($result, $pid));
     }
+
+    // ---------------------------------------------------------------
+    // (F) Persistence
+    // ---------------------------------------------------------------
+    public function test_run_persists_recommendations_and_replaces_previous_batch(): void
+    {
+        $pid = $this->makeProduct(['recommended_stocks' => 5]);
+        $this->setStock($pid, 1);
+        $this->issueDaily($pid, 2, 30);
+
+        $this->service->run($this->asOf);
+
+        $this->assertDatabaseHas('restock_recommendations', ['product_id' => $pid]);
+        $first = DB::table('restock_recommendations')->where('product_id', $pid)->first();
+        $this->assertNotNull($first->run_at);
+        $this->assertSame($this->warehouseId, (int) $first->location_id);
+
+        // Second run replaces the batch (no duplicate rows)
+        $this->service->run($this->asOf);
+        $this->assertSame(
+            1,
+            DB::table('restock_recommendations')->where('product_id', $pid)->count()
+        );
+    }
+
+    public function test_pending_suggestion_is_updated_not_duplicated(): void
+    {
+        $pid = $this->makeProduct(['recommended_stocks' => 5, 'safety_stock' => 2, 'max_stock_level' => 10]);
+        $this->setStock($pid, 4);
+        $this->issueDaily($pid, 2, 30);
+
+        $this->service->run($this->asOf);
+        $this->service->run($this->asOf);
+
+        $this->assertSame(
+            1,
+            DB::table('stock_parameter_suggestions')
+                ->where('product_id', $pid)->where('status', 'pending')->count()
+        );
+    }
+
+    public function test_dismissed_suggestion_with_same_values_is_not_re_raised(): void
+    {
+        $pid = $this->makeProduct(['recommended_stocks' => 5, 'safety_stock' => 2, 'max_stock_level' => 10]);
+        $this->setStock($pid, 4);
+        $this->issueDaily($pid, 2, 30);
+
+        $this->service->run($this->asOf);
+        DB::table('stock_parameter_suggestions')
+            ->where('product_id', $pid)->where('status', 'pending')
+            ->update(['status' => 'dismissed', 'reviewed_at' => now()]);
+
+        $this->service->run($this->asOf);
+
+        $this->assertSame(
+            0,
+            DB::table('stock_parameter_suggestions')
+                ->where('product_id', $pid)->where('status', 'pending')->count()
+        );
+    }
+
+    public function test_stale_pending_suggestions_are_removed_when_no_longer_warranted(): void
+    {
+        $pid = $this->makeProduct(['recommended_stocks' => 20]);
+        DB::table('stock_parameter_suggestions')->insert([
+            'product_id'            => $pid,
+            'current_recommended'   => 20,
+            'suggested_recommended' => 40,
+            'status'                => 'pending',
+            'created_at'            => now(),
+            'updated_at'            => now(),
+        ]);
+        $this->setStock($pid, 100);
+        $this->issueDaily($pid, 1, 90); // steady demand -> computed values close to current? No:
+        // steady 1/day: reorder = ceil(7)+SS. Whatever the suggestion outcome, the OLD pending
+        // row (suggested 40) must be replaced by the engine's own values or deleted -- never
+        // left stale. We assert on count + freshness, not on exact values.
+
+        $this->service->run($this->asOf);
+
+        $pending = DB::table('stock_parameter_suggestions')
+            ->where('product_id', $pid)->where('status', 'pending')->get();
+        $this->assertLessThanOrEqual(1, $pending->count());
+        if ($pending->count() === 1) {
+            $this->assertNotSame(40, (int) $pending->first()->suggested_recommended);
+        }
+    }
 }
