@@ -3,11 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Location;
+use App\Models\Product;
+use App\Models\PurchaseRequest;
+use App\Models\PurchaseRequestDetail;
 use App\Models\RestockRecommendation;
 use App\Models\StockParameterSuggestion;
 use App\Services\Analytics\RestockAnalyticsService;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class RestockRecommendationController extends Controller
 {
@@ -55,5 +63,77 @@ class RestockRecommendationController extends Controller
         }
 
         return $this->index($request);
+    }
+
+    /**
+     * POST /api/restock/create-pr
+     * Turn selected recommendations into a draft Purchase Request that then
+     * follows the normal PR -> approval -> PO flow.
+     */
+    public function createPr(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'needed_by_date'     => 'nullable|date|after:today',
+                'items'              => 'required|array|min:1',
+                'items.*.product_id' => 'required|exists:products,product_id',
+                'items.*.quantity'   => 'required|integer|min:1',
+            ]);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+
+        $warehouseId = Location::where('location_type', 'warehouse')
+            ->orderBy('location_id')
+            ->value('location_id');
+        if (!$warehouseId) {
+            return $this->error('No warehouse location is configured', 422);
+        }
+
+        try {
+            $pr = DB::transaction(function () use ($validated, $request, $warehouseId) {
+                $products = Product::whereIn(
+                    'product_id',
+                    collect($validated['items'])->pluck('product_id')
+                )->get()->keyBy('product_id');
+
+                $lines = collect($validated['items'])->map(function ($item) use ($products) {
+                    $cost = (float) ($products[$item['product_id']]->cost_price ?? 0);
+                    return [
+                        'product_id'      => $item['product_id'],
+                        'quantity'        => $item['quantity'],
+                        'estimated_price' => $cost,
+                        'subtotal'        => $cost * $item['quantity'],
+                    ];
+                });
+
+                $pr = PurchaseRequest::create([
+                    'location_id'     => $warehouseId,
+                    'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
+                    'request_date'    => today(),
+                    'needed_by_date'  => $validated['needed_by_date']
+                        ?? today()->addDays(7)->toDateString(),
+                    'purpose'         => 'Generated from PO Recommendation analytics',
+                    'estimated_total' => $lines->sum('subtotal'),
+                    'status_id'       => 13, // Pending
+                    'requested_by'    => $request->user()->user_id,
+                ]);
+
+                foreach ($lines as $line) {
+                    PurchaseRequestDetail::create(['pr_id' => $pr->pr_id] + $line);
+                }
+
+                return $pr;
+            });
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create purchase request: ' . $e->getMessage(), 500);
+        }
+
+        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+
+        return $this->success([
+            'pr_id'     => $pr->pr_id,
+            'pr_number' => $pr->pr_number,
+        ], 'Draft purchase request created', 201);
     }
 }

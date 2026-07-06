@@ -138,4 +138,47 @@ class RestockEndpointsTest extends TestCase
         );
         $this->assertContains($pid, $ids);
     }
+
+    public function test_create_pr_builds_draft_purchase_request_with_details(): void
+    {
+        $pid = $this->makeProductWithDemand(); // cost_price 80
+        $ia  = $this->makeUser('inventory_analyst');
+
+        $resp = $this->actingAs($ia, 'sanctum')->postJson('/api/restock/create-pr', [
+            'items' => [
+                ['product_id' => $pid, 'quantity' => 12],
+            ],
+        ]);
+
+        $resp->assertCreated();
+        $prId = $resp->json('data.pr_id');
+        $this->assertNotNull($prId);
+
+        $this->assertDatabaseHas('purchase_requests', [
+            'pr_id'        => $prId,
+            'status_id'    => 13, // Pending
+            'requested_by' => $ia->user_id,
+        ]);
+        $this->assertDatabaseHas('purchase_request_details', [
+            'pr_id'           => $prId,
+            'product_id'      => $pid,
+            'quantity'        => 12,
+            'estimated_price' => 80,
+            'subtotal'        => 960,
+        ]);
+    }
+
+    public function test_create_pr_rejects_empty_items(): void
+    {
+        $this->actingAs($this->makeUser('inventory_analyst'), 'sanctum')
+            ->postJson('/api/restock/create-pr', ['items' => []])
+            ->assertStatus(422);
+    }
+
+    public function test_auditor_cannot_create_pr(): void
+    {
+        $this->actingAs($this->makeUser('auditor'), 'sanctum')
+            ->postJson('/api/restock/create-pr', ['items' => [['product_id' => 1, 'quantity' => 1]]])
+            ->assertForbidden();
+    }
 }
