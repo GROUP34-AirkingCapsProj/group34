@@ -139,7 +139,7 @@ const PORecommendation = () => {
       title: `Create purchase request for ${items.length} product(s)?`,
       text: 'A draft PR will be created and sent for admin approval.',
       confirmText: 'Create PR',
-      tone: 'info',
+      tone: 'primary',
     });
     if (!ok) return;
 
@@ -164,7 +164,7 @@ const PORecommendation = () => {
         `Safety ${s.current_safety ?? 0} → ${s.suggested_safety ?? 0}, ` +
         `Max ${s.current_max ?? 0} → ${s.suggested_max ?? 0}`,
       confirmText: 'Apply',
-      tone: 'info',
+      tone: 'primary',
     });
     if (!ok) return;
 
@@ -323,6 +323,7 @@ const PORecommendation = () => {
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleRow(r)}
+                              aria-label={`Select ${r.product?.product_name || `product ${r.product_id}`}`}
                             />
                           </td>
                           <td>
@@ -352,6 +353,7 @@ const PORecommendation = () => {
                                 style={{ width: 84 }}
                                 value={selected.get(r.product_id)}
                                 onChange={(e) => setQty(r.product_id, e.target.value)}
+                                aria-label={`Order quantity for ${r.product?.product_name || `product ${r.product_id}`}`}
                               />
                             ) : (
                               r.recommended_quantity
