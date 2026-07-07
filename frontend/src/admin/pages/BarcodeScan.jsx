@@ -3543,9 +3543,9 @@ const BarcodeScan = () => {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
             UNIT / APPLIANCE
           </button>
-          <button className={`bs-type-btn${activeType === 'consumable' ? ' active' : ''}`} onClick={() => setActiveType('consumable')} type="button">
+          <button className={`bs-type-btn${activeType === 'installation_material' ? ' active' : ''}`} onClick={() => setActiveType('installation_material')} type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-            PART / CONSUMABLE
+            PART / MATERIAL
           </button>
         </div>
 

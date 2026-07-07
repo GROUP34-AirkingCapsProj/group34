@@ -1634,7 +1634,7 @@ export default function IssuanceScanPage() {
                           </td>
                           <td>{fmt(it.unit_price)}</td>
                           <td>
-                            {it.product_type === 'consumable'
+                            {it.product_type === 'installation_material'
                               ? <span>{'₱'}{parseFloat(it.price_per_piece).toFixed(4)} / {it.quantity_unit}</span>
                               : fmt(it.unit_price)
                             }
@@ -1790,7 +1790,7 @@ export default function IssuanceScanPage() {
                           {it.brand_name && <div className="isp-td-code">{it.brand_name}</div>}
                           {it.model_code && <div className="isp-td-code">{it.model_code}</div>}
                         </td>
-                        <td>{it.product_type === 'appliance' ? 'Appliance' : 'Consumable'}</td>
+                        <td>{it.product_type === 'appliance' ? 'Appliance' : 'Installation Material'}</td>
                         <td>
                           {it.serial_number
                             ? <span className="isp-serial">{it.serial_number}</span>
@@ -1799,7 +1799,7 @@ export default function IssuanceScanPage() {
                         </td>
                         <td>{fmt(it.unit_price)}</td>
                         <td>
-                          {it.product_type === 'consumable'
+                          {it.product_type === 'installation_material'
                             ? `₱${parseFloat(it.price_per_piece).toFixed(4)} / ${it.quantity_unit}`
                             : fmt(it.unit_price)
                           }

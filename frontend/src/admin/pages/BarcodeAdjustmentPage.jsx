@@ -206,7 +206,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
 
   // Reset brand when type changes away from appliance
   useEffect(() => {
-    if (filterType === 'consumable') setFilterBrand('');
+    if (filterType === 'installation_material') setFilterBrand('');
   }, [filterType]);
 
   // Unique brands derived from loaded products (appliance only)
@@ -310,11 +310,11 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
             <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
               {TAB_BTN('all', 'All')}
               {TAB_BTN('appliance', 'Appliance')}
-              {TAB_BTN('consumable', 'Consumable')}
+              {TAB_BTN('installation_material', 'Installation Material')}
             </div>
 
             {/* Category + Brand row */}
-            <div style={{ display: 'grid', gridTemplateColumns: filterType !== 'consumable' ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: filterType !== 'installation_material' ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 8 }}>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.4, marginBottom: 4 }}>CATEGORY</div>
                 <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="baj-select" style={{ padding: '7px 10px', fontSize: 12 }}>
@@ -324,7 +324,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
                   ))}
                 </select>
               </div>
-              {filterType !== 'consumable' && (
+              {filterType !== 'installation_material' && (
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.4, marginBottom: 4 }}>BRAND</div>
                   <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="baj-select" style={{ padding: '7px 10px', fontSize: 12 }}>
@@ -1246,7 +1246,7 @@ export default function BarcodeAdjustmentPage() {
                     <div className="baj-preview-after">
                       <div className="baj-preview-badge baj-preview-badge--add">CORRECTED (WILL BE APPLIED)</div>
                       <div style={{ fontWeight: 600 }}>{preview.corrected?.product_name}</div>
-                      <div style={{ color: '#6b7280', marginTop: 2 }}>Type: {preview.corrected?.is_serialized ? 'Appliance (serialized)' : 'Consumable'}</div>
+                      <div style={{ color: '#6b7280', marginTop: 2 }}>Type: {preview.corrected?.is_serialized ? 'Appliance (serialized)' : 'Installation Material'}</div>
                       <div style={{ color: '#6b7280' }}>Qty after: {preview.corrected?.quantity_after}</div>
                     </div>
                   </div>

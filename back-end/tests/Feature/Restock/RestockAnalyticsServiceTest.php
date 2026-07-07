@@ -40,7 +40,7 @@ class RestockAnalyticsServiceTest extends TestCase
         return (int) DB::table('products')->insertGetId(array_merge([
             'product_code'       => 'TST-' . uniqid(),
             'product_name'       => 'Test Product',
-            'product_type'       => 'consumable',
+            'product_type'       => 'installation_material',
             'unit_price'         => 100,
             'cost_price'         => 80,
             'recommended_stocks' => 0,

@@ -384,7 +384,7 @@ class IssuanceScanController extends Controller
             return response()->json([
                 'success'            => true,
                 'action'             => 'applied',
-                'product_type'       => 'consumable',
+                'product_type'       => 'installation_material',
                 'product_id'         => $product->product_id,
                 'product_name'       => $product->product_name,
                 'product_code'       => $product->product_code,

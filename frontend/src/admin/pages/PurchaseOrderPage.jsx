@@ -71,7 +71,7 @@ const getDescriptionForExport = (lineItem) => {
     return [name, lineItem.brand_name, lineItem.capacity_rating, lineItem.variant]
       .filter(Boolean).join(' ').toUpperCase();
   }
-  if (lineItem.product_type === 'consumable') {
+  if (lineItem.product_type === 'installation_material') {
     let desc = name.toUpperCase();
     if (lineItem.pieces_per_package) {
       desc += ` (${lineItem.pieces_per_package}pcs/${lineItem.package_unit || 'Box'})`;
@@ -83,7 +83,7 @@ const getDescriptionForExport = (lineItem) => {
 
 // V5 product detail label for PO line items (snake_case backend fields)
 const poLineLabel = (item) => {
-  if (item.product_type === 'consumable') {
+  if (item.product_type === 'installation_material') {
     const u   = item.unit_name;
     const ppp = item.pieces_per_package;
     const pkg = item.package_unit;
@@ -843,8 +843,8 @@ const PurchaseOrderPage = () => {
                                 {li.model_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.model_code}</div>}
                               </td>
                               <td>
-                                <span className={`po-type-badge ${li.product_type === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`}>
-                                  {li.product_type === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                                <span className={`po-type-badge ${li.product_type === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
+                                  {li.product_type === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                                 </span>
                               </td>
                               <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(li)}</td>
@@ -1249,8 +1249,8 @@ const PurchaseOrderPage = () => {
                                 {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
                               </td>
                               <td style={{ fontSize: 11 }}>
-                                <span className={`po-type-badge ${pType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                                  {pType === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                                <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                  {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                                 </span>
                               </td>
                               <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(item)}</td>
