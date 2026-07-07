@@ -200,20 +200,22 @@ class RestockRecommendationController extends Controller
     /** POST /api/restock/suggestions/{id}/dismiss */
     public function dismissSuggestion(Request $request, $id)
     {
-        $s = StockParameterSuggestion::find($id);
-        if (!$s) {
-            return $this->notFound('Suggestion not found');
-        }
-        if ($s->status !== 'pending') {
-            return $this->error('Suggestion is no longer pending', 422);
-        }
+        return DB::transaction(function () use ($request, $id) {
+            $s = StockParameterSuggestion::lockForUpdate()->find($id);
+            if (!$s) {
+                return $this->notFound('Suggestion not found');
+            }
+            if ($s->status !== 'pending') {
+                return $this->error('Suggestion is no longer pending', 422);
+            }
 
-        $s->update([
-            'status'      => 'dismissed',
-            'reviewed_by' => $request->user()->user_id,
-            'reviewed_at' => now(),
-        ]);
+            $s->update([
+                'status'      => 'dismissed',
+                'reviewed_by' => $request->user()->user_id,
+                'reviewed_at' => now(),
+            ]);
 
-        return $this->success($s->fresh(), 'Suggestion dismissed');
+            return $this->success($s->fresh(), 'Suggestion dismissed');
+        });
     }
 }
