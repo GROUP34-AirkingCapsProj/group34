@@ -3379,3 +3379,7 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* PO Recommendation (analytics rebuild) */
+.po-reason-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.po-qty-input { padding: 4px 8px; }

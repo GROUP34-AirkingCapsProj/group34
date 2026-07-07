@@ -669,6 +669,32 @@ export const purchaseOrdersAPI = {
 };
 
 /* ======================
+   RESTOCK ANALYTICS API
+====================== */
+export const restockAPI = {
+  getRecommendations: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/restock/recommendations?${query}` : '/restock/recommendations');
+  },
+  recalculate: async () =>
+    apiRequest('/restock/recalculate', { method: 'POST' }),
+  createPR: async (items, neededByDate = null) =>
+    apiRequest('/restock/create-pr', {
+      method: 'POST',
+      body: JSON.stringify({
+        items,
+        ...(neededByDate ? { needed_by_date: neededByDate } : {}),
+      }),
+    }),
+  getSuggestions: async (status = 'pending') =>
+    apiRequest(`/restock/suggestions?status=${status}`),
+  applySuggestion: async (id) =>
+    apiRequest(`/restock/suggestions/${id}/apply`, { method: 'POST' }),
+  dismissSuggestion: async (id) =>
+    apiRequest(`/restock/suggestions/${id}/dismiss`, { method: 'POST' }),
+};
+
+/* ======================
    RECEIVINGS API
 ====================== */
 export const receivingsAPI = {
