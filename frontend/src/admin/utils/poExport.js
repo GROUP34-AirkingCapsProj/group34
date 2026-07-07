@@ -31,7 +31,7 @@ function buildDescription(item) {
     return [base, item.brand_name, item.capacity_rating, item.variant]
       .filter(Boolean).join(' ').trim();
   }
-  if (item.product_type === 'consumable' && item.pieces_per_package) {
+  if (item.product_type === 'installation_material' && item.pieces_per_package) {
     const pkg = item.package_unit || 'Box';
     return `${base} (${item.pieces_per_package}pcs/${pkg})`;
   }

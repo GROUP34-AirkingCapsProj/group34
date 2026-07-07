@@ -64,7 +64,7 @@ class RestockEndpointsTest extends TestCase
         $pid = (int) DB::table('products')->insertGetId([
             'product_code'       => 'TST-' . uniqid(),
             'product_name'       => 'Endpoint Test Product',
-            'product_type'       => 'consumable',
+            'product_type'       => 'installation_material',
             'unit_price'         => 100,
             'cost_price'         => 80,
             'recommended_stocks' => 5,

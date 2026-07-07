@@ -255,7 +255,7 @@ class PendingProductController extends Controller
         $product = Product::create([
             'product_code' => $productCode,
             'product_name' => $finalName,
-            'product_type' => 'consumable',
+            'product_type' => 'installation_material',
             'barcode'      => $pending->barcode,
             'category_id'  => $pending->category_id,
             'description'  => $description,

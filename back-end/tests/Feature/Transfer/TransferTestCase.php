@@ -55,7 +55,7 @@ abstract class TransferTestCase extends TestCase
         return Product::create([
             'product_code' => 'CON-' . uniqid(),
             'product_name' => 'Test Consumable',
-            'product_type' => 'consumable',
+            'product_type' => 'installation_material',
         ]);
     }
 

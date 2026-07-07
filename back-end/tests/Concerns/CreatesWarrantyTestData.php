@@ -77,7 +77,7 @@ trait CreatesWarrantyTestData
     /** A consumable product (spare part) with stock at the given location. */
     protected function makeConsumable(int $locationId, int $qty = 100): Product
     {
-        $product = Product::where('product_type', 'consumable')->first();
+        $product = Product::where('product_type', 'installation_material')->first();
         $this->assertNotNull($product, 'Test DB must contain at least one consumable product.');
 
         Inventory::updateOrCreate(

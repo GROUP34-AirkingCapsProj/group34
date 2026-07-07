@@ -293,7 +293,7 @@ export default function ProductRegisterModal({
               cursor: 'pointer',
             }}
           >
-            Consumable
+            Installation Material
           </button>
           <button
             type="button"

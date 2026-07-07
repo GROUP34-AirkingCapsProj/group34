@@ -298,7 +298,7 @@ class RestockAnalyticsService
             ->groupBy('d.product_id', 'i.issuance_date')
             ->selectRaw(
                 "d.product_id, i.issuance_date as day,
-                 SUM(CASE WHEN p.product_type = 'consumable' AND d.quantity_in_pieces > 0
+                 SUM(CASE WHEN p.product_type = 'installation_material' AND d.quantity_in_pieces > 0
                           THEN d.quantity_in_pieces ELSE d.quantity_issued END) as qty"
             )
             ->get();

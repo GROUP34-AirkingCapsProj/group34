@@ -251,7 +251,7 @@ class ReceivingController extends Controller
 
             $productInfo = $details->keyBy('product_id')->map(fn($d) => [
                 'name' => $d->product?->product_name ?? 'Unknown',
-                'type' => $d->product?->product_type ?? 'consumable',
+                'type' => $d->product?->product_type ?? 'installation_material',
                 'pcs'  => (int) ($d->product?->pieces_per_package ?? 1),
             ]);
 
@@ -260,7 +260,7 @@ class ReceivingController extends Controller
                 ->orderBy('created_at', 'asc')
                 ->get()
                 ->map(function ($rd) use ($productInfo) {
-                    $info = $productInfo[$rd->product_id] ?? ['name' => 'Unknown', 'type' => 'consumable', 'pcs' => 1];
+                    $info = $productInfo[$rd->product_id] ?? ['name' => 'Unknown', 'type' => 'installation_material', 'pcs' => 1];
                     return [
                         'receiving_detail_id' => $rd->receiving_detail_id,
                         'po_detail_id'        => $rd->po_detail_id,

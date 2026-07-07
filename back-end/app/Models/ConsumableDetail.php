@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ConsumableDetail extends Model
 {
     use Auditable;
-    protected $table = 'consumable_details';
+    protected $table = 'installation_material_details';
     protected $primaryKey = 'consumable_detail_id';
 
     protected $fillable = [

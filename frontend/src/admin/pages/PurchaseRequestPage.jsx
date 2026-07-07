@@ -656,8 +656,8 @@ const PurchaseRequestPage = () => {
                     </td>
                     <td>
                       {li.productType ? (
-                        <span className={`po-type-badge ${li.productType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`}>
-                          {li.productType.toUpperCase()}
+                        <span className={`po-type-badge ${li.productType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
+                          {li.productType.replace(/_/g, ' ').toUpperCase()}
                         </span>
                       ) : '—'}
                     </td>
@@ -1012,8 +1012,8 @@ const PurchaseRequestPage = () => {
                                 )}
                               </td>
                               <td>
-                                <span className={`po-type-badge ${(d.product_type || d.product?.product_type) === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                                  {(d.product_type || d.product?.product_type) === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                                <span className={`po-type-badge ${(d.product_type || d.product?.product_type) === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                  {(d.product_type || d.product?.product_type) === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                                 </span>
                               </td>
                               <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
@@ -1208,8 +1208,8 @@ const PurchaseRequestPage = () => {
                             )}
                           </td>
                           <td style={{ fontSize: 11 }}>
-                            <span className={`po-type-badge ${pType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                              {pType === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                            <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                              {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                             </span>
                           </td>
                           <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>

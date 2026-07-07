@@ -110,7 +110,7 @@ class DemoProductDataSeeder extends Seeder
         $cat  = $r->category_name ?? '';
         $name = $r->product_name ?? '';
 
-        if ($r->product_type === 'consumable') {
+        if ($r->product_type === 'installation_material') {
             $base = $this->consumableBasePrice($name);
         } elseif ($cat === 'Air Conditioning') {
             $base = $this->aircraftHpPrice($r->capacity_rating);
@@ -194,7 +194,7 @@ class DemoProductDataSeeder extends Seeder
 
     private function descriptionFor(object $r): string
     {
-        if ($r->product_type === 'consumable') {
+        if ($r->product_type === 'installation_material') {
             return trim(($r->product_name ?? 'Consumable supply item') . '.');
         }
 
@@ -268,12 +268,12 @@ class DemoProductDataSeeder extends Seeder
     }
 
     // -----------------------------------------------------------------------
-    // consumable_details
+    // installation_material_details
     // -----------------------------------------------------------------------
 
     private function fillConsumableRow(object $r): void
     {
-        $detail = DB::table('consumable_details')->where('product_id', $r->product_id)->first();
+        $detail = DB::table('installation_material_details')->where('product_id', $r->product_id)->first();
         if (! $detail) {
             return;
         }
@@ -300,7 +300,7 @@ class DemoProductDataSeeder extends Seeder
 
         if ($update) {
             $update['updated_at'] = now();
-            DB::table('consumable_details')->where('product_id', $r->product_id)->update($update);
+            DB::table('installation_material_details')->where('product_id', $r->product_id)->update($update);
         }
     }
 
@@ -357,7 +357,7 @@ class DemoProductDataSeeder extends Seeder
             SUM(color IS NULL OR color='') color_null
         ")->first();
 
-        $c = DB::table('consumable_details')->selectRaw("
+        $c = DB::table('installation_material_details')->selectRaw("
             SUM(pieces_per_package IS NULL) ppp_null,
             SUM(package_unit IS NULL OR package_unit='') pu_null,
             SUM(warranty_value=0) warr_zero
@@ -369,7 +369,7 @@ class DemoProductDataSeeder extends Seeder
     private function report(array $before, array $after): void
     {
         $this->command?->info('DemoProductDataSeeder — empty-field counts (before → after):');
-        foreach (['p' => 'products', 'a' => 'appliance_details', 'c' => 'consumable_details'] as $k => $label) {
+        foreach (['p' => 'products', 'a' => 'appliance_details', 'c' => 'installation_material_details'] as $k => $label) {
             $this->command?->line("  [{$label}]");
             foreach ($before[$k] as $field => $b) {
                 $a = $after[$k][$field];
