@@ -48,7 +48,10 @@ class RestockRecommendationController extends Controller
         $rows = $query->get();
 
         return $this->success([
-            'run_at'          => optional($rows->first())->run_at,
+            // Fall back to the suggestions table so a run that produced zero
+            // recommendations still reports when it happened.
+            'run_at'          => optional($rows->first())->run_at
+                ?? StockParameterSuggestion::max('run_at'),
             'recommendations' => $rows,
         ], 'Restock recommendations retrieved');
     }

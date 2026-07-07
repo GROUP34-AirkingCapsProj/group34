@@ -342,7 +342,7 @@ const PORecommendation = () => {
                             {trend !== null && trend >= 1.3 && <span title="Accelerating"> ▲</span>}
                             {trend !== null && trend <= 0.7 && <span title="Slowing down"> ▼</span>}
                           </td>
-                          <td>{fmt(r.days_of_cover)}</td>
+                          <td>{r.days_of_cover == null ? '∞' : fmt(r.days_of_cover)}</td>
                           <td>{fmt(r.lead_time_days, 0)}</td>
                           <td>
                             {checked ? (
