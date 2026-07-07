@@ -157,6 +157,22 @@ class StockParameterSuggestionTest extends TestCase
         ]);
     }
 
+    public function test_dismiss_rejects_non_pending_suggestion(): void
+    {
+        [, $sid] = $this->makeSuggestion();
+        DB::table('stock_parameter_suggestions')->where('suggestion_id', $sid)
+            ->update(['status' => 'applied']);
+
+        $this->actingAs($this->makeUser('inventory_analyst'), 'sanctum')
+            ->postJson("/api/restock/suggestions/{$sid}/dismiss")
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('stock_parameter_suggestions', [
+            'suggestion_id' => $sid,
+            'status'        => 'applied',
+        ]);
+    }
+
     public function test_auditor_cannot_apply_or_dismiss(): void
     {
         [, $sid] = $this->makeSuggestion();
