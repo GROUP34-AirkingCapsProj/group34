@@ -490,6 +490,27 @@ class PurchaseRequestController extends Controller
     }
 
     /**
+     * Archive (soft-delete) a PR. Approved/partially-converted PRs release
+     * their outstanding budget commitment back to available.
+     */
+    public function destroy(Request $request, $id)
+    {
+        $pr = PurchaseRequest::find($id);
+        if (!$pr) {
+            return $this->notFound('Purchase request not found');
+        }
+
+        DB::transaction(function () use ($pr, $request) {
+            $this->budgetService->releaseOutstanding($pr, 'PR archived', $request->user()?->user_id);
+            $pr->delete();
+        });
+
+        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+
+        return $this->success(null, 'Purchase request archived');
+    }
+
+    /**
      * POST — Create a PO from an approved PR.
      */
     public function archived(Request $request)
