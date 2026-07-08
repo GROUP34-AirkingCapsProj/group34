@@ -32,13 +32,29 @@ class RestockEndpointsTest extends TestCase
         $this->seed(PermissionSeeder::class);
         $this->seed(RolePermissionsSeeder::class);
 
-        DB::table('locations')->insert([
+        $whId = (int) DB::table('locations')->insertGetId([
             'location_code' => 'TST-WH-' . uniqid(),
             'location_name' => 'Test Warehouse',
             'location_type' => 'warehouse',
             'is_active'     => 1,
             'created_at'    => now(),
             'updated_at'    => now(),
+        ], 'location_id');
+
+        // create-pr now requires an active budget for the resolved warehouse
+        // (first warehouse by location_id — may be an older seeded one, not $whId).
+        $firstWarehouseId = (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+        DB::table('budget_allocations')->insert([
+            'location_id'  => $firstWarehouseId,
+            'period_label' => 'TEST-' . uniqid(),
+            'period_start' => today()->subDays(10)->toDateString(),
+            'period_end'   => today()->addDays(10)->toDateString(),
+            'total_budget' => 1000000,
+            'committed'    => 0,
+            'spent'        => 0,
+            'created_at'   => now(),
+            'updated_at'   => now(),
         ]);
     }
 

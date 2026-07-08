@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\InsufficientBudgetException;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Product;
@@ -10,6 +11,7 @@ use App\Models\PurchaseRequestDetail;
 use App\Models\RestockRecommendation;
 use App\Models\StockParameterSuggestion;
 use App\Services\Analytics\RestockAnalyticsService;
+use App\Services\BudgetService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -47,12 +49,27 @@ class RestockRecommendationController extends Controller
 
         $rows = $query->get();
 
+        $warehouseId = Location::where('location_type', 'warehouse')
+            ->orderBy('location_id')
+            ->value('location_id');
+        $budget = $warehouseId
+            ? app(BudgetService::class)->resolveActiveBudget((int) $warehouseId)
+            : null;
+
         return $this->success([
             // Fall back to the suggestions table so a run that produced zero
             // recommendations still reports when it happened.
             'run_at'          => optional($rows->first())->run_at
                 ?? StockParameterSuggestion::max('run_at'),
             'recommendations' => $rows,
+            'budget'          => $budget ? [
+                'budget_id'    => $budget->budget_id,
+                'period_label' => $budget->period_label,
+                'total_budget' => (float) $budget->total_budget,
+                'available'    => (float) $budget->total_budget
+                    - (float) $budget->committed
+                    - (float) $budget->spent,
+            ] : null,
         ], 'Restock recommendations retrieved');
     }
 
@@ -93,8 +110,16 @@ class RestockRecommendationController extends Controller
             return $this->error('No warehouse location is configured', 422);
         }
 
+        $budget = app(BudgetService::class)->resolveActiveBudget((int) $warehouseId);
+        if (!$budget) {
+            return $this->error(
+                'No active budget covers today for the warehouse. Create one in Budget Management first.',
+                422
+            );
+        }
+
         try {
-            $pr = DB::transaction(function () use ($validated, $request, $warehouseId) {
+            $pr = DB::transaction(function () use ($validated, $request, $warehouseId, $budget) {
                 $products = Product::whereIn(
                     'product_id',
                     collect($validated['items'])->pluck('product_id')
@@ -110,14 +135,24 @@ class RestockRecommendationController extends Controller
                     ];
                 });
 
+                $estimatedTotal = $lines->sum('subtotal');
+                if (!app(BudgetService::class)->hasAvailable($budget, (float) $estimatedTotal)) {
+                    throw new InsufficientBudgetException(
+                        $budget->period_label,
+                        (float) $estimatedTotal,
+                        (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent
+                    );
+                }
+
                 $pr = PurchaseRequest::create([
                     'location_id'     => $warehouseId,
+                    'budget_id'       => $budget->budget_id,
                     'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
                     'request_date'    => today(),
                     'needed_by_date'  => $validated['needed_by_date']
                         ?? today()->addDays(7)->toDateString(),
                     'purpose'         => 'Generated from PO Recommendation analytics',
-                    'estimated_total' => $lines->sum('subtotal'),
+                    'estimated_total' => $estimatedTotal,
                     'status_id'       => 13, // Pending
                     'requested_by'    => $request->user()->user_id,
                 ]);
@@ -128,6 +163,8 @@ class RestockRecommendationController extends Controller
 
                 return $pr;
             });
+        } catch (InsufficientBudgetException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Throwable $e) {
             return $this->error('Failed to create purchase request: ' . $e->getMessage(), 500);
         }
