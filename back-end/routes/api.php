@@ -516,6 +516,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convertStore']);
     });
     Route::middleware('permission:purchase_request_creation,archive')->group(function () {
+        Route::delete('/purchase-requests/{id}', [PurchaseRequestController::class, 'destroy']);
         Route::post('/purchase-requests/{id}/restore', [PurchaseRequestController::class, 'restore']);
         Route::delete('/purchase-requests/{id}/force', [PurchaseRequestController::class, 'forceDestroy']);
     });
