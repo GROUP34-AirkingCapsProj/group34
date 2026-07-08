@@ -243,4 +243,29 @@ class BudgetServiceTest extends BudgetTestCase
         $this->assertSame('0.00', (string) $budget->committed);
         $this->assertSame('1500.00', (string) $budget->spent);
     }
+
+    public function test_two_sequential_pos_consume_commitment_cumulatively_with_final_surplus(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 16); // partial conversion first
+        $pr->update(['status_id' => 14]);
+        $this->service->commit($pr);
+        $pr->update(['status_id' => 16]);
+
+        // PO1: partial, 1500 actual
+        $po1 = $this->makePo($pr, 1500, 11);
+        $pr->update(['converted_to_po_id' => $po1->po_id]);
+        $this->service->spend($po1->fresh());
+
+        // PO2 completes the PR: fully converted now (status 14), 2000 actual
+        $po2 = $this->makePo($pr, 2000, 11);
+        $pr->update(['status_id' => 14, 'converted_to_po_id' => $po2->po_id]);
+        $this->service->spend($po2->fresh());
+
+        $budget->refresh();
+        $this->assertSame('3500.00', (string) $budget->spent);     // 1500 + 2000
+        $this->assertSame('0.00', (string) $budget->committed);    // 1500 + 2000 consumed + 500 surplus returned
+        $this->assertSame('500.00', (string) BudgetTransaction::where('pr_id', $pr->pr_id)
+            ->where('txn_type', 'release')->where('notes', 'Estimate surplus returned')->value('amount'));
+    }
 }
