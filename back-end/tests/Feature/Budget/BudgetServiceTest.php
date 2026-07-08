@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Budget;
 
+use App\Events\BudgetChanged;
 use App\Exceptions\InsufficientBudgetException;
 use App\Models\BudgetTransaction;
 use App\Services\BudgetService;
+use Illuminate\Support\Facades\Event;
 
 class BudgetServiceTest extends BudgetTestCase
 {
@@ -267,5 +269,48 @@ class BudgetServiceTest extends BudgetTestCase
         $this->assertSame('0.00', (string) $budget->committed);    // 1500 + 2000 consumed + 500 surplus returned
         $this->assertSame('500.00', (string) BudgetTransaction::where('pr_id', $pr->pr_id)
             ->where('txn_type', 'release')->where('notes', 'Estimate surplus returned')->value('amount'));
+    }
+
+    public function test_commit_fires_alert_when_crossing_80_percent(): void
+    {
+        Event::fake([BudgetChanged::class]);
+
+        $budget = $this->makeBudget(10000);
+        $pr1 = $this->makePr($budget, 7000, 14);
+        $this->service->commit($pr1); // 70% — below threshold
+        Event::assertNotDispatched(BudgetChanged::class);
+
+        $pr2 = $this->makePr($budget, 1500, 14);
+        $this->service->commit($pr2); // 85% — crosses 80%
+        Event::assertDispatched(BudgetChanged::class, function (BudgetChanged $e) use ($budget) {
+            return $e->locationId === (int) $budget->location_id
+                && $e->type === 'budget_threshold'
+                && $e->extra['utilization_pct'] === 85;
+        });
+    }
+
+    public function test_alert_fires_once_per_crossing_not_on_every_commit_above(): void
+    {
+        Event::fake([BudgetChanged::class]);
+
+        $budget = $this->makeBudget(10000);
+        $this->service->commit($this->makePr($budget, 8500, 14)); // crosses 80%
+        $this->service->commit($this->makePr($budget, 500, 14));  // 90% — already above, no new crossing
+
+        Event::assertDispatchedTimes(BudgetChanged::class, 1);
+    }
+
+    public function test_spend_can_cross_100_percent(): void
+    {
+        Event::fake([BudgetChanged::class]);
+
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 9000, 14);
+        $this->service->commit($pr); // crosses 80% (1st dispatch)
+        $po = $this->makePo($pr, 10500, 11); // overrun pushes past 100%
+        $pr->update(['converted_to_po_id' => $po->po_id]);
+        $this->service->spend($po->fresh()); // crosses 100% (2nd dispatch)
+
+        Event::assertDispatchedTimes(BudgetChanged::class, 2);
     }
 }
