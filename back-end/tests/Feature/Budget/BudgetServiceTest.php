@@ -313,4 +313,36 @@ class BudgetServiceTest extends BudgetTestCase
 
         Event::assertDispatchedTimes(BudgetChanged::class, 2);
     }
+
+    public function test_adjust_total_writes_adjustment_txn_and_updates_total(): void
+    {
+        $admin = $this->makeUser('admin');
+        $budget = $this->makeBudget(10000);
+
+        $this->service->adjustTotal($budget, 15000, $admin->user_id);
+
+        $budget->refresh();
+        $this->assertSame('15000.00', (string) $budget->total_budget);
+
+        $txn = BudgetTransaction::where('budget_id', $budget->budget_id)->where('txn_type', 'adjustment')->first();
+        $this->assertNotNull($txn);
+        $this->assertSame('5000.00', (string) $txn->amount);
+        $this->assertStringContainsString('increased', $txn->notes);
+    }
+
+    public function test_adjust_total_rejects_lowering_below_committed_plus_spent(): void
+    {
+        $budget = $this->makeBudget(10000, ['committed' => 4000, 'spent' => 3000]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->service->adjustTotal($budget, 6000);
+    }
+
+    public function test_adjust_total_noop_when_unchanged(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $this->service->adjustTotal($budget, 10000);
+
+        $this->assertSame(0, BudgetTransaction::where('txn_type', 'adjustment')->where('budget_id', $budget->budget_id)->count());
+    }
 }
