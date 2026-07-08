@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
-use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
+use App\Services\BudgetService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -232,13 +232,10 @@ class PurchaseOrderController extends Controller
                 $po->update($header);
 
                 if ($wasCompleted && $po->pr_id) {
-                    $pr = $po->purchaseRequest;
-                    if ($pr && $pr->budget_id) {
-                        BudgetAllocation::where('budget_id', $pr->budget_id)
-                            ->increment('spent', $po->total_amount);
-                        BudgetAllocation::where('budget_id', $pr->budget_id)
-                            ->decrement('committed', $po->total_amount);
-                    }
+                    app(BudgetService::class)->spend(
+                        $po->fresh()->load('purchaseRequest'),
+                        $request->user()?->user_id
+                    );
                 }
             }
 
