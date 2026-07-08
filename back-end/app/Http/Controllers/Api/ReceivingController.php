@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\BudgetAllocation;
 use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\Product;
@@ -11,6 +10,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use App\Services\BudgetService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -136,13 +136,11 @@ class ReceivingController extends Controller
             $newPoStatus = ($totalReceivedForPO >= $totalOrdered) ? 11 : 12;
             PurchaseOrder::where('po_id', $poId)->update(['status_id' => $newPoStatus]);
 
-            // Finalize budget when PO is fully received
+            // Finalize budget when PO is fully received (idempotent per PO)
             if ($newPoStatus === 11) {
                 $po = PurchaseOrder::with('purchaseRequest')->find($poId);
-                if ($po && $po->pr_id && $po->purchaseRequest?->budget_id) {
-                    $budgetId = $po->purchaseRequest->budget_id;
-                    BudgetAllocation::where('budget_id', $budgetId)->increment('spent', $po->total_amount);
-                    BudgetAllocation::where('budget_id', $budgetId)->decrement('committed', $po->total_amount);
+                if ($po) {
+                    app(BudgetService::class)->spend($po, $request->user()?->user_id);
                 }
             }
 
