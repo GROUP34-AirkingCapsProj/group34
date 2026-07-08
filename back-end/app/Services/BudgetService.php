@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\InsufficientBudgetException;
 use App\Models\BudgetAllocation;
 use App\Models\BudgetTransaction;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -104,6 +105,59 @@ class BudgetService
             $budget->save();
 
             return $outstanding;
+        });
+    }
+
+    /**
+     * Record actual spend for a completed PO and consume the PR's commitment.
+     * Idempotent per PO (a second call is a no-op). For fully-converted PRs
+     * (status 14, converted_to_po_id = this PO) any estimate surplus is
+     * auto-returned to available.
+     */
+    public function spend(PurchaseOrder $po, ?int $userId = null): void
+    {
+        $pr = $po->purchaseRequest;
+        if (!$pr || !$pr->budget_id) {
+            return;
+        }
+
+        DB::transaction(function () use ($po, $pr, $userId) {
+            $budget = BudgetAllocation::whereKey($pr->budget_id)->lockForUpdate()->first();
+            if (!$budget) {
+                return;
+            }
+            if (BudgetTransaction::where('po_id', $po->po_id)
+                ->where('txn_type', BudgetTransaction::TYPE_SPEND)->exists()) {
+                return; // already recorded (e.g. receiving flow + manual status update)
+            }
+
+            $amount = (float) $po->total_amount;
+            $this->txn($budget, BudgetTransaction::TYPE_SPEND, $amount, $pr->pr_id, $po->po_id, $userId,
+                'PO ' . $po->po_number . ' completed');
+            $budget->spent = round((float) $budget->spent + $amount, 2);
+
+            $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
+            $released = 0.0;
+
+            $consume = round(min($outstanding, $amount), 2);
+            if ($consume > 0) {
+                $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $consume, $pr->pr_id, $po->po_id, $userId,
+                    'Commitment consumed by PO ' . $po->po_number);
+                $released += $consume;
+            }
+
+            // Fully-converted PR: return the estimate surplus to available.
+            if ((int) $pr->status_id === 14 && (int) $pr->converted_to_po_id === (int) $po->po_id) {
+                $surplus = round($outstanding - $consume, 2);
+                if ($surplus > 0) {
+                    $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $surplus, $pr->pr_id, $po->po_id, $userId,
+                        'Estimate surplus returned');
+                    $released += $surplus;
+                }
+            }
+
+            $budget->committed = round(max(0, (float) $budget->committed - $released), 2);
+            $budget->save();
         });
     }
 
