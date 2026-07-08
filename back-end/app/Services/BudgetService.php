@@ -46,6 +46,12 @@ class BudgetService
     {
         DB::transaction(function () use ($pr, $userId) {
             $budget = BudgetAllocation::whereKey($pr->budget_id)->lockForUpdate()->firstOrFail();
+
+            if (BudgetTransaction::where('pr_id', $pr->pr_id)
+                ->where('txn_type', BudgetTransaction::TYPE_COMMIT)->exists()) {
+                return; // already committed (retry / double-submit)
+            }
+
             $amount = (float) $pr->estimated_total;
             $available = (float) $budget->total_budget
                 - (float) $budget->committed

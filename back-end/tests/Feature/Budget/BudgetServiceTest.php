@@ -34,6 +34,19 @@ class BudgetServiceTest extends BudgetTestCase
         $this->assertEquals($budget->budget_id, $txn->budget_id);
     }
 
+    public function test_commit_is_idempotent_per_pr(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14);
+
+        $this->service->commit($pr);
+        $this->service->commit($pr); // retry must be a no-op
+
+        $budget->refresh();
+        $this->assertSame('4000.00', (string) $budget->committed);
+        $this->assertSame(1, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'commit')->count());
+    }
+
     public function test_commit_throws_when_insufficient_available(): void
     {
         $budget = $this->makeBudget(10000, ['committed' => 7000]);
