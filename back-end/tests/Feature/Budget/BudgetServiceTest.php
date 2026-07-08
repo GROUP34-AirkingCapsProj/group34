@@ -135,4 +135,112 @@ class BudgetServiceTest extends BudgetTestCase
 
         $this->assertSame(0.0, $this->service->releaseOutstanding($pr, 'PR archived'));
     }
+
+    public function test_spend_records_actual_and_consumes_commitment_with_surplus_return(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14);
+        $this->service->commit($pr);
+
+        // Fully-converted PR: actual PO total (3500) below estimate (4000)
+        $po = $this->makePo($pr, 3500, 11);
+        $pr->update(['converted_to_po_id' => $po->po_id]);
+
+        $this->service->spend($po->fresh());
+
+        $budget->refresh();
+        $this->assertSame('3500.00', (string) $budget->spent);
+        $this->assertSame('0.00', (string) $budget->committed); // 3500 consumed + 500 surplus returned
+
+        $releases = BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'release')
+            ->orderBy('txn_id')->get();
+        $this->assertCount(2, $releases);
+        $this->assertSame('3500.00', (string) $releases[0]->amount);
+        $this->assertSame('500.00', (string) $releases[1]->amount);
+        $this->assertSame('Estimate surplus returned', $releases[1]->notes);
+    }
+
+    public function test_spend_is_idempotent_per_po(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14);
+        $this->service->commit($pr);
+        $po = $this->makePo($pr, 4000, 11);
+        $pr->update(['converted_to_po_id' => $po->po_id]);
+
+        $this->service->spend($po->fresh());
+        $this->service->spend($po->fresh()); // second call must be a no-op
+
+        $budget->refresh();
+        $this->assertSame('4000.00', (string) $budget->spent);
+        $this->assertSame('0.00', (string) $budget->committed);
+        $this->assertSame(1, BudgetTransaction::where('po_id', $po->po_id)->where('txn_type', 'spend')->count());
+    }
+
+    public function test_spend_on_partial_conversion_keeps_remaining_commitment(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 16); // Partially Converted
+        // commit happened while approved
+        $pr->update(['status_id' => 14]);
+        $this->service->commit($pr);
+        $pr->update(['status_id' => 16]);
+
+        $po = $this->makePo($pr, 1500, 11);
+        $pr->update(['converted_to_po_id' => $po->po_id]);
+
+        $this->service->spend($po->fresh());
+
+        $budget->refresh();
+        $this->assertSame('1500.00', (string) $budget->spent);
+        $this->assertSame('2500.00', (string) $budget->committed); // no surplus return on partial
+    }
+
+    public function test_spend_records_overrun_when_actual_exceeds_estimate(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14);
+        $this->service->commit($pr);
+        $po = $this->makePo($pr, 4600, 11); // actual above estimate
+        $pr->update(['converted_to_po_id' => $po->po_id]);
+
+        $this->service->spend($po->fresh());
+
+        $budget->refresh();
+        $this->assertSame('4600.00', (string) $budget->spent); // truth recorded
+        $this->assertSame('0.00', (string) $budget->committed); // only 4000 was held; consume is capped
+    }
+
+    public function test_spend_is_noop_for_po_without_budgeted_pr(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14, ['budget_id' => null]);
+        $po = $this->makePo($pr, 4000, 11);
+
+        $this->service->spend($po->fresh());
+
+        $budget->refresh();
+        $this->assertSame('0.00', (string) $budget->spent);
+        $this->assertSame(0, BudgetTransaction::count());
+    }
+
+    public function test_release_after_partial_spend_releases_only_remainder(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 16);
+        $pr->update(['status_id' => 14]);
+        $this->service->commit($pr);
+        $pr->update(['status_id' => 16]);
+        $po = $this->makePo($pr, 1500, 11);
+        $pr->update(['converted_to_po_id' => $po->po_id]);
+        $this->service->spend($po->fresh());
+
+        // Archiving the partially-converted PR now returns only the un-consumed 2500.
+        $released = $this->service->releaseOutstanding($pr->fresh(), 'PR archived');
+
+        $this->assertSame(2500.0, $released);
+        $budget->refresh();
+        $this->assertSame('0.00', (string) $budget->committed);
+        $this->assertSame('1500.00', (string) $budget->spent);
+    }
 }
