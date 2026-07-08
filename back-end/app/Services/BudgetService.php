@@ -7,6 +7,7 @@ use App\Models\BudgetAllocation;
 use App\Models\BudgetTransaction;
 use App\Models\PurchaseRequest;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The ONLY code allowed to mutate budget_allocations.committed / spent.
@@ -86,12 +87,20 @@ class BudgetService
             }
 
             $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
+            if ($outstanding < 0) {
+                Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PR {$pr->pr_id} on budget {$budget->budget_id}");
+            }
             if ($outstanding <= 0) {
                 return 0.0;
             }
 
             $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $outstanding, $pr->pr_id, null, $userId, $note);
-            $budget->committed = round(max(0, (float) $budget->committed - $outstanding), 2);
+            $newCommitted = round((float) $budget->committed - $outstanding, 2);
+            if ($newCommitted < 0) {
+                Log::warning("Budget ledger anomaly: committed clamped from {$newCommitted} to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
+                $newCommitted = 0.0;
+            }
+            $budget->committed = $newCommitted;
             $budget->save();
 
             return $outstanding;
