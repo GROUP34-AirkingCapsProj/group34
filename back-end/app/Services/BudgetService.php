@@ -68,6 +68,47 @@ class BudgetService
         });
     }
 
+    /**
+     * Release whatever commitment is still outstanding for this PR
+     * (Σ its commit rows − Σ its release rows). Returns the released amount.
+     * Safe to call repeatedly and on PRs that never committed anything.
+     */
+    public function releaseOutstanding(PurchaseRequest $pr, string $note, ?int $userId = null): float
+    {
+        if (!$pr->budget_id) {
+            return 0.0;
+        }
+
+        return DB::transaction(function () use ($pr, $note, $userId) {
+            $budget = BudgetAllocation::whereKey($pr->budget_id)->lockForUpdate()->first();
+            if (!$budget) {
+                return 0.0;
+            }
+
+            $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
+            if ($outstanding <= 0) {
+                return 0.0;
+            }
+
+            $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $outstanding, $pr->pr_id, null, $userId, $note);
+            $budget->committed = round(max(0, (float) $budget->committed - $outstanding), 2);
+            $budget->save();
+
+            return $outstanding;
+        });
+    }
+
+    /** Net commitment still held by a PR: Σcommit − Σrelease (both keyed to pr_id). */
+    private function outstanding(int $budgetId, int $prId): float
+    {
+        $commits = (float) BudgetTransaction::where('budget_id', $budgetId)
+            ->where('pr_id', $prId)->where('txn_type', BudgetTransaction::TYPE_COMMIT)->sum('amount');
+        $releases = (float) BudgetTransaction::where('budget_id', $budgetId)
+            ->where('pr_id', $prId)->where('txn_type', BudgetTransaction::TYPE_RELEASE)->sum('amount');
+
+        return round($commits - $releases, 2);
+    }
+
     private function txn(
         BudgetAllocation $budget,
         string $type,

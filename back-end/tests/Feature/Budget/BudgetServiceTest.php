@@ -90,4 +90,49 @@ class BudgetServiceTest extends BudgetTestCase
         ]);
         $this->assertSame($budget->budget_id, $this->service->resolveActiveBudget($this->locationId)->budget_id);
     }
+
+    public function test_release_outstanding_returns_exact_committed_amount(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14);
+        $this->service->commit($pr);
+
+        $released = $this->service->releaseOutstanding($pr, 'PR archived');
+
+        $this->assertSame(4000.0, $released);
+        $budget->refresh();
+        $this->assertSame('0.00', (string) $budget->committed);
+
+        $release = BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'release')->first();
+        $this->assertNotNull($release);
+        $this->assertSame('4000.00', (string) $release->amount);
+        $this->assertSame('PR archived', $release->notes);
+    }
+
+    public function test_release_outstanding_is_noop_without_commitment_and_never_double_releases(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 13); // pending — never committed
+
+        $this->assertSame(0.0, $this->service->releaseOutstanding($pr, 'PR archived'));
+        $this->assertSame(0, BudgetTransaction::where('pr_id', $pr->pr_id)->count());
+
+        // Commit, release twice — second release must be a no-op.
+        $pr->update(['status_id' => 14]);
+        $this->service->commit($pr);
+        $this->service->releaseOutstanding($pr, 'PR archived');
+        $this->assertSame(0.0, $this->service->releaseOutstanding($pr, 'PR archived'));
+
+        $budget->refresh();
+        $this->assertSame('0.00', (string) $budget->committed);
+        $this->assertSame(1, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'release')->count());
+    }
+
+    public function test_release_outstanding_is_noop_for_pr_without_budget(): void
+    {
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14, ['budget_id' => null]);
+
+        $this->assertSame(0.0, $this->service->releaseOutstanding($pr, 'PR archived'));
+    }
 }
