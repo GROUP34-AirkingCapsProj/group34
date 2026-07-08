@@ -137,6 +137,9 @@ class BudgetService
             $budget->spent = round((float) $budget->spent + $amount, 2);
 
             $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
+            if ($outstanding < 0) {
+                Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PR {$pr->pr_id} on budget {$budget->budget_id}");
+            }
             $released = 0.0;
 
             $consume = round(min($outstanding, $amount), 2);
@@ -156,7 +159,12 @@ class BudgetService
                 }
             }
 
-            $budget->committed = round(max(0, (float) $budget->committed - $released), 2);
+            $newCommitted = round((float) $budget->committed - $released, 2);
+            if ($newCommitted < 0) {
+                Log::warning("Budget ledger anomaly: committed clamped from {$newCommitted} to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
+                $newCommitted = 0.0;
+            }
+            $budget->committed = $newCommitted;
             $budget->save();
         });
     }
