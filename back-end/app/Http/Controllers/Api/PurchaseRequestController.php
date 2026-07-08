@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\InsufficientBudgetException;
 use App\Http\Controllers\Controller;
 use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
@@ -9,6 +10,7 @@ use App\Models\PurchaseOrderDetail;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use App\Models\Supplier;
+use App\Services\BudgetService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -19,6 +21,10 @@ use Illuminate\Validation\ValidationException;
 class PurchaseRequestController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private BudgetService $budgetService)
+    {
+    }
 
     private const WITH_RELATIONS = [
         'location',
@@ -275,7 +281,7 @@ class PurchaseRequestController extends Controller
         try {
             $validated = $request->validate([
                 'location_id'               => 'required|exists:locations,location_id',
-                'budget_id'                 => 'nullable|exists:budget_allocations,budget_id',
+                'budget_id'                 => 'required|exists:budget_allocations,budget_id',
                 'needed_by_date'            => 'required|date|after:today',
                 'purpose'                   => 'nullable|string',
                 'details'                   => 'required|array|min:1',
@@ -288,14 +294,30 @@ class PurchaseRequestController extends Controller
             return $this->validationError($e->errors());
         }
 
-        try {
-            $pr = DB::transaction(function () use ($validated, $request) {
-                $estimatedTotal = collect($validated['details'])
-                    ->sum(fn($d) => $d['quantity'] * $d['estimated_price']);
+        $budget = BudgetAllocation::find($validated['budget_id']);
+        if ((int) $budget->location_id !== (int) $validated['location_id']) {
+            return $this->error('The selected budget belongs to a different location', 422);
+        }
+        $today = today();
+        if ($budget->period_start->gt($today) || $budget->period_end->lt($today)) {
+            return $this->error("The budget period ({$budget->period_label}) is not active today", 422);
+        }
+        $estimatedTotal = collect($validated['details'])
+            ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
+        if (!$this->budgetService->hasAvailable($budget, (float) $estimatedTotal)) {
+            return $this->error(sprintf(
+                'Estimated total ₱%s exceeds available budget ₱%s for %s',
+                number_format((float) $estimatedTotal, 2),
+                number_format(max((float) $budget->available, 0), 2),
+                $budget->period_label
+            ), 422);
+        }
 
+        try {
+            $pr = DB::transaction(function () use ($validated, $request, $estimatedTotal) {
                 $pr = PurchaseRequest::create([
                     'location_id'     => $validated['location_id'],
-                    'budget_id'       => $validated['budget_id'] ?? null,
+                    'budget_id'       => $validated['budget_id'],
                     'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
                     'request_date'    => today(),
                     'needed_by_date'  => $validated['needed_by_date'],
@@ -340,6 +362,12 @@ class PurchaseRequestController extends Controller
         if (!$pr->isPending()) {
             return $this->error('Only pending purchase requests can be approved', 422);
         }
+        if (!$pr->budget_id) {
+            return $this->error(
+                'This purchase request has no budget attached (created before budget enforcement). Reject it and ask the requester to submit a new one.',
+                422
+            );
+        }
 
         try {
             DB::transaction(function () use ($pr, $request) {
@@ -349,19 +377,18 @@ class PurchaseRequestController extends Controller
                     'approval_date'=> today(),
                 ]);
 
-                if ($pr->budget_id) {
-                    BudgetAllocation::where('budget_id', $pr->budget_id)
-                        ->increment('committed', $pr->estimated_total);
-                }
+                $this->budgetService->commit($pr, $request->user()->user_id);
             });
-
-            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
-
-            $pr->load(self::WITH_RELATIONS);
-            return $this->success($pr, 'Purchase request approved');
+        } catch (InsufficientBudgetException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Throwable $e) {
             return $this->error('Approval failed: ' . $e->getMessage(), 500);
         }
+
+        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+
+        $pr->load(self::WITH_RELATIONS);
+        return $this->success($pr, 'Purchase request approved');
     }
 
     /**
