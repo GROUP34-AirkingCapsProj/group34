@@ -143,4 +143,66 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->patchJson("/api/purchase-requests/{$pr->pr_id}/approve")
             ->assertStatus(422);
     }
+
+    public function test_restock_create_pr_attaches_active_warehouse_budget(): void
+    {
+        $admin = $this->makeUser('admin');
+        $whId = (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+        DB::table('budget_allocations')->where('location_id', $whId)
+            ->whereNull('deleted_at')
+            ->where('period_start', '<=', today())->where('period_end', '>=', today())
+            ->update(['deleted_at' => now()]);
+        $budget = $this->makeBudget(100000, ['location_id' => $whId]);
+        $productId = $this->makeProduct();
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/restock/create-pr', [
+                'items' => [['product_id' => $productId, 'quantity' => 5]],
+            ]);
+
+        $response->assertStatus(201);
+        $prId = $response->json('data.pr_id');
+        $this->assertEquals($budget->budget_id, \App\Models\PurchaseRequest::find($prId)->budget_id);
+    }
+
+    public function test_restock_create_pr_blocks_without_active_budget(): void
+    {
+        $admin = $this->makeUser('admin');
+        $productId = $this->makeProduct();
+        // Ensure NO active budget covers today for the first warehouse.
+        $whId = (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+        DB::table('budget_allocations')->where('location_id', $whId)
+            ->whereNull('deleted_at')
+            ->where('period_start', '<=', today())->where('period_end', '>=', today())
+            ->update(['deleted_at' => now()]);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/restock/create-pr', [
+                'items' => [['product_id' => $productId, 'quantity' => 5]],
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString('budget', strtolower($response->json('message')));
+    }
+
+    public function test_recommendations_payload_includes_active_budget_summary(): void
+    {
+        $admin = $this->makeUser('admin');
+        $whId = (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+        // Archive any pre-existing active budgets for a deterministic result.
+        DB::table('budget_allocations')->where('location_id', $whId)
+            ->whereNull('deleted_at')
+            ->where('period_start', '<=', today())->where('period_end', '>=', today())
+            ->update(['deleted_at' => now()]);
+        $budget = $this->makeBudget(50000, ['location_id' => $whId, 'committed' => 10000]);
+
+        $response = $this->actingAs($admin, 'sanctum')->getJson('/api/restock/recommendations');
+
+        $response->assertSuccessful();
+        $this->assertEquals($budget->budget_id, $response->json('data.budget.budget_id'));
+        $this->assertEquals(40000, $response->json('data.budget.available'));
+    }
 }
