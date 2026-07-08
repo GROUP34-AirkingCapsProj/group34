@@ -188,29 +188,31 @@ class BudgetService
      */
     public function adjustTotal(BudgetAllocation $budget, float $newTotal, ?int $userId = null, ?string $note = null): void
     {
-        $floor = (float) $budget->committed + (float) $budget->spent;
-        if ($newTotal < $floor) {
-            throw new \InvalidArgumentException(sprintf(
-                'Total budget cannot be lower than committed + spent (₱%s)',
-                number_format($floor, 2)
-            ));
-        }
-
         DB::transaction(function () use ($budget, $newTotal, $userId, $note) {
-            $old = (float) $budget->total_budget;
+            $locked = BudgetAllocation::whereKey($budget->budget_id)->lockForUpdate()->firstOrFail();
+
+            $floor = (float) $locked->committed + (float) $locked->spent;
+            if ($newTotal < $floor) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Total budget cannot be lower than committed + spent (₱%s)',
+                    number_format($floor, 2)
+                ));
+            }
+
+            $old = (float) $locked->total_budget;
             if (abs($newTotal - $old) < 0.005) {
                 return;
             }
 
-            $this->txn($budget, BudgetTransaction::TYPE_ADJUSTMENT, abs($newTotal - $old), null, null, $userId,
+            $this->txn($locked, BudgetTransaction::TYPE_ADJUSTMENT, abs($newTotal - $old), null, null, $userId,
                 $note ?? sprintf(
                     'Total budget %s from ₱%s to ₱%s',
                     $newTotal > $old ? 'increased' : 'decreased',
                     number_format($old, 2),
                     number_format($newTotal, 2)
                 ));
-            $budget->total_budget = round($newTotal, 2);
-            $budget->save();
+            $locked->total_budget = round($newTotal, 2);
+            $locked->save();
         });
     }
 
