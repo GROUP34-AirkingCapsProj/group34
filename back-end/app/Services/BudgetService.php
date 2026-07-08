@@ -7,6 +7,7 @@ use App\Models\BudgetAllocation;
 use App\Models\BudgetTransaction;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
+use App\Support\RealtimeBroadcaster;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -20,6 +21,9 @@ use Illuminate\Support\Facades\Log;
  */
 class BudgetService
 {
+    /** Utilization crossings that fire a realtime alert. */
+    public const ALERT_THRESHOLDS = [0.80, 1.00];
+
     /** Read-only availability check (no lock) — used at PR submission time. */
     public function hasAvailable(BudgetAllocation $budget, float $amount): bool
     {
@@ -54,6 +58,8 @@ class BudgetService
                 return; // already committed (retry / double-submit)
             }
 
+            $utilBefore = $this->utilization($budget);
+
             $amount = (float) $pr->estimated_total;
             $available = (float) $budget->total_budget
                 - (float) $budget->committed
@@ -67,6 +73,8 @@ class BudgetService
                 'PR ' . $pr->pr_number . ' approved');
             $budget->committed = round((float) $budget->committed + $amount, 2);
             $budget->save();
+
+            $this->maybeAlert($budget, $utilBefore);
         });
     }
 
@@ -131,6 +139,8 @@ class BudgetService
                 return; // already recorded (e.g. receiving flow + manual status update)
             }
 
+            $utilBefore = $this->utilization($budget);
+
             $amount = (float) $po->total_amount;
             $this->txn($budget, BudgetTransaction::TYPE_SPEND, $amount, $pr->pr_id, $po->po_id, $userId,
                 'PO ' . $po->po_number . ' completed');
@@ -166,6 +176,8 @@ class BudgetService
             }
             $budget->committed = $newCommitted;
             $budget->save();
+
+            $this->maybeAlert($budget, $utilBefore);
         });
     }
 
@@ -198,5 +210,31 @@ class BudgetService
             'performed_by' => $userId,
             'notes'        => $note,
         ]);
+    }
+
+    /** (committed + spent) / total — 1.0 for zero/negative totals. */
+    private function utilization(BudgetAllocation $budget): float
+    {
+        $total = (float) $budget->total_budget;
+        if ($total <= 0) {
+            return 1.0;
+        }
+
+        return ((float) $budget->committed + (float) $budget->spent) / $total;
+    }
+
+    /** Fire one realtime alert per threshold crossed by this mutation. */
+    private function maybeAlert(BudgetAllocation $budget, float $utilBefore): void
+    {
+        $after = $this->utilization($budget);
+        foreach (self::ALERT_THRESHOLDS as $threshold) {
+            if ($utilBefore < $threshold && $after >= $threshold) {
+                RealtimeBroadcaster::budgetChanged((int) $budget->location_id, 'budget_threshold', [
+                    'budget_id'       => $budget->budget_id,
+                    'period_label'    => $budget->period_label,
+                    'utilization_pct' => (int) round($after * 100),
+                ]);
+            }
+        }
     }
 }
