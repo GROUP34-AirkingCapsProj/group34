@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('notes')->nullable();
             $table->timestamp('created_at')->nullable(); // immutable rows — no updated_at
 
-            $table->foreign('budget_id')->references('budget_id')->on('budget_allocations')->cascadeOnDelete();
+            $table->foreign('budget_id')->references('budget_id')->on('budget_allocations')->restrictOnDelete();
             $table->foreign('pr_id')->references('pr_id')->on('purchase_requests')->nullOnDelete();
             $table->foreign('po_id')->references('po_id')->on('purchase_orders')->nullOnDelete();
             $table->foreign('performed_by')->references('user_id')->on('users')->nullOnDelete();
