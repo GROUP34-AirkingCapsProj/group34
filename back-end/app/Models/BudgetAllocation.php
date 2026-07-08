@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BudgetAllocation extends Model
@@ -54,5 +55,11 @@ class BudgetAllocation extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by', 'user_id');
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(BudgetTransaction::class, 'budget_id', 'budget_id')
+            ->orderByDesc('txn_id');
     }
 }
