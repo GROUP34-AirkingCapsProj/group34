@@ -368,6 +368,7 @@ const PurchaseRequestPage = () => {
   );
   const budgetAvailable = budget ? Number(budget.available ?? 0) : null;
   const overBudget      = budgetAvailable !== null && estimatedTotal > budgetAvailable;
+  const budgetVerified  = budget?.verification_status === 'verified';
 
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
@@ -379,6 +380,21 @@ const PurchaseRequestPage = () => {
     const validLines = lineItems.filter(li => li.productId && li.qty > 0);
     if (!validLines.length) {
       toast.error("Couldn't send request", 'Add at least one item with a selected product.'); return;
+    }
+    if (!budget?.budget_id) {
+      toast.error("Couldn't send request", 'No budget found for this location. Ask Admin to create one in Budget Management.');
+      return;
+    }
+    if (overBudget) {
+      toast.error(
+        "Couldn't send request",
+        `Estimated total ${fmtPeso(estimatedTotal)} exceeds the available budget ${fmtPeso(budgetAvailable)} for this location.`
+      );
+      return;
+    }
+    if (budget && !budgetVerified) {
+      toast.error("Couldn't send request", 'This budget has not been verified by an auditor yet.');
+      return;
     }
 
     setSubmitting(true);
@@ -408,7 +424,7 @@ const PurchaseRequestPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedLocId, neededByDate, purpose, lineItems, budget]);
+  }, [selectedLocId, neededByDate, purpose, lineItems, budget, overBudget, estimatedTotal, budgetAvailable, budgetVerified]);
 
   // ── Archive PR ────────────────────────────────────────────────────────────
   const handleArchivePR = useCallback(async (prId) => {
@@ -515,6 +531,13 @@ const PurchaseRequestPage = () => {
             </div>
           ))}
         </div>
+        {budget.verification_status && budget.verification_status !== 'verified' && (
+          <div style={{ margin:'10px 0 0', background:'#fffbeb', border:'1px solid #fbbf24', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#92400e' }}>
+            {budget.verification_status === 'rejected'
+              ? `This budget was rejected by the auditor${budget.verification_note ? `: ${budget.verification_note}` : ''}.`
+              : 'This budget is awaiting auditor verification — you cannot submit a request against it yet.'}
+          </div>
+        )}
       </div>
     );
   };
@@ -656,8 +679,8 @@ const PurchaseRequestPage = () => {
                     </td>
                     <td>
                       {li.productType ? (
-                        <span className={`po-type-badge ${li.productType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`}>
-                          {li.productType.toUpperCase()}
+                        <span className={`po-type-badge ${li.productType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
+                          {li.productType.replace(/_/g, ' ').toUpperCase()}
                         </span>
                       ) : '—'}
                     </td>
@@ -769,7 +792,7 @@ const PurchaseRequestPage = () => {
             </svg>
             <span>
               Estimated total ({fmtPeso(estimatedTotal)}) exceeds available budget ({fmtPeso(budgetAvailable)}) by{' '}
-              <strong>{fmtPeso(estimatedTotal - budgetAvailable)}</strong>. You may still submit — Admin will review.
+              <strong>{fmtPeso(estimatedTotal - budgetAvailable)}</strong>. Reduce the request or ask Admin to raise the budget.
             </span>
           </div>
         )}
@@ -780,7 +803,13 @@ const PurchaseRequestPage = () => {
           type="button"
           className="po-btn po-btn-final-submission"
           onClick={handleSubmitPR}
-          disabled={submitting}
+          disabled={submitting || loadingBudget || overBudget || Boolean(selectedLocId && !budget) || Boolean(budget && !budgetVerified)}
+          title={
+            overBudget ? 'Estimated total exceeds the available budget'
+            : (selectedLocId && !budget) ? 'No budget allocated for this location'
+            : (budget && !budgetVerified) ? 'This budget has not been verified by an auditor yet'
+            : undefined
+          }
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
             <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
@@ -1012,8 +1041,8 @@ const PurchaseRequestPage = () => {
                                 )}
                               </td>
                               <td>
-                                <span className={`po-type-badge ${(d.product_type || d.product?.product_type) === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                                  {(d.product_type || d.product?.product_type) === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                                <span className={`po-type-badge ${(d.product_type || d.product?.product_type) === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                  {(d.product_type || d.product?.product_type) === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                                 </span>
                               </td>
                               <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
@@ -1208,8 +1237,8 @@ const PurchaseRequestPage = () => {
                             )}
                           </td>
                           <td style={{ fontSize: 11 }}>
-                            <span className={`po-type-badge ${pType === 'consumable' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                              {pType === 'consumable' ? 'CONSUMABLE' : 'APPLIANCE'}
+                            <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                              {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                             </span>
                           </td>
                           <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>

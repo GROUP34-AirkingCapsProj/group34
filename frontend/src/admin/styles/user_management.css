@@ -474,6 +474,19 @@
   cursor: not-allowed;
 }
 
+.um-pagination button.um-jump {
+  min-width: 32px;
+  padding: 6px 8px;
+  font-weight: 600;
+  line-height: 1;
+  color: #6b7280;
+}
+
+.um-pagination button.um-jump:hover:not(:disabled) {
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
 /* ===============================
    MODAL (Add/Edit User)
 ================================ */

@@ -99,7 +99,10 @@ export const ROUTE_ACCESS = {
 
   // Procurement & restocking
   '/admin/suppliers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/budget-management': [ROLES.ADMIN],
+  // Access is now permission-driven via the budget_verification.read nav bundle
+  // (see navBundles.js); this role list is a fallback only and is not consulted
+  // while that bundle exists.
+  '/admin/budget-management': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/purchase-requests': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST],
   '/admin/po-recommendations': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/draft-po-creator': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],

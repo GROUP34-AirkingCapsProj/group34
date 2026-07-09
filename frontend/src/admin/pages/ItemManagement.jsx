@@ -9,6 +9,7 @@ import { toast } from '../utils/toast';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
+import { getPageBatch } from '../utils/pageBatch';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
@@ -180,7 +181,7 @@ const ItemManagement = () => {
         const [allRes, appRes, conRes] = await Promise.all([
           productsAPI.getAll({ ...shared, per_page: 1 }),
           productsAPI.getAll({ ...shared, per_page: 1, product_type: 'appliance' }),
-          productsAPI.getAll({ ...shared, per_page: 1, product_type: 'consumable' }),
+          productsAPI.getAll({ ...shared, per_page: 1, product_type: 'installation_material' }),
         ]);
         const getTotal = (res) => {
           if (!res) return 0;
@@ -251,7 +252,7 @@ const ItemManagement = () => {
         (item.category?.category_name || '').toLowerCase().includes('consumable') ||
         (item.category?.category_name || '').toLowerCase().includes('parts') ||
         (item.category?.category_name || '').toLowerCase().includes('installation'));
-    const resolvedType = storedType || (legacyIsConsumable ? 'consumable' : 'appliance');
+    const resolvedType = storedType || (legacyIsConsumable ? 'installation_material' : 'appliance');
     setProductType(resolvedType);
     setFormData({
       name: item.product_name || item.name || '',
@@ -300,7 +301,10 @@ const ItemManagement = () => {
     const name = newCategoryName.trim();
     if (!name) return;
     try {
-      const res = await categoriesAPI.create({ category_name: name });
+      // Tag the new category with the current form's product type so it appears
+      // in the type-filtered category dropdown (appliance vs installation material).
+      const category_type = productType === 'installation_material' ? 'consumable' : 'appliance';
+      const res = await categoriesAPI.create({ category_name: name, category_type });
       const created = res?.data || res;
       if (created) {
         setCategories((prev) => [...prev, created]);
@@ -375,7 +379,7 @@ const ItemManagement = () => {
   };
 
   const handleGenerateBarcode = () => {
-    const typeDigit = productType === 'consumable' ? '2' : '1';
+    const typeDigit = productType === 'installation_material' ? '2' : '1';
     const timePart = Date.now().toString().slice(-8);
     const randomPart = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
     const payload12 = `${typeDigit}${timePart}${randomPart}`;
@@ -492,7 +496,7 @@ const ItemManagement = () => {
         savedProductId = res?.data?.product_id ?? res?.product_id;
         toast.success('Product registered successfully!');
       }
-      if (productType === 'consumable' && savedProductId) {
+      if (productType === 'installation_material' && savedProductId) {
         await saveIssuableUnits(savedProductId);
       }
       setIsModalOpen(false);
@@ -518,7 +522,7 @@ const ItemManagement = () => {
     const u = (i.unit?.unit_name || '').toLowerCase();
     const c = (i.category?.category_name || '').toLowerCase();
     return (u === 'roll' || u === 'box' || c.includes('consumable') || c.includes('parts') || c.includes('installation'))
-      ? 'consumable' : 'appliance';
+      ? 'installation_material' : 'appliance';
   };
   const categoryCount = [...new Set(items.map(i => i.category_id || i.category?.category_id).filter(Boolean))].length;
 
@@ -559,8 +563,8 @@ const ItemManagement = () => {
 
   const getTypeBadge = (item) => {
     const type = resolveType(item);
-    if (type === 'consumable') {
-      return { label: 'CONSUMABLE', className: 'im-type-consumable' };
+    if (type === 'installation_material') {
+      return { label: 'INSTALLATION MATERIAL', className: 'im-type-consumable' };
     }
     return { label: 'APPLIANCE', className: 'im-type-unit' };
   };
@@ -651,7 +655,7 @@ const ItemManagement = () => {
               </svg>
             </div>
             <div className="im-stat-info">
-              <span className="im-stat-label">Consumables</span>
+              <span className="im-stat-label">Installation Materials</span>
               <span className="im-stat-number">{typeCounts.consumable}</span>
             </div>
           </div>
@@ -692,14 +696,14 @@ const ItemManagement = () => {
             <span className="im-tab-count">{typeCounts.appliance}</span>
           </button>
           <button
-            className={`im-tab-btn ${activeTab === 'consumable' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('consumable'); setCurrentPage(1); }}
+            className={`im-tab-btn ${activeTab === 'installation_material' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('installation_material'); setCurrentPage(1); }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33" />
             </svg>
-            Consumables
+            Installation Materials
             <span className="im-tab-count">{typeCounts.consumable}</span>
           </button>
         </div>
@@ -828,33 +832,54 @@ const ItemManagement = () => {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="im-pagination">
-              <button
-                className="im-page-btn"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+          {totalPages > 1 && (() => {
+            const batch = getPageBatch(currentPage, totalPages);
+            return (
+              <div className="im-pagination">
                 <button
-                  key={page}
-                  className={`im-page-btn ${currentPage === page ? 'im-page-btn-active' : ''}`}
-                  onClick={() => setCurrentPage(page)}
+                  className="im-page-btn im-page-btn--jump"
+                  disabled={!batch.hasPrevBatch}
+                  onClick={() => setCurrentPage(batch.prevBatchPage)}
+                  aria-label="Previous batch"
+                  title="Previous batch"
                 >
-                  {page}
+                  «
                 </button>
-              ))}
-              <button
-                className="im-page-btn"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-              >
-                Next
-              </button>
-            </div>
-          )}
+                <button
+                  className="im-page-btn"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                >
+                  Previous
+                </button>
+                {batch.pages.map((page) => (
+                  <button
+                    key={page}
+                    className={`im-page-btn ${currentPage === page ? 'im-page-btn-active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  className="im-page-btn"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                >
+                  Next
+                </button>
+                <button
+                  className="im-page-btn im-page-btn--jump"
+                  disabled={!batch.hasNextBatch}
+                  onClick={() => setCurrentPage(batch.nextBatchPage)}
+                  aria-label="Next batch"
+                  title="Next batch"
+                >
+                  »
+                </button>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -909,7 +934,7 @@ const ItemManagement = () => {
             )}
 
             {/* Consumable-specific fields */}
-            {resolveType(viewingItem) === 'consumable' && (
+            {resolveType(viewingItem) === 'installation_material' && (
               <>
                 <div className="im-view-row">
                   <div className="im-view-field">
@@ -1036,9 +1061,9 @@ const ItemManagement = () => {
               APPLIANCE
             </button>
             <button
-              className={`im-type-toggle-btn ${productType === 'consumable' ? 'active' : ''}`}
+              className={`im-type-toggle-btn ${productType === 'installation_material' ? 'active' : ''}`}
               onClick={() => {
-                setProductType('consumable');
+                setProductType('installation_material');
                 setFormData(prev => ({
                   ...prev,
                   brand_id: '', model_code: '', capacity_rating: '',
@@ -1051,7 +1076,7 @@ const ItemManagement = () => {
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33"></path>
               </svg>
-              CONSUMABLE SUPPLY
+              INSTALLATION MATERIAL
             </button>
           </div>
 
@@ -1291,7 +1316,7 @@ const ItemManagement = () => {
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                       >
                         <option value="">Select Category</option>
-                        {categories.map((c) => (
+                        {categories.filter(c => c.category_type === 'consumable').map((c) => (
                           <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                         ))}
                       </select>

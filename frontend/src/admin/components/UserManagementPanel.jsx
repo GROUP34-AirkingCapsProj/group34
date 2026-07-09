@@ -7,6 +7,7 @@ import { usersAPI, authAPI, batchAPI, resolveStorageUrl } from '../services/api'
 import { avatarColor } from './Sidebar';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
+import { getPageBatch } from '../utils/pageBatch';
 import '../styles/dashboard_air.css';
 import '../styles/user_management.css';
 import '../styles/archive_management.css';
@@ -442,15 +443,20 @@ const UserManagementPanel = () => {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="um-pagination">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>Previous</button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-              <button key={page} className={currentPage === page ? 'active' : ''} onClick={() => setCurrentPage(page)}>{page}</button>
-            ))}
-            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
-          </div>
-        )}
+        {totalPages > 1 && (() => {
+          const batch = getPageBatch(currentPage, totalPages);
+          return (
+            <div className="um-pagination">
+              <button className="um-jump" disabled={!batch.hasPrevBatch} onClick={() => setCurrentPage(batch.prevBatchPage)} aria-label="Previous batch" title="Previous batch">«</button>
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>Previous</button>
+              {batch.pages.map(page => (
+                <button key={page} className={currentPage === page ? 'active' : ''} onClick={() => setCurrentPage(page)}>{page}</button>
+              ))}
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
+              <button className="um-jump" disabled={!batch.hasNextBatch} onClick={() => setCurrentPage(batch.nextBatchPage)} aria-label="Next batch" title="Next batch">»</button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Add/Edit User Modal */}

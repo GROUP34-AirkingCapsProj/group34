@@ -30,6 +30,9 @@ class PurchaseOrder extends Model
         'created_by',
         'approved_by',
         'verified_by',
+        'verification_status',
+        'verified_at',
+        'verification_note',
         'ship_to_name',
         'ship_to_address',
         'received_by',
@@ -40,6 +43,7 @@ class PurchaseOrder extends Model
         'expected_delivery_date' => 'date',
         'total_amount'           => 'decimal:2',
         'grand_total'            => 'decimal:2',
+        'verified_at'            => 'datetime',
     ];
 
     public function purchaseRequest(): BelongsTo
@@ -80,6 +84,11 @@ class PurchaseOrder extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(StatusLookup::class, 'status_id', 'status_id');
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->verification_status === 'verified';
     }
 
     public function details(): HasMany

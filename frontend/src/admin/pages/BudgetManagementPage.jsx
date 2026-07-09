@@ -10,7 +10,7 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
-import { confirmAction } from '../utils/confirm';
+import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
@@ -118,9 +118,14 @@ const emptyForm = () => ({
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const BudgetManagementPage = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const role     = getRoleKey(user);
   const isAdmin  = role === ROLES.ADMIN;
+  const canVerifyBudget = typeof can === 'function' && can('budget_verification', 'verify');
+  const canReadBudget   = typeof can === 'function' && can('budget_verification', 'read');
+  // Admin manages budgets (CRUD); a verifier (auditor or a granted user) may
+  // view them and verify/reject. Both need to reach the page.
+  const canView = isAdmin || canReadBudget || canVerifyBudget;
 
   const [activeTab,    setActiveTab]    = useState('overview');
   const [budgets,      setBudgets]      = useState([]);
@@ -140,6 +145,10 @@ const BudgetManagementPage = () => {
   const [editErrors,   setEditErrors]   = useState({});
   const [editSaving,   setEditSaving]   = useState(false);
 
+  // Ledger drill-down modal
+  const [ledgerBudget,  setLedgerBudget]  = useState(null); // budget object or null
+  const [ledgerRows,    setLedgerRows]    = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   // ── Load budgets ────────────────────────────────────────────────────────────
   const loadBudgets = useCallback(async () => {
@@ -158,15 +167,19 @@ const BudgetManagementPage = () => {
 
   // ── Load locations + categories once ───────────────────────────────────────
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canView) return;
     loadBudgets();
+    if (!isAdmin) return; // locations + categories power the admin-only create form
     locationsAPI.getAll({ per_page: 200 })
-      .then(res => setLocations(Array.isArray(res?.data) ? res.data : []))
+      // Budgets are warehouse-only: purchasing flows through the warehouse, while
+      // other location types receive stock via transfers. Only offer warehouses.
+      .then(res => setLocations((Array.isArray(res?.data) ? res.data : [])
+        .filter(l => l.location_type === 'warehouse')))
       .catch(() => {});
     categoriesAPI.getAll()
       .then(res => setCategories(Array.isArray(res?.data) ? res.data : []))
       .catch(() => {});
-  }, [isAdmin, loadBudgets]);
+  }, [isAdmin, canView, loadBudgets]);
 
   // ── Summary totals ──────────────────────────────────────────────────────────
   const summary = useMemo(() => budgets.reduce((acc, b) => ({
@@ -218,8 +231,10 @@ const BudgetManagementPage = () => {
         ...(form.category_id ? { category_id: Number(form.category_id) } : {}),
         ...(form.notes?.trim() ? { notes: form.notes.trim() } : {}),
       };
-      await budgetAllocationsAPI.create(payload);
-      toast.success('Budget created');
+      const res = await budgetAllocationsAPI.create(payload);
+      // Same location + period tops up the existing allocation instead of
+      // creating a duplicate — surface the backend's message so it's clear.
+      toast.success(res?.message || 'Budget created');
       setForm(emptyForm());
       setFormErrors({});
       await loadBudgets();
@@ -294,6 +309,47 @@ const BudgetManagementPage = () => {
     } catch (err) {
       toast.error("Couldn't archive budget", err?.message || 'Failed to delete budget.');
     }
+  }, [loadBudgets]);
+
+  // ── Ledger drill-down ────────────────────────────────────────────────────────
+  const openLedger = useCallback(async (budget) => {
+    setLedgerBudget(budget);
+    setLedgerLoading(true);
+    setLedgerRows([]);
+    try {
+      const res = await budgetAllocationsAPI.getTransactions(budget.budget_id, { per_page: 50 });
+      setLedgerRows(res?.data ?? []);
+    } catch (err) {
+      toast.error('Could not load budget ledger', err?.message);
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, []);
+
+  // ── Verify / Reject ──────────────────────────────────────────────────────────
+  const handleVerifyBudget = useCallback(async (b) => {
+    try {
+      await budgetAllocationsAPI.verify(b.budget_id);
+      toast.success('Budget verified', `${b.period_label} can now fund requests.`);
+      loadBudgets();
+    } catch (err) { toast.error('Could not verify budget', err?.message); }
+  }, [loadBudgets]);
+
+  const handleRejectBudget = useCallback(async (b) => {
+    const { confirmed, reason } = await confirmWithReason({
+      title: `Reject budget ${b.period_label}?`,
+      confirmText: 'Reject',
+      tone: 'danger',
+      reasonRequired: true,
+      reasonLabel: 'Reason',
+      reasonPlaceholder: 'Why is this budget being rejected?',
+    });
+    if (!confirmed) return;
+    try {
+      await budgetAllocationsAPI.reject(b.budget_id, reason);
+      toast.success('Budget rejected', `${b.period_label} was sent back.`);
+      loadBudgets();
+    } catch (err) { toast.error('Could not reject budget', err?.message); }
   }, [loadBudgets]);
 
   // ── Shared form renderer ─────────────────────────────────────────────────────
@@ -525,6 +581,19 @@ const BudgetManagementPage = () => {
             <span className={`budget-period-badge budget-period-badge--${pStatus.key}`}>
               {pStatus.label}
             </span>
+            {b.verification_status === 'pending' && (
+              <span className="ak-badge" style={{ background:'#fffbeb', color:'#92400e' }}>AWAITING VERIFICATION</span>
+            )}
+            {b.verification_status === 'verified' && (
+              <span className="ak-badge" style={{ background:'#dcfce7', color:'#166534' }}>
+                VERIFIED{b.verifier ? ` — ${b.verifier.first_name} ${b.verifier.last_name}` : ''}
+              </span>
+            )}
+            {b.verification_status === 'rejected' && (
+              <span className="ak-badge" style={{ background:'#fee2e2', color:'#991b1b' }}>
+                REJECTED{b.verification_note ? ` — ${b.verification_note}` : ''}
+              </span>
+            )}
           </div>
         </div>
 
@@ -559,6 +628,40 @@ const BudgetManagementPage = () => {
           </div>
         </div>
 
+        {total > 0 && (() => {
+          const spentPct     = Math.min(100, (spent / total) * 100);
+          const committedPct = Math.min(100 - spentPct, (committed / total) * 100);
+          const utilPct      = Math.min(100, Math.round(((spent + committed) / total) * 100));
+          return (
+            <div className="budget-util">
+              <div
+                className="budget-util-bar"
+                role="img"
+                aria-label={`${utilPct}% of budget utilized`}
+              >
+                <span className="budget-util-seg--spent" style={{ width: `${spentPct}%` }} />
+                <span className="budget-util-seg--committed" style={{ width: `${committedPct}%` }} />
+              </div>
+              <div className="budget-util-legend">
+                <span><span className="dot" style={{ background: '#0f766e' }} />Spent</span>
+                <span><span className="dot" style={{ background: '#f59e0b' }} />Committed</span>
+                <span><span className="dot" style={{ background: '#e2e8f0' }} />Available</span>
+                <span className="budget-util-pct">{utilPct}% utilized</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {pStatus.key === 'expired' && total > 0 && (
+          <div className="budget-closeout">
+            <span>Period closed:</span>
+            <span>Allocated <strong>{fmtPeso(total)}</strong></span>
+            <span>Spent <strong>{fmtPeso(spent)}</strong> ({Math.round((spent / total) * 100)}%)</span>
+            <span>Unused <strong>{fmtPeso(Math.max(0, total - spent - committed))}</strong></span>
+            {committed > 0 && <span>Still committed <strong>{fmtPeso(committed)}</strong></span>}
+          </div>
+        )}
+
         {/* Meta */}
         <div style={{ fontSize: 12, color: '#94a3b8' }}>
           Created by: <strong style={{ color: '#64748b' }}>{createdBy}</strong>
@@ -579,14 +682,33 @@ const BudgetManagementPage = () => {
 
         {/* Actions */}
         <div className="budget-card-actions">
-          <button type="button" className="budget-edit-btn" onClick={() => openEdit(b)}>
+          {isAdmin && (
+            <button type="button" className="budget-edit-btn" onClick={() => openEdit(b)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginRight: 5 }}>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              EDIT
+            </button>
+          )}
+          <button
+            type="button"
+            className="budget-edit-btn"
+            onClick={() => openLedger(b)}
+            aria-label={`View transaction ledger for ${b.period_label}`}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginRight: 5 }}>
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              <path d="M9 17V9m4 8V5m4 12v-4M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z" />
             </svg>
-            EDIT
+            VIEW LEDGER
           </button>
-          <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />
+          {isAdmin && <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />}
+          {canVerifyBudget && b.verification_status !== 'verified' && (
+            <>
+              <button type="button" className="budget-edit-btn" onClick={() => handleVerifyBudget(b)}>Verify</button>
+              <button type="button" className="budget-edit-btn" onClick={() => handleRejectBudget(b)}>Reject</button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -676,7 +798,7 @@ const BudgetManagementPage = () => {
   );
 
   // ── Access guard ─────────────────────────────────────────────────────────────
-  if (!isAdmin) {
+  if (!canView) {
     return (
       <AdminLayout>
         <div className="ak-page po-recommendation-page">
@@ -686,7 +808,7 @@ const BudgetManagementPage = () => {
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
             <p>Access Denied</p>
-            <span>Budget management is restricted to System Administrators.</span>
+            <span>Budget management is restricted to administrators and budget verifiers.</span>
           </div>
         </div>
       </AdminLayout>
@@ -730,17 +852,19 @@ const BudgetManagementPage = () => {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`}
-            onClick={() => setActiveTab('create')}
-          >
-            + Create Budget
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`}
+              onClick={() => setActiveTab('create')}
+            >
+              + Create Budget
+            </button>
+          )}
         </div>
 
         {activeTab === 'overview' && renderOverview()}
-        {activeTab === 'create'   && renderCreate()}
+        {isAdmin && activeTab === 'create' && renderCreate()}
       </div>
 
       {/* ── Edit Modal ─────────────────────────────────────────────────────── */}
@@ -772,6 +896,58 @@ const BudgetManagementPage = () => {
                 {editSaving ? 'SAVING…' : 'SAVE CHANGES'}
               </button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Ledger drill-down Modal ─────────────────────────────────────── */}
+      <Modal
+        isOpen={!!ledgerBudget}
+        onClose={() => setLedgerBudget(null)}
+        title={ledgerBudget ? `Budget Ledger — ${ledgerBudget.period_label}` : ''}
+        maxWidth={720}
+      >
+        {ledgerLoading ? (
+          <Loader variant="inline" label="Loading transactions" />
+        ) : ledgerRows.length === 0 ? (
+          <p style={{ color: '#64748b', fontSize: 13 }}>
+            No transactions yet. Rows appear when purchase requests are approved,
+            archived, or received against this budget.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="budget-ledger-table">
+              <thead>
+                <tr>
+                  <th>When</th><th>Type</th><th>Amount</th><th>Document</th><th>By</th><th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledgerRows.map((t) => {
+                  const isReturn = t.txn_type === 'release';
+                  return (
+                    <tr key={t.txn_id}>
+                      <td>{isoToMDY(t.created_at)}</td>
+                      <td><span className={`txn-badge txn-badge--${t.txn_type}`}>{t.txn_type.toUpperCase()}</span></td>
+                      <td className={isReturn ? 'budget-ledger-amount--minus' : 'budget-ledger-amount--plus'}>
+                        {fmtPeso(t.amount)}
+                      </td>
+                      <td>
+                        {t.purchase_request?.pr_number || t.purchase_order?.po_number || '—'}
+                        {t.purchase_request?.pr_number && t.purchase_order?.po_number
+                          ? ` / ${t.purchase_order.po_number}` : ''}
+                      </td>
+                      <td>
+                        {t.performer
+                          ? `${t.performer.first_name} ${t.performer.last_name}`.trim()
+                          : 'System'}
+                      </td>
+                      <td>{t.notes || ''}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </Modal>

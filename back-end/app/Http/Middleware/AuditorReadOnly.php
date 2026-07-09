@@ -44,6 +44,12 @@ class AuditorReadOnly
             return $next($request);
         }
 
+        // Verification actions are the auditor's one write capability — the
+        // permission middleware on these routes still enforces who may call them.
+        if (preg_match('#^/api/(budget-allocations|purchase-orders)/\d+/(verify|reject)$#', $path)) {
+            return $next($request);
+        }
+
         foreach (self::ALLOWED_PATH_SUFFIXES as $suffix) {
             if (str_ends_with($path, $suffix)) {
                 return $next($request);

@@ -4,7 +4,7 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
-import { auditAPI, dashboardAPI, alertsAPI } from '../services/api';
+import { auditAPI, dashboardAPI, alertsAPI, budgetAllocationsAPI, purchaseOrdersAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/alerts_notices.css';
@@ -400,6 +400,10 @@ const AlertsNotices = () => {
   // Only admin/branch_manager/auditor hold audit_trail_viewing.read; IA & WP must still
   // see their location-scoped alerts without that section breaking the page.
   const canViewAudit = can('audit_trail_viewing', 'read');
+  const canVerifyBudget = can('budget_verification', 'verify');
+  const canVerifyPo = can('purchase_order_verification', 'verify');
+  const [pendingVerifyBudgets, setPendingVerifyBudgets] = useState(0);
+  const [pendingVerifyPos, setPendingVerifyPos] = useState(0);
   const [allLowStock, setAllLowStock] = useState([]);
   const [allAudit, setAllAudit] = useState([]);
   const [pendingPOs, setPendingPOs] = useState([]);
@@ -474,6 +478,21 @@ const AlertsNotices = () => {
     return () => { mounted = false; };
     // Re-run once permissions resolve so audit is fetched for roles that gain the grant.
   }, [canViewAudit]);
+
+  // Verification queues — only fetched for users who may verify.
+  useEffect(() => {
+    let mounted = true;
+    const total = (r) => r?.pagination?.total ?? (Array.isArray(r?.data) ? r.data.length : 0);
+    if (canVerifyBudget) {
+      budgetAllocationsAPI.getAll({ verification_status: 'pending', per_page: 1 })
+        .then(r => { if (mounted) setPendingVerifyBudgets(total(r)); }).catch(() => {});
+    }
+    if (canVerifyPo) {
+      purchaseOrdersAPI.getAll({ verification_status: 'pending', status_id: 7, per_page: 1 })
+        .then(r => { if (mounted) setPendingVerifyPos(total(r)); }).catch(() => {});
+    }
+    return () => { mounted = false; };
+  }, [canVerifyBudget, canVerifyPo]);
 
   const groupedAudit = useMemo(() => groupRawAuditLogs(allAudit), [allAudit]);
 
@@ -571,6 +590,39 @@ const AlertsNotices = () => {
           </button>
           </div>
         </header>
+
+        {/* Awaiting your verification — only for budget/PO verifiers (auditor) */}
+        {(canVerifyBudget || canVerifyPo) && (pendingVerifyBudgets > 0 || pendingVerifyPos > 0) && (
+          <div className="an-card">
+            <div className="an-card-header">
+              <h3 className="an-card-title">
+                Awaiting your verification
+                <span className="an-pending-badge">{pendingVerifyBudgets + pendingVerifyPos}</span>
+              </h3>
+              <p className="an-card-subtitle">Records that need an auditor sign-off before they can proceed</p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }}>
+              {canVerifyBudget && pendingVerifyBudgets > 0 && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/budget-management')}
+                  style={{ textAlign: 'left', background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', color: '#92400e', fontSize: 14, cursor: 'pointer' }}
+                >
+                  {pendingVerifyBudgets} budget allocation(s) awaiting verification →
+                </button>
+              )}
+              {canVerifyPo && pendingVerifyPos > 0 && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/draft-po-creator')}
+                  style={{ textAlign: 'left', background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', color: '#92400e', fontSize: 14, cursor: 'pointer' }}
+                >
+                  {pendingVerifyPos} purchase order(s) awaiting verification →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Pending approvals */}
         <div className="an-card">

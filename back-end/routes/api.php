@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\ArchiveSettingsController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\NavBundleController;
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\RestockRecommendationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -462,6 +463,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_order_creation,archive')->post('/purchase-orders/{id}/restore', [PurchaseOrderController::class, 'restore']);
     Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}/force', [PurchaseOrderController::class, 'forceDestroy']);
 
+    Route::middleware('permission:purchase_order_verification,verify')->group(function () {
+        Route::patch('/purchase-orders/{id}/verify', [PurchaseOrderController::class, 'verify']);
+        Route::patch('/purchase-orders/{id}/reject', [PurchaseOrderController::class, 'reject']);
+    });
+
     /*
     |--------------------------------------------------------------------------
     | BUDGET ALLOCATIONS
@@ -470,10 +476,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::get('/budget-allocations/archived', [BudgetAllocationController::class, 'archived']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
+    Route::middleware('role:admin,inventory_analyst,auditor')->group(function () {
         Route::get('/budget-allocations', [BudgetAllocationController::class, 'index']);
         Route::get('/budget-allocations/{id}', [BudgetAllocationController::class, 'show']);
         Route::get('/budget-allocations/{id}/available', [BudgetAllocationController::class, 'available']);
+        Route::get('/budget-allocations/{id}/transactions', [BudgetAllocationController::class, 'transactions']);
     });
     Route::middleware('role:admin')->group(function () {
         Route::post('/budget-allocations', [BudgetAllocationController::class, 'store']);
@@ -481,6 +488,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::delete('/budget-allocations/{id}', [BudgetAllocationController::class, 'destroy']);
         Route::post('/budget-allocations/{id}/restore', [BudgetAllocationController::class, 'restore']);
         Route::delete('/budget-allocations/{id}/force', [BudgetAllocationController::class, 'forceDestroy']);
+    });
+    Route::middleware('permission:budget_verification,verify')->group(function () {
+        Route::patch('/budget-allocations/{id}/verify', [BudgetAllocationController::class, 'verify']);
+        Route::patch('/budget-allocations/{id}/reject', [BudgetAllocationController::class, 'reject']);
     });
 
     /*
@@ -515,8 +526,27 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/purchase-requests/{id}/convert', [PurchaseRequestController::class, 'convertStore']);
     });
     Route::middleware('permission:purchase_request_creation,archive')->group(function () {
+        Route::delete('/purchase-requests/{id}', [PurchaseRequestController::class, 'destroy']);
         Route::post('/purchase-requests/{id}/restore', [PurchaseRequestController::class, 'restore']);
         Route::delete('/purchase-requests/{id}/force', [PurchaseRequestController::class, 'forceDestroy']);
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | PO Recommendation analytics (restock engine)
+    |----------------------------------------------------------------------
+    */
+    Route::middleware('permission:po_recommendations,read')->group(function () {
+        Route::get('/restock/recommendations', [RestockRecommendationController::class, 'index']);
+        Route::get('/restock/suggestions', [RestockRecommendationController::class, 'suggestions']);
+    });
+    Route::middleware('permission:po_recommendations,create')->group(function () {
+        Route::post('/restock/recalculate', [RestockRecommendationController::class, 'recalculate']);
+        Route::post('/restock/create-pr', [RestockRecommendationController::class, 'createPr']);
+    });
+    Route::middleware('permission:po_recommendations,update')->group(function () {
+        Route::post('/restock/suggestions/{id}/apply', [RestockRecommendationController::class, 'applySuggestion']);
+        Route::post('/restock/suggestions/{id}/dismiss', [RestockRecommendationController::class, 'dismissSuggestion']);
     });
 
     /*

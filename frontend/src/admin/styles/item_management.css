@@ -492,6 +492,19 @@
   background: #b91c1c;
 }
 
+.im-page-btn--jump {
+  min-width: 32px;
+  padding: 6px 8px;
+  font-weight: 600;
+  line-height: 1;
+  color: #6b7280;
+}
+
+.im-page-btn--jump:hover:not(:disabled) {
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
 /* ========================================
    View Details Modal
    ======================================== */

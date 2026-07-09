@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Events\ApprovalQueueChanged;
+use App\Events\BudgetChanged;
 use App\Events\InventoryChanged;
 use App\Events\PurchaseOrderChanged;
 use App\Events\TransferChanged;
@@ -47,6 +48,13 @@ class RealtimeBroadcaster
             $b = $to ?? $from;
             return broadcast(new TransferChanged($a, $b, $type));
         });
+    }
+
+    public static function budgetChanged(?int $locationId, string $type = 'changed', array $extra = []): void
+    {
+        self::safe(fn () => $locationId !== null
+            ? broadcast(new BudgetChanged($locationId, $type, $extra))
+            : null);
     }
 
     private static function safe(\Closure $fn): void

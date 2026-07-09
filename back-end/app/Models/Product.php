@@ -36,7 +36,7 @@ class Product extends Model
     }
 
     // Serialize the pieces_per_package accessor so API responses always include it.
-    // Reads from consumable_details; returns 1 for appliances.
+    // Reads from installation_material_details; returns 1 for appliances.
     protected $appends = ['pieces_per_package'];
 
     protected $casts = [
@@ -60,7 +60,7 @@ class Product extends Model
     /** Scope: only consumable supply records. */
     public function scopeConsumables($query)
     {
-        return $query->where('product_type', 'consumable');
+        return $query->where('product_type', 'installation_material');
     }
 
     // -----------------------------------------------------------------------
@@ -74,7 +74,7 @@ class Product extends Model
 
     public function isConsumable(): bool
     {
-        return strtolower($this->product_type ?? '') === 'consumable';
+        return strtolower($this->product_type ?? '') === 'installation_material';
     }
 
     public function isSerialized(): bool
@@ -170,7 +170,7 @@ class Product extends Model
     }
 
     /**
-     * Delegate pieces_per_package to consumable_details.
+     * Delegate pieces_per_package to installation_material_details.
      * Called automatically when code reads $product->pieces_per_package,
      * so existing scan/receiving code keeps working without changes.
      */

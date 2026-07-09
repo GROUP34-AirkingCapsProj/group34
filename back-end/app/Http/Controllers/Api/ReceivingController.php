@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\BudgetAllocation;
 use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\Product;
@@ -11,6 +10,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use App\Services\BudgetService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -71,6 +71,11 @@ class ReceivingController extends Controller
             $poId       = (int) $validated['pc_id'];
             $locationId = (int) $validated['location_id'];
             $uid        = $request->user()?->user_id;
+
+            $poForCheck = PurchaseOrder::find($poId);
+            if ($poForCheck && $poForCheck->verification_status !== 'verified') {
+                return $this->error('This purchase order must be verified by an auditor before receiving', 422);
+            }
 
             DB::beginTransaction();
 
@@ -136,13 +141,11 @@ class ReceivingController extends Controller
             $newPoStatus = ($totalReceivedForPO >= $totalOrdered) ? 11 : 12;
             PurchaseOrder::where('po_id', $poId)->update(['status_id' => $newPoStatus]);
 
-            // Finalize budget when PO is fully received
+            // Finalize budget when PO is fully received (idempotent per PO)
             if ($newPoStatus === 11) {
                 $po = PurchaseOrder::with('purchaseRequest')->find($poId);
-                if ($po && $po->pr_id && $po->purchaseRequest?->budget_id) {
-                    $budgetId = $po->purchaseRequest->budget_id;
-                    BudgetAllocation::where('budget_id', $budgetId)->increment('spent', $po->total_amount);
-                    BudgetAllocation::where('budget_id', $budgetId)->decrement('committed', $po->total_amount);
+                if ($po) {
+                    app(BudgetService::class)->spend($po, $request->user()?->user_id);
                 }
             }
 
@@ -251,7 +254,7 @@ class ReceivingController extends Controller
 
             $productInfo = $details->keyBy('product_id')->map(fn($d) => [
                 'name' => $d->product?->product_name ?? 'Unknown',
-                'type' => $d->product?->product_type ?? 'consumable',
+                'type' => $d->product?->product_type ?? 'installation_material',
                 'pcs'  => (int) ($d->product?->pieces_per_package ?? 1),
             ]);
 
@@ -260,7 +263,7 @@ class ReceivingController extends Controller
                 ->orderBy('created_at', 'asc')
                 ->get()
                 ->map(function ($rd) use ($productInfo) {
-                    $info = $productInfo[$rd->product_id] ?? ['name' => 'Unknown', 'type' => 'consumable', 'pcs' => 1];
+                    $info = $productInfo[$rd->product_id] ?? ['name' => 'Unknown', 'type' => 'installation_material', 'pcs' => 1];
                     return [
                         'receiving_detail_id' => $rd->receiving_detail_id,
                         'po_detail_id'        => $rd->po_detail_id,

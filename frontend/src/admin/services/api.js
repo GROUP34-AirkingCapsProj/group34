@@ -695,6 +695,38 @@ export const purchaseOrdersAPI = {
   },
   restore: async (id) =>
     apiRequest(`/purchase-orders/${id}/restore`, { method: 'POST' }),
+
+  verify: async (id, note) =>
+    apiRequest(`/purchase-orders/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ note: note ?? null }) }),
+
+  reject: async (id, reason) =>
+    apiRequest(`/purchase-orders/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
+};
+
+/* ======================
+   RESTOCK ANALYTICS API
+====================== */
+export const restockAPI = {
+  getRecommendations: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/restock/recommendations?${query}` : '/restock/recommendations');
+  },
+  recalculate: async () =>
+    apiRequest('/restock/recalculate', { method: 'POST' }),
+  createPR: async (items, neededByDate = null) =>
+    apiRequest('/restock/create-pr', {
+      method: 'POST',
+      body: JSON.stringify({
+        items,
+        ...(neededByDate ? { needed_by_date: neededByDate } : {}),
+      }),
+    }),
+  getSuggestions: async (status = 'pending') =>
+    apiRequest(`/restock/suggestions?status=${status}`),
+  applySuggestion: async (id) =>
+    apiRequest(`/restock/suggestions/${id}/apply`, { method: 'POST' }),
+  dismissSuggestion: async (id) =>
+    apiRequest(`/restock/suggestions/${id}/dismiss`, { method: 'POST' }),
 };
 
 /* ======================
@@ -1301,6 +1333,15 @@ export const budgetAllocationsAPI = {
     apiRequest(`/budget-allocations/${budgetId}/available`),
 
   /**
+   * Immutable ledger for a budget — every commit/release/spend/adjustment row
+   * with linked PR/PO numbers. Paginated.
+   */
+  getTransactions: async (budgetId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/budget-allocations/${budgetId}/transactions${query ? `?${query}` : ''}`);
+  },
+
+  /**
    * Find the most relevant budget for a location.
    * Tries active period first; if none, returns the most recently started budget.
    * Does NOT pass active=1 so a budget just created for a future/past period still appears.
@@ -1329,6 +1370,12 @@ export const budgetAllocationsAPI = {
 
   restore: async (id) =>
     apiRequest(`/budget-allocations/${id}/restore`, { method: 'POST' }),
+
+  verify: async (id, note) =>
+    apiRequest(`/budget-allocations/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ note: note ?? null }) }),
+
+  reject: async (id, reason) =>
+    apiRequest(`/budget-allocations/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
 };
 
 /* ======================

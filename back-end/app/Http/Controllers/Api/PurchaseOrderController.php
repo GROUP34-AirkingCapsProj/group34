@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
-use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
+use App\Services\BudgetService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -59,6 +59,9 @@ class PurchaseOrderController extends Controller
             }
             if ($request->has('status_id')) {
                 $query->where('status_id', $request->status_id);
+            }
+            if ($request->filled('verification_status')) {
+                $query->where('verification_status', $request->input('verification_status'));
             }
             if ($request->has('search')) {
                 $query->where('po_number', 'like', '%' . $request->search . '%');
@@ -120,7 +123,6 @@ class PurchaseOrderController extends Controller
                 'payment_terms'              => 'nullable|string|max:50',
                 'notes'                      => 'nullable|string',
                 'references_note'            => 'nullable|string',
-                'verified_by'                => 'nullable|exists:users,user_id',
                 'ship_to_name'               => 'nullable|string|max:255',
                 'ship_to_address'            => 'nullable|string',
                 'details'                    => 'required|array|min:1',
@@ -210,7 +212,6 @@ class PurchaseOrderController extends Controller
                 'payment_terms'              => 'nullable|string|max:50',
                 'notes'                      => 'nullable|string',
                 'references_note'            => 'nullable|string',
-                'verified_by'                => 'nullable|exists:users,user_id',
                 'ship_to_name'               => 'nullable|string|max:255',
                 'ship_to_address'            => 'nullable|string',
                 'details'                    => 'sometimes|array|min:1',
@@ -220,6 +221,17 @@ class PurchaseOrderController extends Controller
                 'details.*.subtotal'         => 'nullable|numeric|min:0',
                 'details.*.approved_by'      => 'nullable|exists:users,user_id',
             ]);
+
+            // Approval gate: transitioning to Approved (8), Authorized (10),
+            // Completed (11), or Partially Received (12) requires an
+            // auditor's verification first. This covers direct transitions
+            // that would otherwise bypass verification (e.g. Pending straight
+            // to Completed, which would also trigger budget spend).
+            if (isset($validated['status_id'])
+                && in_array((int) $validated['status_id'], [8, 10, 11, 12], true)
+                && $po->verification_status !== 'verified') {
+                return $this->error('This purchase order must be verified by an auditor before it can be approved or received', 422);
+            }
 
             DB::beginTransaction();
 
@@ -232,13 +244,10 @@ class PurchaseOrderController extends Controller
                 $po->update($header);
 
                 if ($wasCompleted && $po->pr_id) {
-                    $pr = $po->purchaseRequest;
-                    if ($pr && $pr->budget_id) {
-                        BudgetAllocation::where('budget_id', $pr->budget_id)
-                            ->increment('spent', $po->total_amount);
-                        BudgetAllocation::where('budget_id', $pr->budget_id)
-                            ->decrement('committed', $po->total_amount);
-                    }
+                    app(BudgetService::class)->spend(
+                        $po->fresh()->load('purchaseRequest'),
+                        $request->user()?->user_id
+                    );
                 }
             }
 
@@ -274,6 +283,64 @@ class PurchaseOrderController extends Controller
             DB::rollBack();
             return $this->error('Failed to update purchase order: ' . $e->getMessage(), 500);
         }
+    }
+
+    /** Auditor verifies a PO — required before admin approval and before receiving. */
+    public function verify(Request $request, $id)
+    {
+        $po = PurchaseOrder::find($id);
+        if (!$po) {
+            return $this->error('Purchase order not found', 404);
+        }
+        if ((int) $po->created_by === (int) $request->user()->user_id) {
+            return $this->error('You cannot verify a purchase order you created', 422);
+        }
+        if ($po->verification_status === 'verified') {
+            return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order already verified');
+        }
+
+        $po->update([
+            'verification_status' => 'verified',
+            'verified_by'         => $request->user()->user_id,
+            'verified_at'         => now(),
+            'verification_note'   => $request->input('note'),
+        ]);
+
+        RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'verification_changed');
+
+        return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order verified');
+    }
+
+    /** Auditor rejects a PO (before approval) with a required reason; PO stays Pending. */
+    public function reject(Request $request, $id)
+    {
+        $po = PurchaseOrder::find($id);
+        if (!$po) {
+            return $this->error('Purchase order not found', 404);
+        }
+        if ((int) $po->created_by === (int) $request->user()->user_id) {
+            return $this->error('You cannot reject a purchase order you created', 422);
+        }
+        if (in_array((int) $po->status_id, [8, 10, 11, 12], true)) {
+            return $this->error('This purchase order has already been approved and can no longer be rejected in verification', 422);
+        }
+
+        try {
+            $validated = $request->validate(['reason' => 'required|string|max:500']);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+
+        $po->update([
+            'verification_status' => 'rejected',
+            'verified_by'         => $request->user()->user_id,
+            'verified_at'         => now(),
+            'verification_note'   => $validated['reason'],
+        ]);
+
+        RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'verification_changed');
+
+        return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order rejected');
     }
 
     public function destroy($id)
@@ -367,7 +434,7 @@ class PurchaseOrderController extends Controller
             'details.product.consumableDetail.unit',
             'supplier', 'location', 'status',
             'purchaseRequest',
-            'createdBy', 'approvedBy', 'receivedBy',
+            'createdBy', 'approvedBy', 'verifiedBy', 'receivedBy',
         ])->orderBy('created_at', 'desc')->get();
 
         $filename = 'purchase-orders-' . now()->format('Ymd-His') . '.csv';
@@ -379,7 +446,7 @@ class PurchaseOrderController extends Controller
         $csvColumns = [
             'PO Number', 'PR Number', 'Order Date', 'Expected Delivery',
             'Location', 'Supplier', 'Status',
-            'Created By', 'Approved By', 'Received By',
+            'Created By', 'Verified By', 'Verification Status', 'Verified At', 'Approved By', 'Received By',
             'Line #', 'Product Code', 'Product Name', 'Type',
             'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
             'Qty Ordered', 'Unit Price', 'Subtotal',
@@ -397,6 +464,9 @@ class PurchaseOrderController extends Controller
                     ? trim($po->approvedBy->first_name . ' ' . $po->approvedBy->last_name) : '';
                 $receivedBy = $po->receivedBy
                     ? trim($po->receivedBy->first_name . ' ' . $po->receivedBy->last_name) : '';
+                $verifiedBy = $po->verifiedBy
+                    ? trim($po->verifiedBy->first_name . ' ' . $po->verifiedBy->last_name) : '';
+                $verifiedAt = $po->verified_at ? $po->verified_at->format('Y-m-d') : '';
 
                 if ($po->details->isEmpty()) {
                     fputcsv($handle, [
@@ -407,7 +477,7 @@ class PurchaseOrderController extends Controller
                         $po->location?->location_name  ?? '',
                         $po->supplier?->supplier_name  ?? '',
                         $po->status?->status_name      ?? '',
-                        $createdBy, $approvedBy, $receivedBy,
+                        $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
                         '', '', '', '', '', '', '', '', '', '',
                         number_format((float) $po->total_amount, 2),
                         number_format((float) $po->grand_total,  2),
@@ -428,7 +498,7 @@ class PurchaseOrderController extends Controller
                         $po->location?->location_name  ?? '',
                         $po->supplier?->supplier_name  ?? '',
                         $po->status?->status_name      ?? '',
-                        $createdBy, $approvedBy, $receivedBy,
+                        $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
                         $i + 1,
                         $p?->product_code ?? '',
                         $p?->product_name ?? '',

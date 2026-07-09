@@ -44,6 +44,7 @@ describe('REALTIME_EVENTS', () => {
       '.purchase-order.changed',
       '.inventory.changed',
       '.transfer.changed',
+      '.budget.changed',
     ]);
   });
 });

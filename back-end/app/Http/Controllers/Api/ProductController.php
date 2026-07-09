@@ -52,7 +52,7 @@ class ProductController extends Controller
             $query->whereHas('applianceDetail', fn($q) => $q->where('brand_id', $request->brand_id));
         }
 
-        if ($request->filled('product_type') && in_array($request->product_type, ['appliance', 'consumable'])) {
+        if ($request->filled('product_type') && in_array($request->product_type, ['appliance', 'installation_material'])) {
             $query->where('product_type', $request->product_type);
         }
 
@@ -127,7 +127,7 @@ class ProductController extends Controller
             $sharedValidated = $request->validate([
                 'product_code'       => 'required|string|unique:products,product_code|max:50',
                 'product_name'       => 'required|string|max:255',
-                'product_type'       => 'nullable|string|in:appliance,consumable',
+                'product_type'       => 'nullable|string|in:appliance,installation_material',
                 'description'        => 'nullable|string',
                 'barcode'            => 'nullable|string|max:100',
                 'category_id'        => 'nullable|exists:category_lookup,category_id',
