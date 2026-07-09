@@ -101,4 +101,63 @@ class BudgetEndpointsTest extends BudgetTestCase
             ->getJson("/api/budget-allocations/{$budget->budget_id}/transactions")
             ->assertSuccessful();
     }
+
+    public function test_available_endpoint_exposes_verification_status(): void
+    {
+        $ia = $this->makeUser('inventory_analyst');
+        $budget = $this->makeBudget(10000, ['verification_status' => 'verified']);
+
+        $response = $this->actingAs($ia, 'sanctum')
+            ->getJson("/api/budget-allocations/{$budget->budget_id}/available");
+
+        $response->assertSuccessful();
+        $this->assertSame('verified', $response->json('data.verification_status'));
+    }
+
+    public function test_store_tops_up_existing_budget_for_same_period(): void
+    {
+        $admin = $this->makeUser('admin');
+        // An existing VERIFIED budget for July at this location.
+        $existing = $this->makeBudget(1000, [
+            'period_start' => '2026-07-01',
+            'period_end'   => '2026-07-31',
+            'category_id'  => null,
+        ]);
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/budget-allocations', [
+            'location_id'  => $this->locationId,
+            'period_label' => '2026-July',
+            'period_start' => '2026-07-01',
+            'period_end'   => '2026-07-31',
+            'total_budget' => 500,
+        ]);
+
+        $response->assertSuccessful();
+        // No second row created — the July budget was topped up to 1500.
+        $this->assertSame(1, \App\Models\BudgetAllocation::where('location_id', $this->locationId)
+            ->whereDate('period_start', '2026-07-01')->count());
+        $existing->refresh();
+        $this->assertSame('1500.00', (string) $existing->total_budget);
+        // Top-up voids the prior verification (increased amount needs re-verification).
+        $this->assertSame('pending', $existing->verification_status);
+        // Journaled as an adjustment.
+        $this->assertSame(1, BudgetTransaction::where('budget_id', $existing->budget_id)
+            ->where('txn_type', 'adjustment')->count());
+    }
+
+    public function test_store_creates_new_budget_for_a_different_period(): void
+    {
+        $admin = $this->makeUser('admin');
+        $this->makeBudget(1000, ['period_start' => '2026-07-01', 'period_end' => '2026-07-31']);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/budget-allocations', [
+            'location_id'  => $this->locationId,
+            'period_label' => '2026-August',
+            'period_start' => '2026-08-01',
+            'period_end'   => '2026-08-31',
+            'total_budget' => 2000,
+        ])->assertSuccessful();
+
+        $this->assertSame(2, \App\Models\BudgetAllocation::where('location_id', $this->locationId)->count());
+    }
 }

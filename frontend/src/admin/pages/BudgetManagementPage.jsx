@@ -228,8 +228,10 @@ const BudgetManagementPage = () => {
         ...(form.category_id ? { category_id: Number(form.category_id) } : {}),
         ...(form.notes?.trim() ? { notes: form.notes.trim() } : {}),
       };
-      await budgetAllocationsAPI.create(payload);
-      toast.success('Budget created');
+      const res = await budgetAllocationsAPI.create(payload);
+      // Same location + period tops up the existing allocation instead of
+      // creating a duplicate — surface the backend's message so it's clear.
+      toast.success(res?.message || 'Budget created');
       setForm(emptyForm());
       setFormErrors({});
       await loadBudgets();

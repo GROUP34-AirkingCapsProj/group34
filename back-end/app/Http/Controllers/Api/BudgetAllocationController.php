@@ -63,6 +63,35 @@ class BudgetAllocationController extends Controller
                 'notes'        => 'nullable|string',
             ]);
 
+            // A budget for the same location + exact period + category is not a
+            // new allocation — it tops up the existing one (added to its total,
+            // journaled as an adjustment). This re-opens verification since the
+            // amount an auditor vouched for has changed.
+            $existing = BudgetAllocation::where('location_id', $validated['location_id'])
+                ->whereDate('period_start', $validated['period_start'])
+                ->whereDate('period_end', $validated['period_end'])
+                ->when(
+                    array_key_exists('category_id', $validated) && $validated['category_id'] !== null,
+                    fn ($q) => $q->where('category_id', $validated['category_id']),
+                    fn ($q) => $q->whereNull('category_id')
+                )
+                ->first();
+
+            if ($existing) {
+                $added   = (float) $validated['total_budget'];
+                $newTotal = (float) $existing->total_budget + $added;
+                $this->budgetService->adjustTotal(
+                    $existing,
+                    $newTotal,
+                    $request->user()?->user_id,
+                    sprintf('Top-up: added ₱%s to the %s budget (now ₱%s)',
+                        number_format($added, 2), $existing->period_label, number_format($newTotal, 2))
+                );
+                $existing->refresh()->load(['location', 'category']);
+                return $this->success($this->withAvailable($existing),
+                    'Budget topped up — added to the existing allocation for this period');
+            }
+
             $validated['committed'] = 0;
             $validated['spent']     = 0;
             $validated['created_by'] = $request->user()?->user_id;
@@ -94,11 +123,13 @@ class BudgetAllocationController extends Controller
         }
 
         return $this->success([
-            'budget_id'    => $budget->budget_id,
-            'total_budget' => (float) $budget->total_budget,
-            'committed'    => (float) $budget->committed,
-            'spent'        => (float) $budget->spent,
-            'available'    => $budget->available,
+            'budget_id'           => $budget->budget_id,
+            'total_budget'        => (float) $budget->total_budget,
+            'committed'           => (float) $budget->committed,
+            'spent'               => (float) $budget->spent,
+            'available'           => $budget->available,
+            'verification_status' => $budget->verification_status,
+            'verification_note'   => $budget->verification_note,
         ], 'Budget availability retrieved');
     }
 
