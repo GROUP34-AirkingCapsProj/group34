@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\BudgetAllocation;
+use App\Models\BudgetTransaction;
+use App\Services\BudgetService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -11,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 class BudgetAllocationController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private BudgetService $budgetService)
+    {
+    }
 
     public function index(Request $request)
     {
@@ -92,6 +98,26 @@ class BudgetAllocationController extends Controller
         ], 'Budget availability retrieved');
     }
 
+    /** Immutable ledger for a budget — the "where did the money go?" drill-down. */
+    public function transactions(Request $request, $id)
+    {
+        $budget = BudgetAllocation::withTrashed()->find($id);
+        if (!$budget) {
+            return $this->notFound('Budget allocation not found');
+        }
+
+        $txns = BudgetTransaction::where('budget_id', $id)
+            ->with([
+                'purchaseRequest' => fn ($q) => $q->withTrashed()->select('pr_id', 'pr_number'),
+                'purchaseOrder:po_id,po_number',
+                'performer:user_id,first_name,last_name,username',
+            ])
+            ->orderByDesc('txn_id')
+            ->paginate($request->integer('per_page', 20));
+
+        return $this->paginated($txns, 'Budget transactions retrieved');
+    }
+
     public function update(Request $request, $id)
     {
         $budget = BudgetAllocation::find($id);
@@ -110,6 +136,17 @@ class BudgetAllocationController extends Controller
                 'notes'        => 'nullable|string',
             ]);
 
+            if (array_key_exists('total_budget', $validated)) {
+                $newTotal = (float) $validated['total_budget'];
+                unset($validated['total_budget']);
+                try {
+                    $this->budgetService->adjustTotal($budget, $newTotal, $request->user()?->user_id);
+                } catch (\InvalidArgumentException $e) {
+                    return $this->error($e->getMessage(), 422);
+                }
+                $budget->refresh(); // adjustTotal mutates a locked re-fetch; sync this instance
+            }
+
             $budget->update($validated);
             $budget->load(['location', 'category']);
 
@@ -124,6 +161,13 @@ class BudgetAllocationController extends Controller
         $budget = BudgetAllocation::find($id);
         if (!$budget) {
             return $this->notFound('Budget allocation not found');
+        }
+
+        if ((float) $budget->committed > 0) {
+            return $this->error(sprintf(
+                'This budget still has ₱%s committed to open purchase requests. Complete or archive those PRs first.',
+                number_format((float) $budget->committed, 2)
+            ), 422);
         }
 
         $budget->delete();
@@ -160,6 +204,14 @@ class BudgetAllocationController extends Controller
         if (! $budget) {
             return $this->notFound('Archived budget allocation not found');
         }
+
+        if (BudgetTransaction::where('budget_id', $budget->budget_id)->exists()) {
+            return $this->error(
+                'This budget has transaction history and cannot be permanently deleted. Keep it archived for the audit trail.',
+                422
+            );
+        }
+
         $budget->forceDelete();
         return $this->success(null, 'Budget allocation permanently deleted');
     }

@@ -475,6 +475,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::get('/budget-allocations', [BudgetAllocationController::class, 'index']);
         Route::get('/budget-allocations/{id}', [BudgetAllocationController::class, 'show']);
         Route::get('/budget-allocations/{id}/available', [BudgetAllocationController::class, 'available']);
+        Route::get('/budget-allocations/{id}/transactions', [BudgetAllocationController::class, 'transactions']);
     });
     Route::middleware('role:admin')->group(function () {
         Route::post('/budget-allocations', [BudgetAllocationController::class, 'store']);
