@@ -107,6 +107,11 @@ class BudgetAllocationController extends Controller
             $budget = BudgetAllocation::create($validated);
             $budget->load(['location', 'category']);
 
+            // Alert budget verifiers (auditor) that a new budget needs verifying.
+            RealtimeBroadcaster::budgetChanged((int) $budget->location_id, 'verification_pending', [
+                'budget_id' => $budget->budget_id,
+            ]);
+
             return $this->success($this->withAvailable($budget), 'Budget allocation created', 201);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());

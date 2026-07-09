@@ -90,7 +90,28 @@ class AlertSettingsController extends Controller
             ->when($scoped, fn ($q) => $q->where('location_id', $locId))
             ->count();
 
-        $badgeCount = $unreadCount + $lowStockCount + $outOfStockCount + $overduePoCount;
+        // Verification queues — surfaced ONLY to users who may verify (auditor by
+        // default, or anyone the admin grants the permission to). Budgets are
+        // warehouse-only and verifiers are centralized, so budgets aren't
+        // location-scoped; PO verification follows the user's normal scoping.
+        $resolver = app(\App\Support\PermissionResolver::class);
+        $uid = (int) $user->user_id;
+
+        $pendingBudgetVerifyCount = $resolver->canUser($uid, 'budget_verification', 'verify')
+            ? \App\Models\BudgetAllocation::where('verification_status', 'pending')
+                ->whereDate('period_end', '>=', now()->toDateString())
+                ->count()
+            : 0;
+
+        $pendingPoVerifyCount = $resolver->canUser($uid, 'purchase_order_verification', 'verify')
+            ? \App\Models\PurchaseOrder::where('verification_status', 'pending')
+                ->where('status_id', 7) // still Pending — awaiting the checker before approval
+                ->when($scoped, fn ($q) => $q->where('location_id', $locId))
+                ->count()
+            : 0;
+
+        $badgeCount = $unreadCount + $lowStockCount + $outOfStockCount + $overduePoCount
+            + $pendingBudgetVerifyCount + $pendingPoVerifyCount;
 
         // Structured alert list — text labels only, no emoji
         $alerts = array_values(array_filter([
@@ -114,6 +135,20 @@ class AlertSettingsController extends Controller
                 'link'     => '/admin/items',
                 'count'    => $pendingProductCount,
                 'severity' => 'info',
+            ] : null,
+            $pendingBudgetVerifyCount > 0 ? [
+                'type'     => 'budget_verification',
+                'label'    => $pendingBudgetVerifyCount . ' budget(s) awaiting your verification',
+                'link'     => '/admin/budget-management',
+                'count'    => $pendingBudgetVerifyCount,
+                'severity' => 'warning',
+            ] : null,
+            $pendingPoVerifyCount > 0 ? [
+                'type'     => 'po_verification',
+                'label'    => $pendingPoVerifyCount . ' purchase order(s) awaiting your verification',
+                'link'     => '/admin/draft-po-creator',
+                'count'    => $pendingPoVerifyCount,
+                'severity' => 'warning',
             ] : null,
             $overduePoCount > 0 ? [
                 'type'     => 'overdue_po',
