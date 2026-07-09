@@ -53,13 +53,23 @@ class SeederTest extends TestCase
         }
     }
 
-    /** (b) Admin must be granted ALL permissions */
+    /**
+     * (b) Admin must be granted ALL permissions, EXCEPT the two verification
+     * "verify" actions (budget_verification.verify, purchase_order_verification.verify)
+     * which are deliberately carved out to auditor-only by role default — admin
+     * can only gain them via a per-user permission override. See
+     * VerificationPermissionTest::test_admin_cannot_verify_budget_by_default.
+     */
     public function test_admin_is_granted_all_permissions(): void
     {
         $adminId = Role::where('role_name', 'admin')->value('role_id');
         $this->assertNotNull($adminId, 'admin role not found');
 
-        $totalPermissions = Permission::count();
+        $carvedOut = Permission::where('action', 'verify')
+            ->whereIn('feature', ['budget_verification', 'purchase_order_verification'])
+            ->count();
+
+        $totalPermissions = Permission::count() - $carvedOut;
         $adminGranted     = RolePermission::where('role_id', $adminId)
             ->where('is_granted', true)
             ->count();
@@ -67,7 +77,7 @@ class SeederTest extends TestCase
         $this->assertEquals(
             $totalPermissions,
             $adminGranted,
-            "Admin should have all {$totalPermissions} permissions granted, got {$adminGranted}"
+            "Admin should have all permissions granted except the {$carvedOut} auditor-only verify carve-outs, got {$adminGranted}"
         );
     }
 
