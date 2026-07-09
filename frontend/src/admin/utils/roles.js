@@ -99,7 +99,7 @@ export const ROUTE_ACCESS = {
 
   // Procurement & restocking
   '/admin/suppliers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/budget-management': [ROLES.ADMIN],
+  '/admin/budget-management': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/purchase-requests': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST],
   '/admin/po-recommendations': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/draft-po-creator': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
