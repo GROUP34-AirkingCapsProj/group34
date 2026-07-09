@@ -273,6 +273,64 @@ class PurchaseOrderController extends Controller
         }
     }
 
+    /** Auditor verifies a PO — required before admin approval and before receiving. */
+    public function verify(Request $request, $id)
+    {
+        $po = PurchaseOrder::find($id);
+        if (!$po) {
+            return $this->error('Purchase order not found', 404);
+        }
+        if ((int) $po->created_by === (int) $request->user()->user_id) {
+            return $this->error('You cannot verify a purchase order you created', 422);
+        }
+        if ($po->verification_status === 'verified') {
+            return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order already verified');
+        }
+
+        $po->update([
+            'verification_status' => 'verified',
+            'verified_by'         => $request->user()->user_id,
+            'verified_at'         => now(),
+            'verification_note'   => $request->input('note'),
+        ]);
+
+        RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'verification_changed');
+
+        return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order verified');
+    }
+
+    /** Auditor rejects a PO (before approval) with a required reason; PO stays Pending. */
+    public function reject(Request $request, $id)
+    {
+        $po = PurchaseOrder::find($id);
+        if (!$po) {
+            return $this->error('Purchase order not found', 404);
+        }
+        if ((int) $po->created_by === (int) $request->user()->user_id) {
+            return $this->error('You cannot reject a purchase order you created', 422);
+        }
+        if (in_array((int) $po->status_id, [8, 10, 11, 12], true)) {
+            return $this->error('This purchase order has already been approved and can no longer be rejected in verification', 422);
+        }
+
+        try {
+            $validated = $request->validate(['reason' => 'required|string|max:500']);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+
+        $po->update([
+            'verification_status' => 'rejected',
+            'verified_by'         => $request->user()->user_id,
+            'verified_at'         => now(),
+            'verification_note'   => $validated['reason'],
+        ]);
+
+        RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'verification_changed');
+
+        return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order rejected');
+    }
+
     public function destroy($id)
     {
         try {

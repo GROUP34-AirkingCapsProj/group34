@@ -463,6 +463,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_order_creation,archive')->post('/purchase-orders/{id}/restore', [PurchaseOrderController::class, 'restore']);
     Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}/force', [PurchaseOrderController::class, 'forceDestroy']);
 
+    Route::middleware('permission:purchase_order_verification,verify')->group(function () {
+        Route::patch('/purchase-orders/{id}/verify', [PurchaseOrderController::class, 'verify']);
+        Route::patch('/purchase-orders/{id}/reject', [PurchaseOrderController::class, 'reject']);
+    });
+
     /*
     |--------------------------------------------------------------------------
     | BUDGET ALLOCATIONS
