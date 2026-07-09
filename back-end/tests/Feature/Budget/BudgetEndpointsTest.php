@@ -4,9 +4,49 @@ namespace Tests\Feature\Budget;
 
 use App\Models\BudgetTransaction;
 use App\Services\BudgetService;
+use Illuminate\Support\Facades\DB;
 
 class BudgetEndpointsTest extends BudgetTestCase
 {
+    public function test_store_rejects_non_warehouse_location(): void
+    {
+        $admin = $this->makeUser('admin');
+        $showroomId = (int) DB::table('locations')->insertGetId([
+            'location_code' => 'SR-' . uniqid(),
+            'location_name' => 'Showroom X',
+            'location_type' => 'showroom',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/budget-allocations', [
+            'location_id'  => $showroomId,
+            'period_label' => '2026-July',
+            'period_start' => '2026-07-01',
+            'period_end'   => '2026-07-31',
+            'total_budget' => 1000,
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString('warehouse', strtolower($response->json('message')));
+        $this->assertSame(0, \App\Models\BudgetAllocation::where('location_id', $showroomId)->count());
+    }
+
+    public function test_store_allows_warehouse_location(): void
+    {
+        // BudgetTestCase::$locationId is a warehouse — the endpoint should accept it.
+        $admin = $this->makeUser('admin');
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/budget-allocations', [
+            'location_id'  => $this->locationId,
+            'period_label' => '2026-Sept',
+            'period_start' => '2026-09-01',
+            'period_end'   => '2026-09-30',
+            'total_budget' => 5000,
+        ])->assertSuccessful();
+    }
+
     public function test_update_total_routes_through_adjustment_journal(): void
     {
         $admin = $this->makeUser('admin');

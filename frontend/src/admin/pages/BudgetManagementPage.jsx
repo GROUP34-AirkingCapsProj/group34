@@ -171,7 +171,10 @@ const BudgetManagementPage = () => {
     loadBudgets();
     if (!isAdmin) return; // locations + categories power the admin-only create form
     locationsAPI.getAll({ per_page: 200 })
-      .then(res => setLocations(Array.isArray(res?.data) ? res.data : []))
+      // Budgets are warehouse-only: purchasing flows through the warehouse, while
+      // other location types receive stock via transfers. Only offer warehouses.
+      .then(res => setLocations((Array.isArray(res?.data) ? res.data : [])
+        .filter(l => l.location_type === 'warehouse')))
       .catch(() => {});
     categoriesAPI.getAll()
       .then(res => setCategories(Array.isArray(res?.data) ? res.data : []))
