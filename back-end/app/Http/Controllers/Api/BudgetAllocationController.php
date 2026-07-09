@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BudgetAllocation;
 use App\Models\BudgetTransaction;
 use App\Services\BudgetService;
+use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -116,6 +117,65 @@ class BudgetAllocationController extends Controller
             ->paginate($request->integer('per_page', 20));
 
         return $this->paginated($txns, 'Budget transactions retrieved');
+    }
+
+    /** Auditor verifies a budget — required before any PR can draw from it. */
+    public function verify(Request $request, $id)
+    {
+        $budget = BudgetAllocation::find($id);
+        if (!$budget) {
+            return $this->notFound('Budget allocation not found');
+        }
+        if ((int) $budget->created_by === (int) $request->user()->user_id) {
+            return $this->error('You cannot verify a budget you created', 422);
+        }
+        if ($budget->verification_status === 'verified') {
+            return $this->success($this->withAvailable($budget), 'Budget already verified');
+        }
+
+        $budget->update([
+            'verification_status' => 'verified',
+            'verified_by'         => $request->user()->user_id,
+            'verified_at'         => now(),
+            'verification_note'   => $request->input('note'),
+        ]);
+
+        RealtimeBroadcaster::budgetChanged((int) $budget->location_id, 'verification_changed', [
+            'budget_id' => $budget->budget_id,
+        ]);
+
+        return $this->success($this->withAvailable($budget->fresh()->load(['location', 'category', 'verifier'])), 'Budget verified');
+    }
+
+    /** Auditor rejects a budget with a required reason — stays unusable until re-verified. */
+    public function reject(Request $request, $id)
+    {
+        $budget = BudgetAllocation::find($id);
+        if (!$budget) {
+            return $this->notFound('Budget allocation not found');
+        }
+        if ((int) $budget->created_by === (int) $request->user()->user_id) {
+            return $this->error('You cannot reject a budget you created', 422);
+        }
+
+        try {
+            $validated = $request->validate(['reason' => 'required|string|max:500']);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+
+        $budget->update([
+            'verification_status' => 'rejected',
+            'verified_by'         => $request->user()->user_id,
+            'verified_at'         => now(),
+            'verification_note'   => $validated['reason'],
+        ]);
+
+        RealtimeBroadcaster::budgetChanged((int) $budget->location_id, 'verification_changed', [
+            'budget_id' => $budget->budget_id,
+        ]);
+
+        return $this->success($this->withAvailable($budget->fresh()->load(['location', 'category', 'verifier'])), 'Budget rejected');
     }
 
     public function update(Request $request, $id)
