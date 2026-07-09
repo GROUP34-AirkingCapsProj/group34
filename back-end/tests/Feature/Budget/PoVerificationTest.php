@@ -83,4 +83,40 @@ class PoVerificationTest extends BudgetTestCase
 
         Event::assertDispatched(PurchaseOrderChanged::class, fn ($e) => $e->type === 'verification_changed');
     }
+
+    public function test_verified_by_cannot_be_set_via_po_create(): void
+    {
+        $ia = $this->makeUser('inventory_analyst');
+        $someone = $this->makeUser('admin');
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14);
+        $supplierId = (int) \Illuminate\Support\Facades\DB::table('suppliers')
+            ->insertGetId(['supplier_name' => 'S' . uniqid(), 'created_at' => now(), 'updated_at' => now()], 'supplier_id');
+        $productId = $this->makeProductForPo();
+
+        $response = $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplierId,
+            'location_id' => $this->locationId,
+            'po_number'   => 'PO-' . uniqid(),
+            'order_date'  => today()->toDateString(),
+            'verified_by' => $someone->user_id, // must be ignored
+            'details'     => [[
+                'product_id' => $productId, 'quantity_ordered' => 1, 'unit_price' => 100,
+            ]],
+        ]);
+
+        $response->assertStatus(201);
+        $poId = $response->json('data.po_id');
+        $this->assertNull(\App\Models\PurchaseOrder::find($poId)->verified_by);
+        $this->assertSame('pending', \App\Models\PurchaseOrder::find($poId)->verification_status);
+    }
+
+    private function makeProductForPo(): int
+    {
+        return (int) \Illuminate\Support\Facades\DB::table('products')->insertGetId([
+            'product_code' => 'TP-' . uniqid(), 'product_name' => 'PO Product',
+            'product_type' => 'installation_material', 'unit_price' => 100, 'cost_price' => 80,
+            'status_id' => 3, 'created_at' => now(), 'updated_at' => now(),
+        ], 'product_id');
+    }
 }
