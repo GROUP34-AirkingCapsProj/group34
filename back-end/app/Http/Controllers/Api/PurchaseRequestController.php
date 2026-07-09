@@ -175,7 +175,7 @@ class PurchaseRequestController extends Controller
 
         $csvColumns = [
             'PR Number', 'Request Date', 'Needed By', 'Location',
-            'Purpose', 'Status', 'Requested By', 'Approved By', 'Budget Period',
+            'Purpose', 'Status', 'Requested By', 'Approved By', 'Budget Period', 'Budget Verification',
             'Line #', 'Product Code', 'Product Name', 'Type',
             'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
             'Quantity', 'Estimated Price', 'Subtotal', 'Notes',
@@ -202,6 +202,7 @@ class PurchaseRequestController extends Controller
                         $pr->status?->status_name ?? '',
                         $requestedBy, $approvedBy,
                         $pr->budget?->period_label ?? '',
+                        $pr->budget?->verification_status ?? '',
                         '', '', '', '', '', '', '', '', '', '', '',
                         number_format((float) $pr->estimated_total, 2),
                     ]);
@@ -222,6 +223,7 @@ class PurchaseRequestController extends Controller
                         $pr->status?->status_name ?? '',
                         $requestedBy, $approvedBy,
                         $pr->budget?->period_label ?? '',
+                        $pr->budget?->verification_status ?? '',
                         $i + 1,
                         $p?->product_code ?? '',
                         $p?->product_name ?? '',
