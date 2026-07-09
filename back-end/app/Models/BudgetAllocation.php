@@ -23,6 +23,10 @@ class BudgetAllocation extends Model
         'total_budget',
         'committed',
         'spent',
+        'verification_status',
+        'verified_by',
+        'verified_at',
+        'verification_note',
         'notes',
         'created_by',
     ];
@@ -33,6 +37,7 @@ class BudgetAllocation extends Model
         'total_budget' => 'decimal:2',
         'committed'    => 'decimal:2',
         'spent'        => 'decimal:2',
+        'verified_at'  => 'datetime',
     ];
 
     protected $appends = ['available'];
@@ -55,6 +60,16 @@ class BudgetAllocation extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by', 'user_id');
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->verification_status === 'verified';
+    }
+
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by', 'user_id');
     }
 
     public function transactions(): HasMany
