@@ -46,15 +46,16 @@ class RestockEndpointsTest extends TestCase
         $firstWarehouseId = (int) DB::table('locations')->where('location_type', 'warehouse')
             ->orderBy('location_id')->value('location_id');
         DB::table('budget_allocations')->insert([
-            'location_id'  => $firstWarehouseId,
-            'period_label' => 'TEST-' . uniqid(),
-            'period_start' => today()->subDays(10)->toDateString(),
-            'period_end'   => today()->addDays(10)->toDateString(),
-            'total_budget' => 1000000,
-            'committed'    => 0,
-            'spent'        => 0,
-            'created_at'   => now(),
-            'updated_at'   => now(),
+            'location_id'         => $firstWarehouseId,
+            'period_label'        => 'TEST-' . uniqid(),
+            'period_start'        => today()->subDays(10)->toDateString(),
+            'period_end'          => today()->addDays(10)->toDateString(),
+            'total_budget'        => 1000000,
+            'committed'           => 0,
+            'spent'               => 0,
+            'verification_status' => 'verified',
+            'created_at'          => now(),
+            'updated_at'          => now(),
         ]);
     }
 
