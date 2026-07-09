@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\InsufficientBudgetException;
+use App\Exceptions\UnverifiedBudgetException;
 use App\Models\BudgetAllocation;
 use App\Models\BudgetTransaction;
 use App\Models\PurchaseOrder;
@@ -38,6 +39,7 @@ class BudgetService
         $today = today();
 
         return BudgetAllocation::where('location_id', $locationId)
+            ->where('verification_status', 'verified')
             ->where('period_start', '<=', $today)
             ->where('period_end', '>=', $today)
             ->orderByDesc('period_start')
@@ -56,6 +58,10 @@ class BudgetService
             if (BudgetTransaction::where('pr_id', $pr->pr_id)
                 ->where('txn_type', BudgetTransaction::TYPE_COMMIT)->exists()) {
                 return; // already committed (retry / double-submit)
+            }
+
+            if ($budget->verification_status !== 'verified') {
+                throw new UnverifiedBudgetException($budget->period_label, $budget->verification_status);
             }
 
             $utilBefore = $this->utilization($budget);
@@ -212,6 +218,10 @@ class BudgetService
                     number_format($newTotal, 2)
                 ));
             $locked->total_budget = round($newTotal, 2);
+            $locked->verification_status = 'pending';
+            $locked->verified_by = null;
+            $locked->verified_at = null;
+            $locked->verification_note = 'Auto-reset: total changed, awaiting re-verification';
             $locked->save();
         });
     }
