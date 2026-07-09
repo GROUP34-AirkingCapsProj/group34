@@ -1273,6 +1273,16 @@ const PurchaseOrderPage = () => {
                       <span className="po-detail-info-value">{actorName}</span>
                     </div>
                   )}
+                  <div className="po-detail-info-item">
+                    <span className="po-detail-info-label">VERIFIED BY</span>
+                    <span className="po-detail-info-value">
+                      {d?.verification_status === 'verified'
+                        ? `${d.verifiedBy ? `${d.verifiedBy.first_name} ${d.verifiedBy.last_name}` : 'Auditor'}${d.verified_at ? ` — ${String(d.verified_at).slice(0, 10)}` : ''}`
+                        : d?.verification_status === 'rejected'
+                          ? `Rejected: ${d.verification_note || ''}`
+                          : '—'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="po-detail-items-wrap">
