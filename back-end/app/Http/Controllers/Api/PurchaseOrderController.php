@@ -222,12 +222,15 @@ class PurchaseOrderController extends Controller
                 'details.*.approved_by'      => 'nullable|exists:users,user_id',
             ]);
 
-            // Approval gate: transitioning to Approved (8) or Authorized (10)
-            // requires an auditor's verification first.
+            // Approval gate: transitioning to Approved (8), Authorized (10),
+            // Completed (11), or Partially Received (12) requires an
+            // auditor's verification first. This covers direct transitions
+            // that would otherwise bypass verification (e.g. Pending straight
+            // to Completed, which would also trigger budget spend).
             if (isset($validated['status_id'])
-                && in_array((int) $validated['status_id'], [8, 10], true)
+                && in_array((int) $validated['status_id'], [8, 10, 11, 12], true)
                 && $po->verification_status !== 'verified') {
-                return $this->error('This purchase order must be verified by an auditor before approval', 422);
+                return $this->error('This purchase order must be verified by an auditor before it can be approved or received', 422);
             }
 
             DB::beginTransaction();

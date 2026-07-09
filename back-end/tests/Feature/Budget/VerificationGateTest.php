@@ -35,6 +35,24 @@ class VerificationGateTest extends BudgetTestCase
         $this->assertSame(7, (int) $po->fresh()->status_id);
     }
 
+    public function test_po_cannot_be_completed_directly_while_unverified(): void
+    {
+        $admin = $this->makeUser('admin');
+        $budget = $this->makeBudget(10000);
+        $pr = $this->makePr($budget, 4000, 14);
+        $po = $this->makePo($pr, 4000, 7); // pending, unverified
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 11]); // Completed — bypass attempt
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString('verified', strtolower($response->json('message')));
+        $this->assertSame(7, (int) $po->fresh()->status_id);
+        // Budget must NOT have been spent.
+        $budget->refresh();
+        $this->assertSame('0.00', (string) $budget->spent);
+    }
+
     public function test_verified_po_can_be_authorized(): void
     {
         $admin = $this->makeUser('admin');
