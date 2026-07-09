@@ -1298,6 +1298,15 @@ export const budgetAllocationsAPI = {
     apiRequest(`/budget-allocations/${budgetId}/available`),
 
   /**
+   * Immutable ledger for a budget — every commit/release/spend/adjustment row
+   * with linked PR/PO numbers. Paginated.
+   */
+  getTransactions: async (budgetId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/budget-allocations/${budgetId}/transactions${query ? `?${query}` : ''}`);
+  },
+
+  /**
    * Find the most relevant budget for a location.
    * Tries active period first; if none, returns the most recently started budget.
    * Does NOT pass active=1 so a budget just created for a future/past period still appears.
