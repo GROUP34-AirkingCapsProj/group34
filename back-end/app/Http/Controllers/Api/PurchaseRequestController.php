@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\InsufficientBudgetException;
+use App\Exceptions\UnverifiedBudgetException;
 use App\Http\Controllers\Controller;
 use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
@@ -302,6 +303,12 @@ class PurchaseRequestController extends Controller
         if ($budget->period_start->gt($today) || $budget->period_end->lt($today)) {
             return $this->error("The budget period ({$budget->period_label}) is not active today", 422);
         }
+        if ($budget->verification_status !== 'verified') {
+            $msg = $budget->verification_status === 'rejected'
+                ? "This budget was rejected by the auditor" . ($budget->verification_note ? ": {$budget->verification_note}" : '')
+                : "This budget ({$budget->period_label}) has not been verified by an auditor yet";
+            return $this->error($msg, 422);
+        }
         $estimatedTotal = collect($validated['details'])
             ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
         if (!$this->budgetService->hasAvailable($budget, (float) $estimatedTotal)) {
@@ -379,6 +386,8 @@ class PurchaseRequestController extends Controller
 
                 $this->budgetService->commit($pr, $request->user()->user_id);
             });
+        } catch (UnverifiedBudgetException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (InsufficientBudgetException $e) {
             return $this->error($e->getMessage(), 422);
         } catch (\Throwable $e) {
