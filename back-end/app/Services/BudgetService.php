@@ -223,6 +223,11 @@ class BudgetService
             $locked->verified_at = null;
             $locked->verification_note = 'Auto-reset: total changed, awaiting re-verification';
             $locked->save();
+
+            // The amount an auditor vouched for changed — alert verifiers to re-check.
+            RealtimeBroadcaster::budgetChanged((int) $locked->location_id, 'verification_pending', [
+                'budget_id' => $locked->budget_id,
+            ]);
         });
     }
 
