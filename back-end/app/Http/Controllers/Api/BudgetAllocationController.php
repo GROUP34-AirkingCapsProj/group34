@@ -63,6 +63,14 @@ class BudgetAllocationController extends Controller
                 'notes'        => 'nullable|string',
             ]);
 
+            // Budgets are warehouse-only: purchasing flows through the warehouse
+            // (it receives every PO), while showrooms/branches get stock via
+            // transfers, not purchasing — so only warehouses hold a budget.
+            $location = \App\Models\Location::find($validated['location_id']);
+            if (!$location || $location->location_type !== 'warehouse') {
+                return $this->error('Budgets can only be allocated to warehouse locations. Other location types receive stock through transfers, not purchasing.', 422);
+            }
+
             // A budget for the same location + exact period + category is not a
             // new allocation — it tops up the existing one (added to its total,
             // journaled as an adjustment). This re-opens verification since the
@@ -229,6 +237,14 @@ class BudgetAllocationController extends Controller
                 'total_budget' => 'sometimes|numeric|min:0.01',
                 'notes'        => 'nullable|string',
             ]);
+
+            // Budgets stay warehouse-only even when their location is edited.
+            if (array_key_exists('location_id', $validated)) {
+                $location = \App\Models\Location::find($validated['location_id']);
+                if (!$location || $location->location_type !== 'warehouse') {
+                    return $this->error('Budgets can only be allocated to warehouse locations.', 422);
+                }
+            }
 
             if (array_key_exists('total_budget', $validated)) {
                 $newTotal = (float) $validated['total_budget'];
