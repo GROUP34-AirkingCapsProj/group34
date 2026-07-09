@@ -221,6 +221,14 @@ class PurchaseOrderController extends Controller
                 'details.*.approved_by'      => 'nullable|exists:users,user_id',
             ]);
 
+            // Approval gate: transitioning to Approved (8) or Authorized (10)
+            // requires an auditor's verification first.
+            if (isset($validated['status_id'])
+                && in_array((int) $validated['status_id'], [8, 10], true)
+                && $po->verification_status !== 'verified') {
+                return $this->error('This purchase order must be verified by an auditor before approval', 422);
+            }
+
             DB::beginTransaction();
 
             $header = Arr::except($validated, ['details']);
