@@ -150,6 +150,36 @@ design system; toast/confirm helpers.
 5. **PO Recommendation page**: banner copy updated to "no verified active
    budget…" (logic comes free from resolveActiveBudget).
 
+### Details, labels, and exports (record-level "Verified by" everywhere)
+
+6. **Kill the fake "Verified By" input.** The PO create form currently has a
+   manual VERIFIED BY dropdown (PurchaseOrderPage.jsx ~line 720) where the
+   creator picks any user for the printed document — this would let anyone
+   fake verification. Remove the dropdown (and its `verified_by` field from
+   the create payload); `verified_by` is populated ONLY by the auditor's
+   verify action. Backend: drop `verified_by` from the store/update/
+   convertStore validation + writes in PurchaseOrderController and
+   PurchaseRequestController::convertStore so it cannot be mass-assigned.
+7. **PO detail view**: add a "Verified by {first last} on {date}" row
+   alongside Created By / Approved By (— em dash when awaiting; the rejection
+   reason shown when rejected).
+8. **Printed/exported PO document + Excel** (frontend `utils/poExport.js` and
+   the in-page document preview): the existing "Verified By:" signature line
+   now renders the REAL verifier name + verified date from the record
+   (blank line when not yet verified — it is a signature slot, not a claim).
+9. **Backend PO CSV export** (`PurchaseOrderController::export`): columns
+   become `... 'Created By', 'Verified By', 'Verified At', 'Verification
+   Status', 'Approved By', 'Received By' ...` — ordered to read as the actual
+   chain (maker → checker → approver → receiver). Values from the
+   `verifier` relation (add it to the export eager-load).
+10. **PR CSV export** (`PurchaseRequestController::export`): the existing
+    'Budget Period' column gains a sibling 'Budget Verification' column
+    (Verified / Awaiting verification / Rejected) so exported PRs show the
+    state of the budget they drew from.
+11. **Budget drill-down / cards**: the verified badge shows auditor name +
+    date (already covered in item 1); the ledger modal header shows the
+    budget's verification line under the period label.
+
 ## Error handling
 
 - All gate failures are 422 with human messages (same envelope as the budget
@@ -178,6 +208,11 @@ unchanged; new tests override to `pending`/`rejected` explicitly.
   reject-after-approval 422; double-verify no-op; migration grandfathering
   (existing 8/10/11/12 POs verified, pending POs not).
 - **Realtime:** verify fires the broadcast once (Event::fake).
+- **Labels/exports:** `verified_by` is no longer mass-assignable through PO
+  store/update/convertStore (submitting it is ignored); PO CSV export rows
+  contain Verified By / Verified At / Verification Status populated after an
+  auditor verifies (and empty before); PR CSV export contains the Budget
+  Verification column.
 
 ## Out of scope (YAGNI)
 
