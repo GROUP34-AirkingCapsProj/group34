@@ -107,6 +107,8 @@ const PurchaseOrderPage = () => {
   // Purchase order approval: admin and branch manager (update permission). Mirrors the
   // gate the retired Approval Queue used for approve/reject.
   const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
+  // Purchase order verification (auditor maker-checker gate).
+  const canVerifyPO = typeof can === 'function' && can('purchase_order_verification', 'verify');
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');
@@ -120,7 +122,6 @@ const PurchaseOrderPage = () => {
   const [paymentTerms,    setPaymentTerms]    = useState('Net 30');
   const [notes,           setNotes]           = useState('');
   const [referencesNote,  setReferencesNote]  = useState('');
-  const [verifiedById,    setVerifiedById]    = useState('');
   const [shipToName,      setShipToName]      = useState('');
   const [shipToAddress,   setShipToAddress]   = useState('');
   const [showPreview,     setShowPreview]     = useState(false);
@@ -298,7 +299,6 @@ const PurchaseOrderPage = () => {
     setPaymentTerms('Net 30');
     setNotes('');
     setReferencesNote('');
-    setVerifiedById('');
     setShipToName('');
     setShipToAddress('');
     setShowPreview(false);
@@ -352,7 +352,6 @@ const PurchaseOrderPage = () => {
         payment_terms:          paymentTerms,
         notes:                  notes.trim()          || null,
         references_note:        referencesNote.trim() || null,
-        verified_by:            verifiedById ? Number(verifiedById) : null,
         ship_to_name:           shipToName.trim()     || null,
         ship_to_address:        shipToAddress.trim()  || null,
         details: lineItems.map(li => ({
@@ -377,7 +376,7 @@ const PurchaseOrderPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, verifiedById, shipToName, shipToAddress]);
+  }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, shipToName, shipToAddress]);
 
   // ── PO Status list refresh (single source of truth) ──────────────────────────
   const refreshPOStatusList = useCallback(async () => {
@@ -448,6 +447,31 @@ const PurchaseOrderPage = () => {
       genericError: 'Could not reject this PO.',
     });
   }, [applyPOStatus]);
+
+  // ── PO Verification (auditor maker-checker gate) ──────────────────────────
+  const handleVerifyPO = useCallback(async (po) => {
+    setPoActionLoading(po.po_id);
+    try {
+      await purchaseOrdersAPI.verify(String(po.po_id));
+      await refreshPOStatusList();
+      toast.success('Purchase order verified', `${po.po_number} is ready for approval.`);
+    } catch (err) {
+      toast.error("Couldn't verify PO", err?.message || 'Verification failed.');
+    } finally { setPoActionLoading(null); }
+  }, [refreshPOStatusList]);
+
+  const handleRejectPOVerification = useCallback(async (po) => {
+    const reason = window.prompt('Reason for rejecting this purchase order?');
+    if (!reason) return;
+    setPoActionLoading(po.po_id);
+    try {
+      await purchaseOrdersAPI.reject(String(po.po_id), reason);
+      await refreshPOStatusList();
+      toast.success('Purchase order rejected', `${po.po_number} was sent back.`);
+    } catch (err) {
+      toast.error("Couldn't reject PO", err?.message || 'Rejection failed.');
+    } finally { setPoActionLoading(null); }
+  }, [refreshPOStatusList]);
 
   // ── PO Status renderer ─────────────────────────────────────────────────────
   const renderPoStatusView = () => {
@@ -549,12 +573,47 @@ const PurchaseOrderPage = () => {
                       </button>
                     </div>
                   )}
+                  {canVerifyPO && statusCfg.color === 'pending' && po.verification_status !== 'verified' && (
+                    <div className="po-status-approve-actions">
+                      <button
+                        type="button"
+                        className="aq-btn-reject"
+                        disabled={poActionLoading === po.po_id}
+                        onClick={() => handleRejectPOVerification(po)}
+                      >
+                        REJECT
+                      </button>
+                      <button
+                        type="button"
+                        className="aq-btn-approve"
+                        disabled={poActionLoading === po.po_id}
+                        onClick={() => handleVerifyPO(po)}
+                      >
+                        {poActionLoading === po.po_id ? 'SAVING…' : 'VERIFY'}
+                      </button>
+                    </div>
+                  )}
                   <ArchiveButton
                     onArchive={() => handleArchivePO(po.po_id)}
                     disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
                   />
                 </div>
               </div>
+              {po.verification_status === 'pending' && (
+                <div className="po-status-note" style={{ background: '#fffbeb', color: '#92400e' }}>
+                  <span>Awaiting auditor verification</span>
+                </div>
+              )}
+              {po.verification_status === 'verified' && (
+                <div className="po-status-note po-status-note--approved">
+                  <span>Verified by {po.verifiedBy ? `${po.verifiedBy.first_name} ${po.verifiedBy.last_name}` : 'auditor'}{po.verified_at ? ` on ${String(po.verified_at).slice(0, 10)}` : ''}</span>
+                </div>
+              )}
+              {po.verification_status === 'rejected' && (
+                <div className="po-status-note po-status-note--rejected">
+                  <span>Rejected by auditor{po.verification_note ? `: ${po.verification_note}` : ''}</span>
+                </div>
+              )}
               {statusCfg.color === 'approved'  && <div className="po-status-note po-status-note--approved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><span><strong>Approved by {actorName}</strong> on {actionDate}</span></div>}
               {statusCfg.color === 'rejected'  && <div className="po-status-note po-status-note--rejected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg><span><strong>Rejected by {actorName}</strong> on {actionDate}</span></div>}
               {statusCfg.color === 'cancelled' && <div className="po-status-note po-status-note--cancelled"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M9 6V4h6v2"></path></svg><span><strong>Cancelled by {actorName}</strong> on {actionDate}</span></div>}
@@ -715,18 +774,6 @@ const PurchaseOrderPage = () => {
                     <option value="COD">COD</option>
                     <option value="Upon Delivery">Upon Delivery</option>
                   </select>
-                </div>
-                <div className="po-field">
-                  <label className="po-field-label">VERIFIED BY</label>
-                  <select className="po-select" value={verifiedById} onChange={e => setVerifiedById(e.target.value)}>
-                    <option value="">Select verifier (optional)</option>
-                    {allUsers.map(u => (
-                      <option key={u.user_id} value={String(u.user_id)}>
-                        {u.first_name} {u.last_name}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="po-field-hint">Appears as "Verified By" on the printed PO document.</span>
                 </div>
               </div>
 
@@ -907,13 +954,13 @@ const PurchaseOrderPage = () => {
 
               {showPreview && (() => {
                 const previewSupplier = suppliers.find(s => String(s.supplier_id ?? s.id) === String(selectedSupplierId));
-                const verifierUser    = allUsers.find(u => String(u.user_id) === String(verifiedById));
                 const preparedByName  = authUser
                   ? `${authUser.first_name || ''} ${authUser.last_name || ''}`.trim() || authUser.username || ''
                   : '';
-                const verifiedByName  = verifierUser
-                  ? `${verifierUser.first_name || ''} ${verifierUser.last_name || ''}`.trim()
-                  : '';
+                // This PO does not exist yet at preview time, so there is no auditor
+                // verification to show — it appears on the printed document once the
+                // created PO has been verified (see the PO detail modal export).
+                const verifiedByName  = '';
                 // Approved By = whoever approved the PR (not the PO approval-queue step)
                 const approvedByName  = (() => {
                   const apr = selectedPR?.approver;
