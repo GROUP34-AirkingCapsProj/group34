@@ -666,6 +666,12 @@ export const purchaseOrdersAPI = {
   },
   restore: async (id) =>
     apiRequest(`/purchase-orders/${id}/restore`, { method: 'POST' }),
+
+  verify: async (id, note) =>
+    apiRequest(`/purchase-orders/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ note: note ?? null }) }),
+
+  reject: async (id, reason) =>
+    apiRequest(`/purchase-orders/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
 };
 
 /* ======================
@@ -1335,6 +1341,12 @@ export const budgetAllocationsAPI = {
 
   restore: async (id) =>
     apiRequest(`/budget-allocations/${id}/restore`, { method: 'POST' }),
+
+  verify: async (id, note) =>
+    apiRequest(`/budget-allocations/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ note: note ?? null }) }),
+
+  reject: async (id, reason) =>
+    apiRequest(`/budget-allocations/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
 };
 
 /* ======================
