@@ -380,6 +380,17 @@ const PurchaseRequestPage = () => {
     if (!validLines.length) {
       toast.error("Couldn't send request", 'Add at least one item with a selected product.'); return;
     }
+    if (!budget?.budget_id) {
+      toast.error("Couldn't send request", 'No budget found for this location. Ask Admin to create one in Budget Management.');
+      return;
+    }
+    if (overBudget) {
+      toast.error(
+        "Couldn't send request",
+        `Estimated total ${fmtPeso(estimatedTotal)} exceeds the available budget ${fmtPeso(budgetAvailable)} for this location.`
+      );
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -408,7 +419,7 @@ const PurchaseRequestPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedLocId, neededByDate, purpose, lineItems, budget]);
+  }, [selectedLocId, neededByDate, purpose, lineItems, budget, overBudget, estimatedTotal, budgetAvailable]);
 
   // ── Archive PR ────────────────────────────────────────────────────────────
   const handleArchivePR = useCallback(async (prId) => {
@@ -769,7 +780,7 @@ const PurchaseRequestPage = () => {
             </svg>
             <span>
               Estimated total ({fmtPeso(estimatedTotal)}) exceeds available budget ({fmtPeso(budgetAvailable)}) by{' '}
-              <strong>{fmtPeso(estimatedTotal - budgetAvailable)}</strong>. You may still submit — Admin will review.
+              <strong>{fmtPeso(estimatedTotal - budgetAvailable)}</strong>. Reduce the request or ask Admin to raise the budget.
             </span>
           </div>
         )}
@@ -780,7 +791,12 @@ const PurchaseRequestPage = () => {
           type="button"
           className="po-btn po-btn-final-submission"
           onClick={handleSubmitPR}
-          disabled={submitting}
+          disabled={submitting || loadingBudget || overBudget || Boolean(selectedLocId && !budget)}
+          title={
+            overBudget ? 'Estimated total exceeds the available budget'
+            : (selectedLocId && !budget) ? 'No budget allocated for this location'
+            : undefined
+          }
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
             <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
