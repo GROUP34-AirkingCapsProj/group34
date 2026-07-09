@@ -140,6 +140,10 @@ const BudgetManagementPage = () => {
   const [editErrors,   setEditErrors]   = useState({});
   const [editSaving,   setEditSaving]   = useState(false);
 
+  // Ledger drill-down modal
+  const [ledgerBudget,  setLedgerBudget]  = useState(null); // budget object or null
+  const [ledgerRows,    setLedgerRows]    = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   // ── Load budgets ────────────────────────────────────────────────────────────
   const loadBudgets = useCallback(async () => {
@@ -295,6 +299,21 @@ const BudgetManagementPage = () => {
       toast.error("Couldn't archive budget", err?.message || 'Failed to delete budget.');
     }
   }, [loadBudgets]);
+
+  // ── Ledger drill-down ────────────────────────────────────────────────────────
+  const openLedger = useCallback(async (budget) => {
+    setLedgerBudget(budget);
+    setLedgerLoading(true);
+    setLedgerRows([]);
+    try {
+      const res = await budgetAllocationsAPI.getTransactions(budget.budget_id, { per_page: 50 });
+      setLedgerRows(res?.data ?? []);
+    } catch (err) {
+      toast.error('Could not load budget ledger', err?.message);
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, []);
 
   // ── Shared form renderer ─────────────────────────────────────────────────────
   const renderFormFields = (f, setFn, errors, isEdit = false) => {
@@ -559,6 +578,40 @@ const BudgetManagementPage = () => {
           </div>
         </div>
 
+        {total > 0 && (() => {
+          const spentPct     = Math.min(100, (spent / total) * 100);
+          const committedPct = Math.min(100 - spentPct, (committed / total) * 100);
+          const utilPct      = Math.min(100, Math.round(((spent + committed) / total) * 100));
+          return (
+            <div className="budget-util">
+              <div
+                className="budget-util-bar"
+                role="img"
+                aria-label={`${utilPct}% of budget utilized`}
+              >
+                <span className="budget-util-seg--spent" style={{ width: `${spentPct}%` }} />
+                <span className="budget-util-seg--committed" style={{ width: `${committedPct}%` }} />
+              </div>
+              <div className="budget-util-legend">
+                <span><span className="dot" style={{ background: '#0f766e' }} />Spent</span>
+                <span><span className="dot" style={{ background: '#f59e0b' }} />Committed</span>
+                <span><span className="dot" style={{ background: '#e2e8f0' }} />Available</span>
+                <span className="budget-util-pct">{utilPct}% utilized</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {pStatus.key === 'expired' && total > 0 && (
+          <div className="budget-closeout">
+            <span>Period closed:</span>
+            <span>Allocated <strong>{fmtPeso(total)}</strong></span>
+            <span>Spent <strong>{fmtPeso(spent)}</strong> ({Math.round((spent / total) * 100)}%)</span>
+            <span>Unused <strong>{fmtPeso(Math.max(0, total - spent - committed))}</strong></span>
+            {committed > 0 && <span>Still committed <strong>{fmtPeso(committed)}</strong></span>}
+          </div>
+        )}
+
         {/* Meta */}
         <div style={{ fontSize: 12, color: '#94a3b8' }}>
           Created by: <strong style={{ color: '#64748b' }}>{createdBy}</strong>
@@ -585,6 +638,17 @@ const BudgetManagementPage = () => {
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
             EDIT
+          </button>
+          <button
+            type="button"
+            className="budget-edit-btn"
+            onClick={() => openLedger(b)}
+            aria-label={`View transaction ledger for ${b.period_label}`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginRight: 5 }}>
+              <path d="M9 17V9m4 8V5m4 12v-4M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z" />
+            </svg>
+            VIEW LEDGER
           </button>
           <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />
         </div>
@@ -772,6 +836,58 @@ const BudgetManagementPage = () => {
                 {editSaving ? 'SAVING…' : 'SAVE CHANGES'}
               </button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Ledger drill-down Modal ─────────────────────────────────────── */}
+      <Modal
+        isOpen={!!ledgerBudget}
+        onClose={() => setLedgerBudget(null)}
+        title={ledgerBudget ? `Budget Ledger — ${ledgerBudget.period_label}` : ''}
+        maxWidth={720}
+      >
+        {ledgerLoading ? (
+          <Loader variant="inline" label="Loading transactions" />
+        ) : ledgerRows.length === 0 ? (
+          <p style={{ color: '#64748b', fontSize: 13 }}>
+            No transactions yet. Rows appear when purchase requests are approved,
+            archived, or received against this budget.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="budget-ledger-table">
+              <thead>
+                <tr>
+                  <th>When</th><th>Type</th><th>Amount</th><th>Document</th><th>By</th><th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledgerRows.map((t) => {
+                  const isReturn = t.txn_type === 'release';
+                  return (
+                    <tr key={t.txn_id}>
+                      <td>{isoToMDY(t.created_at)}</td>
+                      <td><span className={`txn-badge txn-badge--${t.txn_type}`}>{t.txn_type.toUpperCase()}</span></td>
+                      <td className={isReturn ? 'budget-ledger-amount--minus' : 'budget-ledger-amount--plus'}>
+                        {fmtPeso(t.amount)}
+                      </td>
+                      <td>
+                        {t.purchase_request?.pr_number || t.purchase_order?.po_number || '—'}
+                        {t.purchase_request?.pr_number && t.purchase_order?.po_number
+                          ? ` / ${t.purchase_order.po_number}` : ''}
+                      </td>
+                      <td>
+                        {t.performer
+                          ? `${t.performer.first_name} ${t.performer.last_name}`.trim()
+                          : 'System'}
+                      </td>
+                      <td>{t.notes || ''}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </Modal>

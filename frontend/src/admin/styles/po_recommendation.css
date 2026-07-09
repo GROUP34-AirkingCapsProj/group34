@@ -3383,3 +3383,45 @@
 /* PO Recommendation (analytics rebuild) */
 .po-reason-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .po-qty-input { padding: 4px 8px; }
+
+/* ── Budget utilization bar ─────────────────────────────────────────────── */
+.budget-util { margin: 10px 16px 4px; }
+.budget-util-bar {
+  display: flex; height: 10px; border-radius: 999px; overflow: hidden;
+  background: #e2e8f0;
+}
+.budget-util-seg--spent     { background: #0f766e; }
+.budget-util-seg--committed { background: #f59e0b; }
+.budget-util-legend {
+  display: flex; gap: 14px; margin-top: 6px; font-size: 11px; color: #64748b;
+  flex-wrap: wrap; align-items: center;
+}
+.budget-util-legend .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px;
+}
+.budget-util-pct { margin-left: auto; font-weight: 700; color: #1e293b; }
+
+/* ── Ledger drill-down ──────────────────────────────────────────────────── */
+.budget-ledger-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.budget-ledger-table th, .budget-ledger-table td {
+  padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top;
+}
+.budget-ledger-table th { font-size: 11px; letter-spacing: .04em; color: #64748b; text-transform: uppercase; }
+.txn-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: .05em;
+}
+.txn-badge--commit     { background: #fef3c7; color: #92400e; }
+.txn-badge--release    { background: #dcfce7; color: #166534; }
+.txn-badge--spend      { background: #ccfbf1; color: #115e59; }
+.txn-badge--adjustment { background: #e0e7ff; color: #3730a3; }
+.budget-ledger-amount--minus { color: #166534; }
+.budget-ledger-amount--plus  { color: #92400e; }
+
+/* ── Period close-out variance strip ────────────────────────────────────── */
+.budget-closeout {
+  margin: 8px 16px 4px; padding: 8px 12px; border-radius: 8px;
+  background: #f8fafc; border: 1px dashed #cbd5e1; font-size: 12px; color: #475569;
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.budget-closeout strong { color: #1e293b; }
