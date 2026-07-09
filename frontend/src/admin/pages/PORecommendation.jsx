@@ -28,6 +28,9 @@ const REASON_LABELS = {
 const fmt = (v, digits = 1) =>
   v === null || v === undefined || v === '' ? '—' : Number(v).toFixed(digits);
 
+const fmtCost = (n) =>
+  `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function ReasonChips({ codes, title }) {
   const list = Array.isArray(codes) ? codes : [];
   return (
@@ -44,6 +47,7 @@ const PORecommendation = () => {
 
   const [tab, setTab]                   = useState('recommendations');
   const [runAt, setRunAt]               = useState(null);
+  const [budget, setBudget]             = useState(null); // active warehouse budget summary or null
   const [rows, setRows]                 = useState([]);
   const [suggestions, setSuggestions]   = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -63,6 +67,7 @@ const PORecommendation = () => {
         restockAPI.getSuggestions('pending'),
       ]);
       setRunAt(recRes?.data?.run_at || null);
+      setBudget(recRes?.data?.budget || null);
       setRows(Array.isArray(recRes?.data?.recommendations) ? recRes.data.recommendations : []);
       setSuggestions(Array.isArray(sugRes?.data) ? sugRes.data : []);
     } catch (err) {
@@ -80,6 +85,7 @@ const PORecommendation = () => {
     try {
       const res = await restockAPI.recalculate();
       setRunAt(res?.data?.run_at || null);
+      setBudget(res?.data?.budget || null);
       setRows(Array.isArray(res?.data?.recommendations) ? res.data.recommendations : []);
       const sugRes = await restockAPI.getSuggestions('pending');
       setSuggestions(Array.isArray(sugRes?.data) ? sugRes.data : []);
@@ -108,6 +114,16 @@ const PORecommendation = () => {
     high:     rows.filter((r) => r.priority === 'HIGH').length,
     medium:   rows.filter((r) => r.priority === 'MEDIUM').length,
   }), [rows]);
+
+  const selectedCost = useMemo(() => {
+    let sum = 0;
+    for (const [productId, qty] of selected.entries()) {
+      const row = rows.find((r) => r.product_id === productId);
+      const cost = Number(row?.product?.cost_price) || 0;
+      sum += cost * (Number(qty) || 0);
+    }
+    return sum;
+  }, [selected, rows]);
 
   const toggleRow = (r) => {
     setSelected((prev) => {
@@ -289,6 +305,46 @@ const PORecommendation = () => {
                 </button>
               </div>
             </div>
+
+            {budget && selected.size > 0 && (
+              <div
+                role="status"
+                style={{
+                  fontSize: 13,
+                  padding: '8px 12px',
+                  margin: '0 0 12px',
+                  borderRadius: 8,
+                  border: `1px solid ${selectedCost > budget.available ? '#fbbf24' : '#bbf7d0'}`,
+                  background: selectedCost > budget.available ? '#fffbeb' : '#f0fdf4',
+                  color: selectedCost > budget.available ? '#92400e' : '#166534',
+                }}
+              >
+                {selectedCost > budget.available ? (
+                  <>Selected items total <strong>{fmtCost(selectedCost)}</strong> — exceeds
+                    available budget ({fmtCost(budget.available)} for {budget.period_label}) by{' '}
+                    <strong>{fmtCost(selectedCost - budget.available)}</strong>. Consider staggering the order.</>
+                ) : (
+                  <>Selected items total <strong>{fmtCost(selectedCost)}</strong> — fits within
+                    available budget ({fmtCost(budget.available)} for {budget.period_label}).</>
+                )}
+              </div>
+            )}
+            {!budget && selected.size > 0 && (
+              <div
+                role="status"
+                style={{
+                  fontSize: 13,
+                  padding: '8px 12px',
+                  margin: '0 0 12px',
+                  borderRadius: 8,
+                  border: '1px solid #fbbf24',
+                  background: '#fffbeb',
+                  color: '#92400e',
+                }}
+              >
+                No active budget covers today for the warehouse — the PR will be rejected until Admin creates one in Budget Management.
+              </div>
+            )}
 
             {filtered.length === 0 ? (
               <div className="ak-state">
