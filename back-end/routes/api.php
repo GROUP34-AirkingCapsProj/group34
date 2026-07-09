@@ -471,7 +471,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::get('/budget-allocations/archived', [BudgetAllocationController::class, 'archived']);
-    Route::middleware('role:admin,inventory_analyst')->group(function () {
+    Route::middleware('role:admin,inventory_analyst,auditor')->group(function () {
         Route::get('/budget-allocations', [BudgetAllocationController::class, 'index']);
         Route::get('/budget-allocations/{id}', [BudgetAllocationController::class, 'show']);
         Route::get('/budget-allocations/{id}/available', [BudgetAllocationController::class, 'available']);
@@ -483,6 +483,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::delete('/budget-allocations/{id}', [BudgetAllocationController::class, 'destroy']);
         Route::post('/budget-allocations/{id}/restore', [BudgetAllocationController::class, 'restore']);
         Route::delete('/budget-allocations/{id}/force', [BudgetAllocationController::class, 'forceDestroy']);
+    });
+    Route::middleware('permission:budget_verification,verify')->group(function () {
+        Route::patch('/budget-allocations/{id}/verify', [BudgetAllocationController::class, 'verify']);
+        Route::patch('/budget-allocations/{id}/reject', [BudgetAllocationController::class, 'reject']);
     });
 
     /*

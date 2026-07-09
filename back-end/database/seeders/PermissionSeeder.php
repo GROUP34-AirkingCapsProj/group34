@@ -82,6 +82,14 @@ class PermissionSeeder extends Seeder
             'purchase_request_approval' => [
                 'approve' => ['admin'],
             ],
+            'budget_verification' => [
+                'read'   => ['admin', 'auditor'],
+                'verify' => ['auditor'],
+            ],
+            'purchase_order_verification' => [
+                'read'   => ['admin', 'auditor'],
+                'verify' => ['auditor'],
+            ],
             // PO Recommendation analytics (page is at /admin/po-recommendations).
             // create = recalculate + create draft PR; update = apply/dismiss
             // stock parameter suggestions (edits product master data).
