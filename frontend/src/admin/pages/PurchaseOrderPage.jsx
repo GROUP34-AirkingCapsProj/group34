@@ -21,7 +21,7 @@ import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
 import DateInput from '../components/DateInput';
-import { confirmAction } from '../utils/confirm';
+import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { toast } from '../utils/toast';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
@@ -461,8 +461,15 @@ const PurchaseOrderPage = () => {
   }, [refreshPOStatusList]);
 
   const handleRejectPOVerification = useCallback(async (po) => {
-    const reason = window.prompt('Reason for rejecting this purchase order?');
-    if (!reason) return;
+    const { confirmed, reason } = await confirmWithReason({
+      title: 'Reject this purchase order?',
+      confirmText: 'Reject',
+      tone: 'danger',
+      reasonRequired: true,
+      reasonLabel: 'Reason for rejection',
+      reasonPlaceholder: 'Explain why this purchase order is being sent back…',
+    });
+    if (!confirmed) return;
     setPoActionLoading(po.po_id);
     try {
       await purchaseOrdersAPI.reject(String(po.po_id), reason);
