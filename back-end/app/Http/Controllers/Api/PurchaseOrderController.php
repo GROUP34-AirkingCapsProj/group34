@@ -60,6 +60,9 @@ class PurchaseOrderController extends Controller
             if ($request->has('status_id')) {
                 $query->where('status_id', $request->status_id);
             }
+            if ($request->filled('verification_status')) {
+                $query->where('verification_status', $request->input('verification_status'));
+            }
             if ($request->has('search')) {
                 $query->where('po_number', 'like', '%' . $request->search . '%');
             }
@@ -428,7 +431,7 @@ class PurchaseOrderController extends Controller
             'details.product.consumableDetail.unit',
             'supplier', 'location', 'status',
             'purchaseRequest',
-            'createdBy', 'approvedBy', 'receivedBy',
+            'createdBy', 'approvedBy', 'verifiedBy', 'receivedBy',
         ])->orderBy('created_at', 'desc')->get();
 
         $filename = 'purchase-orders-' . now()->format('Ymd-His') . '.csv';
@@ -440,7 +443,7 @@ class PurchaseOrderController extends Controller
         $csvColumns = [
             'PO Number', 'PR Number', 'Order Date', 'Expected Delivery',
             'Location', 'Supplier', 'Status',
-            'Created By', 'Approved By', 'Received By',
+            'Created By', 'Verified By', 'Verification Status', 'Verified At', 'Approved By', 'Received By',
             'Line #', 'Product Code', 'Product Name', 'Type',
             'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
             'Qty Ordered', 'Unit Price', 'Subtotal',
@@ -458,6 +461,9 @@ class PurchaseOrderController extends Controller
                     ? trim($po->approvedBy->first_name . ' ' . $po->approvedBy->last_name) : '';
                 $receivedBy = $po->receivedBy
                     ? trim($po->receivedBy->first_name . ' ' . $po->receivedBy->last_name) : '';
+                $verifiedBy = $po->verifiedBy
+                    ? trim($po->verifiedBy->first_name . ' ' . $po->verifiedBy->last_name) : '';
+                $verifiedAt = $po->verified_at ? $po->verified_at->format('Y-m-d') : '';
 
                 if ($po->details->isEmpty()) {
                     fputcsv($handle, [
@@ -468,7 +474,7 @@ class PurchaseOrderController extends Controller
                         $po->location?->location_name  ?? '',
                         $po->supplier?->supplier_name  ?? '',
                         $po->status?->status_name      ?? '',
-                        $createdBy, $approvedBy, $receivedBy,
+                        $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
                         '', '', '', '', '', '', '', '', '', '',
                         number_format((float) $po->total_amount, 2),
                         number_format((float) $po->grand_total,  2),
@@ -489,7 +495,7 @@ class PurchaseOrderController extends Controller
                         $po->location?->location_name  ?? '',
                         $po->supplier?->supplier_name  ?? '',
                         $po->status?->status_name      ?? '',
-                        $createdBy, $approvedBy, $receivedBy,
+                        $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
                         $i + 1,
                         $p?->product_code ?? '',
                         $p?->product_name ?? '',

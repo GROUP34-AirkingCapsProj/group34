@@ -30,6 +30,9 @@ class BudgetAllocationController extends Controller
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->input('category_id'));
         }
+        if ($request->filled('verification_status')) {
+            $query->where('verification_status', $request->input('verification_status'));
+        }
         if ($request->input('active') == 1) {
             $today = today();
             $query->where('period_start', '<=', $today)
