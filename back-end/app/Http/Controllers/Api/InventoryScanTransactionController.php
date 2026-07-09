@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
-use App\Models\BudgetAllocation;
 use App\Models\Inventory;
 use App\Models\InventoryScanEvent;
 use App\Models\ItemSerial;
@@ -912,15 +911,9 @@ class InventoryScanTransactionController extends Controller
             // When PO is fully completed: move budget from committed → spent.
             // Only applies to POs sourced from a PR that has a budget_id.
             if ($newStatusId === 11) {
-                $po = PurchaseOrder::with('purchaseRequest.budget')->find($poId);
-                if ($po && $po->pr_id && $po->purchaseRequest) {
-                    $pr = $po->purchaseRequest;
-                    if ($pr->budget_id) {
-                        BudgetAllocation::where('budget_id', $pr->budget_id)
-                            ->increment('spent',     $po->total_amount);
-                        BudgetAllocation::where('budget_id', $pr->budget_id)
-                            ->decrement('committed', $po->total_amount);
-                    }
+                $po = PurchaseOrder::with('purchaseRequest')->find($poId);
+                if ($po) {
+                    app(\App\Services\BudgetService::class)->spend($po, $userId);
                 }
             }
         } elseif ($userId !== null) {
