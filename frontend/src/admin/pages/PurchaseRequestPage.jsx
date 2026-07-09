@@ -368,6 +368,7 @@ const PurchaseRequestPage = () => {
   );
   const budgetAvailable = budget ? Number(budget.available ?? 0) : null;
   const overBudget      = budgetAvailable !== null && estimatedTotal > budgetAvailable;
+  const budgetVerified  = budget?.verification_status === 'verified';
 
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
@@ -389,6 +390,10 @@ const PurchaseRequestPage = () => {
         "Couldn't send request",
         `Estimated total ${fmtPeso(estimatedTotal)} exceeds the available budget ${fmtPeso(budgetAvailable)} for this location.`
       );
+      return;
+    }
+    if (budget && !budgetVerified) {
+      toast.error("Couldn't send request", 'This budget has not been verified by an auditor yet.');
       return;
     }
 
@@ -419,7 +424,7 @@ const PurchaseRequestPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedLocId, neededByDate, purpose, lineItems, budget, overBudget, estimatedTotal, budgetAvailable]);
+  }, [selectedLocId, neededByDate, purpose, lineItems, budget, overBudget, estimatedTotal, budgetAvailable, budgetVerified]);
 
   // ── Archive PR ────────────────────────────────────────────────────────────
   const handleArchivePR = useCallback(async (prId) => {
@@ -526,6 +531,13 @@ const PurchaseRequestPage = () => {
             </div>
           ))}
         </div>
+        {budget.verification_status && budget.verification_status !== 'verified' && (
+          <div style={{ margin:'10px 0 0', background:'#fffbeb', border:'1px solid #fbbf24', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#92400e' }}>
+            {budget.verification_status === 'rejected'
+              ? `This budget was rejected by the auditor${budget.verification_note ? `: ${budget.verification_note}` : ''}.`
+              : 'This budget is awaiting auditor verification — you cannot submit a request against it yet.'}
+          </div>
+        )}
       </div>
     );
   };
@@ -791,10 +803,11 @@ const PurchaseRequestPage = () => {
           type="button"
           className="po-btn po-btn-final-submission"
           onClick={handleSubmitPR}
-          disabled={submitting || loadingBudget || overBudget || Boolean(selectedLocId && !budget)}
+          disabled={submitting || loadingBudget || overBudget || Boolean(selectedLocId && !budget) || Boolean(budget && !budgetVerified)}
           title={
             overBudget ? 'Estimated total exceeds the available budget'
             : (selectedLocId && !budget) ? 'No budget allocated for this location'
+            : (budget && !budgetVerified) ? 'This budget has not been verified by an auditor yet'
             : undefined
           }
         >

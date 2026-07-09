@@ -10,7 +10,7 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
-import { confirmAction } from '../utils/confirm';
+import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
@@ -118,9 +118,10 @@ const emptyForm = () => ({
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const BudgetManagementPage = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const role     = getRoleKey(user);
   const isAdmin  = role === ROLES.ADMIN;
+  const canVerifyBudget = typeof can === 'function' && can('budget_verification', 'verify');
 
   const [activeTab,    setActiveTab]    = useState('overview');
   const [budgets,      setBudgets]      = useState([]);
@@ -314,6 +315,32 @@ const BudgetManagementPage = () => {
       setLedgerLoading(false);
     }
   }, []);
+
+  // ── Verify / Reject ──────────────────────────────────────────────────────────
+  const handleVerifyBudget = useCallback(async (b) => {
+    try {
+      await budgetAllocationsAPI.verify(b.budget_id);
+      toast.success('Budget verified', `${b.period_label} can now fund requests.`);
+      loadBudgets();
+    } catch (err) { toast.error('Could not verify budget', err?.message); }
+  }, [loadBudgets]);
+
+  const handleRejectBudget = useCallback(async (b) => {
+    const { confirmed, reason } = await confirmWithReason({
+      title: `Reject budget ${b.period_label}?`,
+      confirmText: 'Reject',
+      tone: 'danger',
+      reasonRequired: true,
+      reasonLabel: 'Reason',
+      reasonPlaceholder: 'Why is this budget being rejected?',
+    });
+    if (!confirmed) return;
+    try {
+      await budgetAllocationsAPI.reject(b.budget_id, reason);
+      toast.success('Budget rejected', `${b.period_label} was sent back.`);
+      loadBudgets();
+    } catch (err) { toast.error('Could not reject budget', err?.message); }
+  }, [loadBudgets]);
 
   // ── Shared form renderer ─────────────────────────────────────────────────────
   const renderFormFields = (f, setFn, errors, isEdit = false) => {
@@ -544,6 +571,19 @@ const BudgetManagementPage = () => {
             <span className={`budget-period-badge budget-period-badge--${pStatus.key}`}>
               {pStatus.label}
             </span>
+            {b.verification_status === 'pending' && (
+              <span className="ak-badge" style={{ background:'#fffbeb', color:'#92400e' }}>AWAITING VERIFICATION</span>
+            )}
+            {b.verification_status === 'verified' && (
+              <span className="ak-badge" style={{ background:'#dcfce7', color:'#166534' }}>
+                VERIFIED{b.verifier ? ` — ${b.verifier.first_name} ${b.verifier.last_name}` : ''}
+              </span>
+            )}
+            {b.verification_status === 'rejected' && (
+              <span className="ak-badge" style={{ background:'#fee2e2', color:'#991b1b' }}>
+                REJECTED{b.verification_note ? ` — ${b.verification_note}` : ''}
+              </span>
+            )}
           </div>
         </div>
 
@@ -651,6 +691,12 @@ const BudgetManagementPage = () => {
             VIEW LEDGER
           </button>
           <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />
+          {canVerifyBudget && b.verification_status !== 'verified' && (
+            <>
+              <button type="button" className="budget-edit-btn" onClick={() => handleVerifyBudget(b)}>Verify</button>
+              <button type="button" className="budget-edit-btn" onClick={() => handleRejectBudget(b)}>Reject</button>
+            </>
+          )}
         </div>
       </div>
     );
