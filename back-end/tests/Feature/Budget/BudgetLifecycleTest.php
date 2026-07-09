@@ -61,6 +61,7 @@ class BudgetLifecycleTest extends BudgetTestCase
         $pr = $this->makePr($budget, 4000, 14);
         app(BudgetService::class)->commit($pr);
         $po = $this->makePo($pr, 3800, 7);
+        $po->update(['verification_status' => 'verified']);
         $pr->update(['converted_to_po_id' => $po->po_id]);
 
         $this->actingAs($admin, 'sanctum')
@@ -79,6 +80,7 @@ class BudgetLifecycleTest extends BudgetTestCase
         $pr = $this->makePr($budget, 4000, 14);
         app(BudgetService::class)->commit($pr);
         $po = $this->makePo($pr, 4000, 7);
+        $po->update(['verification_status' => 'verified']);
         $pr->update(['converted_to_po_id' => $po->po_id]);
 
         $this->actingAs($admin, 'sanctum')
