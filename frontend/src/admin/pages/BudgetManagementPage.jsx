@@ -122,6 +122,10 @@ const BudgetManagementPage = () => {
   const role     = getRoleKey(user);
   const isAdmin  = role === ROLES.ADMIN;
   const canVerifyBudget = typeof can === 'function' && can('budget_verification', 'verify');
+  const canReadBudget   = typeof can === 'function' && can('budget_verification', 'read');
+  // Admin manages budgets (CRUD); a verifier (auditor or a granted user) may
+  // view them and verify/reject. Both need to reach the page.
+  const canView = isAdmin || canReadBudget || canVerifyBudget;
 
   const [activeTab,    setActiveTab]    = useState('overview');
   const [budgets,      setBudgets]      = useState([]);
@@ -163,15 +167,16 @@ const BudgetManagementPage = () => {
 
   // ── Load locations + categories once ───────────────────────────────────────
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canView) return;
     loadBudgets();
+    if (!isAdmin) return; // locations + categories power the admin-only create form
     locationsAPI.getAll({ per_page: 200 })
       .then(res => setLocations(Array.isArray(res?.data) ? res.data : []))
       .catch(() => {});
     categoriesAPI.getAll()
       .then(res => setCategories(Array.isArray(res?.data) ? res.data : []))
       .catch(() => {});
-  }, [isAdmin, loadBudgets]);
+  }, [isAdmin, canView, loadBudgets]);
 
   // ── Summary totals ──────────────────────────────────────────────────────────
   const summary = useMemo(() => budgets.reduce((acc, b) => ({
@@ -672,13 +677,15 @@ const BudgetManagementPage = () => {
 
         {/* Actions */}
         <div className="budget-card-actions">
-          <button type="button" className="budget-edit-btn" onClick={() => openEdit(b)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginRight: 5 }}>
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-            EDIT
-          </button>
+          {isAdmin && (
+            <button type="button" className="budget-edit-btn" onClick={() => openEdit(b)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginRight: 5 }}>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              EDIT
+            </button>
+          )}
           <button
             type="button"
             className="budget-edit-btn"
@@ -690,7 +697,7 @@ const BudgetManagementPage = () => {
             </svg>
             VIEW LEDGER
           </button>
-          <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />
+          {isAdmin && <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />}
           {canVerifyBudget && b.verification_status !== 'verified' && (
             <>
               <button type="button" className="budget-edit-btn" onClick={() => handleVerifyBudget(b)}>Verify</button>
@@ -786,7 +793,7 @@ const BudgetManagementPage = () => {
   );
 
   // ── Access guard ─────────────────────────────────────────────────────────────
-  if (!isAdmin) {
+  if (!canView) {
     return (
       <AdminLayout>
         <div className="ak-page po-recommendation-page">
@@ -796,7 +803,7 @@ const BudgetManagementPage = () => {
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
             <p>Access Denied</p>
-            <span>Budget management is restricted to System Administrators.</span>
+            <span>Budget management is restricted to administrators and budget verifiers.</span>
           </div>
         </div>
       </AdminLayout>
@@ -840,17 +847,19 @@ const BudgetManagementPage = () => {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`}
-            onClick={() => setActiveTab('create')}
-          >
-            + Create Budget
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`}
+              onClick={() => setActiveTab('create')}
+            >
+              + Create Budget
+            </button>
+          )}
         </div>
 
         {activeTab === 'overview' && renderOverview()}
-        {activeTab === 'create'   && renderCreate()}
+        {isAdmin && activeTab === 'create' && renderCreate()}
       </div>
 
       {/* ── Edit Modal ─────────────────────────────────────────────────────── */}
