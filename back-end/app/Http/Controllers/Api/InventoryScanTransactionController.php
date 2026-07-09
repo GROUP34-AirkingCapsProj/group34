@@ -228,6 +228,15 @@ class InventoryScanTransactionController extends Controller
                 ], 'Rejected');
             }
 
+            // Mirrors the ReceivingController::store() gate: a PO must be verified by an
+            // auditor before any stock can be received against it via barcode scan.
+            if ($po->verification_status !== 'verified') {
+                return $this->success([
+                    'action' => 'rejected',
+                    'reason' => 'This purchase order must be verified by an auditor before receiving.',
+                ], 'Rejected');
+            }
+
             $receivableStatusIds = [8, 10, 12]; // Approved, Authorized, Partially Received
             if (! in_array((int) $po->status_id, $receivableStatusIds, true)) {
                 $statusName = $po->status?->status_name ?? 'Unknown';

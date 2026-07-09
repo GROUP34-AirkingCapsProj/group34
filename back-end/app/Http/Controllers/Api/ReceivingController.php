@@ -72,6 +72,11 @@ class ReceivingController extends Controller
             $locationId = (int) $validated['location_id'];
             $uid        = $request->user()?->user_id;
 
+            $poForCheck = PurchaseOrder::find($poId);
+            if ($poForCheck && $poForCheck->verification_status !== 'verified') {
+                return $this->error('This purchase order must be verified by an auditor before receiving', 422);
+            }
+
             DB::beginTransaction();
 
             $receivingData = Arr::except($validated, ['details']);
