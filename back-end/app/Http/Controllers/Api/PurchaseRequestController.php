@@ -651,6 +651,16 @@ class PurchaseRequestController extends Controller
             return $this->validationError($e->errors());
         }
 
+        if ($hasLineWarehouses) {
+            $prPairs = $pr->details->map(fn ($d) => $d->product_id . ':' . $d->location_id)->all();
+            foreach ($validated['details'] as $line) {
+                $pair = $line['product_id'] . ':' . $line['location_id'];
+                if (!in_array($pair, $prPairs, true)) {
+                    return $this->error('A converted line does not match this purchase request (product/warehouse mismatch).', 422);
+                }
+            }
+        }
+
         try {
             $firstPo = DB::transaction(function () use ($pr, $validated, $request, $hasLineWarehouses) {
                 $mkLine = function ($d) {

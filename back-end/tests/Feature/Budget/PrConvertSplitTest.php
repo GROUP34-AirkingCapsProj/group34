@@ -84,4 +84,32 @@ class PrConvertSplitTest extends BudgetTestCase
         $this->actingAs($admin, 'sanctum')->postJson("/api/purchase-requests/{$pr->pr_id}/convert", $body)->assertSuccessful();
         $this->actingAs($admin, 'sanctum')->postJson("/api/purchase-requests/{$pr->pr_id}/convert", $body)->assertStatus(422);
     }
+
+    public function test_convert_rejects_line_for_warehouse_not_on_pr(): void
+    {
+        $admin = $this->makeUser('admin');
+        $supplier = (int) DB::table('suppliers')->insertGetId(['supplier_name' => 'S', 'created_at' => now(), 'updated_at' => now()], 'supplier_id');
+        $whA = $this->locationId;
+        $whOther = $this->warehouse(); // a warehouse NOT on the PR
+        $pid = (int) DB::table('products')->insertGetId([
+            'product_code' => 'P-' . uniqid(), 'product_name' => 'P',
+            'product_type' => 'installation_material', 'unit_price' => 100, 'cost_price' => 80,
+            'status_id' => 3, 'created_at' => now(), 'updated_at' => now(),
+        ], 'product_id');
+        $pr = PurchaseRequest::create([
+            'location_id' => null, 'supplier_id' => $supplier, 'budget_id' => null,
+            'pr_number' => 'PR-' . strtoupper(Str::random(6)),
+            'request_date' => today(), 'needed_by_date' => today()->addDays(7),
+            'estimated_total' => 200, 'status_id' => 14,
+            'requested_by' => $this->makeUser('inventory_analyst')->user_id,
+        ]);
+        PurchaseRequestDetail::create(['pr_id'=>$pr->pr_id,'product_id'=>$pid,'location_id'=>$whA,'quantity'=>2,'estimated_price'=>100,'subtotal'=>200]);
+
+        // Convert but point the line at $whOther (not on the PR).
+        $this->actingAs($admin, 'sanctum')->postJson("/api/purchase-requests/{$pr->pr_id}/convert", [
+            'details' => [['product_id' => $pid, 'location_id' => $whOther, 'quantity_ordered' => 2, 'unit_price' => 100]],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, PurchaseOrder::where('pr_id', $pr->pr_id)->count());
+    }
 }
