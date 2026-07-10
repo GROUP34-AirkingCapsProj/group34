@@ -386,14 +386,17 @@ class PurchaseRequestController extends Controller
      */
     public function approve(Request $request, $id)
     {
-        $pr = PurchaseRequest::find($id);
+        $pr = PurchaseRequest::with('details')->find($id);
         if (!$pr) {
             return $this->notFound('Purchase request not found');
         }
         if (!$pr->isPending()) {
             return $this->error('Only pending purchase requests can be approved', 422);
         }
-        if (!$pr->budget_id) {
+
+        $hasLineWarehouses = $pr->details->whereNotNull('location_id')->isNotEmpty();
+
+        if (!$hasLineWarehouses && !$pr->budget_id) {
             return $this->error(
                 'This purchase request has no budget attached (created before budget enforcement). Reject it and ask the requester to submit a new one.',
                 422
@@ -401,14 +404,27 @@ class PurchaseRequestController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($pr, $request) {
+            DB::transaction(function () use ($pr, $request, $hasLineWarehouses) {
                 $pr->update([
                     'status_id'    => 14,
                     'approved_by'  => $request->user()->user_id,
                     'approval_date'=> today(),
                 ]);
 
-                $this->budgetService->commit($pr, $request->user()->user_id);
+                if ($hasLineWarehouses) {
+                    $groups = $pr->details->groupBy('location_id');
+                    foreach ($groups as $locId => $lines) {
+                        $subtotal = (float) $lines->sum('subtotal');
+                        $budget = $this->budgetService->resolveActiveBudget((int) $locId);
+                        if (!$budget) {
+                            $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
+                            throw new UnverifiedBudgetException($whName ?? "warehouse #{$locId}", 'pending');
+                        }
+                        $this->budgetService->commitGroup($pr, $budget, $subtotal, $request->user()->user_id);
+                    }
+                } else {
+                    $this->budgetService->commit($pr, $request->user()->user_id);
+                }
             });
         } catch (UnverifiedBudgetException $e) {
             return $this->error($e->getMessage(), 422);
@@ -418,7 +434,12 @@ class PurchaseRequestController extends Controller
             return $this->error('Approval failed: ' . $e->getMessage(), 500);
         }
 
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        foreach ($pr->details->pluck('location_id')->filter()->unique() as $locId) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+        }
+        if (!$hasLineWarehouses && $pr->location_id) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        }
 
         $pr->load(self::WITH_RELATIONS);
         return $this->success($pr, 'Purchase request approved');
