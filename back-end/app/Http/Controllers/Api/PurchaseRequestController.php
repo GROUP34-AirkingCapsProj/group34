@@ -491,6 +491,7 @@ class PurchaseRequestController extends Controller
         $pr = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
             'details.product.consumableDetail.unit',
+            'details.location',
             'location',
             'budget',
         ])->find($id);
@@ -533,6 +534,8 @@ class PurchaseRequestController extends Controller
                 'subtotal'                 => $d->subtotal,
                 'quantity_already_ordered' => $alreadyOrdered,
                 'quantity_remaining'       => max(0, $d->quantity - $alreadyOrdered),
+                'location_id'              => $d->location_id,
+                'warehouse_name'           => $d->location?->location_name,
             ];
         });
 
@@ -544,6 +547,7 @@ class PurchaseRequestController extends Controller
             'pr'              => $pr,
             'prefilled_lines' => $prefilledLines,
             'suppliers'       => $suppliers,
+            'pr_supplier_id'  => $pr->supplier_id,
         ], 'PR convert form data');
     }
 
@@ -615,90 +619,111 @@ class PurchaseRequestController extends Controller
         if (!$pr) {
             return $this->notFound('Purchase request not found');
         }
-        if (!$pr->isApproved()) {
+        if (!$pr->isApproved() && (int) $pr->status_id !== 16) {
             return $this->error('Only approved purchase requests can be converted to a PO', 403);
         }
         if ($pr->converted_to_po_id) {
             return $this->error('This purchase request has already been converted to a PO', 422);
         }
 
+        $hasLineWarehouses = $pr->details->whereNotNull('location_id')->isNotEmpty();
+
         try {
-            $validated = $request->validate([
-                'supplier_id'                    => 'required|exists:suppliers,supplier_id',
-                'expected_delivery_date'         => 'nullable|date',
-                'payment_terms'                  => 'nullable|string|max:50',
-                'notes'                          => 'nullable|string',
-                'references_note'                => 'nullable|string',
-                'ship_to_name'                   => 'nullable|string|max:255',
-                'ship_to_address'                => 'nullable|string',
-                'details'                        => 'required|array|min:1',
-                'details.*.product_id'           => 'required|exists:products,product_id',
-                'details.*.quantity_ordered'      => 'required|integer|min:1',
-                'details.*.unit_price'           => 'required|numeric|min:0',
-            ]);
+            $rules = [
+                'expected_delivery_date'     => 'nullable|date',
+                'payment_terms'              => 'nullable|string|max:50',
+                'notes'                      => 'nullable|string',
+                'references_note'            => 'nullable|string',
+                'ship_to_name'               => 'nullable|string|max:255',
+                'ship_to_address'            => 'nullable|string',
+                'details'                    => 'required|array|min:1',
+                'details.*.product_id'       => 'required|exists:products,product_id',
+                'details.*.quantity_ordered' => 'required|integer|min:1',
+                'details.*.unit_price'       => 'required|numeric|min:0',
+            ];
+            if ($hasLineWarehouses) {
+                $rules['details.*.location_id'] = 'required|exists:locations,location_id';
+            } else {
+                $rules['supplier_id'] = 'required|exists:suppliers,supplier_id';
+            }
+            $validated = $request->validate($rules);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
         }
 
         try {
-            $po = DB::transaction(function () use ($pr, $validated, $request) {
-                $lines = array_map(function ($d) {
+            $firstPo = DB::transaction(function () use ($pr, $validated, $request, $hasLineWarehouses) {
+                $mkLine = function ($d) {
                     $d['subtotal'] = $d['quantity_ordered'] * $d['unit_price'];
                     return $d;
-                }, $validated['details']);
+                };
 
-                $grandTotal = collect($lines)->sum('subtotal');
+                $groups = $hasLineWarehouses
+                    ? collect($validated['details'])->map($mkLine)->groupBy('location_id')
+                    : collect(['_' => collect($validated['details'])->map($mkLine)]);
 
-                $po = PurchaseOrder::create([
-                    'pr_id'                  => $pr->pr_id,
-                    'supplier_id'            => $validated['supplier_id'],
-                    'location_id'            => $pr->location_id,
-                    'po_number'              => 'PO-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
-                    'order_date'             => today(),
-                    'expected_delivery_date' => $validated['expected_delivery_date'] ?? null,
-                    'payment_terms'          => $validated['payment_terms']    ?? null,
-                    'notes'                  => $validated['notes']            ?? null,
-                    'references_note'        => $validated['references_note']  ?? null,
-                    'ship_to_name'           => $validated['ship_to_name']     ?? null,
-                    'ship_to_address'        => $validated['ship_to_address']  ?? null,
-                    'total_amount'           => $grandTotal,
-                    'grand_total'            => $grandTotal,
-                    'status_id'              => 7,
-                    'created_by'             => $request->user()->user_id,
-                ]);
+                $supplierId = $hasLineWarehouses ? $pr->supplier_id : $validated['supplier_id'];
+                $createdPos = [];
 
-                foreach ($lines as $line) {
-                    PurchaseOrderDetail::create([
-                        'po_id'           => $po->po_id,
-                        'product_id'      => $line['product_id'],
-                        'quantity_ordered' => $line['quantity_ordered'],
-                        'unit_price'      => $line['unit_price'],
-                        'subtotal'        => $line['subtotal'],
+                foreach ($groups as $locKey => $lines) {
+                    $locationId = $hasLineWarehouses ? (int) $locKey : (int) $pr->location_id;
+                    $grand = collect($lines)->sum('subtotal');
+
+                    $po = PurchaseOrder::create([
+                        'pr_id'                  => $pr->pr_id,
+                        'supplier_id'            => $supplierId,
+                        'location_id'            => $locationId,
+                        'po_number'              => 'PO-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
+                        'order_date'             => today(),
+                        'expected_delivery_date' => $validated['expected_delivery_date'] ?? null,
+                        'payment_terms'          => $validated['payment_terms']    ?? null,
+                        'notes'                  => $validated['notes']            ?? null,
+                        'references_note'        => $validated['references_note']  ?? null,
+                        'ship_to_name'           => $validated['ship_to_name']     ?? null,
+                        'ship_to_address'        => $validated['ship_to_address']  ?? null,
+                        'total_amount'           => $grand,
+                        'grand_total'            => $grand,
+                        'status_id'              => 7,
+                        'created_by'             => $request->user()->user_id,
                     ]);
+                    foreach ($lines as $line) {
+                        PurchaseOrderDetail::create([
+                            'po_id'            => $po->po_id,
+                            'product_id'       => $line['product_id'],
+                            'quantity_ordered' => $line['quantity_ordered'],
+                            'unit_price'       => $line['unit_price'],
+                            'subtotal'         => $line['subtotal'],
+                        ]);
+                    }
+                    $createdPos[] = $po;
                 }
 
-                $pr->update(['converted_to_po_id' => $po->po_id]);
+                $pr->update(['converted_to_po_id' => $createdPos[0]->po_id]);
 
-                $orderedMap = collect($lines)->keyBy('product_id');
-                $isPartial  = $pr->details->contains(function ($prDetail) use ($orderedMap) {
-                    $poLine = $orderedMap->get($prDetail->product_id);
-                    return !$poLine || $poLine['quantity_ordered'] < $prDetail->quantity;
+                $orderedByProdLoc = collect($validated['details'])->groupBy(fn ($d) =>
+                    ($hasLineWarehouses ? $d['location_id'] : '_') . ':' . $d['product_id'])
+                    ->map(fn ($rows) => collect($rows)->sum('quantity_ordered'));
+                $isPartial = $pr->details->contains(function ($prDetail) use ($orderedByProdLoc, $hasLineWarehouses) {
+                    $key = ($hasLineWarehouses ? $prDetail->location_id : '_') . ':' . $prDetail->product_id;
+                    return ($orderedByProdLoc[$key] ?? 0) < (int) $prDetail->quantity;
                 });
-
                 $pr->update(['status_id' => $isPartial ? 16 : 14]);
 
-                return $po;
+                return $createdPos[0];
             });
 
-            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
-            RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'pr_converted');
+            foreach ($pr->details->pluck('location_id')->filter()->unique() as $locId) {
+                RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+                RealtimeBroadcaster::purchaseOrderChanged((int) $locId, 'pr_converted');
+            }
+            if (!$hasLineWarehouses && $pr->location_id) {
+                RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+                RealtimeBroadcaster::purchaseOrderChanged((int) $pr->location_id, 'pr_converted');
+            }
 
-            $po->load([
-                'supplier', 'location', 'status', 'purchaseRequest',
-                'details.product.applianceDetail.brand',
-                'details.product.consumableDetail.unit',
-            ]);
-            return $this->success($po, 'Purchase request converted to purchase order', 201);
+            $firstPo->load(['supplier', 'location', 'status', 'purchaseRequest',
+                'details.product.applianceDetail.brand', 'details.product.consumableDetail.unit']);
+            return $this->success($firstPo, 'Purchase request converted to purchase order', 201);
         } catch (\Throwable $e) {
             return $this->error('Conversion failed: ' . $e->getMessage(), 500);
         }
