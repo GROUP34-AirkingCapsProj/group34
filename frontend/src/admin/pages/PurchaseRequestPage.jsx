@@ -6,7 +6,8 @@ import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
   locationsAPI,
-  itemsAPI,
+  suppliersAPI,
+  purchaseOrdersAPI,
   purchaseRequestsAPI,
   budgetAllocationsAPI,
 } from '../services/api';
@@ -94,6 +95,7 @@ const detailLabel = (d) => {
 const newLine = () => ({
   id:                  `line-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   productId:           '',
+  locationId:          '',
   productName:         '',
   productType:         '',
   unitId:              '',
@@ -130,20 +132,29 @@ const PurchaseRequestPage = () => {
   // ── Tab 1: Create ─────────────────────────────────────────────────────────
   const [locations,        setLocations]        = useState([]);
   const [loadingLocations, setLoadingLocations] = useState(true);
-  const [selectedLocId,    setSelectedLocId]    = useState('');
-  const [budget,           setBudget]           = useState(null);
-  const [loadingBudget,    setLoadingBudget]    = useState(false);
+  const [suppliers,        setSuppliers]        = useState([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  // Per-warehouse budget cache: { [locationId]: { loading: bool, budget: object|null } }
+  const [budgetsByLoc,     setBudgetsByLoc]     = useState({});
+  const fetchedLocRef = useRef(new Set());
   const [neededByDate,     setNeededByDate]     = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 7);
     return d.toISOString().slice(0, 10);
   });
   const [purpose,   setPurpose]   = useState('');
-  const [products,  setProducts]  = useState([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [supplierProducts,        setSupplierProducts]        = useState([]);
+  const [loadingSupplierProducts, setLoadingSupplierProducts] = useState(false);
   const [filterCat,  setFilterCat]  = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [lineItems, setLineItems] = useState([newLine()]);
   const [submitting,  setSubmitting]  = useState(false);
+
+  // Warehouse-only destinations for the per-line selector
+  const warehouseLocations = useMemo(
+    () => locations.filter(l => l.location_type === 'warehouse'),
+    [locations]
+  );
 
   // ── Tab 2: My Requests ────────────────────────────────────────────────────
   const [myPRs,        setMyPRs]        = useState([]);
@@ -172,32 +183,50 @@ const PurchaseRequestPage = () => {
         if (!ok) return;
         const list = Array.isArray(res?.data) ? res.data : [];
         setLocations(list);
-        if (list.length) setSelectedLocId(String(list[0].location_id ?? list[0].id ?? ''));
       })
       .catch(console.error)
       .finally(() => { if (ok) setLoadingLocations(false); });
     return () => { ok = false; };
   }, []);
 
-  // ── Load products ─────────────────────────────────────────────────────────
+  // ── Load suppliers ────────────────────────────────────────────────────────
   useEffect(() => {
     let ok = true;
-    itemsAPI.getAll({ per_page: 1000 })
+    suppliersAPI.getAll({ per_page: 500 })
+      .then(res => {
+        if (!ok) return;
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setSuppliers(list);
+      })
+      .catch(console.error)
+      .finally(() => { if (ok) setLoadingSuppliers(false); });
+    return () => { ok = false; };
+  }, []);
+
+  // ── Supplier change: clear lines + load that supplier's products ─────────
+  useEffect(() => {
+    setLineItems([newLine()]);
+    setFilterCat('');
+    setFilterBrand('');
+    if (!selectedSupplierId) { setSupplierProducts([]); return; }
+    let ok = true;
+    setLoadingSupplierProducts(true);
+    purchaseOrdersAPI.getProductsBySupplier(selectedSupplierId)
       .then(res => {
         if (!ok) return;
         const rows = Array.isArray(res?.data) ? res.data : [];
-        setProducts(rows.map(p => ({
-          id:              String(p.product_id ?? p.id ?? ''),
-          name:            p.product_name || p.name || '',
-          code:            p.product_code || p.code || '',
+        setSupplierProducts(rows.map(p => ({
+          id:              String(p.product_id ?? ''),
+          name:            p.product_name || '',
+          code:            p.product_code || '',
           type:            p.product_type || '',
-          categoryId:      String(p.category_id ?? ''),
-          categoryName:    p.category?.category_name || '',
-          brandId:         String(p.brand_id ?? ''),
+          categoryId:      '',
+          categoryName:    '',
+          brandId:         '',
           brandName:       p.brand_name || '',
-          unitId:          String(p.unit_id ?? ''),
-          unitName:        p.unit_name || p.unit?.unit_name || '',
-          unitAbbr:        p.unit_abbreviation || p.unit?.unit_abbreviation || '',
+          unitId:          '',
+          unitName:        p.unit_name || '',
+          unitAbbr:        p.unit_abbreviation || '',
           capacityRating:  p.capacity_rating || '',
           variant:         p.variant || '',
           piecesPerPackage: p.pieces_per_package ?? null,
@@ -206,35 +235,48 @@ const PurchaseRequestPage = () => {
         })));
       })
       .catch(console.error)
-      .finally(() => { if (ok) setLoadingProducts(false); });
+      .finally(() => { if (ok) setLoadingSupplierProducts(false); });
     return () => { ok = false; };
-  }, []);
+  }, [selectedSupplierId]);
 
-  // ── Fetch budget when location changes ────────────────────────────────────
+  // ── Distinct warehouses currently used across line items ──────────────────
+  const distinctLineLocIds = useMemo(() => {
+    const ids = new Set();
+    lineItems.forEach(li => { if (li.locationId) ids.add(String(li.locationId)); });
+    return [...ids];
+  }, [lineItems]);
+
+  // ── Fetch (and cache) the active budget for each distinct warehouse ───────
   useEffect(() => {
-    if (!selectedLocId) { setBudget(null); return; }
     let ok = true;
-    setLoadingBudget(true);
-    setBudget(null);
-    budgetAllocationsAPI.getForLocation(selectedLocId)
-      .then(res => {
-        if (!ok) return;
-        const list = Array.isArray(res?.data) ? res.data : [];
-        if (!list.length) return;
-        // Prefer a budget whose period covers today; otherwise take the first (most recent by period_start)
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const active = list.find(b =>
-          String(b.period_start).slice(0, 10) <= todayStr &&
-          String(b.period_end).slice(0, 10)   >= todayStr
-        );
-        const best = active || list[0];
-        return budgetAllocationsAPI.getAvailable(best.budget_id)
-          .then(avRes => { if (ok) setBudget(avRes?.data ?? null); });
-      })
-      .catch(() => { if (ok) setBudget(null); })
-      .finally(() => { if (ok) setLoadingBudget(false); });
+    distinctLineLocIds.forEach(locId => {
+      if (fetchedLocRef.current.has(locId)) return;
+      fetchedLocRef.current.add(locId);
+      setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: true, budget: null } }));
+      budgetAllocationsAPI.getForLocation(locId)
+        .then(res => {
+          const list = Array.isArray(res?.data) ? res.data : [];
+          if (!list.length) return null;
+          // Prefer a budget whose period covers today; otherwise take the first (most recent by period_start)
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const active = list.find(b =>
+            String(b.period_start).slice(0, 10) <= todayStr &&
+            String(b.period_end).slice(0, 10)   >= todayStr
+          );
+          const best = active || list[0];
+          return budgetAllocationsAPI.getAvailable(best.budget_id);
+        })
+        .then(avRes => {
+          if (!ok) return;
+          setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: false, budget: avRes?.data ?? null } }));
+        })
+        .catch(() => {
+          if (!ok) return;
+          setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: false, budget: null } }));
+        });
+    });
     return () => { ok = false; };
-  }, [selectedLocId]);
+  }, [distinctLineLocIds]);
 
   // ── Load tab data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -300,7 +342,7 @@ const PurchaseRequestPage = () => {
       ));
       return;
     }
-    const prod = products.find(p => p.id === productId);
+    const prod = supplierProducts.find(p => p.id === productId);
     if (!prod) return;
 
     setLineItems(p => p.map(li =>
@@ -333,7 +375,7 @@ const PurchaseRequestPage = () => {
         ));
       }
     } catch (_) { /* non-fatal */ }
-  }, [products]);
+  }, [supplierProducts]);
 
   const acknowledgeWarning = useCallback((lineId) =>
     setLineItems(p => p.map(li =>
@@ -343,36 +385,61 @@ const PurchaseRequestPage = () => {
   // ── Product filter derived lists ──────────────────────────────────────────
   const categoryOptions = useMemo(() => {
     const seen = new Map();
-    products.forEach(p => { if (p.categoryId && !seen.has(p.categoryId)) seen.set(p.categoryId, p.categoryName || p.categoryId); });
+    supplierProducts.forEach(p => { if (p.categoryId && !seen.has(p.categoryId)) seen.set(p.categoryId, p.categoryName || p.categoryId); });
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [products]);
+  }, [supplierProducts]);
 
   const brandOptions = useMemo(() => {
     const seen = new Map();
-    products
+    supplierProducts
       .filter(p => !filterCat || p.categoryId === filterCat)
       .forEach(p => { if (p.brandId && !seen.has(p.brandId)) seen.set(p.brandId, p.brandName || p.brandId); });
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [products, filterCat]);
+  }, [supplierProducts, filterCat]);
 
   const filteredProducts = useMemo(() =>
-    products.filter(p =>
+    supplierProducts.filter(p =>
       (!filterCat   || p.categoryId === filterCat) &&
       (!filterBrand || p.brandId    === filterBrand)
-    ), [products, filterCat, filterBrand]);
+    ), [supplierProducts, filterCat, filterBrand]);
 
   // ── Computed totals ───────────────────────────────────────────────────────
   const estimatedTotal = useMemo(
     () => lineItems.reduce((s, li) => s + Number(li.subtotal || 0), 0),
     [lineItems]
   );
-  const budgetAvailable = budget ? Number(budget.available ?? 0) : null;
-  const overBudget      = budgetAvailable !== null && estimatedTotal > budgetAvailable;
-  const budgetVerified  = budget?.verification_status === 'verified';
+
+  // ── Per-warehouse subtotal + budget-group status ──────────────────────────
+  const lineSubtotalsByLoc = useMemo(() => {
+    const map = {};
+    lineItems.forEach(li => {
+      if (!li.locationId) return;
+      const locId = String(li.locationId);
+      map[locId] = (map[locId] || 0) + Number(li.subtotal || 0);
+    });
+    return map;
+  }, [lineItems]);
+
+  const warehouseGroupStatus = useMemo(() => distinctLineLocIds.map(locId => {
+    const entry     = budgetsByLoc[locId];
+    const loading   = entry?.loading ?? true;
+    const budget    = entry?.budget ?? null;
+    const subtotal  = lineSubtotalsByLoc[locId] || 0;
+    const available = budget ? Number(budget.available ?? 0) : null;
+    const verified  = budget?.verification_status === 'verified';
+    const missing   = !loading && !budget;
+    const over      = available !== null && subtotal > available;
+    const loc       = locations.find(l => String(l.location_id ?? l.id ?? '') === locId);
+    const locName   = loc?.location_name || loc?.name || `Warehouse #${locId}`;
+    const ok        = !loading && !missing && verified && !over;
+    return { locId, locName, loading, budget, subtotal, available, verified, missing, over, ok };
+  }), [distinctLineLocIds, budgetsByLoc, lineSubtotalsByLoc, locations]);
+
+  const hasBlockingWarehouseGroup = warehouseGroupStatus.some(g => !g.ok);
 
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
-    if (!selectedLocId) { toast.error("Couldn't send request", 'Please select a location.'); return; }
+    if (!selectedSupplierId) { toast.error("Couldn't send request", 'Please select a supplier.'); return; }
     if (!neededByDate)  { toast.error("Couldn't send request", 'Please set a needed-by date.'); return; }
     if (neededByDate <= new Date().toISOString().slice(0, 10)) {
       toast.error("Couldn't send request", 'Needed-by date must be a future date.'); return;
@@ -381,35 +448,48 @@ const PurchaseRequestPage = () => {
     if (!validLines.length) {
       toast.error("Couldn't send request", 'Add at least one item with a selected product.'); return;
     }
-    if (!budget?.budget_id) {
-      toast.error("Couldn't send request", 'No budget found for this location. Ask Admin to create one in Budget Management.');
-      return;
+    if (validLines.some(li => !li.locationId)) {
+      toast.error("Couldn't send request", 'Select a destination warehouse for every item.'); return;
     }
-    if (overBudget) {
-      toast.error(
-        "Couldn't send request",
-        `Estimated total ${fmtPeso(estimatedTotal)} exceeds the available budget ${fmtPeso(budgetAvailable)} for this location.`
-      );
-      return;
-    }
-    if (budget && !budgetVerified) {
-      toast.error("Couldn't send request", 'This budget has not been verified by an auditor yet.');
-      return;
+
+    // Verify each warehouse group used by the valid lines is fundable
+    const usedLocIds = [...new Set(validLines.map(li => String(li.locationId)))];
+    for (const locId of usedLocIds) {
+      const group = warehouseGroupStatus.find(g => g.locId === locId);
+      if (!group || group.loading) {
+        toast.error("Couldn't send request", 'Still loading budget information — please wait a moment and try again.');
+        return;
+      }
+      if (group.missing) {
+        toast.error("Couldn't send request", `No budget found for ${group.locName}. Ask Admin to create one in Budget Management.`);
+        return;
+      }
+      if (!group.verified) {
+        toast.error("Couldn't send request", `The budget for ${group.locName} has not been verified by an auditor yet.`);
+        return;
+      }
+      if (group.over) {
+        toast.error(
+          "Couldn't send request",
+          `Estimated total ${fmtPeso(group.subtotal)} for ${group.locName} exceeds its available budget ${fmtPeso(group.available)}.`
+        );
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
       const payload = {
-        location_id:    Number(selectedLocId),
+        supplier_id:    Number(selectedSupplierId),
         needed_by_date: neededByDate,
         purpose:        purpose.trim() || null,
         details:        validLines.map(li => ({
           product_id:      Number(li.productId),
+          location_id:     Number(li.locationId),
           quantity:        Math.max(1, parseInt(li.qty) || 1),
           estimated_price: Number(li.estPrice) || 0,
         })),
       };
-      if (budget?.budget_id) payload.budget_id = budget.budget_id;
 
       const res = await purchaseRequestsAPI.create(payload);
       const prNum = res?.data?.pr_number || 'Purchase Request';
@@ -424,7 +504,7 @@ const PurchaseRequestPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedLocId, neededByDate, purpose, lineItems, budget, overBudget, estimatedTotal, budgetAvailable, budgetVerified]);
+  }, [selectedSupplierId, neededByDate, purpose, lineItems, warehouseGroupStatus]);
 
   // ── Archive PR ────────────────────────────────────────────────────────────
   const handleArchivePR = useCallback(async (prId) => {
@@ -476,68 +556,90 @@ const PurchaseRequestPage = () => {
   // RENDER HELPERS
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ── Budget card ───────────────────────────────────────────────────────────
-  const renderBudgetCard = () => {
-    const selectedLoc = locations.find(l => String(l.location_id ?? l.id ?? '') === String(selectedLocId));
-    const locName = selectedLoc?.location_name || 'Selected Location';
-
-    if (loadingBudget) {
-      return (
-        <div className="pr-budget-card pr-budget-card--loading">
-          <Loader variant="inline" label={`Loading budget for ${locName}`} />
-        </div>
-      );
-    }
-    if (!budget) {
-      return (
-        <div className="pr-budget-card pr-budget-card--empty">
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0, marginTop: 1 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <div>
-              <div style={{ fontWeight: 700, color: '#92400e', fontSize: 13 }}>No budget found for {locName}</div>
-              <div style={{ color: '#78350f', fontSize: 12, marginTop: 3 }}>
-                Ask Admin to create a budget allocation for this location in Budget Management.
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    const total     = Number(budget.total_budget || 0);
-    const committed = Number(budget.committed || 0);
-    const spent     = Number(budget.spent || 0);
-    const available = Number(budget.available ?? (total - committed - spent));
-    const avColor   = budgetColor(available, total);
+  // ── Per-warehouse budget cards ─────────────────────────────────────────────
+  const renderBudgetCards = () => {
+    if (!distinctLineLocIds.length) return null;
 
     return (
-      <div className="pr-budget-card">
-        <div className="pr-budget-card-header">
-          <span className="pr-budget-card-title">Budget — {locName}</span>
-          <span className="pr-budget-card-period">{budget.period_label || 'Current Period'}</span>
-        </div>
-        <div className="pr-budget-grid">
-          {[
-            { label: 'TOTAL BUDGET', value: fmtPeso(total),     color: '#1e293b' },
-            { label: 'COMMITTED',    value: fmtPeso(committed),  color: '#d97706' },
-            { label: 'SPENT',        value: fmtPeso(spent),      color: '#dc2626' },
-            { label: 'AVAILABLE',    value: fmtPeso(available),  color: avColor  },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="pr-budget-item">
-              <span className="pr-budget-label">{label}</span>
-              <span className="pr-budget-value" style={{ color }}>{value}</span>
+      <div className="pr-budget-cards-stack" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {warehouseGroupStatus.map(group => {
+          if (group.loading) {
+            return (
+              <div key={group.locId} className="pr-budget-card pr-budget-card--loading">
+                <Loader variant="inline" label={`Loading budget for ${group.locName}`} />
+              </div>
+            );
+          }
+          if (group.missing) {
+            return (
+              <div key={group.locId} className="pr-budget-card pr-budget-card--empty">
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0, marginTop: 1 }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#92400e', fontSize: 13 }}>No budget found for {group.locName}</div>
+                    <div style={{ color: '#78350f', fontSize: 12, marginTop: 3 }}>
+                      Ask Admin to create a budget allocation for this warehouse in Budget Management.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          const budget    = group.budget;
+          const total     = Number(budget.total_budget || 0);
+          const committed = Number(budget.committed || 0);
+          const spent     = Number(budget.spent || 0);
+          const available = Number(budget.available ?? (total - committed - spent));
+          const avColor   = budgetColor(available, total);
+          const badge     = budget.verification_status === 'verified'
+            ? { label: 'VERIFIED', color: '#16a34a', bg: '#f0fdf4' }
+            : budget.verification_status === 'rejected'
+              ? { label: 'REJECTED', color: '#dc2626', bg: '#fef2f2' }
+              : { label: 'AWAITING VERIFICATION', color: '#d97706', bg: '#fffbeb' };
+
+          return (
+            <div key={group.locId} className="pr-budget-card">
+              <div className="pr-budget-card-header">
+                <span className="pr-budget-card-title">Budget — {group.locName}</span>
+                <span
+                  style={{ fontSize: 11, fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 8px', borderRadius: 999 }}
+                >
+                  {badge.label}
+                </span>
+              </div>
+              <div className="pr-budget-grid">
+                {[
+                  { label: 'TOTAL BUDGET', value: fmtPeso(total),          color: '#1e293b' },
+                  { label: 'COMMITTED',    value: fmtPeso(committed),      color: '#d97706' },
+                  { label: 'SPENT',        value: fmtPeso(spent),          color: '#dc2626' },
+                  { label: 'AVAILABLE',    value: fmtPeso(available),      color: avColor  },
+                  { label: 'THIS REQUEST', value: fmtPeso(group.subtotal), color: group.over ? '#dc2626' : '#1e293b' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="pr-budget-item">
+                    <span className="pr-budget-label">{label}</span>
+                    <span className="pr-budget-value" style={{ color }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+              {group.over && (
+                <div style={{ margin:'10px 0 0', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#991b1b' }}>
+                  This request's items for {group.locName} ({fmtPeso(group.subtotal)}) exceed the available budget ({fmtPeso(available)}).
+                </div>
+              )}
+              {!group.over && budget.verification_status !== 'verified' && (
+                <div style={{ margin:'10px 0 0', background:'#fffbeb', border:'1px solid #fbbf24', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#92400e' }}>
+                  {budget.verification_status === 'rejected'
+                    ? `This budget was rejected by the auditor${budget.verification_note ? `: ${budget.verification_note}` : ''}.`
+                    : 'This budget is awaiting auditor verification — you cannot submit a request against it yet.'}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-        {budget.verification_status && budget.verification_status !== 'verified' && (
-          <div style={{ margin:'10px 0 0', background:'#fffbeb', border:'1px solid #fbbf24', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#92400e' }}>
-            {budget.verification_status === 'rejected'
-              ? `This budget was rejected by the auditor${budget.verification_note ? `: ${budget.verification_note}` : ''}.`
-              : 'This budget is awaiting auditor verification — you cannot submit a request against it yet.'}
-          </div>
-        )}
+          );
+        })}
       </div>
     );
   };
@@ -549,18 +651,17 @@ const PurchaseRequestPage = () => {
       <div className="po-details-card">
         <div className="pr-form-grid">
           <div className="po-field">
-            <label className="po-field-label">LOCATION / BRANCH</label>
+            <label className="po-field-label">SUPPLIER</label>
             <select
               className="po-select"
-              value={selectedLocId}
-              onChange={e => setSelectedLocId(e.target.value)}
-              disabled={loadingLocations}
+              value={selectedSupplierId}
+              onChange={e => setSelectedSupplierId(e.target.value)}
+              disabled={loadingSuppliers}
             >
-              {loadingLocations && <option value="">Loading locations…</option>}
-              {locations.map(loc => (
-                <option key={loc.location_id ?? loc.id} value={String(loc.location_id ?? loc.id ?? '')}>
-                  {loc.location_name || loc.name}
-                  {loc.location_type ? ` (${loc.location_type})` : ''}
+              <option value="">{loadingSuppliers ? 'Loading suppliers…' : 'Select supplier…'}</option>
+              {suppliers.map(s => (
+                <option key={s.supplier_id ?? s.id} value={String(s.supplier_id ?? s.id ?? '')}>
+                  {s.supplier_name || s.name}
                 </option>
               ))}
             </select>
@@ -587,7 +688,7 @@ const PurchaseRequestPage = () => {
         </div>
       </div>
 
-      {renderBudgetCard()}
+      {renderBudgetCards()}
 
       {/* Line items */}
       <div className="po-line-items-card">
@@ -648,6 +749,7 @@ const PurchaseRequestPage = () => {
                 <th>PRODUCT</th>
                 <th>TYPE</th>
                 <th>DETAILS</th>
+                <th>WAREHOUSE</th>
                 <th>QTY</th>
                 <th>EST. PRICE</th>
                 <th>SUBTOTAL</th>
@@ -665,9 +767,12 @@ const PurchaseRequestPage = () => {
                         style={{ fontSize: 12 }}
                         value={li.productId}
                         onChange={e => handleProductSelect(li.id, e.target.value)}
-                        disabled={loadingProducts}
+                        disabled={!selectedSupplierId || loadingSupplierProducts}
+                        title={!selectedSupplierId ? 'Select a supplier first.' : undefined}
                       >
-                        <option value="">{loadingProducts ? 'Loading…' : 'Select product…'}</option>
+                        <option value="">
+                          {!selectedSupplierId ? 'Select a supplier first' : loadingSupplierProducts ? 'Loading…' : 'Select product…'}
+                        </option>
                         {filteredProducts.map(p => (
                           <option key={p.id} value={p.id}>
                             {p.code ? `[${p.code}] ` : ''}{p.name}
@@ -685,6 +790,22 @@ const PurchaseRequestPage = () => {
                       ) : '—'}
                     </td>
                     <td style={{ fontSize: 12, color: '#64748b' }}>{productLabel(li)}</td>
+                    <td style={{ minWidth: 150 }}>
+                      <select
+                        className="po-select"
+                        style={{ fontSize: 12 }}
+                        value={li.locationId}
+                        onChange={e => updateField(li.id, 'locationId', e.target.value)}
+                        disabled={loadingLocations}
+                      >
+                        <option value="">{loadingLocations ? 'Loading…' : 'Select warehouse…'}</option>
+                        {warehouseLocations.map(loc => (
+                          <option key={loc.location_id ?? loc.id} value={String(loc.location_id ?? loc.id ?? '')}>
+                            {loc.location_name || loc.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td>
                       <input
                         type="number" min="1"
@@ -722,7 +843,7 @@ const PurchaseRequestPage = () => {
                   {/* Smart reorder warning */}
                   {li.reorderWarning && li.reorderWarning.length > 0 && !li.warningAcknowledged && (
                     <tr>
-                      <td colSpan={8} style={{ padding: '0 8px 10px' }}>
+                      <td colSpan={9} style={{ padding: '0 8px 10px' }}>
                         <div className="pr-reorder-warning">
                           <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="15" height="15" style={{ flexShrink: 0 }}>
                             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -784,18 +905,18 @@ const PurchaseRequestPage = () => {
           <strong style={{ fontSize: 16, color: '#1e293b' }}>{fmtPeso(estimatedTotal)}</strong>
         </div>
 
-        {overBudget && (
-          <div style={{ margin: '0 16px 14px', background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        {warehouseGroupStatus.filter(g => !g.loading && !g.missing && g.over).map(g => (
+          <div key={g.locId} style={{ margin: '0 16px 14px', background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="16" height="16" style={{ flexShrink: 0, marginTop: 1 }}>
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
             <span>
-              Estimated total ({fmtPeso(estimatedTotal)}) exceeds available budget ({fmtPeso(budgetAvailable)}) by{' '}
-              <strong>{fmtPeso(estimatedTotal - budgetAvailable)}</strong>. Reduce the request or ask Admin to raise the budget.
+              For {g.locName}, this request's items ({fmtPeso(g.subtotal)}) exceed the available budget ({fmtPeso(g.available)}) by{' '}
+              <strong>{fmtPeso(g.subtotal - g.available)}</strong>. Reduce the request or ask Admin to raise the budget.
             </span>
           </div>
-        )}
+        ))}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
@@ -803,11 +924,16 @@ const PurchaseRequestPage = () => {
           type="button"
           className="po-btn po-btn-final-submission"
           onClick={handleSubmitPR}
-          disabled={submitting || loadingBudget || overBudget || Boolean(selectedLocId && !budget) || Boolean(budget && !budgetVerified)}
+          disabled={
+            submitting ||
+            !selectedSupplierId ||
+            !lineItems.some(li => li.productId && li.qty > 0 && li.locationId) ||
+            hasBlockingWarehouseGroup
+          }
           title={
-            overBudget ? 'Estimated total exceeds the available budget'
-            : (selectedLocId && !budget) ? 'No budget allocated for this location'
-            : (budget && !budgetVerified) ? 'This budget has not been verified by an auditor yet'
+            !selectedSupplierId ? 'Select a supplier first'
+            : !lineItems.some(li => li.productId && li.qty > 0 && li.locationId) ? 'Add at least one item with a product and destination warehouse'
+            : hasBlockingWarehouseGroup ? 'One or more warehouses are over budget, unverified, or missing a budget'
             : undefined
           }
         >
