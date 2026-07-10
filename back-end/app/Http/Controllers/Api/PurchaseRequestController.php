@@ -471,7 +471,11 @@ class PurchaseRequestController extends Controller
             'rejection_reason' => $validated['rejection_reason'],
         ]);
 
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        $targets = $pr->details()->whereNotNull('location_id')->distinct()->pluck('location_id');
+        if ($targets->isEmpty() && $pr->location_id) { $targets = collect([$pr->location_id]); }
+        foreach ($targets as $locId) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+        }
 
         $pr->load(self::WITH_RELATIONS);
         return $this->success($pr, 'Purchase request rejected');
@@ -559,7 +563,11 @@ class PurchaseRequestController extends Controller
             $pr->delete();
         });
 
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        $targets = $pr->details()->whereNotNull('location_id')->distinct()->pluck('location_id');
+        if ($targets->isEmpty() && $pr->location_id) { $targets = collect([$pr->location_id]); }
+        foreach ($targets as $locId) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+        }
 
         return $this->success(null, 'Purchase request archived');
     }
