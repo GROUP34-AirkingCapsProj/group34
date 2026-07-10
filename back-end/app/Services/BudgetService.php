@@ -142,7 +142,8 @@ class BudgetService
      * Record actual spend for a completed PO and consume the PR's commitment.
      * Idempotent per PO (a second call is a no-op). For fully-converted PRs
      * (status 14, converted_to_po_id = this PO) any estimate surplus is
-     * auto-returned to available.
+     * auto-returned to available — or when the PO fully covers its warehouse
+     * group's PR lines.
      */
     public function spend(PurchaseOrder $po, ?int $userId = null): void
     {
@@ -186,15 +187,11 @@ class BudgetService
                 $released += $consume;
             }
 
-            // Fully-converted PR: return the estimate surplus to available.
-            if ((int) $pr->status_id === 14 && (int) $pr->converted_to_po_id === (int) $po->po_id) {
-                $surplus = round($outstanding - $consume, 2);
-                if ($surplus > 0) {
-                    $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $surplus, $pr->pr_id, $po->po_id, $userId,
-                        'Estimate surplus returned');
-                    $released += $surplus;
-                }
-            } elseif ($this->poCoversItsGroup($pr, $po)) {
+            // Return the estimate surplus to available when the group is fully ordered:
+            // legacy fully-converted PR, or a PO that fully covers its warehouse group's lines.
+            $coversGroup = ((int) $pr->status_id === 14 && (int) $pr->converted_to_po_id === (int) $po->po_id)
+                || $this->poCoversItsGroup($pr, $po);
+            if ($coversGroup) {
                 $surplus = round($outstanding - $consume, 2);
                 if ($surplus > 0) {
                     $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $surplus, $pr->pr_id, $po->po_id, $userId,
