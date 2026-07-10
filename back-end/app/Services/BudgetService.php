@@ -47,40 +47,51 @@ class BudgetService
     }
 
     /**
-     * Commit the PR's estimated total against its budget (PR approval).
-     * Locks the budget row; throws InsufficientBudgetException when it cannot cover.
+     * Legacy single-budget commit — commits the PR's whole estimated_total to
+     * its header budget_id. Kept for pre-existing single-warehouse PRs.
      */
     public function commit(PurchaseRequest $pr, ?int $userId = null): void
     {
-        DB::transaction(function () use ($pr, $userId) {
-            $budget = BudgetAllocation::whereKey($pr->budget_id)->lockForUpdate()->firstOrFail();
+        $budget = BudgetAllocation::find($pr->budget_id);
+        if (!$budget) {
+            throw new \RuntimeException('Purchase request has no budget to commit against.');
+        }
+        $this->commitGroup($pr, $budget, (float) $pr->estimated_total, $userId);
+    }
+
+    /**
+     * Commit a specific amount for a PR against one budget (one warehouse group).
+     * Row-locked; idempotent per (budget_id, pr_id); requires the budget verified
+     * with enough available. Throws Unverified/Insufficient exceptions.
+     */
+    public function commitGroup(PurchaseRequest $pr, BudgetAllocation $budget, float $amount, ?int $userId = null): void
+    {
+        DB::transaction(function () use ($pr, $budget, $amount, $userId) {
+            $locked = BudgetAllocation::whereKey($budget->budget_id)->lockForUpdate()->firstOrFail();
 
             if (BudgetTransaction::where('pr_id', $pr->pr_id)
+                ->where('budget_id', $locked->budget_id)
                 ->where('txn_type', BudgetTransaction::TYPE_COMMIT)->exists()) {
-                return; // already committed (retry / double-submit)
+                return; // already committed this group (retry / double-submit)
             }
 
-            if ($budget->verification_status !== 'verified') {
-                throw new UnverifiedBudgetException($budget->period_label, $budget->verification_status);
+            if ($locked->verification_status !== 'verified') {
+                throw new UnverifiedBudgetException($locked->period_label, $locked->verification_status);
             }
 
-            $utilBefore = $this->utilization($budget);
+            $utilBefore = $this->utilization($locked);
 
-            $amount = (float) $pr->estimated_total;
-            $available = (float) $budget->total_budget
-                - (float) $budget->committed
-                - (float) $budget->spent;
-
+            $available = (float) $locked->total_budget - (float) $locked->committed - (float) $locked->spent;
             if ($amount > $available) {
-                throw new InsufficientBudgetException($budget->period_label, $amount, $available);
+                throw new InsufficientBudgetException($locked->period_label, $amount, $available);
             }
 
-            $this->txn($budget, BudgetTransaction::TYPE_COMMIT, $amount, $pr->pr_id, null, $userId,
+            $this->txn($locked, BudgetTransaction::TYPE_COMMIT, $amount, $pr->pr_id, null, $userId,
                 'PR ' . $pr->pr_number . ' approved');
-            $budget->committed = round((float) $budget->committed + $amount, 2);
-            $budget->save();
+            $locked->committed = round((float) $locked->committed + $amount, 2);
+            $locked->save();
 
-            $this->maybeAlert($budget, $utilBefore);
+            $this->maybeAlert($locked, $utilBefore);
         });
     }
 
@@ -91,35 +102,40 @@ class BudgetService
      */
     public function releaseOutstanding(PurchaseRequest $pr, string $note, ?int $userId = null): float
     {
-        if (!$pr->budget_id) {
-            return 0.0;
+        $budgetIds = BudgetTransaction::where('pr_id', $pr->pr_id)
+            ->where('txn_type', BudgetTransaction::TYPE_COMMIT)
+            ->distinct()->pluck('budget_id');
+
+        if ($budgetIds->isEmpty() && $pr->budget_id) {
+            $budgetIds = collect([$pr->budget_id]);
         }
 
-        return DB::transaction(function () use ($pr, $note, $userId) {
-            $budget = BudgetAllocation::whereKey($pr->budget_id)->lockForUpdate()->first();
-            if (!$budget) {
-                return 0.0;
-            }
-
-            $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
-            if ($outstanding < 0) {
-                Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PR {$pr->pr_id} on budget {$budget->budget_id}");
-            }
-            if ($outstanding <= 0) {
-                return 0.0;
-            }
-
-            $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $outstanding, $pr->pr_id, null, $userId, $note);
-            $newCommitted = round((float) $budget->committed - $outstanding, 2);
-            if ($newCommitted < 0) {
-                Log::warning("Budget ledger anomaly: committed clamped from {$newCommitted} to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
-                $newCommitted = 0.0;
-            }
-            $budget->committed = $newCommitted;
-            $budget->save();
-
-            return $outstanding;
-        });
+        $total = 0.0;
+        foreach ($budgetIds as $budgetId) {
+            $total += DB::transaction(function () use ($budgetId, $pr, $note, $userId) {
+                $budget = BudgetAllocation::whereKey($budgetId)->lockForUpdate()->first();
+                if (!$budget) {
+                    return 0.0;
+                }
+                $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
+                if ($outstanding < 0) {
+                    Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PR {$pr->pr_id} on budget {$budget->budget_id}");
+                }
+                if ($outstanding <= 0) {
+                    return 0.0;
+                }
+                $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $outstanding, $pr->pr_id, null, $userId, $note);
+                $newCommitted = round((float) $budget->committed - $outstanding, 2);
+                if ($newCommitted < 0) {
+                    Log::warning("Budget ledger anomaly: committed clamped from {$newCommitted} to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
+                    $newCommitted = 0.0;
+                }
+                $budget->committed = $newCommitted;
+                $budget->save();
+                return $outstanding;
+            });
+        }
+        return round($total, 2);
     }
 
     /**
@@ -131,12 +147,17 @@ class BudgetService
     public function spend(PurchaseOrder $po, ?int $userId = null): void
     {
         $pr = $po->purchaseRequest;
-        if (!$pr || !$pr->budget_id) {
+        if (!$pr) {
             return;
         }
 
-        DB::transaction(function () use ($po, $pr, $userId) {
-            $budget = BudgetAllocation::whereKey($pr->budget_id)->lockForUpdate()->first();
+        $budgetId = $this->resolveBudgetForPo($pr, $po);
+        if (!$budgetId) {
+            return;
+        }
+
+        DB::transaction(function () use ($po, $pr, $budgetId, $userId) {
+            $budget = BudgetAllocation::whereKey($budgetId)->lockForUpdate()->first();
             if (!$budget) {
                 return;
             }
@@ -173,6 +194,13 @@ class BudgetService
                         'Estimate surplus returned');
                     $released += $surplus;
                 }
+            } elseif ($this->poCoversItsGroup($pr, $po)) {
+                $surplus = round($outstanding - $consume, 2);
+                if ($surplus > 0) {
+                    $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $surplus, $pr->pr_id, $po->po_id, $userId,
+                        'Estimate surplus returned');
+                    $released += $surplus;
+                }
             }
 
             $newCommitted = round((float) $budget->committed - $released, 2);
@@ -185,6 +213,52 @@ class BudgetService
 
             $this->maybeAlert($budget, $utilBefore);
         });
+    }
+
+    /**
+     * The budget this PO settles against: among budgets the PR committed to,
+     * the one whose location matches the PO's warehouse. Legacy fallback:
+     * the PR's header budget_id.
+     */
+    private function resolveBudgetForPo(PurchaseRequest $pr, PurchaseOrder $po): ?int
+    {
+        $committedBudgetIds = BudgetTransaction::where('pr_id', $pr->pr_id)
+            ->where('txn_type', BudgetTransaction::TYPE_COMMIT)
+            ->distinct()->pluck('budget_id');
+
+        if ($committedBudgetIds->isNotEmpty()) {
+            $match = BudgetAllocation::whereIn('budget_id', $committedBudgetIds)
+                ->where('location_id', $po->location_id)
+                ->value('budget_id');
+            if ($match) {
+                return (int) $match;
+            }
+        }
+        return $pr->budget_id ? (int) $pr->budget_id : null;
+    }
+
+    /**
+     * True when this PO's ordered quantities cover every PR line destined for
+     * the PO's warehouse (so the group is fully ordered and surplus can return).
+     * Legacy PRs (no line locations) compare against ALL lines.
+     */
+    private function poCoversItsGroup(PurchaseRequest $pr, PurchaseOrder $po): bool
+    {
+        $hasLineLocations = $pr->details()->whereNotNull('location_id')->exists();
+        $prLines = $pr->details()
+            ->when($hasLineLocations, fn ($q) => $q->where('location_id', $po->location_id))
+            ->get();
+        if ($prLines->isEmpty()) {
+            return false;
+        }
+        $ordered = $po->details()->get()->groupBy('product_id')
+            ->map(fn ($rows) => (int) $rows->sum('quantity_ordered'));
+        foreach ($prLines as $line) {
+            if (($ordered[$line->product_id] ?? 0) < (int) $line->quantity) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
