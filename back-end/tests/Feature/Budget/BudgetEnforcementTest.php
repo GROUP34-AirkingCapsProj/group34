@@ -22,13 +22,29 @@ class BudgetEnforcementTest extends BudgetTestCase
         ], 'product_id');
     }
 
+    private function makeSupplier(): int
+    {
+        return (int) DB::table('suppliers')->insertGetId([
+            'supplier_name' => 'Budget Enforcement Supplier ' . uniqid(),
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'supplier_id');
+    }
+
+    /**
+     * Warehouse-only procurement shape: supplier-scoped header, per-line
+     * warehouse destination (this class's PR lines are unmapped products,
+     * so any supplier works — the supplier-product integrity check is
+     * exercised separately in WarehousePrTest).
+     */
     private function prPayload(array $overrides = []): array
     {
         return array_merge([
-            'location_id'    => $this->locationId,
+            'supplier_id'    => $this->makeSupplier(),
             'needed_by_date' => today()->addDays(7)->toDateString(),
             'details'        => [[
                 'product_id'      => $this->makeProduct(),
+                'location_id'     => $this->locationId,
                 'quantity'        => 10,
                 'estimated_price' => 500, // estimated_total = 5000
             ]],
@@ -38,13 +54,13 @@ class BudgetEnforcementTest extends BudgetTestCase
     public function test_store_rejects_pr_without_budget(): void
     {
         $ia = $this->makeUser('inventory_analyst');
+        // No budget created for the destination warehouse at all.
 
         $response = $this->actingAs($ia, 'sanctum')
             ->postJson('/api/purchase-requests', $this->prPayload());
 
         $response->assertStatus(422);
-        // ApiResponse::validationError shape — assert the field is named, not the exact envelope.
-        $this->assertArrayHasKey('budget_id', $response->json('errors') ?? $response->json('data') ?? []);
+        $this->assertStringContainsString('budget', strtolower($response->json('message')));
     }
 
     public function test_store_rejects_budget_from_other_location(): void
@@ -81,22 +97,22 @@ class BudgetEnforcementTest extends BudgetTestCase
     public function test_store_rejects_over_budget_total(): void
     {
         $ia = $this->makeUser('inventory_analyst');
-        $budget = $this->makeBudget(4000); // payload estimates 5000
+        $this->makeBudget(4000); // payload estimates 5000
 
         $response = $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload(['budget_id' => $budget->budget_id]));
+            ->postJson('/api/purchase-requests', $this->prPayload());
 
         $response->assertStatus(422);
-        $this->assertStringContainsString('exceeds available budget', $response->json('message'));
+        $this->assertStringContainsString('exceeds its available budget', $response->json('message'));
     }
 
     public function test_store_accepts_pr_within_budget(): void
     {
         $ia = $this->makeUser('inventory_analyst');
-        $budget = $this->makeBudget(10000);
+        $this->makeBudget(10000);
 
         $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload(['budget_id' => $budget->budget_id]))
+            ->postJson('/api/purchase-requests', $this->prPayload())
             ->assertStatus(201);
     }
 
@@ -209,25 +225,31 @@ class BudgetEnforcementTest extends BudgetTestCase
     public function test_store_rejects_pr_against_unverified_budget(): void
     {
         $ia = $this->makeUser('inventory_analyst');
-        $budget = $this->makeBudget(10000, ['verification_status' => 'pending']);
+        $this->makeBudget(10000, ['verification_status' => 'pending']);
 
         $response = $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload(['budget_id' => $budget->budget_id]));
+            ->postJson('/api/purchase-requests', $this->prPayload());
 
         $response->assertStatus(422);
         $this->assertStringContainsString('verified', strtolower($response->json('message')));
     }
 
+    /**
+     * resolveActiveBudget() only ever returns verified budgets (Task 2), so
+     * store() can't distinguish "rejected" from "pending" from "never
+     * verified" — a rejected budget for the destination warehouse produces
+     * the same generic "no verified active budget" rejection as an unverified one.
+     */
     public function test_store_message_reflects_rejected_budget(): void
     {
         $ia = $this->makeUser('inventory_analyst');
-        $budget = $this->makeBudget(10000, ['verification_status' => 'rejected', 'verification_note' => 'bad amount']);
+        $this->makeBudget(10000, ['verification_status' => 'rejected', 'verification_note' => 'bad amount']);
 
         $response = $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload(['budget_id' => $budget->budget_id]));
+            ->postJson('/api/purchase-requests', $this->prPayload());
 
         $response->assertStatus(422);
-        $this->assertStringContainsString('rejected', strtolower($response->json('message')));
+        $this->assertStringContainsString('no verified active budget', strtolower($response->json('message')));
     }
 
     public function test_approve_blocked_when_budget_unverified_after_submission(): void
