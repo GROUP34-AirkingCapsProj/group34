@@ -133,6 +133,11 @@ class PurchaseOrderController extends Controller
                 'details.*.approved_by'      => 'nullable|exists:users,user_id',
             ]);
 
+            $loc = \App\Models\Location::find($validated['location_id']);
+            if (!$loc || $loc->location_type !== 'warehouse') {
+                return $this->error('Purchase orders are received at warehouses only — other locations are supplied by stock transfer.', 422);
+            }
+
             $authUser = $request->user();
             if ($authUser) {
                 $validated['created_by'] = $authUser->user_id;
@@ -231,6 +236,13 @@ class PurchaseOrderController extends Controller
                 && in_array((int) $validated['status_id'], [8, 10, 11, 12], true)
                 && $po->verification_status !== 'verified') {
                 return $this->error('This purchase order must be verified by an auditor before it can be approved or received', 422);
+            }
+
+            if (array_key_exists('location_id', $validated)) {
+                $loc = \App\Models\Location::find($validated['location_id']);
+                if (!$loc || $loc->location_type !== 'warehouse') {
+                    return $this->error('Purchase orders are received at warehouses only — other locations are supplied by stock transfer.', 422);
+                }
             }
 
             DB::beginTransaction();
