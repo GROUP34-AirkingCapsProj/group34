@@ -29,6 +29,7 @@ class PurchaseRequestController extends Controller
 
     private const WITH_RELATIONS = [
         'location',
+        'supplier',
         'status',
         'requester',
         'approver',
@@ -36,6 +37,7 @@ class PurchaseRequestController extends Controller
         'convertedPO',
         'details.product.applianceDetail.brand',
         'details.product.consumableDetail.unit',
+        'details.location',
     ];
 
     /**
@@ -283,12 +285,12 @@ class PurchaseRequestController extends Controller
     {
         try {
             $validated = $request->validate([
-                'location_id'               => 'required|exists:locations,location_id',
-                'budget_id'                 => 'required|exists:budget_allocations,budget_id',
+                'supplier_id'               => 'required|exists:suppliers,supplier_id',
                 'needed_by_date'            => 'required|date|after:today',
                 'purpose'                   => 'nullable|string',
                 'details'                   => 'required|array|min:1',
                 'details.*.product_id'      => 'required|exists:products,product_id',
+                'details.*.location_id'     => 'required|exists:locations,location_id',
                 'details.*.quantity'        => 'required|integer|min:1',
                 'details.*.estimated_price' => 'required|numeric|min:0',
                 'details.*.notes'           => 'nullable|string',
@@ -297,36 +299,54 @@ class PurchaseRequestController extends Controller
             return $this->validationError($e->errors());
         }
 
-        $budget = BudgetAllocation::find($validated['budget_id']);
-        if ((int) $budget->location_id !== (int) $validated['location_id']) {
-            return $this->error('The selected budget belongs to a different location', 422);
-        }
-        $today = today();
-        if ($budget->period_start->gt($today) || $budget->period_end->lt($today)) {
-            return $this->error("The budget period ({$budget->period_label}) is not active today", 422);
-        }
-        if ($budget->verification_status !== 'verified') {
-            $msg = $budget->verification_status === 'rejected'
-                ? "This budget was rejected by the auditor" . ($budget->verification_note ? ": {$budget->verification_note}" : '')
-                : "This budget ({$budget->period_label}) has not been verified by an auditor yet";
-            return $this->error($msg, 422);
-        }
-        $estimatedTotal = collect($validated['details'])
-            ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
-        if (!$this->budgetService->hasAvailable($budget, (float) $estimatedTotal)) {
-            return $this->error(sprintf(
-                'Estimated total ₱%s exceeds available budget ₱%s for %s',
-                number_format((float) $estimatedTotal, 2),
-                number_format(max((float) $budget->available, 0), 2),
-                $budget->period_label
-            ), 422);
+        // Every destination must be a warehouse.
+        $locationTypes = \App\Models\Location::whereIn('location_id',
+            collect($validated['details'])->pluck('location_id')->unique())
+            ->pluck('location_type', 'location_id');
+        foreach ($validated['details'] as $d) {
+            if (($locationTypes[$d['location_id']] ?? null) !== 'warehouse') {
+                return $this->error('Purchase orders are received at warehouses only — showrooms are supplied by stock transfer.', 422);
+            }
         }
 
+        // Product–supplier integrity: a product mapped to OTHER suppliers (and not
+        // this one) is rejected; a product with NO mappings is allowed.
+        $supplierId = (int) $validated['supplier_id'];
+        foreach (collect($validated['details'])->pluck('product_id')->unique() as $pid) {
+            $mappings = \App\Models\SupplierProduct::where('product_id', $pid)->pluck('supplier_id');
+            if ($mappings->isNotEmpty() && !$mappings->contains($supplierId)) {
+                $name = \App\Models\Product::where('product_id', $pid)->value('product_name');
+                return $this->error("Product \"{$name}\" is not supplied by the selected supplier.", 422);
+            }
+        }
+
+        // Per-warehouse advisory budget check (unlocked; approval re-checks under lock).
+        $groups = collect($validated['details'])->groupBy('location_id');
+        foreach ($groups as $locId => $lines) {
+            $subtotal = collect($lines)->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
+            $budget = $this->budgetService->resolveActiveBudget((int) $locId);
+            $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
+            if (!$budget) {
+                return $this->error("{$whName} has no verified active budget for today.", 422);
+            }
+            if (!$this->budgetService->hasAvailable($budget, (float) $subtotal)) {
+                return $this->error(sprintf(
+                    'Estimated total ₱%s for %s exceeds its available budget ₱%s (%s).',
+                    number_format((float) $subtotal, 2), $whName,
+                    number_format(max((float) $budget->available, 0), 2), $budget->period_label
+                ), 422);
+            }
+        }
+
+        $estimatedTotal = collect($validated['details'])
+            ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
+
         try {
-            $pr = DB::transaction(function () use ($validated, $request, $estimatedTotal) {
+            $pr = DB::transaction(function () use ($validated, $request, $estimatedTotal, $supplierId) {
                 $pr = PurchaseRequest::create([
-                    'location_id'     => $validated['location_id'],
-                    'budget_id'       => $validated['budget_id'],
+                    'location_id'     => null,
+                    'supplier_id'     => $supplierId,
+                    'budget_id'       => null,
                     'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
                     'request_date'    => today(),
                     'needed_by_date'  => $validated['needed_by_date'],
@@ -340,17 +360,19 @@ class PurchaseRequestController extends Controller
                     PurchaseRequestDetail::create([
                         'pr_id'           => $pr->pr_id,
                         'product_id'      => $detail['product_id'],
+                        'location_id'     => $detail['location_id'],
                         'quantity'        => $detail['quantity'],
                         'estimated_price' => $detail['estimated_price'],
                         'subtotal'        => $detail['quantity'] * $detail['estimated_price'],
                         'notes'           => $detail['notes'] ?? null,
                     ]);
                 }
-
                 return $pr;
             });
 
-            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+            foreach (collect($validated['details'])->pluck('location_id')->unique() as $locId) {
+                RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+            }
 
             $pr->load(self::WITH_RELATIONS);
             return $this->success($pr, 'Purchase request submitted', 201);
