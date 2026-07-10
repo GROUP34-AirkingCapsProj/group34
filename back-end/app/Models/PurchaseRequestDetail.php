@@ -16,6 +16,7 @@ class PurchaseRequestDetail extends Model
     protected $fillable = [
         'pr_id',
         'product_id',
+        'location_id',
         'quantity',
         'estimated_price',
         'subtotal',
@@ -36,5 +37,10 @@ class PurchaseRequestDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'location_id', 'location_id');
     }
 }
