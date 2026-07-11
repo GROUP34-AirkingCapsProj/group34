@@ -13,6 +13,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search product…', disabled }) => {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
+  const [filterCat, setFilterCat] = useState('');
+  const [filterBrand, setFilterBrand] = useState('');
   const wrapRef = useRef(null);
 
   const selected = useMemo(() => products.find(p => p.id === value), [products, value]);
@@ -22,16 +24,32 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
     ? query
     : (selected ? `${selected.code ? `[${selected.code}] ` : ''}${selected.name}` : '');
 
+  // Category options derived from the full product list.
+  const categoryOptions = useMemo(() => {
+    const seen = new Map();
+    products.forEach(p => { if (p.categoryId && !seen.has(p.categoryId)) seen.set(p.categoryId, p.categoryName || p.categoryId); });
+    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
+
+  // Brand options narrow to the selected category (if any).
+  const brandOptions = useMemo(() => {
+    const seen = new Map();
+    products
+      .filter(p => !filterCat || p.categoryId === filterCat)
+      .forEach(p => { if (p.brandId && !seen.has(p.brandId)) seen.set(p.brandId, p.brandName || p.brandId); });
+    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, filterCat]);
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q
-      ? products.filter(p =>
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.code || '').toLowerCase().includes(q) ||
-          (p.brandName || '').toLowerCase().includes(q))
-      : products;
-    return list.slice(0, 50); // cap for perf
-  }, [products, query]);
+    return products.filter(p =>
+      (!filterCat   || p.categoryId === filterCat) &&
+      (!filterBrand || p.brandId === filterBrand) &&
+      (!q || (p.name || '').toLowerCase().includes(q)
+          || (p.code || '').toLowerCase().includes(q)
+          || (p.brandName || '').toLowerCase().includes(q))
+    ).slice(0, 50); // cap for perf
+  }, [products, query, filterCat, filterBrand]);
 
   // Close on outside click.
   useEffect(() => {
@@ -61,6 +79,34 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
             borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.12)', marginTop: 2,
           }}
         >
+          <div
+            className="prod-search-filters"
+            style={{
+              position: 'sticky', top: 0, background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
+              padding: 8, display: 'flex', gap: 6, flexWrap: 'wrap', zIndex: 1,
+            }}
+          >
+            <select
+              className="po-select"
+              style={{ flex: '1 1 45%', minWidth: 120, fontSize: 12 }}
+              value={filterCat}
+              onChange={(e) => { setFilterCat(e.target.value); setFilterBrand(''); }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <option value="">All categories</option>
+              {categoryOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select
+              className="po-select"
+              style={{ flex: '1 1 45%', minWidth: 120, fontSize: 12 }}
+              value={filterBrand}
+              onChange={(e) => setFilterBrand(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <option value="">All brands</option>
+              {brandOptions.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
           {matches.length === 0 ? (
             <div style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 13 }}>No matching products</div>
           ) : matches.map(p => (
@@ -68,7 +114,7 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
               type="button"
               key={p.id}
               className="prod-search-item"
-              onClick={() => { onChange(p.id); setOpen(false); setQuery(''); }}
+              onClick={() => { onChange(p.id); setOpen(false); setQuery(''); setFilterCat(''); setFilterBrand(''); }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none',
                 background: p.id === value ? '#eff6ff' : 'transparent', cursor: 'pointer', fontSize: 13,
