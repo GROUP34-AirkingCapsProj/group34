@@ -60,6 +60,35 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
 
   return (
     <div className="prod-search" ref={wrapRef} style={{ position: 'relative' }}>
+      {/* Always-visible filters — regular dropdowns, above the search box. */}
+      <div
+        className="prod-search-filters"
+        style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}
+      >
+        <select
+          className="po-select"
+          style={{ flex: '1 1 45%', minWidth: 110, fontSize: 12 }}
+          value={filterCat}
+          disabled={disabled}
+          onChange={(e) => { setFilterCat(e.target.value); setFilterBrand(''); }}
+          title="Filter products by category"
+        >
+          <option value="">All categories</option>
+          {categoryOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select
+          className="po-select"
+          style={{ flex: '1 1 45%', minWidth: 110, fontSize: 12 }}
+          value={filterBrand}
+          disabled={disabled}
+          onChange={(e) => setFilterBrand(e.target.value)}
+          title="Filter products by brand"
+        >
+          <option value="">All brands</option>
+          {brandOptions.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+
       <input
         type="text"
         className="po-select"
@@ -70,6 +99,7 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
         onChange={(e) => { setQuery(e.target.value); if (!open) setOpen(true); }}
         onFocus={() => { setOpen(true); setQuery(''); }}
       />
+
       {open && !disabled && (
         <div
           className="prod-search-menu"
@@ -79,34 +109,6 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
             borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.12)', marginTop: 2,
           }}
         >
-          <div
-            className="prod-search-filters"
-            style={{
-              position: 'sticky', top: 0, background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
-              padding: 8, display: 'flex', gap: 6, flexWrap: 'wrap', zIndex: 1,
-            }}
-          >
-            <select
-              className="po-select"
-              style={{ flex: '1 1 45%', minWidth: 120, fontSize: 12 }}
-              value={filterCat}
-              onChange={(e) => { setFilterCat(e.target.value); setFilterBrand(''); }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <option value="">All categories</option>
-              {categoryOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <select
-              className="po-select"
-              style={{ flex: '1 1 45%', minWidth: 120, fontSize: 12 }}
-              value={filterBrand}
-              onChange={(e) => setFilterBrand(e.target.value)}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <option value="">All brands</option>
-              {brandOptions.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
           {matches.length === 0 ? (
             <div style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 13 }}>No matching products</div>
           ) : matches.map(p => (
@@ -114,7 +116,7 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
               type="button"
               key={p.id}
               className="prod-search-item"
-              onClick={() => { onChange(p.id); setOpen(false); setQuery(''); setFilterCat(''); setFilterBrand(''); }}
+              onClick={() => { onChange(p.id); setOpen(false); setQuery(''); }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none',
                 background: p.id === value ? '#eff6ff' : 'transparent', cursor: 'pointer', fontSize: 13,
