@@ -147,6 +147,11 @@ const PurchaseOrderPage = () => {
   const [selectedPR,    setSelectedPR]    = useState(null);
   const [lineItems,     setLineItems]     = useState([]);
   const [reorderNotes,  setReorderNotes]  = useState({}); // { product_id: openCount }
+  const [loadingConvertForm, setLoadingConvertForm] = useState(false);
+  // New (supplier-scoped, per-warehouse) PR shape: supplier is locked from the PR
+  // and each line carries its own destination warehouse (location_id/warehouse_name).
+  const [isNewShapePR, setIsNewShapePR] = useState(false);
+  const [lockedSupplierId, setLockedSupplierId] = useState(null);
 
   // Submit
   const [submitting,     setSubmitting]     = useState(false);
@@ -250,33 +255,83 @@ const PurchaseOrderPage = () => {
   }, [focusPoId, activeTab, poStatusLoaded, poStatusList, firePoPulse]);
 
   // ── PR selection ───────────────────────────────────────────────────────────
-  const handleSelectPR = useCallback((pr) => {
+  // Pulls the convert-prefill endpoint so we get per-line location_id/warehouse_name
+  // and the PR's locked-in supplier (new warehouse-only PR shape). Legacy PRs (no
+  // line-level warehouses) fall back to the old flat supplier-picker behavior.
+  const handleSelectPR = useCallback(async (pr) => {
     setSelectedPR(pr);
     setReorderNotes({});
-    const details = Array.isArray(pr.details) ? pr.details : [];
-    setLineItems(details.map(d => {
-      const prQty     = Number(d.quantity || 0);
-      const unitPrice = Number(d.estimated_unit_price ?? d.unit_price ?? d.estimated_price ?? 0);
-      return {
-        id:                `pr-line-${d.pr_detail_id ?? d.id ?? Math.random()}`,
-        product_id:        d.product_id,
-        product:           d.product_name || d.product?.product_name || `Product ${d.product_id}`,
-        product_code:      d.product_code || d.product?.product_code || '',
-        model_code:        d.product?.applianceDetail?.model_code || d.model_code || '',
-        product_type:      d.product_type || d.product?.product_type || '',
-        brand_name:        d.brand_name ?? null,
-        capacity_rating:   d.capacity_rating ?? null,
-        variant:           d.variant ?? null,
-        unit_name:         d.unit_name ?? null,
-        pieces_per_package: d.pieces_per_package ?? null,
-        package_unit:      d.package_unit ?? null,
-        pr_qty:            prQty,
-        quantity_ordered:  prQty,
-        unit_price:        unitPrice,
-        subtotal:          prQty * unitPrice,
-      };
-    }));
+    setLineItems([]);
+    setIsNewShapePR(false);
+    setLockedSupplierId(null);
+    setLoadingConvertForm(true);
+    try {
+      const res = await purchaseRequestsAPI.getConvertForm(pr.pr_id);
+      const data = res?.data || {};
+      const prefilled = Array.isArray(data.prefilled_lines) ? data.prefilled_lines : [];
+      const newShape = !!data.pr_supplier_id && prefilled.some(l => l.location_id != null);
+      setIsNewShapePR(newShape);
+      if (newShape) {
+        setLockedSupplierId(String(data.pr_supplier_id));
+        setSelectedSupplierId(String(data.pr_supplier_id));
+      }
+      setLineItems(prefilled.map(d => {
+        const prQty     = Number(d.quantity_ordered || 0);
+        const unitPrice = Number(d.unit_price || 0);
+        return {
+          id:                `pr-line-${d.product_id}-${d.location_id ?? 'na'}`,
+          product_id:        d.product_id,
+          product:           d.product_name || `Product ${d.product_id}`,
+          product_code:      d.product_code || '',
+          model_code:        d.model_code || '',
+          product_type:      d.product_type || '',
+          brand_name:        d.brand_name ?? null,
+          capacity_rating:   d.capacity_rating ?? null,
+          variant:           d.variant ?? null,
+          unit_name:         d.unit_name ?? null,
+          pieces_per_package: d.pieces_per_package ?? null,
+          package_unit:      d.package_unit ?? null,
+          location_id:       d.location_id ?? null,
+          warehouse_name:    d.warehouse_name ?? null,
+          pr_qty:            prQty,
+          quantity_ordered:  prQty,
+          unit_price:        unitPrice,
+          subtotal:          prQty * unitPrice,
+        };
+      }));
+    } catch (err) {
+      toast.error("Couldn't load Purchase Request", err?.message || 'Failed to load convert form.');
+      // Fall back to whatever details came with the list row so the flow isn't dead-ended.
+      const details = Array.isArray(pr.details) ? pr.details : [];
+      setLineItems(details.map(d => {
+        const prQty     = Number(d.quantity || 0);
+        const unitPrice = Number(d.estimated_unit_price ?? d.unit_price ?? d.estimated_price ?? 0);
+        return {
+          id:                `pr-line-${d.pr_detail_id ?? d.id ?? Math.random()}`,
+          product_id:        d.product_id,
+          product:           d.product_name || d.product?.product_name || `Product ${d.product_id}`,
+          product_code:      d.product_code || d.product?.product_code || '',
+          model_code:        d.product?.applianceDetail?.model_code || d.model_code || '',
+          product_type:      d.product_type || d.product?.product_type || '',
+          brand_name:        d.brand_name ?? null,
+          capacity_rating:   d.capacity_rating ?? null,
+          variant:           d.variant ?? null,
+          unit_name:         d.unit_name ?? null,
+          pieces_per_package: d.pieces_per_package ?? null,
+          package_unit:      d.package_unit ?? null,
+          location_id:       d.location_id ?? d.location?.location_id ?? null,
+          warehouse_name:    d.location?.location_name ?? null,
+          pr_qty:            prQty,
+          quantity_ordered:  prQty,
+          unit_price:        unitPrice,
+          subtotal:          prQty * unitPrice,
+        };
+      }));
+    } finally {
+      setLoadingConvertForm(false);
+    }
     // Fetch open demand for each product (excluding this PR) to show informational notes
+    const details = Array.isArray(pr.details) ? pr.details : [];
     details.forEach(d => {
       if (!d.product_id) return;
       purchaseRequestsAPI.getOpenLinesForProduct(d.product_id)
@@ -302,6 +357,8 @@ const PurchaseOrderPage = () => {
     setShipToName('');
     setShipToAddress('');
     setShowPreview(false);
+    setIsNewShapePR(false);
+    setLockedSupplierId(null);
   }, []);
 
   // ── Line item editing ──────────────────────────────────────────────────────
@@ -341,13 +398,17 @@ const PurchaseOrderPage = () => {
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmitPO = useCallback(async () => {
     if (!selectedPR)         { toast.error("Couldn't create PO", 'Please select an approved Purchase Request first.'); return; }
-    if (!selectedSupplierId) { toast.error("Couldn't create PO", 'Please select a supplier.'); return; }
+    if (!isNewShapePR && !selectedSupplierId) { toast.error("Couldn't create PO", 'Please select a supplier.'); return; }
     if (lineItems.length === 0) { toast.error("Couldn't create PO", 'No line items to submit.'); return; }
+    if (isNewShapePR && lineItems.some(li => li.location_id == null)) {
+      toast.error("Couldn't create PO", 'One or more lines is missing its destination warehouse.');
+      return;
+    }
     if (!(await confirmAction({ title: 'Submit this purchase order?', confirmText: 'Submit PO', tone: 'primary' }))) return;
     setSubmitting(true);
     try {
       const payload = {
-        supplier_id:            Number(selectedSupplierId),
+        ...(isNewShapePR ? {} : { supplier_id: Number(selectedSupplierId) }),
         expected_delivery_date: expectedDeliveryDate || null,
         payment_terms:          paymentTerms,
         notes:                  notes.trim()          || null,
@@ -359,12 +420,23 @@ const PurchaseOrderPage = () => {
           quantity_ordered: li.quantity_ordered,
           unit_price:       li.unit_price,
           subtotal:         li.quantity_ordered * li.unit_price,
+          ...(isNewShapePR ? { location_id: li.location_id } : {}),
         })),
       };
       const res   = await purchaseRequestsAPI.convertToPO(selectedPR.pr_id, payload);
       const data  = res?.data;
       const poNum = data?.po_number || data?.po?.po_number || 'New PO';
-      toast.success('Purchase Order created', `${poNum} from ${selectedPR.pr_number} — waiting for admin approval`);
+      if (isNewShapePR) {
+        const whCount = new Set(lineItems.map(li => li.location_id)).size;
+        toast.success(
+          whCount > 1 ? 'Purchase Orders created' : 'Purchase Order created',
+          whCount > 1
+            ? `${poNum} + ${whCount - 1} more — one PO per warehouse created from ${selectedPR.pr_number}, waiting for admin approval`
+            : `${poNum} from ${selectedPR.pr_number} — waiting for admin approval`
+        );
+      } else {
+        toast.success('Purchase Order created', `${poNum} from ${selectedPR.pr_number} — waiting for admin approval`);
+      }
       setApprovedPRs(prev => prev.filter(p => p.pr_id !== selectedPR.pr_id));
       setSelectedPR(null);
       setLineItems([]);
@@ -376,7 +448,7 @@ const PurchaseOrderPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedPR, selectedSupplierId, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, shipToName, shipToAddress]);
+  }, [selectedPR, selectedSupplierId, isNewShapePR, expectedDeliveryDate, lineItems, paymentTerms, notes, referencesNote, shipToName, shipToAddress]);
 
   // ── PO Status list refresh (single source of truth) ──────────────────────────
   const refreshPOStatusList = useCallback(async () => {
@@ -688,6 +760,12 @@ const PurchaseOrderPage = () => {
                           <span className="pr-badge pr-badge--approved">APPROVED</span>
                         </div>
                         <div style={{ fontSize: 13, color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                          {pr.supplier?.supplier_name && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><path d="M3 3h18v4H3z"/><path d="M5 7v13h14V7"/><path d="M9 21V11h6v10"/></svg>
+                              {pr.supplier.supplier_name}
+                            </span>
+                          )}
                           {pr.location?.location_name && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -720,7 +798,27 @@ const PurchaseOrderPage = () => {
     }
 
     // Step 2 — PR selected, fill PO form
-    const locationName = selectedPR.location?.location_name || '—';
+    if (loadingConvertForm) return <Loader label="Loading purchase request" />;
+
+    const warehouseCount = new Set(lineItems.map(li => li.location_id).filter(v => v != null)).size;
+    const locationName = isNewShapePR
+      ? (warehouseCount > 1 ? `${warehouseCount} warehouses (one PO per warehouse)` : (lineItems[0]?.warehouse_name || '—'))
+      : (selectedPR.location?.location_name || '—');
+    const lockedSupplierName = isNewShapePR
+      ? (suppliers.find(s => String(s.supplier_id ?? s.id) === String(lockedSupplierId))?.supplier_name
+         || suppliers.find(s => String(s.supplier_id ?? s.id) === String(lockedSupplierId))?.name
+         || '—')
+      : null;
+
+    // Group line items by warehouse for the new (supplier-scoped, per-warehouse) PR shape.
+    const groupedByWarehouse = isNewShapePR
+      ? lineItems.reduce((acc, li) => {
+          const key = li.location_id ?? 'na';
+          if (!acc[key]) acc[key] = { warehouse_name: li.warehouse_name || '—', items: [] };
+          acc[key].items.push(li);
+          return acc;
+        }, {})
+      : null;
 
     return (
       <div>
@@ -757,15 +855,21 @@ const PurchaseOrderPage = () => {
                 </div>
                 <div className="po-field">
                   <label className="po-field-label">SUPPLIER</label>
-                  <select className="po-select" value={selectedSupplierId} onChange={e => setSelectedSupplierId(e.target.value)} disabled={loadingSuppliers}>
-                    {loadingSuppliers && <option value="">Loading suppliers…</option>}
-                    {!loadingSuppliers && suppliers.length === 0 && <option value="">No suppliers found</option>}
-                    {suppliers.map(s => (
-                      <option key={s.supplier_id ?? s.id} value={String(s.supplier_id ?? s.id)}>
-                        {s.supplier_name ?? s.name}
-                      </option>
-                    ))}
-                  </select>
+                  {isNewShapePR ? (
+                    <div className="po-reference-badge" title="Supplier is fixed by the Purchase Request and cannot be changed here.">
+                      {lockedSupplierName}
+                    </div>
+                  ) : (
+                    <select className="po-select" value={selectedSupplierId} onChange={e => setSelectedSupplierId(e.target.value)} disabled={loadingSuppliers}>
+                      {loadingSuppliers && <option value="">Loading suppliers…</option>}
+                      {!loadingSuppliers && suppliers.length === 0 && <option value="">No suppliers found</option>}
+                      {suppliers.map(s => (
+                        <option key={s.supplier_id ?? s.id} value={String(s.supplier_id ?? s.id)}>
+                          {s.supplier_name ?? s.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div className="po-field">
                   <label className="po-field-label">EXPECTED DELIVERY DATE</label>
@@ -885,68 +989,82 @@ const PurchaseOrderPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {lineItems.map(li => {
-                        const isPartial   = li.quantity_ordered < li.pr_qty;
-                        const remaining   = li.pr_qty - li.quantity_ordered;
-                        const openDemand  = reorderNotes[li.product_id] || 0;
-                        return (
-                          <React.Fragment key={li.id}>
-                            <tr className={isPartial ? 'pr-item-remaining' : ''}>
-                              <td>
-                                <strong>{li.product}</strong>
-                                {li.model_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.model_code}</div>}
-                              </td>
-                              <td>
-                                <span className={`po-type-badge ${li.product_type === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
-                                  {li.product_type === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
-                                </span>
-                              </td>
-                              <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(li)}</td>
-                              <td style={{ color: '#64748b', fontWeight: 500 }}>{li.pr_qty}</td>
-                              <td>
-                                <input
-                                  className="po-qty-input"
-                                  type="number"
-                                  min="1"
-                                  max={li.pr_qty}
-                                  value={li.quantity_ordered}
-                                  onChange={e => updateOrderQty(li.id, e.target.value)}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  className="po-qty-input"
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={li.unit_price}
-                                  onChange={e => updateUnitPrice(li.id, e.target.value)}
-                                  style={{ width: 90 }}
-                                />
-                              </td>
-                              <td><strong>{fmtPeso(li.subtotal)}</strong></td>
-                              <td style={{ fontSize: 12 }}>
-                                {isPartial
-                                  ? <span style={{ color: '#d97706', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Partial — {remaining} remaining</span>
-                                  : <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>Full</span>
-                                }
-                              </td>
-                            </tr>
-                            {openDemand > 0 && (
-                              <tr>
-                                <td colSpan={8} style={{ padding: '0 8px 8px', background: '#fefce8' }}>
-                                  <div style={{ fontSize: 11, color: '#713f12', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0 }}>
-                                      <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                                    </svg>
-                                    {openDemand} more unit(s) of <strong style={{ marginLeft: 3 }}>{li.product}</strong> on open demand from other PRs.
-                                  </div>
+                      {(isNewShapePR ? Object.values(groupedByWarehouse) : [{ warehouse_name: null, items: lineItems }])
+                        .flatMap((group, gi) => {
+                          const rows = [];
+                          if (isNewShapePR) {
+                            rows.push(
+                              <tr key={`wh-${gi}`}>
+                                <td colSpan={8} style={{ background: '#f1f5f9', fontWeight: 700, fontSize: 12, color: '#334155', padding: '6px 10px' }}>
+                                  Requested for: {group.warehouse_name}
                                 </td>
                               </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
+                            );
+                          }
+                          group.items.forEach(li => {
+                            const isPartial   = li.quantity_ordered < li.pr_qty;
+                            const remaining   = li.pr_qty - li.quantity_ordered;
+                            const openDemand  = reorderNotes[li.product_id] || 0;
+                            rows.push(
+                              <React.Fragment key={li.id}>
+                                <tr className={isPartial ? 'pr-item-remaining' : ''}>
+                                  <td>
+                                    <strong>{li.product}</strong>
+                                    {li.model_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.model_code}</div>}
+                                  </td>
+                                  <td>
+                                    <span className={`po-type-badge ${li.product_type === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
+                                      {li.product_type === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
+                                    </span>
+                                  </td>
+                                  <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(li)}</td>
+                                  <td style={{ color: '#64748b', fontWeight: 500 }}>{li.pr_qty}</td>
+                                  <td>
+                                    <input
+                                      className="po-qty-input"
+                                      type="number"
+                                      min="1"
+                                      max={li.pr_qty}
+                                      value={li.quantity_ordered}
+                                      onChange={e => updateOrderQty(li.id, e.target.value)}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      className="po-qty-input"
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={li.unit_price}
+                                      onChange={e => updateUnitPrice(li.id, e.target.value)}
+                                      style={{ width: 90 }}
+                                    />
+                                  </td>
+                                  <td><strong>{fmtPeso(li.subtotal)}</strong></td>
+                                  <td style={{ fontSize: 12 }}>
+                                    {isPartial
+                                      ? <span style={{ color: '#d97706', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Partial — {remaining} remaining</span>
+                                      : <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>Full</span>
+                                    }
+                                  </td>
+                                </tr>
+                                {openDemand > 0 && (
+                                  <tr>
+                                    <td colSpan={8} style={{ padding: '0 8px 8px', background: '#fefce8' }}>
+                                      <div style={{ fontSize: 11, color: '#713f12', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0 }}>
+                                          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                                        </svg>
+                                        {openDemand} more unit(s) of <strong style={{ marginLeft: 3 }}>{li.product}</strong> on open demand from other PRs.
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          });
+                          return rows;
+                        })}
                     </tbody>
                   </table>
                 </div>

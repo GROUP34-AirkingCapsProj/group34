@@ -162,7 +162,9 @@ class PurchaseRequestController extends Controller
         $prs = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
             'details.product.consumableDetail.unit',
+            'details.location',
             'location',
+            'supplier',
             'status',
             'requester',
             'approver',
@@ -177,9 +179,10 @@ class PurchaseRequestController extends Controller
 
         $csvColumns = [
             'PR Number', 'Request Date', 'Needed By', 'Location',
-            'Purpose', 'Status', 'Requested By', 'Approved By', 'Budget Period', 'Budget Verification',
+            'Purpose', 'Status', 'Requested By', 'Approved By', 'Supplier',
             'Line #', 'Product Code', 'Product Name', 'Type',
             'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
+            'Requested For (Warehouse)',
             'Quantity', 'Estimated Price', 'Subtotal', 'Notes',
             'Estimated Total',
         ];
@@ -193,6 +196,7 @@ class PurchaseRequestController extends Controller
                     ? trim($pr->requester->first_name . ' ' . $pr->requester->last_name) : '';
                 $approvedBy  = $pr->approver
                     ? trim($pr->approver->first_name . ' ' . $pr->approver->last_name)  : '';
+                $supplierName = $pr->supplier?->supplier_name ?? '';
 
                 if ($pr->details->isEmpty()) {
                     fputcsv($handle, [
@@ -203,9 +207,8 @@ class PurchaseRequestController extends Controller
                         $pr->purpose ?? '',
                         $pr->status?->status_name ?? '',
                         $requestedBy, $approvedBy,
-                        $pr->budget?->period_label ?? '',
-                        $pr->budget?->verification_status ?? '',
-                        '', '', '', '', '', '', '', '', '', '', '',
+                        $supplierName,
+                        '', '', '', '', '', '', '', '', '', '', '', '',
                         number_format((float) $pr->estimated_total, 2),
                     ]);
                     continue;
@@ -224,8 +227,7 @@ class PurchaseRequestController extends Controller
                         $pr->purpose ?? '',
                         $pr->status?->status_name ?? '',
                         $requestedBy, $approvedBy,
-                        $pr->budget?->period_label ?? '',
-                        $pr->budget?->verification_status ?? '',
+                        $supplierName,
                         $i + 1,
                         $p?->product_code ?? '',
                         $p?->product_name ?? '',
@@ -233,6 +235,7 @@ class PurchaseRequestController extends Controller
                         $ad?->brand?->brand_name ?? $cd?->unit?->unit_name   ?? '',
                         $ad?->capacity_rating    ?? $cd?->package_unit       ?? '',
                         $cd?->pieces_per_package ?? '',
+                        $d->location?->location_name ?? '',
                         $d->quantity,
                         number_format((float) $d->estimated_price, 2),
                         number_format((float) $d->subtotal, 2),
