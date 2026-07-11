@@ -980,8 +980,8 @@ const PurchaseRequestPage = () => {
                   </div>
                   <div className="po-status-card-meta">
                     <div className="po-status-meta-item">
-                      <span className="po-status-meta-label">LOCATION</span>
-                      <span className="po-status-meta-value">{pr.location?.location_name || '—'}</span>
+                      <span className="po-status-meta-label">SUPPLIER</span>
+                      <span className="po-status-meta-value">{pr.supplier?.supplier_name || '—'}</span>
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">NEEDED BY</span>
@@ -1094,8 +1094,8 @@ const PurchaseRequestPage = () => {
                       <span className="po-status-meta-value">{requesterName}</span>
                     </div>
                     <div className="po-status-meta-item">
-                      <span className="po-status-meta-label">LOCATION</span>
-                      <span className="po-status-meta-value">{pr.location?.location_name || '—'}</span>
+                      <span className="po-status-meta-label">SUPPLIER</span>
+                      <span className="po-status-meta-value">{pr.supplier?.supplier_name || '—'}</span>
                     </div>
                     <div className="po-status-meta-item">
                       <span className="po-status-meta-label">NEEDED BY</span>
@@ -1154,7 +1154,7 @@ const PurchaseRequestPage = () => {
                       <table className="po-table" style={{ fontSize: 12 }}>
                         <thead>
                           <tr>
-                            <th>PRODUCT</th><th>TYPE</th><th>DETAILS</th><th>QTY</th><th>EST. PRICE</th><th>SUBTOTAL</th>
+                            <th>PRODUCT</th><th>TYPE</th><th>DETAILS</th><th>REQUESTED FOR (WAREHOUSE)</th><th>QTY</th><th>EST. PRICE</th><th>SUBTOTAL</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1172,6 +1172,7 @@ const PurchaseRequestPage = () => {
                                 </span>
                               </td>
                               <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
+                              <td>{d.location?.location_name || '—'}</td>
                               <td>{d.quantity}</td>
                               <td>{fmtPeso(d.estimated_price)}</td>
                               <td>{fmtPeso(d.subtotal)}</td>
@@ -1250,7 +1251,7 @@ const PurchaseRequestPage = () => {
             <div className="po-detail-head-info">
               <h2 className="po-detail-head-number">{pr.pr_number}</h2>
               <p className="po-detail-head-sub">
-                {pr.location?.location_name || '—'} · {isoToMDY(pr.request_date)}
+                {pr.supplier?.supplier_name || '—'} · {isoToMDY(pr.request_date)}
               </p>
             </div>
             <div className="po-detail-head-badges">
@@ -1262,6 +1263,10 @@ const PurchaseRequestPage = () => {
           <div className="po-detail-body">
             {/* Two-column info */}
             <div className="po-detail-info-grid">
+              <div className="po-detail-info-item">
+                <span className="po-detail-info-label">SUPPLIER</span>
+                <span className="po-detail-info-value">{pr.supplier?.supplier_name || '—'}</span>
+              </div>
               <div className="po-detail-info-item">
                 <span className="po-detail-info-label">REQUESTED BY</span>
                 <span className="po-detail-info-value">{requesterName}</span>
@@ -1340,6 +1345,7 @@ const PurchaseRequestPage = () => {
                       <th>PRODUCT</th>
                       <th>TYPE</th>
                       <th>DETAILS</th>
+                      <th>REQUESTED FOR (WAREHOUSE)</th>
                       <th>REQUESTED</th>
                       <th>IN PO</th>
                       <th>REMAINING</th>
@@ -1368,6 +1374,7 @@ const PurchaseRequestPage = () => {
                             </span>
                           </td>
                           <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>
+                          <td style={{ fontSize: 11, color: '#64748b' }}>{d.location?.location_name || '—'}</td>
                           <td>{d.quantity}</td>
                           <td style={{ color: orderedInPO > 0 ? '#16a34a' : '#94a3b8' }}>{orderedInPO}</td>
                           <td>
