@@ -5,9 +5,9 @@ import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import {
+  itemsAPI,
   locationsAPI,
   suppliersAPI,
-  purchaseOrdersAPI,
   purchaseRequestsAPI,
   budgetAllocationsAPI,
 } from '../services/api';
@@ -90,12 +90,11 @@ const detailLabel = (d) => {
   return u || '—';
 };
 
-// ─── new line item factory ────────────────────────────────────────────────────
+// ─── new row / warehouse block factories ──────────────────────────────────────
 
-const newLine = () => ({
-  id:                  `line-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+const newRow = () => ({
+  id:                  `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   productId:           '',
-  locationId:          '',
   productName:         '',
   productType:         '',
   unitId:              '',
@@ -110,6 +109,12 @@ const newLine = () => ({
   subtotal:            0,
   reorderWarning:      null,
   warningAcknowledged: false,
+});
+
+const newBlock = () => ({
+  id:          `block-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  warehouseId: '',
+  rows:        [newRow()],
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -143,11 +148,11 @@ const PurchaseRequestPage = () => {
     return d.toISOString().slice(0, 10);
   });
   const [purpose,   setPurpose]   = useState('');
-  const [supplierProducts,        setSupplierProducts]        = useState([]);
-  const [loadingSupplierProducts, setLoadingSupplierProducts] = useState(false);
+  const [products,        setProducts]        = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [filterCat,  setFilterCat]  = useState('');
   const [filterBrand, setFilterBrand] = useState('');
-  const [lineItems, setLineItems] = useState([newLine()]);
+  const [warehouseBlocks, setWarehouseBlocks] = useState([newBlock()]);
   const [submitting,  setSubmitting]  = useState(false);
 
   // Warehouse-only destinations for the per-line selector
@@ -203,30 +208,25 @@ const PurchaseRequestPage = () => {
     return () => { ok = false; };
   }, []);
 
-  // ── Supplier change: clear lines + load that supplier's products ─────────
+  // ── Load all active products once (supplier no longer filters products) ──
   useEffect(() => {
-    setLineItems([newLine()]);
-    setFilterCat('');
-    setFilterBrand('');
-    if (!selectedSupplierId) { setSupplierProducts([]); return; }
     let ok = true;
-    setLoadingSupplierProducts(true);
-    purchaseOrdersAPI.getProductsBySupplier(selectedSupplierId)
+    itemsAPI.getAll({ per_page: 1000 })
       .then(res => {
         if (!ok) return;
         const rows = Array.isArray(res?.data) ? res.data : [];
-        setSupplierProducts(rows.map(p => ({
-          id:              String(p.product_id ?? ''),
-          name:            p.product_name || '',
-          code:            p.product_code || '',
+        setProducts(rows.map(p => ({
+          id:              String(p.product_id ?? p.id ?? ''),
+          name:            p.product_name || p.name || '',
+          code:            p.product_code || p.code || '',
           type:            p.product_type || '',
-          categoryId:      '',
-          categoryName:    '',
-          brandId:         '',
+          categoryId:      String(p.category_id ?? ''),
+          categoryName:    p.category?.category_name || '',
+          brandId:         String(p.brand_id ?? ''),
           brandName:       p.brand_name || '',
-          unitId:          '',
-          unitName:        p.unit_name || '',
-          unitAbbr:        p.unit_abbreviation || '',
+          unitId:          String(p.unit_id ?? ''),
+          unitName:        p.unit_name || p.unit?.unit_name || '',
+          unitAbbr:        p.unit_abbreviation || p.unit?.unit_abbreviation || '',
           capacityRating:  p.capacity_rating || '',
           variant:         p.variant || '',
           piecesPerPackage: p.pieces_per_package ?? null,
@@ -235,21 +235,21 @@ const PurchaseRequestPage = () => {
         })));
       })
       .catch(console.error)
-      .finally(() => { if (ok) setLoadingSupplierProducts(false); });
+      .finally(() => { if (ok) setLoadingProducts(false); });
     return () => { ok = false; };
-  }, [selectedSupplierId]);
+  }, []);
 
-  // ── Distinct warehouses currently used across line items ──────────────────
-  const distinctLineLocIds = useMemo(() => {
+  // ── Distinct warehouses currently used across warehouse blocks ────────────
+  const distinctBlockLocIds = useMemo(() => {
     const ids = new Set();
-    lineItems.forEach(li => { if (li.locationId) ids.add(String(li.locationId)); });
+    warehouseBlocks.forEach(b => { if (b.warehouseId) ids.add(String(b.warehouseId)); });
     return [...ids];
-  }, [lineItems]);
+  }, [warehouseBlocks]);
 
   // ── Fetch (and cache) the active budget for each distinct warehouse ───────
   useEffect(() => {
     let ok = true;
-    distinctLineLocIds.forEach(locId => {
+    distinctBlockLocIds.forEach(locId => {
       if (fetchedLocRef.current.has(locId)) return;
       fetchedLocRef.current.add(locId);
       setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: true, budget: null } }));
@@ -276,7 +276,7 @@ const PurchaseRequestPage = () => {
         });
     });
     return () => { ok = false; };
-  }, [distinctLineLocIds]);
+  }, [distinctBlockLocIds]);
 
   // ── Load tab data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -313,41 +313,60 @@ const PurchaseRequestPage = () => {
     else toast.error('That purchase request is not available.');
   }, [focusPrId, pendingPRsLoaded, pendingPRs, myPRs, firePrPulse]);
 
-  // ── Line item helpers ─────────────────────────────────────────────────────
-  const addLine = useCallback(() => setLineItems(p => [...p, newLine()]), []);
+  // ── Warehouse block helpers ────────────────────────────────────────────────
+  const addBlock = useCallback(() => setWarehouseBlocks(p => [...p, newBlock()]), []);
 
-  const removeLine = useCallback((id) =>
-    setLineItems(p => p.filter(li => li.id !== id)), []);
+  const removeBlock = useCallback((blockId) =>
+    setWarehouseBlocks(p => (p.length > 1 ? p.filter(b => b.id !== blockId) : p)), []);
 
-  const updateField = useCallback((id, field, value) => {
-    setLineItems(p => p.map(li => {
-      if (li.id !== id) return li;
-      const u = { ...li, [field]: value };
-      if (field === 'qty') {
-        u.qty      = Math.max(1, parseInt(value) || 1);
-        u.subtotal = u.qty * Number(li.estPrice);
-      }
-      if (field === 'estPrice') {
-        u.estPrice = Number(value) || 0;
-        u.subtotal = Number(li.qty) * u.estPrice;
-      }
-      return u;
+  const setBlockWarehouse = useCallback((blockId, warehouseId) =>
+    setWarehouseBlocks(p => p.map(b => (b.id === blockId ? { ...b, warehouseId } : b))), []);
+
+  const addRow = useCallback((blockId) =>
+    setWarehouseBlocks(p => p.map(b => (b.id === blockId ? { ...b, rows: [...b.rows, newRow()] } : b))), []);
+
+  const removeRow = useCallback((blockId, rowId) =>
+    setWarehouseBlocks(p => p.map(b => (b.id === blockId ? { ...b, rows: b.rows.filter(r => r.id !== rowId) } : b))), []);
+
+  const updateRowField = useCallback((blockId, rowId, field, value) => {
+    setWarehouseBlocks(p => p.map(b => {
+      if (b.id !== blockId) return b;
+      return {
+        ...b,
+        rows: b.rows.map(r => {
+          if (r.id !== rowId) return r;
+          const u = { ...r, [field]: value };
+          if (field === 'qty') {
+            u.qty      = Math.max(1, parseInt(value) || 1);
+            u.subtotal = u.qty * Number(r.estPrice);
+          }
+          if (field === 'estPrice') {
+            u.estPrice = Number(value) || 0;
+            u.subtotal = Number(r.qty) * u.estPrice;
+          }
+          return u;
+        }),
+      };
     }));
   }, []);
 
-  const handleProductSelect = useCallback(async (lineId, productId) => {
+  const handleProductSelect = useCallback(async (blockId, rowId, productId) => {
     if (!productId) {
-      setLineItems(p => p.map(li =>
-        li.id === lineId ? { ...li, productId: '', productName: '', productType: '', unitId: '', unitName: '', estPrice: 0, subtotal: 0, reorderWarning: null } : li
-      ));
+      setWarehouseBlocks(p => p.map(b => (b.id !== blockId ? b : {
+        ...b,
+        rows: b.rows.map(r => (r.id === rowId
+          ? { ...r, productId: '', productName: '', productType: '', unitId: '', unitName: '', estPrice: 0, subtotal: 0, reorderWarning: null }
+          : r)),
+      })));
       return;
     }
-    const prod = supplierProducts.find(p => p.id === productId);
+    const prod = products.find(p => p.id === productId);
     if (!prod) return;
 
-    setLineItems(p => p.map(li =>
-      li.id === lineId ? {
-        ...li,
+    setWarehouseBlocks(p => p.map(b => (b.id !== blockId ? b : {
+      ...b,
+      rows: b.rows.map(r => (r.id === rowId ? {
+        ...r,
         productId:           prod.id,
         productName:         prod.name,
         productType:         prod.type,
@@ -359,72 +378,75 @@ const PurchaseRequestPage = () => {
         piecesPerPackage:    prod.piecesPerPackage,
         packageUnit:         prod.packageUnit,
         estPrice:            prod.costPrice,
-        subtotal:            Math.max(1, li.qty) * prod.costPrice,
+        subtotal:            Math.max(1, r.qty) * prod.costPrice,
         reorderWarning:      null,
         warningAcknowledged: false,
-      } : li
-    ));
+      } : r)),
+    })));
 
     // Smart reorder check — non-blocking
     try {
       const res       = await purchaseRequestsAPI.getOpenLinesForProduct(productId);
       const openLines = Array.isArray(res?.data) ? res.data : [];
       if (openLines.length > 0) {
-        setLineItems(p => p.map(li =>
-          li.id === lineId ? { ...li, reorderWarning: openLines, warningAcknowledged: false } : li
-        ));
+        setWarehouseBlocks(p => p.map(b => (b.id !== blockId ? b : {
+          ...b,
+          rows: b.rows.map(r => (r.id === rowId ? { ...r, reorderWarning: openLines, warningAcknowledged: false } : r)),
+        })));
       }
     } catch (_) { /* non-fatal */ }
-  }, [supplierProducts]);
+  }, [products]);
 
-  const acknowledgeWarning = useCallback((lineId) =>
-    setLineItems(p => p.map(li =>
-      li.id === lineId ? { ...li, warningAcknowledged: true } : li
-    )), []);
+  const acknowledgeWarning = useCallback((blockId, rowId) =>
+    setWarehouseBlocks(p => p.map(b => (b.id !== blockId ? b : {
+      ...b,
+      rows: b.rows.map(r => (r.id === rowId ? { ...r, warningAcknowledged: true } : r)),
+    }))), []);
 
   // ── Product filter derived lists ──────────────────────────────────────────
   const categoryOptions = useMemo(() => {
     const seen = new Map();
-    supplierProducts.forEach(p => { if (p.categoryId && !seen.has(p.categoryId)) seen.set(p.categoryId, p.categoryName || p.categoryId); });
+    products.forEach(p => { if (p.categoryId && !seen.has(p.categoryId)) seen.set(p.categoryId, p.categoryName || p.categoryId); });
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [supplierProducts]);
+  }, [products]);
 
   const brandOptions = useMemo(() => {
     const seen = new Map();
-    supplierProducts
+    products
       .filter(p => !filterCat || p.categoryId === filterCat)
       .forEach(p => { if (p.brandId && !seen.has(p.brandId)) seen.set(p.brandId, p.brandName || p.brandId); });
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [supplierProducts, filterCat]);
+  }, [products, filterCat]);
 
   const filteredProducts = useMemo(() =>
-    supplierProducts.filter(p =>
+    products.filter(p =>
       (!filterCat   || p.categoryId === filterCat) &&
       (!filterBrand || p.brandId    === filterBrand)
-    ), [supplierProducts, filterCat, filterBrand]);
+    ), [products, filterCat, filterBrand]);
 
   // ── Computed totals ───────────────────────────────────────────────────────
   const estimatedTotal = useMemo(
-    () => lineItems.reduce((s, li) => s + Number(li.subtotal || 0), 0),
-    [lineItems]
+    () => warehouseBlocks.reduce((s, b) => s + b.rows.reduce((s2, r) => s2 + Number(r.subtotal || 0), 0), 0),
+    [warehouseBlocks]
   );
 
   // ── Per-warehouse subtotal + budget-group status ──────────────────────────
-  const lineSubtotalsByLoc = useMemo(() => {
+  const blockSubtotalsByLoc = useMemo(() => {
     const map = {};
-    lineItems.forEach(li => {
-      if (!li.locationId) return;
-      const locId = String(li.locationId);
-      map[locId] = (map[locId] || 0) + Number(li.subtotal || 0);
+    warehouseBlocks.forEach(b => {
+      if (!b.warehouseId) return;
+      const locId = String(b.warehouseId);
+      const sub   = b.rows.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+      map[locId] = (map[locId] || 0) + sub;
     });
     return map;
-  }, [lineItems]);
+  }, [warehouseBlocks]);
 
-  const warehouseGroupStatus = useMemo(() => distinctLineLocIds.map(locId => {
+  const warehouseGroupStatus = useMemo(() => distinctBlockLocIds.map(locId => {
     const entry     = budgetsByLoc[locId];
     const loading   = entry?.loading ?? true;
     const budget    = entry?.budget ?? null;
-    const subtotal  = lineSubtotalsByLoc[locId] || 0;
+    const subtotal  = blockSubtotalsByLoc[locId] || 0;
     const available = budget ? Number(budget.available ?? 0) : null;
     const verified  = budget?.verification_status === 'verified';
     const missing   = !loading && !budget;
@@ -433,9 +455,29 @@ const PurchaseRequestPage = () => {
     const locName   = loc?.location_name || loc?.name || `Warehouse #${locId}`;
     const ok        = !loading && !missing && verified && !over;
     return { locId, locName, loading, budget, subtotal, available, verified, missing, over, ok };
-  }), [distinctLineLocIds, budgetsByLoc, lineSubtotalsByLoc, locations]);
+  }), [distinctBlockLocIds, budgetsByLoc, blockSubtotalsByLoc, locations]);
 
   const hasBlockingWarehouseGroup = warehouseGroupStatus.some(g => !g.ok);
+
+  // ── Warehouse dropdown options per block (exclude warehouses used by others) ──
+  const availableWarehousesForBlock = useCallback((blockId) => {
+    const usedByOthers = new Set(
+      warehouseBlocks.filter(b => b.id !== blockId && b.warehouseId).map(b => String(b.warehouseId))
+    );
+    return warehouseLocations.filter(loc => !usedByOthers.has(String(loc.location_id ?? loc.id ?? '')));
+  }, [warehouseBlocks, warehouseLocations]);
+
+  const allWarehousesUsed = distinctBlockLocIds.length >= warehouseLocations.length && warehouseLocations.length > 0;
+
+  const hasAnyValidRow = useMemo(
+    () => warehouseBlocks.some(b => b.rows.some(r => r.productId && Number(r.qty) > 0)),
+    [warehouseBlocks]
+  );
+
+  const hasRowsWithoutWarehouse = useMemo(
+    () => warehouseBlocks.some(b => !b.warehouseId && b.rows.some(r => r.productId && Number(r.qty) > 0)),
+    [warehouseBlocks]
+  );
 
   // ── Submit PR ─────────────────────────────────────────────────────────────
   const handleSubmitPR = useCallback(async () => {
@@ -444,16 +486,19 @@ const PurchaseRequestPage = () => {
     if (neededByDate <= new Date().toISOString().slice(0, 10)) {
       toast.error("Couldn't send request", 'Needed-by date must be a future date.'); return;
     }
-    const validLines = lineItems.filter(li => li.productId && li.qty > 0);
-    if (!validLines.length) {
+    if (!hasAnyValidRow) {
       toast.error("Couldn't send request", 'Add at least one item with a selected product.'); return;
     }
-    if (validLines.some(li => !li.locationId)) {
-      toast.error("Couldn't send request", 'Select a destination warehouse for every item.'); return;
+    if (hasRowsWithoutWarehouse) {
+      toast.error("Couldn't send request", 'Select a destination warehouse for every warehouse block that has items.'); return;
     }
 
-    // Verify each warehouse group used by the valid lines is fundable
-    const usedLocIds = [...new Set(validLines.map(li => String(li.locationId)))];
+    // Verify each warehouse group used by a block with valid rows is fundable
+    const usedLocIds = [...new Set(
+      warehouseBlocks
+        .filter(b => b.warehouseId && b.rows.some(r => r.productId && Number(r.qty) > 0))
+        .map(b => String(b.warehouseId))
+    )];
     for (const locId of usedLocIds) {
       const group = warehouseGroupStatus.find(g => g.locId === locId);
       if (!group || group.loading) {
@@ -479,22 +524,31 @@ const PurchaseRequestPage = () => {
 
     setSubmitting(true);
     try {
+      const details = [];
+      warehouseBlocks.forEach(b => {
+        b.rows.forEach(r => {
+          if (r.productId && Number(r.qty) > 0) {
+            details.push({
+              product_id:      Number(r.productId),
+              location_id:     Number(b.warehouseId),
+              quantity:        Math.max(1, parseInt(r.qty) || 1),
+              estimated_price: Number(r.estPrice) || 0,
+            });
+          }
+        });
+      });
+
       const payload = {
         supplier_id:    Number(selectedSupplierId),
         needed_by_date: neededByDate,
         purpose:        purpose.trim() || null,
-        details:        validLines.map(li => ({
-          product_id:      Number(li.productId),
-          location_id:     Number(li.locationId),
-          quantity:        Math.max(1, parseInt(li.qty) || 1),
-          estimated_price: Number(li.estPrice) || 0,
-        })),
+        details,
       };
 
       const res = await purchaseRequestsAPI.create(payload);
       const prNum = res?.data?.pr_number || 'Purchase Request';
       toast.success('Purchase Request sent', `${prNum} — waiting for admin approval`);
-      setLineItems([newLine()]);
+      setWarehouseBlocks([newBlock()]);
       setPurpose('');
     } catch (err) {
       const msg = err?.errors
@@ -504,7 +558,7 @@ const PurchaseRequestPage = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedSupplierId, neededByDate, purpose, lineItems, warehouseGroupStatus]);
+  }, [selectedSupplierId, neededByDate, purpose, warehouseBlocks, warehouseGroupStatus, hasAnyValidRow, hasRowsWithoutWarehouse]);
 
   // ── Archive PR ────────────────────────────────────────────────────────────
   const handleArchivePR = useCallback(async (prId) => {
@@ -556,90 +610,83 @@ const PurchaseRequestPage = () => {
   // RENDER HELPERS
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ── Per-warehouse budget cards ─────────────────────────────────────────────
-  const renderBudgetCards = () => {
-    if (!distinctLineLocIds.length) return null;
+  // ── Single warehouse-block budget card ─────────────────────────────────────
+  const renderBudgetCard = (group) => {
+    if (!group) return null;
+    if (group.loading) {
+      return (
+        <div className="pr-budget-card pr-budget-card--loading">
+          <Loader variant="inline" label={`Loading budget for ${group.locName}`} />
+        </div>
+      );
+    }
+    if (group.missing) {
+      return (
+        <div className="pr-budget-card pr-budget-card--empty">
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0, marginTop: 1 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div>
+              <div style={{ fontWeight: 700, color: '#92400e', fontSize: 13 }}>No budget found for {group.locName}</div>
+              <div style={{ color: '#78350f', fontSize: 12, marginTop: 3 }}>
+                Ask Admin to create a budget allocation for this warehouse in Budget Management.
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const budget    = group.budget;
+    const total     = Number(budget.total_budget || 0);
+    const committed = Number(budget.committed || 0);
+    const spent     = Number(budget.spent || 0);
+    const available = Number(budget.available ?? (total - committed - spent));
+    const avColor   = budgetColor(available, total);
+    const badge     = budget.verification_status === 'verified'
+      ? { label: 'VERIFIED', color: '#16a34a', bg: '#f0fdf4' }
+      : budget.verification_status === 'rejected'
+        ? { label: 'REJECTED', color: '#dc2626', bg: '#fef2f2' }
+        : { label: 'AWAITING VERIFICATION', color: '#d97706', bg: '#fffbeb' };
 
     return (
-      <div className="pr-budget-cards-stack" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {warehouseGroupStatus.map(group => {
-          if (group.loading) {
-            return (
-              <div key={group.locId} className="pr-budget-card pr-budget-card--loading">
-                <Loader variant="inline" label={`Loading budget for ${group.locName}`} />
-              </div>
-            );
-          }
-          if (group.missing) {
-            return (
-              <div key={group.locId} className="pr-budget-card pr-budget-card--empty">
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0, marginTop: 1 }}>
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                  <div>
-                    <div style={{ fontWeight: 700, color: '#92400e', fontSize: 13 }}>No budget found for {group.locName}</div>
-                    <div style={{ color: '#78350f', fontSize: 12, marginTop: 3 }}>
-                      Ask Admin to create a budget allocation for this warehouse in Budget Management.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          const budget    = group.budget;
-          const total     = Number(budget.total_budget || 0);
-          const committed = Number(budget.committed || 0);
-          const spent     = Number(budget.spent || 0);
-          const available = Number(budget.available ?? (total - committed - spent));
-          const avColor   = budgetColor(available, total);
-          const badge     = budget.verification_status === 'verified'
-            ? { label: 'VERIFIED', color: '#16a34a', bg: '#f0fdf4' }
-            : budget.verification_status === 'rejected'
-              ? { label: 'REJECTED', color: '#dc2626', bg: '#fef2f2' }
-              : { label: 'AWAITING VERIFICATION', color: '#d97706', bg: '#fffbeb' };
-
-          return (
-            <div key={group.locId} className="pr-budget-card">
-              <div className="pr-budget-card-header">
-                <span className="pr-budget-card-title">Budget — {group.locName}</span>
-                <span
-                  style={{ fontSize: 11, fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 8px', borderRadius: 999 }}
-                >
-                  {badge.label}
-                </span>
-              </div>
-              <div className="pr-budget-grid">
-                {[
-                  { label: 'TOTAL BUDGET', value: fmtPeso(total),          color: '#1e293b' },
-                  { label: 'COMMITTED',    value: fmtPeso(committed),      color: '#d97706' },
-                  { label: 'SPENT',        value: fmtPeso(spent),          color: '#dc2626' },
-                  { label: 'AVAILABLE',    value: fmtPeso(available),      color: avColor  },
-                  { label: 'THIS REQUEST', value: fmtPeso(group.subtotal), color: group.over ? '#dc2626' : '#1e293b' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="pr-budget-item">
-                    <span className="pr-budget-label">{label}</span>
-                    <span className="pr-budget-value" style={{ color }}>{value}</span>
-                  </div>
-                ))}
-              </div>
-              {group.over && (
-                <div style={{ margin:'10px 0 0', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#991b1b' }}>
-                  This request's items for {group.locName} ({fmtPeso(group.subtotal)}) exceed the available budget ({fmtPeso(available)}).
-                </div>
-              )}
-              {!group.over && budget.verification_status !== 'verified' && (
-                <div style={{ margin:'10px 0 0', background:'#fffbeb', border:'1px solid #fbbf24', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#92400e' }}>
-                  {budget.verification_status === 'rejected'
-                    ? `This budget was rejected by the auditor${budget.verification_note ? `: ${budget.verification_note}` : ''}.`
-                    : 'This budget is awaiting auditor verification — you cannot submit a request against it yet.'}
-                </div>
-              )}
+      <div className="pr-budget-card">
+        <div className="pr-budget-card-header">
+          <span className="pr-budget-card-title">Budget — {group.locName}</span>
+          <span
+            style={{ fontSize: 11, fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 8px', borderRadius: 999 }}
+          >
+            {badge.label}
+          </span>
+        </div>
+        <div className="pr-budget-grid">
+          {[
+            { label: 'TOTAL BUDGET', value: fmtPeso(total),          color: '#1e293b' },
+            { label: 'COMMITTED',    value: fmtPeso(committed),      color: '#d97706' },
+            { label: 'SPENT',        value: fmtPeso(spent),          color: '#dc2626' },
+            { label: 'AVAILABLE',    value: fmtPeso(available),      color: avColor  },
+            { label: 'THIS REQUEST', value: fmtPeso(group.subtotal), color: group.over ? '#dc2626' : '#1e293b' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="pr-budget-item">
+              <span className="pr-budget-label">{label}</span>
+              <span className="pr-budget-value" style={{ color }}>{value}</span>
             </div>
-          );
-        })}
+          ))}
+        </div>
+        {group.over && (
+          <div style={{ margin:'10px 0 0', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#991b1b' }}>
+            This request's items for {group.locName} ({fmtPeso(group.subtotal)}) exceed the available budget ({fmtPeso(available)}).
+          </div>
+        )}
+        {!group.over && budget.verification_status !== 'verified' && (
+          <div style={{ margin:'10px 0 0', background:'#fffbeb', border:'1px solid #fbbf24', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#92400e' }}>
+            {budget.verification_status === 'rejected'
+              ? `This budget was rejected by the auditor${budget.verification_note ? `: ${budget.verification_note}` : ''}.`
+              : 'This budget is awaiting auditor verification — you cannot submit a request against it yet.'}
+          </div>
+        )}
       </div>
     );
   };
@@ -688,26 +735,8 @@ const PurchaseRequestPage = () => {
         </div>
       </div>
 
-      {renderBudgetCards()}
-
-      {/* Line items */}
+      {/* Product filter bar (applies to every warehouse block's product picker) */}
       <div className="po-line-items-card">
-        <div className="po-line-items-header">
-          <div className="po-line-items-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" />
-              <line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-            </svg>
-            REQUESTED ITEMS
-            <span className="po-line-items-count">{lineItems.length}</span>
-          </div>
-          <button type="button" className="po-btn po-btn-add-product" onClick={addLine}>
-            + ADD ITEM
-          </button>
-        </div>
-
-        {/* Product filter bar */}
         <div className="pr-filter-bar">
           <span className="pr-filter-label">FILTER:</span>
           <select
@@ -738,185 +767,234 @@ const PurchaseRequestPage = () => {
           )}
           <span className="pr-filter-count">
             {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
+            {loadingProducts ? ' (loading…)' : ''}
           </span>
         </div>
+      </div>
 
-        <div className="po-table-wrapper">
-          <table className="po-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>PRODUCT</th>
-                <th>TYPE</th>
-                <th>DETAILS</th>
-                <th>WAREHOUSE</th>
-                <th>QTY</th>
-                <th>EST. PRICE</th>
-                <th>SUBTOTAL</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lineItems.map((li, idx) => (
-                <React.Fragment key={li.id}>
+      {/* Warehouse blocks */}
+      {warehouseBlocks.map((block, blockIdx) => {
+        const group = warehouseGroupStatus.find(g => g.locId === String(block.warehouseId)) || null;
+        const blockSubtotal = block.rows.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+
+        return (
+          <div key={block.id} className="po-line-items-card" style={{ border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
+            <div className="po-line-items-header">
+              <div className="po-line-items-title" style={{ flex: 1 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                  <path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" />
+                </svg>
+                WAREHOUSE {blockIdx + 1}
+                <select
+                  className="po-select"
+                  style={{ fontSize: 12, minWidth: 200, marginLeft: 8 }}
+                  value={block.warehouseId}
+                  onChange={e => setBlockWarehouse(block.id, e.target.value)}
+                  disabled={loadingLocations}
+                >
+                  <option value="">{loadingLocations ? 'Loading…' : 'Select warehouse…'}</option>
+                  {availableWarehousesForBlock(block.id).map(loc => (
+                    <option key={loc.location_id ?? loc.id} value={String(loc.location_id ?? loc.id ?? '')}>
+                      {loc.location_name || loc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {warehouseBlocks.length > 1 && (
+                <button type="button" className="po-remove-btn" onClick={() => removeBlock(block.id)} title="Remove this warehouse block">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14H6L5 6" />
+                    <path d="M10 11v6" /><path d="M14 11v6" />
+                    <path d="M9 6V4h6v2" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {block.warehouseId && (
+              <div style={{ padding: '0 16px 16px' }}>
+                {renderBudgetCard(group)}
+              </div>
+            )}
+
+            <div className="po-table-wrapper">
+              <table className="po-table">
+                <thead>
                   <tr>
-                    <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
-                    <td style={{ minWidth: 200 }}>
-                      <select
-                        className="po-select"
-                        style={{ fontSize: 12 }}
-                        value={li.productId}
-                        onChange={e => handleProductSelect(li.id, e.target.value)}
-                        disabled={!selectedSupplierId || loadingSupplierProducts}
-                        title={!selectedSupplierId ? 'Select a supplier first.' : undefined}
-                      >
-                        <option value="">
-                          {!selectedSupplierId ? 'Select a supplier first' : loadingSupplierProducts ? 'Loading…' : 'Select product…'}
-                        </option>
-                        {filteredProducts.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.code ? `[${p.code}] ` : ''}{p.name}
-                            {p.brandName ? ` — ${p.brandName}` : ''}
-                            {p.capacityRating ? ` ${p.capacityRating}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      {li.productType ? (
-                        <span className={`po-type-badge ${li.productType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
-                          {li.productType.replace(/_/g, ' ').toUpperCase()}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td style={{ fontSize: 12, color: '#64748b' }}>{productLabel(li)}</td>
-                    <td style={{ minWidth: 150 }}>
-                      <select
-                        className="po-select"
-                        style={{ fontSize: 12 }}
-                        value={li.locationId}
-                        onChange={e => updateField(li.id, 'locationId', e.target.value)}
-                        disabled={loadingLocations}
-                      >
-                        <option value="">{loadingLocations ? 'Loading…' : 'Select warehouse…'}</option>
-                        {warehouseLocations.map(loc => (
-                          <option key={loc.location_id ?? loc.id} value={String(loc.location_id ?? loc.id ?? '')}>
-                            {loc.location_name || loc.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="1"
-                        className="po-qty-input"
-                        value={li.qty}
-                        onChange={e => updateField(li.id, 'qty', e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="0" step="0.01"
-                        className="po-qty-input"
-                        style={{ width: 90 }}
-                        value={li.estPrice}
-                        onChange={e => updateField(li.id, 'estPrice', e.target.value)}
-                      />
-                    </td>
-                    <td><strong>{fmtPeso(li.subtotal)}</strong></td>
-                    <td>
-                      <button
-                        type="button" className="po-remove-btn"
-                        onClick={() => removeLine(li.id)}
-                        title="Remove"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6l-1 14H6L5 6" />
-                          <path d="M10 11v6" /><path d="M14 11v6" />
-                          <path d="M9 6V4h6v2" />
-                        </svg>
-                      </button>
-                    </td>
+                    <th>#</th>
+                    <th>PRODUCT</th>
+                    <th>TYPE</th>
+                    <th>DETAILS</th>
+                    <th>QTY</th>
+                    <th>EST. PRICE</th>
+                    <th>SUBTOTAL</th>
+                    <th></th>
                   </tr>
-
-                  {/* Smart reorder warning */}
-                  {li.reorderWarning && li.reorderWarning.length > 0 && !li.warningAcknowledged && (
-                    <tr>
-                      <td colSpan={9} style={{ padding: '0 8px 10px' }}>
-                        <div className="pr-reorder-warning">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="15" height="15" style={{ flexShrink: 0 }}>
-                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                            <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-                          </svg>
-                          <div style={{ display: 'inline' }}>
-                            <strong>You already have open requests for {li.productName}:</strong>
-                            {li.reorderWarning.map((w, wi) => (
-                              <div key={wi} style={{ marginTop: 4, fontSize: 12, paddingLeft: 4 }}>
-                                • <strong>{w.pr_number}</strong> ({w.status}):{' '}
-                                {w.quantity_requested} requested →{' '}
-                                {w.quantity_ordered} ordered in PO →{' '}
-                                <strong style={{ color: '#92400e' }}>{w.quantity_remaining} still remaining</strong>
-                                {w.needed_by_date && ` · needed by ${w.needed_by_date}`}
-                              </div>
+                </thead>
+                <tbody>
+                  {block.rows.map((r, idx) => (
+                    <React.Fragment key={r.id}>
+                      <tr>
+                        <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
+                        <td style={{ minWidth: 200 }}>
+                          <select
+                            className="po-select"
+                            style={{ fontSize: 12 }}
+                            value={r.productId}
+                            onChange={e => handleProductSelect(block.id, r.id, e.target.value)}
+                            disabled={loadingProducts}
+                          >
+                            <option value="">{loadingProducts ? 'Loading…' : 'Select product…'}</option>
+                            {filteredProducts.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.code ? `[${p.code}] ` : ''}{p.name}
+                                {p.brandName ? ` — ${p.brandName}` : ''}
+                                {p.capacityRating ? ` ${p.capacityRating}` : ''}
+                              </option>
                             ))}
-                            {(() => {
-                              const totalRemaining = li.reorderWarning.reduce((t, w) => t + (w.quantity_remaining || 0), 0);
-                              return (
-                                <div style={{ marginTop: 6, fontSize: 12 }}>
-                                  Adding more may cause overstock.{' '}
-                                  <span style={{ fontStyle: 'italic' }}>Consider reducing your quantity by {totalRemaining}.</span>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          <div className="pr-reorder-warning-actions">
-                            <button type="button" className="pr-reorder-btn pr-reorder-btn--keep" onClick={() => acknowledgeWarning(li.id)}>
-                              Yes, add more
-                            </button>
-                            <button type="button" className="pr-reorder-btn pr-reorder-btn--remove" onClick={() => removeLine(li.id)}>
-                              Remove this line
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {/* Acknowledged reminder */}
-                  {li.reorderWarning && li.reorderWarning.length > 0 && li.warningAcknowledged && (
-                    <tr>
-                      <td colSpan={8} style={{ padding: '0 8px 8px' }}>
-                        <div style={{ background: '#fef9c3', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: '#713f12', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                          <span>Note: {li.reorderWarning.reduce((t, w) => t + (w.quantity_remaining || 0), 0)} unit(s) of {li.productName} already have open demand on other PRs.</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                          </select>
+                        </td>
+                        <td>
+                          {r.productType ? (
+                            <span className={`po-type-badge ${r.productType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
+                              {r.productType.replace(/_/g, ' ').toUpperCase()}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td style={{ fontSize: 12, color: '#64748b' }}>{productLabel(r)}</td>
+                        <td>
+                          <input
+                            type="number" min="1"
+                            className="po-qty-input"
+                            value={r.qty}
+                            onChange={e => updateRowField(block.id, r.id, 'qty', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number" min="0" step="0.01"
+                            className="po-qty-input"
+                            style={{ width: 90 }}
+                            value={r.estPrice}
+                            onChange={e => updateRowField(block.id, r.id, 'estPrice', e.target.value)}
+                          />
+                        </td>
+                        <td><strong>{fmtPeso(r.subtotal)}</strong></td>
+                        <td>
+                          <button
+                            type="button" className="po-remove-btn"
+                            onClick={() => removeRow(block.id, r.id)}
+                            title="Remove"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14H6L5 6" />
+                              <path d="M10 11v6" /><path d="M14 11v6" />
+                              <path d="M9 6V4h6v2" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
 
-        {/* Footer totals */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '14px 16px 4px', gap: 24 }}>
+                      {/* Smart reorder warning */}
+                      {r.reorderWarning && r.reorderWarning.length > 0 && !r.warningAcknowledged && (
+                        <tr>
+                          <td colSpan={8} style={{ padding: '0 8px 10px' }}>
+                            <div className="pr-reorder-warning">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="15" height="15" style={{ flexShrink: 0 }}>
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                              </svg>
+                              <div style={{ display: 'inline' }}>
+                                <strong>You already have open requests for {r.productName}:</strong>
+                                {r.reorderWarning.map((w, wi) => (
+                                  <div key={wi} style={{ marginTop: 4, fontSize: 12, paddingLeft: 4 }}>
+                                    • <strong>{w.pr_number}</strong> ({w.status}):{' '}
+                                    {w.quantity_requested} requested →{' '}
+                                    {w.quantity_ordered} ordered in PO →{' '}
+                                    <strong style={{ color: '#92400e' }}>{w.quantity_remaining} still remaining</strong>
+                                    {w.needed_by_date && ` · needed by ${w.needed_by_date}`}
+                                  </div>
+                                ))}
+                                {(() => {
+                                  const totalRemaining = r.reorderWarning.reduce((t, w) => t + (w.quantity_remaining || 0), 0);
+                                  return (
+                                    <div style={{ marginTop: 6, fontSize: 12 }}>
+                                      Adding more may cause overstock.{' '}
+                                      <span style={{ fontStyle: 'italic' }}>Consider reducing your quantity by {totalRemaining}.</span>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                              <div className="pr-reorder-warning-actions">
+                                <button type="button" className="pr-reorder-btn pr-reorder-btn--keep" onClick={() => acknowledgeWarning(block.id, r.id)}>
+                                  Yes, add more
+                                </button>
+                                <button type="button" className="pr-reorder-btn pr-reorder-btn--remove" onClick={() => removeRow(block.id, r.id)}>
+                                  Remove this line
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {/* Acknowledged reminder */}
+                      {r.reorderWarning && r.reorderWarning.length > 0 && r.warningAcknowledged && (
+                        <tr>
+                          <td colSpan={8} style={{ padding: '0 8px 8px' }}>
+                            <div style={{ background: '#fef9c3', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: '#713f12', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                              <span>Note: {r.reorderWarning.reduce((t, w) => t + (w.quantity_remaining || 0), 0)} unit(s) of {r.productName} already have open demand on other PRs.</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px 16px' }}>
+              <button type="button" className="po-btn po-btn-add-product" onClick={() => addRow(block.id)}>
+                + ADD PRODUCT
+              </button>
+              <span style={{ fontSize: 13, color: '#64748b' }}>
+                BLOCK SUBTOTAL&nbsp; <strong style={{ fontSize: 15, color: '#1e293b' }}>{fmtPeso(blockSubtotal)}</strong>
+              </span>
+            </div>
+
+            {group && !group.loading && !group.missing && group.over && (
+              <div style={{ margin: '0 16px 14px', background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="16" height="16" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <span>
+                  For {group.locName}, this block's items ({fmtPeso(group.subtotal)}) exceed the available budget ({fmtPeso(group.available)}) by{' '}
+                  <strong>{fmtPeso(group.subtotal - group.available)}</strong>. Reduce the block or ask Admin to raise the budget.
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+        <button
+          type="button"
+          className="po-btn po-btn-add-product"
+          onClick={addBlock}
+          disabled={allWarehousesUsed}
+          title={allWarehousesUsed ? 'All warehouses are already used' : undefined}
+        >
+          + ADD ANOTHER WAREHOUSE
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           <span style={{ fontSize: 13, color: '#64748b' }}>ESTIMATED TOTAL</span>
           <strong style={{ fontSize: 16, color: '#1e293b' }}>{fmtPeso(estimatedTotal)}</strong>
         </div>
-
-        {warehouseGroupStatus.filter(g => !g.loading && !g.missing && g.over).map(g => (
-          <div key={g.locId} style={{ margin: '0 16px 14px', background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="16" height="16" style={{ flexShrink: 0, marginTop: 1 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            <span>
-              For {g.locName}, this request's items ({fmtPeso(g.subtotal)}) exceed the available budget ({fmtPeso(g.available)}) by{' '}
-              <strong>{fmtPeso(g.subtotal - g.available)}</strong>. Reduce the request or ask Admin to raise the budget.
-            </span>
-          </div>
-        ))}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
@@ -927,12 +1005,14 @@ const PurchaseRequestPage = () => {
           disabled={
             submitting ||
             !selectedSupplierId ||
-            !lineItems.some(li => li.productId && li.qty > 0 && li.locationId) ||
+            !hasAnyValidRow ||
+            hasRowsWithoutWarehouse ||
             hasBlockingWarehouseGroup
           }
           title={
             !selectedSupplierId ? 'Select a supplier first'
-            : !lineItems.some(li => li.productId && li.qty > 0 && li.locationId) ? 'Add at least one item with a product and destination warehouse'
+            : !hasAnyValidRow ? 'Add at least one item with a selected product'
+            : hasRowsWithoutWarehouse ? 'Select a destination warehouse for every warehouse block that has items'
             : hasBlockingWarehouseGroup ? 'One or more warehouses are over budget, unverified, or missing a budget'
             : undefined
           }
