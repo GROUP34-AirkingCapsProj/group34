@@ -4,6 +4,7 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
+import ProductSearchSelect from '../components/ProductSearchSelect';
 import {
   itemsAPI,
   locationsAPI,
@@ -150,8 +151,6 @@ const PurchaseRequestPage = () => {
   const [purpose,   setPurpose]   = useState('');
   const [products,        setProducts]        = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
-  const [filterCat,  setFilterCat]  = useState('');
-  const [filterBrand, setFilterBrand] = useState('');
   const [warehouseBlocks, setWarehouseBlocks] = useState([newBlock()]);
   const [submitting,  setSubmitting]  = useState(false);
 
@@ -402,27 +401,6 @@ const PurchaseRequestPage = () => {
       ...b,
       rows: b.rows.map(r => (r.id === rowId ? { ...r, warningAcknowledged: true } : r)),
     }))), []);
-
-  // ── Product filter derived lists ──────────────────────────────────────────
-  const categoryOptions = useMemo(() => {
-    const seen = new Map();
-    products.forEach(p => { if (p.categoryId && !seen.has(p.categoryId)) seen.set(p.categoryId, p.categoryName || p.categoryId); });
-    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [products]);
-
-  const brandOptions = useMemo(() => {
-    const seen = new Map();
-    products
-      .filter(p => !filterCat || p.categoryId === filterCat)
-      .forEach(p => { if (p.brandId && !seen.has(p.brandId)) seen.set(p.brandId, p.brandName || p.brandId); });
-    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [products, filterCat]);
-
-  const filteredProducts = useMemo(() =>
-    products.filter(p =>
-      (!filterCat   || p.categoryId === filterCat) &&
-      (!filterBrand || p.brandId    === filterBrand)
-    ), [products, filterCat, filterBrand]);
 
   // ── Computed totals ───────────────────────────────────────────────────────
   const estimatedTotal = useMemo(
@@ -735,43 +713,6 @@ const PurchaseRequestPage = () => {
         </div>
       </div>
 
-      {/* Product filter bar (applies to every warehouse block's product picker) */}
-      <div className="po-line-items-card">
-        <div className="pr-filter-bar">
-          <span className="pr-filter-label">FILTER:</span>
-          <select
-            className="po-select pr-filter-select"
-            value={filterCat}
-            onChange={e => { setFilterCat(e.target.value); setFilterBrand(''); }}
-          >
-            <option value="">All Categories</option>
-            {categoryOptions.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <select
-            className="po-select pr-filter-select"
-            value={filterBrand}
-            onChange={e => setFilterBrand(e.target.value)}
-          >
-            <option value="">All Brands</option>
-            {brandOptions.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-          {(filterCat || filterBrand) && (
-            <button type="button" className="pr-filter-clear-btn" onClick={() => { setFilterCat(''); setFilterBrand(''); }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="11" height="11"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              Clear
-            </button>
-          )}
-          <span className="pr-filter-count">
-            {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
-            {loadingProducts ? ' (loading…)' : ''}
-          </span>
-        </div>
-      </div>
-
       {/* Warehouse blocks */}
       {warehouseBlocks.map((block, blockIdx) => {
         const group = warehouseGroupStatus.find(g => g.locId === String(block.warehouseId)) || null;
@@ -838,22 +779,13 @@ const PurchaseRequestPage = () => {
                       <tr>
                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
                         <td style={{ minWidth: 200 }}>
-                          <select
-                            className="po-select"
-                            style={{ fontSize: 12 }}
+                          <ProductSearchSelect
+                            products={products}
                             value={r.productId}
-                            onChange={e => handleProductSelect(block.id, r.id, e.target.value)}
+                            onChange={pid => handleProductSelect(block.id, r.id, pid)}
                             disabled={loadingProducts}
-                          >
-                            <option value="">{loadingProducts ? 'Loading…' : 'Select product…'}</option>
-                            {filteredProducts.map(p => (
-                              <option key={p.id} value={p.id}>
-                                {p.code ? `[${p.code}] ` : ''}{p.name}
-                                {p.brandName ? ` — ${p.brandName}` : ''}
-                                {p.capacityRating ? ` ${p.capacityRating}` : ''}
-                              </option>
-                            ))}
-                          </select>
+                            placeholder={loadingProducts ? 'Loading…' : 'Search product…'}
+                          />
                         </td>
                         <td>
                           {r.productType ? (
