@@ -1371,8 +1371,8 @@ const PurchaseOrderPage = () => {
                     {d.supplier?.tin            && <div className="po-detail-address-row"><span className="po-detail-address-label">TIN</span><span className="po-detail-address-value">{d.supplier.tin}</span></div>}
                   </div>
                   <div className="po-detail-address-block">
-                    <div className="po-detail-address-block-title">Ship To / Deliver To</div>
-                    <div className="po-detail-address-row"><span className="po-detail-address-label">Branch / Location</span><span className="po-detail-address-value po-detail-address-value--name">{d.location?.location_name || '—'}</span></div>
+                    <div className="po-detail-address-block-title">Deliver To (Warehouse)</div>
+                    <div className="po-detail-address-row"><span className="po-detail-address-label">Warehouse</span><span className="po-detail-address-value po-detail-address-value--name">{d.location?.location_name || '—'}</span></div>
                     {(d.location?.address || d.location?.city || d.location?.province || d.location?.region) && <div className="po-detail-address-row"><span className="po-detail-address-label">Address</span><span className="po-detail-address-value">{[d.location.address, d.location.city, d.location.province, d.location.region].filter(Boolean).join(', ')}</span></div>}
                     {d.location?.contact_number && <div className="po-detail-address-row"><span className="po-detail-address-label">Phone</span><span className="po-detail-address-value">{d.location.contact_number}</span></div>}
                     {d.location?.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{d.location.email}</span></div>}
