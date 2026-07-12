@@ -1455,7 +1455,7 @@ const PurchaseRequestPage = () => {
                 <button type="button" className="pr-btn-reject" onClick={() => { setSelectedPR(null); handleReject(pr.pr_id); }}>
                   REJECT
                 </button>
-                <button type="button" className="pr-btn-approve" onClick={() => handleApprove(pr.pr_id)} disabled={isApproving}>
+                <button type="button" className="pr-btn-approve" onClick={() => { setSelectedPR(null); handleApprove(pr.pr_id); }} disabled={isApproving}>
                   {isApproving ? 'APPROVING…' : 'APPROVE'}
                 </button>
               </div>
