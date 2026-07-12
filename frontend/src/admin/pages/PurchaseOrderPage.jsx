@@ -1522,6 +1522,7 @@ const PurchaseOrderPage = () => {
                   items: details.map(item => ({
                     product_code:      item.product?.applianceDetail?.model_code || item.model_code || '—',
                     name:              item.product_name || '—',
+                    warehouse_name:    item.location_name || item.location?.location_name || null,
                     unit:              item.unit_abbreviation || (item.product_type === 'appliance' ? 'unit' : item.unit_name || 'pc'),
                     qty:               item.quantity_ordered,
                     unit_price:        item.unit_price,

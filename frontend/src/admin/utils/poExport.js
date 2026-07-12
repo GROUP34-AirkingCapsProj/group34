@@ -72,17 +72,24 @@ export function exportPOToDocument(payload) {
 
   const items = Array.isArray(payload.items) ? payload.items : [];
 
-  const rowsHtml = items.map(item => {
+  const deliverWarehouses = [...new Set((items || []).map(i => i.warehouse_name).filter(Boolean))].join(', ');
+
+  const groupsMap = new Map();
+  items.forEach(item => {
+    const key = item.warehouse_name || 'Unassigned warehouse';
+    if (!groupsMap.has(key)) groupsMap.set(key, []);
+    groupsMap.get(key).push(item);
+  });
+
+  const renderItemRow = (item) => {
     const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
     const price  = Number(item.unit_price || 0);
     const amount = Number(item.subtotal   || qty * price || 0);
     const unit   = item.unit || 'pc';
     const code   = item.product_code || '—';
     const desc   = buildDescription(item);
-
     const priceStr  = price  === 0 ? 'Free' : price.toLocaleString('en-PH', { minimumFractionDigits: 2 });
     const amountStr = amount === 0 ? '0.00' : amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-
     return `
       <tr>
         <td style="text-align:center">${qty}</td>
@@ -92,7 +99,11 @@ export function exportPOToDocument(payload) {
         <td style="text-align:right">${priceStr}</td>
         <td style="text-align:right">${amountStr}</td>
       </tr>`;
-  }).join('');
+  };
+
+  const rowsHtml = [...groupsMap.entries()].map(([whName, whItems]) => `
+      <tr><td colspan="6" style="background:#f0f0f0;font-weight:700;padding:4px 8px">Deliver To: ${whName}</td></tr>
+      ${whItems.map(renderItemRow).join('')}`).join('');
 
   const html = `<!DOCTYPE html>
 <html>
@@ -196,7 +207,7 @@ export function exportPOToDocument(payload) {
   </div>
 
   <div class="ship-to">
-    <strong>Deliver To (Warehouse): ${shipToName}</strong>
+    <strong>Deliver To (Warehouse): ${deliverWarehouses || shipToName}</strong>
     ${shipToAddress ? shipToAddress : ''}
   </div>
 
@@ -282,6 +293,8 @@ export function exportPOToExcel(payload) {
 
   const items = Array.isArray(payload.items) ? payload.items : [];
 
+  const deliverWarehouses = [...new Set((items || []).map(i => i.warehouse_name).filter(Boolean))].join(', ');
+
   // Build rows as array-of-arrays (aoa)
   const aoa = [];
 
@@ -296,7 +309,7 @@ export function exportPOToExcel(payload) {
   aoa.push([supplierAddr,    '', '', 'Date:',           dateStr]);
   aoa.push(['',              '', '', 'Reference #:',    payload.po_number || '']);
   aoa.push(['',              '', '', 'Payment Terms:',  paymentTerms]);
-  aoa.push([`Deliver To (Warehouse): ${shipToName}`, '', '', '', '']);
+  aoa.push([`Deliver To (Warehouse): ${deliverWarehouses || shipToName}`, '', '', '', '']);
   if (shipToAddr) aoa.push([shipToAddr, '', '', '', '']);
   aoa.push([]);
 
@@ -305,19 +318,28 @@ export function exportPOToExcel(payload) {
   aoa.push(COL_HEADERS);
   const headerRowIdx = aoa.length; // 1-based after push
 
-  // ── Line item rows ──
+  // ── Line item rows, grouped by destination warehouse ──
+  const xlsGroups = new Map();
   items.forEach(item => {
-    const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
-    const price  = Number(item.unit_price || 0);
-    const amount = Number(item.subtotal   || qty * price || 0);
-    aoa.push([
-      qty,
-      item.unit || 'pc',
-      item.product_code || '—',
-      buildDescription(item),
-      price,
-      amount,
-    ]);
+    const key = item.warehouse_name || 'Unassigned warehouse';
+    if (!xlsGroups.has(key)) xlsGroups.set(key, []);
+    xlsGroups.get(key).push(item);
+  });
+  xlsGroups.forEach((whItems, whName) => {
+    aoa.push([`Deliver To: ${whName}`]);
+    whItems.forEach(item => {
+      const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
+      const price  = Number(item.unit_price || 0);
+      const amount = Number(item.subtotal   || qty * price || 0);
+      aoa.push([
+        qty,
+        item.unit || 'pc',
+        item.product_code || '—',
+        buildDescription(item),
+        price,
+        amount,
+      ]);
+    });
   });
 
   aoa.push([]);
