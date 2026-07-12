@@ -1189,7 +1189,7 @@ const PurchaseRequestPage = () => {
                             <React.Fragment key={gi}>
                               <tr>
                                 <td colSpan={6} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
-                                  📦 {grp.locationName}
+                                  {grp.locationName}
                                   <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>{fmtPeso(grp.subtotal)}</span>
                                 </td>
                               </tr>
@@ -1394,7 +1394,7 @@ const PurchaseRequestPage = () => {
                         <React.Fragment key={gi}>
                           <tr>
                             <td colSpan={8} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
-                              📦 {grp.locationName}
+                              {grp.locationName}
                               <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>{fmtPeso(grp.subtotal)}</span>
                             </td>
                           </tr>
