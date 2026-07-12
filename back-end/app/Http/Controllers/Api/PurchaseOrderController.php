@@ -47,7 +47,10 @@ class PurchaseOrderController extends Controller
                 $query->where(function ($q) use ($userId, $locationId) {
                     $q->where('created_by', $userId);
                     if ($locationId) {
-                        $q->orWhere('location_id', $locationId);
+                        // Header match (legacy single-warehouse POs) OR any line
+                        // destined for this warehouse (per-line warehouse POs).
+                        $q->orWhere('location_id', $locationId)
+                          ->orWhereHas('details', fn ($d) => $d->where('location_id', $locationId));
                     }
                 });
             }
