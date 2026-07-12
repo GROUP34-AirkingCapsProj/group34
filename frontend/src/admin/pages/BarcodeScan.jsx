@@ -492,6 +492,18 @@ const bsrGetItemCount = (po) =>
   Array.isArray(po?.details) ? po.details.length : '—';
 const bsrIsSerialized = (line) => line?.product?.product_type === 'appliance';
 
+/**
+ * Lines on a PO destined for a given warehouse — a receiver at Warehouse A should only see/receive
+ * the lines whose `location_id` (or the legacy PO header `location_id`, for single-warehouse POs
+ * predating per-line warehouses) matches their own warehouse. Pass `locationId` null/empty for
+ * centralized/admin users who are not locked to one warehouse — they may receive any line.
+ */
+const bsrLinesForLocation = (po, locationId) => {
+  const details = Array.isArray(po?.details) ? po.details : [];
+  if (!locationId) return details;
+  return details.filter((d) => String(d.location_id ?? po?.location_id) === String(locationId));
+};
+
 const BsrBarcodeIcon = ({ size = 26, color = '#9810FA' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 5v4"/><path d="M3 15v4"/><path d="M7 5v2"/><path d="M7 17v2"/>
@@ -535,6 +547,11 @@ const BarcodeScan = () => {
   const isAdminRole = roleKey === ROLES.ADMIN;
   // Barcode inventory processing: admin, branch manager, and warehouse personnel.
   const canScan = isAdminRole || (typeof can === 'function' && can('barcode_inventory_processing', 'create'));
+  /** The receiver's own warehouse for PO-receiving line scoping; null (no filtering) for centralized/admin users who are not locked to one location. */
+  const myLocationId = useMemo(
+    () => (isStrictLocation && enforcedLocationId ? String(enforcedLocationId) : null),
+    [isStrictLocation, enforcedLocationId],
+  );
   /** Browsers block getUserMedia on plain http:// unless hostname is localhost. */
   const cameraBlockedPlainHttp = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -1661,8 +1678,12 @@ const BarcodeScan = () => {
     lastCodeRef.current = '';
     lastTimeRef.current = 0;
 
+    // Only the lines destined for this receiver's own warehouse are receivable here.
+    const receivableLines = bsrLinesForLocation(po, myLocationId);
+    const receivableDetailIds = new Set(receivableLines.map((d) => d.po_detail_id).filter(Boolean));
+
     const prog = {};
-    (po?.details || []).forEach((d) => {
+    receivableLines.forEach((d) => {
       if (d.po_detail_id) prog[d.po_detail_id] = 0;
     });
     setBsrProductProgress(prog);
@@ -1691,10 +1712,12 @@ const BarcodeScan = () => {
         setBsrProductProgress(updatedProg);
         setBsrPoReceivedBarcodes(receivedBarcodes);
 
-        // Restore the scanned-items list from the DB history (newest first).
+        // Restore the scanned-items list from the DB history (newest first), scoped to this
+        // receiver's own warehouse lines only.
         const restoredItems = history
           .slice()
           .reverse()
+          .filter((entry) => !myLocationId || receivableDetailIds.has(entry.po_detail_id))
           .map((entry, idx) => ({
             id: entry.receiving_detail_id ?? Date.now() + idx,
             barcode: entry.scanned_barcode ?? '',
@@ -1893,7 +1916,7 @@ const BarcodeScan = () => {
       let nextLine = null;
       if (lineComplete) {
         const updatedProgress = { ...bsrProductProgress, [poDetailId]: newReceived };
-        nextLine = (bsrSelectedPo?.details || []).find((d) => {
+        nextLine = bsrLinesForLocation(bsrSelectedPo, myLocationId).find((d) => {
           if (d.po_detail_id === poDetailId) return false;
           const dOrdered = Number(d.quantity_ordered || 0);
           const dPps = Number(d.product?.pieces_per_package) || 1;
@@ -1926,7 +1949,7 @@ const BarcodeScan = () => {
       // Do NOT release bsrProcessingRef here — it stays locked until the modal
       // is dismissed, so no duplicate scan can slip through.
     }
-  }, [bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes]);
+  }, [bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, myLocationId]);
 
   const handleBsrScanSuccessDone = useCallback(() => {
     const result = bsrScanSuccess;
@@ -2819,7 +2842,7 @@ const BarcodeScan = () => {
      RENDER: BSR — 2-column scan workflow
   ───────────────────────────────────────────── */
   if (scanMode?.key === 'receive-po' && bsrSelectedPo) {
-    const poDetails = bsrSelectedPo?.details || [];
+    const poDetails = bsrLinesForLocation(bsrSelectedPo, myLocationId);
     const totalScanned = bsrScannedItems.length;
 
     // True only when every ordered line has been fully received.
