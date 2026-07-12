@@ -1184,7 +1184,7 @@ const PurchaseRequestPage = () => {
                                 </span>
                               </td>
                               <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
-                              <td>{d.location?.location_name || '—'}</td>
+                              <td>{d.location_name || d.location?.location_name || '—'}</td>
                               <td>{d.quantity}</td>
                               <td>{fmtPeso(d.estimated_price)}</td>
                               <td>{fmtPeso(d.subtotal)}</td>
@@ -1386,7 +1386,7 @@ const PurchaseRequestPage = () => {
                             </span>
                           </td>
                           <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>
-                          <td style={{ fontSize: 11, color: '#64748b' }}>{d.location?.location_name || '—'}</td>
+                          <td style={{ fontSize: 11, color: '#64748b' }}>{d.location_name || d.location?.location_name || '—'}</td>
                           <td>{d.quantity}</td>
                           <td style={{ color: orderedInPO > 0 ? '#16a34a' : '#94a3b8' }}>{orderedInPO}</td>
                           <td>
