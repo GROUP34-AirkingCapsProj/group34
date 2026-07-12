@@ -19,7 +19,7 @@ class PrConvertSplitTest extends BudgetTestCase
         ], 'location_id');
     }
 
-    public function test_convert_splits_into_one_po_per_warehouse(): void
+    public function test_convert_creates_one_po_with_per_line_warehouses(): void
     {
         $admin = $this->makeUser('admin');
         $supplier = (int) DB::table('suppliers')->insertGetId(['supplier_name' => 'S', 'created_at' => now(), 'updated_at' => now()], 'supplier_id');
@@ -52,12 +52,16 @@ class PrConvertSplitTest extends BudgetTestCase
 
         $res->assertSuccessful();
         $pos = PurchaseOrder::where('pr_id', $pr->pr_id)->get();
-        $this->assertCount(2, $pos);
-        $this->assertEqualsCanonicalizing([$whA, $whB], $pos->pluck('location_id')->map(fn ($v) => (int) $v)->all());
-        foreach ($pos as $po) {
-            $this->assertSame($supplier, (int) $po->supplier_id);
-            $this->assertSame(7, (int) $po->status_id);
-        }
+        $this->assertCount(1, $pos, 'conversion must create exactly one PO');
+        $po = $pos->first();
+        $this->assertSame($supplier, (int) $po->supplier_id);
+        $this->assertSame(7, (int) $po->status_id);
+        $this->assertSame(500.0, (float) $po->total_amount);
+
+        $lineLocs = \App\Models\PurchaseOrderDetail::where('po_id', $po->po_id)
+            ->pluck('location_id')->map(fn ($v) => (int) $v)->all();
+        $this->assertEqualsCanonicalizing([$whA, $whB], $lineLocs);
+        $this->assertContains((int) $po->location_id, [$whA, $whB]);
     }
 
     public function test_reconvert_blocked(): void
