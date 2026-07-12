@@ -30,6 +30,7 @@ class PurchaseOrderController extends Controller
         'details.product.applianceDetail.brand',
         'details.product.consumableDetail.unit',
         'details.approvedBy',
+        'details.location',
     ];
 
     public function index(Request $request)
@@ -549,6 +550,9 @@ class PurchaseOrderController extends Controller
             'quantity_ordered'   => $detail->quantity_ordered,
             'unit_price'         => $detail->unit_price,
             'subtotal'           => $detail->subtotal,
+            // Destination warehouse for this line (per-line warehouse PO shape)
+            'location_id'        => $detail->location_id,
+            'location_name'      => $detail->location?->location_name,
             // Flat product fields (legacy — kept for backward compat)
             'product_code'       => $p?->product_code,
             'product_name'       => $p?->product_name,
