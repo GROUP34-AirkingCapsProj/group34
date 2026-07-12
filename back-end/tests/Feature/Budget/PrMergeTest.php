@@ -137,4 +137,27 @@ class PrMergeTest extends BudgetTestCase
         // The first PR is unchanged (still qty 4 / 400).
         $this->assertSame('400.00', (string) PurchaseRequest::find($first)->estimated_total);
     }
+
+    public function test_approved_same_supplier_pr_is_not_a_merge_target(): void
+    {
+        $ia = $this->makeUser('inventory_analyst');
+        $wh = $this->locationId;
+        $this->makeBudget(100000, ['location_id' => $wh]);
+        $p = $this->product();
+
+        // Create a pending PR, then flip it to Approved (14) so it's no longer a target.
+        $firstId = $this->actingAs($ia, 'sanctum')
+            ->postJson('/api/purchase-requests', $this->payload($p, $wh, 2, 100))
+            ->assertStatus(201)->json('data.pr_id');
+        \App\Models\PurchaseRequest::where('pr_id', $firstId)->update(['status_id' => 14]);
+
+        // A new submission for the same supplier must create a NEW pending PR, not merge.
+        $res = $this->actingAs($ia, 'sanctum')
+            ->postJson('/api/purchase-requests', $this->payload($p, $wh, 3, 100));
+        $res->assertStatus(201);
+        $this->assertNotSame($firstId, (int) $res->json('data.pr_id'));
+
+        $this->assertSame(2, \App\Models\PurchaseRequest::where('requested_by', $ia->user_id)
+            ->where('supplier_id', $this->supplierId)->count());
+    }
 }
