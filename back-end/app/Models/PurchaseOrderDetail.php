@@ -21,6 +21,7 @@ class PurchaseOrderDetail extends Model
 
     protected $fillable = [
         'po_id',
+        'location_id',
         'product_id',
         'quantity_ordered',
         'unit_price',
@@ -41,6 +42,11 @@ class PurchaseOrderDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'location_id', 'location_id');
     }
 
     public function receivingDetails(): HasMany
