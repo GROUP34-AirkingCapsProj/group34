@@ -93,11 +93,11 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
 
   return (
     <div className="prod-search" ref={wrapRef} style={{ position: 'relative' }}>
-      {/* Always-visible filters — regular dropdowns, above the search box. */}
-      <div className="prod-search-filters" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+      {/* Always-visible filters — compact dropdowns, above the search box. */}
+      <div className="prod-search-filters" style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 3 }}>
         <select
           className="po-select"
-          style={{ flex: '1 1 45%', minWidth: 110, fontSize: 12 }}
+          style={{ flex: '1 1 45%', minWidth: 84, fontSize: 10.5, padding: '1px 4px', height: 24, lineHeight: '22px' }}
           value={filterCat}
           disabled={disabled}
           onChange={(e) => { setFilterCat(e.target.value); setFilterBrand(''); }}
@@ -108,7 +108,7 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
         </select>
         <select
           className="po-select"
-          style={{ flex: '1 1 45%', minWidth: 110, fontSize: 12 }}
+          style={{ flex: '1 1 45%', minWidth: 84, fontSize: 10.5, padding: '1px 4px', height: 24, lineHeight: '22px' }}
           value={filterBrand}
           disabled={disabled}
           onChange={(e) => setFilterBrand(e.target.value)}
