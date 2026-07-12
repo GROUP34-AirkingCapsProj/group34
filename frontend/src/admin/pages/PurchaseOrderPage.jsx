@@ -815,10 +815,12 @@ const PurchaseOrderPage = () => {
     // Step 2 — PR selected, fill PO form
     if (loadingConvertForm) return <Loader label="Loading purchase request" />;
 
-    const warehouseCount = new Set(lineItems.map(li => li.location_id).filter(v => v != null)).size;
-    const locationName = isNewShapePR
-      ? (warehouseCount > 1 ? `${warehouseCount} warehouses (one PO per warehouse)` : (lineItems[0]?.warehouse_name || '—'))
-      : (selectedPR.location?.location_name || '—');
+    // Distinct destination warehouse(s) for this PO — a single PO now carries
+    // per-line warehouses, so list them all (one PO per supplier).
+    const deliverWarehouseNames = isNewShapePR
+      ? [...new Set(lineItems.map(li => li.warehouse_name).filter(Boolean))]
+      : [selectedPR.location?.location_name].filter(Boolean);
+    const locationName = deliverWarehouseNames.length ? deliverWarehouseNames.join(', ') : '—';
     const lockedSupplierName = isNewShapePR
       ? (suppliers.find(s => String(s.supplier_id ?? s.id) === String(lockedSupplierId))?.supplier_name
          || suppliers.find(s => String(s.supplier_id ?? s.id) === String(lockedSupplierId))?.name
@@ -1143,16 +1145,15 @@ const PurchaseOrderPage = () => {
                       </div>
                     </div>
 
-                    {/* Ship To */}
-                    {(shipToName || shipToAddress) && (
-                      <div style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
-                        <strong style={{ display: 'block', marginBottom: 2 }}>SHIP TO:</strong>
-                        {shipToName    && <div>{shipToName}</div>}
-                        {shipToAddress && <div>{shipToAddress}</div>}
-                      </div>
-                    )}
+                    {/* Deliver To (Warehouse) — where the supplier delivers each item */}
+                    <div className="po-doc-ship-to" style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6, border: '1.5px solid #000', padding: '8px 12px', background: '#f4f4f4' }}>
+                      <strong style={{ display: 'block', marginBottom: 2, textTransform: 'uppercase' }}>
+                        Deliver To (Warehouse): {deliverWarehouseNames.length ? deliverWarehouseNames.join(', ') : (shipToName || '—')}
+                      </strong>
+                      {shipToAddress && <div>{shipToAddress}</div>}
+                    </div>
 
-                    {/* Line Items */}
+                    {/* Line Items — grouped by destination warehouse (mirrors the export) */}
                     <div className="po-doc-details-label">Details</div>
                     <table className="po-doc-table">
                       <thead>
@@ -1166,15 +1167,22 @@ const PurchaseOrderPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {lineItems.map((li, idx) => (
-                          <tr key={idx}>
-                            <td>{li.quantity_ordered}</td>
-                            <td>{getUnitForExport(li)}</td>
-                            <td>{li.model_code || '—'}</td>
-                            <td>{getDescriptionForExport(li)}</td>
-                            <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
-                            <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
-                          </tr>
+                        {(isNewShapePR ? Object.values(groupedByWarehouse) : [{ warehouse_name: locationName, items: lineItems }]).map((grp, gi) => (
+                          <React.Fragment key={gi}>
+                            <tr>
+                              <td colSpan={6} style={{ background: '#f0f0f0', fontWeight: 700 }}>Deliver To: {grp.warehouse_name || '—'}</td>
+                            </tr>
+                            {grp.items.map((li, idx) => (
+                              <tr key={`${gi}-${idx}`}>
+                                <td>{li.quantity_ordered}</td>
+                                <td>{getUnitForExport(li)}</td>
+                                <td>{li.model_code || '—'}</td>
+                                <td>{getDescriptionForExport(li)}</td>
+                                <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
+                                <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
                         ))}
                       </tbody>
                       <tfoot>
