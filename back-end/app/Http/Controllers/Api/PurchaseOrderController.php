@@ -457,7 +457,7 @@ class PurchaseOrderController extends Controller
 
         $csvColumns = [
             'PO Number', 'PR Number', 'Order Date', 'Expected Delivery',
-            'Location', 'Supplier', 'Status',
+            'Deliver To (Warehouse)', 'Supplier', 'Status',
             'Created By', 'Verified By', 'Verification Status', 'Verified At', 'Approved By', 'Received By',
             'Line #', 'Product Code', 'Product Name', 'Type',
             'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
