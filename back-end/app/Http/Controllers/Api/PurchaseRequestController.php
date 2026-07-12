@@ -264,6 +264,9 @@ class PurchaseRequestController extends Controller
             'estimated_price'    => $detail->estimated_price,
             'subtotal'           => $detail->subtotal,
             'notes'              => $detail->notes,
+            // Destination warehouse (per-line, warehouse-only procurement)
+            'location_id'        => $detail->location_id,
+            'location_name'      => $detail->location?->location_name,
             // Product shared
             'product_code'       => $p?->product_code,
             'product_name'       => $p?->product_name,
