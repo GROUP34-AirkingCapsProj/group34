@@ -41,7 +41,7 @@ class WarehouseFlowE2ETest extends BudgetTestCase
         $this->assertSame('200.00', (string) $bA->fresh()->committed);
         $this->assertSame('300.00', (string) $bB->fresh()->committed);
 
-        // Convert → two POs
+        // Convert → ONE PO with per-line warehouses
         $this->actingAs($admin, 'sanctum')->postJson("/api/purchase-requests/{$prId}/convert", [
             'details' => [
                 ['product_id' => $pid, 'location_id' => $whA, 'quantity_ordered' => 2, 'unit_price' => 100],
@@ -49,19 +49,37 @@ class WarehouseFlowE2ETest extends BudgetTestCase
             ],
         ])->assertSuccessful();
         $pos = PurchaseOrder::where('pr_id', $prId)->get();
-        $this->assertCount(2, $pos);
+        $this->assertCount(1, $pos);
+        $po = $pos->first();
+        $po->update(['verification_status' => 'verified']); // auditor gate for receiving
 
-        // Complete each PO via update (status 11) → spend against its warehouse.
-        // POs need verification before completion (auditor gate) — set verified directly for this budget-focused test.
-        foreach ($pos as $po) {
-            $po->update(['verification_status' => 'verified']);
-            $this->actingAs($admin, 'sanctum')->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 11])->assertSuccessful();
-        }
+        // Receive warehouse A's lines → settles A only; PO Partially Received.
+        $aLines = \App\Models\PurchaseOrderDetail::where('po_id', $po->po_id)->where('location_id', $whA)->get();
+        $this->actingAs($admin, 'sanctum')->postJson('/api/receivings', [
+            'pc_id' => $po->po_id, 'location_id' => $whA,
+            'receiving_number' => 'RC-' . strtoupper(\Illuminate\Support\Str::random(6)),
+            'receiving_date' => today()->toDateString(),
+            'details' => $aLines->map(fn ($l) => ['po_detail_id' => $l->po_detail_id, 'product_id' => $l->product_id, 'quantity_amount' => $l->quantity_ordered])->all(),
+        ])->assertSuccessful();
 
-        $bA->refresh(); $bB->refresh();
-        $this->assertSame('200.00', (string) $bA->spent);
-        $this->assertSame('300.00', (string) $bB->spent);
-        $this->assertSame('0.00', (string) $bA->committed);
-        $this->assertSame('0.00', (string) $bB->committed);
+        $this->assertSame('200.00', (string) $bA->fresh()->spent);
+        $this->assertSame('0.00', (string) $bB->fresh()->spent);
+        $this->assertSame('0.00', (string) $bA->fresh()->committed);
+        $this->assertSame('300.00', (string) $bB->fresh()->committed);
+        $this->assertSame(12, (int) $po->fresh()->status_id);
+
+        // Receive warehouse B's lines → settles B; PO Completed.
+        $bLines = \App\Models\PurchaseOrderDetail::where('po_id', $po->po_id)->where('location_id', $whB)->get();
+        $this->actingAs($admin, 'sanctum')->postJson('/api/receivings', [
+            'pc_id' => $po->po_id, 'location_id' => $whB,
+            'receiving_number' => 'RC-' . strtoupper(\Illuminate\Support\Str::random(6)),
+            'receiving_date' => today()->toDateString(),
+            'details' => $bLines->map(fn ($l) => ['po_detail_id' => $l->po_detail_id, 'product_id' => $l->product_id, 'quantity_amount' => $l->quantity_ordered])->all(),
+        ])->assertSuccessful();
+
+        $this->assertSame('200.00', (string) $bA->fresh()->spent);
+        $this->assertSame('300.00', (string) $bB->fresh()->spent);
+        $this->assertSame('0.00', (string) $bB->fresh()->committed);
+        $this->assertSame(11, (int) $po->fresh()->status_id);
     }
 }

@@ -152,7 +152,29 @@ class BudgetService
             return;
         }
 
-        $budgetId = $this->resolveBudgetForPo($pr, $po);
+        $po->loadMissing('details');
+        $groups = $po->details->groupBy(fn ($d) => (int) ($d->location_id ?? $po->location_id));
+
+        // Single-warehouse / legacy / no-detail PO → settle the whole PO against one
+        // budget exactly as before (preserves all existing single-warehouse behavior).
+        if ($groups->count() <= 1) {
+            $this->spendWhole($po, $pr, $userId);
+            return;
+        }
+
+        // Multi-warehouse PO → settle each warehouse group as its lines are fully received.
+        foreach ($groups as $locationId => $lines) {
+            if (!$this->groupFullyReceived($lines)) {
+                continue;
+            }
+            $this->spendGroup($po, $pr, (int) $locationId, $lines, $userId);
+        }
+    }
+
+    /** Legacy/single-warehouse settlement: one budget resolved from po.location_id. */
+    private function spendWhole(PurchaseOrder $po, PurchaseRequest $pr, ?int $userId): void
+    {
+        $budgetId = $this->resolveBudgetForLocation($pr, (int) $po->location_id);
         if (!$budgetId) {
             return;
         }
@@ -164,7 +186,7 @@ class BudgetService
             }
             if (BudgetTransaction::where('po_id', $po->po_id)
                 ->where('txn_type', BudgetTransaction::TYPE_SPEND)->exists()) {
-                return; // already recorded (e.g. receiving flow + manual status update)
+                return; // already recorded
             }
 
             $utilBefore = $this->utilization($budget);
@@ -187,10 +209,8 @@ class BudgetService
                 $released += $consume;
             }
 
-            // Return the estimate surplus to available when the group is fully ordered:
-            // legacy fully-converted PR, or a PO that fully covers its warehouse group's lines.
             $coversGroup = ((int) $pr->status_id === 14 && (int) $pr->converted_to_po_id === (int) $po->po_id)
-                || $this->poCoversItsGroup($pr, $po);
+                || $this->poCoversLocationGroup($pr, $po, (int) $po->location_id);
             if ($coversGroup) {
                 $surplus = round($outstanding - $consume, 2);
                 if ($surplus > 0) {
@@ -212,12 +232,81 @@ class BudgetService
         });
     }
 
+    /** One warehouse group of a multi-warehouse PO, keyed idempotently per (po, budget). */
+    private function spendGroup(PurchaseOrder $po, PurchaseRequest $pr, int $locationId, $lines, ?int $userId): void
+    {
+        $budgetId = $this->resolveBudgetForLocation($pr, $locationId);
+        if (!$budgetId) {
+            return;
+        }
+        $groupAmount = round((float) collect($lines)->sum('subtotal'), 2);
+
+        DB::transaction(function () use ($po, $pr, $budgetId, $locationId, $groupAmount, $userId) {
+            $budget = BudgetAllocation::whereKey($budgetId)->lockForUpdate()->first();
+            if (!$budget) {
+                return;
+            }
+            if (BudgetTransaction::where('po_id', $po->po_id)
+                ->where('budget_id', $budget->budget_id)
+                ->where('txn_type', BudgetTransaction::TYPE_SPEND)->exists()) {
+                return; // this warehouse group already settled
+            }
+
+            $utilBefore = $this->utilization($budget);
+
+            $this->txn($budget, BudgetTransaction::TYPE_SPEND, $groupAmount, $pr->pr_id, $po->po_id, $userId,
+                'PO ' . $po->po_number . ' warehouse received');
+            $budget->spent = round((float) $budget->spent + $groupAmount, 2);
+
+            $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
+            $released = 0.0;
+            $consume = round(min($outstanding, $groupAmount), 2);
+            if ($consume > 0) {
+                $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $consume, $pr->pr_id, $po->po_id, $userId,
+                    'Commitment consumed by PO ' . $po->po_number);
+                $released += $consume;
+            }
+            if ($this->poCoversLocationGroup($pr, $po, $locationId)) {
+                $surplus = round($outstanding - $consume, 2);
+                if ($surplus > 0) {
+                    $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $surplus, $pr->pr_id, $po->po_id, $userId,
+                        'Estimate surplus returned');
+                    $released += $surplus;
+                }
+            }
+
+            $newCommitted = round((float) $budget->committed - $released, 2);
+            if ($newCommitted < 0) {
+                $newCommitted = 0.0;
+            }
+            $budget->committed = $newCommitted;
+            $budget->save();
+
+            $this->maybeAlert($budget, $utilBefore);
+        });
+    }
+
+    /** All of a warehouse group's PO lines are fully received. */
+    private function groupFullyReceived($lines): bool
+    {
+        $detailIds = collect($lines)->pluck('po_detail_id');
+        $received = \App\Models\ReceivingDetail::whereIn('po_detail_id', $detailIds)
+            ->get()->groupBy('po_detail_id')
+            ->map(fn ($r) => (int) $r->sum('quantity_amount'));
+        foreach ($lines as $line) {
+            if (($received[$line->po_detail_id] ?? 0) < (int) $line->quantity_ordered) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
-     * The budget this PO settles against: among budgets the PR committed to,
-     * the one whose location matches the PO's warehouse. Legacy fallback:
-     * the PR's header budget_id.
+     * The budget this warehouse group settles against: among budgets the PR
+     * committed to, the one whose location matches. Legacy fallback: the PR's
+     * header budget_id.
      */
-    private function resolveBudgetForPo(PurchaseRequest $pr, PurchaseOrder $po): ?int
+    private function resolveBudgetForLocation(PurchaseRequest $pr, int $locationId): ?int
     {
         $committedBudgetIds = BudgetTransaction::where('pr_id', $pr->pr_id)
             ->where('txn_type', BudgetTransaction::TYPE_COMMIT)
@@ -225,7 +314,7 @@ class BudgetService
 
         if ($committedBudgetIds->isNotEmpty()) {
             $match = BudgetAllocation::whereIn('budget_id', $committedBudgetIds)
-                ->where('location_id', $po->location_id)
+                ->where('location_id', $locationId)
                 ->value('budget_id');
             if ($match) {
                 return (int) $match;
@@ -236,19 +325,21 @@ class BudgetService
 
     /**
      * True when this PO's ordered quantities cover every PR line destined for
-     * the PO's warehouse (so the group is fully ordered and surplus can return).
-     * Legacy PRs (no line locations) compare against ALL lines.
+     * the given warehouse group (so the group is fully ordered and surplus can
+     * return). Legacy PRs (no line locations) compare against ALL lines.
      */
-    private function poCoversItsGroup(PurchaseRequest $pr, PurchaseOrder $po): bool
+    private function poCoversLocationGroup(PurchaseRequest $pr, PurchaseOrder $po, int $locationId): bool
     {
         $hasLineLocations = $pr->details()->whereNotNull('location_id')->exists();
         $prLines = $pr->details()
-            ->when($hasLineLocations, fn ($q) => $q->where('location_id', $po->location_id))
+            ->when($hasLineLocations, fn ($q) => $q->where('location_id', $locationId))
             ->get();
         if ($prLines->isEmpty()) {
             return false;
         }
-        $ordered = $po->details()->get()->groupBy('product_id')
+        $ordered = $po->details()
+            ->when($hasLineLocations, fn ($q) => $q->where('location_id', $locationId))
+            ->get()->groupBy('product_id')
             ->map(fn ($rows) => (int) $rows->sum('quantity_ordered'));
         foreach ($prLines as $line) {
             if (($ordered[$line->product_id] ?? 0) < (int) $line->quantity) {
