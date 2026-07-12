@@ -91,6 +91,21 @@ const detailLabel = (d) => {
   return u || '—';
 };
 
+// Group PR detail rows by their destination warehouse so each location's
+// orders show together under one header. Returns [{ locationName, rows, subtotal }].
+const groupDetailsByLocation = (details) => {
+  const map = new Map();
+  (details || []).forEach((d) => {
+    const key  = String(d.location_id ?? d.location?.location_id ?? '__none__');
+    const name = d.location_name || d.location?.location_name || 'Unassigned warehouse';
+    if (!map.has(key)) map.set(key, { locationName: name, rows: [], subtotal: 0 });
+    const grp = map.get(key);
+    grp.rows.push(d);
+    grp.subtotal += Number(d.subtotal) || 0;
+  });
+  return [...map.values()];
+};
+
 // ─── new row / warehouse block factories ──────────────────────────────────────
 
 const newRow = () => ({
@@ -1166,29 +1181,38 @@ const PurchaseRequestPage = () => {
                       <table className="po-table" style={{ fontSize: 12 }}>
                         <thead>
                           <tr>
-                            <th>PRODUCT</th><th>TYPE</th><th>DETAILS</th><th>REQUESTED FOR (WAREHOUSE)</th><th>QTY</th><th>EST. PRICE</th><th>SUBTOTAL</th>
+                            <th>PRODUCT</th><th>TYPE</th><th>DETAILS</th><th>QTY</th><th>EST. PRICE</th><th>SUBTOTAL</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {pr.details.map((d, di) => (
-                            <tr key={d.pr_detail_id ?? di}>
-                              <td>
-                                <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
-                                {d.product?.applianceDetail?.model_code && (
-                                  <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
-                                )}
-                              </td>
-                              <td>
-                                <span className={`po-type-badge ${(d.product_type || d.product?.product_type) === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                                  {(d.product_type || d.product?.product_type) === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
-                                </span>
-                              </td>
-                              <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
-                              <td>{d.location_name || d.location?.location_name || '—'}</td>
-                              <td>{d.quantity}</td>
-                              <td>{fmtPeso(d.estimated_price)}</td>
-                              <td>{fmtPeso(d.subtotal)}</td>
-                            </tr>
+                          {groupDetailsByLocation(pr.details).map((grp, gi) => (
+                            <React.Fragment key={gi}>
+                              <tr>
+                                <td colSpan={6} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
+                                  📦 {grp.locationName}
+                                  <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>{fmtPeso(grp.subtotal)}</span>
+                                </td>
+                              </tr>
+                              {grp.rows.map((d, di) => (
+                                <tr key={d.pr_detail_id ?? `${gi}-${di}`}>
+                                  <td>
+                                    <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
+                                    {d.product?.applianceDetail?.model_code && (
+                                      <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <span className={`po-type-badge ${(d.product_type || d.product?.product_type) === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                      {(d.product_type || d.product?.product_type) === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
+                                    </span>
+                                  </td>
+                                  <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
+                                  <td>{d.quantity}</td>
+                                  <td>{fmtPeso(d.estimated_price)}</td>
+                                  <td>{fmtPeso(d.subtotal)}</td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
                           ))}
                         </tbody>
                       </table>
@@ -1357,7 +1381,6 @@ const PurchaseRequestPage = () => {
                       <th>PRODUCT</th>
                       <th>TYPE</th>
                       <th>DETAILS</th>
-                      <th>REQUESTED FOR (WAREHOUSE)</th>
                       <th>REQUESTED</th>
                       <th>IN PO</th>
                       <th>REMAINING</th>
@@ -1365,44 +1388,57 @@ const PurchaseRequestPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {details.map((d, di) => {
-                      const remaining   = d.quantity_remaining ?? (d.quantity - (d.quantity_ordered_in_po ?? 0));
-                      const orderedInPO = d.quantity_ordered_in_po ?? 0;
-                      const hasOpen     = remaining > 0 && (pr.status_id === PR_STATUS.APPROVED || pr.status_id === PR_STATUS.PARTIAL);
-                      const pType       = d.product_type || d.product?.product_type || '';
-                      return (
-                        <tr key={d.pr_detail_id ?? di}
-                          style={hasOpen ? { background: '#fffbeb' } : {}}>
-                          <td className="po-detail-table-idx">{di + 1}</td>
-                          <td>
-                            <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
-                            {d.product?.applianceDetail?.model_code && (
-                              <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 11 }}>
-                            <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                              {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>
-                          <td style={{ fontSize: 11, color: '#64748b' }}>{d.location_name || d.location?.location_name || '—'}</td>
-                          <td>{d.quantity}</td>
-                          <td style={{ color: orderedInPO > 0 ? '#16a34a' : '#94a3b8' }}>{orderedInPO}</td>
-                          <td>
-                            {hasOpen ? (
-                              <span style={{ color: '#d97706', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                {remaining}
-                                <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                              </span>
-                            ) : (
-                              <span style={{ color: '#94a3b8' }}>{remaining}</span>
-                            )}
-                          </td>
-                          <td className="po-detail-table-sub">{fmtPeso(d.subtotal)}</td>
-                        </tr>
-                      );
-                    })}
+                    {(() => {
+                      let idx = 0;
+                      return groupDetailsByLocation(details).map((grp, gi) => (
+                        <React.Fragment key={gi}>
+                          <tr>
+                            <td colSpan={8} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
+                              📦 {grp.locationName}
+                              <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>{fmtPeso(grp.subtotal)}</span>
+                            </td>
+                          </tr>
+                          {grp.rows.map((d, di) => {
+                            idx += 1;
+                            const remaining   = d.quantity_remaining ?? (d.quantity - (d.quantity_ordered_in_po ?? 0));
+                            const orderedInPO = d.quantity_ordered_in_po ?? 0;
+                            const hasOpen     = remaining > 0 && (pr.status_id === PR_STATUS.APPROVED || pr.status_id === PR_STATUS.PARTIAL);
+                            const pType       = d.product_type || d.product?.product_type || '';
+                            return (
+                              <tr key={d.pr_detail_id ?? `${gi}-${di}`}
+                                style={hasOpen ? { background: '#fffbeb' } : {}}>
+                                <td className="po-detail-table-idx">{idx}</td>
+                                <td>
+                                  <div>{d.product_name || d.product?.product_name || `Item ${idx}`}</div>
+                                  {d.product?.applianceDetail?.model_code && (
+                                    <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
+                                  )}
+                                </td>
+                                <td style={{ fontSize: 11 }}>
+                                  <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                    {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>
+                                <td>{d.quantity}</td>
+                                <td style={{ color: orderedInPO > 0 ? '#16a34a' : '#94a3b8' }}>{orderedInPO}</td>
+                                <td>
+                                  {hasOpen ? (
+                                    <span style={{ color: '#d97706', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                      {remaining}
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#94a3b8' }}>{remaining}</span>
+                                  )}
+                                </td>
+                                <td className="po-detail-table-sub">{fmtPeso(d.subtotal)}</td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               )}
