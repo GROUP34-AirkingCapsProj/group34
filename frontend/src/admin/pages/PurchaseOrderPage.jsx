@@ -81,6 +81,21 @@ const getDescriptionForExport = (lineItem) => {
   return name.toUpperCase();
 };
 
+// Group PO detail rows by destination warehouse so each location's items show
+// together under one header. Returns [{ locationName, rows, subtotal }].
+const groupPoDetailsByLocation = (details) => {
+  const map = new Map();
+  (details || []).forEach((d) => {
+    const key  = String(d.location_id ?? d.location?.location_id ?? '__none__');
+    const name = d.location_name || d.location?.location_name || 'Unassigned warehouse';
+    if (!map.has(key)) map.set(key, { locationName: name, rows: [], subtotal: 0 });
+    const g = map.get(key);
+    g.rows.push(d);
+    g.subtotal += Number(d.subtotal) || 0;
+  });
+  return [...map.values()];
+};
+
 // V5 product detail label for PO line items (snake_case backend fields)
 const poLineLabel = (item) => {
   if (item.product_type === 'installation_material') {
@@ -1372,7 +1387,7 @@ const PurchaseOrderPage = () => {
                   </div>
                   <div className="po-detail-address-block">
                     <div className="po-detail-address-block-title">Deliver To (Warehouse)</div>
-                    <div className="po-detail-address-row"><span className="po-detail-address-label">Warehouse</span><span className="po-detail-address-value po-detail-address-value--name">{d.location?.location_name || '—'}</span></div>
+                    <div className="po-detail-address-row"><span className="po-detail-address-label">Warehouse</span><span className="po-detail-address-value po-detail-address-value--name">{[...new Set((details || []).map(x => x.location_name || x.location?.location_name).filter(Boolean))].join(', ') || d.location?.location_name || '—'}</span></div>
                     {(d.location?.address || d.location?.city || d.location?.province || d.location?.region) && <div className="po-detail-address-row"><span className="po-detail-address-label">Address</span><span className="po-detail-address-value">{[d.location.address, d.location.city, d.location.province, d.location.region].filter(Boolean).join(', ')}</span></div>}
                     {d.location?.contact_number && <div className="po-detail-address-row"><span className="po-detail-address-label">Phone</span><span className="po-detail-address-value">{d.location.contact_number}</span></div>}
                     {d.location?.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{d.location.email}</span></div>}
@@ -1416,32 +1431,46 @@ const PurchaseOrderPage = () => {
                         <tr><th>#</th><th>PRODUCT</th><th>TYPE</th><th>DETAILS</th><th>QTY</th><th>UNIT PRICE</th><th>SUBTOTAL</th></tr>
                       </thead>
                       <tbody>
-                        {details.map((item, idx) => {
-                          const ab = item.approvedBy || item.approved_by || null;
-                          const detailApprovedBy = ab ? `${ab.first_name || ''} ${ab.last_name || ''}`.trim() || ab.username || '—' : '—';
-                          const pType = item.product_type || item.product?.product_type || '';
-                          return (
-                            <tr key={item.po_detail_id ?? idx}>
-                              <td className="po-detail-table-idx">{idx + 1}</td>
-                              <td>
-                                <div>{item.product_name || item.product?.product_name || `Item ${idx + 1}`}</div>
-                                {item.product?.applianceDetail?.model_code && (
-                                  <small style={{ color: '#94a3b8' }}>{item.product.applianceDetail.model_code}</small>
-                                )}
-                                {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
-                              </td>
-                              <td style={{ fontSize: 11 }}>
-                                <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                                  {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
-                                </span>
-                              </td>
-                              <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(item)}</td>
-                              <td>{item.quantity_ordered}</td>
-                              <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
-                              <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
-                            </tr>
-                          );
-                        })}
+                        {(() => {
+                          let idx = 0;
+                          return groupPoDetailsByLocation(details).map((grp, gi) => (
+                            <React.Fragment key={gi}>
+                              <tr>
+                                <td colSpan={7} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
+                                  {grp.locationName}
+                                  <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>₱{Number(grp.subtotal).toLocaleString('en-PH')}</span>
+                                </td>
+                              </tr>
+                              {grp.rows.map((item) => {
+                                idx += 1;
+                                const ab = item.approvedBy || item.approved_by || null;
+                                const detailApprovedBy = ab ? `${ab.first_name || ''} ${ab.last_name || ''}`.trim() || ab.username || '—' : '—';
+                                const pType = item.product_type || item.product?.product_type || '';
+                                return (
+                                  <tr key={item.po_detail_id ?? idx}>
+                                    <td className="po-detail-table-idx">{idx}</td>
+                                    <td>
+                                      <div>{item.product_name || item.product?.product_name || `Item ${idx}`}</div>
+                                      {item.product?.applianceDetail?.model_code && (
+                                        <small style={{ color: '#94a3b8' }}>{item.product.applianceDetail.model_code}</small>
+                                      )}
+                                      {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
+                                    </td>
+                                    <td style={{ fontSize: 11 }}>
+                                      <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                        {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
+                                      </span>
+                                    </td>
+                                    <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(item)}</td>
+                                    <td>{item.quantity_ordered}</td>
+                                    <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
+                                    <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          ));
+                        })()}
                       </tbody>
                     </table>
                   )}
