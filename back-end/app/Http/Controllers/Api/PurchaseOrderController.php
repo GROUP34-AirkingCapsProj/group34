@@ -30,6 +30,7 @@ class PurchaseOrderController extends Controller
         'details.product.applianceDetail.brand',
         'details.product.consumableDetail.unit',
         'details.approvedBy',
+        'details.location',
     ];
 
     public function index(Request $request)
@@ -46,7 +47,10 @@ class PurchaseOrderController extends Controller
                 $query->where(function ($q) use ($userId, $locationId) {
                     $q->where('created_by', $userId);
                     if ($locationId) {
-                        $q->orWhere('location_id', $locationId);
+                        // Header match (legacy single-warehouse POs) OR any line
+                        // destined for this warehouse (per-line warehouse POs).
+                        $q->orWhere('location_id', $locationId)
+                          ->orWhereHas('details', fn ($d) => $d->where('location_id', $locationId));
                     }
                 });
             }
@@ -132,6 +136,11 @@ class PurchaseOrderController extends Controller
                 'details.*.subtotal'         => 'nullable|numeric|min:0',
                 'details.*.approved_by'      => 'nullable|exists:users,user_id',
             ]);
+
+            $loc = \App\Models\Location::find($validated['location_id']);
+            if (!$loc || $loc->location_type !== 'warehouse') {
+                return $this->error('Purchase orders are received at warehouses only — other locations are supplied by stock transfer.', 422);
+            }
 
             $authUser = $request->user();
             if ($authUser) {
@@ -231,6 +240,13 @@ class PurchaseOrderController extends Controller
                 && in_array((int) $validated['status_id'], [8, 10, 11, 12], true)
                 && $po->verification_status !== 'verified') {
                 return $this->error('This purchase order must be verified by an auditor before it can be approved or received', 422);
+            }
+
+            if (array_key_exists('location_id', $validated)) {
+                $loc = \App\Models\Location::find($validated['location_id']);
+                if (!$loc || $loc->location_type !== 'warehouse') {
+                    return $this->error('Purchase orders are received at warehouses only — other locations are supplied by stock transfer.', 422);
+                }
             }
 
             DB::beginTransaction();
@@ -432,6 +448,7 @@ class PurchaseOrderController extends Controller
         $pos = PurchaseOrder::with([
             'details.product.applianceDetail.brand',
             'details.product.consumableDetail.unit',
+            'details.location',
             'supplier', 'location', 'status',
             'purchaseRequest',
             'createdBy', 'approvedBy', 'verifiedBy', 'receivedBy',
@@ -445,9 +462,9 @@ class PurchaseOrderController extends Controller
 
         $csvColumns = [
             'PO Number', 'PR Number', 'Order Date', 'Expected Delivery',
-            'Location', 'Supplier', 'Status',
+            'Deliver To (Warehouse)', 'Supplier', 'Status',
             'Created By', 'Verified By', 'Verification Status', 'Verified At', 'Approved By', 'Received By',
-            'Line #', 'Product Code', 'Product Name', 'Type',
+            'Line #', 'Line Warehouse', 'Product Code', 'Product Name', 'Type',
             'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
             'Qty Ordered', 'Unit Price', 'Subtotal',
             'Total Amount', 'Grand Total',
@@ -458,6 +475,13 @@ class PurchaseOrderController extends Controller
             fputcsv($handle, $csvColumns);
 
             foreach ($pos as $po) {
+                $deliverTo = $po->details
+                    ->map(fn ($d) => $d->location?->location_name ?? $po->location?->location_name)
+                    ->filter()->unique()->implode('; ');
+                if ($deliverTo === '') {
+                    $deliverTo = $po->location?->location_name ?? '';
+                }
+
                 $createdBy  = $po->createdBy
                     ? trim($po->createdBy->first_name  . ' ' . $po->createdBy->last_name)  : '';
                 $approvedBy = $po->approvedBy
@@ -474,11 +498,11 @@ class PurchaseOrderController extends Controller
                         $po->purchaseRequest?->pr_number ?? '',
                         $po->order_date,
                         $po->expected_delivery_date ?? '',
-                        $po->location?->location_name  ?? '',
+                        $deliverTo,
                         $po->supplier?->supplier_name  ?? '',
                         $po->status?->status_name      ?? '',
                         $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
-                        '', '', '', '', '', '', '', '', '', '',
+                        '', '', '', '', '', '', '', '', '', '', '',
                         number_format((float) $po->total_amount, 2),
                         number_format((float) $po->grand_total,  2),
                     ]);
@@ -495,11 +519,12 @@ class PurchaseOrderController extends Controller
                         $po->purchaseRequest?->pr_number ?? '',
                         $po->order_date,
                         $po->expected_delivery_date ?? '',
-                        $po->location?->location_name  ?? '',
+                        $deliverTo,
                         $po->supplier?->supplier_name  ?? '',
                         $po->status?->status_name      ?? '',
                         $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
                         $i + 1,
+                        $d->location?->location_name ?? $po->location?->location_name ?? '',
                         $p?->product_code ?? '',
                         $p?->product_name ?? '',
                         $p ? ucfirst($p->product_type) : '',
@@ -537,6 +562,9 @@ class PurchaseOrderController extends Controller
             'quantity_ordered'   => $detail->quantity_ordered,
             'unit_price'         => $detail->unit_price,
             'subtotal'           => $detail->subtotal,
+            // Destination warehouse for this line (per-line warehouse PO shape)
+            'location_id'        => $detail->location_id,
+            'location_name'      => $detail->location?->location_name,
             // Flat product fields (legacy — kept for backward compat)
             'product_code'       => $p?->product_code,
             'product_name'       => $p?->product_name,

@@ -701,6 +701,16 @@ export const purchaseOrdersAPI = {
 
   reject: async (id, reason) =>
     apiRequest(`/purchase-orders/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
+
+  /**
+   * Products a given supplier carries (via supplier_product pivot).
+   * Response: array of { product_id, product_code, product_name, product_type,
+   *                      is_serialized, cost_price, unit_price, brand_name,
+   *                      capacity_rating, variant, unit_name, unit_abbreviation,
+   *                      pieces_per_package, package_unit }
+   */
+  getProductsBySupplier: async (supplierId) =>
+    apiRequest(`/purchase-orders/products-by-supplier/${supplierId}`),
 };
 
 /* ======================

@@ -17,6 +17,7 @@ class PurchaseRequest extends Model
 
     protected $fillable = [
         'location_id',
+        'supplier_id',
         'budget_id',
         'pr_number',
         'request_date',
@@ -46,6 +47,11 @@ class PurchaseRequest extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class, 'location_id', 'location_id');
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'supplier_id', 'supplier_id');
     }
 
     public function budget(): BelongsTo

@@ -29,6 +29,7 @@ class PurchaseRequestController extends Controller
 
     private const WITH_RELATIONS = [
         'location',
+        'supplier',
         'status',
         'requester',
         'approver',
@@ -36,6 +37,7 @@ class PurchaseRequestController extends Controller
         'convertedPO',
         'details.product.applianceDetail.brand',
         'details.product.consumableDetail.unit',
+        'details.location',
     ];
 
     /**
@@ -160,7 +162,9 @@ class PurchaseRequestController extends Controller
         $prs = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
             'details.product.consumableDetail.unit',
+            'details.location',
             'location',
+            'supplier',
             'status',
             'requester',
             'approver',
@@ -175,9 +179,10 @@ class PurchaseRequestController extends Controller
 
         $csvColumns = [
             'PR Number', 'Request Date', 'Needed By', 'Location',
-            'Purpose', 'Status', 'Requested By', 'Approved By', 'Budget Period', 'Budget Verification',
+            'Purpose', 'Status', 'Requested By', 'Approved By', 'Supplier',
             'Line #', 'Product Code', 'Product Name', 'Type',
             'Brand / Unit', 'Capacity / Pkg Unit', 'Pieces/Package',
+            'Requested For (Warehouse)',
             'Quantity', 'Estimated Price', 'Subtotal', 'Notes',
             'Estimated Total',
         ];
@@ -191,6 +196,7 @@ class PurchaseRequestController extends Controller
                     ? trim($pr->requester->first_name . ' ' . $pr->requester->last_name) : '';
                 $approvedBy  = $pr->approver
                     ? trim($pr->approver->first_name . ' ' . $pr->approver->last_name)  : '';
+                $supplierName = $pr->supplier?->supplier_name ?? '';
 
                 if ($pr->details->isEmpty()) {
                     fputcsv($handle, [
@@ -201,9 +207,8 @@ class PurchaseRequestController extends Controller
                         $pr->purpose ?? '',
                         $pr->status?->status_name ?? '',
                         $requestedBy, $approvedBy,
-                        $pr->budget?->period_label ?? '',
-                        $pr->budget?->verification_status ?? '',
-                        '', '', '', '', '', '', '', '', '', '', '',
+                        $supplierName,
+                        '', '', '', '', '', '', '', '', '', '', '', '',
                         number_format((float) $pr->estimated_total, 2),
                     ]);
                     continue;
@@ -222,8 +227,7 @@ class PurchaseRequestController extends Controller
                         $pr->purpose ?? '',
                         $pr->status?->status_name ?? '',
                         $requestedBy, $approvedBy,
-                        $pr->budget?->period_label ?? '',
-                        $pr->budget?->verification_status ?? '',
+                        $supplierName,
                         $i + 1,
                         $p?->product_code ?? '',
                         $p?->product_name ?? '',
@@ -231,6 +235,7 @@ class PurchaseRequestController extends Controller
                         $ad?->brand?->brand_name ?? $cd?->unit?->unit_name   ?? '',
                         $ad?->capacity_rating    ?? $cd?->package_unit       ?? '',
                         $cd?->pieces_per_package ?? '',
+                        $d->location?->location_name ?? '',
                         $d->quantity,
                         number_format((float) $d->estimated_price, 2),
                         number_format((float) $d->subtotal, 2),
@@ -259,6 +264,9 @@ class PurchaseRequestController extends Controller
             'estimated_price'    => $detail->estimated_price,
             'subtotal'           => $detail->subtotal,
             'notes'              => $detail->notes,
+            // Destination warehouse (per-line, warehouse-only procurement)
+            'location_id'        => $detail->location_id,
+            'location_name'      => $detail->location?->location_name,
             // Product shared
             'product_code'       => $p?->product_code,
             'product_name'       => $p?->product_name,
@@ -283,12 +291,12 @@ class PurchaseRequestController extends Controller
     {
         try {
             $validated = $request->validate([
-                'location_id'               => 'required|exists:locations,location_id',
-                'budget_id'                 => 'required|exists:budget_allocations,budget_id',
+                'supplier_id'               => 'required|exists:suppliers,supplier_id',
                 'needed_by_date'            => 'required|date|after:today',
                 'purpose'                   => 'nullable|string',
                 'details'                   => 'required|array|min:1',
                 'details.*.product_id'      => 'required|exists:products,product_id',
+                'details.*.location_id'     => 'required|exists:locations,location_id',
                 'details.*.quantity'        => 'required|integer|min:1',
                 'details.*.estimated_price' => 'required|numeric|min:0',
                 'details.*.notes'           => 'nullable|string',
@@ -297,36 +305,98 @@ class PurchaseRequestController extends Controller
             return $this->validationError($e->errors());
         }
 
-        $budget = BudgetAllocation::find($validated['budget_id']);
-        if ((int) $budget->location_id !== (int) $validated['location_id']) {
-            return $this->error('The selected budget belongs to a different location', 422);
-        }
-        $today = today();
-        if ($budget->period_start->gt($today) || $budget->period_end->lt($today)) {
-            return $this->error("The budget period ({$budget->period_label}) is not active today", 422);
-        }
-        if ($budget->verification_status !== 'verified') {
-            $msg = $budget->verification_status === 'rejected'
-                ? "This budget was rejected by the auditor" . ($budget->verification_note ? ": {$budget->verification_note}" : '')
-                : "This budget ({$budget->period_label}) has not been verified by an auditor yet";
-            return $this->error($msg, 422);
-        }
-        $estimatedTotal = collect($validated['details'])
-            ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
-        if (!$this->budgetService->hasAvailable($budget, (float) $estimatedTotal)) {
-            return $this->error(sprintf(
-                'Estimated total ₱%s exceeds available budget ₱%s for %s',
-                number_format((float) $estimatedTotal, 2),
-                number_format(max((float) $budget->available, 0), 2),
-                $budget->period_label
-            ), 422);
+        // Every destination must be a warehouse.
+        $locationTypes = \App\Models\Location::whereIn('location_id',
+            collect($validated['details'])->pluck('location_id')->unique())
+            ->pluck('location_type', 'location_id');
+        foreach ($validated['details'] as $d) {
+            if (($locationTypes[$d['location_id']] ?? null) !== 'warehouse') {
+                return $this->error('Purchase orders are received at warehouses only — showrooms are supplied by stock transfer.', 422);
+            }
         }
 
+        // Product–supplier integrity: a product mapped to OTHER suppliers (and not
+        // this one) is rejected; a product with NO mappings is allowed.
+        $supplierId = (int) $validated['supplier_id'];
+        foreach (collect($validated['details'])->pluck('product_id')->unique() as $pid) {
+            $mappings = \App\Models\SupplierProduct::where('product_id', $pid)->pluck('supplier_id');
+            if ($mappings->isNotEmpty() && !$mappings->contains($supplierId)) {
+                $name = \App\Models\Product::where('product_id', $pid)->value('product_name');
+                return $this->error("Product \"{$name}\" is not supplied by the selected supplier.", 422);
+            }
+        }
+
+        // Merge target: the requester's own PENDING PR for the same supplier
+        // (not soft-deleted, not yet converted). New lines fold into it instead
+        // of minting a new PR.
+        $mergeTarget = PurchaseRequest::where('status_id', 13)
+            ->where('requested_by', $request->user()->user_id)
+            ->where('supplier_id', $supplierId)
+            ->whereNull('converted_to_po_id')
+            ->with('details')
+            ->first();
+
+        // Per-warehouse advisory budget check (unlocked; approval re-checks under lock).
+        // Computed on the COMBINED total (existing target lines + new lines) so a
+        // merged PR cannot grow past what the warehouse budget can later approve.
+        $groups = collect($validated['details'])->groupBy('location_id');
+        foreach ($groups as $locId => $lines) {
+            $newSubtotal = collect($lines)->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
+            $existingSubtotal = $mergeTarget
+                ? (float) $mergeTarget->details->where('location_id', (int) $locId)->sum('subtotal')
+                : 0.0;
+            $combined = (float) $newSubtotal + $existingSubtotal;
+
+            $budget = $this->budgetService->resolveActiveBudget((int) $locId);
+            $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
+            if (!$budget) {
+                return $this->error("{$whName} has no verified active budget for today.", 422);
+            }
+            if (!$this->budgetService->hasAvailable($budget, $combined)) {
+                return $this->error(sprintf(
+                    'Estimated total ₱%s for %s exceeds its available budget ₱%s (%s).',
+                    number_format($combined, 2), $whName,
+                    number_format(max((float) $budget->available, 0), 2), $budget->period_label
+                ), 422);
+            }
+        }
+
+        $estimatedTotal = collect($validated['details'])
+            ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
+
         try {
-            $pr = DB::transaction(function () use ($validated, $request, $estimatedTotal) {
+            $pr = DB::transaction(function () use ($validated, $request, $estimatedTotal, $supplierId, $mergeTarget) {
+                if ($mergeTarget) {
+                    foreach ($validated['details'] as $detail) {
+                        $existing = $mergeTarget->details->first(fn ($d) =>
+                            (int) $d->product_id === (int) $detail['product_id']
+                            && (int) $d->location_id === (int) $detail['location_id']);
+
+                        if ($existing) {
+                            $existing->quantity = (int) $existing->quantity + (int) $detail['quantity'];
+                            $existing->subtotal = round($existing->quantity * (float) $existing->estimated_price, 2);
+                            $existing->save();
+                        } else {
+                            $mergeTarget->details->push(PurchaseRequestDetail::create([
+                                'pr_id'           => $mergeTarget->pr_id,
+                                'product_id'      => $detail['product_id'],
+                                'location_id'     => $detail['location_id'],
+                                'quantity'        => $detail['quantity'],
+                                'estimated_price' => $detail['estimated_price'],
+                                'subtotal'        => $detail['quantity'] * $detail['estimated_price'],
+                                'notes'           => $detail['notes'] ?? null,
+                            ]));
+                        }
+                    }
+                    $mergeTarget->estimated_total = round($mergeTarget->details->sum('subtotal'), 2);
+                    $mergeTarget->save();
+                    return $mergeTarget;
+                }
+
                 $pr = PurchaseRequest::create([
-                    'location_id'     => $validated['location_id'],
-                    'budget_id'       => $validated['budget_id'],
+                    'location_id'     => null,
+                    'supplier_id'     => $supplierId,
+                    'budget_id'       => null,
                     'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
                     'request_date'    => today(),
                     'needed_by_date'  => $validated['needed_by_date'],
@@ -340,20 +410,27 @@ class PurchaseRequestController extends Controller
                     PurchaseRequestDetail::create([
                         'pr_id'           => $pr->pr_id,
                         'product_id'      => $detail['product_id'],
+                        'location_id'     => $detail['location_id'],
                         'quantity'        => $detail['quantity'],
                         'estimated_price' => $detail['estimated_price'],
                         'subtotal'        => $detail['quantity'] * $detail['estimated_price'],
                         'notes'           => $detail['notes'] ?? null,
                     ]);
                 }
-
                 return $pr;
             });
 
-            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+            foreach (collect($validated['details'])->pluck('location_id')->unique() as $locId) {
+                RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+            }
 
             $pr->load(self::WITH_RELATIONS);
-            return $this->success($pr, 'Purchase request submitted', 201);
+            $merged = $mergeTarget !== null;
+            return $this->success(
+                $pr,
+                $merged ? "Added to your pending request {$pr->pr_number}" : 'Purchase request submitted',
+                $merged ? 200 : 201
+            );
         } catch (\Throwable $e) {
             return $this->error('Failed to create purchase request: ' . $e->getMessage(), 500);
         }
@@ -364,14 +441,17 @@ class PurchaseRequestController extends Controller
      */
     public function approve(Request $request, $id)
     {
-        $pr = PurchaseRequest::find($id);
+        $pr = PurchaseRequest::with('details')->find($id);
         if (!$pr) {
             return $this->notFound('Purchase request not found');
         }
         if (!$pr->isPending()) {
             return $this->error('Only pending purchase requests can be approved', 422);
         }
-        if (!$pr->budget_id) {
+
+        $hasLineWarehouses = $pr->details->whereNotNull('location_id')->isNotEmpty();
+
+        if (!$hasLineWarehouses && !$pr->budget_id) {
             return $this->error(
                 'This purchase request has no budget attached (created before budget enforcement). Reject it and ask the requester to submit a new one.',
                 422
@@ -379,14 +459,27 @@ class PurchaseRequestController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($pr, $request) {
+            DB::transaction(function () use ($pr, $request, $hasLineWarehouses) {
                 $pr->update([
                     'status_id'    => 14,
                     'approved_by'  => $request->user()->user_id,
                     'approval_date'=> today(),
                 ]);
 
-                $this->budgetService->commit($pr, $request->user()->user_id);
+                if ($hasLineWarehouses) {
+                    $groups = $pr->details->groupBy('location_id');
+                    foreach ($groups as $locId => $lines) {
+                        $subtotal = (float) $lines->sum('subtotal');
+                        $budget = $this->budgetService->resolveActiveBudget((int) $locId);
+                        if (!$budget) {
+                            $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
+                            throw new UnverifiedBudgetException($whName ?? "warehouse #{$locId}", 'pending');
+                        }
+                        $this->budgetService->commitGroup($pr, $budget, $subtotal, $request->user()->user_id);
+                    }
+                } else {
+                    $this->budgetService->commit($pr, $request->user()->user_id);
+                }
             });
         } catch (UnverifiedBudgetException $e) {
             return $this->error($e->getMessage(), 422);
@@ -396,7 +489,12 @@ class PurchaseRequestController extends Controller
             return $this->error('Approval failed: ' . $e->getMessage(), 500);
         }
 
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        foreach ($pr->details->pluck('location_id')->filter()->unique() as $locId) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+        }
+        if (!$hasLineWarehouses && $pr->location_id) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        }
 
         $pr->load(self::WITH_RELATIONS);
         return $this->success($pr, 'Purchase request approved');
@@ -428,7 +526,11 @@ class PurchaseRequestController extends Controller
             'rejection_reason' => $validated['rejection_reason'],
         ]);
 
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        $targets = $pr->details()->whereNotNull('location_id')->distinct()->pluck('location_id');
+        if ($targets->isEmpty() && $pr->location_id) { $targets = collect([$pr->location_id]); }
+        foreach ($targets as $locId) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+        }
 
         $pr->load(self::WITH_RELATIONS);
         return $this->success($pr, 'Purchase request rejected');
@@ -444,6 +546,7 @@ class PurchaseRequestController extends Controller
         $pr = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
             'details.product.consumableDetail.unit',
+            'details.location',
             'location',
             'budget',
         ])->find($id);
@@ -486,6 +589,8 @@ class PurchaseRequestController extends Controller
                 'subtotal'                 => $d->subtotal,
                 'quantity_already_ordered' => $alreadyOrdered,
                 'quantity_remaining'       => max(0, $d->quantity - $alreadyOrdered),
+                'location_id'              => $d->location_id,
+                'warehouse_name'           => $d->location?->location_name,
             ];
         });
 
@@ -497,6 +602,7 @@ class PurchaseRequestController extends Controller
             'pr'              => $pr,
             'prefilled_lines' => $prefilledLines,
             'suppliers'       => $suppliers,
+            'pr_supplier_id'  => $pr->supplier_id,
         ], 'PR convert form data');
     }
 
@@ -516,7 +622,11 @@ class PurchaseRequestController extends Controller
             $pr->delete();
         });
 
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+        $targets = $pr->details()->whereNotNull('location_id')->distinct()->pluck('location_id');
+        if ($targets->isEmpty() && $pr->location_id) { $targets = collect([$pr->location_id]); }
+        foreach ($targets as $locId) {
+            RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+        }
 
         return $this->success(null, 'Purchase request archived');
     }
@@ -564,44 +674,68 @@ class PurchaseRequestController extends Controller
         if (!$pr) {
             return $this->notFound('Purchase request not found');
         }
-        if (!$pr->isApproved()) {
+        if (!$pr->isApproved() && (int) $pr->status_id !== 16) {
             return $this->error('Only approved purchase requests can be converted to a PO', 403);
         }
         if ($pr->converted_to_po_id) {
             return $this->error('This purchase request has already been converted to a PO', 422);
         }
 
+        $hasLineWarehouses = $pr->details->whereNotNull('location_id')->isNotEmpty();
+
         try {
-            $validated = $request->validate([
-                'supplier_id'                    => 'required|exists:suppliers,supplier_id',
-                'expected_delivery_date'         => 'nullable|date',
-                'payment_terms'                  => 'nullable|string|max:50',
-                'notes'                          => 'nullable|string',
-                'references_note'                => 'nullable|string',
-                'ship_to_name'                   => 'nullable|string|max:255',
-                'ship_to_address'                => 'nullable|string',
-                'details'                        => 'required|array|min:1',
-                'details.*.product_id'           => 'required|exists:products,product_id',
-                'details.*.quantity_ordered'      => 'required|integer|min:1',
-                'details.*.unit_price'           => 'required|numeric|min:0',
-            ]);
+            $rules = [
+                'expected_delivery_date'     => 'nullable|date',
+                'payment_terms'              => 'nullable|string|max:50',
+                'notes'                      => 'nullable|string',
+                'references_note'            => 'nullable|string',
+                'ship_to_name'               => 'nullable|string|max:255',
+                'ship_to_address'            => 'nullable|string',
+                'details'                    => 'required|array|min:1',
+                'details.*.product_id'       => 'required|exists:products,product_id',
+                'details.*.quantity_ordered' => 'required|integer|min:1',
+                'details.*.unit_price'       => 'required|numeric|min:0',
+            ];
+            if ($hasLineWarehouses) {
+                $rules['details.*.location_id'] = 'required|exists:locations,location_id';
+            } else {
+                $rules['supplier_id'] = 'required|exists:suppliers,supplier_id';
+            }
+            $validated = $request->validate($rules);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
         }
 
+        if ($hasLineWarehouses) {
+            $prPairs = $pr->details->map(fn ($d) => $d->product_id . ':' . $d->location_id)->all();
+            foreach ($validated['details'] as $line) {
+                $pair = $line['product_id'] . ':' . $line['location_id'];
+                if (!in_array($pair, $prPairs, true)) {
+                    return $this->error('A converted line does not match this purchase request (product/warehouse mismatch).', 422);
+                }
+            }
+        }
+
         try {
-            $po = DB::transaction(function () use ($pr, $validated, $request) {
-                $lines = array_map(function ($d) {
+            $po = DB::transaction(function () use ($pr, $validated, $request, $hasLineWarehouses) {
+                $mkLine = function ($d) {
                     $d['subtotal'] = $d['quantity_ordered'] * $d['unit_price'];
                     return $d;
-                }, $validated['details']);
+                };
+                $lines = collect($validated['details'])->map($mkLine);
+                $grand = $lines->sum('subtotal');
 
-                $grandTotal = collect($lines)->sum('subtotal');
+                $supplierId = $hasLineWarehouses ? $pr->supplier_id : $validated['supplier_id'];
+                // Header location_id is a compatibility "primary": the first line's
+                // warehouse for the new shape, or the PR header for legacy.
+                $headerLocationId = $hasLineWarehouses
+                    ? (int) $lines->first()['location_id']
+                    : (int) $pr->location_id;
 
                 $po = PurchaseOrder::create([
                     'pr_id'                  => $pr->pr_id,
-                    'supplier_id'            => $validated['supplier_id'],
-                    'location_id'            => $pr->location_id,
+                    'supplier_id'            => $supplierId,
+                    'location_id'            => $headerLocationId,
                     'po_number'              => 'PO-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
                     'order_date'             => today(),
                     'expected_delivery_date' => $validated['expected_delivery_date'] ?? null,
@@ -610,43 +744,48 @@ class PurchaseRequestController extends Controller
                     'references_note'        => $validated['references_note']  ?? null,
                     'ship_to_name'           => $validated['ship_to_name']     ?? null,
                     'ship_to_address'        => $validated['ship_to_address']  ?? null,
-                    'total_amount'           => $grandTotal,
-                    'grand_total'            => $grandTotal,
+                    'total_amount'           => $grand,
+                    'grand_total'            => $grand,
                     'status_id'              => 7,
                     'created_by'             => $request->user()->user_id,
                 ]);
 
                 foreach ($lines as $line) {
                     PurchaseOrderDetail::create([
-                        'po_id'           => $po->po_id,
-                        'product_id'      => $line['product_id'],
+                        'po_id'            => $po->po_id,
+                        'location_id'      => $hasLineWarehouses ? (int) $line['location_id'] : null,
+                        'product_id'       => $line['product_id'],
                         'quantity_ordered' => $line['quantity_ordered'],
-                        'unit_price'      => $line['unit_price'],
-                        'subtotal'        => $line['subtotal'],
+                        'unit_price'       => $line['unit_price'],
+                        'subtotal'         => $line['subtotal'],
                     ]);
                 }
 
                 $pr->update(['converted_to_po_id' => $po->po_id]);
 
-                $orderedMap = collect($lines)->keyBy('product_id');
-                $isPartial  = $pr->details->contains(function ($prDetail) use ($orderedMap) {
-                    $poLine = $orderedMap->get($prDetail->product_id);
-                    return !$poLine || $poLine['quantity_ordered'] < $prDetail->quantity;
+                $orderedByProdLoc = collect($validated['details'])->groupBy(fn ($d) =>
+                    ($hasLineWarehouses ? $d['location_id'] : '_') . ':' . $d['product_id'])
+                    ->map(fn ($rows) => collect($rows)->sum('quantity_ordered'));
+                $isPartial = $pr->details->contains(function ($prDetail) use ($orderedByProdLoc, $hasLineWarehouses) {
+                    $key = ($hasLineWarehouses ? $prDetail->location_id : '_') . ':' . $prDetail->product_id;
+                    return ($orderedByProdLoc[$key] ?? 0) < (int) $prDetail->quantity;
                 });
-
                 $pr->update(['status_id' => $isPartial ? 16 : 14]);
 
                 return $po;
             });
 
-            RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
-            RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'pr_converted');
+            foreach ($pr->details->pluck('location_id')->filter()->unique() as $locId) {
+                RealtimeBroadcaster::approvalQueueChanged((int) $locId, 'pr_changed');
+                RealtimeBroadcaster::purchaseOrderChanged((int) $locId, 'pr_converted');
+            }
+            if (!$hasLineWarehouses && $pr->location_id) {
+                RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
+                RealtimeBroadcaster::purchaseOrderChanged((int) $pr->location_id, 'pr_converted');
+            }
 
-            $po->load([
-                'supplier', 'location', 'status', 'purchaseRequest',
-                'details.product.applianceDetail.brand',
-                'details.product.consumableDetail.unit',
-            ]);
+            $po->load(['supplier', 'location', 'status', 'purchaseRequest',
+                'details.product.applianceDetail.brand', 'details.product.consumableDetail.unit']);
             return $this->success($po, 'Purchase request converted to purchase order', 201);
         } catch (\Throwable $e) {
             return $this->error('Conversion failed: ' . $e->getMessage(), 500);
