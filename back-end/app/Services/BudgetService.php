@@ -239,6 +239,11 @@ class BudgetService
         if (!$budgetId) {
             return;
         }
+        if (BudgetTransaction::where('po_id', $po->po_id)
+            ->where('budget_id', $budgetId)
+            ->where('txn_type', BudgetTransaction::TYPE_SPEND)->exists()) {
+            return; // already settled — skip the lock/transaction entirely
+        }
         $groupAmount = round((float) collect($lines)->sum('subtotal'), 2);
 
         DB::transaction(function () use ($po, $pr, $budgetId, $locationId, $groupAmount, $userId) {
@@ -259,6 +264,9 @@ class BudgetService
             $budget->spent = round((float) $budget->spent + $groupAmount, 2);
 
             $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
+            if ($outstanding < 0) {
+                Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PR {$pr->pr_id} on budget {$budget->budget_id}");
+            }
             $released = 0.0;
             $consume = round(min($outstanding, $groupAmount), 2);
             if ($consume > 0) {
@@ -277,6 +285,7 @@ class BudgetService
 
             $newCommitted = round((float) $budget->committed - $released, 2);
             if ($newCommitted < 0) {
+                Log::warning("Budget ledger anomaly: committed clamped from {$newCommitted} to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
                 $newCommitted = 0.0;
             }
             $budget->committed = $newCommitted;
