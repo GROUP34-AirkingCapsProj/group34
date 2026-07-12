@@ -323,19 +323,36 @@ class PurchaseRequestController extends Controller
             }
         }
 
+        // Merge target: the requester's own PENDING PR for the same supplier
+        // (not soft-deleted, not yet converted). New lines fold into it instead
+        // of minting a new PR.
+        $mergeTarget = PurchaseRequest::where('status_id', 13)
+            ->where('requested_by', $request->user()->user_id)
+            ->where('supplier_id', $supplierId)
+            ->whereNull('converted_to_po_id')
+            ->with('details')
+            ->first();
+
         // Per-warehouse advisory budget check (unlocked; approval re-checks under lock).
+        // Computed on the COMBINED total (existing target lines + new lines) so a
+        // merged PR cannot grow past what the warehouse budget can later approve.
         $groups = collect($validated['details'])->groupBy('location_id');
         foreach ($groups as $locId => $lines) {
-            $subtotal = collect($lines)->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
+            $newSubtotal = collect($lines)->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
+            $existingSubtotal = $mergeTarget
+                ? (float) $mergeTarget->details->where('location_id', (int) $locId)->sum('subtotal')
+                : 0.0;
+            $combined = (float) $newSubtotal + $existingSubtotal;
+
             $budget = $this->budgetService->resolveActiveBudget((int) $locId);
             $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
             if (!$budget) {
                 return $this->error("{$whName} has no verified active budget for today.", 422);
             }
-            if (!$this->budgetService->hasAvailable($budget, (float) $subtotal)) {
+            if (!$this->budgetService->hasAvailable($budget, $combined)) {
                 return $this->error(sprintf(
                     'Estimated total ₱%s for %s exceeds its available budget ₱%s (%s).',
-                    number_format((float) $subtotal, 2), $whName,
+                    number_format($combined, 2), $whName,
                     number_format(max((float) $budget->available, 0), 2), $budget->period_label
                 ), 422);
             }
@@ -345,7 +362,34 @@ class PurchaseRequestController extends Controller
             ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
 
         try {
-            $pr = DB::transaction(function () use ($validated, $request, $estimatedTotal, $supplierId) {
+            $pr = DB::transaction(function () use ($validated, $request, $estimatedTotal, $supplierId, $mergeTarget) {
+                if ($mergeTarget) {
+                    foreach ($validated['details'] as $detail) {
+                        $existing = $mergeTarget->details->first(fn ($d) =>
+                            (int) $d->product_id === (int) $detail['product_id']
+                            && (int) $d->location_id === (int) $detail['location_id']);
+
+                        if ($existing) {
+                            $existing->quantity = (int) $existing->quantity + (int) $detail['quantity'];
+                            $existing->subtotal = round($existing->quantity * (float) $existing->estimated_price, 2);
+                            $existing->save();
+                        } else {
+                            $mergeTarget->details->push(PurchaseRequestDetail::create([
+                                'pr_id'           => $mergeTarget->pr_id,
+                                'product_id'      => $detail['product_id'],
+                                'location_id'     => $detail['location_id'],
+                                'quantity'        => $detail['quantity'],
+                                'estimated_price' => $detail['estimated_price'],
+                                'subtotal'        => $detail['quantity'] * $detail['estimated_price'],
+                                'notes'           => $detail['notes'] ?? null,
+                            ]));
+                        }
+                    }
+                    $mergeTarget->estimated_total = round($mergeTarget->details->sum('subtotal'), 2);
+                    $mergeTarget->save();
+                    return $mergeTarget;
+                }
+
                 $pr = PurchaseRequest::create([
                     'location_id'     => null,
                     'supplier_id'     => $supplierId,
@@ -378,7 +422,12 @@ class PurchaseRequestController extends Controller
             }
 
             $pr->load(self::WITH_RELATIONS);
-            return $this->success($pr, 'Purchase request submitted', 201);
+            $merged = $mergeTarget !== null;
+            return $this->success(
+                $pr,
+                $merged ? "Added to your pending request {$pr->pr_number}" : 'Purchase request submitted',
+                $merged ? 200 : 201
+            );
         } catch (\Throwable $e) {
             return $this->error('Failed to create purchase request: ' . $e->getMessage(), 500);
         }

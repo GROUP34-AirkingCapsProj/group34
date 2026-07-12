@@ -525,7 +525,7 @@ const PurchaseRequestPage = () => {
 
       const res = await purchaseRequestsAPI.create(payload);
       const prNum = res?.data?.pr_number || 'Purchase Request';
-      toast.success('Purchase Request sent', `${prNum} — waiting for admin approval`);
+      toast.success('Purchase Request sent', res?.message || `${prNum} — waiting for admin approval`);
       setWarehouseBlocks([newBlock()]);
       setPurpose('');
     } catch (err) {
