@@ -136,8 +136,8 @@ export function exportPOToDocument(payload) {
     .po-ref-table { margin-left: auto; border-collapse: collapse; font-size: 13px; }
     .po-ref-table td { padding: 2px 6px; }
     .po-ref-table td:first-child { font-weight: 700; text-align: right; white-space: nowrap; }
-    .ship-to { font-size: 12px; line-height: 1.6; margin-bottom: 16px; }
-    .ship-to strong { display: block; }
+    .ship-to { font-size: 13px; line-height: 1.6; margin-bottom: 16px; border: 1.5px solid #000; padding: 8px 12px; background: #f4f4f4; }
+    .ship-to strong { display: block; font-size: 14px; font-weight: 900; margin-bottom: 2px; text-transform: uppercase; }
     .details-label { font-size: 15px; font-weight: 900; margin-bottom: 4px; }
     .items-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
     .items-table th {
@@ -195,11 +195,10 @@ export function exportPOToDocument(payload) {
     </div>
   </div>
 
-  ${(shipToName && shipToName !== supplierName) || shipToAddress ? `
   <div class="ship-to">
-    <strong>SHIP TO: ${shipToName}</strong>
-    ${shipToAddress}
-  </div>` : ''}
+    <strong>Deliver To (Warehouse): ${shipToName}</strong>
+    ${shipToAddress ? shipToAddress : ''}
+  </div>
 
   <div class="details-label">Details</div>
   <table class="items-table">
@@ -297,10 +296,8 @@ export function exportPOToExcel(payload) {
   aoa.push([supplierAddr,    '', '', 'Date:',           dateStr]);
   aoa.push(['',              '', '', 'Reference #:',    payload.po_number || '']);
   aoa.push(['',              '', '', 'Payment Terms:',  paymentTerms]);
-  if (shipToName && shipToName !== supplierName) {
-    aoa.push([`Ship To: ${shipToName}`, '', '', '', '']);
-    if (shipToAddr) aoa.push([shipToAddr, '', '', '', '']);
-  }
+  aoa.push([`Deliver To (Warehouse): ${shipToName}`, '', '', '', '']);
+  if (shipToAddr) aoa.push([shipToAddr, '', '', '', '']);
   aoa.push([]);
 
   // ── Column headers ──
