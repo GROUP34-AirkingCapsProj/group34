@@ -20,6 +20,31 @@ import * as XLSX from 'xlsx';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
+// Distinct destination warehouses for a PO, first-seen order, deduped by location id.
+// Accepts enriched PO details (row.location = {...}) or preview line items
+// (row.location_id + row.warehouse_name) with an optional { [id]: location } lookup
+// for addresses. Returns [{ location_id, name, address, contact_number, email, manager_name }].
+export function distinctDeliverLocations(rows, locationsById = {}) {
+  const map = new Map();
+  (rows || []).forEach((r) => {
+    const id  = String(r.location_id ?? r.location?.location_id ?? '__none__');
+    if (map.has(id)) return;
+    const loc = r.location || locationsById[id] || locationsById[String(r.location_id)] || null;
+    const address = loc
+      ? [loc.address, loc.city, loc.province, loc.region].filter(Boolean).join(', ') || null
+      : null;
+    map.set(id, {
+      location_id:    id,
+      name:           loc?.location_name || r.location_name || r.warehouse_name || 'Unassigned warehouse',
+      address,
+      contact_number: loc?.contact_number || null,
+      email:          loc?.email || null,
+      manager_name:   loc?.manager_name || null,
+    });
+  });
+  return [...map.values()];
+}
+
 /**
  * Build the description string for a line item.
  * Appliance  → "PRODUCT NAME BRAND CAPACITY VARIANT"
