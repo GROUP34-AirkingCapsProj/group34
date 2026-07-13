@@ -374,6 +374,12 @@
 
 /* ===== Navigation Access rows + per-page action modal ===== */
 .rcx-navlist { display: flex; flex-direction: column; gap: 0.5rem; }
+.rcx-navgroup {
+  margin: 1rem 0 0.15rem; font-family: var(--rc-mono); font-weight: 600;
+  font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--rc-crimson-deep);
+}
+.rcx-navgroup:first-child { margin-top: 0; }
 .rcx-navrow {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: 0.7rem 0.9rem; border: 1px solid var(--rc-line); border-radius: 12px;

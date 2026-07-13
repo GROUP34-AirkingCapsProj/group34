@@ -2,7 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/Modal';
 import { permissionsAPI, navBundlesAPI } from '../services/api';
 import { toast } from '../utils/toast';
-import { ROLE_COLUMNS, ACTIONS, ACTION_META, groupByFeatureGroup, actionsForFeature } from '../utils/permissions';
+import { ROLE_COLUMNS, ACTION_META, actionsForFeature, featureTitle } from '../utils/permissions';
+import {
+  configureFeatures,
+  requiredFeatureOf,
+  ORPHAN_FEATURES,
+  OTHER_HOME,
+  SECTION_ORDER,
+} from '../utils/navConfigureMap';
 import '../styles/rbac_console.css';
 
 const ADMIN_ROLE_ID = 1;
@@ -21,9 +28,8 @@ const RolePermissions = ({ tabSwitcher = null }) => {
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState(null);
 
-  const [tab, setTab]               = useState('navigation'); // 'navigation' | 'advanced'
   const [bundles, setBundles]       = useState([]);
-  const [modalBundle, setModalBundle] = useState(null); // { bundle, feature, actions } | null
+  const [modalHome, setModalHome]   = useState(null); // { title, blocks:[{feature, title, actions}] } | null
 
   const load = useCallback(async () => {
     try {
@@ -114,18 +120,42 @@ const RolePermissions = ({ tabSwitcher = null }) => {
     }
   };
 
-  const bundleFeature = (bundle) => {
-    const perms = bundle.permissions || [];
-    const req = perms.find((p) => p.is_required) || perms[0];
-    return req?.feature || null;
-  };
+  // Build the ordered feature sub-blocks (feature title + its action rows) for a modal.
+  const featureBlocks = (features) =>
+    features
+      .map((f) => ({ feature: f, title: featureTitle(f), actions: actionsForFeature(catalog, f) }))
+      .filter((b) => b.actions.length > 0);
 
   const openBundleModal = (bundle) => {
-    const feature = bundleFeature(bundle);
-    setModalBundle({ bundle, feature, actions: actionsForFeature(catalog, feature) });
+    setModalHome({ title: `${bundle.name} — role access`, blocks: featureBlocks(configureFeatures(bundle)) });
   };
 
-  const groups = groupByFeatureGroup(catalog);
+  const openOtherModal = () => {
+    setModalHome({ title: `${OTHER_HOME.name} — role access`, blocks: featureBlocks(ORPHAN_FEATURES) });
+  };
+
+  // Group bundles under their sidebar-section headers, sections in SECTION_ORDER
+  // (unknown sections trail alphabetically), rows by sort_order.
+  const sections = (() => {
+    const bySection = {};
+    bundles.forEach((b) => {
+      const key = b.sidebar_section || '—';
+      (bySection[key] = bySection[key] || []).push(b);
+    });
+    const order = (s) => {
+      const i = SECTION_ORDER.indexOf(s);
+      return i === -1 ? SECTION_ORDER.length : i;
+    };
+    return Object.keys(bySection)
+      .sort((a, b) => order(a) - order(b) || a.localeCompare(b))
+      .map((section) => ({
+        section,
+        rows: bySection[section].slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+      }));
+  })();
+
+  // Orphan features that actually exist in the catalog → show the synthetic Other row.
+  const otherFeatures = featureBlocks(ORPHAN_FEATURES);
 
   const pendingCount = Object.values(pending).reduce(
     (acc, m) => acc + Object.keys(m).length,
@@ -179,156 +209,113 @@ const RolePermissions = ({ tabSwitcher = null }) => {
         {error   && <div className="rcx-state rcx-state--error">Error: {error}</div>}
 
         {!loading && !error && (
-          <>
-            {/* ── tab bar ── */}
-            <div className="rcx-tabs">
-              <button type="button" className={`rcx-tab${tab === 'navigation' ? ' is-active' : ''}`} onClick={() => setTab('navigation')}>Navigation Access</button>
-              <button type="button" className={`rcx-tab${tab === 'advanced' ? ' is-active' : ''}`} onClick={() => setTab('advanced')}>Advanced · Full Matrix</button>
-            </div>
+          <div className="rcx-navlist">
+            {bundles.length === 0 && <p className="rcx-muted">No navigation bundles found.</p>}
 
-            {/* ── Navigation Access tab ── */}
-            {tab === 'navigation' && (
-              <div className="rcx-navlist">
-                {bundles.length === 0 && <p className="rcx-muted">No navigation bundles found.</p>}
-                {bundles.map((bundle) => (
-                  <div key={bundle.bundle_id} className="rcx-navrow">
-                    <div className="rcx-navrow-main">
-                      <span className="rcx-navrow-name">{bundle.name}</span>
-                      <span className="rcx-navrow-section">{bundle.sidebar_section || '—'}</span>
+            {sections.map(({ section, rows }) => (
+              <React.Fragment key={section}>
+                <h3 className="rcx-navgroup">{section}</h3>
+                {rows.map((bundle) => {
+                  const extraCount = configureFeatures(bundle).length - 1;
+                  return (
+                    <div key={bundle.bundle_id} className="rcx-navrow">
+                      <div className="rcx-navrow-main">
+                        <span className="rcx-navrow-name">{bundle.name}</span>
+                        <span className="rcx-navrow-section">
+                          {featureTitle(requiredFeatureOf(bundle) || '—')}
+                          {extraCount > 0 && ` · +${extraCount} more`}
+                        </span>
+                      </div>
+                      <div className="rcx-navrow-right">
+                        <button type="button" className="rcx-btn rcx-btn--ghost" onClick={() => openBundleModal(bundle)}>Configure</button>
+                      </div>
                     </div>
-                    <div className="rcx-navrow-right">
-                      <button type="button" className="rcx-btn rcx-btn--ghost" onClick={() => openBundleModal(bundle)}>Configure</button>
-                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+
+            {otherFeatures.length > 0 && (
+              <React.Fragment>
+                <h3 className="rcx-navgroup">{OTHER_HOME.sidebar_section}</h3>
+                <div className="rcx-navrow">
+                  <div className="rcx-navrow-main">
+                    <span className="rcx-navrow-name">{OTHER_HOME.name}</span>
+                    <span className="rcx-navrow-section">Permissions with no navigation page</span>
                   </div>
-                ))}
-              </div>
+                  <div className="rcx-navrow-right">
+                    <button type="button" className="rcx-btn rcx-btn--ghost" onClick={openOtherModal}>Configure</button>
+                  </div>
+                </div>
+              </React.Fragment>
             )}
+          </div>
+        )}
 
-            {/* ── Advanced tab: full matrix ── */}
-            {tab === 'advanced' && (
-              <div className="rcx-matrix-wrap">
-                <table className="rcx-matrix">
+        {/* ── Per-page permission modal (one sub-block per related feature) ── */}
+        {modalHome && (
+          <Modal isOpen={true} title={modalHome.title} onClose={() => setModalHome(null)} maxWidth={640}>
+            <div className="rbac-console rbac-console--modal">
+            {modalHome.blocks.length === 0 ? (
+              <p className="rcx-muted">This page has no configurable permissions.</p>
+            ) : (
+              <div className="rcx-matrix-wrap" style={{ boxShadow: 'none', border: '1px solid var(--rc-line)', maxHeight: '60vh' }}>
+                <table className="rcx-matrix" style={{ minWidth: 420 }}>
                   <thead>
                     <tr>
                       <th>Feature / Action</th>
                       {ROLE_COLUMNS.map((r) => (
                         <th key={r.id} className="rcx-rolehead">
                           <span className="rcx-rolecode" style={{ '--rc-chip': r.accent, background: r.accent }}>{r.label}</span>
-                          <span className="rcx-rolename" title={r.name}>{r.name}</span>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {groups.map((group) => (
-                      <React.Fragment key={group.label}>
+                    {modalHome.blocks.map((block) => (
+                      <React.Fragment key={block.feature}>
                         <tr className="rcx-group">
-                          <td colSpan={ROLE_COLUMNS.length + 1}>{group.label}</td>
+                          <td colSpan={ROLE_COLUMNS.length + 1}>{block.title}</td>
                         </tr>
-
-                        {group.features.map((feat) =>
-                          ACTIONS.filter((a) => feat.actions[a] != null).map((action) => {
-                            const permId = feat.actions[action];
-                            return (
-                              <tr className="rcx-row" key={`${feat.feature}.${action}`}>
-                                <td className="rcx-feat">
-                                  <span className="rcx-feat-name">{feat.title}</span>
-                                  <span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span>
+                        {block.actions.map(({ action, permission_id }) => (
+                          <tr className="rcx-row" key={permission_id}>
+                            <td className="rcx-feat"><span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span></td>
+                            {ROLE_COLUMNS.map((r) => {
+                              const checked = isGranted(r.id, permission_id);
+                              const isAdmin = r.id === ADMIN_ROLE_ID;
+                              const isDirty = !isAdmin && pending[r.id] && permission_id in pending[r.id];
+                              return (
+                                <td key={r.id} className={`rcx-cell${isAdmin ? ' rcx-cell--admin' : ''}`}>
+                                  <button
+                                    type="button"
+                                    className={`rcx-toggle${checked ? ' is-on' : ''}${isAdmin ? ' is-locked' : ''}${isDirty ? ' is-dirty' : ''}`}
+                                    style={{ '--rc-chip': r.accent }}
+                                    disabled={isAdmin}
+                                    aria-pressed={checked}
+                                    onClick={() => toggle(r.id, permission_id)}
+                                    title={isAdmin ? 'System Administrator always has full access' : `${r.name}: ${ACTION_META[action]?.desc || action}`}
+                                  >
+                                    {(checked || isAdmin) && <CheckGlyph />}
+                                  </button>
                                 </td>
-                                {ROLE_COLUMNS.map((r) => {
-                                  const checked = isGranted(r.id, permId);
-                                  const isAdmin = r.id === ADMIN_ROLE_ID;
-                                  const isDirty = !isAdmin && pending[r.id] && permId in pending[r.id];
-                                  return (
-                                    <td key={r.id} className={`rcx-cell${isAdmin ? ' rcx-cell--admin' : ''}`}>
-                                      <button
-                                        type="button"
-                                        className={`rcx-toggle${checked ? ' is-on' : ''}${isAdmin ? ' is-locked' : ''}${isDirty ? ' is-dirty' : ''}`}
-                                        style={{ '--rc-chip': r.accent }}
-                                        disabled={isAdmin}
-                                        aria-pressed={checked}
-                                        onClick={() => toggle(r.id, permId)}
-                                        title={isAdmin
-                                          ? 'System Administrator always has full access'
-                                          : `${r.name}: ${ACTION_META[action]?.desc || action}`}
-                                      >
-                                        {(checked || isAdmin) && <CheckGlyph />}
-                                      </button>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })
-                        )}
+                              );
+                            })}
+                          </tr>
+                        ))}
                       </React.Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
-          </>
-        )}
-
-        {/* ── Per-page mini-matrix modal ── */}
-        {modalBundle && (
-          <Modal isOpen={true} title={`${modalBundle.bundle.name} — role access`} onClose={() => setModalBundle(null)} maxWidth={620}>
-            <div className="rbac-console rbac-console--modal">
-            {modalBundle.actions.length === 0 ? (
-              <p className="rcx-muted">This page has no configurable actions.</p>
-            ) : (
-              <div className="rcx-matrix-wrap" style={{ boxShadow: 'none', border: '1px solid var(--rc-line)', maxHeight: '60vh' }}>
-                <table className="rcx-matrix" style={{ minWidth: 420 }}>
-                  <thead>
-                    <tr>
-                      <th>Action</th>
-                      {ROLE_COLUMNS.map((r) => (
-                        <th key={r.id} className="rcx-rolehead">
-                          <span className="rcx-rolecode" style={{ '--rc-chip': r.accent, background: r.accent }}>{r.label}</span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modalBundle.actions.map(({ action, permission_id }) => (
-                      <tr className="rcx-row" key={permission_id}>
-                        <td className="rcx-feat"><span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span></td>
-                        {ROLE_COLUMNS.map((r) => {
-                          const checked = isGranted(r.id, permission_id);
-                          const isAdmin = r.id === ADMIN_ROLE_ID;
-                          const isDirty = !isAdmin && pending[r.id] && permission_id in pending[r.id];
-                          return (
-                            <td key={r.id} className={`rcx-cell${isAdmin ? ' rcx-cell--admin' : ''}`}>
-                              <button
-                                type="button"
-                                className={`rcx-toggle${checked ? ' is-on' : ''}${isAdmin ? ' is-locked' : ''}${isDirty ? ' is-dirty' : ''}`}
-                                style={{ '--rc-chip': r.accent }}
-                                disabled={isAdmin}
-                                aria-pressed={checked}
-                                onClick={() => toggle(r.id, permission_id)}
-                                title={isAdmin ? 'System Administrator always has full access' : `${r.name}: ${ACTION_META[action]?.desc || action}`}
-                              >
-                                {(checked || isAdmin) && (
-                                  <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                )}
-                              </button>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
             <div className="rcx-modal-footer">
-              <p className="rcx-modal-note" style={{ margin: '0 0 0.6rem' }}>Toggles set each role's <strong>default</strong> access for this page. The System Administrator column is always full and locked.</p>
+              <p className="rcx-modal-note" style={{ margin: '0 0 0.6rem' }}>Toggles set each role's <strong>default</strong> access for these permissions. The System Administrator column is always full and locked.</p>
               <div className="rcx-modal-actions">
-                <button type="button" className="rcx-btn rcx-btn--ghost" onClick={() => setModalBundle(null)} disabled={saving}>Close</button>
+                <button type="button" className="rcx-btn rcx-btn--ghost" onClick={() => setModalHome(null)} disabled={saving}>Close</button>
                 <button
                   type="button"
                   className="rcx-btn rcx-btn--primary"
-                  onClick={async () => { const ok = await handleSave(); if (ok) setModalBundle(null); }}
+                  onClick={async () => { const ok = await handleSave(); if (ok) setModalHome(null); }}
                   disabled={!hasPendingChanges || saving}
                 >
                   {saving ? 'Saving…' : 'Save Changes'}
