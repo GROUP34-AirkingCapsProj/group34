@@ -38,10 +38,12 @@ class PurchaseOrderController extends Controller
         try {
             $query = PurchaseOrder::with(self::WITH_RELATIONS);
 
-            // Location visibility: admin sees everything; all others see POs for their
-            // assigned location OR POs they personally created.
+            // Location visibility: centralized roles (admin, inventory_analyst,
+            // auditor) see everything — the auditor must see every PO to verify it.
+            // Location-scoped roles (branch_manager, warehouse_personnel) see POs for
+            // their assigned location OR POs they personally created.
             $authUser = $request->user();
-            if ($authUser && (int) $authUser->role_id !== 1) {
+            if ($authUser && ! $authUser->isCentralized()) {
                 $userId     = (int) $authUser->user_id;
                 $locationId = $authUser->location_id ? (int) $authUser->location_id : null;
                 $query->where(function ($q) use ($userId, $locationId) {

@@ -124,9 +124,20 @@ const PurchaseOrderPage = () => {
   const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
   // Purchase order verification (auditor maker-checker gate).
   const canVerifyPO = typeof can === 'function' && can('purchase_order_verification', 'verify');
+  // Purchase order archiving: admin + anyone granted the archive action.
+  const canArchivePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'archive'));
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');
+
+  // Users who can't create/convert POs (e.g. auditor) shouldn't sit on the
+  // creation tab — send them to the read-only Status view instead. Runs again
+  // once async permissions resolve so we don't strand them on a hidden tab.
+  useEffect(() => {
+    if (!canCreatePO && activeTab === 'create') {
+      setActiveTab('status');
+    }
+  }, [canCreatePO, activeTab]);
 
   // Suppliers
   const [suppliers,          setSuppliers]          = useState([]);
@@ -687,10 +698,12 @@ const PurchaseOrderPage = () => {
                       </button>
                     </div>
                   )}
-                  <ArchiveButton
-                    onArchive={() => handleArchivePO(po.po_id)}
-                    disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
-                  />
+                  {canArchivePO && (
+                    <ArchiveButton
+                      onArchive={() => handleArchivePO(po.po_id)}
+                      disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
+                    />
+                  )}
                 </div>
               </div>
               {po.verification_status === 'pending' && (
@@ -1287,13 +1300,15 @@ const PurchaseOrderPage = () => {
         </div>
 
         <div className="po-tab-nav">
-          <button type="button" className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('create')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-              <path d="M8 13h8M8 17h5"/>
-            </svg>
-            Convert PR to PO
-          </button>
+          {canCreatePO && (
+            <button type="button" className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('create')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                <path d="M8 13h8M8 17h5"/>
+              </svg>
+              Convert PR to PO
+            </button>
+          )}
           <button type="button" className={`po-tab-btn${activeTab === 'status' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('status')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
               <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
