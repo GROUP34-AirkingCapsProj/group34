@@ -63,6 +63,13 @@ function buildDescription(item) {
   return base;
 }
 
+// Resolved money amount for a PO line: explicit subtotal, else qty × unit price.
+function itemAmount(item) {
+  const qty   = Number(item.qty ?? item.quantity_ordered ?? 0);
+  const price = Number(item.unit_price || 0);
+  return Number(item.subtotal || qty * price || 0);
+}
+
 function fmtDate(raw) {
   if (!raw) return new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
   const d = new Date(raw);
@@ -99,7 +106,7 @@ export function buildPODocumentHtml(payload) {
   const renderItemRow = (item) => {
     const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
     const price  = Number(item.unit_price || 0);
-    const amount = Number(item.subtotal   || qty * price || 0);
+    const amount = itemAmount(item);
     const unit   = item.unit || 'pc';
     const code   = item.product_code || '—';
     const desc   = buildDescription(item);
@@ -127,10 +134,7 @@ export function buildPODocumentHtml(payload) {
     const pageItems = single
       ? items
       : items.filter((it) => String(it.location_id ?? '__none__') === loc.location_id);
-    const pageTotal = pageItems.reduce((s, it) => {
-      const qty = Number(it.qty ?? it.quantity_ordered ?? 0);
-      return s + Number(it.subtotal || qty * Number(it.unit_price || 0) || 0);
-    }, 0);
+    const pageTotal = pageItems.reduce((s, it) => s + itemAmount(it), 0);
     const deliverExtra = [
       loc.contact_number ? `Phone: ${loc.contact_number}` : '',
       loc.email          ? `Email: ${loc.email}`          : '',
