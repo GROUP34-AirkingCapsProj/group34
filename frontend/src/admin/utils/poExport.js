@@ -71,40 +71,30 @@ function fmtDate(raw) {
 
 // ─── Document (HTML print window) ────────────────────────────────────────────
 
-export function exportPOToDocument(payload) {
+export function buildPODocumentHtml(payload) {
   const company  = payload.company  || {};
   const supplier = payload.supplier || {};
-  const shipTo   = payload.ship_to  || {};
+  const manual   = payload.ship_to  || {};
 
   const companyName    = company.name    || 'Airking Air Conditioning';
   const companyAddress = company.address || '';
   const companyEmail   = company.email   || '';
-
-  const supplierName = (supplier.name || '').toUpperCase();
-  const supplierAddr = supplier.address || '';
-
-  const shipToName    = shipTo.name    || supplierName;
-  const shipToAddress = shipTo.address || supplierAddr;
+  const supplierName   = (supplier.name || '').toUpperCase();
+  const supplierAddr   = supplier.address || '';
 
   const dateStr      = fmtDate(payload.order_date);
   const paymentTerms = payload.payment_terms || 'Net 30';
-  const total        = Number(payload.total_amount || 0);
   const notes        = payload.notes      || '';
   const refs         = payload.references || '';
   const prepBy       = payload.prepared_by || '';
   const verBy        = payload.verified_by || '';
   const appBy        = payload.approved_by || '';
 
-  const items = Array.isArray(payload.items) ? payload.items : [];
-
-  const deliverWarehouses = [...new Set((items || []).map(i => i.warehouse_name).filter(Boolean))].join(', ');
-
-  const groupsMap = new Map();
-  items.forEach(item => {
-    const key = item.warehouse_name || 'Unassigned warehouse';
-    if (!groupsMap.has(key)) groupsMap.set(key, []);
-    groupsMap.get(key).push(item);
-  });
+  const items    = Array.isArray(payload.items) ? payload.items : [];
+  const locs     = (Array.isArray(payload.ship_to_locations) && payload.ship_to_locations.length)
+    ? payload.ship_to_locations
+    : [{ location_id: '__none__', name: manual.name || supplierName, address: manual.address || supplierAddr }];
+  const single   = locs.length <= 1;
 
   const renderItemRow = (item) => {
     const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
@@ -126,45 +116,106 @@ export function exportPOToDocument(payload) {
       </tr>`;
   };
 
-  const rowsHtml = [...groupsMap.entries()].map(([whName, whItems]) => `
-      <tr><td colspan="6" style="background:#f0f0f0;font-weight:700;padding:4px 8px">Deliver To: ${whName}</td></tr>
-      ${whItems.map(renderItemRow).join('')}`).join('');
+  const manualBlock = (manual.name || manual.address)
+    ? `<div class="ship-to ship-to--manual">
+         <strong>Ship To: ${manual.name || ''}</strong>
+         ${manual.address ? manual.address : ''}
+       </div>`
+    : '';
 
-  const html = `<!DOCTYPE html>
+  const pagesHtml = locs.map((loc) => {
+    const pageItems = single
+      ? items
+      : items.filter((it) => String(it.location_id ?? '__none__') === loc.location_id);
+    const pageTotal = pageItems.reduce((s, it) => {
+      const qty = Number(it.qty ?? it.quantity_ordered ?? 0);
+      return s + Number(it.subtotal || qty * Number(it.unit_price || 0) || 0);
+    }, 0);
+    const deliverExtra = [
+      loc.contact_number ? `Phone: ${loc.contact_number}` : '',
+      loc.email          ? `Email: ${loc.email}`          : '',
+      loc.manager_name   ? `Manager: ${loc.manager_name}` : '',
+    ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+    return `
+  <div class="po-page">
+    <div class="company-header">
+      <h1>${companyName}</h1>
+      ${companyAddress ? `<p>${companyAddress}</p>` : ''}
+      ${companyEmail   ? `<p>${companyEmail}</p>`   : ''}
+    </div>
+
+    <div class="header-grid">
+      <div class="supplier-block">
+        <strong>${supplierName}</strong>
+        ${supplierAddr}
+      </div>
+      <div class="po-ref-block">
+        <h2>Purchase Order</h2>
+        <table class="po-ref-table">
+          <tr><td>Date:</td><td>${dateStr}</td></tr>
+          <tr><td>Reference #:</td><td>${payload.po_number || ''}</td></tr>
+          <tr><td>Payment Terms:</td><td>${paymentTerms}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    ${manualBlock}
+
+    <div class="ship-to">
+      <strong>Deliver To (Warehouse): ${loc.name || '—'}</strong>
+      ${loc.address ? loc.address : ''}
+      ${deliverExtra ? `<div style="font-size:11px;color:#333;margin-top:2px">${deliverExtra}</div>` : ''}
+    </div>
+
+    <div class="details-label">Details</div>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="text-align:center;width:65px">Quantity</th>
+          <th style="text-align:center;width:55px">Unit</th>
+          <th style="width:130px">Model Code</th>
+          <th>Description</th>
+          <th style="text-align:right;width:95px">Unit Price</th>
+          <th style="text-align:right;width:95px">Amount</th>
+        </tr>
+      </thead>
+      <tbody>${pageItems.map(renderItemRow).join('')}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5" style="text-align:right">Total Amount &rarr;</td>
+          <td style="text-align:right">&#8369;${pageTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="notes-section">
+      <div>Notes: ${notes}</div>
+      <div>References: ${refs}</div>
+    </div>
+
+    <div class="signatures">
+      <div class="sig-block"><div class="sig-label">Prepared By:</div><div class="sig-name">${prepBy}</div></div>
+      <div class="sig-block"><div class="sig-label">Verified By:</div><div class="sig-name">${verBy}</div></div>
+      <div class="sig-block"><div class="sig-label">Approved By:</div><div class="sig-name">${appBy}</div></div>
+    </div>
+  </div>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>Purchase Order - ${payload.po_number || 'PO'}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Times New Roman', Times, serif;
-      font-size: 13px;
-      color: #000;
-      padding: 40px;
-      max-width: 850px;
-      margin: 0 auto;
-    }
-    .company-header {
-      text-align: center;
-      border-bottom: 2px solid #000;
-      padding-bottom: 10px;
-      margin-bottom: 20px;
-    }
-    .company-header h1 {
-      font-size: 26px;
-      font-weight: 900;
-      letter-spacing: 0.04em;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-    }
+    body { font-family: 'Times New Roman', Times, serif; font-size: 13px; color: #000; padding: 40px; max-width: 850px; margin: 0 auto; }
+    .po-page { page-break-after: always; }
+    .po-page:last-child { page-break-after: auto; }
+    .company-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+    .company-header h1 { font-size: 26px; font-weight: 900; letter-spacing: 0.04em; margin-bottom: 4px; text-transform: uppercase; }
     .company-header p { font-size: 11px; color: #333; margin: 2px 0; }
-    .header-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
+    .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
     .supplier-block { font-size: 13px; line-height: 1.7; }
     .supplier-block strong { font-size: 14px; font-weight: 900; display: block; margin-bottom: 2px; }
     .po-ref-block { text-align: right; }
@@ -173,113 +224,30 @@ export function exportPOToDocument(payload) {
     .po-ref-table td { padding: 2px 6px; }
     .po-ref-table td:first-child { font-weight: 700; text-align: right; white-space: nowrap; }
     .ship-to { font-size: 13px; line-height: 1.6; margin-bottom: 16px; border: 1.5px solid #000; padding: 8px 12px; background: #f4f4f4; }
+    .ship-to--manual { background: #fff; border-style: dashed; }
     .ship-to strong { display: block; font-size: 14px; font-weight: 900; margin-bottom: 2px; text-transform: uppercase; }
     .details-label { font-size: 15px; font-weight: 900; margin-bottom: 4px; }
     .items-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
-    .items-table th {
-      border-top: 1.5px solid #000;
-      border-bottom: 1.5px solid #000;
-      padding: 5px 8px;
-      font-weight: 700;
-      text-align: left;
-    }
+    .items-table th { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 5px 8px; font-weight: 700; text-align: left; }
     .items-table td { padding: 5px 8px; border-bottom: 0.5px solid #ddd; }
-    .items-table tfoot td {
-      border-top: 1.5px solid #000;
-      border-bottom: 1.5px solid #000;
-      font-weight: 700;
-      padding: 6px 8px;
-    }
+    .items-table tfoot td { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; font-weight: 700; padding: 6px 8px; }
     .notes-section { font-size: 13px; line-height: 2.4; margin: 12px 0 32px; }
     .notes-section div { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 4px; }
     .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 32px; }
     .sig-block { display: flex; flex-direction: column; gap: 36px; }
     .sig-label { font-weight: 900; font-size: 13px; }
-    .sig-name {
-      font-weight: 900;
-      font-size: 13px;
-      border-bottom: 2px solid #000;
-      padding-bottom: 4px;
-      min-height: 24px;
-      text-decoration: underline;
-    }
-    @media print {
-      body { padding: 20px; }
-    }
+    .sig-name { font-weight: 900; font-size: 13px; border-bottom: 2px solid #000; padding-bottom: 4px; min-height: 24px; text-decoration: underline; }
+    @media print { body { padding: 20px; } }
   </style>
 </head>
 <body>
-
-  <div class="company-header">
-    <h1>${companyName}</h1>
-    ${companyAddress ? `<p>${companyAddress}</p>` : ''}
-    ${companyEmail   ? `<p>${companyEmail}</p>`   : ''}
-  </div>
-
-  <div class="header-grid">
-    <div class="supplier-block">
-      <strong>${supplierName}</strong>
-      ${supplierAddr}
-    </div>
-    <div class="po-ref-block">
-      <h2>Purchase Order</h2>
-      <table class="po-ref-table">
-        <tr><td>Date:</td><td>${dateStr}</td></tr>
-        <tr><td>Reference #:</td><td>${payload.po_number || ''}</td></tr>
-        <tr><td>Payment Terms:</td><td>${paymentTerms}</td></tr>
-      </table>
-    </div>
-  </div>
-
-  <div class="ship-to">
-    <strong>Deliver To (Warehouse): ${deliverWarehouses || shipToName}</strong>
-    ${shipToAddress ? shipToAddress : ''}
-  </div>
-
-  <div class="details-label">Details</div>
-  <table class="items-table">
-    <thead>
-      <tr>
-        <th style="text-align:center;width:65px">Quantity</th>
-        <th style="text-align:center;width:55px">Unit</th>
-        <th style="width:130px">Model Code</th>
-        <th>Description</th>
-        <th style="text-align:right;width:95px">Unit Price</th>
-        <th style="text-align:right;width:95px">Amount</th>
-      </tr>
-    </thead>
-    <tbody>${rowsHtml}</tbody>
-    <tfoot>
-      <tr>
-        <td colspan="5" style="text-align:right">Total Amount &rarr;</td>
-        <td style="text-align:right">&#8369;${total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <div class="notes-section">
-    <div>Notes: ${notes}</div>
-    <div>References: ${refs}</div>
-  </div>
-
-  <div class="signatures">
-    <div class="sig-block">
-      <div class="sig-label">Prepared By:</div>
-      <div class="sig-name">${prepBy}</div>
-    </div>
-    <div class="sig-block">
-      <div class="sig-label">Verified By:</div>
-      <div class="sig-name">${verBy}</div>
-    </div>
-    <div class="sig-block">
-      <div class="sig-label">Approved By:</div>
-      <div class="sig-name">${appBy}</div>
-    </div>
-  </div>
-
+${pagesHtml}
 </body>
 </html>`;
+}
 
+export function exportPOToDocument(payload) {
+  const html = buildPODocumentHtml(payload);
   const win = window.open('', '_blank', 'width=920,height=720');
   if (!win) {
     alert('Please allow pop-ups to export the PO document.');
