@@ -265,119 +265,116 @@ export function exportPOToDocument(payload) {
 
 // ─── Excel ────────────────────────────────────────────────────────────────────
 
-export function exportPOToExcel(payload) {
+// Excel-safe, unique sheet name (max 31 chars, no []:*?/\ ).
+function safeSheetName(name, used) {
+  let base = String(name || 'Sheet').replace(/[[\]:*?/\\]/g, ' ').slice(0, 31).trim() || 'Sheet';
+  let candidate = base;
+  let n = 2;
+  while (used.has(candidate)) {
+    const suffix = ` (${n})`;
+    candidate = base.slice(0, 31 - suffix.length) + suffix;
+    n += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+function buildPOSheetAoa(payload, loc, sheetItems) {
   const company  = payload.company  || {};
   const supplier = payload.supplier || {};
-  const shipTo   = payload.ship_to  || {};
-
+  const manual   = payload.ship_to  || {};
   const companyName    = company.name    || 'Airking Air Conditioning';
   const companyAddress = company.address || '';
   const companyEmail   = company.email   || '';
+  const supplierName   = (supplier.name || '').toUpperCase();
+  const supplierAddr   = supplier.address || '';
+  const dateStr        = fmtDate(payload.order_date);
+  const paymentTerms   = payload.payment_terms || 'Net 30';
+  const prepBy = payload.prepared_by || '';
+  const verBy  = payload.verified_by || '';
+  const appBy  = payload.approved_by || '';
+  const notes  = payload.notes      || '';
+  const refs   = payload.references || '';
 
-  const supplierName = (supplier.name || '').toUpperCase();
-  const supplierAddr = supplier.address || '';
-  const shipToName   = shipTo.name    || supplierName;
-  const shipToAddr   = shipTo.address || supplierAddr;
-
-  const dateStr      = fmtDate(payload.order_date);
-  const paymentTerms = payload.payment_terms || 'Net 30';
-  const total        = Number(payload.total_amount || 0);
-  const notes        = payload.notes      || '';
-  const refs         = payload.references || '';
-  const prepBy       = payload.prepared_by || '';
-  const verBy        = payload.verified_by || '';
-  const appBy        = payload.approved_by || '';
-
-  const items = Array.isArray(payload.items) ? payload.items : [];
-
-  const deliverWarehouses = [...new Set((items || []).map(i => i.warehouse_name).filter(Boolean))].join(', ');
-
-  // Build rows as array-of-arrays (aoa)
   const aoa = [];
-
-  // ── Company header ──
   aoa.push([companyName]);
   if (companyAddress) aoa.push([companyAddress]);
   if (companyEmail)   aoa.push([companyEmail]);
   aoa.push([]);
 
-  // ── Supplier (col A) + PO reference (col D+) ──
-  aoa.push([supplierName,    '', '', 'Purchase Order']);
-  aoa.push([supplierAddr,    '', '', 'Date:',           dateStr]);
-  aoa.push(['',              '', '', 'Reference #:',    payload.po_number || '']);
-  aoa.push(['',              '', '', 'Payment Terms:',  paymentTerms]);
-  aoa.push([`Deliver To (Warehouse): ${deliverWarehouses || shipToName}`, '', '', '', '']);
-  if (shipToAddr) aoa.push([shipToAddr, '', '', '', '']);
+  aoa.push([supplierName, '', '', 'Purchase Order']);
+  aoa.push([supplierAddr, '', '', 'Date:',          dateStr]);
+  aoa.push(['',           '', '', 'Reference #:',   payload.po_number || '']);
+  aoa.push(['',           '', '', 'Payment Terms:', paymentTerms]);
+  if (manual.name || manual.address) {
+    aoa.push([`Ship To: ${manual.name || ''}`]);
+    if (manual.address) aoa.push([manual.address]);
+  }
+  aoa.push([`Deliver To (Warehouse): ${loc.name || ''}`]);
+  if (loc.address) aoa.push([loc.address]);
   aoa.push([]);
 
-  // ── Column headers ──
   const COL_HEADERS = ['Quantity', 'Unit', 'Model Code', 'Description', 'Unit Price', 'Amount'];
   aoa.push(COL_HEADERS);
-  const headerRowIdx = aoa.length; // 1-based after push
+  const headerRowIdx = aoa.length; // 1-based
 
-  // ── Line item rows, grouped by destination warehouse ──
-  const xlsGroups = new Map();
-  items.forEach(item => {
-    const key = item.warehouse_name || 'Unassigned warehouse';
-    if (!xlsGroups.has(key)) xlsGroups.set(key, []);
-    xlsGroups.get(key).push(item);
-  });
-  xlsGroups.forEach((whItems, whName) => {
-    aoa.push([`Deliver To: ${whName}`]);
-    whItems.forEach(item => {
-      const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
-      const price  = Number(item.unit_price || 0);
-      const amount = Number(item.subtotal   || qty * price || 0);
-      aoa.push([
-        qty,
-        item.unit || 'pc',
-        item.product_code || '—',
-        buildDescription(item),
-        price,
-        amount,
-      ]);
-    });
+  let total = 0;
+  sheetItems.forEach((item) => {
+    const qty    = Number(item.qty ?? item.quantity_ordered ?? 0);
+    const price  = Number(item.unit_price || 0);
+    const amount = itemAmount(item);
+    total += amount;
+    aoa.push([qty, item.unit || 'pc', item.product_code || '—', buildDescription(item), price, amount]);
   });
 
   aoa.push([]);
-
-  // ── Total row ──
   aoa.push(['', '', '', '', 'TOTAL AMOUNT', total]);
-
   aoa.push([]);
-
-  // ── Signature row ──
   aoa.push(['Prepared By:', '', 'Verified By:', '', 'Approved By:', '']);
   aoa.push([prepBy,         '', verBy,          '', appBy,          '']);
-
   if (notes) { aoa.push([]); aoa.push([`Notes: ${notes}`]); }
   if (refs)  { aoa.push([`References: ${refs}`]); }
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  return { aoa, headerRowIdx, COL_HEADERS };
+}
 
-  // ── Column widths ──
-  ws['!cols'] = [
-    { wch: 12 }, // Quantity / Supplier
-    { wch: 10 }, // Unit
-    { wch: 18 }, // Model Code
-    { wch: 48 }, // Description
-    { wch: 14 }, // Unit Price
-    { wch: 14 }, // Amount
-  ];
-
-  // ── Style the company name row (row 0 = bold, large) ──
-  const companyCell = XLSX.utils.encode_cell({ r: 0, c: 0 });
-  if (!ws[companyCell]) ws[companyCell] = { v: companyName, t: 's' };
-  ws[companyCell].s = { font: { bold: true, sz: 16 } };
-
-  // ── Bold the column header row ──
-  const headerR = headerRowIdx - 1;
-  COL_HEADERS.forEach((_, ci) => {
-    const addr = XLSX.utils.encode_cell({ r: headerR, c: ci });
-    if (ws[addr]) ws[addr].s = { font: { bold: true } };
-  });
+export function buildPOWorkbook(payload) {
+  const company = payload.company || {};
+  const companyName = company.name || 'Airking Air Conditioning';
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const locs  = (Array.isArray(payload.ship_to_locations) && payload.ship_to_locations.length)
+    ? payload.ship_to_locations
+    : [{ location_id: '__none__', name: (payload.ship_to || {}).name || companyName, address: (payload.ship_to || {}).address || '' }];
+  const single = locs.length <= 1;
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Purchase Order');
+  const usedNames = new Set();
+
+  locs.forEach((loc) => {
+    const sheetItems = single
+      ? items
+      : items.filter((it) => String(it.location_id ?? '__none__') === loc.location_id);
+    const { aoa, headerRowIdx, COL_HEADERS } = buildPOSheetAoa(payload, loc, sheetItems);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 48 }, { wch: 14 }, { wch: 14 }];
+
+    const companyCell = XLSX.utils.encode_cell({ r: 0, c: 0 });
+    if (!ws[companyCell]) ws[companyCell] = { v: companyName, t: 's' };
+    ws[companyCell].s = { font: { bold: true, sz: 16 } };
+
+    const headerR = headerRowIdx - 1;
+    COL_HEADERS.forEach((_, ci) => {
+      const addr = XLSX.utils.encode_cell({ r: headerR, c: ci });
+      if (ws[addr]) ws[addr].s = { font: { bold: true } };
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(single ? 'Purchase Order' : loc.name, usedNames));
+  });
+
+  return wb;
+}
+
+export function exportPOToExcel(payload) {
+  const wb = buildPOWorkbook(payload);
   XLSX.writeFile(wb, `${payload.po_number || 'PO'}.xlsx`);
 }

@@ -1,4 +1,6 @@
 import { distinctDeliverLocations, buildPODocumentHtml } from './poExport';
+import * as XLSX from 'xlsx';
+import { buildPOWorkbook } from './poExport';
 
 describe('distinctDeliverLocations', () => {
   test('dedupes enriched PO details by location, first-seen order, joined address', () => {
@@ -82,5 +84,39 @@ describe('buildPODocumentHtml', () => {
     const [, only] = pages;
     expect(only).toContain('A1');
     expect(only).toContain('200.00');   // single-page total
+  });
+});
+
+describe('buildPOWorkbook', () => {
+  const payload = {
+    po_number: 'PO-1',
+    company: { name: 'Airking' },
+    supplier: { name: 'Acme' },
+    ship_to: { name: 'Airking CDO Branch', address: 'Zone 5, Bulua, CDO' },
+    ship_to_locations: [
+      { location_id: '5', name: 'Alpha', address: '1 A St, Cebu' },
+      { location_id: '9', name: 'Bravo', address: '2 B St, Mandaue' },
+    ],
+    items: [
+      { location_id: '5', warehouse_name: 'Alpha', product_code: 'A1', qty: 2, unit: 'pc', unit_price: 100, subtotal: 200 },
+      { location_id: '9', warehouse_name: 'Bravo', product_code: 'B1', qty: 3, unit: 'pc', unit_price: 100, subtotal: 300 },
+    ],
+    total_amount: 500,
+  };
+
+  test('creates one sheet per warehouse, each carrying its own address', () => {
+    const wb = buildPOWorkbook(payload);
+    expect(wb.SheetNames).toHaveLength(2);
+    expect(wb.SheetNames).toEqual(expect.arrayContaining(['Alpha', 'Bravo']));
+    const alphaCsv = XLSX.utils.sheet_to_csv(wb.Sheets['Alpha']);
+    expect(alphaCsv).toContain('1 A St, Cebu');
+    expect(alphaCsv).toContain('A1');
+    expect(alphaCsv).not.toContain('B1'); // Bravo's item not on Alpha's sheet
+  });
+
+  test('single warehouse yields a single sheet', () => {
+    const p = { ...payload, ship_to_locations: [payload.ship_to_locations[0]], items: [payload.items[0]], total_amount: 200 };
+    const wb = buildPOWorkbook(p);
+    expect(wb.SheetNames).toHaveLength(1);
   });
 });
