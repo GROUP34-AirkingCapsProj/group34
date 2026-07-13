@@ -486,9 +486,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::get('/budget-allocations/{id}/available', [BudgetAllocationController::class, 'available']);
         Route::get('/budget-allocations/{id}/transactions', [BudgetAllocationController::class, 'transactions']);
     });
-    Route::middleware('role:admin')->group(function () {
-        Route::post('/budget-allocations', [BudgetAllocationController::class, 'store']);
-        Route::put('/budget-allocations/{id}', [BudgetAllocationController::class, 'update']);
+    // Budget CRUD is now permission-driven so admin can delegate it (admin always
+    // passes via the resolver bypass). Defaults grant these to admin only.
+    Route::middleware('permission:budget_verification,create')->post('/budget-allocations', [BudgetAllocationController::class, 'store']);
+    Route::middleware('permission:budget_verification,update')->put('/budget-allocations/{id}', [BudgetAllocationController::class, 'update']);
+    Route::middleware('permission:budget_verification,archive')->group(function () {
         Route::delete('/budget-allocations/{id}', [BudgetAllocationController::class, 'destroy']);
         Route::post('/budget-allocations/{id}/restore', [BudgetAllocationController::class, 'restore']);
         Route::delete('/budget-allocations/{id}/force', [BudgetAllocationController::class, 'forceDestroy']);

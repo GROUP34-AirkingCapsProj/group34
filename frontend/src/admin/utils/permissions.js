@@ -6,7 +6,7 @@ export const ROLE_COLUMNS = [
   { id: 5, slug: 'auditor', label: 'AU', name: 'Auditor', accent: '#d97706' },
 ];
 
-export const ACTIONS = ['create', 'read', 'update', 'archive', 'approve'];
+export const ACTIONS = ['create', 'read', 'update', 'archive', 'approve', 'verify'];
 
 export const ACTION_META = {
   create:  { label: 'Create',  desc: 'Add new records.' },
@@ -14,6 +14,7 @@ export const ACTION_META = {
   update:  { label: 'Update',  desc: 'Edit existing records.' },
   archive: { label: 'Archive', desc: 'Soft-delete / move to archive.' },
   approve: { label: 'Approve', desc: 'Approve or finalize records.' },
+  verify:  { label: 'Verify',  desc: 'Verify or reject records.' },
 };
 
 export const keyOf = (feature, action) => `${feature}.${action}`;
@@ -73,7 +74,7 @@ export function groupByFeatureGroup(permissions) {
 }
 
 // Display order for action columns/rows (read first so "access" reads naturally).
-const ACTION_DISPLAY_ORDER = ['read', 'create', 'update', 'archive', 'approve'];
+const ACTION_DISPLAY_ORDER = ['read', 'create', 'update', 'archive', 'approve', 'verify'];
 
 /**
  * The catalog actions that exist for a feature, as [{ action, permission_id }],
