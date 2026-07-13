@@ -60,14 +60,27 @@ describe('buildPODocumentHtml', () => {
     expect(html).toContain('Zone 5, Bulua, CDO');
     expect(html).toContain('Deliver To (Warehouse): Alpha');
     expect(html).toContain('Deliver To (Warehouse): Bravo');
+
+    // Per-page isolation: each warehouse page carries only its own item + subtotal.
+    const [, alpha, bravo] = html.split('class="po-page"');
+    expect(alpha).toContain('A1');
+    expect(alpha).not.toContain('B1');
+    expect(alpha).toContain('200.00');   // Alpha page total
+    expect(bravo).toContain('B1');
+    expect(bravo).not.toContain('A1');
+    expect(bravo).toContain('300.00');   // Bravo page total
   });
 
-  test('single warehouse produces one page and no trailing page break', () => {
+  test('single warehouse produces one page with all its items', () => {
     const p = twoWarehousePayload();
     p.ship_to_locations = [p.ship_to_locations[0]];
     p.items = [p.items[0]];
     p.total_amount = 200;
     const html = buildPODocumentHtml(p);
-    expect(html.split('class="po-page"').length - 1).toBe(1);
+    const pages = html.split('class="po-page"');
+    expect(pages.length - 1).toBe(1);
+    const [, only] = pages;
+    expect(only).toContain('A1');
+    expect(only).toContain('200.00');   // single-page total
   });
 });
