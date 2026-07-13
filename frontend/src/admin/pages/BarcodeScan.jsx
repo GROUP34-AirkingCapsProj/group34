@@ -2797,7 +2797,13 @@ const BarcodeScan = () => {
             <div className="bsr-empty">No approved purchase orders found.</div>
           ) : bsrFilteredPos.map((po) => {
             const poId = po.po_id ?? po.id;
-            const totalAmt = Number(po.total_amount || po.grand_total || 0);
+            const scoped    = !!myLocationId;
+            const totalAmt  = scoped
+              ? bsrLocationAmount(po, myLocationId)
+              : Number(po.total_amount || po.grand_total || 0);
+            const itemCount = scoped ? bsrLocationItemCount(po, myLocationId) : bsrGetItemCount(po);
+            const breakdown = scoped ? [] : bsrWarehouseBreakdown(po);
+            const showBreakdown = !scoped && breakdown.length > 1;
             const statusName  = po?.status?.status_name ?? po?.status_name ?? '';
             const isPartial   = /partial/i.test(statusName);
             const isCompleted = /complet/i.test(statusName);
@@ -2813,6 +2819,9 @@ const BarcodeScan = () => {
                   <div className="bsr-po-amount">
                     <span className="bsr-amount-label">TOTAL AMOUNT</span>
                     <span className="bsr-amount-value">{bsrFmtCurrency(totalAmt)}</span>
+                    {scoped && (
+                      <span className="bsr-amount-scope">for {enforcedLocationName || 'your warehouse'}</span>
+                    )}
                   </div>
                 </div>
                 <div className="bsr-po-card-meta">
@@ -2821,9 +2830,18 @@ const BarcodeScan = () => {
                   <div className="bsr-meta-col"><span className="bsr-meta-label">EXPECTED DELIVERY</span><span className="bsr-meta-value">{bsrFmtDate(po.expected_delivery_date)}</span></div>
                   <div className="bsr-meta-col">
                     <span className="bsr-meta-label">ITEMS</span>
-                    <span className="bsr-meta-value">{typeof bsrGetItemCount(po) === 'number' ? `${bsrGetItemCount(po)} items` : '—'}</span>
+                    <span className="bsr-meta-value">{typeof itemCount === 'number' ? `${itemCount} items` : '—'}</span>
                   </div>
                 </div>
+                {showBreakdown && (
+                  <div className="bsr-po-breakdown">
+                    {breakdown.map((b) => (
+                      <span key={b.locationId} className="bsr-breakdown-chip">
+                        {b.locationName} <strong>{bsrFmtCurrency(b.amount)}</strong>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </button>
             );
           })}
