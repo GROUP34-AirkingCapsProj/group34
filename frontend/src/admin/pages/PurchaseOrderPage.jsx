@@ -18,7 +18,7 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
-import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
+import { exportPOToExcel, exportPOToDocument, distinctDeliverLocations } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
 import DateInput from '../components/DateInput';
 import { confirmAction, confirmWithReason } from '../utils/confirm';
@@ -1529,13 +1529,25 @@ const PurchaseOrderPage = () => {
                     email:   companySettings.company_email   || '',
                   },
                   supplier: { name: d.supplier?.supplier_name, address: d.supplier?.address, origin: d.supplier?.origin, region: d.supplier?.region, contact_person: d.supplier?.contact_person, contact_number: d.supplier?.contact_number, email: d.supplier?.email, tin: d.supplier?.tin },
+                  // Manual Ship-To = header info only (never a delivery destination).
                   ship_to: {
-                    name:    d.ship_to_name    || d.location?.location_name,
-                    address: d.ship_to_address || [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || null,
-                    contact_number: d.location?.contact_number,
-                    email:          d.location?.email,
-                    manager_name:   d.location?.manager_name,
+                    name:    d.ship_to_name    || null,
+                    address: d.ship_to_address || null,
                   },
+                  // Real per-warehouse delivery destinations (one page/sheet each).
+                  ship_to_locations: (() => {
+                    const locs = distinctDeliverLocations(details);
+                    if (locs.length && !(locs.length === 1 && locs[0].location_id === '__none__')) return locs;
+                    // Legacy single-warehouse PO: fall back to the header location.
+                    return [{
+                      location_id:    String(d.location?.location_id ?? '__none__'),
+                      name:           d.location?.location_name || d.ship_to_name || '—',
+                      address:        [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || d.ship_to_address || null,
+                      contact_number: d.location?.contact_number || null,
+                      email:          d.location?.email || null,
+                      manager_name:   d.location?.manager_name || null,
+                    }];
+                  })(),
                   prepared_by: createdByName,
                   verified_by: resolveUserName(d.verified_by),
                   // Approved By on the document = whoever approved the PR, not the PO approval-queue step
@@ -1543,6 +1555,7 @@ const PurchaseOrderPage = () => {
                   order_date:             d.order_date ? String(d.order_date).slice(0, 10) : '—',
                   expected_delivery_date: d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—',
                   items: details.map(item => ({
+                    location_id:       String(item.location_id ?? item.location?.location_id ?? '__none__'),
                     product_code:      item.product?.applianceDetail?.model_code || item.model_code || '—',
                     name:              item.product_name || '—',
                     warehouse_name:    item.location_name || item.location?.location_name || null,
