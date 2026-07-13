@@ -84,7 +84,7 @@ const adminMenuSections = [
     items: [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       { name: 'Transfer Requests', path: '/admin/transfer-requests', icon: 'transfer' },
-      { name: 'Stock Transfers', path: '/admin/transfers', icon: 'transfer', adminOnly: true },
+      { name: 'Stock Transfers', path: '/admin/transfers', icon: 'transfer' },
       { name: 'Interbranch Transfers', path: '/admin/ist', icon: 'transfer' },
     ],
   },

@@ -23,9 +23,28 @@ class PermissionSeeder extends Seeder
                 'archive' => ['admin'],
             ],
             'role_assignment' => [
+                'read'    => ['admin'],
                 'create'  => ['admin'],
                 'update'  => ['admin'],
                 'archive' => ['admin'],
+            ],
+            // Permission audit log viewer (/admin/permission-audit) — admin only.
+            'permission_audit' => [
+                'read' => ['admin'],
+            ],
+            // System Configuration page (/admin/config) — admin only. Hosts user
+            // management + system settings.
+            'system_configuration' => [
+                'read'   => ['admin'],
+                'update' => ['admin'],
+            ],
+            // Main dashboard (/admin/dashboard) — every role has a landing dashboard.
+            'dashboard_access' => [
+                'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+            ],
+            // Analytics dashboard (/admin/analytics).
+            'analytics_dashboard' => [
+                'read' => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
             ],
             'category_management' => [
                 'read'    => ['admin', 'inventory_analyst', 'auditor'],
@@ -110,6 +129,13 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'archive' => ['admin'],
             ],
+            // Customer Registry (/admin/customers).
+            'customer_management' => [
+                'read'    => ['admin', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'archive' => ['admin'],
+            ],
             'delivery_receipt_generation' => [
                 'read'    => ['admin', 'branch_manager', 'warehouse_personnel', 'auditor'],
                 'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
@@ -128,6 +154,14 @@ class PermissionSeeder extends Seeder
                 'create'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
                 'update'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
                 'approve' => ['admin', 'inventory_analyst'],
+            ],
+            // Inventory Monitoring read-only view (/admin/inventory).
+            'inventory_monitoring' => [
+                'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+            ],
+            // Stock Transfers legacy admin page (/admin/transfers).
+            'stock_transfers' => [
+                'read' => ['admin'],
             ],
             'inventory_adjustments' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
