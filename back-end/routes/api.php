@@ -169,8 +169,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::put('/role-permissions', [PermissionController::class, 'updateRoleDefaults']);
         Route::get('/users/{userId}/permissions', [PermissionController::class, 'userPermissions']);
         Route::put('/users/{userId}/permissions', [PermissionController::class, 'updateUserPermissions']);
-        Route::get('/permission-audit-logs', [PermissionController::class, 'auditLogs']);
     });
+    // Permission Audit is read-only log viewing, so it is delegable via its own
+    // permission (unlike the editor endpoints above, which stay admin-only to
+    // avoid privilege escalation). Admin is always allowed via the resolver bypass.
+    Route::middleware('permission:permission_audit,read')
+        ->get('/permission-audit-logs', [PermissionController::class, 'auditLogs']);
 
     /*
     |--------------------------------------------------------------------------
