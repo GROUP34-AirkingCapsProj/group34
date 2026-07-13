@@ -81,13 +81,16 @@ class NavBundleTest extends TestCase
 
     public function test_active_bundles_exist(): void
     {
-        $count = NavPermissionBundle::where('is_active', true)->count();
+        // Every route the seeder defines must exist as an active bundle. Asserting a
+        // subset (not an exact total) keeps this robust to the static test-DB dump
+        // carrying extra legacy bundles.
+        $seededRoutes = array_map(fn ($row) => $row[1], NavBundleSeeder::bundles());
+        $activeRoutes = NavPermissionBundle::where('is_active', true)->pluck('route_path')->all();
 
-        $this->assertEquals(
-            20,
-            $count,
-            "Expected 20 active nav bundles, found {$count}"
-        );
+        $missing = array_values(array_diff($seededRoutes, $activeRoutes));
+
+        $this->assertSame([], $missing,
+            'Seeded nav bundles missing/inactive in DB: ' . implode(', ', $missing));
     }
 
     // -----------------------------------------------------------------------
@@ -128,11 +131,13 @@ class NavBundleTest extends TestCase
 
         $this->assertIsArray($data, 'Response data must be an array');
 
-        $this->assertCount(
-            20,
-            $data,
-            'Expected 20 bundles in API response, got ' . count($data)
-        );
+        // The endpoint must expose (at least) every seeded bundle route.
+        $seededRoutes = array_map(fn ($row) => $row[1], NavBundleSeeder::bundles());
+        $returnedRoutes = array_column($data, 'route_path');
+        $missing = array_values(array_diff($seededRoutes, $returnedRoutes));
+
+        $this->assertSame([], $missing,
+            'Nav-bundle endpoint missing seeded routes: ' . implode(', ', $missing));
     }
 
     public function test_each_bundle_in_response_has_permissions_array(): void

@@ -14,28 +14,36 @@ class NavBundleSeeder extends Seeder
      * Each entry: [name, route_path, sidebar_section, sidebar_icon, feature, action]
      * sort_order is 0-based index within the section (order of appearance below).
      */
-    private static function bundles(): array
+    public static function bundles(): array
     {
         return [
-            // ADMINISTRATION (sort 0–1)
-            // User Management was removed — it now lives inside System Configuration
-            // (/admin/config), which is admin-only and has no standalone nav bundle.
+            // ADMINISTRATION
+            ['Dashboard',            '/admin/dashboard',            'ADMINISTRATION',          'dashboard',          'dashboard_access',        'read'],
+            ['Analytics Dashboard',  '/admin/analytics',            'ADMINISTRATION',          'analytics',          'analytics_dashboard',     'read'],
+            ['Role & Permissions',   '/admin/roles',                'ADMINISTRATION',          'roles',              'role_assignment',         'read'],
+            ['Permission Audit',     '/admin/permission-audit',     'ADMINISTRATION',          'audit',              'permission_audit',        'read'],
             ['Location Management',  '/admin/branches',             'ADMINISTRATION',          'location',           'location_based_inventory','read'],
+            ['System Configuration', '/admin/config',               'ADMINISTRATION',          'config',             'system_configuration',    'read'],
             ['Archive Management',   '/admin/archive',              'ADMINISTRATION',          'archive',            'archive_viewing',         'read'],
 
             // PROCUREMENT & PLANNING
+            ['Budget Management',    '/admin/budget-management',    'PROCUREMENT & PLANNING',  'budget',             'budget_verification',     'read'],
             ['Purchase Requests',    '/admin/purchase-requests',    'PROCUREMENT & PLANNING',  'approval',           'purchase_request_creation','read'],
             ['Purchase Orders',      '/admin/draft-po-creator',     'PROCUREMENT & PLANNING',  'procurement',        'purchase_order_creation', 'read'],
+            ['PO Recommendation',    '/admin/po-recommendations',   'PROCUREMENT & PLANNING',  'po',                 'po_recommendations',      'read'],
             ['Supplier Network',     '/admin/suppliers',            'PROCUREMENT & PLANNING',  'supplier',           'supplier_management',     'read'],
             ['Item Master',          '/admin/items',                'PROCUREMENT & PLANNING',  'items',              'item_master_management',  'read'],
             ['Categories and Brands','/admin/categories',           'PROCUREMENT & PLANNING',  'category',           'category_management',     'read'],
 
-            // INVENTORY INTELLIGENCE (sort 0–1)
+            // INVENTORY INTELLIGENCE
+            ['Inventory Monitoring', '/admin/inventory',            'INVENTORY INTELLIGENCE',  'inventory',          'inventory_monitoring',    'read'],
             ['Transfer Requests',    '/admin/transfer-requests',    'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
+            ['Stock Transfers',      '/admin/transfers',            'INVENTORY INTELLIGENCE',  'transfer',           'stock_transfers',         'read'],
             ['Interbranch Transfers','/admin/ist',                  'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
 
-            // SALES & LOGISTICS (sort 0–1)
+            // SALES & LOGISTICS
             ['Transactions',         '/admin/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'sales_recording',     'read'],
+            ['Customer Registry',    '/admin/customers',            'SALES & LOGISTICS',       'customers',          'customer_management', 'read'],
             ['Scan Barcode',         '/admin/inventory-operation',  'SALES & LOGISTICS',       'scan',               'barcode_inventory_processing', 'create'],
 
             // COMPLIANCE & SUPPORT

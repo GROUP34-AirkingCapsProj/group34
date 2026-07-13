@@ -10,6 +10,8 @@
  * permission catalog + NavBundleSeeder.
  */
 export const EXTRA_FEATURES_BY_ROUTE = {
+  '/admin/config':              ['user_account_management'],
+  '/admin/draft-po-creator':    ['purchase_order_verification'],
   '/admin/archive':             ['data_archiving'],
   '/admin/purchase-requests':   ['purchase_request_approval'],
   '/admin/suppliers':           ['item_supplier_mapping'],
@@ -21,11 +23,11 @@ export const EXTRA_FEATURES_BY_ROUTE = {
 };
 
 /**
- * Features that belong to no navigation page (e.g. user/role management lives in
- * admin-only System Configuration). Surfaced in a synthetic "Other / No page" row
- * so they stay reachable.
+ * Features that belong to no navigation page at all. Surfaced in a synthetic
+ * "Other / No page" row so they stay reachable. Currently every feature has a
+ * home (page required-feature or an extra above), so this is empty.
  */
-export const ORPHAN_FEATURES = ['user_account_management', 'role_assignment'];
+export const ORPHAN_FEATURES = [];
 
 /** Display order for sidebar-section headers in the Navigation Access list. */
 export const SECTION_ORDER = [
