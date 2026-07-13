@@ -567,6 +567,19 @@ class PurchaseOrderController extends Controller
             // Destination warehouse for this line (per-line warehouse PO shape)
             'location_id'        => $detail->location_id,
             'location_name'      => $detail->location?->location_name,
+            // Full destination-warehouse location so the UI can show each line's
+            // real delivery address (multi-warehouse POs show one block/page each).
+            'location'           => $detail->location ? [
+                'location_id'    => $detail->location->location_id,
+                'location_name'  => $detail->location->location_name,
+                'address'        => $detail->location->address,
+                'city'           => $detail->location->city,
+                'province'       => $detail->location->province,
+                'region'         => $detail->location->region,
+                'contact_number' => $detail->location->contact_number,
+                'email'          => $detail->location->email,
+                'manager_name'   => $detail->location->manager_name,
+            ] : null,
             // Flat product fields (legacy — kept for backward compat)
             'product_code'       => $p?->product_code,
             'product_name'       => $p?->product_name,
