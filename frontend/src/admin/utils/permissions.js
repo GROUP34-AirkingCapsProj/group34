@@ -34,6 +34,14 @@ export const FEATURE_GROUPS = [
 const prettyFeature = (f) =>
   f.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
+/** Human-readable title for a feature key (e.g. "item_master_management" → "Item Master Management"). */
+export const featureTitle = prettyFeature;
+
+/** Every feature key known to the app, flattened from FEATURE_GROUPS. */
+export function allFeatures() {
+  return FEATURE_GROUPS.flatMap((g) => g.features);
+}
+
 /**
  * Group a flat catalog into
  * [{label, features:[{feature, title, actions:{action: permission_id}}]}]
