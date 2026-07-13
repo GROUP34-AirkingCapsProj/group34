@@ -24,6 +24,12 @@ import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
+import {
+  linesForLocation as bsrLinesForLocation,
+  locationAmount as bsrLocationAmount,
+  locationItemCount as bsrLocationItemCount,
+  warehouseBreakdown as bsrWarehouseBreakdown,
+} from '../utils/poReceivingTotals';
 import '../styles/barcode_scan.css';
 import '../styles/item_management.css';
 import '../styles/po_receiving.css';
@@ -491,18 +497,6 @@ const bsrGetDeliveryLocation = (po) =>
 const bsrGetItemCount = (po) =>
   Array.isArray(po?.details) ? po.details.length : '—';
 const bsrIsSerialized = (line) => line?.product?.product_type === 'appliance';
-
-/**
- * Lines on a PO destined for a given warehouse — a receiver at Warehouse A should only see/receive
- * the lines whose `location_id` (or the legacy PO header `location_id`, for single-warehouse POs
- * predating per-line warehouses) matches their own warehouse. Pass `locationId` null/empty for
- * centralized/admin users who are not locked to one warehouse — they may receive any line.
- */
-const bsrLinesForLocation = (po, locationId) => {
-  const details = Array.isArray(po?.details) ? po.details : [];
-  if (!locationId) return details;
-  return details.filter((d) => String(d.location_id ?? po?.location_id) === String(locationId));
-};
 
 const BsrBarcodeIcon = ({ size = 26, color = '#9810FA' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
