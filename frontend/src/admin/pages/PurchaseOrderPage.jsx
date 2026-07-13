@@ -1158,53 +1158,83 @@ const PurchaseOrderPage = () => {
                       </div>
                     </div>
 
-                    {/* Deliver To (Warehouse) — where the supplier delivers each item */}
-                    <div className="po-doc-ship-to" style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6, border: '1.5px solid #000', padding: '8px 12px', background: '#f4f4f4' }}>
-                      <strong style={{ display: 'block', marginBottom: 2, textTransform: 'uppercase' }}>
-                        Deliver To (Warehouse): {deliverWarehouseNames.length ? deliverWarehouseNames.join(', ') : (shipToName || '—')}
-                      </strong>
-                      {shipToAddress && <div>{shipToAddress}</div>}
-                    </div>
+                    {/* Delivery pages — one self-contained page per destination warehouse */}
+                    {(() => {
+                      const locationsById = Object.fromEntries(
+                        (locations || []).map(l => [String(l.location_id ?? l.id), l])
+                      );
+                      const rows = isNewShapePR
+                        ? lineItems.map(li => ({ location_id: li.location_id, warehouse_name: li.warehouse_name }))
+                        : [{ location_id: selectedPR?.location?.location_id, warehouse_name: selectedPR?.location?.location_name }];
+                      let previewLocs = distinctDeliverLocations(rows, locationsById);
+                      if (!previewLocs.length) previewLocs = [{ location_id: '__none__', name: shipToName || '—', address: shipToAddress || null }];
+                      const itemsFor = (loc) => (
+                        isNewShapePR
+                          ? lineItems.filter(li => String(li.location_id ?? '__none__') === loc.location_id)
+                          : lineItems
+                      );
+                      return previewLocs.map((loc, pi) => {
+                        const pageItems = itemsFor(loc);
+                        const pageTotal = pageItems.reduce((s, li) => s + (Number(li.subtotal) || 0), 0);
+                        return (
+                          <div key={loc.location_id + '-' + pi} style={pi > 0 ? { marginTop: 24, paddingTop: 24, borderTop: '2px dashed #94a3b8' } : undefined}>
+                            {previewLocs.length > 1 && (
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>
+                                Page {pi + 1} of {previewLocs.length}
+                              </div>
+                            )}
 
-                    {/* Line Items — grouped by destination warehouse (mirrors the export) */}
-                    <div className="po-doc-details-label">Details</div>
-                    <table className="po-doc-table">
-                      <thead>
-                        <tr>
-                          <th>Quantity</th>
-                          <th>Unit</th>
-                          <th>Model Code</th>
-                          <th>Description</th>
-                          <th>Unit Price</th>
-                          <th>Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(isNewShapePR ? Object.values(groupedByWarehouse) : [{ warehouse_name: locationName, items: lineItems }]).map((grp, gi) => (
-                          <React.Fragment key={gi}>
-                            <tr>
-                              <td colSpan={6} style={{ background: '#f0f0f0', fontWeight: 700 }}>Deliver To: {grp.warehouse_name || '—'}</td>
-                            </tr>
-                            {grp.items.map((li, idx) => (
-                              <tr key={`${gi}-${idx}`}>
-                                <td>{li.quantity_ordered}</td>
-                                <td>{getUnitForExport(li)}</td>
-                                <td>{li.model_code || '—'}</td>
-                                <td>{getDescriptionForExport(li)}</td>
-                                <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
-                                <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
-                              </tr>
-                            ))}
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td colSpan={5} style={{ textAlign: 'right' }}>Total Amount {'→'}</td>
-                          <td><strong>₱{poTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                            {/* Manual Ship-To = header info (same on every page) */}
+                            {(shipToName || shipToAddress) && (
+                              <div style={{ marginBottom: 10, fontSize: 12, lineHeight: 1.5, border: '1px dashed #94a3b8', padding: '6px 10px' }}>
+                                <strong style={{ display: 'block', textTransform: 'uppercase' }}>Ship To: {shipToName || ''}</strong>
+                                {shipToAddress && <div>{shipToAddress}</div>}
+                              </div>
+                            )}
+
+                            {/* Deliver To = this warehouse's real address */}
+                            <div className="po-doc-ship-to" style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6, border: '1.5px solid #000', padding: '8px 12px', background: '#f4f4f4' }}>
+                              <strong style={{ display: 'block', marginBottom: 2, textTransform: 'uppercase' }}>
+                                Deliver To (Warehouse): {loc.name || '—'}
+                              </strong>
+                              {loc.address && <div>{loc.address}</div>}
+                            </div>
+
+                            <div className="po-doc-details-label">Details</div>
+                            <table className="po-doc-table">
+                              <thead>
+                                <tr>
+                                  <th>Quantity</th>
+                                  <th>Unit</th>
+                                  <th>Model Code</th>
+                                  <th>Description</th>
+                                  <th>Unit Price</th>
+                                  <th>Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {pageItems.map((li, idx) => (
+                                  <tr key={`${pi}-${idx}`}>
+                                    <td>{li.quantity_ordered}</td>
+                                    <td>{getUnitForExport(li)}</td>
+                                    <td>{li.model_code || '—'}</td>
+                                    <td>{getDescriptionForExport(li)}</td>
+                                    <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
+                                    <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr>
+                                  <td colSpan={5} style={{ textAlign: 'right' }}>Total Amount {'→'}</td>
+                                  <td><strong>₱{pageTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        );
+                      });
+                    })()}
 
                     {/* Notes / References */}
                     <div className="po-doc-notes">
