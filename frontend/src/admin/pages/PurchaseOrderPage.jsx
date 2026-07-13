@@ -1408,14 +1408,35 @@ const PurchaseOrderPage = () => {
                     {d.supplier?.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{d.supplier.email}</span></div>}
                     {d.supplier?.tin            && <div className="po-detail-address-row"><span className="po-detail-address-label">TIN</span><span className="po-detail-address-value">{d.supplier.tin}</span></div>}
                   </div>
-                  <div className="po-detail-address-block">
-                    <div className="po-detail-address-block-title">Deliver To (Warehouse)</div>
-                    <div className="po-detail-address-row"><span className="po-detail-address-label">Warehouse</span><span className="po-detail-address-value po-detail-address-value--name">{[...new Set((details || []).map(x => x.location_name || x.location?.location_name).filter(Boolean))].join(', ') || d.location?.location_name || '—'}</span></div>
-                    {(d.location?.address || d.location?.city || d.location?.province || d.location?.region) && <div className="po-detail-address-row"><span className="po-detail-address-label">Address</span><span className="po-detail-address-value">{[d.location.address, d.location.city, d.location.province, d.location.region].filter(Boolean).join(', ')}</span></div>}
-                    {d.location?.contact_number && <div className="po-detail-address-row"><span className="po-detail-address-label">Phone</span><span className="po-detail-address-value">{d.location.contact_number}</span></div>}
-                    {d.location?.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{d.location.email}</span></div>}
-                    {d.location?.manager_name   && <div className="po-detail-address-row"><span className="po-detail-address-label">Manager</span><span className="po-detail-address-value">{d.location.manager_name}</span></div>}
-                  </div>
+                  {(() => {
+                    const deliverLocs = distinctDeliverLocations(details);
+                    const blocks = (deliverLocs.length && !(deliverLocs.length === 1 && deliverLocs[0].location_id === '__none__'))
+                      ? deliverLocs
+                      : [{
+                          location_id:    String(d.location?.location_id ?? '__none__'),
+                          name:           d.location?.location_name || '—',
+                          address:        [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || null,
+                          contact_number: d.location?.contact_number || null,
+                          email:          d.location?.email || null,
+                          manager_name:   d.location?.manager_name || null,
+                        }];
+                    return (
+                      <div className="po-detail-address-block">
+                        <div className="po-detail-address-block-title">
+                          Deliver To (Warehouse){blocks.length > 1 ? ` — ${blocks.length} destinations` : ''}
+                        </div>
+                        {blocks.map((loc, i) => (
+                          <div key={loc.location_id + '-' + i} style={i > 0 ? { marginTop: 10, paddingTop: 10, borderTop: '1px dashed #cbd5e1' } : undefined}>
+                            <div className="po-detail-address-row"><span className="po-detail-address-label">Warehouse</span><span className="po-detail-address-value po-detail-address-value--name">{loc.name}</span></div>
+                            {loc.address        && <div className="po-detail-address-row"><span className="po-detail-address-label">Address</span><span className="po-detail-address-value">{loc.address}</span></div>}
+                            {loc.contact_number && <div className="po-detail-address-row"><span className="po-detail-address-label">Phone</span><span className="po-detail-address-value">{loc.contact_number}</span></div>}
+                            {loc.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{loc.email}</span></div>}
+                            {loc.manager_name   && <div className="po-detail-address-row"><span className="po-detail-address-label">Manager</span><span className="po-detail-address-value">{loc.manager_name}</span></div>}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="po-detail-info-grid">
