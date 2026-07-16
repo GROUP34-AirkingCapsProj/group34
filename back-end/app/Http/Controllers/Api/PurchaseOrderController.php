@@ -255,17 +255,30 @@ class PurchaseOrderController extends Controller
 
             $header = Arr::except($validated, ['details']);
             if (!empty($header)) {
-                $wasCompleted = $po->status_id !== 11
-                    && isset($validated['status_id'])
-                    && (int) $validated['status_id'] === 11;
+                $prevStatus  = (int) $po->status_id;
+                $nextStatus  = isset($validated['status_id']) ? (int) $validated['status_id'] : $prevStatus;
+                $wasReserved = in_array($prevStatus, [8, 10, 11, 12], true);
+                $entersReserve   = !$wasReserved && in_array($nextStatus, [8, 10, 11, 12], true);
+                $entersComplete  = $prevStatus !== 11 && $nextStatus === 11;
+                $entersRejected  = $prevStatus !== 9 && $nextStatus === 9;
 
                 $po->update($header);
 
-                if ($wasCompleted && $po->pr_id) {
-                    app(BudgetService::class)->spend(
-                        $po->fresh()->load('purchaseRequest'),
-                        $request->user()?->user_id
-                    );
+                $budgetService = app(BudgetService::class);
+
+                // Reserve on the transition into a committed state (Approved/Authorized),
+                // or defensively just before spend if the PO jumped straight to Completed
+                // without ever reserving. commitPo is idempotent per (budget, po).
+                if ($entersReserve || ($entersComplete && !$wasReserved)) {
+                    $budgetService->commitPo($po->fresh()->load('details'), $request->user()?->user_id);
+                }
+
+                if ($entersComplete) {
+                    $budgetService->spend($po->fresh()->load('details'), $request->user()?->user_id);
+                }
+
+                if ($entersRejected && $wasReserved) {
+                    $budgetService->releaseCommitment($po->fresh(), 'PO ' . $po->po_number . ' rejected', $request->user()?->user_id);
                 }
             }
 
@@ -297,6 +310,12 @@ class PurchaseOrderController extends Controller
         } catch (ValidationException $e) {
             DB::rollBack();
             return $this->validationError($e->errors());
+        } catch (\App\Exceptions\UnverifiedBudgetException $e) {
+            DB::rollBack();
+            return $this->error($e->getMessage(), 422);
+        } catch (\App\Exceptions\InsufficientBudgetException $e) {
+            DB::rollBack();
+            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to update purchase order: ' . $e->getMessage(), 500);
@@ -349,12 +368,18 @@ class PurchaseOrderController extends Controller
             return $this->validationError($e->errors());
         }
 
+        $originalStatus = (int) $po->status_id;
+
         $po->update([
             'verification_status' => 'rejected',
             'verified_by'         => $request->user()->user_id,
             'verified_at'         => now(),
             'verification_note'   => $validated['reason'],
         ]);
+
+        if (in_array($originalStatus, [8, 10, 11, 12], true)) {
+            app(BudgetService::class)->releaseCommitment($po->fresh(), 'PO ' . $po->po_number . ' rejected', $request->user()?->user_id);
+        }
 
         RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'verification_changed');
 
