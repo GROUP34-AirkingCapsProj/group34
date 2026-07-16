@@ -78,10 +78,11 @@ class BudgetService
         DB::transaction(function () use ($po, $budget, $amount, $userId) {
             $locked = BudgetAllocation::whereKey($budget->budget_id)->lockForUpdate()->firstOrFail();
 
-            if (BudgetTransaction::where('po_id', $po->po_id)
-                ->where('budget_id', $locked->budget_id)
-                ->where('txn_type', BudgetTransaction::TYPE_COMMIT)->exists()) {
-                return; // already reserved this group (re-approval / retry)
+            // Idempotent per (budget, po): skip only if this PO still holds a live
+            // reservation on this budget. A PO whose reservation was fully released
+            // (e.g. rejected then re-approved) must be able to reserve again.
+            if ($this->outstandingForPo($locked->budget_id, $po->po_id) > 0) {
+                return;
             }
             if ($locked->verification_status !== 'verified') {
                 throw new UnverifiedBudgetException($locked->period_label, $locked->verification_status);

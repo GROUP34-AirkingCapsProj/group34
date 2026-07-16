@@ -368,18 +368,12 @@ class PurchaseOrderController extends Controller
             return $this->validationError($e->errors());
         }
 
-        $originalStatus = (int) $po->status_id;
-
         $po->update([
             'verification_status' => 'rejected',
             'verified_by'         => $request->user()->user_id,
             'verified_at'         => now(),
             'verification_note'   => $validated['reason'],
         ]);
-
-        if (in_array($originalStatus, [8, 10, 11, 12], true)) {
-            app(BudgetService::class)->releaseCommitment($po->fresh(), 'PO ' . $po->po_number . ' rejected', $request->user()?->user_id);
-        }
 
         RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'verification_changed');
 

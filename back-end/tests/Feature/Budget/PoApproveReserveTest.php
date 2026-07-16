@@ -69,4 +69,16 @@ class PoApproveReserveTest extends BudgetTestCase
         $budget = DB::table('budget_allocations')->where('location_id', $this->locationId)->first();
         $this->assertSame('0.00', number_format((float) $budget->committed, 2, '.', ''));
     }
+
+    public function test_reapprove_after_reject_reserves_again(): void
+    {
+        $po = $this->makeVerifiedPoWithLine(4000);
+        $admin = $this->makeUser('admin');
+        $this->actingAs($admin)->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 8])->assertOk();
+        $this->actingAs($admin)->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 9])->assertOk();
+        $this->actingAs($admin)->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 8])->assertOk();
+
+        $budget = \Illuminate\Support\Facades\DB::table('budget_allocations')->where('location_id', $this->locationId)->first();
+        $this->assertSame('4000.00', number_format((float) $budget->committed, 2, '.', ''), 're-approval re-reserves');
+    }
 }
