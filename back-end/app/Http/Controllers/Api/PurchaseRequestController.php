@@ -619,8 +619,8 @@ class PurchaseRequestController extends Controller
     }
 
     /**
-     * Archive (soft-delete) a PR. Approved/partially-converted PRs release
-     * their outstanding budget commitment back to available.
+     * Archive (soft-delete) a PR. PRs no longer hold budget reservations
+     * (reservation is PO-anchored), so archiving a PR is a plain soft-delete.
      */
     public function destroy(Request $request, $id)
     {
@@ -629,10 +629,7 @@ class PurchaseRequestController extends Controller
             return $this->notFound('Purchase request not found');
         }
 
-        DB::transaction(function () use ($pr, $request) {
-            $this->budgetService->releaseOutstanding($pr, 'PR archived', $request->user()?->user_id);
-            $pr->delete();
-        });
+        $pr->delete();
 
         $targets = $pr->details()->whereNotNull('location_id')->distinct()->pluck('location_id');
         if ($targets->isEmpty() && $pr->location_id) { $targets = collect([$pr->location_id]); }
