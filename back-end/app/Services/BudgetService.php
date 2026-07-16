@@ -47,6 +47,88 @@ class BudgetService
     }
 
     /**
+     * Reserve budget for an approved PO, per destination warehouse. Row-locked,
+     * idempotent per (budget_id, po_id); requires a verified active budget with
+     * enough available. Throws Unverified/Insufficient. PR-agnostic (direct POs too).
+     */
+    public function commitPo(PurchaseOrder $po, ?int $userId = null): void
+    {
+        $po->loadMissing('details');
+        $groups = $po->details->isNotEmpty()
+            ? $po->details->groupBy(fn ($d) => (int) ($d->location_id ?? $po->location_id))
+            : collect([(int) $po->location_id => collect()]);
+
+        foreach ($groups as $locationId => $lines) {
+            $amount = $lines->isNotEmpty()
+                ? round((float) $lines->sum('subtotal'), 2)
+                : round((float) $po->total_amount, 2);
+            $this->commitPoGroup($po, (int) $locationId, $amount, $userId);
+        }
+    }
+
+    /** One warehouse group of a PO reservation. */
+    private function commitPoGroup(PurchaseOrder $po, int $locationId, float $amount, ?int $userId): void
+    {
+        $budget = $this->resolveActiveBudget($locationId);
+        if (!$budget) {
+            $whName = \App\Models\Location::where('location_id', $locationId)->value('location_name');
+            throw new UnverifiedBudgetException($whName ?? "warehouse #{$locationId}", 'pending');
+        }
+
+        DB::transaction(function () use ($po, $budget, $amount, $userId) {
+            $locked = BudgetAllocation::whereKey($budget->budget_id)->lockForUpdate()->firstOrFail();
+
+            if (BudgetTransaction::where('po_id', $po->po_id)
+                ->where('budget_id', $locked->budget_id)
+                ->where('txn_type', BudgetTransaction::TYPE_COMMIT)->exists()) {
+                return; // already reserved this group (re-approval / retry)
+            }
+            if ($locked->verification_status !== 'verified') {
+                throw new UnverifiedBudgetException($locked->period_label, $locked->verification_status);
+            }
+
+            $utilBefore = $this->utilization($locked);
+            $available = (float) $locked->total_budget - (float) $locked->committed - (float) $locked->spent;
+            if ($amount > $available) {
+                throw new InsufficientBudgetException($locked->period_label, $amount, $available);
+            }
+
+            $this->txn($locked, BudgetTransaction::TYPE_COMMIT, $amount, $po->pr_id, $po->po_id, $userId,
+                'PO ' . $po->po_number . ' approved');
+            $locked->committed = round((float) $locked->committed + $amount, 2);
+            $locked->save();
+
+            $this->maybeAlert($locked, $utilBefore);
+        });
+    }
+
+    /** Net reservation still held by a PO on a budget: Σcommit − Σrelease (po_id-keyed). */
+    private function outstandingForPo(int $budgetId, int $poId): float
+    {
+        $commits = (float) BudgetTransaction::where('budget_id', $budgetId)
+            ->where('po_id', $poId)->where('txn_type', BudgetTransaction::TYPE_COMMIT)->sum('amount');
+        $releases = (float) BudgetTransaction::where('budget_id', $budgetId)
+            ->where('po_id', $poId)->where('txn_type', BudgetTransaction::TYPE_RELEASE)->sum('amount');
+
+        return round($commits - $releases, 2);
+    }
+
+    /** The budget a PO reserved against for a warehouse: the one with a COMMIT txn for this po_id at that location. */
+    private function resolveBudgetForPo(int $poId, int $locationId): ?int
+    {
+        $committedBudgetIds = BudgetTransaction::where('po_id', $poId)
+            ->where('txn_type', BudgetTransaction::TYPE_COMMIT)
+            ->distinct()->pluck('budget_id');
+        if ($committedBudgetIds->isEmpty()) {
+            return null;
+        }
+        $match = BudgetAllocation::whereIn('budget_id', $committedBudgetIds)
+            ->where('location_id', $locationId)->value('budget_id');
+
+        return $match ? (int) $match : null;
+    }
+
+    /**
      * Legacy single-budget commit — commits the PR's whole estimated_total to
      * its header budget_id. Kept for pre-existing single-warehouse PRs.
      */
