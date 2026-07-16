@@ -116,7 +116,7 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->assertStatus(201);
     }
 
-    public function test_approve_commits_via_ledger(): void
+    public function test_approve_validates_availability_but_reserves_nothing(): void
     {
         $admin = $this->makeUser('admin');
         $budget = $this->makeBudget(10000);
@@ -127,8 +127,10 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->assertSuccessful();
 
         $budget->refresh();
-        $this->assertSame('5000.00', (string) $budget->committed);
-        $this->assertSame(1, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'commit')->count());
+        $this->assertSame(14, (int) $pr->fresh()->status_id);
+        // Reservation now happens at PO approval, not PR approval — a PR is only a request.
+        $this->assertSame('0.00', (string) $budget->committed);
+        $this->assertSame(0, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'commit')->count());
     }
 
     public function test_approve_blocks_when_funds_consumed_since_submission(): void
@@ -137,9 +139,19 @@ class BudgetEnforcementTest extends BudgetTestCase
         $budget = $this->makeBudget(10000);
         $pr = $this->makePr($budget, 6000, 13);
 
-        // Another PR ate the funds between submission and approval.
-        $rival = $this->makePr($budget, 7000, 14);
-        app(BudgetService::class)->commit($rival);
+        // Another PO ate the funds between submission and approval.
+        $rivalPr = $this->makePr($budget, 0, 14);
+        $rivalPo = $this->makePo($rivalPr, 7000, 7);
+        DB::table('purchase_order_details')->insert([
+            'po_id'            => $rivalPo->po_id,
+            'product_id'       => $this->makeProduct(),
+            'quantity_ordered' => 1,
+            'unit_price'       => 7000,
+            'subtotal'         => 7000,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+        app(BudgetService::class)->commitPo($rivalPo->fresh()->load('details'));
 
         $response = $this->actingAs($admin, 'sanctum')
             ->patchJson("/api/purchase-requests/{$pr->pr_id}/approve");

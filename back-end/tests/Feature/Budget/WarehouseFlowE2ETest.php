@@ -36,10 +36,10 @@ class WarehouseFlowE2ETest extends BudgetTestCase
             ],
         ])->assertStatus(201)->json('data.pr_id');
 
-        // Approve → commits 200 to A, 300 to B
+        // Approve → validates availability only; reservation now happens at PO approval.
         $this->actingAs($admin, 'sanctum')->patchJson("/api/purchase-requests/{$prId}/approve")->assertSuccessful();
-        $this->assertSame('200.00', (string) $bA->fresh()->committed);
-        $this->assertSame('300.00', (string) $bB->fresh()->committed);
+        $this->assertSame('0.00', (string) $bA->fresh()->committed);
+        $this->assertSame('0.00', (string) $bB->fresh()->committed);
 
         // Convert → ONE PO with per-line warehouses
         $this->actingAs($admin, 'sanctum')->postJson("/api/purchase-requests/{$prId}/convert", [
@@ -51,7 +51,14 @@ class WarehouseFlowE2ETest extends BudgetTestCase
         $pos = PurchaseOrder::where('pr_id', $prId)->get();
         $this->assertCount(1, $pos);
         $po = $pos->first();
-        $po->update(['verification_status' => 'verified']); // auditor gate for receiving
+        $po->update(['verification_status' => 'verified']); // auditor gate for approval/receiving
+
+        // Approve the PO → commits 200 to A, 300 to B (per warehouse group).
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 8])
+            ->assertSuccessful();
+        $this->assertSame('200.00', (string) $bA->fresh()->committed);
+        $this->assertSame('300.00', (string) $bB->fresh()->committed);
 
         // Receive warehouse A's lines → settles A only; PO Partially Received.
         $aLines = \App\Models\PurchaseOrderDetail::where('po_id', $po->po_id)->where('location_id', $whA)->get();
