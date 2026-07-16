@@ -460,12 +460,8 @@ class PurchaseRequestController extends Controller
 
         try {
             DB::transaction(function () use ($pr, $request, $hasLineWarehouses) {
-                $pr->update([
-                    'status_id'    => 14,
-                    'approved_by'  => $request->user()->user_id,
-                    'approval_date'=> today(),
-                ]);
-
+                // Validate availability WITHOUT reserving — reservation now happens
+                // at PO approval. A PR is only a request.
                 if ($hasLineWarehouses) {
                     $groups = $pr->details->groupBy('location_id');
                     foreach ($groups as $locId => $lines) {
@@ -475,11 +471,27 @@ class PurchaseRequestController extends Controller
                             $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
                             throw new UnverifiedBudgetException($whName ?? "warehouse #{$locId}", 'pending');
                         }
-                        $this->budgetService->commitGroup($pr, $budget, $subtotal, $request->user()->user_id);
+                        if (!$this->budgetService->hasAvailable($budget, $subtotal)) {
+                            $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
+                            throw new InsufficientBudgetException($budget->period_label, $subtotal, $available);
+                        }
                     }
                 } else {
-                    $this->budgetService->commit($pr, $request->user()->user_id);
+                    $budget = \App\Models\BudgetAllocation::find($pr->budget_id);
+                    if (!$budget || $budget->verification_status !== 'verified') {
+                        throw new UnverifiedBudgetException($budget?->period_label ?? 'budget', $budget?->verification_status ?? 'pending');
+                    }
+                    if (!$this->budgetService->hasAvailable($budget, (float) $pr->estimated_total)) {
+                        $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
+                        throw new InsufficientBudgetException($budget->period_label, (float) $pr->estimated_total, $available);
+                    }
                 }
+
+                $pr->update([
+                    'status_id'    => 14,
+                    'approved_by'  => $request->user()->user_id,
+                    'approval_date'=> today(),
+                ]);
             });
         } catch (UnverifiedBudgetException $e) {
             return $this->error($e->getMessage(), 422);
