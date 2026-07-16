@@ -221,47 +221,39 @@ class BudgetService
     }
 
     /**
-     * Record actual spend for a completed PO and consume the PR's commitment.
-     * Idempotent per PO (a second call is a no-op). For fully-converted PRs
-     * (status 14, converted_to_po_id = this PO) any estimate surplus is
-     * auto-returned to available — or when the PO fully covers its warehouse
-     * group's PR lines.
+     * Record actual spend for a received PO and release the PO's own reservation.
+     * Idempotent per (po_id[, budget_id]). PR-agnostic — direct POs settle too.
      */
     public function spend(PurchaseOrder $po, ?int $userId = null): void
     {
-        $pr = $po->purchaseRequest;
-        if (!$pr) {
-            return;
-        }
-
         $po->loadMissing('details');
-        $groups = $po->details->groupBy(fn ($d) => (int) ($d->location_id ?? $po->location_id));
+        $groups = $po->details->isNotEmpty()
+            ? $po->details->groupBy(fn ($d) => (int) ($d->location_id ?? $po->location_id))
+            : collect([(int) $po->location_id => collect()]);
 
-        // Single-warehouse / legacy / no-detail PO → settle the whole PO against one
-        // budget exactly as before (preserves all existing single-warehouse behavior).
         if ($groups->count() <= 1) {
-            $this->spendWhole($po, $pr, $userId);
+            $this->spendWhole($po, $userId);
             return;
         }
 
-        // Multi-warehouse PO → settle each warehouse group as its lines are fully received.
         foreach ($groups as $locationId => $lines) {
             if (!$this->groupFullyReceived($lines)) {
                 continue;
             }
-            $this->spendGroup($po, $pr, (int) $locationId, $lines, $userId);
+            $this->spendGroup($po, (int) $locationId, $lines, $userId);
         }
     }
 
-    /** Legacy/single-warehouse settlement: one budget resolved from po.location_id. */
-    private function spendWhole(PurchaseOrder $po, PurchaseRequest $pr, ?int $userId): void
+    /** Single-warehouse / legacy settlement against the PO's reservation. */
+    private function spendWhole(PurchaseOrder $po, ?int $userId): void
     {
-        $budgetId = $this->resolveBudgetForLocation($pr, (int) $po->location_id);
+        $budgetId = $this->resolveBudgetForPo($po->po_id, (int) $po->location_id)
+            ?? optional($this->resolveActiveBudget((int) $po->location_id))->budget_id;
         if (!$budgetId) {
             return;
         }
 
-        DB::transaction(function () use ($po, $pr, $budgetId, $userId) {
+        DB::transaction(function () use ($po, $budgetId, $userId) {
             $budget = BudgetAllocation::whereKey($budgetId)->lockForUpdate()->first();
             if (!$budget) {
                 return;
@@ -274,61 +266,32 @@ class BudgetService
             $utilBefore = $this->utilization($budget);
 
             $amount = (float) $po->total_amount;
-            $this->txn($budget, BudgetTransaction::TYPE_SPEND, $amount, $pr->pr_id, $po->po_id, $userId,
+            $this->txn($budget, BudgetTransaction::TYPE_SPEND, $amount, $po->pr_id, $po->po_id, $userId,
                 'PO ' . $po->po_number . ' completed');
             $budget->spent = round((float) $budget->spent + $amount, 2);
 
-            $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
-            if ($outstanding < 0) {
-                Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PR {$pr->pr_id} on budget {$budget->budget_id}");
-            }
-            $released = 0.0;
-
-            $consume = round(min($outstanding, $amount), 2);
-            if ($consume > 0) {
-                $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $consume, $pr->pr_id, $po->po_id, $userId,
-                    'Commitment consumed by PO ' . $po->po_number);
-                $released += $consume;
-            }
-
-            $coversGroup = ((int) $pr->status_id === 14 && (int) $pr->converted_to_po_id === (int) $po->po_id)
-                || $this->poCoversLocationGroup($pr, $po, (int) $po->location_id);
-            if ($coversGroup) {
-                $surplus = round($outstanding - $consume, 2);
-                if ($surplus > 0) {
-                    $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $surplus, $pr->pr_id, $po->po_id, $userId,
-                        'Estimate surplus returned');
-                    $released += $surplus;
-                }
-            }
-
-            $newCommitted = round((float) $budget->committed - $released, 2);
-            if ($newCommitted < 0) {
-                Log::warning("Budget ledger anomaly: committed clamped from {$newCommitted} to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
-                $newCommitted = 0.0;
-            }
-            $budget->committed = $newCommitted;
-            $budget->save();
+            $this->releaseReservationInLock($budget, $po, $userId, 'Reservation settled by PO ' . $po->po_number);
 
             $this->maybeAlert($budget, $utilBefore);
         });
     }
 
     /** One warehouse group of a multi-warehouse PO, keyed idempotently per (po, budget). */
-    private function spendGroup(PurchaseOrder $po, PurchaseRequest $pr, int $locationId, $lines, ?int $userId): void
+    private function spendGroup(PurchaseOrder $po, int $locationId, $lines, ?int $userId): void
     {
-        $budgetId = $this->resolveBudgetForLocation($pr, $locationId);
+        $budgetId = $this->resolveBudgetForPo($po->po_id, $locationId)
+            ?? optional($this->resolveActiveBudget($locationId))->budget_id;
         if (!$budgetId) {
             return;
         }
         if (BudgetTransaction::where('po_id', $po->po_id)
             ->where('budget_id', $budgetId)
             ->where('txn_type', BudgetTransaction::TYPE_SPEND)->exists()) {
-            return; // already settled — skip the lock/transaction entirely
+            return;
         }
         $groupAmount = round((float) collect($lines)->sum('subtotal'), 2);
 
-        DB::transaction(function () use ($po, $pr, $budgetId, $locationId, $groupAmount, $userId) {
+        DB::transaction(function () use ($po, $budgetId, $groupAmount, $userId) {
             $budget = BudgetAllocation::whereKey($budgetId)->lockForUpdate()->first();
             if (!$budget) {
                 return;
@@ -336,45 +299,69 @@ class BudgetService
             if (BudgetTransaction::where('po_id', $po->po_id)
                 ->where('budget_id', $budget->budget_id)
                 ->where('txn_type', BudgetTransaction::TYPE_SPEND)->exists()) {
-                return; // this warehouse group already settled
+                return;
             }
 
             $utilBefore = $this->utilization($budget);
 
-            $this->txn($budget, BudgetTransaction::TYPE_SPEND, $groupAmount, $pr->pr_id, $po->po_id, $userId,
+            $this->txn($budget, BudgetTransaction::TYPE_SPEND, $groupAmount, $po->pr_id, $po->po_id, $userId,
                 'PO ' . $po->po_number . ' warehouse received');
             $budget->spent = round((float) $budget->spent + $groupAmount, 2);
 
-            $outstanding = $this->outstanding($budget->budget_id, $pr->pr_id);
-            if ($outstanding < 0) {
-                Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PR {$pr->pr_id} on budget {$budget->budget_id}");
-            }
-            $released = 0.0;
-            $consume = round(min($outstanding, $groupAmount), 2);
-            if ($consume > 0) {
-                $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $consume, $pr->pr_id, $po->po_id, $userId,
-                    'Commitment consumed by PO ' . $po->po_number);
-                $released += $consume;
-            }
-            if ($this->poCoversLocationGroup($pr, $po, $locationId)) {
-                $surplus = round($outstanding - $consume, 2);
-                if ($surplus > 0) {
-                    $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $surplus, $pr->pr_id, $po->po_id, $userId,
-                        'Estimate surplus returned');
-                    $released += $surplus;
-                }
-            }
-
-            $newCommitted = round((float) $budget->committed - $released, 2);
-            if ($newCommitted < 0) {
-                Log::warning("Budget ledger anomaly: committed clamped from {$newCommitted} to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
-                $newCommitted = 0.0;
-            }
-            $budget->committed = $newCommitted;
-            $budget->save();
+            $this->releaseReservationInLock($budget, $po, $userId, 'Reservation settled by PO ' . $po->po_number . ' (warehouse)');
 
             $this->maybeAlert($budget, $utilBefore);
         });
+    }
+
+    /** Release this PO's remaining reservation on an already-locked budget row, then persist. */
+    private function releaseReservationInLock(BudgetAllocation $budget, PurchaseOrder $po, ?int $userId, string $note): void
+    {
+        $outstanding = $this->outstandingForPo($budget->budget_id, $po->po_id);
+        if ($outstanding < 0) {
+            Log::warning("Budget ledger anomaly: negative outstanding {$outstanding} for PO {$po->po_id} on budget {$budget->budget_id}");
+        }
+        if ($outstanding > 0) {
+            $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $outstanding, $po->pr_id, $po->po_id, $userId, $note);
+            $newCommitted = round((float) $budget->committed - $outstanding, 2);
+            if ($newCommitted < 0) {
+                Log::warning("Budget ledger anomaly: committed clamped to 0 on budget {$budget->budget_id} (run budget:rebuild-totals)");
+                $newCommitted = 0.0;
+            }
+            $budget->committed = $newCommitted;
+        }
+        $budget->save();
+    }
+
+    /** Release a PO's outstanding reservation back to available (on reject/cancel). Returns released total. */
+    public function releaseCommitment(PurchaseOrder $po, string $note, ?int $userId = null): float
+    {
+        $budgetIds = BudgetTransaction::where('po_id', $po->po_id)
+            ->where('txn_type', BudgetTransaction::TYPE_COMMIT)
+            ->distinct()->pluck('budget_id');
+
+        $total = 0.0;
+        foreach ($budgetIds as $budgetId) {
+            $total += DB::transaction(function () use ($budgetId, $po, $note, $userId) {
+                $budget = BudgetAllocation::whereKey($budgetId)->lockForUpdate()->first();
+                if (!$budget) {
+                    return 0.0;
+                }
+                $outstanding = $this->outstandingForPo($budget->budget_id, $po->po_id);
+                if ($outstanding <= 0) {
+                    return 0.0;
+                }
+                $this->txn($budget, BudgetTransaction::TYPE_RELEASE, $outstanding, $po->pr_id, $po->po_id, $userId, $note);
+                $newCommitted = round((float) $budget->committed - $outstanding, 2);
+                if ($newCommitted < 0) {
+                    $newCommitted = 0.0;
+                }
+                $budget->committed = $newCommitted;
+                $budget->save();
+                return $outstanding;
+            });
+        }
+        return round($total, 2);
     }
 
     /** All of a warehouse group's PO lines are fully received. */
