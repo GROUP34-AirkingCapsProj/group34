@@ -5,32 +5,44 @@ namespace Tests\Feature\Budget;
 use App\Http\Controllers\Api\InventoryScanTransactionController;
 use App\Models\BudgetTransaction;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Services\BudgetService;
+use Illuminate\Support\Facades\DB;
 
 class BudgetLifecycleTest extends BudgetTestCase
 {
-    public function test_archiving_approved_pr_releases_commitment(): void
+    private function anyProductId(): int
     {
-        $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
-
-        $this->actingAs($admin, 'sanctum')
-            ->deleteJson("/api/purchase-requests/{$pr->pr_id}")
-            ->assertSuccessful();
-
-        $budget->refresh();
-        $this->assertSame('0.00', (string) $budget->committed);
-        $this->assertSoftDeleted('purchase_requests', ['pr_id' => $pr->pr_id]);
-
-        $release = BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'release')->first();
-        $this->assertNotNull($release);
-        $this->assertSame('PR archived', $release->notes);
+        return (int) (DB::table('products')->value('product_id')
+            ?? DB::table('products')->insertGetId([
+                'product_name' => 'Budget Test Product ' . uniqid(),
+                'product_code' => 'BTP-' . strtoupper(substr(uniqid(), -6)),
+                'product_type' => 'consumable',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ], 'product_id'));
     }
+
+    private function addPoLine(PurchaseOrder $po, float $subtotal, ?int $locationId = null): void
+    {
+        DB::table('purchase_order_details')->insert([
+            'po_id'            => $po->po_id,
+            'product_id'       => $this->anyProductId(),
+            'quantity_ordered' => 1,
+            'unit_price'       => $subtotal,
+            'subtotal'         => $subtotal,
+            'location_id'      => $locationId,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+    }
+
+    // NOTE: PR archive/destroy no longer holds or releases any budget commitment
+    // (reservation moved to PO approval) — the old "archiving approved pr releases
+    // commitment" test encoded behavior that has been intentionally removed.
 
     public function test_archiving_pending_pr_releases_nothing(): void
     {
@@ -58,35 +70,36 @@ class BudgetLifecycleTest extends BudgetTestCase
     {
         $admin = $this->makeUser('admin');
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
+        $pr = $this->makePr($budget, 0, 14);
         $po = $this->makePo($pr, 3800, 7);
+        $this->addPoLine($po, 3800);
         $po->update(['verification_status' => 'verified']);
         $pr->update(['converted_to_po_id' => $po->po_id]);
 
+        // Straight Pending -> Completed also reserves defensively before spending.
         $this->actingAs($admin, 'sanctum')
             ->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 11])
             ->assertSuccessful();
 
         $budget->refresh();
         $this->assertSame('3800.00', (string) $budget->spent);
-        $this->assertSame('0.00', (string) $budget->committed); // 3800 consumed + 200 surplus returned
+        $this->assertSame('0.00', (string) $budget->committed);
     }
 
     public function test_repeated_completion_update_does_not_double_spend(): void
     {
         $admin = $this->makeUser('admin');
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
+        $pr = $this->makePr($budget, 0, 14);
         $po = $this->makePo($pr, 4000, 7);
+        $this->addPoLine($po, 4000);
         $po->update(['verification_status' => 'verified']);
         $pr->update(['converted_to_po_id' => $po->po_id]);
 
         $this->actingAs($admin, 'sanctum')
             ->putJson("/api/purchase-orders/{$po->po_id}", ['status_id' => 11])->assertSuccessful();
         // Simulate the receiving flow (or a re-save) trying to finalize again:
-        app(BudgetService::class)->spend($po->fresh()->load('purchaseRequest'));
+        app(BudgetService::class)->spend($po->fresh()->load('details'));
 
         $budget->refresh();
         $this->assertSame('4000.00', (string) $budget->spent);
@@ -102,8 +115,7 @@ class BudgetLifecycleTest extends BudgetTestCase
     public function test_scan_receiving_completion_records_spend_and_consumes_commitment(): void
     {
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
+        $pr = $this->makePr($budget, 0, 14);
         $po = $this->makePo($pr, 3800, 12); // partially received
         $pr->update(['converted_to_po_id' => $po->po_id]);
 
@@ -120,6 +132,11 @@ class BudgetLifecycleTest extends BudgetTestCase
             'unit_price'       => 1900,
             'subtotal'         => 3800,
         ]);
+
+        // PO approval reserved the budget before any scan happened.
+        app(BudgetService::class)->commitPo($po->fresh()->load('details'));
+        $budget->refresh();
+        $this->assertSame('3800.00', (string) $budget->committed);
 
         $receiving = Receiving::create([
             'po_id'                   => $po->po_id,
@@ -152,7 +169,7 @@ class BudgetLifecycleTest extends BudgetTestCase
 
         $budget->refresh();
         $this->assertSame('3800.00', (string) $budget->spent);
-        $this->assertSame('0.00', (string) $budget->committed); // 3800 consumed + 200 surplus returned
+        $this->assertSame('0.00', (string) $budget->committed); // reservation released on settle
         $this->assertSame(1, BudgetTransaction::where('po_id', $po->po_id)->where('txn_type', 'spend')->count());
     }
 }

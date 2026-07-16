@@ -6,7 +6,10 @@ use App\Events\BudgetChanged;
 use App\Exceptions\InsufficientBudgetException;
 use App\Exceptions\UnverifiedBudgetException;
 use App\Models\BudgetTransaction;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequest;
 use App\Services\BudgetService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 class BudgetServiceTest extends BudgetTestCase
@@ -19,60 +22,53 @@ class BudgetServiceTest extends BudgetTestCase
         $this->service = app(BudgetService::class);
     }
 
-    public function test_commit_writes_ledger_row_and_increments_committed(): void
+    private function anyProductId(): int
     {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-
-        $this->service->commit($pr);
-
-        $budget->refresh();
-        $this->assertSame('4000.00', (string) $budget->committed);
-        $this->assertSame('0.00', (string) $budget->spent);
-
-        $txn = BudgetTransaction::where('pr_id', $pr->pr_id)->first();
-        $this->assertNotNull($txn);
-        $this->assertSame('commit', $txn->txn_type);
-        $this->assertSame('4000.00', (string) $txn->amount);
-        $this->assertEquals($budget->budget_id, $txn->budget_id);
+        return (int) (DB::table('products')->value('product_id')
+            ?? DB::table('products')->insertGetId([
+                'product_name' => 'Budget Test Product ' . uniqid(),
+                'product_code' => 'BTP-' . strtoupper(substr(uniqid(), -6)),
+                'product_type' => 'consumable',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ], 'product_id'));
     }
 
-    public function test_commit_is_idempotent_per_pr(): void
+    private function addPoLine(PurchaseOrder $po, float $subtotal, ?int $locationId = null): void
     {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-
-        $this->service->commit($pr);
-        $this->service->commit($pr); // retry must be a no-op
-
-        $budget->refresh();
-        $this->assertSame('4000.00', (string) $budget->committed);
-        $this->assertSame(1, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'commit')->count());
+        DB::table('purchase_order_details')->insert([
+            'po_id'            => $po->po_id,
+            'product_id'       => $this->anyProductId(),
+            'quantity_ordered' => 1,
+            'unit_price'       => $subtotal,
+            'subtotal'         => $subtotal,
+            'location_id'      => $locationId,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
     }
 
-    public function test_commit_throws_when_insufficient_available(): void
-    {
-        $budget = $this->makeBudget(10000, ['committed' => 7000]);
-        $pr = $this->makePr($budget, 4000, 14);
-
-        $this->expectException(InsufficientBudgetException::class);
-        $this->service->commit($pr);
-    }
+    // NOTE: basic commitPo/spend/releaseCommitment happy-path coverage now lives in
+    // PoCommitTest and PoSettleTest (po-anchored). This file keeps the scenarios that
+    // aren't duplicated there: rollback-on-failure, no-budget no-ops, rejected-budget
+    // guard, alert crossings, and adjustTotal (unchanged by the po-anchoring move).
 
     public function test_failed_commit_leaves_no_ledger_row_and_no_column_change(): void
     {
         $budget = $this->makeBudget(10000, ['committed' => 7000]);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr($budget, 0, 14);
+        $po = $this->makePo($pr, 4000, 7);
+        $this->addPoLine($po, 4000);
 
         try {
-            $this->service->commit($pr);
+            $this->service->commitPo($po->fresh()->load('details'));
         } catch (InsufficientBudgetException $e) {
             // expected
         }
 
         $budget->refresh();
         $this->assertSame('7000.00', (string) $budget->committed);
-        $this->assertSame(0, BudgetTransaction::where('pr_id', $pr->pr_id)->count());
+        $this->assertSame(0, BudgetTransaction::where('po_id', $po->po_id)->count());
     }
 
     public function test_has_available_and_resolve_active_budget(): void
@@ -94,195 +90,72 @@ class BudgetServiceTest extends BudgetTestCase
         $this->assertSame($budget->budget_id, $this->service->resolveActiveBudget($this->locationId)->budget_id);
     }
 
-    public function test_release_outstanding_returns_exact_committed_amount(): void
+    public function test_release_commitment_is_noop_without_commitment_and_never_double_releases(): void
     {
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        $this->service->commit($pr);
+        $pr = $this->makePr($budget, 0, 14);
+        $po = $this->makePo($pr, 4000, 7);
+        $this->addPoLine($po, 4000);
 
-        $released = $this->service->releaseOutstanding($pr, 'PR archived');
-
-        $this->assertSame(4000.0, $released);
-        $budget->refresh();
-        $this->assertSame('0.00', (string) $budget->committed);
-
-        $release = BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'release')->first();
-        $this->assertNotNull($release);
-        $this->assertSame('4000.00', (string) $release->amount);
-        $this->assertSame('PR archived', $release->notes);
-    }
-
-    public function test_release_outstanding_is_noop_without_commitment_and_never_double_releases(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 13); // pending — never committed
-
-        $this->assertSame(0.0, $this->service->releaseOutstanding($pr, 'PR archived'));
-        $this->assertSame(0, BudgetTransaction::where('pr_id', $pr->pr_id)->count());
+        // Never committed — releasing must be a no-op.
+        $this->assertSame(0.0, $this->service->releaseCommitment($po->fresh(), 'PO rejected'));
+        $this->assertSame(0, BudgetTransaction::where('po_id', $po->po_id)->count());
 
         // Commit, release twice — second release must be a no-op.
-        $pr->update(['status_id' => 14]);
-        $this->service->commit($pr);
-        $this->service->releaseOutstanding($pr, 'PR archived');
-        $this->assertSame(0.0, $this->service->releaseOutstanding($pr, 'PR archived'));
+        $this->service->commitPo($po->fresh()->load('details'));
+        $this->service->releaseCommitment($po->fresh(), 'PO rejected');
+        $this->assertSame(0.0, $this->service->releaseCommitment($po->fresh(), 'PO rejected'));
 
         $budget->refresh();
         $this->assertSame('0.00', (string) $budget->committed);
-        $this->assertSame(1, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'release')->count());
+        $this->assertSame(1, BudgetTransaction::where('po_id', $po->po_id)->where('txn_type', 'release')->count());
     }
 
-    public function test_release_outstanding_is_noop_for_pr_without_budget(): void
+    public function test_spend_is_noop_for_po_in_location_without_active_budget(): void
     {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14, ['budget_id' => null]);
+        // A location with no budget allocation at all.
+        $bareLocationId = (int) DB::table('locations')->insertGetId([
+            'location_code' => 'BARE-' . uniqid(),
+            'location_name' => 'No Budget Warehouse',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
 
-        $this->assertSame(0.0, $this->service->releaseOutstanding($pr, 'PR archived'));
-    }
-
-    public function test_spend_records_actual_and_consumes_commitment_with_surplus_return(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        $this->service->commit($pr);
-
-        // Fully-converted PR: actual PO total (3500) below estimate (4000)
-        $po = $this->makePo($pr, 3500, 11);
-        $pr->update(['converted_to_po_id' => $po->po_id]);
-
-        $this->service->spend($po->fresh());
-
-        $budget->refresh();
-        $this->assertSame('3500.00', (string) $budget->spent);
-        $this->assertSame('0.00', (string) $budget->committed); // 3500 consumed + 500 surplus returned
-
-        $releases = BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'release')
-            ->orderBy('txn_id')->get();
-        $this->assertCount(2, $releases);
-        $this->assertSame('3500.00', (string) $releases[0]->amount);
-        $this->assertSame('500.00', (string) $releases[1]->amount);
-        $this->assertSame('Estimate surplus returned', $releases[1]->notes);
-    }
-
-    public function test_spend_is_idempotent_per_po(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        $this->service->commit($pr);
+        $pr = PurchaseRequest::create([
+            'location_id'     => $bareLocationId,
+            'budget_id'       => null,
+            'pr_number'       => 'PR-TEST-' . strtoupper(\Illuminate\Support\Str::random(6)),
+            'request_date'    => today(),
+            'needed_by_date'  => today()->addDays(7),
+            'estimated_total' => 0,
+            'status_id'       => 14,
+            'requested_by'    => $this->makeUser('inventory_analyst')->user_id,
+        ]);
         $po = $this->makePo($pr, 4000, 11);
-        $pr->update(['converted_to_po_id' => $po->po_id]);
+        $this->addPoLine($po, 4000, $bareLocationId);
 
-        $this->service->spend($po->fresh());
-        $this->service->spend($po->fresh()); // second call must be a no-op
+        $this->service->spend($po->fresh()->load('details'));
 
-        $budget->refresh();
-        $this->assertSame('4000.00', (string) $budget->spent);
-        $this->assertSame('0.00', (string) $budget->committed);
-        $this->assertSame(1, BudgetTransaction::where('po_id', $po->po_id)->where('txn_type', 'spend')->count());
-    }
-
-    public function test_spend_on_partial_conversion_keeps_remaining_commitment(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 16); // Partially Converted
-        // commit happened while approved
-        $pr->update(['status_id' => 14]);
-        $this->service->commit($pr);
-        $pr->update(['status_id' => 16]);
-
-        $po = $this->makePo($pr, 1500, 11);
-        $pr->update(['converted_to_po_id' => $po->po_id]);
-
-        $this->service->spend($po->fresh());
-
-        $budget->refresh();
-        $this->assertSame('1500.00', (string) $budget->spent);
-        $this->assertSame('2500.00', (string) $budget->committed); // no surplus return on partial
-    }
-
-    public function test_spend_records_overrun_when_actual_exceeds_estimate(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        $this->service->commit($pr);
-        $po = $this->makePo($pr, 4600, 11); // actual above estimate
-        $pr->update(['converted_to_po_id' => $po->po_id]);
-
-        $this->service->spend($po->fresh());
-
-        $budget->refresh();
-        $this->assertSame('4600.00', (string) $budget->spent); // truth recorded
-        $this->assertSame('0.00', (string) $budget->committed); // only 4000 was held; consume is capped
-    }
-
-    public function test_spend_is_noop_for_po_without_budgeted_pr(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14, ['budget_id' => null]);
-        $po = $this->makePo($pr, 4000, 11);
-
-        $this->service->spend($po->fresh());
-
-        $budget->refresh();
-        $this->assertSame('0.00', (string) $budget->spent);
         $this->assertSame(0, BudgetTransaction::count());
     }
 
-    public function test_release_after_partial_spend_releases_only_remainder(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 16);
-        $pr->update(['status_id' => 14]);
-        $this->service->commit($pr);
-        $pr->update(['status_id' => 16]);
-        $po = $this->makePo($pr, 1500, 11);
-        $pr->update(['converted_to_po_id' => $po->po_id]);
-        $this->service->spend($po->fresh());
-
-        // Archiving the partially-converted PR now returns only the un-consumed 2500.
-        $released = $this->service->releaseOutstanding($pr->fresh(), 'PR archived');
-
-        $this->assertSame(2500.0, $released);
-        $budget->refresh();
-        $this->assertSame('0.00', (string) $budget->committed);
-        $this->assertSame('1500.00', (string) $budget->spent);
-    }
-
-    public function test_two_sequential_pos_consume_commitment_cumulatively_with_final_surplus(): void
-    {
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 16); // partial conversion first
-        $pr->update(['status_id' => 14]);
-        $this->service->commit($pr);
-        $pr->update(['status_id' => 16]);
-
-        // PO1: partial, 1500 actual
-        $po1 = $this->makePo($pr, 1500, 11);
-        $pr->update(['converted_to_po_id' => $po1->po_id]);
-        $this->service->spend($po1->fresh());
-
-        // PO2 completes the PR: fully converted now (status 14), 2000 actual
-        $po2 = $this->makePo($pr, 2000, 11);
-        $pr->update(['status_id' => 14, 'converted_to_po_id' => $po2->po_id]);
-        $this->service->spend($po2->fresh());
-
-        $budget->refresh();
-        $this->assertSame('3500.00', (string) $budget->spent);     // 1500 + 2000
-        $this->assertSame('0.00', (string) $budget->committed);    // 1500 + 2000 consumed + 500 surplus returned
-        $this->assertSame('500.00', (string) BudgetTransaction::where('pr_id', $pr->pr_id)
-            ->where('txn_type', 'release')->where('notes', 'Estimate surplus returned')->value('amount'));
-    }
-
-    public function test_commit_fires_alert_when_crossing_80_percent(): void
+    public function test_commit_po_fires_alert_when_crossing_80_percent(): void
     {
         Event::fake([BudgetChanged::class]);
 
         $budget = $this->makeBudget(10000);
-        $pr1 = $this->makePr($budget, 7000, 14);
-        $this->service->commit($pr1); // 70% — below threshold
+        $pr = $this->makePr($budget, 0, 14);
+
+        $po1 = $this->makePo($pr, 7000, 7);
+        $this->addPoLine($po1, 7000);
+        $this->service->commitPo($po1->fresh()->load('details')); // 70% — below threshold
         Event::assertNotDispatched(BudgetChanged::class);
 
-        $pr2 = $this->makePr($budget, 1500, 14);
-        $this->service->commit($pr2); // 85% — crosses 80%
+        $po2 = $this->makePo($pr, 1500, 7);
+        $this->addPoLine($po2, 1500);
+        $this->service->commitPo($po2->fresh()->load('details')); // 85% — crosses 80%
         Event::assertDispatched(BudgetChanged::class, function (BudgetChanged $e) use ($budget) {
             return $e->locationId === (int) $budget->location_id
                 && $e->type === 'budget_threshold'
@@ -295,8 +168,15 @@ class BudgetServiceTest extends BudgetTestCase
         Event::fake([BudgetChanged::class]);
 
         $budget = $this->makeBudget(10000);
-        $this->service->commit($this->makePr($budget, 8500, 14)); // crosses 80%
-        $this->service->commit($this->makePr($budget, 500, 14));  // 90% — already above, no new crossing
+        $pr = $this->makePr($budget, 0, 14);
+
+        $po1 = $this->makePo($pr, 8500, 7);
+        $this->addPoLine($po1, 8500);
+        $this->service->commitPo($po1->fresh()->load('details')); // crosses 80%
+
+        $po2 = $this->makePo($pr, 500, 7);
+        $this->addPoLine($po2, 500);
+        $this->service->commitPo($po2->fresh()->load('details')); // 90% — already above, no new crossing
 
         Event::assertDispatchedTimes(BudgetChanged::class, 1);
     }
@@ -306,11 +186,16 @@ class BudgetServiceTest extends BudgetTestCase
         Event::fake([BudgetChanged::class]);
 
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 9000, 14);
-        $this->service->commit($pr); // crosses 80% (1st dispatch)
-        $po = $this->makePo($pr, 10500, 11); // overrun pushes past 100%
-        $pr->update(['converted_to_po_id' => $po->po_id]);
-        $this->service->spend($po->fresh()); // crosses 100% (2nd dispatch)
+        $pr = $this->makePr($budget, 0, 14);
+
+        $po1 = $this->makePo($pr, 9000, 7);
+        $this->addPoLine($po1, 9000);
+        $this->service->commitPo($po1->fresh()->load('details')); // crosses 80% (1st dispatch)
+
+        // Direct spend without a prior reservation pushes utilization past 100%.
+        $po2 = $this->makePo($pr, 2000, 11);
+        $this->addPoLine($po2, 2000);
+        $this->service->spend($po2->fresh()->load('details')); // crosses 100% (2nd dispatch)
 
         Event::assertDispatchedTimes(BudgetChanged::class, 2);
     }
@@ -347,22 +232,15 @@ class BudgetServiceTest extends BudgetTestCase
         $this->assertSame(0, BudgetTransaction::where('txn_type', 'adjustment')->where('budget_id', $budget->budget_id)->count());
     }
 
-    public function test_commit_throws_when_budget_unverified(): void
-    {
-        $budget = $this->makeBudget(10000, ['verification_status' => 'pending']);
-        $pr = $this->makePr($budget, 4000, 14);
-
-        $this->expectException(UnverifiedBudgetException::class);
-        $this->service->commit($pr);
-    }
-
-    public function test_commit_throws_when_budget_rejected(): void
+    public function test_commit_po_throws_when_budget_rejected(): void
     {
         $budget = $this->makeBudget(10000, ['verification_status' => 'rejected']);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr($budget, 0, 14);
+        $po = $this->makePo($pr, 4000, 7);
+        $this->addPoLine($po, 4000);
 
         $this->expectException(UnverifiedBudgetException::class);
-        $this->service->commit($pr);
+        $this->service->commitPo($po->fresh()->load('details'));
     }
 
     public function test_resolve_active_budget_skips_unverified(): void

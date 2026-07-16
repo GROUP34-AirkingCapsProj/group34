@@ -77,8 +77,6 @@ class PoPerWarehouseSpendTest extends BudgetTestCase
         PurchaseRequestDetail::create(['pr_id'=>$pr->pr_id,'product_id'=>$pid,'location_id'=>$whB,'quantity'=>3,'estimated_price'=>100,'subtotal'=>300]);
 
         $svc = app(BudgetService::class);
-        $svc->commitGroup($pr, $budgetA->fresh(), 200.0, null);
-        $svc->commitGroup($pr, $budgetB->fresh(), 300.0, null);
 
         $po = PurchaseOrder::create([
             'pr_id' => $pr->pr_id, 'supplier_id' => (int) DB::table('suppliers')->insertGetId(['supplier_name'=>'S','created_at'=>now(),'updated_at'=>now()], 'supplier_id'),
@@ -88,6 +86,9 @@ class PoPerWarehouseSpendTest extends BudgetTestCase
         ]);
         PurchaseOrderDetail::create(['po_id'=>$po->po_id,'location_id'=>$whA,'product_id'=>$pid,'quantity_ordered'=>2,'unit_price'=>100,'subtotal'=>200]);
         PurchaseOrderDetail::create(['po_id'=>$po->po_id,'location_id'=>$whB,'product_id'=>$pid,'quantity_ordered'=>3,'unit_price'=>100,'subtotal'=>300]);
+
+        // PO approval reserves against each warehouse's budget.
+        $svc->commitPo($po->fresh()->load('details'), null);
 
         $this->receiveWarehouse($po, $whA);
         $svc->spend($po->fresh(), null);
