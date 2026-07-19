@@ -16,6 +16,9 @@ class RestockEndpointsTest extends TestCase
 {
     use DatabaseTransactions;
 
+    /** Second warehouse created in setUp(), for cross-warehouse filter tests. */
+    private int $secondWarehouseId;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -32,7 +35,7 @@ class RestockEndpointsTest extends TestCase
         $this->seed(PermissionSeeder::class);
         $this->seed(RolePermissionsSeeder::class);
 
-        $whId = (int) DB::table('locations')->insertGetId([
+        $this->secondWarehouseId = (int) DB::table('locations')->insertGetId([
             'location_code' => 'TST-WH-' . uniqid(),
             'location_name' => 'Test Warehouse',
             'location_type' => 'warehouse',
@@ -40,7 +43,6 @@ class RestockEndpointsTest extends TestCase
             'created_at'    => now(),
             'updated_at'    => now(),
         ], 'location_id');
-
     }
 
     private function makeUser(string $roleSlug): User
@@ -60,8 +62,11 @@ class RestockEndpointsTest extends TestCase
         ]);
     }
 
-    private function makeProductWithDemand(): int
+    private function makeProductWithDemand(?int $locationId = null): int
     {
+        $locationId ??= (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+
         $pid = (int) DB::table('products')->insertGetId([
             'product_code'       => 'TST-' . uniqid(),
             'product_name'       => 'Endpoint Test Product',
@@ -75,7 +80,7 @@ class RestockEndpointsTest extends TestCase
         ], 'product_id');
 
         DB::table('inventory')->insert([
-            'location_id'        => (int) DB::table('locations')->where('location_type', 'warehouse')->value('location_id'),
+            'location_id'        => $locationId,
             'product_id'         => $pid,
             'quantity_on_hand'   => 1,
             'available_quantity' => 1,
@@ -142,23 +147,36 @@ class RestockEndpointsTest extends TestCase
 
     public function test_recommendations_can_be_filtered_by_location(): void
     {
-        $pid = $this->makeProductWithDemand(); // stock 1 at first warehouse -> low
-        $ia  = $this->makeUser('inventory_analyst');
+        $wh1 = (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+        $wh2 = $this->secondWarehouseId;
+
+        $pid1 = $this->makeProductWithDemand($wh1); // stock 1 at wh1 -> low
+        $pid2 = $this->makeProductWithDemand($wh2); // stock 1 at wh2 -> low
+
+        $ia = $this->makeUser('inventory_analyst');
 
         // Populate the batch.
         $this->actingAs($ia, 'sanctum')->postJson('/api/restock/recalculate')->assertOk();
 
-        $whId = (int) DB::table('locations')->where('location_type', 'warehouse')
-            ->orderBy('location_id')->value('location_id');
-
-        $resp = $this->actingAs($ia, 'sanctum')
-            ->getJson('/api/restock/recommendations?location_id=' . $whId);
-
-        $resp->assertOk();
-        foreach ($resp->json('data.recommendations') as $row) {
-            $this->assertSame($whId, (int) $row['location_id']);
+        $resp1 = $this->actingAs($ia, 'sanctum')
+            ->getJson('/api/restock/recommendations?location_id=' . $wh1);
+        $resp1->assertOk();
+        foreach ($resp1->json('data.recommendations') as $row) {
+            $this->assertSame($wh1, (int) $row['location_id']);
         }
-        $ids = array_map(fn ($r) => (int) $r['product_id'], $resp->json('data.recommendations'));
-        $this->assertContains($pid, $ids);
+        $ids1 = array_map(fn ($r) => (int) $r['product_id'], $resp1->json('data.recommendations'));
+        $this->assertContains($pid1, $ids1);
+        $this->assertNotContains($pid2, $ids1);
+
+        $resp2 = $this->actingAs($ia, 'sanctum')
+            ->getJson('/api/restock/recommendations?location_id=' . $wh2);
+        $resp2->assertOk();
+        foreach ($resp2->json('data.recommendations') as $row) {
+            $this->assertSame($wh2, (int) $row['location_id']);
+        }
+        $ids2 = array_map(fn ($r) => (int) $r['product_id'], $resp2->json('data.recommendations'));
+        $this->assertContains($pid2, $ids2);
+        $this->assertNotContains($pid1, $ids2);
     }
 }
