@@ -288,4 +288,66 @@ class ReceivingController extends Controller
             return $this->error('Failed to retrieve PO scan status: ' . $e->getMessage(), 500);
         }
     }
+
+    /** Stream a PDF Goods Received Note for one receiving session. */
+    public function receiptPdf($id)
+    {
+        $receiving = Receiving::with([
+            'purchaseOrder.supplier', 'purchaseOrder.details',
+            'supplier', 'location', 'receivedBy', 'details.product',
+        ])->find($id);
+
+        if (! $receiving) {
+            return $this->error('Receiving not found', 404);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('receiving.receipt', ['receiving' => $receiving])
+            ->setPaper('a4');
+
+        return $pdf->download('GRN-' . $receiving->receiving_number . '.pdf');
+    }
+
+    /** Stream a CSV Goods Received Note for one receiving session. */
+    public function receiptCsv($id)
+    {
+        $receiving = Receiving::with([
+            'purchaseOrder.details', 'supplier', 'location', 'receivedBy', 'details.product',
+        ])->find($id);
+
+        if (! $receiving) {
+            return $this->error('Receiving not found', 404);
+        }
+
+        $orderedByProduct = collect($receiving->purchaseOrder?->details ?? [])
+            ->groupBy('product_id')->map(fn ($g) => (int) $g->sum('quantity_ordered'));
+
+        $filename = 'GRN-' . $receiving->receiving_number . '.csv';
+        $headers  = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($receiving, $orderedByProduct) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['GRN Number', $receiving->receiving_number]);
+            fputcsv($handle, ['PO Number', $receiving->purchaseOrder?->po_number ?? '']);
+            fputcsv($handle, ['Supplier', $receiving->supplier?->supplier_name ?? $receiving->purchaseOrder?->supplier?->supplier_name ?? '']);
+            fputcsv($handle, ['Warehouse', $receiving->location?->location_name ?? '']);
+            fputcsv($handle, ['Received Date', (string) $receiving->receiving_date]);
+            fputcsv($handle, []);
+            fputcsv($handle, ['Product Code', 'Product', 'Ordered', 'Received', 'Condition']);
+            foreach ($receiving->details as $d) {
+                fputcsv($handle, [
+                    $d->product?->product_code ?? '',
+                    $d->product?->product_name ?? ('Product #' . $d->product_id),
+                    $orderedByProduct[$d->product_id] ?? '',
+                    (int) $d->quantity_amount,
+                    $d->condition ?? 'Good',
+                ]);
+            }
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }
