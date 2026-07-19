@@ -93,6 +93,38 @@ class StockParameterSuggestionTest extends TestCase
         $this->assertContains($sid, $ids);
     }
 
+    public function test_suggestions_include_warehouses_the_product_is_stocked_at(): void
+    {
+        [$pid, $sid] = $this->makeSuggestion();
+
+        $whId = (int) DB::table('locations')->insertGetId([
+            'location_code' => 'TST-WH-' . uniqid(),
+            'location_name' => 'Main WH',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+        DB::table('inventory')->insert([
+            'location_id'        => $whId,
+            'product_id'         => $pid,
+            'quantity_on_hand'   => 10,
+            'available_quantity' => 10,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+
+        $resp = $this->actingAs($this->makeUser('auditor'), 'sanctum')
+            ->getJson('/api/restock/suggestions');
+        $resp->assertOk();
+
+        $row = collect($resp->json('data'))->firstWhere('suggestion_id', $sid);
+        $this->assertNotNull($row);
+        $this->assertIsArray($row['warehouses']);
+        $this->assertContains('Main WH', array_column($row['warehouses'], 'location_name'));
+        $this->assertContains($whId, array_column($row['warehouses'], 'location_id'));
+    }
+
     public function test_apply_updates_product_and_marks_applied(): void
     {
         [$pid, $sid] = $this->makeSuggestion();
