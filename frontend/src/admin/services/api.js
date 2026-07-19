@@ -682,6 +682,9 @@ export const purchaseOrdersAPI = {
    */
   getProductsBySupplier: async (supplierId) =>
     apiRequest(`/purchase-orders/products-by-supplier/${supplierId}`),
+
+  /** Curated lifecycle timeline for one PO (milestones with expandable changes). */
+  history: async (id) => apiRequest(`/purchase-orders/${id}/history`),
 };
 
 /* ======================
@@ -725,6 +728,17 @@ export const receivingsAPI = {
   /** Per-product progress for a PO: ordered vs scanned, all serial numbers */
   poScanStatus: async (poId) =>
     apiRequest(`/receivings/po-scan-status/${poId}`),
+
+  /** Browser-download URL for the Goods Received Note PDF (token in query param). */
+  receiptPdfUrl: (id) => {
+    const token = getToken();
+    return `${getApiBaseUrl()}/receivings/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
+  /** Browser-download URL for the Goods Received Note CSV (token in query param). */
+  receiptCsvUrl: (id) => {
+    const token = getToken();
+    return `${getApiBaseUrl()}/receivings/${id}/receipt/csv${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
 };
 
 /* ======================
@@ -1231,6 +1245,9 @@ export const purchaseRequestsAPI = {
   },
 
   getById: async (id) => apiRequest(`/purchase-requests/${id}`),
+
+  /** Curated lifecycle timeline for one PR (milestones with expandable changes). */
+  history: async (id) => apiRequest(`/purchase-requests/${id}/history`),
 
   create: async (data) =>
     apiRequest('/purchase-requests', { method: 'POST', body: JSON.stringify(data) }),
