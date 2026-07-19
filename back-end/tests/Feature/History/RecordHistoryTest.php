@@ -85,6 +85,26 @@ class RecordHistoryTest extends TestCase
         $this->assertSame('Verified', $milestones[0]['label']);
     }
 
+    public function test_raw_verified_by_id_is_resolved_to_a_name(): void
+    {
+        $u = $this->makeUser(); // first + last name "Aud Itor"
+
+        // Simulate a legacy audit row that stored verified_by as a raw id.
+        AuditTrail::create([
+            'user_id' => $u->user_id, 'action' => 'update',
+            'table_name' => 'purchase_orders', 'record_id' => 997,
+            'old_values' => ['verified_by' => null],
+            'new_values' => ['verified_by' => $u->user_id],
+            'created_at' => now(),
+        ]);
+
+        $milestones = app(RecordHistoryService::class)->forRecord('purchase_orders', 997);
+
+        $change = collect($milestones[0]['changes'])->firstWhere('field', 'verified by');
+        $this->assertNotNull($change);
+        $this->assertSame($u->first_name . ' ' . $u->last_name, $change['to']);
+    }
+
     public function test_po_history_endpoint_includes_receiving_milestone(): void
     {
         $u = $this->makeUser();
