@@ -46,15 +46,18 @@ class RestockAnalyticsService
         $from30 = $asOf->copy()->subDays(self::WINDOW_SHORT_DAYS - 1)->toDateString();
 
         $daily      = $this->dailyDemand($from90->toDateString(), $asOf->toDateString());
-        $stock      = $this->stockOnHand();
-        $onOrder    = $this->openPoQuantities();
+        $stockByWh  = $this->stockByWarehouse();
+        $stockTotal = $this->stockOnHandTotal();
+        $openByWh   = $this->openPoByWarehouse();
         $leads      = $this->leadTimes();
         $received90 = $this->receivedQuantities($from90->toDateString());
 
-        $warehouseId = Location::query()
+        $warehouseIds = Location::query()
             ->where('location_type', 'warehouse')
             ->orderBy('location_id')
-            ->value('location_id');
+            ->pluck('location_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         $products = Product::query()
             ->where(fn ($q) => $q->whereNull('status_id')
@@ -96,43 +99,52 @@ class RestockAnalyticsService
             $currentSafety      = $p->safety_stock !== null ? (int) $p->safety_stock : null;
             $currentMax         = $p->max_stock_level !== null ? (int) $p->max_stock_level : null;
 
-            $onHand = (int) ($stock[$pid] ?? 0);
-            $open   = (int) ($onOrder[$pid] ?? 0);
-            $cover  = $v30 > 0 ? round($onHand / $v30, 1) : null;
-
             // Current product values act as a floor so hand-tuned thresholds keep working.
             $effectiveSafety  = max($computedSafety, (int) ($currentSafety ?? 0));
             $effectiveReorder = max($computedReorder, $currentRecommended);
             $effectiveTarget  = max($computedTarget, (int) ($currentMax ?? 0), $currentRecommended);
 
-            // ---- Restock recommendation --------------------------------
-            $reasons = [];
-            if ($onHand <= 0) {
-                $reasons[] = 'OUT_OF_STOCK';
-            }
-            if ($onHand > 0 && $effectiveSafety > 0 && $onHand < $effectiveSafety) {
-                $reasons[] = 'BELOW_SAFETY_STOCK';
-            }
-            if ($onHand > 0 && $cover !== null && $cover < $lead) {
-                $reasons[] = 'STOCKOUT_RISK';
-            }
-            if ($effectiveReorder > 0 && $onHand <= $effectiveReorder) {
-                $reasons[] = 'LOW_STOCK';
-            }
-            if ($trend !== null && $trend >= self::TREND_FAST) {
-                $reasons[] = 'FAST_MOVING';
-            }
-            if (($received90[$pid] ?? 0) >= 1 && $total90 >= 3 * max(1, $onHand)) {
-                $reasons[] = 'HIGH_TURNOVER';
-            }
+            // ---- Restock recommendation, PER WAREHOUSE ------------------
+            foreach ($warehouseIds as $whId) {
+                // Only warehouses that actually carry the product (have an
+                // inventory row) are eligible; a warehouse that has never
+                // stocked it is not a restock target.
+                if (!isset($stockByWh[$whId][$pid])) {
+                    continue;
+                }
+                $onHand = (int) ($stockByWh[$whId][$pid] ?? 0);
+                $open   = (int) ($openByWh[$whId][$pid] ?? 0);
+                $cover  = $v30 > 0 ? round($onHand / $v30, 1) : null;
 
-            $triggered = $onHand <= 0
-                || ($effectiveSafety > 0 && $onHand < $effectiveSafety)
-                || ($effectiveReorder > 0 && $onHand <= $effectiveReorder);
+                $reasons = [];
+                if ($onHand <= 0) {
+                    $reasons[] = 'OUT_OF_STOCK';
+                }
+                if ($onHand > 0 && $effectiveSafety > 0 && $onHand < $effectiveSafety) {
+                    $reasons[] = 'BELOW_SAFETY_STOCK';
+                }
+                if ($onHand > 0 && $cover !== null && $cover < $lead) {
+                    $reasons[] = 'STOCKOUT_RISK';
+                }
+                if ($effectiveReorder > 0 && $onHand <= $effectiveReorder) {
+                    $reasons[] = 'LOW_STOCK';
+                }
+                if ($trend !== null && $trend >= self::TREND_FAST) {
+                    $reasons[] = 'FAST_MOVING';
+                }
+                if (($received90[$pid] ?? 0) >= 1 && $total90 >= 3 * max(1, $onHand)) {
+                    $reasons[] = 'HIGH_TURNOVER';
+                }
 
-            $qty = $effectiveTarget - $onHand - $open;
+                $triggered = $onHand <= 0
+                    || ($effectiveSafety > 0 && $onHand < $effectiveSafety)
+                    || ($effectiveReorder > 0 && $onHand <= $effectiveReorder);
 
-            if ($triggered && $qty > 0) {
+                $qty = $effectiveTarget - $onHand - $open;
+                if (!$triggered || $qty <= 0) {
+                    continue;
+                }
+
                 $priority = 'MEDIUM';
                 if ($onHand <= 0 || ($cover !== null && $cover < $lead / 2)) {
                     $priority = 'CRITICAL';
@@ -143,6 +155,7 @@ class RestockAnalyticsService
 
                 $recommendations[] = [
                     'product_id'           => $pid,
+                    'location_id'          => $whId,
                     'current_stock'        => $onHand,
                     'reorder_level'        => $effectiveReorder,
                     'recommended_quantity' => $qty,
@@ -157,7 +170,10 @@ class RestockAnalyticsService
                 ];
             }
 
-            // ---- Parameter suggestion -----------------------------------
+            // ---- Parameter suggestion (PRODUCT-LEVEL, org-wide) ---------
+            $onHandTotal = (int) ($stockTotal[$pid] ?? 0);
+            $coverTotal  = $v30 > 0 ? round($onHandTotal / $v30, 1) : null;
+
             $hasParams = $currentRecommended > 0
                 || ($currentSafety ?? 0) > 0
                 || ($currentMax ?? 0) > 0;
@@ -205,16 +221,15 @@ class RestockAnalyticsService
                     'current_max'           => $currentMax,
                     'suggested_max'         => $suggested['max'],
                     'reason_codes'          => $sReasons,
-                    'summary'               => $this->summarize($v30, $trend, $cover, $lead, $onHand),
+                    'summary'               => $this->summarize($v30, $trend, $coverTotal, $lead, $onHandTotal),
                 ];
             }
         }
 
         return [
-            'run_at'                => $asOf,
-            'warehouse_location_id' => $warehouseId ? (int) $warehouseId : null,
-            'recommendations'       => $recommendations,
-            'suggestions'           => $suggestions,
+            'run_at'          => $asOf,
+            'recommendations' => $recommendations,
+            'suggestions'     => $suggestions,
         ];
     }
 
@@ -240,10 +255,7 @@ class RestockAnalyticsService
         DB::transaction(function () use ($result) {
             DB::table('restock_recommendations')->delete();
             foreach ($result['recommendations'] as $rec) {
-                RestockRecommendation::create($rec + [
-                    'location_id' => $result['warehouse_location_id'],
-                    'run_at'      => $result['run_at'],
-                ]);
+                RestockRecommendation::create($rec + ['run_at' => $result['run_at']]);
             }
 
             $suggestedIds = array_map(fn ($s) => $s['product_id'], $result['suggestions']);
@@ -329,8 +341,25 @@ class RestockAnalyticsService
         return $daily;
     }
 
-    /** @return array<int, int> product_id => org-wide quantity_on_hand */
-    private function stockOnHand(): array
+    /** @return array<int, array<int,int>> locationId => [productId => qty], warehouses only */
+    private function stockByWarehouse(): array
+    {
+        $rows = DB::table('inventory as inv')
+            ->join('locations as l', 'l.location_id', '=', 'inv.location_id')
+            ->where('l.location_type', 'warehouse')
+            ->groupBy('inv.location_id', 'inv.product_id')
+            ->selectRaw('inv.location_id, inv.product_id, SUM(inv.quantity_on_hand) as qty')
+            ->get();
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int) $r->location_id][(int) $r->product_id] = (int) $r->qty;
+        }
+        return $out;
+    }
+
+    /** @return array<int,int> productId => org-wide quantity_on_hand (all locations) */
+    private function stockOnHandTotal(): array
     {
         return DB::table('inventory')
             ->groupBy('product_id')
@@ -340,31 +369,40 @@ class RestockAnalyticsService
             ->all();
     }
 
-    /** @return array<int, int> product_id => open-PO qty not yet received */
-    private function openPoQuantities(): array
+    /** @return array<int, array<int,int>> locationId => [productId => open-PO qty not yet received] */
+    private function openPoByWarehouse(): array
     {
         $ordered = DB::table('purchase_order_details as pod')
             ->join('purchase_orders as po', 'po.po_id', '=', 'pod.po_id')
             ->whereIn('po.status_id', self::OPEN_PO_STATUSES)
             ->whereNull('po.deleted_at')
-            ->groupBy('pod.product_id')
-            ->selectRaw('pod.product_id, SUM(pod.quantity_ordered) as qty')
-            ->pluck('qty', 'product_id');
+            ->whereNotNull('pod.location_id')
+            ->groupBy('pod.location_id', 'pod.product_id')
+            ->selectRaw('pod.location_id, pod.product_id, SUM(pod.quantity_ordered) as qty')
+            ->get();
 
         $received = DB::table('receiving_details as rd')
             ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
             ->join('purchase_orders as po', 'po.po_id', '=', 'r.po_id')
             ->whereIn('po.status_id', self::OPEN_PO_STATUSES)
             ->whereNull('po.deleted_at')
-            ->groupBy('rd.product_id')
-            ->selectRaw('rd.product_id, SUM(rd.quantity_amount) as qty')
-            ->pluck('qty', 'product_id');
+            ->whereNotNull('r.location_id')
+            ->groupBy('r.location_id', 'rd.product_id')
+            ->selectRaw('r.location_id, rd.product_id, SUM(rd.quantity_amount) as qty')
+            ->get();
 
-        $open = [];
-        foreach ($ordered as $pid => $qty) {
-            $open[(int) $pid] = max(0, (int) $qty - (int) ($received[$pid] ?? 0));
+        $recvMap = [];
+        foreach ($received as $r) {
+            $recvMap[(int) $r->location_id][(int) $r->product_id] = (int) $r->qty;
         }
-        return $open;
+
+        $out = [];
+        foreach ($ordered as $o) {
+            $loc = (int) $o->location_id;
+            $pid = (int) $o->product_id;
+            $out[$loc][$pid] = max(0, (int) $o->qty - (int) ($recvMap[$loc][$pid] ?? 0));
+        }
+        return $out;
     }
 
     /**

@@ -64,6 +64,41 @@ class RestockAnalyticsServiceTest extends TestCase
         ]);
     }
 
+    private function makeWarehouse(): int
+    {
+        return (int) DB::table('locations')->insertGetId([
+            'location_code' => 'TST-WH-' . uniqid(),
+            'location_name' => 'Extra Warehouse',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+    }
+
+    private function setStockAt(int $locationId, int $productId, int $qty): void
+    {
+        DB::table('inventory')->insert([
+            'location_id'        => $locationId,
+            'product_id'         => $productId,
+            'quantity_on_hand'   => $qty,
+            'available_quantity' => $qty,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+    }
+
+    private function findRecAt(array $result, int $productId, int $locationId): ?array
+    {
+        foreach ($result['recommendations'] as $rec) {
+            if ((int) $rec['product_id'] === $productId
+                && (int) $rec['location_id'] === $locationId) {
+                return $rec;
+            }
+        }
+        return null;
+    }
+
     /** One issuance of $qty pieces per day for $days days ending at asOf. */
     private function issueDaily(int $productId, int $qty, int $days): void
     {
@@ -89,14 +124,6 @@ class RestockAnalyticsServiceTest extends TestCase
         }
     }
 
-    private function findRec(array $result, int $productId): ?array
-    {
-        foreach ($result['recommendations'] as $rec) {
-            if ((int) $rec['product_id'] === $productId) return $rec;
-        }
-        return null;
-    }
-
     private function findSug(array $result, int $productId): ?array
     {
         foreach ($result['suggestions'] as $sug) {
@@ -119,7 +146,7 @@ class RestockAnalyticsServiceTest extends TestCase
 
         $result = $this->service->analyze($this->asOf);
 
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
         $this->assertNotNull($rec, 'fast mover must be recommended');
         $this->assertSame('CRITICAL', $rec['priority']);          // cover 2.0 < lead/2 = 3.5
         $this->assertSame(61, $rec['recommended_quantity']);      // 65 - 4 - 0
@@ -179,7 +206,7 @@ class RestockAnalyticsServiceTest extends TestCase
         ]);
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertEqualsWithDelta(6.0, (float) $rec['lead_time_days'], 0.001);
@@ -233,12 +260,13 @@ class RestockAnalyticsServiceTest extends TestCase
             'updated_at'  => now(),
         ], 'po_id');
         DB::table('purchase_order_details')->insert([
-            'po_id' => $poB, 'product_id' => $pidB, 'quantity_ordered' => 1,
+            'po_id' => $poB, 'product_id' => $pidB, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 1,
             'unit_price' => 80, 'subtotal' => 80, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pidB);
+        $rec = $this->findRecAt($result, $pidB, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertEqualsWithDelta(6.0, (float) $rec['lead_time_days'], 0.001);
@@ -267,12 +295,13 @@ class RestockAnalyticsServiceTest extends TestCase
             'updated_at' => now(),
         ], 'po_id');
         DB::table('purchase_order_details')->insert([
-            'po_id' => $poId, 'product_id' => $pid, 'quantity_ordered' => 10,
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 10,
             'unit_price' => 80, 'subtotal' => 800, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertSame(10, $rec['on_order_quantity']);
@@ -301,12 +330,84 @@ class RestockAnalyticsServiceTest extends TestCase
         }
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertEqualsWithDelta(1.0, (float) $rec['avg_daily_demand'], 0.001);
         $this->assertContains('OUT_OF_STOCK', $rec['reason_codes']);
         $this->assertSame('CRITICAL', $rec['priority']);
+    }
+
+    // ---------------------------------------------------------------
+    // (C2) Per-warehouse behavior
+    // ---------------------------------------------------------------
+    public function test_low_at_one_warehouse_only_recommends_that_warehouse(): void
+    {
+        $wh2 = $this->makeWarehouse();
+        // Shared demand 1/day for 30 days -> lead 7, reorder 10, target 33.
+        $pid = $this->makeProduct();
+        $this->issueDaily($pid, 1, 30);
+        $this->setStockAt($this->warehouseId, $pid, 3);   // low -> triggers
+        $this->setStockAt($wh2, $pid, 500);               // well stocked -> no row
+
+        $result = $this->service->analyze($this->asOf);
+
+        $recLow  = $this->findRecAt($result, $pid, $this->warehouseId);
+        $recHigh = $this->findRecAt($result, $pid, $wh2);
+        $this->assertNotNull($recLow, 'low warehouse must be recommended');
+        $this->assertNull($recHigh, 'well-stocked warehouse must not be recommended');
+        $this->assertSame(3, $recLow['current_stock']);
+    }
+
+    public function test_shared_demand_is_identical_across_a_products_warehouse_rows(): void
+    {
+        $wh2 = $this->makeWarehouse();
+        $pid = $this->makeProduct();
+        $this->issueDaily($pid, 2, 30);                   // v30 = 2.0 org-wide
+        $this->setStockAt($this->warehouseId, $pid, 1);   // low
+        $this->setStockAt($wh2, $pid, 2);                 // also low
+
+        $result = $this->service->analyze($this->asOf);
+        $a = $this->findRecAt($result, $pid, $this->warehouseId);
+        $b = $this->findRecAt($result, $pid, $wh2);
+
+        $this->assertNotNull($a);
+        $this->assertNotNull($b);
+        $this->assertEqualsWithDelta((float) $a['avg_daily_demand'], (float) $b['avg_daily_demand'], 0.0001);
+        $this->assertEqualsWithDelta((float) $a['lead_time_days'], (float) $b['lead_time_days'], 0.0001);
+    }
+
+    public function test_open_po_is_scoped_to_its_destination_warehouse(): void
+    {
+        $wh2 = $this->makeWarehouse();
+        $pid = $this->makeProduct();
+        $this->issueDaily($pid, 1, 30);                   // reorder 10, target 33
+        $this->setStockAt($this->warehouseId, $pid, 3);
+        $this->setStockAt($wh2, $pid, 3);
+
+        // Open PO delivering 10 units to warehouseId ONLY.
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 10, 'unit_price' => 80, 'subtotal' => 800,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $a = $this->findRecAt($result, $pid, $this->warehouseId);
+        $b = $this->findRecAt($result, $pid, $wh2);
+
+        $this->assertNotNull($a);
+        $this->assertNotNull($b);
+        $this->assertSame(10, $a['on_order_quantity']);   // PO counted here
+        $this->assertSame(0,  $b['on_order_quantity']);    // not at the other warehouse
+        $this->assertSame(20, $a['recommended_quantity']); // 33 - 3 - 10
+        $this->assertSame(30, $b['recommended_quantity']); // 33 - 3 - 0
     }
 
     // ---------------------------------------------------------------
@@ -319,7 +420,7 @@ class RestockAnalyticsServiceTest extends TestCase
 
         $result = $this->service->analyze($this->asOf);
 
-        $this->assertNull($this->findRec($result, $pid), 'well-stocked product must not be recommended');
+        $this->assertNull($this->findRecAt($result, $pid, $this->warehouseId), 'well-stocked product must not be recommended');
         $sug = $this->findSug($result, $pid);
         $this->assertNotNull($sug);
         $this->assertSame(['NO_MOVEMENT'], $sug['reason_codes']);
@@ -332,7 +433,7 @@ class RestockAnalyticsServiceTest extends TestCase
     {
         $pid = $this->makeProduct(); // params all 0/null, no stock row, no movement
         $result = $this->service->analyze($this->asOf);
-        $this->assertNull($this->findRec($result, $pid));
+        $this->assertNull($this->findRecAt($result, $pid, $this->warehouseId));
         $this->assertNull($this->findSug($result, $pid));
     }
 
@@ -341,7 +442,7 @@ class RestockAnalyticsServiceTest extends TestCase
         $pid = $this->makeProduct(['status_id' => 4, 'recommended_stocks' => 10]);
         $this->setStock($pid, 0);
         $result = $this->service->analyze($this->asOf);
-        $this->assertNull($this->findRec($result, $pid));
+        $this->assertNull($this->findRecAt($result, $pid, $this->warehouseId));
         $this->assertNull($this->findSug($result, $pid));
     }
 
@@ -359,8 +460,7 @@ class RestockAnalyticsServiceTest extends TestCase
         $this->assertDatabaseHas('restock_recommendations', ['product_id' => $pid]);
         $first = DB::table('restock_recommendations')->where('product_id', $pid)->first();
         $this->assertNotNull($first->run_at);
-        $this->assertSame($result['warehouse_location_id'], (int) $first->location_id);
-        $this->assertNotNull($result['warehouse_location_id']);
+        $this->assertSame($this->warehouseId, (int) $first->location_id);
 
         // Second run replaces the batch (no duplicate rows)
         $this->service->run($this->asOf);
