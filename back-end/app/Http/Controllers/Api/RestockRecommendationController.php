@@ -41,17 +41,16 @@ class RestockRecommendationController extends Controller
             });
         }
 
-        if ($request->filled('location_id')) {
-            $query->where('location_id', (int) $request->location_id);
+        $locationId = $request->filled('location_id') ? (int) $request->location_id : null;
+        if ($locationId) {
+            $query->where('location_id', $locationId);
         }
 
         $rows = $query->get();
 
-        $warehouseId = $request->filled('location_id')
-            ? (int) $request->location_id
-            : Location::where('location_type', 'warehouse')
-                ->orderBy('location_id')
-                ->value('location_id');
+        $warehouseId = $locationId ?? Location::where('location_type', 'warehouse')
+            ->orderBy('location_id')
+            ->value('location_id');
         $budget = $warehouseId
             ? app(BudgetService::class)->resolveActiveBudget((int) $warehouseId)
             : null;
