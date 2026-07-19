@@ -5,6 +5,7 @@ import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import ProductSearchSelect from '../components/ProductSearchSelect';
+import RecordHistoryTimeline from '../components/RecordHistoryTimeline';
 import {
   itemsAPI,
   locationsAPI,
@@ -173,6 +174,21 @@ const PurchaseRequestPage = () => {
 
   const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // ── History tab ───────────────────────────────────────────────────────────
+  const [historyPr,        setHistoryPr]        = useState(null);   // the PR whose timeline is shown
+  const [prHistory,        setPrHistory]        = useState([]);
+  const [prHistoryLoading, setPrHistoryLoading] = useState(false);
+
+  const openPrHistory = (pr) => {
+    setHistoryPr(pr);
+    setActiveTab('history');
+    setPrHistoryLoading(true);
+    purchaseRequestsAPI.history(pr.pr_id)
+      .then((res) => setPrHistory(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => setPrHistory([]))
+      .finally(() => setPrHistoryLoading(false));
+  };
 
   // ── Tab 1: Create ─────────────────────────────────────────────────────────
   const [locations,        setLocations]        = useState([]);
@@ -1359,6 +1375,12 @@ const PurchaseRequestPage = () => {
                     </svg>
                     VIEW DETAILS
                   </button>
+                  <button type="button" className="po-status-view-btn" onClick={() => openPrHistory(pr)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                      <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+                    </svg>
+                    HISTORY
+                  </button>
                   <ArchiveButton
                     onArchive={() => handleArchivePR(pr.pr_id)}
                     disabled={![PR_STATUS.APPROVED, PR_STATUS.REJECTED, PR_STATUS.PARTIAL].includes(pr.status_id)}
@@ -1844,12 +1866,40 @@ const PurchaseRequestPage = () => {
               Stock Parameters
             </button>
           )}
+          <button
+            type="button"
+            className={`po-tab-btn${activeTab === 'history' ? ' po-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+              <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+            </svg>
+            History
+          </button>
         </div>
 
         {/* Tab content */}
         {activeTab === 'create'       && canCreate  && renderCreateTab()}
         {activeTab === 'my-requests'               && renderMyRequestsTab()}
         {activeTab === 'approvals'    && canApprovePR && renderApprovalsTab()}
+
+        {activeTab === 'history' && (
+          <div className="ak-card" style={{ padding: 20 }}>
+            {!historyPr ? (
+              <div className="rh-empty">
+                Open a request&rsquo;s <strong>History</strong> from My Requests to see its timeline here.
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+                  <h3 style={{ margin: 0 }}>{historyPr.pr_number}</h3>
+                  <span className="ak-muted" style={{ fontSize: 13 }}>History</span>
+                </div>
+                <RecordHistoryTimeline milestones={prHistory} loading={prHistoryLoading} />
+              </>
+            )}
+          </div>
+        )}
 
         {activeTab === 'stock-parameters' && canReadReco && (
           <div className="ak-card">
