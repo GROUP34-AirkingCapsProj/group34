@@ -539,7 +539,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |----------------------------------------------------------------------
-    | PO Recommendation analytics (restock engine)
+    | PR Recommendation analytics (restock engine)
     |----------------------------------------------------------------------
     */
     Route::middleware('permission:po_recommendations,read')->group(function () {

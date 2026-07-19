@@ -10,7 +10,6 @@ export const NAV_BUNDLES = [
   { name: 'Budget Management',     routePath: '/admin/budget-management',required: ['budget_verification.read'] },
   { name: 'Purchase Requests',     routePath: '/admin/purchase-requests',required: ['purchase_request_creation.read'] },
   { name: 'Purchase Orders',       routePath: '/admin/draft-po-creator', required: ['purchase_order_creation.read'] },
-  { name: 'PO Recommendation',     routePath: '/admin/po-recommendations', required: ['po_recommendations.read'] },
   { name: 'Supplier Network',      routePath: '/admin/suppliers',        required: ['supplier_management.read'] },
   { name: 'Item Master',           routePath: '/admin/items',            required: ['item_master_management.read'] },
   { name: 'Categories and Brands', routePath: '/admin/categories',       required: ['category_management.read'] },

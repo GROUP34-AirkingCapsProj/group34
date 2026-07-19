@@ -30,7 +30,6 @@ class NavBundleSeeder extends Seeder
             ['Budget Management',    '/admin/budget-management',    'PROCUREMENT & PLANNING',  'budget',             'budget_verification',     'read'],
             ['Purchase Requests',    '/admin/purchase-requests',    'PROCUREMENT & PLANNING',  'approval',           'purchase_request_creation','read'],
             ['Purchase Orders',      '/admin/draft-po-creator',     'PROCUREMENT & PLANNING',  'procurement',        'purchase_order_creation', 'read'],
-            ['PO Recommendation',    '/admin/po-recommendations',   'PROCUREMENT & PLANNING',  'po',                 'po_recommendations',      'read'],
             ['Supplier Network',     '/admin/suppliers',            'PROCUREMENT & PLANNING',  'supplier',           'supplier_management',     'read'],
             ['Item Master',          '/admin/items',                'PROCUREMENT & PLANNING',  'items',              'item_master_management',  'read'],
             ['Categories and Brands','/admin/categories',           'PROCUREMENT & PLANNING',  'category',           'category_management',     'read'],

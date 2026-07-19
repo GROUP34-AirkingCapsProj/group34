@@ -114,7 +114,7 @@ class PermissionSeeder extends Seeder
                 'read'   => ['admin', 'auditor'],
                 'verify' => ['auditor'],
             ],
-            // PO Recommendation analytics (page is at /admin/po-recommendations).
+            // PR Recommendation analytics (inline in Purchase Requests; Stock Parameters tab).
             // create = recalculate + create draft PR; update = apply/dismiss
             // stock parameter suggestions (edits product master data).
             'po_recommendations' => [

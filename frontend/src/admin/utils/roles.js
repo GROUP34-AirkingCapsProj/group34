@@ -104,7 +104,6 @@ export const ROUTE_ACCESS = {
   // while that bundle exists.
   '/admin/budget-management': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/purchase-requests': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST],
-  '/admin/po-recommendations': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/draft-po-creator': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/purchase-returns': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
 
