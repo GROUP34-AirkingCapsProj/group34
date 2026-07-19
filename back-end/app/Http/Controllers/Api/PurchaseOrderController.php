@@ -8,6 +8,7 @@ use App\Traits\ApiResponse;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Services\BudgetService;
+use App\Services\History\RecordHistoryService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -197,6 +198,34 @@ class PurchaseOrderController extends Controller
         } catch (\Exception $e) {
             return $this->error('Purchase order not found', 404);
         }
+    }
+
+    /** Curated lifecycle timeline for one PO: audit milestones + receiving sessions. */
+    public function history($id, RecordHistoryService $history)
+    {
+        $po = PurchaseOrder::with(['receivings.receivedBy'])->find($id);
+        if (! $po) {
+            return $this->error('Purchase order not found', 404);
+        }
+
+        $milestones = $history->forRecord('purchase_orders', (int) $po->po_id);
+
+        foreach ($po->receivings as $r) {
+            $receiver = $r->receivedBy
+                ? trim(($r->receivedBy->first_name ?? '') . ' ' . ($r->receivedBy->last_name ?? ''))
+                : 'System';
+            $milestones[] = [
+                'type'       => 'received',
+                'label'      => 'Received (' . (int) $r->total_quantity_received . ' pcs) · ' . $r->receiving_number,
+                'actor_name' => $receiver !== '' ? $receiver : 'System',
+                'timestamp'  => ($r->receiving_date ?? $r->created_at)?->toIso8601String(),
+                'changes'    => [],
+            ];
+        }
+
+        usort($milestones, fn ($a, $b) => strcmp((string) $a['timestamp'], (string) $b['timestamp']));
+
+        return $this->success(array_values($milestones), 'Purchase order history retrieved');
     }
 
     public function update(Request $request, $id)

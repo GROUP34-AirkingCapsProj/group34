@@ -461,6 +461,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
     Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
     Route::get('/purchase-orders/{id}', [PurchaseOrderController::class, 'show']);
+    Route::get('/purchase-orders/{id}/history', [PurchaseOrderController::class, 'history']);
     Route::middleware('permission:purchase_order_creation,create')->post('/purchase-orders', [PurchaseOrderController::class, 'store']);
     Route::middleware('permission:purchase_order_creation,update')->put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
     Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
@@ -513,6 +514,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
 
     Route::middleware('permission:purchase_request_creation,read')->get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
+    Route::middleware('permission:purchase_request_creation,read')
+        ->get('/purchase-requests/{id}/history', [PurchaseRequestController::class, 'history']);
 
     // PR approval — gated by the DB permission system (purchase_request_approval, approve).
     // Default grants SA only; admins can grant others via the Role Permissions editor / overrides.
