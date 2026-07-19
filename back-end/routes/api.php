@@ -548,7 +548,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('permission:po_recommendations,create')->group(function () {
         Route::post('/restock/recalculate', [RestockRecommendationController::class, 'recalculate']);
-        Route::post('/restock/create-pr', [RestockRecommendationController::class, 'createPr']);
     });
     Route::middleware('permission:po_recommendations,update')->group(function () {
         Route::post('/restock/suggestions/{id}/apply', [RestockRecommendationController::class, 'applySuggestion']);

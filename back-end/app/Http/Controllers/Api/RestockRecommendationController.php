@@ -2,22 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Exceptions\InsufficientBudgetException;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Product;
-use App\Models\PurchaseRequest;
-use App\Models\PurchaseRequestDetail;
 use App\Models\RestockRecommendation;
 use App\Models\StockParameterSuggestion;
 use App\Services\Analytics\RestockAnalyticsService;
 use App\Services\BudgetService;
-use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class RestockRecommendationController extends Controller
 {
@@ -47,11 +41,17 @@ class RestockRecommendationController extends Controller
             });
         }
 
+        if ($request->filled('location_id')) {
+            $query->where('location_id', (int) $request->location_id);
+        }
+
         $rows = $query->get();
 
-        $warehouseId = Location::where('location_type', 'warehouse')
-            ->orderBy('location_id')
-            ->value('location_id');
+        $warehouseId = $request->filled('location_id')
+            ? (int) $request->location_id
+            : Location::where('location_type', 'warehouse')
+                ->orderBy('location_id')
+                ->value('location_id');
         $budget = $warehouseId
             ? app(BudgetService::class)->resolveActiveBudget((int) $warehouseId)
             : null;
@@ -83,98 +83,6 @@ class RestockRecommendationController extends Controller
         }
 
         return $this->index($request);
-    }
-
-    /**
-     * POST /api/restock/create-pr
-     * Turn selected recommendations into a draft Purchase Request that then
-     * follows the normal PR -> approval -> PO flow.
-     */
-    public function createPr(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'needed_by_date'     => 'nullable|date|after:today',
-                'items'              => 'required|array|min:1',
-                'items.*.product_id' => 'required|exists:products,product_id',
-                'items.*.quantity'   => 'required|integer|min:1',
-            ]);
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        }
-
-        $warehouseId = Location::where('location_type', 'warehouse')
-            ->orderBy('location_id')
-            ->value('location_id');
-        if (!$warehouseId) {
-            return $this->error('No warehouse location is configured', 422);
-        }
-
-        $budget = app(BudgetService::class)->resolveActiveBudget((int) $warehouseId);
-        if (!$budget) {
-            return $this->error(
-                'No active budget covers today for the warehouse. Create one in Budget Management first.',
-                422
-            );
-        }
-
-        try {
-            $pr = DB::transaction(function () use ($validated, $request, $warehouseId, $budget) {
-                $products = Product::whereIn(
-                    'product_id',
-                    collect($validated['items'])->pluck('product_id')
-                )->get()->keyBy('product_id');
-
-                $lines = collect($validated['items'])->map(function ($item) use ($products) {
-                    $cost = (float) ($products[$item['product_id']]->cost_price ?? 0);
-                    return [
-                        'product_id'      => $item['product_id'],
-                        'quantity'        => $item['quantity'],
-                        'estimated_price' => $cost,
-                        'subtotal'        => $cost * $item['quantity'],
-                    ];
-                });
-
-                $estimatedTotal = $lines->sum('subtotal');
-                if (!app(BudgetService::class)->hasAvailable($budget, (float) $estimatedTotal)) {
-                    throw new InsufficientBudgetException(
-                        $budget->period_label,
-                        (float) $estimatedTotal,
-                        (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent
-                    );
-                }
-
-                $pr = PurchaseRequest::create([
-                    'location_id'     => $warehouseId,
-                    'budget_id'       => $budget->budget_id,
-                    'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
-                    'request_date'    => today(),
-                    'needed_by_date'  => $validated['needed_by_date']
-                        ?? today()->addDays(7)->toDateString(),
-                    'purpose'         => 'Generated from PO Recommendation analytics',
-                    'estimated_total' => $estimatedTotal,
-                    'status_id'       => 13, // Pending
-                    'requested_by'    => $request->user()->user_id,
-                ]);
-
-                foreach ($lines as $line) {
-                    PurchaseRequestDetail::create(['pr_id' => $pr->pr_id] + $line);
-                }
-
-                return $pr;
-            });
-        } catch (InsufficientBudgetException $e) {
-            return $this->error($e->getMessage(), 422);
-        } catch (\Throwable $e) {
-            return $this->error('Failed to create purchase request: ' . $e->getMessage(), 500);
-        }
-
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
-
-        return $this->success([
-            'pr_id'     => $pr->pr_id,
-            'pr_number' => $pr->pr_number,
-        ], 'Draft purchase request created', 201);
     }
 
     /** GET /api/restock/suggestions?status=pending|applied|dismissed|all */

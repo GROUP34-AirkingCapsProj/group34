@@ -41,22 +41,6 @@ class RestockEndpointsTest extends TestCase
             'updated_at'    => now(),
         ], 'location_id');
 
-        // create-pr now requires an active budget for the resolved warehouse
-        // (first warehouse by location_id — may be an older seeded one, not $whId).
-        $firstWarehouseId = (int) DB::table('locations')->where('location_type', 'warehouse')
-            ->orderBy('location_id')->value('location_id');
-        DB::table('budget_allocations')->insert([
-            'location_id'         => $firstWarehouseId,
-            'period_label'        => 'TEST-' . uniqid(),
-            'period_start'        => today()->subDays(10)->toDateString(),
-            'period_end'          => today()->addDays(10)->toDateString(),
-            'total_budget'        => 1000000,
-            'committed'           => 0,
-            'spent'               => 0,
-            'verification_status' => 'verified',
-            'created_at'          => now(),
-            'updated_at'          => now(),
-        ]);
     }
 
     private function makeUser(string $roleSlug): User
@@ -156,46 +140,25 @@ class RestockEndpointsTest extends TestCase
         $this->assertContains($pid, $ids);
     }
 
-    public function test_create_pr_builds_draft_purchase_request_with_details(): void
+    public function test_recommendations_can_be_filtered_by_location(): void
     {
-        $pid = $this->makeProductWithDemand(); // cost_price 80
+        $pid = $this->makeProductWithDemand(); // stock 1 at first warehouse -> low
         $ia  = $this->makeUser('inventory_analyst');
 
-        $resp = $this->actingAs($ia, 'sanctum')->postJson('/api/restock/create-pr', [
-            'items' => [
-                ['product_id' => $pid, 'quantity' => 12],
-            ],
-        ]);
+        // Populate the batch.
+        $this->actingAs($ia, 'sanctum')->postJson('/api/restock/recalculate')->assertOk();
 
-        $resp->assertCreated();
-        $prId = $resp->json('data.pr_id');
-        $this->assertNotNull($prId);
+        $whId = (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
 
-        $this->assertDatabaseHas('purchase_requests', [
-            'pr_id'        => $prId,
-            'status_id'    => 13, // Pending
-            'requested_by' => $ia->user_id,
-        ]);
-        $this->assertDatabaseHas('purchase_request_details', [
-            'pr_id'           => $prId,
-            'product_id'      => $pid,
-            'quantity'        => 12,
-            'estimated_price' => 80,
-            'subtotal'        => 960,
-        ]);
-    }
+        $resp = $this->actingAs($ia, 'sanctum')
+            ->getJson('/api/restock/recommendations?location_id=' . $whId);
 
-    public function test_create_pr_rejects_empty_items(): void
-    {
-        $this->actingAs($this->makeUser('inventory_analyst'), 'sanctum')
-            ->postJson('/api/restock/create-pr', ['items' => []])
-            ->assertStatus(422);
-    }
-
-    public function test_auditor_cannot_create_pr(): void
-    {
-        $this->actingAs($this->makeUser('auditor'), 'sanctum')
-            ->postJson('/api/restock/create-pr', ['items' => [['product_id' => 1, 'quantity' => 1]]])
-            ->assertForbidden();
+        $resp->assertOk();
+        foreach ($resp->json('data.recommendations') as $row) {
+            $this->assertSame($whId, (int) $row['location_id']);
+        }
+        $ids = array_map(fn ($r) => (int) $r['product_id'], $resp->json('data.recommendations'));
+        $this->assertContains($pid, $ids);
     }
 }
