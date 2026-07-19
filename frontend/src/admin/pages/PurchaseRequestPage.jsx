@@ -288,7 +288,6 @@ const PurchaseRequestPage = () => {
 
   // ── Fetch (and cache) the active budget for each distinct warehouse ───────
   useEffect(() => {
-    let ok = true;
     distinctBlockLocIds.forEach(locId => {
       if (fetchedLocRef.current.has(locId)) return;
       fetchedLocRef.current.add(locId);
@@ -307,36 +306,29 @@ const PurchaseRequestPage = () => {
           return budgetAllocationsAPI.getAvailable(best.budget_id);
         })
         .then(avRes => {
-          if (!ok) return;
           setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: false, budget: avRes?.data ?? null } }));
         })
         .catch(() => {
-          if (!ok) return;
           setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: false, budget: null } }));
         });
     });
-    return () => { ok = false; };
   }, [distinctBlockLocIds]);
 
   // ── Fetch (and cache) low-stock recommendations for each distinct warehouse ─
   useEffect(() => {
-    let ok = true;
     distinctBlockLocIds.forEach(locId => {
       if (fetchedRecLocRef.current.has(locId)) return;
       fetchedRecLocRef.current.add(locId);
       setRecsByLoc(prev => ({ ...prev, [locId]: { loading: true, recs: [] } }));
       restockAPI.getRecommendations({ location_id: locId })
         .then(res => {
-          if (!ok) return;
           const recs = Array.isArray(res?.data?.recommendations) ? res.data.recommendations : [];
           setRecsByLoc(prev => ({ ...prev, [locId]: { loading: false, recs } }));
         })
         .catch(() => {
-          if (!ok) return;
           setRecsByLoc(prev => ({ ...prev, [locId]: { loading: false, recs: [] } }));
         });
     });
-    return () => { ok = false; };
   }, [distinctBlockLocIds]);
 
   // ── Load tab data ─────────────────────────────────────────────────────────
@@ -880,7 +872,8 @@ const PurchaseRequestPage = () => {
                   className="pr-reco-toggle"
                   onClick={() => setOpenRecPanels(prev => {
                     const next = new Set(prev);
-                    next.has(block.id) ? next.delete(block.id) : next.add(block.id);
+                    if (next.has(block.id)) next.delete(block.id);
+                    else next.add(block.id);
                     return next;
                   })}
                   aria-expanded={panelOpen}
@@ -910,8 +903,8 @@ const PurchaseRequestPage = () => {
                         <span className="pr-reco-item-stat">stock {r.current_stock}</span>
                         <span className="pr-reco-item-stat">order <strong>{r.recommended_quantity}</strong></span>
                         <span className="pr-reco-item-reasons">
-                          {(r.reason_codes || []).map(c => (
-                            <span key={c} className="ak-pill">{REASON_LABELS[c] || c}</span>
+                          {(r.reason_codes || []).map((c, i) => (
+                            <span key={`${r.recommendation_id}-${c}-${i}`} className="ak-pill">{REASON_LABELS[c] || c}</span>
                           ))}
                         </span>
                         <button
