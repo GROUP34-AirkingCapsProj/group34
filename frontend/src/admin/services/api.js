@@ -694,14 +694,6 @@ export const restockAPI = {
   },
   recalculate: async () =>
     apiRequest('/restock/recalculate', { method: 'POST' }),
-  createPR: async (items, neededByDate = null) =>
-    apiRequest('/restock/create-pr', {
-      method: 'POST',
-      body: JSON.stringify({
-        items,
-        ...(neededByDate ? { needed_by_date: neededByDate } : {}),
-      }),
-    }),
   getSuggestions: async (status = 'pending') =>
     apiRequest(`/restock/suggestions?status=${status}`),
   applySuggestion: async (id) =>
