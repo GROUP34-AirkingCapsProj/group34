@@ -128,6 +128,21 @@ class ReceivingReceiptTest extends TestCase
         $this->assertStringContainsString('application/pdf', $res->headers->get('content-type'));
     }
 
+    /**
+     * Browser scenario: a top-level navigation carries NO session/Authorization,
+     * only ?token=. This must still return the PDF — AuthenticateFromQueryToken
+     * has to resolve the user before CheckPermission runs.
+     */
+    public function test_consolidated_po_receipt_pdf_downloads_with_query_token_only(): void
+    {
+        $u = $this->adminUser();
+        $r = $this->makeReceiving($u);
+
+        $res = $this->get("/api/purchase-orders/{$r->po_id}/receiving-receipt/pdf?token=" . $this->tokenFor($u));
+        $res->assertOk();
+        $this->assertStringContainsString('application/pdf', $res->headers->get('content-type'));
+    }
+
     public function test_consolidated_po_receipt_404_when_nothing_received(): void
     {
         $u = $this->adminUser();
