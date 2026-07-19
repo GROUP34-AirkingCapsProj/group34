@@ -896,14 +896,18 @@ Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,r
 Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
      ->get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
 
-Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+// Goods Received Note downloads. These use standard Bearer auth (auth:sanctum),
+// NOT a ?token= query param — the frontend fetches the file with the Authorization
+// header and hands the browser a blob, so the token never appears in the URL
+// (avoids the "insecure" credential-in-URL warning over plain HTTP).
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
      ->get('/receivings/{id}/receipt/pdf', [ReceivingController::class, 'receiptPdf']);
 
-Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
      ->get('/receivings/{id}/receipt/csv', [ReceivingController::class, 'receiptCsv']);
 
 // Consolidated Goods Received Note for a whole PO (all sessions/warehouses)
-Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
      ->get('/purchase-orders/{id}/receiving-receipt/pdf', [ReceivingController::class, 'poReceiptPdf']);
-Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
      ->get('/purchase-orders/{id}/receiving-receipt/csv', [ReceivingController::class, 'poReceiptCsv']);
