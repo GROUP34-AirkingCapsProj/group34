@@ -99,13 +99,19 @@ class RestockAnalyticsServiceTest extends TestCase
         return null;
     }
 
-    /** One issuance of $qty pieces per day for $days days ending at asOf. */
+    /** One issuance of $qty pieces per day for $days days ending at asOf, at the default warehouse. */
     private function issueDaily(int $productId, int $qty, int $days): void
+    {
+        $this->issueDailyAt($this->warehouseId, $productId, $qty, $days);
+    }
+
+    /** As issueDaily, but issued from a specific location. */
+    private function issueDailyAt(int $locationId, int $productId, int $qty, int $days): void
     {
         for ($i = 0; $i < $days; $i++) {
             $date = $this->asOf->copy()->subDays($i)->toDateString();
             $issuanceId = DB::table('issuances')->insertGetId([
-                'location_id'   => $this->warehouseId,
+                'location_id'   => $locationId,
                 'issuance_date' => $date,
                 'issuance_type' => 'Operations',
                 'created_at'    => now(),
@@ -319,6 +325,7 @@ class RestockAnalyticsServiceTest extends TestCase
         for ($i = 0; $i < 10; $i++) {
             $salesId = DB::table('sales')->insertGetId([
                 'invoice_number' => 'INV-TST-' . uniqid(),
+                'location_id'    => $this->warehouseId,
                 'sale_date'      => $this->asOf->copy()->subDays($i)->toDateString(),
                 'created_at'     => now(),
                 'updated_at'     => now(),
@@ -344,11 +351,11 @@ class RestockAnalyticsServiceTest extends TestCase
     public function test_low_at_one_warehouse_only_recommends_that_warehouse(): void
     {
         $wh2 = $this->makeWarehouse();
-        // Shared demand 1/day for 30 days -> lead 7, reorder 10, target 33.
+        // Demand 1/day at warehouse A only -> lead 7, reorder 10, target 33.
         $pid = $this->makeProduct();
         $this->issueDaily($pid, 1, 30);
         $this->setStockAt($this->warehouseId, $pid, 3);   // low -> triggers
-        $this->setStockAt($wh2, $pid, 500);               // well stocked -> no row
+        $this->setStockAt($wh2, $pid, 500);               // well stocked + no demand -> no row
 
         $result = $this->service->analyze($this->asOf);
 
@@ -359,21 +366,29 @@ class RestockAnalyticsServiceTest extends TestCase
         $this->assertSame(3, $recLow['current_stock']);
     }
 
-    public function test_shared_demand_is_identical_across_a_products_warehouse_rows(): void
+    public function test_demand_differs_per_warehouse(): void
     {
+        // Same product, different outflow at two warehouses: A quiet (1/day),
+        // B busy (5/day). Per-warehouse demand => B gets a higher target and a
+        // larger recommended order than A.
         $wh2 = $this->makeWarehouse();
         $pid = $this->makeProduct();
-        $this->issueDaily($pid, 2, 30);                   // v30 = 2.0 org-wide
-        $this->setStockAt($this->warehouseId, $pid, 1);   // low
-        $this->setStockAt($wh2, $pid, 2);                 // also low
+        $this->issueDailyAt($this->warehouseId, $pid, 1, 30);  // A: v30 = 1.0
+        $this->issueDailyAt($wh2, $pid, 5, 30);                // B: v30 = 5.0
+        $this->setStockAt($this->warehouseId, $pid, 3);
+        $this->setStockAt($wh2, $pid, 3);
 
         $result = $this->service->analyze($this->asOf);
         $a = $this->findRecAt($result, $pid, $this->warehouseId);
         $b = $this->findRecAt($result, $pid, $wh2);
 
-        $this->assertNotNull($a);
-        $this->assertNotNull($b);
-        $this->assertEqualsWithDelta((float) $a['avg_daily_demand'], (float) $b['avg_daily_demand'], 0.0001);
+        $this->assertNotNull($a, 'quiet warehouse still low on stock -> recommended');
+        $this->assertNotNull($b, 'busy warehouse -> recommended');
+        $this->assertEqualsWithDelta(1.0, (float) $a['avg_daily_demand'], 0.001);
+        $this->assertEqualsWithDelta(5.0, (float) $b['avg_daily_demand'], 0.001);
+        // Busier warehouse recommends more.
+        $this->assertGreaterThan($a['recommended_quantity'], $b['recommended_quantity']);
+        // Lead time is per-product (supplier-based), identical across warehouses.
         $this->assertEqualsWithDelta((float) $a['lead_time_days'], (float) $b['lead_time_days'], 0.0001);
     }
 
@@ -381,7 +396,9 @@ class RestockAnalyticsServiceTest extends TestCase
     {
         $wh2 = $this->makeWarehouse();
         $pid = $this->makeProduct();
-        $this->issueDaily($pid, 1, 30);                   // reorder 10, target 33
+        // Equal demand at both warehouses (1/day) -> each: reorder 10, target 33.
+        $this->issueDailyAt($this->warehouseId, $pid, 1, 30);
+        $this->issueDailyAt($wh2, $pid, 1, 30);
         $this->setStockAt($this->warehouseId, $pid, 3);
         $this->setStockAt($wh2, $pid, 3);
 
