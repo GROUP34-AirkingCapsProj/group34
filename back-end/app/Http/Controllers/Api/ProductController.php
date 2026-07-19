@@ -94,7 +94,7 @@ class ProductController extends Controller
         try {
             $input = $request->all();
 
-            // Normalize naming aliases (PORecommendation caller uses code/name/category/brand)
+            // Normalize naming aliases (some callers use code/name/category/brand)
             if (!isset($input['product_code']) && isset($input['code'])) {
                 $input['product_code'] = $input['code'];
             }
@@ -114,7 +114,7 @@ class ProductController extends Controller
                 $input['category_id'] = $cat->category_id;
             }
 
-            // Resolve brand string → ID (used by PORecommendation)
+            // Resolve brand string → ID
             if (empty($input['brand_id']) && !empty($input['brand'])) {
                 $brand = BrandLookup::firstOrCreate(['brand_name' => trim($input['brand'])]);
                 $input['brand_id'] = $brand->brand_id;
