@@ -895,3 +895,9 @@ Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,r
 
 Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
      ->get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
+
+Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+     ->get('/receivings/{id}/receipt/pdf', [ReceivingController::class, 'receiptPdf']);
+
+Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+     ->get('/receivings/{id}/receipt/csv', [ReceivingController::class, 'receiptCsv']);
