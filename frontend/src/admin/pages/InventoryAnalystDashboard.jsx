@@ -51,7 +51,7 @@ export default function InventoryAnalystDashboard() {
               <p className="ak-sub">Network-wide stock health, category mix and shortfalls.</p>
             </div>
             <div className="ak-header-aside ak-actions">
-              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/po-recommendations')}>Reorder advice</button>
+              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/purchase-requests')}>Reorder advice</button>
               <button className="ak-btn ak-btn--primary" onClick={() => navigate('/admin/inventory')}>Inventory</button>
             </div>
           </div>

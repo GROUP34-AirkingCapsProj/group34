@@ -180,7 +180,6 @@ const AdminLayout = ({ children }) => {
       [
         '/admin/dashboard',
         '/admin/inventory',
-        '/admin/po-recommendations',
         '/admin/draft-po-creator',
         '/admin/items',
         '/admin/transactions',
