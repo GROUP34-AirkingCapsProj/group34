@@ -8,6 +8,7 @@ import {
   suppliersAPI,
   purchaseOrdersAPI,
   purchaseRequestsAPI,
+  receivingsAPI,
   locationsAPI,
   usersAPI,
   companySettingsAPI,
@@ -21,6 +22,7 @@ import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument, distinctDeliverLocations } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
 import RecordHistoryTimeline from '../components/RecordHistoryTimeline';
+import ReceivingReceipt from '../components/ReceivingReceipt';
 import DateInput from '../components/DateInput';
 import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { toast } from '../utils/toast';
@@ -195,18 +197,35 @@ const PurchaseOrderPage = () => {
   // Per-PO history timeline (shown inside the detail modal)
   const [historyMilestones, setHistoryMilestones] = useState([]);
   const [historyLoading,     setHistoryLoading]    = useState(false);
+  // Receiving sessions for the open PO + the one being shown as a receipt
+  const [poReceivings,   setPoReceivings]   = useState([]);
+  const [receiptReceiving, setReceiptReceiving] = useState(null);
 
   useEffect(() => {
     const poId = selectedPO?.po_id;
-    if (!poId) { setHistoryMilestones([]); return; }
+    if (!poId) { setHistoryMilestones([]); setPoReceivings([]); return; }
     let mounted = true;
     setHistoryLoading(true);
     purchaseOrdersAPI.history(poId)
       .then((res) => { if (mounted) setHistoryMilestones(Array.isArray(res?.data) ? res.data : []); })
       .catch(() => { if (mounted) setHistoryMilestones([]); })
       .finally(() => { if (mounted) setHistoryLoading(false); });
+    // Load the PO's receiving sessions (getById eager-loads `receivings`).
+    purchaseOrdersAPI.getById(poId)
+      .then((res) => { if (mounted) setPoReceivings(Array.isArray(res?.data?.receivings) ? res.data.receivings : []); })
+      .catch(() => { if (mounted) setPoReceivings([]); });
     return () => { mounted = false; };
   }, [selectedPO?.po_id]);
+
+  // Open the receipt for one receiving session — fetch its full line detail first.
+  const openReceipt = async (receivingId) => {
+    try {
+      const res = await receivingsAPI.getById(receivingId);
+      setReceiptReceiving(res?.data || null);
+    } catch {
+      toast.error('Failed to load the receiving receipt');
+    }
+  };
 
   // Deep-link focus state
   const focusPoId = useFocusTarget('po');
@@ -1572,6 +1591,29 @@ const PurchaseOrderPage = () => {
                   <span className="po-detail-total-value">₱{amount.toLocaleString('en-PH')}</span>
                 </div>
 
+                {poReceivings.length > 0 && (
+                  <div className="po-detail-items-wrap" style={{ marginTop: 16 }}>
+                    <div className="po-detail-items-title-row">
+                      <span className="po-detail-items-heading">RECEIVING RECEIPTS</span>
+                      <span className="po-detail-items-count">{poReceivings.length}</span>
+                    </div>
+                    {poReceivings.map((rcv) => (
+                      <div key={rcv.receiving_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eef2f7' }}>
+                        <div style={{ fontSize: 13 }}>
+                          <strong>{rcv.receiving_number}</strong>
+                          <span style={{ color: '#64748b', marginLeft: 8 }}>
+                            {rcv.receiving_date ? isoToMDY(rcv.receiving_date) : ''} · {Number(rcv.total_quantity_received || 0)} pcs
+                          </span>
+                        </div>
+                        <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => openReceipt(rcv.receiving_id)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          RECEIPT
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="po-detail-items-wrap" style={{ marginTop: 16 }}>
                   <div className="po-detail-items-title-row">
                     <span className="po-detail-items-heading">HISTORY</span>
@@ -1684,6 +1726,12 @@ const PurchaseOrderPage = () => {
           );
         })()}
       </Modal>
+
+      <ReceivingReceipt
+        receiving={receiptReceiving}
+        isOpen={!!receiptReceiving}
+        onClose={() => setReceiptReceiving(null)}
+      />
     </AdminLayout>
   );
 };
