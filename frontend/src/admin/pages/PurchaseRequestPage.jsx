@@ -900,6 +900,9 @@ const PurchaseRequestPage = () => {
         const recEntry = recsByLoc[String(block.warehouseId)] || { loading: false, recs: [] };
         const usedProductIds = new Set(block.rows.map(r => String(r.productId)).filter(Boolean));
         const suggestible = (recEntry.recs || []).filter(r => !usedProductIds.has(String(r.product_id)));
+        const criticalCount = suggestible.filter(r => r.priority === 'CRITICAL').length;
+        // Full per-warehouse reco lookup (incl. products already added) for the per-row hint.
+        const recByProduct = new Map((recEntry.recs || []).map(r => [String(r.product_id), r]));
         const panelOpen = openRecPanels.has(block.id);
 
         return (
@@ -958,9 +961,13 @@ const PurchaseRequestPage = () => {
                 >
                   <span className="pr-reco-toggle-caret">{panelOpen ? '▾' : '▸'}</span>
                   Suggested low-stock items for this warehouse
-                  <span className="pr-reco-count">
-                    {recEntry.loading ? '…' : suggestible.length}
-                  </span>
+                  {recEntry.loading ? (
+                    <span className="pr-reco-count">…</span>
+                  ) : (
+                    <span className={`pr-reco-count${criticalCount > 0 ? ' pr-reco-count--critical' : ''}`}>
+                      {suggestible.length}{criticalCount > 0 ? ` · ${criticalCount} critical` : ''}
+                    </span>
+                  )}
                 </button>
 
                 {panelOpen && !recEntry.loading && suggestible.length === 0 && (
@@ -1042,6 +1049,21 @@ const PurchaseRequestPage = () => {
                             value={r.qty}
                             onChange={e => updateRowField(block.id, r.id, 'qty', e.target.value)}
                           />
+                          {(() => {
+                            const rec = r.productId ? recByProduct.get(String(r.productId)) : null;
+                            const suggestedQty = rec ? Number(rec.recommended_quantity) || 0 : 0;
+                            if (suggestedQty <= 0 || Number(r.qty) === suggestedQty) return null;
+                            return (
+                              <button
+                                type="button"
+                                className="pr-qty-hint"
+                                onClick={() => updateRowField(block.id, r.id, 'qty', suggestedQty)}
+                                title={`Recommended order quantity for this product at ${group?.locName || 'this warehouse'}`}
+                              >
+                                Suggested: {suggestedQty} → apply
+                              </button>
+                            );
+                          })()}
                         </td>
                         <td>
                           <input
