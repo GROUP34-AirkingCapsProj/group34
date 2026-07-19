@@ -3,8 +3,12 @@
 namespace Tests\Feature\History;
 
 use App\Models\AuditTrail;
+use App\Models\Location;
+use App\Models\PurchaseOrder;
+use App\Models\Receiving;
 use App\Models\Role;
 use App\Models\StatusLookup;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Services\History\RecordHistoryService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -79,5 +83,48 @@ class RecordHistoryTest extends TestCase
 
         $this->assertSame('verified', $milestones[0]['type']);
         $this->assertSame('Verified', $milestones[0]['label']);
+    }
+
+    public function test_po_history_endpoint_includes_receiving_milestone(): void
+    {
+        $u = $this->makeUser();
+        // Authenticate before creating the PO so the Auditable trait logs a
+        // 'create' audit row (it only records when auth()->user() is set).
+        $this->actingAs($u, 'sanctum');
+
+        $loc = Location::forceCreate([
+            'location_code' => 'HWH-' . uniqid(), 'location_name' => 'Hist WH',
+            'location_type' => 'warehouse', 'is_active' => 1,
+        ]);
+        $sup = Supplier::forceCreate(['supplier_name' => 'Hist Supplier ' . uniqid()]);
+
+        $po = PurchaseOrder::create([
+            'supplier_id' => $sup->supplier_id, 'location_id' => $loc->location_id,
+            'po_number' => 'PO-HST-' . uniqid(), 'order_date' => today()->toDateString(),
+            'verification_status' => 'verified', 'total_amount' => 100, 'grand_total' => 100,
+            'created_by' => $u->user_id,
+        ]);
+        Receiving::create([
+            'po_id' => $po->po_id, 'supplier_id' => $sup->supplier_id,
+            'location_id' => $loc->location_id, 'receiving_number' => 'GRN-' . uniqid(),
+            'receiving_date' => today()->toDateString(), 'received_by' => $u->user_id,
+            'total_quantity_received' => 5,
+        ]);
+
+        $res = $this->actingAs($u, 'sanctum')->getJson("/api/purchase-orders/{$po->po_id}/history");
+        $res->assertOk();
+        $types = collect($res->json('data'))->pluck('type');
+        $this->assertTrue($types->contains('created'));   // PO create audit row
+        $this->assertTrue($types->contains('received'));  // merged receiving milestone
+    }
+
+    public function test_pr_history_endpoint_ok(): void
+    {
+        $u = $this->makeUser();
+        // PR creation route/model is exercised elsewhere; here we assert the endpoint
+        // shape for a non-existent record returns an empty, successful timeline.
+        $res = $this->actingAs($u, 'sanctum')->getJson('/api/purchase-requests/123456/history');
+        $res->assertOk()->assertJsonPath('success', true);
+        $this->assertIsArray($res->json('data'));
     }
 }

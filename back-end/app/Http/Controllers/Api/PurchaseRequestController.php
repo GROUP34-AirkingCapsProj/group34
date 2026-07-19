@@ -12,6 +12,7 @@ use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use App\Models\Supplier;
 use App\Services\BudgetService;
+use App\Services\History\RecordHistoryService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -155,6 +156,28 @@ class PurchaseRequestController extends Controller
         });
 
         return $this->success($pr, 'Purchase request retrieved');
+    }
+
+    /** Curated lifecycle timeline for one PR: audit milestones + PO conversion. */
+    public function history($id, RecordHistoryService $history)
+    {
+        $pr = PurchaseRequest::with('convertedPO')->find($id);
+
+        $milestones = $history->forRecord('purchase_requests', (int) $id);
+
+        if ($pr && $pr->convertedPO) {
+            $milestones[] = [
+                'type'       => 'converted',
+                'label'      => 'Converted to PO ' . $pr->convertedPO->po_number,
+                'actor_name' => 'System',
+                'timestamp'  => $pr->convertedPO->created_at?->toIso8601String(),
+                'changes'    => [],
+            ];
+        }
+
+        usort($milestones, fn ($a, $b) => strcmp((string) $a['timestamp'], (string) $b['timestamp']));
+
+        return $this->success(array_values($milestones), 'Purchase request history retrieved');
     }
 
     public function export(Request $request)
