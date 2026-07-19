@@ -83,6 +83,20 @@ class RecordHistoryService
         return ['edited', 'Edited'];
     }
 
+    /**
+     * User-reference fields. Most are already stored as names by the Auditable
+     * trait, but some (e.g. verified_by) are stored as raw ids — so at display
+     * time we resolve any still-numeric value to the person's name.
+     */
+    private const USER_FIELDS = [
+        'verified_by', 'approved_by', 'created_by', 'received_by',
+        'requested_by', 'issued_by', 'transferred_by', 'adjusted_by',
+        'returned_by', 'scanned_by',
+    ];
+
+    /** @var array<int,string> */
+    private array $userNameCache = [];
+
     private function buildChanges(array $old, array $new): array
     {
         $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
@@ -93,11 +107,34 @@ class RecordHistoryService
             }
             $changes[] = [
                 'field' => str_replace(['_id', '_'], ['', ' '], $key),
-                'from'  => $old[$key] ?? null,
-                'to'    => $new[$key] ?? null,
+                'from'  => $this->displayValue($key, $old[$key] ?? null),
+                'to'    => $this->displayValue($key, $new[$key] ?? null),
             ];
         }
         return $changes;
+    }
+
+    /** Resolve a raw id to a readable label where we can (user names for now). */
+    private function displayValue(string $key, mixed $value): mixed
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+        if (in_array($key, self::USER_FIELDS, true) && is_numeric($value)) {
+            return $this->userName((int) $value);
+        }
+        return $value;
+    }
+
+    private function userName(int $id): string
+    {
+        if (! isset($this->userNameCache[$id])) {
+            $u = \App\Models\User::find($id);
+            $this->userNameCache[$id] = $u
+                ? (trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')) ?: ($u->username ?? "User #{$id}"))
+                : "User #{$id}";
+        }
+        return $this->userNameCache[$id];
     }
 
     private function actorName(AuditTrail $row): string
