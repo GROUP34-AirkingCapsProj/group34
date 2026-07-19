@@ -3425,3 +3425,27 @@
   display: flex; gap: 16px; flex-wrap: wrap;
 }
 .budget-closeout strong { color: #1e293b; }
+
+/* Inline PR recommendation panel (Create Request) */
+.pr-reco-panel { margin: 0 16px 12px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.pr-reco-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: #f8fafc; border: 0; padding: 10px 12px; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: #334155; border-radius: 8px;
+}
+.pr-reco-toggle-caret { color: #64748b; }
+.pr-reco-count {
+  margin-left: auto; background: #e0f2fe; color: #075985;
+  border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 700;
+}
+.pr-reco-empty { padding: 10px 14px; font-size: 12px; color: #64748b; }
+.pr-reco-list { display: flex; flex-direction: column; }
+.pr-reco-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-top: 1px solid #f1f5f9; font-size: 13px;
+}
+.pr-reco-item-name { display: flex; flex-direction: column; min-width: 160px; }
+.pr-reco-item-code { font-size: 11px; color: #94a3b8; font-family: monospace; }
+.pr-reco-item-stat { color: #475569; white-space: nowrap; }
+.pr-reco-item-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.pr-reco-add { flex-shrink: 0; }

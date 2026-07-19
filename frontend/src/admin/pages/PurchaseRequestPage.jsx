@@ -11,6 +11,7 @@ import {
   suppliersAPI,
   purchaseRequestsAPI,
   budgetAllocationsAPI,
+  restockAPI,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
@@ -133,6 +134,26 @@ const newBlock = () => ({
   rows:        [newRow()],
 });
 
+// ─── recommendation display maps ──────────────────────────────────────────────
+
+const REASON_LABELS = {
+  OUT_OF_STOCK:       'Out of stock',
+  BELOW_SAFETY_STOCK: 'Below safety stock',
+  STOCKOUT_RISK:      'Stockout risk',
+  LOW_STOCK:          'Low stock',
+  FAST_MOVING:        'Fast moving',
+  HIGH_TURNOVER:      'High turnover',
+  SLOW_MOVING:        'Slow moving',
+  NO_MOVEMENT:        'No movement',
+  DEMAND_SHIFT:       'Demand shift',
+};
+
+const RECO_PRIORITY_BADGE = {
+  CRITICAL: 'ak-badge ak-badge--red',
+  HIGH:     'ak-badge ak-badge--amber',
+  MEDIUM:   'ak-badge ak-badge--blue',
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -159,6 +180,11 @@ const PurchaseRequestPage = () => {
   // Per-warehouse budget cache: { [locationId]: { loading: bool, budget: object|null } }
   const [budgetsByLoc,     setBudgetsByLoc]     = useState({});
   const fetchedLocRef = useRef(new Set());
+  // Per-warehouse recommendation cache: { [locationId]: { loading, recs: [] } }
+  const [recsByLoc, setRecsByLoc] = useState({});
+  const fetchedRecLocRef = useRef(new Set());
+  // Which blocks have the suggestions panel expanded (by block id).
+  const [openRecPanels, setOpenRecPanels] = useState(new Set());
   const [neededByDate,     setNeededByDate]     = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 7);
     return d.toISOString().slice(0, 10);
@@ -292,6 +318,27 @@ const PurchaseRequestPage = () => {
     return () => { ok = false; };
   }, [distinctBlockLocIds]);
 
+  // ── Fetch (and cache) low-stock recommendations for each distinct warehouse ─
+  useEffect(() => {
+    let ok = true;
+    distinctBlockLocIds.forEach(locId => {
+      if (fetchedRecLocRef.current.has(locId)) return;
+      fetchedRecLocRef.current.add(locId);
+      setRecsByLoc(prev => ({ ...prev, [locId]: { loading: true, recs: [] } }));
+      restockAPI.getRecommendations({ location_id: locId })
+        .then(res => {
+          if (!ok) return;
+          const recs = Array.isArray(res?.data?.recommendations) ? res.data.recommendations : [];
+          setRecsByLoc(prev => ({ ...prev, [locId]: { loading: false, recs } }));
+        })
+        .catch(() => {
+          if (!ok) return;
+          setRecsByLoc(prev => ({ ...prev, [locId]: { loading: false, recs: [] } }));
+        });
+    });
+    return () => { ok = false; };
+  }, [distinctBlockLocIds]);
+
   // ── Load tab data ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (activeTab === 'my-requests') {
@@ -406,6 +453,53 @@ const PurchaseRequestPage = () => {
         setWarehouseBlocks(p => p.map(b => (b.id !== blockId ? b : {
           ...b,
           rows: b.rows.map(r => (r.id === rowId ? { ...r, reorderWarning: openLines, warningAcknowledged: false } : r)),
+        })));
+      }
+    } catch (_) { /* non-fatal */ }
+  }, [products]);
+
+  // ── Add a recommended low-stock item as a prefilled row in a block ─────────
+  const addRecommendedItem = useCallback(async (blockId, rec) => {
+    const pid  = String(rec.product_id);
+    const prod = products.find(p => p.id === pid);
+    if (!prod) { toast.error('Product not available', 'Reload the product list and try again.'); return; }
+
+    const qty     = Math.max(1, Number(rec.recommended_quantity) || 1);
+    const newId   = `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const rowData = {
+      id:                  newId,
+      productId:           prod.id,
+      productName:         prod.name,
+      productType:         prod.type,
+      unitId:              prod.unitId,
+      unitName:            prod.unitName,
+      brandName:           prod.brandName,
+      capacityRating:      prod.capacityRating,
+      variant:             prod.variant,
+      piecesPerPackage:    prod.piecesPerPackage,
+      packageUnit:         prod.packageUnit,
+      qty,
+      estPrice:            prod.costPrice,
+      subtotal:            qty * prod.costPrice,
+      reorderWarning:      null,
+      warningAcknowledged: false,
+    };
+
+    setWarehouseBlocks(p => p.map(b => {
+      if (b.id !== blockId) return b;
+      // If the first row is still empty, fill it instead of appending.
+      const firstEmpty = b.rows.length === 1 && !b.rows[0].productId;
+      return { ...b, rows: firstEmpty ? [rowData] : [...b.rows, rowData] };
+    }));
+
+    // Non-blocking smart-reorder check, same as handleProductSelect.
+    try {
+      const res       = await purchaseRequestsAPI.getOpenLinesForProduct(pid);
+      const openLines = Array.isArray(res?.data) ? res.data : [];
+      if (openLines.length > 0) {
+        setWarehouseBlocks(p => p.map(b => (b.id !== blockId ? b : {
+          ...b,
+          rows: b.rows.map(r => (r.id === newId ? { ...r, reorderWarning: openLines, warningAcknowledged: false } : r)),
         })));
       }
     } catch (_) { /* non-fatal */ }
@@ -733,6 +827,11 @@ const PurchaseRequestPage = () => {
         const group = warehouseGroupStatus.find(g => g.locId === String(block.warehouseId)) || null;
         const blockSubtotal = block.rows.reduce((s, r) => s + Number(r.subtotal || 0), 0);
 
+        const recEntry = recsByLoc[String(block.warehouseId)] || { loading: false, recs: [] };
+        const usedProductIds = new Set(block.rows.map(r => String(r.productId)).filter(Boolean));
+        const suggestible = (recEntry.recs || []).filter(r => !usedProductIds.has(String(r.product_id)));
+        const panelOpen = openRecPanels.has(block.id);
+
         return (
           <div key={block.id} className="po-line-items-card" style={{ border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
             <div className="po-line-items-header">
@@ -771,6 +870,61 @@ const PurchaseRequestPage = () => {
             {block.warehouseId && (
               <div style={{ padding: '0 16px 16px' }}>
                 {renderBudgetCard(group)}
+              </div>
+            )}
+
+            {block.warehouseId && (
+              <div className="pr-reco-panel">
+                <button
+                  type="button"
+                  className="pr-reco-toggle"
+                  onClick={() => setOpenRecPanels(prev => {
+                    const next = new Set(prev);
+                    next.has(block.id) ? next.delete(block.id) : next.add(block.id);
+                    return next;
+                  })}
+                  aria-expanded={panelOpen}
+                >
+                  <span className="pr-reco-toggle-caret">{panelOpen ? '▾' : '▸'}</span>
+                  Suggested low-stock items for this warehouse
+                  <span className="pr-reco-count">
+                    {recEntry.loading ? '…' : suggestible.length}
+                  </span>
+                </button>
+
+                {panelOpen && !recEntry.loading && suggestible.length === 0 && (
+                  <div className="pr-reco-empty">No low-stock items for this warehouse right now.</div>
+                )}
+
+                {panelOpen && suggestible.length > 0 && (
+                  <div className="pr-reco-list">
+                    {suggestible.map(r => (
+                      <div key={r.recommendation_id} className="pr-reco-item">
+                        <span className={RECO_PRIORITY_BADGE[r.priority] || 'ak-badge ak-badge--gray'}>
+                          {r.priority}
+                        </span>
+                        <span className="pr-reco-item-name">
+                          {r.product?.product_name || `#${r.product_id}`}
+                          <span className="pr-reco-item-code">{r.product?.product_code}</span>
+                        </span>
+                        <span className="pr-reco-item-stat">stock {r.current_stock}</span>
+                        <span className="pr-reco-item-stat">order <strong>{r.recommended_quantity}</strong></span>
+                        <span className="pr-reco-item-reasons">
+                          {(r.reason_codes || []).map(c => (
+                            <span key={c} className="ak-pill">{REASON_LABELS[c] || c}</span>
+                          ))}
+                        </span>
+                        <button
+                          type="button"
+                          className="po-btn po-btn-add-product pr-reco-add"
+                          onClick={() => addRecommendedItem(block.id, r)}
+                        >
+                          + Add
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
