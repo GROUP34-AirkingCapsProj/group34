@@ -73,7 +73,21 @@
   background: #eef2f7; border-radius: 999px; padding: 1px 8px;
 }
 
-/* Items */
+/* Warehouse group */
+.rhx-wh { border: 1px solid #e8edf3; border-radius: 10px; overflow: hidden; }
+.rhx-wh + .rhx-wh { margin-top: 10px; }
+.rhx-wh-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+}
+.rhx-wh-head svg { color: #64748b; flex: none; }
+.rhx-wh-name { font-size: 12.5px; font-weight: 700; color: #1e293b; }
+.rhx-wh-meta { font-size: 11px; color: #64748b; }
+.rhx-wh-total { margin-left: auto; font-size: 12.5px; font-weight: 700; color: #dc2626; }
+
+/* Items (inside a warehouse group) */
+.rhx-wh .rhx-items { border: none; border-radius: 0; }
 .rhx-items { display: flex; flex-direction: column; border: 1px solid #e8edf3; border-radius: 10px; overflow: hidden; }
 .rhx-item { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px 14px; padding: 10px 12px; }
 .rhx-item + .rhx-item { border-top: 1px solid #eef2f7; }
