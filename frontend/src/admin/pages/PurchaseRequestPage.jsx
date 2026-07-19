@@ -167,6 +167,9 @@ const PurchaseRequestPage = () => {
   // Permission-driven: anyone granted purchase_request_creation.create can submit PRs / convert to PO.
   const canCreate = isAdmin || (typeof can === 'function' && can('purchase_request_creation', 'create'));
   const canApprovePR = isAdmin || (typeof can === 'function' && can('purchase_request_approval', 'approve'));
+  const canReadReco   = isAdmin || (typeof can === 'function' && can('po_recommendations', 'read'));
+  const canRecalcReco = isAdmin || (typeof can === 'function' && can('po_recommendations', 'create'));
+  const canApplyReco  = isAdmin || (typeof can === 'function' && can('po_recommendations', 'update'));
 
   const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -210,6 +213,13 @@ const PurchaseRequestPage = () => {
   const [loadingPending,    setLoadingPending]    = useState(false);
   const [pendingPRsLoaded,  setPendingPRsLoaded]  = useState(false);
   const [expandedCards,     setExpandedCards]     = useState(new Set());
+
+  // ── Tab 4: Stock Parameters (migrated suggestions tool) ───────────────────
+  const [suggestions,     setSuggestions]     = useState([]);
+  const [loadingSug,      setLoadingSug]      = useState(false);
+  const [recoRunAt,       setRecoRunAt]       = useState(null);
+  const [recalculating,   setRecalculating]   = useState(false);
+  const [busySuggestion,  setBusySuggestion]  = useState(null);
 
   // ── Shared: modals ────────────────────────────────────────────────────────
   const [selectedPR,   setSelectedPR]   = useState(null);
@@ -347,7 +357,20 @@ const PurchaseRequestPage = () => {
         .catch(console.error)
         .finally(() => { setLoadingPending(false); setPendingPRsLoaded(true); });
     }
-  }, [activeTab, canApprovePR]);
+    if (activeTab === 'stock-parameters' && canReadReco) {
+      setLoadingSug(true);
+      Promise.all([
+        restockAPI.getSuggestions('pending'),
+        restockAPI.getRecommendations({}),
+      ])
+        .then(([sugRes, recRes]) => {
+          setSuggestions(Array.isArray(sugRes?.data) ? sugRes.data : []);
+          setRecoRunAt(recRes?.data?.run_at || null);
+        })
+        .catch(console.error)
+        .finally(() => setLoadingSug(false));
+    }
+  }, [activeTab, canApprovePR, canReadReco]);
 
   // ── Focus deep-link: switch approvers to the approvals tab ───────────────
   useEffect(() => {
@@ -684,6 +707,61 @@ const PurchaseRequestPage = () => {
       toast.error("Couldn't reject request", err?.message || 'Rejection failed.');
     } finally { setActionLoading(p => { const n = { ...p }; delete n[prId]; return n; }); }
   }, [selectedPR]);
+
+  // ── Stock parameter suggestions: recalculate / apply / dismiss ────────────
+  const handleRecalcReco = useCallback(async () => {
+    setRecalculating(true);
+    try {
+      const res = await restockAPI.recalculate();
+      setRecoRunAt(res?.data?.run_at || null);
+      const sugRes = await restockAPI.getSuggestions('pending');
+      setSuggestions(Array.isArray(sugRes?.data) ? sugRes.data : []);
+      // Invalidate inline caches so Create Request reflects the fresh batch.
+      fetchedRecLocRef.current = new Set();
+      setRecsByLoc({});
+      toast.success('Recommendations recalculated');
+    } catch (err) {
+      toast.error('Recalculation failed', err?.message);
+    } finally {
+      setRecalculating(false);
+    }
+  }, []);
+
+  const handleApplySuggestion = useCallback(async (s) => {
+    const ok = await confirmAction({
+      title: `Apply new stock parameters to ${s.product?.product_name || 'this product'}?`,
+      text:
+        `Recommended ${s.current_recommended} → ${s.suggested_recommended}, ` +
+        `Safety ${s.current_safety ?? 0} → ${s.suggested_safety ?? 0}, ` +
+        `Max ${s.current_max ?? 0} → ${s.suggested_max ?? 0}`,
+      confirmText: 'Apply',
+      tone: 'primary',
+    });
+    if (!ok) return;
+    setBusySuggestion(s.suggestion_id);
+    try {
+      await restockAPI.applySuggestion(s.suggestion_id);
+      setSuggestions(prev => prev.filter(x => x.suggestion_id !== s.suggestion_id));
+      toast.success('Stock parameters updated');
+    } catch (err) {
+      toast.error('Could not apply suggestion', err?.message);
+    } finally {
+      setBusySuggestion(null);
+    }
+  }, []);
+
+  const handleDismissSuggestion = useCallback(async (s) => {
+    setBusySuggestion(s.suggestion_id);
+    try {
+      await restockAPI.dismissSuggestion(s.suggestion_id);
+      setSuggestions(prev => prev.filter(x => x.suggestion_id !== s.suggestion_id));
+      toast.info('Suggestion dismissed');
+    } catch (err) {
+      toast.error('Could not dismiss suggestion', err?.message);
+    } finally {
+      setBusySuggestion(null);
+    }
+  }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER HELPERS
@@ -1680,12 +1758,97 @@ const PurchaseRequestPage = () => {
               )}
             </button>
           )}
+          {canReadReco && (
+            <button
+              type="button"
+              className={`po-tab-btn${activeTab === 'stock-parameters' ? ' po-tab-btn--active' : ''}`}
+              onClick={() => setActiveTab('stock-parameters')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+              </svg>
+              Stock Parameters
+            </button>
+          )}
         </div>
 
         {/* Tab content */}
         {activeTab === 'create'       && canCreate  && renderCreateTab()}
         {activeTab === 'my-requests'               && renderMyRequestsTab()}
         {activeTab === 'approvals'    && canApprovePR && renderApprovalsTab()}
+
+        {activeTab === 'stock-parameters' && canReadReco && (
+          <div className="ak-card">
+            <div className="ak-toolbar">
+              <div className="ak-muted" style={{ fontSize: 13 }}>
+                {recoRunAt ? `Last computed: ${new Date(recoRunAt).toLocaleString()}` : 'No analytics run yet.'}
+              </div>
+              {canRecalcReco && (
+                <div className="ak-toolbar--push">
+                  <button className="ak-btn ak-btn--primary" onClick={handleRecalcReco} disabled={recalculating}>
+                    {recalculating ? 'Recalculating…' : 'Recalculate now'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {loadingSug ? (
+              <Loader label="Loading suggestions" />
+            ) : suggestions.length === 0 ? (
+              <div className="ak-state">
+                <p>No pending stock parameter suggestions. The analytics run raises one when a
+                product's demand drifts away from its configured levels.</p>
+              </div>
+            ) : (
+              <div className="ak-table-wrap">
+                <table className="ak-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Recommended stock</th>
+                      <th>Safety stock</th>
+                      <th>Max level</th>
+                      <th className="ak-actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suggestions.map((s) => (
+                      <tr key={s.suggestion_id}>
+                        <td>
+                          <div>{s.product?.product_name || `#${s.product_id}`}</div>
+                          <div className="ak-muted ak-mono">{s.product?.product_code}</div>
+                        </td>
+                        <td>{s.current_recommended} → <strong>{s.suggested_recommended}</strong></td>
+                        <td>{s.current_safety ?? 0} → <strong>{s.suggested_safety ?? 0}</strong></td>
+                        <td>{s.current_max ?? 0} → <strong>{s.suggested_max ?? 0}</strong></td>
+                        <td className="ak-actions">
+                          {canApplyReco ? (
+                            <>
+                              <button
+                                className="ak-btn ak-btn--sm ak-btn--primary"
+                                disabled={busySuggestion === s.suggestion_id}
+                                onClick={() => handleApplySuggestion(s)}
+                              >
+                                Apply
+                              </button>
+                              <button
+                                className="ak-btn ak-btn--sm ak-btn--ghost"
+                                disabled={busySuggestion === s.suggestion_id}
+                                onClick={() => handleDismissSuggestion(s)}
+                              >
+                                Dismiss
+                              </button>
+                            </>
+                          ) : <span className="ak-muted">View only</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {renderDetailModal()}
