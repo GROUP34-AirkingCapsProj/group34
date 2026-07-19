@@ -6,8 +6,13 @@ use App\Models\AuditTrail;
 
 class RecordHistoryService
 {
-    /** Fields that never generate a milestone or a change row. */
-    private const SKIP = ['created_at', 'updated_at', 'deleted_at', 'laravel_through_key'];
+    /**
+     * Fields that never generate a milestone or a change row.
+     * `converted_to_po_id` is stored as a raw PO id (e.g. "55") and is already
+     * represented by the friendly "Converted to PO {po_number}" milestone, so we
+     * drop the noisy duplicate row here.
+     */
+    private const SKIP = ['created_at', 'updated_at', 'deleted_at', 'laravel_through_key', 'converted_to_po_id'];
 
     /**
      * Fold this record's audit rows into an ordered list of curated milestones.
