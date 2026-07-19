@@ -22,6 +22,7 @@ import { toast } from '../utils/toast';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
+import ReceivingReceipt from '../components/ReceivingReceipt';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
 import {
@@ -608,6 +609,16 @@ const BarcodeScan = () => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [txSubmitting, setTxSubmitting] = useState(false);
   const [txLogs, setTxLogs] = useState([]);
+  // Goods Received Note preview for a just-posted receiving session
+  const [receiptReceiving, setReceiptReceiving] = useState(null);
+  const openReceipt = async (receivingId) => {
+    try {
+      const res = await receivingsAPI.getById(receivingId);
+      setReceiptReceiving(res?.data || null);
+    } catch {
+      toast.error('Failed to load the receiving receipt');
+    }
+  };
   const [transferSubmode, setTransferSubmode] = useState('out'); // kept for legacy: no longer used by a selectable mode
   const [txForm, setTxForm] = useState({
     quantity: 1,
@@ -2388,6 +2399,7 @@ const BarcodeScan = () => {
             qty: qtyNum,
             location: getLocationName(locationId),
             at: new Date().toLocaleTimeString(),
+            receivingId: res?.data?.receiving_id || null,
           }, ...prev].slice(0, 8));
         } else {
           const engRes = await inventoryAPI.scanTransaction({
@@ -3971,6 +3983,16 @@ const BarcodeScan = () => {
                       <div key={log.id} className="bs-tx-item">
                         <span className="bs-tx-main">{log.mode} · {log.ref}</span>
                         <span className="bs-tx-sub">{log.at} · Qty {log.qty} · {log.location}</span>
+                        {log.receivingId && (
+                          <button
+                            type="button"
+                            className="ak-btn ak-btn--ghost ak-btn--sm"
+                            style={{ marginTop: 4, alignSelf: 'flex-start' }}
+                            onClick={() => openReceipt(log.receivingId)}
+                          >
+                            View / print receipt
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -4078,6 +4100,12 @@ const BarcodeScan = () => {
           }}
         />
       </div>
+
+      <ReceivingReceipt
+        receiving={receiptReceiving}
+        isOpen={!!receiptReceiving}
+        onClose={() => setReceiptReceiving(null)}
+      />
     </AdminLayout>
   );
 };
