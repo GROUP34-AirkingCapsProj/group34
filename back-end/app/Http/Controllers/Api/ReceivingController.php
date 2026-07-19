@@ -350,4 +350,158 @@ class ReceivingController extends Controller
 
         return response()->stream($callback, 200, $headers);
     }
+
+    // -----------------------------------------------------------------------
+    // CONSOLIDATED PO RECEIPT — one Goods Received Note for everything received
+    // against a PO, across all scan sessions, grouped by warehouse.
+    // -----------------------------------------------------------------------
+
+    /**
+     * Aggregate every receiving recorded against a PO into a single receipt model:
+     * warehouses → their received products (ordered vs received), plus the GRN
+     * sessions and receivers that make up each warehouse's total.
+     */
+    private function buildPoReceiptModel(int $poId): ?array
+    {
+        $po = PurchaseOrder::with(['supplier', 'location', 'details'])->find($poId);
+        if (! $po) {
+            return null;
+        }
+
+        $receivings = Receiving::with(['location', 'receivedBy', 'details.product'])
+            ->where('po_id', $poId)
+            ->orderBy('receiving_date')
+            ->orderBy('receiving_id')
+            ->get();
+
+        // Ordered qty per (warehouse, product) from the PO lines.
+        $orderedByWh = [];
+        foreach ($po->details as $d) {
+            $wh = (int) ($d->location_id ?? $po->location_id);
+            $orderedByWh[$wh][(int) $d->product_id] =
+                ($orderedByWh[$wh][(int) $d->product_id] ?? 0) + (int) $d->quantity_ordered;
+        }
+
+        $groups = [];
+        foreach ($receivings as $r) {
+            $whId = (int) $r->location_id;
+            if (! isset($groups[$whId])) {
+                $groups[$whId] = [
+                    'name'      => $r->location?->location_name ?? ('Warehouse #' . $whId),
+                    'received'  => [],
+                    'products'  => [],
+                    'sessions'  => [],
+                    'receivers' => [],
+                ];
+            }
+            $groups[$whId]['sessions'][] = [
+                'number' => $r->receiving_number,
+                'date'   => $r->receiving_date ? \Carbon\Carbon::parse($r->receiving_date)->format('m/d/Y') : '',
+            ];
+            $rn = $r->receivedBy
+                ? trim(($r->receivedBy->first_name ?? '') . ' ' . ($r->receivedBy->last_name ?? ''))
+                : '';
+            if ($rn !== '') {
+                $groups[$whId]['receivers'][$rn] = true;
+            }
+            foreach ($r->details as $d) {
+                $pid = (int) $d->product_id;
+                $groups[$whId]['received'][$pid] = ($groups[$whId]['received'][$pid] ?? 0) + (int) $d->quantity_amount;
+                if (! isset($groups[$whId]['products'][$pid])) {
+                    $groups[$whId]['products'][$pid] = [
+                        'code' => $d->product?->product_code ?? '',
+                        'name' => $d->product?->product_name ?? ('Product #' . $pid),
+                    ];
+                }
+            }
+        }
+
+        $warehouses    = [];
+        $totalReceived = 0;
+        foreach ($groups as $whId => $g) {
+            $lines = [];
+            foreach ($g['received'] as $pid => $qty) {
+                $ordered = $orderedByWh[$whId][$pid] ?? ($orderedByWh[(int) $po->location_id][$pid] ?? null);
+                $lines[] = [
+                    'code'     => $g['products'][$pid]['code'],
+                    'name'     => $g['products'][$pid]['name'],
+                    'ordered'  => $ordered,
+                    'received' => $qty,
+                ];
+                $totalReceived += $qty;
+            }
+            $warehouses[] = [
+                'name'      => $g['name'],
+                'sessions'  => $g['sessions'],
+                'receivers' => array_keys($g['receivers']),
+                'lines'     => $lines,
+            ];
+        }
+
+        return [
+            'po'             => $po,
+            'warehouses'     => $warehouses,
+            'total_received' => $totalReceived,
+            'session_count'  => $receivings->count(),
+        ];
+    }
+
+    /** Stream the consolidated PO Goods Received Note as a PDF. */
+    public function poReceiptPdf($poId)
+    {
+        $model = $this->buildPoReceiptModel((int) $poId);
+        if (! $model) {
+            return $this->error('Purchase order not found', 404);
+        }
+        if ($model['session_count'] === 0) {
+            return $this->error('No goods have been received against this purchase order yet', 404);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('receiving.po_receipt', $model)->setPaper('a4');
+
+        return $pdf->download('GRN-' . $model['po']->po_number . '.pdf');
+    }
+
+    /** Stream the consolidated PO Goods Received Note as a CSV. */
+    public function poReceiptCsv($poId)
+    {
+        $model = $this->buildPoReceiptModel((int) $poId);
+        if (! $model) {
+            return $this->error('Purchase order not found', 404);
+        }
+        if ($model['session_count'] === 0) {
+            return $this->error('No goods have been received against this purchase order yet', 404);
+        }
+
+        $po       = $model['po'];
+        $filename = 'GRN-' . $po->po_number . '.csv';
+        $headers  = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($po, $model) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['PO Number', $po->po_number]);
+            fputcsv($handle, ['Supplier', $po->supplier?->supplier_name ?? '']);
+            fputcsv($handle, ['Receiving Sessions', $model['session_count']]);
+            fputcsv($handle, ['Total Received', $model['total_received']]);
+            fputcsv($handle, []);
+            fputcsv($handle, ['Warehouse', 'Product Code', 'Product', 'Ordered', 'Received']);
+            foreach ($model['warehouses'] as $wh) {
+                foreach ($wh['lines'] as $line) {
+                    fputcsv($handle, [
+                        $wh['name'],
+                        $line['code'],
+                        $line['name'],
+                        $line['ordered'] ?? '',
+                        $line['received'],
+                    ]);
+                }
+            }
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }

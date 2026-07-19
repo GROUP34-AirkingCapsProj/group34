@@ -901,3 +901,9 @@ Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
 
 Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
      ->get('/receivings/{id}/receipt/csv', [ReceivingController::class, 'receiptCsv']);
+
+// Consolidated Goods Received Note for a whole PO (all sessions/warehouses)
+Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+     ->get('/purchase-orders/{id}/receiving-receipt/pdf', [ReceivingController::class, 'poReceiptPdf']);
+Route::middleware(['auth.query.token', 'permission:delivery_receiving,read'])
+     ->get('/purchase-orders/{id}/receiving-receipt/csv', [ReceivingController::class, 'poReceiptCsv']);

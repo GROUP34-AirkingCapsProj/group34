@@ -115,4 +115,37 @@ class ReceivingReceiptTest extends TestCase
             ->get('/api/receivings/999999/receipt/pdf?token=' . $this->tokenFor($u))
             ->assertNotFound();
     }
+
+    public function test_consolidated_po_receipt_pdf_downloads(): void
+    {
+        $u = $this->adminUser();
+        $r = $this->makeReceiving($u);
+        $poId = $r->po_id;
+
+        $res = $this->actingAs($u, 'sanctum')
+            ->get("/api/purchase-orders/{$poId}/receiving-receipt/pdf?token=" . $this->tokenFor($u));
+        $res->assertOk();
+        $this->assertStringContainsString('application/pdf', $res->headers->get('content-type'));
+    }
+
+    public function test_consolidated_po_receipt_404_when_nothing_received(): void
+    {
+        $u = $this->adminUser();
+        // A PO with no receivings at all.
+        $loc = Location::forceCreate([
+            'location_code' => 'NRWH-' . uniqid(), 'location_name' => 'No-Recv WH',
+            'location_type' => 'warehouse', 'is_active' => 1,
+        ]);
+        $sup = Supplier::forceCreate(['supplier_name' => 'NR Supplier ' . uniqid()]);
+        $po = PurchaseOrder::create([
+            'supplier_id' => $sup->supplier_id, 'location_id' => $loc->location_id,
+            'po_number' => 'PO-NR-' . uniqid(), 'order_date' => today()->toDateString(),
+            'verification_status' => 'verified', 'total_amount' => 0, 'grand_total' => 0,
+            'created_by' => $u->user_id,
+        ]);
+
+        $this->actingAs($u, 'sanctum')
+            ->get("/api/purchase-orders/{$po->po_id}/receiving-receipt/pdf?token=" . $this->tokenFor($u))
+            ->assertNotFound();
+    }
 }
