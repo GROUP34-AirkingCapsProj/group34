@@ -282,6 +282,9 @@ const PurchaseRequestPage = () => {
           piecesPerPackage: p.pieces_per_package ?? null,
           packageUnit:     p.package_unit || '',
           costPrice:       Number(p.cost_price ?? p.unit_price ?? 0),
+          recommendedStocks: Number(p.recommended_stocks ?? 0),
+          safetyStock:       Number(p.safety_stock ?? 0),
+          maxStockLevel:     Number(p.max_stock_level ?? 0),
         })));
       })
       .catch(console.error)
@@ -295,6 +298,12 @@ const PurchaseRequestPage = () => {
     warehouseBlocks.forEach(b => { if (b.warehouseId) ids.add(String(b.warehouseId)); });
     return [...ids];
   }, [warehouseBlocks]);
+
+  // Fast product lookup by id for the per-row "suggested quantity" hint.
+  const productById = useMemo(
+    () => new Map(products.map(p => [p.id, p])),
+    [products]
+  );
 
   // ── Fetch (and cache) the active budget for each distinct warehouse ───────
   useEffect(() => {
@@ -1050,15 +1059,26 @@ const PurchaseRequestPage = () => {
                             onChange={e => updateRowField(block.id, r.id, 'qty', e.target.value)}
                           />
                           {(() => {
-                            const rec = r.productId ? recByProduct.get(String(r.productId)) : null;
-                            const suggestedQty = rec ? Number(rec.recommended_quantity) || 0 : 0;
+                            if (!r.productId) return null;
+                            // Prefer the analytics recommendation when the engine has one for
+                            // this product at this warehouse; otherwise fall back to the
+                            // product's configured recommended stock level (the analytics
+                            // Stock Parameters tool raises/lowers that over time as demand
+                            // data accumulates).
+                            const rec  = recByProduct.get(String(r.productId));
+                            const prod = productById.get(String(r.productId));
+                            const suggestedQty = rec
+                              ? Number(rec.recommended_quantity) || 0
+                              : Number(prod?.recommendedStocks) || 0;
                             if (suggestedQty <= 0 || Number(r.qty) === suggestedQty) return null;
                             return (
                               <button
                                 type="button"
                                 className="pr-qty-hint"
                                 onClick={() => updateRowField(block.id, r.id, 'qty', suggestedQty)}
-                                title={`Recommended order quantity for this product at ${group?.locName || 'this warehouse'}`}
+                                title={rec
+                                  ? `Analytics-recommended order quantity at ${group?.locName || 'this warehouse'}`
+                                  : 'Default recommended stock level for this product'}
                               >
                                 Suggested: {suggestedQty} → apply
                               </button>
