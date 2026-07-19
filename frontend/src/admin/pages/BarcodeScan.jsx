@@ -2935,6 +2935,17 @@ const BarcodeScan = () => {
                 </div>
                 <h3 className="bsr-alert-title">{bsrAlertModal.title}</h3>
                 <p className="bsr-alert-message">{bsrAlertModal.message}</p>
+                {bsrAlertModal.receiptPoId && (
+                  <a
+                    href={purchaseOrdersAPI.receivingReceiptPdfUrl(bsrAlertModal.receiptPoId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '9px 14px', background: '#9810FA', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                    Print / download receipt
+                  </a>
+                )}
                 <button
                   type="button"
                   className={`bsr-alert-dismiss-btn bsr-alert-dismiss-btn--${bsrAlertModal.type}`}
@@ -2969,6 +2980,17 @@ const BarcodeScan = () => {
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Supplier:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrGetSupplierName(bsrSelectedPo)}</span></div>
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Delivery Location:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrGetDeliveryLocation(bsrSelectedPo)}</span></div>
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Expected Delivery:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrFmtDate(bsrSelectedPo?.expected_delivery_date)}</span></div>
+                  {(bsrScannedItems.length > 0 || Object.values(bsrProductProgress).some((v) => Number(v) > 0)) && (
+                    <a
+                      href={purchaseOrdersAPI.receivingReceiptPdfUrl(bsrSelectedPo?.po_id ?? bsrSelectedPo?.id)}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 12px', background: '#9810FA', color: '#fff', borderRadius: 8, fontSize: 12.5, fontWeight: 600, textDecoration: 'none' }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                      Goods Received Note — Print / PDF
+                    </a>
+                  )}
                 </div>
               </div>
               <div className="bsr-card">
@@ -3284,6 +3306,7 @@ const BarcodeScan = () => {
                         type: 'success',
                         title: 'Receiving Complete',
                         message: `All ordered items for ${poNum} have been received. The PO has been marked as Completed.`,
+                        receiptPoId: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id ?? null,
                         onDismiss: () => {
                           setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
                         },
@@ -3294,6 +3317,7 @@ const BarcodeScan = () => {
                         type: 'warning',
                         title: 'Partial Receiving Saved',
                         message: `${count} item(s) recorded for ${poNum}. Not all quantities have been received — this PO remains as "Partially Received". You can resume scanning at any time.`,
+                        receiptPoId: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id ?? null,
                         onDismiss: () => {
                           setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
                         },
