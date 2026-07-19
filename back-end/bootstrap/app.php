@@ -39,6 +39,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\AuditorReadOnly::class);
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\CheckRole::class);
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\CheckPermission::class);
+
+        // Browser-download routes authenticate from a ?token= query param (no
+        // Authorization header / cookie is possible on a top-level navigation).
+        // AuthenticateFromQueryToken must run BEFORE CheckPermission so the user
+        // is resolved before the permission gate reads it — otherwise the gate
+        // 401s and the download (PDF/CSV) never reaches the browser.
+        $middleware->prependToPriorityList(
+            \App\Http\Middleware\CheckPermission::class,
+            \App\Http\Middleware\AuthenticateFromQueryToken::class
+        );
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Always return JSON for API routes (fixes "Response was not JSON" on 404/500)
