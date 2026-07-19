@@ -1,6 +1,7 @@
 import React from 'react';
 import Modal from './Modal';
-import { receivingsAPI } from '../services/api';
+import { openApiFile } from '../services/api';
+import { toast } from '../utils/toast';
 
 /**
  * On-screen Goods Received Note for one receiving session, with Print + download
@@ -88,8 +89,8 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
         <button type="button" className="ak-btn ak-btn--ghost" onClick={printReceipt}>Print</button>
-        <a className="ak-btn ak-btn--ghost" href={receivingsAPI.receiptCsvUrl(receiving.receiving_id)}>Download CSV</a>
-        <a className="ak-btn ak-btn--primary" href={receivingsAPI.receiptPdfUrl(receiving.receiving_id)}>Download PDF</a>
+        <button type="button" className="ak-btn ak-btn--ghost" onClick={() => openApiFile(`/receivings/${receiving.receiving_id}/receipt/csv`, { download: true, filename: `GRN-${receiving.receiving_number}.csv` }).catch((e) => toast.error(e.message))}>Download CSV</button>
+        <button type="button" className="ak-btn ak-btn--primary" onClick={() => openApiFile(`/receivings/${receiving.receiving_id}/receipt/pdf`, { download: true, filename: `GRN-${receiving.receiving_number}.pdf` }).catch((e) => toast.error(e.message))}>Download PDF</button>
       </div>
     </Modal>
   );

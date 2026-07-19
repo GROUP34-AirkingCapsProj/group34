@@ -13,6 +13,7 @@ import {
   usersAPI,
   companySettingsAPI,
   statusAPI,
+  openApiFile,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -1650,14 +1651,14 @@ const PurchaseOrderPage = () => {
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginRight: 'auto' }}>
                         Goods Received Note — all items received on this PO
                       </span>
-                      <a className="po-detail-btn po-detail-btn--doc" href={purchaseOrdersAPI.receivingReceiptPdfUrl(d.po_id)} target="_blank" rel="noreferrer">
+                      <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => openApiFile(`/purchase-orders/${d.po_id}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
                         PRINT / PDF
-                      </a>
-                      <a className="po-detail-btn po-detail-btn--excel" href={purchaseOrdersAPI.receivingReceiptCsvUrl(d.po_id)}>
+                      </button>
+                      <button type="button" className="po-detail-btn po-detail-btn--excel" onClick={() => openApiFile(`/purchase-orders/${d.po_id}/receiving-receipt/csv`, { download: true, filename: `GRN-${d.po_number}.csv` }).catch((e) => toast.error(e.message))}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         CSV
-                      </a>
+                      </button>
                     </div>
 
                     {poReceivings.map((rcv) => (

@@ -16,7 +16,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
   itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI,
   receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI, barcodeScanAPI, locationsAPI, purchaseOrdersAPI,
-  istAPI,
+  istAPI, openApiFile,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth, useUserLocation } from '../context/AuthContext';
@@ -2936,15 +2936,14 @@ const BarcodeScan = () => {
                 <h3 className="bsr-alert-title">{bsrAlertModal.title}</h3>
                 <p className="bsr-alert-message">{bsrAlertModal.message}</p>
                 {bsrAlertModal.receiptPoId && (
-                  <a
-                    href={purchaseOrdersAPI.receivingReceiptPdfUrl(bsrAlertModal.receiptPoId)}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '9px 14px', background: '#9810FA', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+                  <button
+                    type="button"
+                    onClick={() => openApiFile(`/purchase-orders/${bsrAlertModal.receiptPoId}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '9px 14px', background: '#9810FA', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
                     Print / download receipt
-                  </a>
+                  </button>
                 )}
                 <button
                   type="button"
@@ -2981,15 +2980,14 @@ const BarcodeScan = () => {
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Delivery Location:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrGetDeliveryLocation(bsrSelectedPo)}</span></div>
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Expected Delivery:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrFmtDate(bsrSelectedPo?.expected_delivery_date)}</span></div>
                   {(bsrScannedItems.length > 0 || Object.values(bsrProductProgress).some((v) => Number(v) > 0)) && (
-                    <a
-                      href={purchaseOrdersAPI.receivingReceiptPdfUrl(bsrSelectedPo?.po_id ?? bsrSelectedPo?.id)}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 12px', background: '#9810FA', color: '#fff', borderRadius: 8, fontSize: 12.5, fontWeight: 600, textDecoration: 'none' }}
+                    <button
+                      type="button"
+                      onClick={() => openApiFile(`/purchase-orders/${bsrSelectedPo?.po_id ?? bsrSelectedPo?.id}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 12px', background: '#9810FA', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
                       Goods Received Note — Print / PDF
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>
@@ -4020,14 +4018,13 @@ const BarcodeScan = () => {
                               </button>
                             )}
                             {log.poId && (
-                              <a
+                              <button
+                                type="button"
                                 className="ak-btn ak-btn--primary ak-btn--sm"
-                                href={purchaseOrdersAPI.receivingReceiptPdfUrl(log.poId)}
-                                target="_blank"
-                                rel="noreferrer"
+                                onClick={() => openApiFile(`/purchase-orders/${log.poId}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}
                               >
                                 PO receipt · print / PDF
-                              </a>
+                              </button>
                             )}
                           </div>
                         )}

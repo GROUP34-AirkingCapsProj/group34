@@ -73,6 +73,51 @@ export const resolveStorageUrl = (path) => {
 
 const TOKEN_KEY = 'token';
 
+/**
+ * Fetch a binary file (PDF/CSV) from the API using the Bearer token in the
+ * Authorization header — NOT in the URL — then open it in a new tab (for
+ * viewing/printing) or download it. Keeping the token out of the URL avoids the
+ * browser "insecure" credential-in-URL warning. Throws on non-2xx.
+ */
+export const openApiFile = async (path, { download = false, filename = 'download' } = {}) => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const url = `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: '*/*',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    let msg = `Failed to load file (${res.status})`;
+    try { const j = await res.json(); if (j?.message) msg = j.message; } catch (_) { /* not JSON */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const objUrl = URL.createObjectURL(blob);
+  if (download) {
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 10000);
+  } else {
+    const w = window.open(objUrl, '_blank');
+    if (!w) {
+      // Popup blocked — fall back to a download so the user still gets the file.
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+  }
+};
+
 /** Synced from login and system settings; drives client idle logout. */
 export const SESSION_TIMEOUT_MINUTES_KEY = 'session_timeout_minutes';
 
@@ -685,17 +730,6 @@ export const purchaseOrdersAPI = {
 
   /** Curated lifecycle timeline for one PO (milestones with expandable changes). */
   history: async (id) => apiRequest(`/purchase-orders/${id}/history`),
-
-  /** Browser-download URL for the consolidated PO Goods Received Note (PDF). */
-  receivingReceiptPdfUrl: (id) => {
-    const token = getToken();
-    return `${getApiBaseUrl()}/purchase-orders/${id}/receiving-receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-  },
-  /** Browser-download URL for the consolidated PO Goods Received Note (CSV). */
-  receivingReceiptCsvUrl: (id) => {
-    const token = getToken();
-    return `${getApiBaseUrl()}/purchase-orders/${id}/receiving-receipt/csv${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-  },
 };
 
 /* ======================
@@ -739,17 +773,6 @@ export const receivingsAPI = {
   /** Per-product progress for a PO: ordered vs scanned, all serial numbers */
   poScanStatus: async (poId) =>
     apiRequest(`/receivings/po-scan-status/${poId}`),
-
-  /** Browser-download URL for the Goods Received Note PDF (token in query param). */
-  receiptPdfUrl: (id) => {
-    const token = getToken();
-    return `${getApiBaseUrl()}/receivings/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-  },
-  /** Browser-download URL for the Goods Received Note CSV (token in query param). */
-  receiptCsvUrl: (id) => {
-    const token = getToken();
-    return `${getApiBaseUrl()}/receivings/${id}/receipt/csv${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-  },
 };
 
 /* ======================

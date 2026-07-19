@@ -74,25 +74,17 @@ class ReceivingReceiptTest extends TestCase
     }
 
     /**
-     * The download routes carry two middleware: `permission` (which resolves the
-     * user — from the SPA's Sanctum session cookie in production) and
-     * `auth.query.token` (which validates a real token from the ?token= param, so a
-     * browser download without an Authorization header still authenticates). A real
-     * browser request satisfies both, so the test does too: authenticate the session
-     * AND pass a real personal-access token.
+     * The receipt download routes use standard Bearer auth (auth:sanctum) so the
+     * token stays in the Authorization header, never in the URL. `actingAs(...,
+     * 'sanctum')` is the test equivalent of sending that header.
      */
-    private function tokenFor(User $u): string
-    {
-        return $u->createToken('test')->plainTextToken;
-    }
-
     public function test_receipt_pdf_downloads(): void
     {
         $u = $this->adminUser();
         $r = $this->makeReceiving($u);
 
         $res = $this->actingAs($u, 'sanctum')
-            ->get("/api/receivings/{$r->receiving_id}/receipt/pdf?token=" . $this->tokenFor($u));
+            ->get("/api/receivings/{$r->receiving_id}/receipt/pdf");
         $res->assertOk();
         $this->assertStringContainsString('application/pdf', $res->headers->get('content-type'));
     }
@@ -103,7 +95,7 @@ class ReceivingReceiptTest extends TestCase
         $r = $this->makeReceiving($u);
 
         $res = $this->actingAs($u, 'sanctum')
-            ->get("/api/receivings/{$r->receiving_id}/receipt/csv?token=" . $this->tokenFor($u));
+            ->get("/api/receivings/{$r->receiving_id}/receipt/csv");
         $res->assertOk();
         $this->assertStringContainsString('text/csv', $res->headers->get('content-type'));
     }
@@ -112,35 +104,38 @@ class ReceivingReceiptTest extends TestCase
     {
         $u = $this->adminUser();
         $this->actingAs($u, 'sanctum')
-            ->get('/api/receivings/999999/receipt/pdf?token=' . $this->tokenFor($u))
+            ->get('/api/receivings/999999/receipt/pdf')
             ->assertNotFound();
+    }
+
+    public function test_receipt_pdf_requires_auth(): void
+    {
+        $u = $this->adminUser();
+        $r = $this->makeReceiving($u);
+        // No auth at all → 401 (never leaks the file).
+        $this->getJson("/api/receivings/{$r->receiving_id}/receipt/pdf")->assertUnauthorized();
     }
 
     public function test_consolidated_po_receipt_pdf_downloads(): void
     {
         $u = $this->adminUser();
         $r = $this->makeReceiving($u);
-        $poId = $r->po_id;
 
         $res = $this->actingAs($u, 'sanctum')
-            ->get("/api/purchase-orders/{$poId}/receiving-receipt/pdf?token=" . $this->tokenFor($u));
+            ->get("/api/purchase-orders/{$r->po_id}/receiving-receipt/pdf");
         $res->assertOk();
         $this->assertStringContainsString('application/pdf', $res->headers->get('content-type'));
     }
 
-    /**
-     * Browser scenario: a top-level navigation carries NO session/Authorization,
-     * only ?token=. This must still return the PDF — AuthenticateFromQueryToken
-     * has to resolve the user before CheckPermission runs.
-     */
-    public function test_consolidated_po_receipt_pdf_downloads_with_query_token_only(): void
+    public function test_consolidated_po_receipt_csv_downloads(): void
     {
         $u = $this->adminUser();
         $r = $this->makeReceiving($u);
 
-        $res = $this->get("/api/purchase-orders/{$r->po_id}/receiving-receipt/pdf?token=" . $this->tokenFor($u));
+        $res = $this->actingAs($u, 'sanctum')
+            ->get("/api/purchase-orders/{$r->po_id}/receiving-receipt/csv");
         $res->assertOk();
-        $this->assertStringContainsString('application/pdf', $res->headers->get('content-type'));
+        $this->assertStringContainsString('text/csv', $res->headers->get('content-type'));
     }
 
     public function test_consolidated_po_receipt_404_when_nothing_received(): void
@@ -160,7 +155,7 @@ class ReceivingReceiptTest extends TestCase
         ]);
 
         $this->actingAs($u, 'sanctum')
-            ->get("/api/purchase-orders/{$po->po_id}/receiving-receipt/pdf?token=" . $this->tokenFor($u))
+            ->get("/api/purchase-orders/{$po->po_id}/receiving-receipt/pdf")
             ->assertNotFound();
     }
 }
