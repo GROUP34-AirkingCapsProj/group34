@@ -5,7 +5,7 @@ import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import ProductSearchSelect from '../components/ProductSearchSelect';
-import RecordHistoryTimeline from '../components/RecordHistoryTimeline';
+import RecordHistoryModal from '../components/RecordHistoryModal';
 import {
   itemsAPI,
   locationsAPI,
@@ -175,14 +175,17 @@ const PurchaseRequestPage = () => {
   const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');
   const [activeTab, setActiveTab] = useState(initialTab);
 
-  // ── History tab ───────────────────────────────────────────────────────────
-  const [historyPr,        setHistoryPr]        = useState(null);   // the PR whose timeline is shown
-  const [prHistory,        setPrHistory]        = useState([]);
-  const [prHistoryLoading, setPrHistoryLoading] = useState(false);
+  // ── History tab + details modal ───────────────────────────────────────────
+  const [historyPRs,        setHistoryPRs]        = useState([]);   // list shown in the History tab
+  const [loadingHistoryPRs, setLoadingHistoryPRs] = useState(false);
+  const [historyRecord,     setHistoryRecord]     = useState(null); // the PR whose timeline the modal shows
+  const [prHistory,         setPrHistory]         = useState([]);
+  const [prHistoryLoading,  setPrHistoryLoading]  = useState(false);
 
+  // Open the details modal for one PR and fetch its full timeline.
   const openPrHistory = (pr) => {
-    setHistoryPr(pr);
-    setActiveTab('history');
+    setHistoryRecord(pr);
+    setPrHistory([]);
     setPrHistoryLoading(true);
     purchaseRequestsAPI.history(pr.pr_id)
       .then((res) => setPrHistory(Array.isArray(res?.data) ? res.data : []))
@@ -426,6 +429,13 @@ const PurchaseRequestPage = () => {
         })
         .catch(console.error)
         .finally(() => setLoadingSug(false));
+    }
+    if (activeTab === 'history') {
+      setLoadingHistoryPRs(true);
+      purchaseRequestsAPI.getAll({ per_page: 100 })
+        .then(res => setHistoryPRs(Array.isArray(res?.data) ? res.data : []))
+        .catch(console.error)
+        .finally(() => setLoadingHistoryPRs(false));
     }
   }, [activeTab, canApprovePR, canReadReco]);
 
@@ -1884,19 +1894,34 @@ const PurchaseRequestPage = () => {
         {activeTab === 'approvals'    && canApprovePR && renderApprovalsTab()}
 
         {activeTab === 'history' && (
-          <div className="ak-card" style={{ padding: 20 }}>
-            {!historyPr ? (
-              <div className="rh-empty">
-                Open a request&rsquo;s <strong>History</strong> from My Requests to see its timeline here.
-              </div>
+          <div className="ak-card" style={{ padding: 16 }}>
+            {loadingHistoryPRs ? (
+              <div className="rh-empty">Loading requests…</div>
+            ) : historyPRs.length === 0 ? (
+              <div className="rh-empty">No purchase requests found.</div>
             ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-                  <h3 style={{ margin: 0 }}>{historyPr.pr_number}</h3>
-                  <span className="ak-muted" style={{ fontSize: 13 }}>History</span>
-                </div>
-                <RecordHistoryTimeline milestones={prHistory} loading={prHistoryLoading} />
-              </>
+              <div className="rh-record-list">
+                {historyPRs.map((pr) => {
+                  const cfg = getPRStatusConfig(pr.status_id);
+                  return (
+                    <div key={pr.pr_id} className="rh-record-row">
+                      <div className="rh-record-main">
+                        <strong>{pr.pr_number}</strong>
+                        <span className={`po-detail-status-pill po-detail-status-pill--${cfg.color}`}>{cfg.label}</span>
+                      </div>
+                      <div className="rh-record-sub">
+                        {pr.request_date ? String(pr.request_date).slice(0, 10) : ''} · {fmtPeso(pr.estimated_total)}
+                      </div>
+                      <button type="button" className="po-status-view-btn" onClick={() => openPrHistory(pr)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+                        </svg>
+                        VIEW HISTORY
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -2022,6 +2047,14 @@ const PurchaseRequestPage = () => {
       </div>
 
       {renderDetailModal()}
+
+      <RecordHistoryModal
+        isOpen={!!historyRecord}
+        onClose={() => setHistoryRecord(null)}
+        title={historyRecord?.pr_number}
+        milestones={prHistory}
+        loading={prHistoryLoading}
+      />
     </AdminLayout>
   );
 };

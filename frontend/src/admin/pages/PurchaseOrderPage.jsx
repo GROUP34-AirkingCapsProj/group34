@@ -21,7 +21,7 @@ import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument, distinctDeliverLocations } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
-import RecordHistoryTimeline from '../components/RecordHistoryTimeline';
+import RecordHistoryModal from '../components/RecordHistoryModal';
 import ReceivingReceipt from '../components/ReceivingReceipt';
 import DateInput from '../components/DateInput';
 import { confirmAction, confirmWithReason } from '../utils/confirm';
@@ -194,28 +194,36 @@ const PurchaseOrderPage = () => {
   // Per-PO approve/reject in-flight flag (holds the po_id being acted on)
   const [poActionLoading, setPoActionLoading] = useState(null);
 
-  // Per-PO history timeline (shown inside the detail modal)
-  const [historyMilestones, setHistoryMilestones] = useState([]);
-  const [historyLoading,     setHistoryLoading]    = useState(false);
-  // Receiving sessions for the open PO + the one being shown as a receipt
-  const [poReceivings,   setPoReceivings]   = useState([]);
+  // Receiving sessions for the open PO detail modal + the receipt being shown
+  const [poReceivings,     setPoReceivings]     = useState([]);
   const [receiptReceiving, setReceiptReceiving] = useState(null);
 
   useEffect(() => {
     const poId = selectedPO?.po_id;
-    if (!poId) { setHistoryMilestones([]); setPoReceivings([]); return; }
+    if (!poId) { setPoReceivings([]); return; }
     let mounted = true;
-    setHistoryLoading(true);
-    purchaseOrdersAPI.history(poId)
-      .then((res) => { if (mounted) setHistoryMilestones(Array.isArray(res?.data) ? res.data : []); })
-      .catch(() => { if (mounted) setHistoryMilestones([]); })
-      .finally(() => { if (mounted) setHistoryLoading(false); });
-    // Load the PO's receiving sessions (getById eager-loads `receivings`).
+    // getById eager-loads the PO's `receivings` sessions.
     purchaseOrdersAPI.getById(poId)
       .then((res) => { if (mounted) setPoReceivings(Array.isArray(res?.data?.receivings) ? res.data.receivings : []); })
       .catch(() => { if (mounted) setPoReceivings([]); });
     return () => { mounted = false; };
   }, [selectedPO?.po_id]);
+
+  // ── History tab + details modal ─────────────────────────────────────────────
+  const [historyRecord,     setHistoryRecord]     = useState(null); // the PO whose timeline the modal shows
+  const [historyMilestones, setHistoryMilestones] = useState([]);
+  const [historyLoading,    setHistoryLoading]    = useState(false);
+
+  // Open the details modal for one PO and fetch its full timeline.
+  const openPoHistory = (po) => {
+    setHistoryRecord(po);
+    setHistoryMilestones([]);
+    setHistoryLoading(true);
+    purchaseOrdersAPI.history(po.po_id)
+      .then((res) => setHistoryMilestones(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => setHistoryMilestones([]))
+      .finally(() => setHistoryLoading(false));
+  };
 
   // Open the receipt for one receiving session — fetch its full line detail first.
   const openReceipt = async (receivingId) => {
@@ -284,7 +292,7 @@ const PurchaseOrderPage = () => {
 
   // ── Load PO status list ────────────────────────────────────────────────────
   useEffect(() => {
-    if (activeTab !== 'status') return;
+    if (activeTab !== 'status' && activeTab !== 'history') return;
     let mounted = true;
     setLoadingPOStatus(true);
     setPoStatusError('');
@@ -1382,10 +1390,49 @@ const PurchaseOrderPage = () => {
             </svg>
             PO Status
           </button>
+          <button type="button" className={`po-tab-btn${activeTab === 'history' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('history')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+              <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+            </svg>
+            History
+          </button>
         </div>
 
         {activeTab === 'status' && renderPoStatusView()}
         {activeTab === 'create' && renderConvertPRTab()}
+        {activeTab === 'history' && (
+          <div className="ak-card" style={{ padding: 16 }}>
+            {loadingPOStatus ? (
+              <div className="rh-empty">Loading purchase orders…</div>
+            ) : poStatusList.length === 0 ? (
+              <div className="rh-empty">No purchase orders found.</div>
+            ) : (
+              <div className="rh-record-list">
+                {poStatusList.map((po) => {
+                  const cfg = getStatusConfig(po.status?.status_name);
+                  const amt = Number(po.grand_total || po.total_amount || 0);
+                  return (
+                    <div key={po.po_id} className="rh-record-row">
+                      <div className="rh-record-main">
+                        <strong>{po.po_number}</strong>
+                        <span className={`po-detail-status-pill po-detail-status-pill--${cfg.color}`}>{cfg.label}</span>
+                      </div>
+                      <div className="rh-record-sub">
+                        {po.order_date ? isoToMDY(po.order_date) : ''} · ₱{amt.toLocaleString('en-PH')}
+                      </div>
+                      <button type="button" className="po-status-view-btn" onClick={() => openPoHistory(po)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+                        </svg>
+                        VIEW HISTORY
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* PO Detail Modal */}
@@ -1614,12 +1661,6 @@ const PurchaseOrderPage = () => {
                   </div>
                 )}
 
-                <div className="po-detail-items-wrap" style={{ marginTop: 16 }}>
-                  <div className="po-detail-items-title-row">
-                    <span className="po-detail-items-heading">HISTORY</span>
-                  </div>
-                  <RecordHistoryTimeline milestones={historyMilestones} loading={historyLoading} />
-                </div>
               </div>
 
               {(() => {
@@ -1731,6 +1772,14 @@ const PurchaseOrderPage = () => {
         receiving={receiptReceiving}
         isOpen={!!receiptReceiving}
         onClose={() => setReceiptReceiving(null)}
+      />
+
+      <RecordHistoryModal
+        isOpen={!!historyRecord}
+        onClose={() => setHistoryRecord(null)}
+        title={historyRecord?.po_number}
+        milestones={historyMilestones}
+        loading={historyLoading}
       />
     </AdminLayout>
   );

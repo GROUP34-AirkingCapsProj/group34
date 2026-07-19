@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import '../styles/record_history.css';
 
 function fmt(ts) {
@@ -13,7 +13,6 @@ function fmt(ts) {
 }
 
 function Milestone({ m }) {
-  const [open, setOpen] = useState(false);
   const hasChanges = Array.isArray(m.changes) && m.changes.length > 0;
   return (
     <li className="rh-item">
@@ -21,13 +20,8 @@ function Milestone({ m }) {
       <div className="rh-head">
         <span className="rh-label">{m.label}</span>
         <span className="rh-meta">{fmt(m.timestamp)}{m.actor_name ? ` · ${m.actor_name}` : ''}</span>
-        {hasChanges && (
-          <button type="button" className="rh-toggle" onClick={() => setOpen((v) => !v)}>
-            {open ? '▴ hide' : '▾ details'}
-          </button>
-        )}
       </div>
-      {open && hasChanges && (
+      {hasChanges && (
         <div className="rh-changes">
           {m.changes.map((c, i) => (
             <div className="rh-change" key={i}>

@@ -16,3 +16,12 @@
 .rh-change { color: var(--ak-text, #334155); }
 .rh-change .rh-from { color: #94a3b8; }
 .rh-empty { color: var(--ak-text-muted, #64748b); font-size: 13px; padding: 16px; text-align: center; }
+.rh-modal-body { max-height: 60vh; overflow-y: auto; padding: 4px 2px; }
+
+.rh-record-list { display: flex; flex-direction: column; }
+.rh-record-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "main btn" "sub btn"; align-items: center; gap: 2px 12px; padding: 12px 8px; border-bottom: 1px solid var(--ak-border, #eef2f7); }
+.rh-record-row:last-child { border-bottom: none; }
+.rh-record-main { grid-area: main; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.rh-record-sub { grid-area: sub; font-size: 12px; color: var(--ak-text-muted, #64748b); }
+.rh-record-row .po-status-view-btn { grid-area: btn; }
+
