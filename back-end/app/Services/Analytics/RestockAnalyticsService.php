@@ -396,6 +396,8 @@ class RestockAnalyticsService
             $recvMap[(int) $r->location_id][(int) $r->product_id] = (int) $r->qty;
         }
 
+        // Nets received against ordered per warehouse; assumes a PO line's delivery
+        // destination (pod.location_id) is where it is received (receivings.location_id).
         $out = [];
         foreach ($ordered as $o) {
             $loc = (int) $o->location_id;
