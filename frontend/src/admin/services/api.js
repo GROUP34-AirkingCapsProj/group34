@@ -685,6 +685,17 @@ export const purchaseOrdersAPI = {
 
   /** Curated lifecycle timeline for one PO (milestones with expandable changes). */
   history: async (id) => apiRequest(`/purchase-orders/${id}/history`),
+
+  /** Browser-download URL for the consolidated PO Goods Received Note (PDF). */
+  receivingReceiptPdfUrl: (id) => {
+    const token = getToken();
+    return `${getApiBaseUrl()}/purchase-orders/${id}/receiving-receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
+  /** Browser-download URL for the consolidated PO Goods Received Note (CSV). */
+  receivingReceiptCsvUrl: (id) => {
+    const token = getToken();
+    return `${getApiBaseUrl()}/purchase-orders/${id}/receiving-receipt/csv${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
 };
 
 /* ======================

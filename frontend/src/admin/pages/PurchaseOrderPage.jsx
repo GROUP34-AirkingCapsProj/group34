@@ -1644,6 +1644,22 @@ const PurchaseOrderPage = () => {
                       <span className="po-detail-items-heading">RECEIVING RECEIPTS</span>
                       <span className="po-detail-items-count">{poReceivings.length}</span>
                     </div>
+
+                    {/* Consolidated Goods Received Note for the whole PO */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginRight: 'auto' }}>
+                        Goods Received Note — all items received on this PO
+                      </span>
+                      <a className="po-detail-btn po-detail-btn--doc" href={purchaseOrdersAPI.receivingReceiptPdfUrl(d.po_id)} target="_blank" rel="noreferrer">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                        PRINT / PDF
+                      </a>
+                      <a className="po-detail-btn po-detail-btn--excel" href={purchaseOrdersAPI.receivingReceiptCsvUrl(d.po_id)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        CSV
+                      </a>
+                    </div>
+
                     {poReceivings.map((rcv) => (
                       <div key={rcv.receiving_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eef2f7' }}>
                         <div style={{ fontSize: 13 }}>

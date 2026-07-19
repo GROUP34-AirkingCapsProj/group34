@@ -2400,6 +2400,7 @@ const BarcodeScan = () => {
             location: getLocationName(locationId),
             at: new Date().toLocaleTimeString(),
             receivingId: res?.data?.receiving_id || null,
+            poId: txForm.pc_id || null,
           }, ...prev].slice(0, 8));
         } else {
           const engRes = await inventoryAPI.scanTransaction({
@@ -3983,15 +3984,28 @@ const BarcodeScan = () => {
                       <div key={log.id} className="bs-tx-item">
                         <span className="bs-tx-main">{log.mode} · {log.ref}</span>
                         <span className="bs-tx-sub">{log.at} · Qty {log.qty} · {log.location}</span>
-                        {log.receivingId && (
-                          <button
-                            type="button"
-                            className="ak-btn ak-btn--ghost ak-btn--sm"
-                            style={{ marginTop: 4, alignSelf: 'flex-start' }}
-                            onClick={() => openReceipt(log.receivingId)}
-                          >
-                            View / print receipt
-                          </button>
+                        {(log.receivingId || log.poId) && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                            {log.receivingId && (
+                              <button
+                                type="button"
+                                className="ak-btn ak-btn--ghost ak-btn--sm"
+                                onClick={() => openReceipt(log.receivingId)}
+                              >
+                                This scan
+                              </button>
+                            )}
+                            {log.poId && (
+                              <a
+                                className="ak-btn ak-btn--primary ak-btn--sm"
+                                href={purchaseOrdersAPI.receivingReceiptPdfUrl(log.poId)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                PO receipt · print / PDF
+                              </a>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
