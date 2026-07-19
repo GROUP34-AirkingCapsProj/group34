@@ -94,8 +94,33 @@ class RestockRecommendationController extends Controller
         if ($status !== 'all') {
             $query->where('status', $status);
         }
+        $suggestions = $query->get();
 
-        return $this->success($query->get(), 'Stock parameter suggestions retrieved');
+        // Attach the warehouse(s) each product is stocked at (inventory rows at
+        // warehouse-type locations) so the UI can show and filter by warehouse.
+        $productIds = $suggestions->pluck('product_id')->filter()->unique()->values()->all();
+        $whByProduct = collect();
+        if ($productIds) {
+            $whByProduct = DB::table('inventory as inv')
+                ->join('locations as l', 'l.location_id', '=', 'inv.location_id')
+                ->where('l.location_type', 'warehouse')
+                ->whereIn('inv.product_id', $productIds)
+                ->select('inv.product_id', 'l.location_id', 'l.location_name')
+                ->distinct()
+                ->get()
+                ->groupBy('product_id');
+        }
+
+        $data = $suggestions->map(function ($s) use ($whByProduct) {
+            $arr = $s->toArray();
+            $arr['warehouses'] = ($whByProduct[$s->product_id] ?? collect())
+                ->map(fn ($r) => ['location_id' => (int) $r->location_id, 'location_name' => $r->location_name])
+                ->values()
+                ->all();
+            return $arr;
+        });
+
+        return $this->success($data, 'Stock parameter suggestions retrieved');
     }
 
     /**

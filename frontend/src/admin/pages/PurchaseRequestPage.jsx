@@ -220,6 +220,9 @@ const PurchaseRequestPage = () => {
   const [recoRunAt,       setRecoRunAt]       = useState(null);
   const [recalculating,   setRecalculating]   = useState(false);
   const [busySuggestion,  setBusySuggestion]  = useState(null);
+  const [sugWarehouse,    setSugWarehouse]    = useState('');
+  const [sugCategory,     setSugCategory]     = useState('');
+  const [sugBrand,        setSugBrand]        = useState('');
 
   // ── Shared: modals ────────────────────────────────────────────────────────
   const [selectedPR,   setSelectedPR]   = useState(null);
@@ -304,6 +307,35 @@ const PurchaseRequestPage = () => {
     () => new Map(products.map(p => [p.id, p])),
     [products]
   );
+
+  // ── Stock Parameters tab: filter option lists + filtered rows ─────────────
+  // Category/brand come from the loaded product list (global per product);
+  // warehouses come from each suggestion's `warehouses` (products stocked there).
+  const sugCategoryOptions = useMemo(() => {
+    const map = new Map();
+    suggestions.forEach(s => {
+      const p = productById.get(String(s.product_id));
+      if (p?.categoryId) map.set(String(p.categoryId), p.categoryName || `#${p.categoryId}`);
+    });
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [suggestions, productById]);
+
+  const sugBrandOptions = useMemo(() => {
+    const map = new Map();
+    suggestions.forEach(s => {
+      const p = productById.get(String(s.product_id));
+      if (p?.brandId) map.set(String(p.brandId), p.brandName || `#${p.brandId}`);
+    });
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [suggestions, productById]);
+
+  const filteredSuggestions = useMemo(() => suggestions.filter(s => {
+    const p = productById.get(String(s.product_id));
+    if (sugCategory && String(p?.categoryId ?? '') !== sugCategory) return false;
+    if (sugBrand && String(p?.brandId ?? '') !== sugBrand) return false;
+    if (sugWarehouse && !(s.warehouses || []).some(w => String(w.location_id) === sugWarehouse)) return false;
+    return true;
+  }), [suggestions, productById, sugCategory, sugBrand, sugWarehouse]);
 
   // ── Fetch (and cache) the active budget for each distinct warehouse ───────
   useEffect(() => {
@@ -1834,6 +1866,42 @@ const PurchaseRequestPage = () => {
               )}
             </div>
 
+            {!loadingSug && suggestions.length > 0 && (
+              <div className="ak-toolbar" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <select className="ak-input" value={sugWarehouse} onChange={e => setSugWarehouse(e.target.value)}>
+                  <option value="">All warehouses</option>
+                  {warehouseLocations.map(loc => (
+                    <option key={loc.location_id ?? loc.id} value={String(loc.location_id ?? loc.id ?? '')}>
+                      {loc.location_name || loc.name}
+                    </option>
+                  ))}
+                </select>
+                <select className="ak-input" value={sugCategory} onChange={e => setSugCategory(e.target.value)}>
+                  <option value="">All categories</option>
+                  {sugCategoryOptions.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <select className="ak-input" value={sugBrand} onChange={e => setSugBrand(e.target.value)}>
+                  <option value="">All brands</option>
+                  {sugBrandOptions.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+                {(sugWarehouse || sugCategory || sugBrand) && (
+                  <button
+                    className="ak-btn ak-btn--sm ak-btn--ghost"
+                    onClick={() => { setSugWarehouse(''); setSugCategory(''); setSugBrand(''); }}
+                  >
+                    Clear filters
+                  </button>
+                )}
+                <span className="ak-muted" style={{ fontSize: 12, marginLeft: 'auto' }}>
+                  {filteredSuggestions.length} of {suggestions.length}
+                </span>
+              </div>
+            )}
+
             {loadingSug ? (
               <Loader label="Loading suggestions" />
             ) : suggestions.length === 0 ? (
@@ -1841,12 +1909,17 @@ const PurchaseRequestPage = () => {
                 <p>No pending stock parameter suggestions. The analytics run raises one when a
                 product's demand drifts away from its configured levels.</p>
               </div>
+            ) : filteredSuggestions.length === 0 ? (
+              <div className="ak-state">
+                <p>No suggestions match the selected warehouse / category / brand filters.</p>
+              </div>
             ) : (
               <div className="ak-table-wrap">
                 <table className="ak-table">
                   <thead>
                     <tr>
                       <th>Product</th>
+                      <th>Warehouses</th>
                       <th>Recommended stock</th>
                       <th>Safety stock</th>
                       <th>Max level</th>
@@ -1854,11 +1927,16 @@ const PurchaseRequestPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {suggestions.map((s) => (
+                    {filteredSuggestions.map((s) => (
                       <tr key={s.suggestion_id}>
                         <td>
                           <div>{s.product?.product_name || `#${s.product_id}`}</div>
                           <div className="ak-muted ak-mono">{s.product?.product_code}</div>
+                        </td>
+                        <td>
+                          {(s.warehouses && s.warehouses.length > 0)
+                            ? s.warehouses.map(w => w.location_name).join(', ')
+                            : <span className="ak-muted">—</span>}
                         </td>
                         <td>{s.current_recommended} → <strong>{s.suggested_recommended}</strong></td>
                         <td>{s.current_safety ?? 0} → <strong>{s.suggested_safety ?? 0}</strong></td>
