@@ -20,6 +20,7 @@ import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import { exportPOToExcel, exportPOToDocument, distinctDeliverLocations } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
+import RecordHistoryTimeline from '../components/RecordHistoryTimeline';
 import DateInput from '../components/DateInput';
 import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { toast } from '../utils/toast';
@@ -190,6 +191,22 @@ const PurchaseOrderPage = () => {
   const [selectedPO,      setSelectedPO]      = useState(null);
   // Per-PO approve/reject in-flight flag (holds the po_id being acted on)
   const [poActionLoading, setPoActionLoading] = useState(null);
+
+  // Per-PO history timeline (shown inside the detail modal)
+  const [historyMilestones, setHistoryMilestones] = useState([]);
+  const [historyLoading,     setHistoryLoading]    = useState(false);
+
+  useEffect(() => {
+    const poId = selectedPO?.po_id;
+    if (!poId) { setHistoryMilestones([]); return; }
+    let mounted = true;
+    setHistoryLoading(true);
+    purchaseOrdersAPI.history(poId)
+      .then((res) => { if (mounted) setHistoryMilestones(Array.isArray(res?.data) ? res.data : []); })
+      .catch(() => { if (mounted) setHistoryMilestones([]); })
+      .finally(() => { if (mounted) setHistoryLoading(false); });
+    return () => { mounted = false; };
+  }, [selectedPO?.po_id]);
 
   // Deep-link focus state
   const focusPoId = useFocusTarget('po');
@@ -1553,6 +1570,13 @@ const PurchaseOrderPage = () => {
                 <div className="po-detail-total">
                   <span className="po-detail-total-label">TOTAL ESTIMATED VALUE</span>
                   <span className="po-detail-total-value">₱{amount.toLocaleString('en-PH')}</span>
+                </div>
+
+                <div className="po-detail-items-wrap" style={{ marginTop: 16 }}>
+                  <div className="po-detail-items-title-row">
+                    <span className="po-detail-items-heading">HISTORY</span>
+                  </div>
+                  <RecordHistoryTimeline milestones={historyMilestones} loading={historyLoading} />
                 </div>
               </div>
 
