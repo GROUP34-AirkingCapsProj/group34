@@ -969,12 +969,12 @@ const PurchaseRequestPage = () => {
                   aria-expanded={panelOpen}
                 >
                   <span className="pr-reco-toggle-caret">{panelOpen ? '▾' : '▸'}</span>
-                  Suggested low-stock items for this warehouse
-                  {recEntry.loading ? (
-                    <span className="pr-reco-count">…</span>
-                  ) : (
-                    <span className={`pr-reco-count${criticalCount > 0 ? ' pr-reco-count--critical' : ''}`}>
-                      {suggestible.length}{criticalCount > 0 ? ` · ${criticalCount} critical` : ''}
+                  {recEntry.loading
+                    ? 'Checking low-stock items for this warehouse…'
+                    : `${suggestible.length} low-stock item${suggestible.length === 1 ? '' : 's'} for this warehouse`}
+                  {!recEntry.loading && criticalCount > 0 && (
+                    <span className="pr-reco-count pr-reco-count--critical">
+                      {criticalCount} critical
                     </span>
                   )}
                 </button>
