@@ -2051,7 +2051,10 @@ const PurchaseRequestPage = () => {
       <RecordHistoryModal
         isOpen={!!historyRecord}
         onClose={() => setHistoryRecord(null)}
-        title={historyRecord?.pr_number}
+        kind="Purchase Request"
+        record={historyRecord}
+        statusLabel={historyRecord ? getPRStatusConfig(historyRecord.status_id).label : ''}
+        statusColor={historyRecord ? getPRStatusConfig(historyRecord.status_id).color : 'draft'}
         milestones={prHistory}
         loading={prHistoryLoading}
       />
