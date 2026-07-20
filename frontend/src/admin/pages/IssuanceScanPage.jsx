@@ -593,12 +593,14 @@ export default function IssuanceScanPage() {
         setScanFeedback({
           type: 'success',
           message: `${data.product_name} — SN: ${data.serial_number}`,
+          warning: data.fifo_warning || null,
           detail: `${fmt(data.subtotal)}`,
         });
       } else {
         setScanFeedback({
           type: 'success',
           message: `${data.product_name} — ${data.quantity_issued} ${data.quantity_unit}`,
+          warning: data.fifo_warning || null,
           detail: `${fmt(data.subtotal)} (${'₱'}${Number(data.price_per_piece).toFixed(4)} per ${data.quantity_unit})`,
         });
       }
@@ -1382,6 +1384,9 @@ export default function IssuanceScanPage() {
                 {scanFeedback.type && (
                   <div className={`scan-feedback scan-feedback--${scanFeedback.type}`}>
                     <span className="scan-feedback-message">{scanFeedback.message}</span>
+                    {scanFeedback.warning && (
+                      <span className="scan-feedback-warning">{scanFeedback.warning}</span>
+                    )}
                     {scanFeedback.detail && (
                       <span className="scan-feedback-detail">{scanFeedback.detail}</span>
                     )}
