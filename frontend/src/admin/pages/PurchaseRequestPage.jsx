@@ -1145,8 +1145,8 @@ const PurchaseRequestPage = () => {
                           />
                           {r.productType === 'installation_material' && Number(r.piecesPerPackage) > 1 && (
                             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                              × {r.piecesPerPackage} {r.unitName || 'pcs'}/{r.packageUnit || 'package'}
-                              {' '}= {(Number(r.qty) || 0) * Number(r.piecesPerPackage)} {r.unitName || 'pcs'}
+                              × {r.piecesPerPackage} {productById.get(String(r.productId))?.unitAbbr || 'pcs'}/{r.packageUnit || 'package'}
+                              {' '}= {(Number(r.qty) || 0) * Number(r.piecesPerPackage)} {productById.get(String(r.productId))?.unitAbbr || 'pcs'}
                             </div>
                           )}
                           {(() => {
