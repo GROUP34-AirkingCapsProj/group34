@@ -7,6 +7,7 @@ use App\Models\AuditTrail;
 use App\Models\Customer;
 use App\Models\DeliveryReceipt;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
 use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\ItemSerial;
@@ -432,12 +433,12 @@ class IssuanceScanController extends Controller
      */
     private function fifoWarningFor(ItemSerial $serial, int $locationId): ?string
     {
-        $scannedBatch = \App\Models\InventoryBatch::where('receiving_id', $serial->receiving_id)
+        $scannedBatch = InventoryBatch::where('receiving_id', $serial->receiving_id)
             ->where('product_id', $serial->product_id)
             ->where('location_id', $locationId)
             ->first();
 
-        $oldestBatch = \App\Models\InventoryBatch::where('product_id', $serial->product_id)
+        $oldestBatch = InventoryBatch::where('product_id', $serial->product_id)
             ->where('location_id', $locationId)
             ->whereNotNull('receiving_id')
             ->where('quantity_remaining', '>', 0)
