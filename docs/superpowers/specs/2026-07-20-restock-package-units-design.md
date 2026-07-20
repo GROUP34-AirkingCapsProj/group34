@@ -115,9 +115,11 @@ const toOrderQty = (pieces, prod) => {
 };
 ```
 
-**F1 — Recommendation card** (line ~1056): for materials show both units,
-packages bold: `order **6 rolls** (300 m)`. Prefer API `order_packages` /
-`package_unit`; fall back to local `toOrderQty()` conversion.
+**F1 — Recommendation card** (line ~1056): for materials with
+`pieces_per_package > 1`, show both units, packages bold:
+`order **6 rolls** (300 m)`. Prefer API `order_packages` / `package_unit`;
+fall back to local `toOrderQty()` conversion. Materials with ppp ≤ 1 and
+appliances keep the current single-number display.
 
 **F2 — "+ Add" prefill** (`addRecommendedItem`, line ~549): row `qty` becomes
 `order_packages` (6), not `recommended_quantity` (300). *This is the primary
