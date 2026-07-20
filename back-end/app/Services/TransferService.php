@@ -8,12 +8,20 @@ use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\BarcodeScan;
 use App\Models\TblTransferTracking;
+use App\Services\InventoryBatchService;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class TransferService
 {
     use \App\Traits\NormalizesBarcode;
+
+    private InventoryBatchService $batches;
+
+    public function __construct(?InventoryBatchService $batches = null)
+    {
+        $this->batches = $batches ?? new InventoryBatchService();
+    }
 
     private function statusId(string $name): int
     {
@@ -108,6 +116,24 @@ class TransferService
                         ->where('product_id', $detail->product_id)
                         ->where('serial_type', 'received')
                         ->update(['serial_type' => 'transferred']);
+
+                    // Exact per-unit batch deduction: group the just-shipped serials by
+                    // their known receiving_id and decrement each linked batch directly.
+                    ItemSerial::where('transfer_id', $locked->transfer_id)
+                        ->where('product_id', $detail->product_id)
+                        ->where('serial_type', 'transferred')
+                        ->get()
+                        ->groupBy(fn ($serial) => $serial->receiving_id)
+                        ->each(function ($group, $receivingId) use ($locked, $detail) {
+                            $this->batches->deductFromReceiving(
+                                $receivingId !== '' && $receivingId !== null ? (int) $receivingId : null,
+                                $detail->product_id,
+                                $locked->from_location_id,
+                                $group->count()
+                            );
+                        });
+                } else {
+                    $this->batches->deductFifo($detail->product_id, $locked->from_location_id, $shipped);
                 }
 
                 $detail->quantity_transferred = $shipped;
