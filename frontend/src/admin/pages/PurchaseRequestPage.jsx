@@ -27,6 +27,17 @@ import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
 
+// pieces → packages for installation materials; passthrough otherwise.
+// PR/PO quantity means PACKAGES for materials, so recommendation piece counts
+// must be converted before landing in a qty field (ceil = safe over-order).
+const toOrderQty = (pieces, prod) => {
+  const ppp = Number(prod?.piecesPerPackage) || 0;
+  if (prod?.type === 'installation_material' && ppp > 1) {
+    return Math.ceil(pieces / ppp);
+  }
+  return pieces;
+};
+
 // ─── formatters ──────────────────────────────────────────────────────────────
 
 const fmtPeso = (n) =>
@@ -546,7 +557,10 @@ const PurchaseRequestPage = () => {
     const prod = products.find(p => p.id === pid);
     if (!prod) { toast.error('Product not available', 'Reload the product list and try again.'); return; }
 
-    const qty     = Math.max(1, Number(rec.recommended_quantity) || 1);
+    // rec.recommended_quantity is PIECES; the PR qty field means PACKAGES for
+    // materials. Prefer the API's order_packages; fall back to local conversion.
+    const pieces  = Math.max(1, Number(rec.recommended_quantity) || 1);
+    const qty     = Math.max(1, Number(rec.order_packages) || toOrderQty(pieces, prod));
     const newId   = `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const rowData = {
       id:                  newId,
@@ -1053,7 +1067,20 @@ const PurchaseRequestPage = () => {
                           <span className="pr-reco-item-code">{r.product?.product_code}</span>
                         </span>
                         <span className="pr-reco-item-stat">stock {r.current_stock}</span>
-                        <span className="pr-reco-item-stat">order <strong>{r.recommended_quantity}</strong></span>
+                        <span className="pr-reco-item-stat">
+                          {(() => {
+                            const ppp = Number(r.pieces_per_package) || 0;
+                            if (r.order_packages != null && ppp > 1) {
+                              const pkgLabel  = r.package_unit || 'package';
+                              const pieceAbbr = productById.get(String(r.product_id))?.unitAbbr || 'pcs';
+                              return (
+                                <>order <strong>{r.order_packages} {pkgLabel}{Number(r.order_packages) === 1 ? '' : 's'}</strong>
+                                  {' '}({r.recommended_quantity} {pieceAbbr})</>
+                              );
+                            }
+                            return <>order <strong>{r.recommended_quantity}</strong></>;
+                          })()}
+                        </span>
                         <span className="pr-reco-item-reasons">
                           {(r.reason_codes || []).map((c, i) => (
                             <span key={`${r.recommendation_id}-${c}-${i}`} className="ak-pill">{REASON_LABELS[c] || c}</span>
