@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 class InventoryBatch extends Model
 {
+    use Auditable;
+
     protected $table = 'inventory_batches';
 
     protected $primaryKey = 'batch_id';
