@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Loader from './Loader';
 import Pagination from './Pagination';
 import DateInput from './DateInput';
@@ -43,8 +43,21 @@ export default function ReceivingHistoryLog({ locations = [], onSelectPo }) {
       .finally(() => setLoading(false));
   }, [page, search, locationId, fromDate, toDate]);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, locationId, fromDate, toDate]);
+  // Single effect: when a filter changes, reset to page 1 and let the resulting
+  // page change re-trigger this effect to fetch — avoids fetching once for the
+  // stale page and again for page 1 on every filter edit.
+  const prevFilters = useRef({ search, locationId, fromDate, toDate });
+  useEffect(() => {
+    const prev = prevFilters.current;
+    const filtersChanged = prev.search !== search || prev.locationId !== locationId
+      || prev.fromDate !== fromDate || prev.toDate !== toDate;
+    prevFilters.current = { search, locationId, fromDate, toDate };
+    if (filtersChanged && page !== 1) {
+      setPage(1);
+      return;
+    }
+    load();
+  }, [load, page, search, locationId, fromDate, toDate]);
 
   return (
     <div className="rhl-panel">
