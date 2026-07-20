@@ -206,6 +206,19 @@ const InventoryManagement = () => {
     }
   }, []);
 
+  const fetchBatchesForId = useCallback(async (inventoryId) => {
+    setBatchesLoading((prev) => ({ ...prev, [inventoryId]: true }));
+    try {
+      const res = await inventoryAPI.getBatches(inventoryId);
+      const list = res?.data ?? [];
+      setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: list }));
+    } catch {
+      setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: [] }));
+    } finally {
+      setBatchesLoading((prev) => ({ ...prev, [inventoryId]: false }));
+    }
+  }, []);
+
   const toggleBatches = async (inventoryId) => {
     setExpandedBatchIds((prev) => {
       const next = new Set(prev);
@@ -218,16 +231,7 @@ const InventoryManagement = () => {
     });
 
     if (!batchesByInventoryId[inventoryId]) {
-      setBatchesLoading((prev) => ({ ...prev, [inventoryId]: true }));
-      try {
-        const res = await inventoryAPI.getBatches(inventoryId);
-        const list = res?.data ?? [];
-        setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: list }));
-      } catch {
-        setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: [] }));
-      } finally {
-        setBatchesLoading((prev) => ({ ...prev, [inventoryId]: false }));
-      }
+      await fetchBatchesForId(inventoryId);
     }
   };
 
@@ -235,10 +239,22 @@ const InventoryManagement = () => {
 
   // Re-fetch when a barcode scan transaction is confirmed anywhere in the app.
   useEffect(() => {
-    const onScanApplied = () => fetchInventory(currentPage);
+    const onScanApplied = () => {
+      fetchInventory(currentPage);
+      // The batch drill-down cache has no per-item invalidation signal, so clear it
+      // wholesale to avoid showing stale batch breakdowns after a receiving/transfer/
+      // issuance event mutates batches elsewhere. Re-fetch any row that's currently
+      // expanded so it doesn't just go blank until the user re-toggles it.
+      setBatchesByInventoryId({});
+      setBatchesLoading({});
+      setExpandedBatchIds((prevExpanded) => {
+        prevExpanded.forEach((id) => fetchBatchesForId(id));
+        return prevExpanded;
+      });
+    };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage]);
+  }, [fetchInventory, currentPage, fetchBatchesForId]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
