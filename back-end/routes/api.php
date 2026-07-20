@@ -564,6 +564,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/receivings', [ReceivingController::class, 'index']);
     Route::get('/receivings/po-scan-status/{poId}', [ReceivingController::class, 'poScanStatus']);
+    Route::get('/receivings/po-log', [ReceivingController::class, 'poLog']);
     Route::get('/receivings/{id}', [ReceivingController::class, 'show']);
     Route::middleware('permission:delivery_receiving,create')->post('/receivings', [ReceivingController::class, 'store']);
     Route::middleware('permission:delivery_receiving,update')->put('/receivings/{id}', [ReceivingController::class, 'update']);

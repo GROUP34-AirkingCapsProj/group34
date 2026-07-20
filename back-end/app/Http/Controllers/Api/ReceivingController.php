@@ -46,6 +46,72 @@ class ReceivingController extends Controller
         }
     }
 
+    /**
+     * Persistent receiving log, grouped by purchase order (not one row per scan).
+     * Every Receiving row is one scan; a busy PO can have dozens, but every row's
+     * click-through leads to the same PO-level history timeline, so this groups
+     * them into one summarized entry per PO.
+     */
+    public function poLog(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            $applyReceivingFilters = function ($q) use ($request, $user) {
+                $q->forUser($user);
+                if ($request->filled('location_id')) {
+                    $q->where('location_id', $request->location_id);
+                }
+                if ($request->filled('from_date')) {
+                    $q->whereDate('receiving_date', '>=', $request->from_date);
+                }
+                if ($request->filled('to_date')) {
+                    $q->whereDate('receiving_date', '<=', $request->to_date);
+                }
+            };
+
+            $poIdsQuery = Receiving::query();
+            $applyReceivingFilters($poIdsQuery);
+            $poIds = $poIdsQuery->distinct()->pluck('po_id');
+
+            $query = PurchaseOrder::query()
+                ->whereIn('po_id', $poIds)
+                ->with('supplier')
+                ->withCount(['receivings as events_count' => $applyReceivingFilters])
+                ->withMax(['receivings as last_received_date' => $applyReceivingFilters], 'receiving_date')
+                ->withSum(['receivings as total_items' => $applyReceivingFilters], 'total_quantity_received');
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('po_number', 'like', "%{$search}%")
+                        ->orWhereHas('supplier', function ($q2) use ($search) {
+                            $q2->where('supplier_name', 'like', "%{$search}%");
+                        });
+                });
+            }
+
+            $perPage = (int) $request->get('per_page', 20);
+            $paginated = $query->orderByDesc('last_received_date')->paginate($perPage);
+
+            $paginated->getCollection()->transform(function ($po) use ($applyReceivingFilters) {
+                $whQuery = $po->receivings();
+                $applyReceivingFilters($whQuery);
+                $po->warehouses = $whQuery->with('location')->get()
+                    ->pluck('location.location_name')
+                    ->filter()
+                    ->unique()
+                    ->values();
+                $po->total_items = (int) $po->total_items;
+                return $po;
+            });
+
+            return $this->paginated($paginated, 'Receiving log retrieved successfully');
+        } catch (\Exception $e) {
+            return $this->error('Failed to retrieve receiving log: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function store(Request $request)
     {
         try {
