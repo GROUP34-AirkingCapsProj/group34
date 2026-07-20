@@ -1143,6 +1143,12 @@ const PurchaseRequestPage = () => {
                             value={r.qty}
                             onChange={e => updateRowField(block.id, r.id, 'qty', e.target.value)}
                           />
+                          {r.productType === 'installation_material' && Number(r.piecesPerPackage) > 1 && (
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                              × {r.piecesPerPackage} {r.unitName || 'pcs'}/{r.packageUnit || 'package'}
+                              {' '}= {(Number(r.qty) || 0) * Number(r.piecesPerPackage)} {r.unitName || 'pcs'}
+                            </div>
+                          )}
                           {(() => {
                             if (!r.productId) return null;
                             // Prefer the analytics recommendation when the engine has one for
@@ -1152,9 +1158,16 @@ const PurchaseRequestPage = () => {
                             // data accumulates).
                             const rec  = recByProduct.get(String(r.productId));
                             const prod = productById.get(String(r.productId));
+                            // Both sources are PIECES (recommended_stocks is pieces by
+                            // convention); the qty field means PACKAGES for materials.
                             const suggestedQty = rec
-                              ? Number(rec.recommended_quantity) || 0
-                              : Number(prod?.recommendedStocks) || 0;
+                              ? (Number(rec.order_packages)
+                                  || toOrderQty(Number(rec.recommended_quantity) || 0, prod))
+                              : toOrderQty(Number(prod?.recommendedStocks) || 0, prod);
+                            const suggestedUnit = prod?.type === 'installation_material'
+                              && (Number(prod?.piecesPerPackage) || 0) > 1
+                              ? ` ${prod.packageUnit || 'package'}${suggestedQty === 1 ? '' : 's'}`
+                              : '';
                             if (suggestedQty <= 0 || Number(r.qty) === suggestedQty) return null;
                             return (
                               <button
@@ -1165,7 +1178,7 @@ const PurchaseRequestPage = () => {
                                   ? `Analytics-recommended order quantity at ${group?.locName || 'this warehouse'}`
                                   : 'Default recommended stock level for this product'}
                               >
-                                Suggested: {suggestedQty} → apply
+                                Suggested: {suggestedQty}{suggestedUnit} → apply
                               </button>
                             );
                           })()}
