@@ -11,6 +11,7 @@ use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Services\BudgetService;
+use App\Services\InventoryBatchService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -123,6 +124,14 @@ class ReceivingController extends Controller
                 $inventory->quantity_on_hand   = max(0, (int) $inventory->quantity_on_hand + $qty);
                 $inventory->available_quantity = max(0, (int) $inventory->available_quantity + $qty);
                 $inventory->save();
+
+                app(InventoryBatchService::class)->createBatch(
+                    $productId,
+                    $locationId,
+                    $receiving->receiving_id,
+                    $qty,
+                    $receiving->receiving_date ?? now()
+                );
 
                 $totalReceived += $qty;
             }
