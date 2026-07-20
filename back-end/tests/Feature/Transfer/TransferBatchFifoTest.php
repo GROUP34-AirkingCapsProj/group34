@@ -78,6 +78,13 @@ class TransferBatchFifoTest extends TransferTestCase
         $prod = $this->makeAppliance();
         $this->setStock($from->location_id, $prod->product_id, 1);
 
+        // Pre-seed the legacy (receiving_id = null) batch with a non-zero balance so the
+        // post-dispatch assertion below is load-bearing: if deductFromReceiving() were
+        // never called, or called against the wrong product/location, quantity_remaining
+        // would stay at 5 instead of dropping to 4.
+        $batchSvc = new InventoryBatchService();
+        $batchSvc->createBatch($prod->product_id, $from->location_id, null, 5, now());
+
         // Simulates pre-batch-tracking stock: a serial with no receiving_id at all.
         $sn = 'SN-' . uniqid();
         $serial = ItemSerial::create([
@@ -99,9 +106,9 @@ class TransferBatchFifoTest extends TransferTestCase
         $svc = new InventoryBatchService();
         $legacy = $svc->legacyBatch($prod->product_id, $from->location_id);
 
-        // Legacy batch starts at quantity_remaining = 0 (firstOrCreate default) and
-        // deductFromReceiving() floors the decrement at 0, so it stays at 0.
+        // Pre-seeded with quantity_remaining = 5; the 1-unit serialized transfer should
+        // deduct exactly 1, proving deductFromReceiving() ran against this legacy batch.
         $this->assertNull($legacy->receiving_id);
-        $this->assertSame(0, $legacy->fresh()->quantity_remaining);
+        $this->assertSame(4, $legacy->fresh()->quantity_remaining);
     }
 }

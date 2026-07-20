@@ -124,6 +124,8 @@ class TransferService
                     // keys are always string|int, so a null group key is stringified). We
                     // coerce that '' back to null before calling deductFromReceiving(), which
                     // is typed ?int and would otherwise fail to cast '' to an int.
+                    // receiving_id is an auto-increment PK (starts at 1) so it is never 0,
+                    // making '' and null the only falsy values here — safe to use `?:`.
                     ItemSerial::where('transfer_id', $locked->transfer_id)
                         ->where('product_id', $detail->product_id)
                         ->where('serial_type', 'transferred')
@@ -131,7 +133,7 @@ class TransferService
                         ->groupBy('receiving_id')
                         ->each(function ($group, $receivingId) use ($locked, $detail) {
                             $this->batches->deductFromReceiving(
-                                $receivingId !== '' && $receivingId !== null ? (int) $receivingId : null,
+                                $receivingId ? (int) $receivingId : null,
                                 $detail->product_id,
                                 $locked->from_location_id,
                                 $group->count()
