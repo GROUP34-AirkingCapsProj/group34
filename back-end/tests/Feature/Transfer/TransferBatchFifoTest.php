@@ -70,4 +70,38 @@ class TransferBatchFifoTest extends TransferTestCase
 
         $this->assertSame(0, $batch->fresh()->quantity_remaining);
     }
+
+    public function test_dispatch_serialized_with_null_receiving_id_falls_back_to_legacy_batch(): void
+    {
+        $from = $this->makeLocation('WH-A');
+        $to   = $this->makeLocation('SR-B');
+        $prod = $this->makeAppliance();
+        $this->setStock($from->location_id, $prod->product_id, 1);
+
+        // Simulates pre-batch-tracking stock: a serial with no receiving_id at all.
+        $sn = 'SN-' . uniqid();
+        $serial = ItemSerial::create([
+            'product_id'    => $prod->product_id,
+            'location_id'   => $from->location_id,
+            'receiving_id'  => null,
+            'serial_number' => $sn,
+            'serial_type'   => 'received',
+        ]);
+
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $prod->product_id, 'quantity_requested' => 1, 'quantity_scanned' => 1],
+        ]);
+        $ist->details->first()->update(['quantity_scanned' => 1]);
+        $serial->update(['transfer_id' => $ist->transfer_id]);
+
+        (new TransferService())->dispatch($ist);
+
+        $svc = new InventoryBatchService();
+        $legacy = $svc->legacyBatch($prod->product_id, $from->location_id);
+
+        // Legacy batch starts at quantity_remaining = 0 (firstOrCreate default) and
+        // deductFromReceiving() floors the decrement at 0, so it stays at 0.
+        $this->assertNull($legacy->receiving_id);
+        $this->assertSame(0, $legacy->fresh()->quantity_remaining);
+    }
 }

@@ -119,11 +119,16 @@ class TransferService
 
                     // Exact per-unit batch deduction: group the just-shipped serials by
                     // their known receiving_id and decrement each linked batch directly.
+                    // Serials with no receiving_id (e.g. pre-batch-tracking stock) fall into
+                    // a single group whose key Laravel's groupBy() casts to '' (Collection
+                    // keys are always string|int, so a null group key is stringified). We
+                    // coerce that '' back to null before calling deductFromReceiving(), which
+                    // is typed ?int and would otherwise fail to cast '' to an int.
                     ItemSerial::where('transfer_id', $locked->transfer_id)
                         ->where('product_id', $detail->product_id)
                         ->where('serial_type', 'transferred')
                         ->get()
-                        ->groupBy(fn ($serial) => $serial->receiving_id)
+                        ->groupBy('receiving_id')
                         ->each(function ($group, $receivingId) use ($locked, $detail) {
                             $this->batches->deductFromReceiving(
                                 $receivingId !== '' && $receivingId !== null ? (int) $receivingId : null,
