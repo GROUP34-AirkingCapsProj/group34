@@ -78,6 +78,15 @@ class ReceivingPoLogTest extends TestCase
         $this->assertNotNull($row);
         $this->assertSame(3, $row['events_count']);
         $this->assertSame(15, $row['total_items']);
+
+        // Contract shape the frontend actually renders (ReceivingHistoryLog.jsx):
+        // po.supplier?.supplier_name, po.warehouses.join(...), and the pagination envelope.
+        $this->assertSame($sup->supplier_name, $row['supplier']['supplier_name']);
+        $this->assertContains($loc->location_name, $row['warehouses']);
+        $this->assertArrayHasKey('current_page', $res->json('pagination'));
+        $this->assertArrayHasKey('last_page', $res->json('pagination'));
+        $this->assertArrayHasKey('per_page', $res->json('pagination'));
+        $this->assertArrayHasKey('total', $res->json('pagination'));
     }
 
     public function test_location_id_filter_narrows_results(): void
