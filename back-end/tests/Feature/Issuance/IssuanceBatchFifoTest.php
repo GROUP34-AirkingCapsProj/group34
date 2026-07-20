@@ -192,4 +192,43 @@ class IssuanceBatchFifoTest extends TestCase
         $res->assertJson(['success' => true, 'action' => 'applied']);
         $this->assertNull($res->json('fifo_warning'));
     }
+
+    public function test_scanning_bulk_item_deducts_oldest_batch_first(): void
+    {
+        $location = $this->makeLocation();
+        $product  = Product::create([
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Consumable',
+            'product_type' => 'installation_material', 'unit_price' => 50,
+        ]);
+        $customer = Customer::create(['customer_name' => 'Test Customer', 'customer_type' => 'individual']);
+        $user     = $this->makeUser();
+
+        Inventory::create([
+            'location_id' => $location->location_id, 'product_id' => $product->product_id,
+            'quantity_on_hand' => 10, 'available_quantity' => 10, 'reorder_level' => 0,
+        ]);
+
+        $svc = new InventoryBatchService();
+        $old = $svc->createBatch($product->product_id, $location->location_id, $this->makeReceiving($location->location_id)->receiving_id, 6, now()->subDays(3));
+        $new = $svc->createBatch($product->product_id, $location->location_id, $this->makeReceiving($location->location_id)->receiving_id, 4, now());
+
+        $issuance = Issuance::create([
+            'location_id' => $location->location_id, 'customer_id' => $customer->customer_id,
+            'issuance_date' => now()->toDateString(), 'issuance_type' => 'individual',
+            'dr_number' => 'DR-TEST-' . uniqid(), 'discount_type' => 'none', 'discount_percent' => 0,
+            'subtotal' => 0, 'discount_amount' => 0, 'total_amount' => 0,
+            'issued_by' => $user->user_id, 'status_id' => 30,
+        ]);
+
+        $res = $this->actingAs($user)->postJson('/api/issuance-scan/scan', [
+            'issuance_id'   => $issuance->issuance_id,
+            'barcode'       => $product->product_code,
+            'quantity'      => 8,
+            'quantity_unit' => 'unit',
+        ]);
+
+        $res->assertJson(['success' => true, 'action' => 'applied']);
+        $this->assertSame(0, $old->fresh()->quantity_remaining);
+        $this->assertSame(2, $new->fresh()->quantity_remaining);
+    }
 }
