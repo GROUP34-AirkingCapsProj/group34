@@ -21,22 +21,12 @@ import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
 import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { getRoleKey, ROLES } from '../utils/roles';
+import { toOrderQty } from '../utils/restockUnits';
 import PRProgressBar, { getPRStatusText } from '../components/PRProgressBar';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
 import DateInput from '../components/DateInput';
-
-// pieces → packages for installation materials; passthrough otherwise.
-// PR/PO quantity means PACKAGES for materials, so recommendation piece counts
-// must be converted before landing in a qty field (ceil = safe over-order).
-const toOrderQty = (pieces, prod) => {
-  const ppp = Number(prod?.piecesPerPackage) || 0;
-  if (prod?.type === 'installation_material' && ppp > 1) {
-    return Math.ceil(pieces / ppp);
-  }
-  return pieces;
-};
 
 // ─── formatters ──────────────────────────────────────────────────────────────
 
