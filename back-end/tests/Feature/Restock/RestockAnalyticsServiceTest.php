@@ -521,6 +521,36 @@ class RestockAnalyticsServiceTest extends TestCase
         $this->assertSame(24, $rec['recommended_quantity']); // 33 - 3 - 6
     }
 
+    public function test_open_po_quantity_is_not_converted_for_appliances(): void
+    {
+        // Appliance quantity_ordered is already units (pieces) -> no conversion,
+        // even if an installation_material_details row somehow exists for it.
+        // Same demand math as (C): lead 7 -> safety 3, reorder 10, target 33.
+        $pid = $this->makeProduct(['product_type' => 'appliance']);
+        $this->setStock($pid, 3);
+        $this->issueDaily($pid, 1, 30);
+
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 10, // UNITS, not packages
+            'unit_price' => 80, 'subtotal' => 800, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
+
+        $this->assertNotNull($rec);
+        $this->assertSame(10, $rec['on_order_quantity']);   // unconverted
+        $this->assertSame(20, $rec['recommended_quantity']); // 33 - 3 - 10
+    }
+
     // ---------------------------------------------------------------
     // (E) No movement: halving suggestion; no-history+no-params skipped
     // ---------------------------------------------------------------
