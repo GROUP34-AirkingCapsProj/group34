@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
  */
 class InventoryBatchService
 {
-    public function createBatch(int $productId, int $locationId, ?int $receivingId, int $qty, $receivedAt): InventoryBatch
+    public function createBatch(int $productId, int $locationId, ?int $receivingId, int $qty, $receivedAt, ?string $zoneLabel = null): InventoryBatch
     {
         return InventoryBatch::create([
             'product_id'         => $productId,
@@ -24,6 +24,7 @@ class InventoryBatchService
             'quantity_received'  => $qty,
             'quantity_remaining' => $qty,
             'received_at'        => $receivedAt,
+            'zone_label'         => $zoneLabel,
         ]);
     }
 

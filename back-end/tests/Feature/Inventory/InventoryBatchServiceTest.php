@@ -149,4 +149,32 @@ class InventoryBatchServiceTest extends TestCase
         $this->assertNotNull($legacy);
         $this->assertSame(4, $legacy->quantity_remaining);
     }
+
+    public function test_create_batch_stores_optional_zone_label(): void
+    {
+        $loc  = $this->makeLocation();
+        $prod = $this->makeProduct();
+
+        $batch = $this->svc->createBatch(
+            $prod->product_id, $loc->location_id,
+            $this->makeReceiving($loc->location_id)->receiving_id,
+            5, now(), 'Aisle 3, Shelf B'
+        );
+
+        $this->assertSame('Aisle 3, Shelf B', $batch->fresh()->zone_label);
+    }
+
+    public function test_create_batch_zone_label_defaults_to_null(): void
+    {
+        $loc  = $this->makeLocation();
+        $prod = $this->makeProduct();
+
+        $batch = $this->svc->createBatch(
+            $prod->product_id, $loc->location_id,
+            $this->makeReceiving($loc->location_id)->receiving_id,
+            5, now()
+        );
+
+        $this->assertNull($batch->fresh()->zone_label);
+    }
 }
