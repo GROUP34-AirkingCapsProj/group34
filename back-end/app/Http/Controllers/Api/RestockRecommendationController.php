@@ -24,7 +24,7 @@ class RestockRecommendationController extends Controller
     /** GET /api/restock/recommendations — latest stored batch. */
     public function index(Request $request)
     {
-        $query = RestockRecommendation::with('product')
+        $query = RestockRecommendation::with('product.consumableDetail')
             ->orderByRaw("FIELD(priority, 'CRITICAL', 'HIGH', 'MEDIUM')")
             ->orderByDesc('avg_daily_demand');
 
@@ -46,7 +46,23 @@ class RestockRecommendationController extends Controller
             $query->where('location_id', $locationId);
         }
 
-        $rows = $query->get();
+        // Package fields are computed at read time so they always reflect the
+        // CURRENT pieces_per_package, even if packaging changed after the run.
+        // recommended_quantity stays the true pieces need (spec: analyze in
+        // pieces, order in packages).
+        $rows = $query->get()->map(function ($r) {
+            $arr        = $r->toArray();
+            $isMaterial = $r->product?->product_type === 'installation_material';
+            $cd         = $r->product?->consumableDetail;
+            $ppp        = max(1, (int) ($cd?->pieces_per_package ?? 1));
+
+            $arr['pieces_per_package'] = $isMaterial ? $ppp : null;
+            $arr['package_unit']       = $isMaterial ? ($cd?->package_unit ?: null) : null;
+            $arr['order_packages']     = $isMaterial
+                ? (int) ceil((float) $r->recommended_quantity / $ppp)
+                : null;
+            return $arr;
+        });
 
         $warehouseId = $locationId ?? Location::where('location_type', 'warehouse')
             ->orderBy('location_id')
@@ -58,7 +74,7 @@ class RestockRecommendationController extends Controller
         return $this->success([
             // Fall back to the suggestions table so a run that produced zero
             // recommendations still reports when it happened.
-            'run_at'          => optional($rows->first())->run_at
+            'run_at'          => ($rows->first()['run_at'] ?? null)
                 ?? StockParameterSuggestion::max('run_at'),
             'recommendations' => $rows,
             'budget'          => $budget ? [

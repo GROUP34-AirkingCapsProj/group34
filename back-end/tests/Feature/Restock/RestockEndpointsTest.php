@@ -145,6 +145,104 @@ class RestockEndpointsTest extends TestCase
         $this->assertContains($pid, $ids);
     }
 
+    /** Insert a stored recommendation row directly (read-time fields are computed by the API). */
+    private function insertRecommendation(int $productId, int $locationId, int $qty): void
+    {
+        DB::table('restock_recommendations')->insert([
+            'product_id'           => $productId,
+            'location_id'          => $locationId,
+            'current_stock'        => 20,
+            'reorder_level'        => 100,
+            'recommended_quantity' => $qty,
+            'reason'               => 'test row',
+            'priority'             => 'HIGH',
+            'reason_codes'         => json_encode(['LOW_STOCK']),
+            'avg_daily_demand'     => 9.3,
+            'lead_time_days'       => 7.0,
+            'on_order_quantity'    => 0,
+            'run_at'               => now(),
+            'created_at'           => now(),
+            'updated_at'           => now(),
+        ]);
+    }
+
+    public function test_recommendations_include_package_fields_for_materials(): void
+    {
+        // Material packaged 50 pieces/roll, stored need 280 pieces
+        // -> order_packages = ceil(280/50) = 6.
+        $pid = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Packaged Tube',
+            'product_type'       => 'installation_material',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 0,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+        DB::table('installation_material_details')->insert([
+            'product_id'         => $pid,
+            'pieces_per_package' => 50,
+            'package_unit'       => 'roll',
+            'is_serialized'      => 0,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+        $this->insertRecommendation($pid, $this->secondWarehouseId, 280);
+
+        $resp = $this->actingAs($this->makeUser('admin'), 'sanctum')
+            ->getJson('/api/restock/recommendations');
+        $resp->assertOk();
+
+        $row = collect($resp->json('data.recommendations'))->firstWhere('product_id', $pid);
+        $this->assertNotNull($row, 'stored recommendation must be returned');
+        $this->assertSame(50, $row['pieces_per_package']);
+        $this->assertSame('roll', $row['package_unit']);
+        $this->assertSame(6, $row['order_packages']); // ceil(280/50), not 5.6 rounded down
+    }
+
+    public function test_package_fields_are_identity_or_null_for_edge_cases(): void
+    {
+        // (a) Material WITHOUT a details row (ppp null) -> order_packages == recommended_quantity.
+        $bare = (int) DB::table('products')->insertGetId([
+            'product_code' => 'TST-' . uniqid(),
+            'product_name' => 'Bare Material',
+            'product_type' => 'installation_material',
+            'unit_price'   => 100, 'cost_price' => 80,
+            'recommended_stocks' => 0, 'status_id' => 3,
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'product_id');
+        $this->insertRecommendation($bare, $this->secondWarehouseId, 300);
+
+        // (b) Appliance -> all three package fields null.
+        $appliance = (int) DB::table('products')->insertGetId([
+            'product_code' => 'TST-' . uniqid(),
+            'product_name' => 'Test Aircon',
+            'product_type' => 'appliance',
+            'unit_price'   => 100, 'cost_price' => 80,
+            'recommended_stocks' => 0, 'status_id' => 3,
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'product_id');
+        $this->insertRecommendation($appliance, $this->secondWarehouseId, 4);
+
+        $resp = $this->actingAs($this->makeUser('admin'), 'sanctum')
+            ->getJson('/api/restock/recommendations');
+        $resp->assertOk();
+        $rows = collect($resp->json('data.recommendations'));
+
+        $bareRow = $rows->firstWhere('product_id', $bare);
+        $this->assertNotNull($bareRow);
+        $this->assertSame(1, $bareRow['pieces_per_package']);
+        $this->assertSame(300, $bareRow['order_packages']); // identity: 300/1
+
+        $appRow = $rows->firstWhere('product_id', $appliance);
+        $this->assertNotNull($appRow);
+        $this->assertNull($appRow['pieces_per_package']);
+        $this->assertNull($appRow['package_unit']);
+        $this->assertNull($appRow['order_packages']);
+    }
+
     public function test_recommendations_can_be_filtered_by_location(): void
     {
         $wh1 = (int) DB::table('locations')->where('location_type', 'warehouse')
