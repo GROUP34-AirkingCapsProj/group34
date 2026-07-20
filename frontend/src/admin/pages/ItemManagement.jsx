@@ -569,6 +569,14 @@ const ItemManagement = () => {
     return { label: 'APPLIANCE', className: 'im-type-unit' };
   };
 
+  // Stock parameters for installation materials are entered in PIECES
+  // (convention: docs/superpowers/specs/2026-07-20-restock-package-units-design.md).
+  const stockParamUnitHint = (() => {
+    if (productType !== 'installation_material') return null;
+    const u = units.find(un => String(un.unit_id) === String(formData.unit_id));
+    return `in pieces${u?.unit_abbreviation ? ` (${u.unit_abbreviation})` : ''}`;
+  })();
+
   return (
     <AdminLayout>
       <div className="ak-page im-page">
@@ -1637,7 +1645,12 @@ const ItemManagement = () => {
             {/* Stock Levels (both types) */}
             <div className="im-form-row" style={{ marginTop: 8, paddingTop: 12, borderTop: '1px dashed #e5e7eb' }}>
               <div className="im-form-field">
-                <label>RECOMMENDED STOCKS</label>
+                <label>
+                  RECOMMENDED STOCKS
+                  {stockParamUnitHint && (
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}> — {stockParamUnitHint}</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1647,7 +1660,12 @@ const ItemManagement = () => {
                 />
               </div>
               <div className="im-form-field">
-                <label>SAFETY STOCK</label>
+                <label>
+                  SAFETY STOCK
+                  {stockParamUnitHint && (
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}> — {stockParamUnitHint}</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1657,7 +1675,12 @@ const ItemManagement = () => {
                 />
               </div>
               <div className="im-form-field">
-                <label>MAX STOCK LEVEL</label>
+                <label>
+                  MAX STOCK LEVEL
+                  {stockParamUnitHint && (
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}> — {stockParamUnitHint}</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   min="0"

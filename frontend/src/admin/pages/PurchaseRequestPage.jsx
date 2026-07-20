@@ -2035,9 +2035,9 @@ const PurchaseRequestPage = () => {
                     <tr>
                       <th>Product</th>
                       <th>Warehouses</th>
-                      <th>Recommended stock</th>
-                      <th>Safety stock</th>
-                      <th>Max level</th>
+                      <th>Recommended stock <span className="ak-muted">(pieces)</span></th>
+                      <th>Safety stock <span className="ak-muted">(pieces)</span></th>
+                      <th>Max level <span className="ak-muted">(pieces)</span></th>
                       <th className="ak-actions">Actions</th>
                     </tr>
                   </thead>
