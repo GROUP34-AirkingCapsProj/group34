@@ -399,6 +399,21 @@ class TransferService
                 $src->save();
 
                 if ($this->isSerialized($detail)) {
+                    // Read receiving_id groupings BEFORE clearing transfer_id, so the
+                    // exact batch each serial came from can still be identified.
+                    ItemSerial::where('transfer_id', $locked->transfer_id)
+                        ->where('product_id', $detail->product_id)
+                        ->get()
+                        ->groupBy('receiving_id')
+                        ->each(function ($group, $receivingId) use ($locked, $detail) {
+                            $this->batches->restoreFifo(
+                                $detail->product_id,
+                                $locked->from_location_id,
+                                $group->count(),
+                                $receivingId ? (int) $receivingId : null
+                            );
+                        });
+
                     ItemSerial::where('transfer_id', $locked->transfer_id)
                         ->where('product_id', $detail->product_id)
                         ->update([
@@ -406,6 +421,11 @@ class TransferService
                             'location_id' => $locked->from_location_id,
                             'transfer_id' => null,
                         ]);
+                } else {
+                    // Bulk products have no per-transfer batch trail, so restoration is
+                    // best-effort: it goes to the legacy catch-all batch rather than the
+                    // exact original batch. See plan header for rationale.
+                    $this->batches->restoreFifo($detail->product_id, $locked->from_location_id, $shipped, null);
                 }
             }
         });
