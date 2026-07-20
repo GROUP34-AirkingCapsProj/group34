@@ -3,7 +3,16 @@
 namespace App\Services;
 
 use App\Models\InventoryBatch;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * Contract: every method in this service must be called from inside a DB transaction
+ * that has already locked the relevant Inventory row (Inventory::...->lockForUpdate())
+ * for the product+location being touched. This service's own lockForUpdate() calls only
+ * take effect inside that outer transaction, and rely on the Inventory-row lock (not on
+ * any lock of their own) to serialize access and prevent concurrent legacy-batch
+ * duplication via legacyBatch()'s firstOrCreate.
+ */
 class InventoryBatchService
 {
     public function createBatch(int $productId, int $locationId, ?int $receivingId, int $qty, $receivedAt): InventoryBatch
@@ -55,11 +64,24 @@ class InventoryBatchService
             $remaining -= $take;
         }
 
+        // A shortfall here means traceable batches ran out and the legacy batch had to
+        // spill over; if it still can't fully cover the request (floored at 0), that's
+        // an inventory-tracking discrepancy worth investigating, so it's logged below.
         if ($remaining > 0) {
             $legacy = $this->legacyBatch($productId, $locationId);
+            $before = $legacy->quantity_remaining;
             $legacy->quantity_remaining = max(0, $legacy->quantity_remaining - $remaining);
             $legacy->save();
-            $touched[$legacy->batch_id] = ($touched[$legacy->batch_id] ?? 0) + $remaining;
+            $actualDeducted = $before - $legacy->quantity_remaining;
+            $touched[$legacy->batch_id] = ($touched[$legacy->batch_id] ?? 0) + $actualDeducted;
+
+            if ($actualDeducted < $remaining) {
+                Log::warning('InventoryBatchService: unfulfillable FIFO deduction shortfall', [
+                    'product_id'  => $productId,
+                    'location_id' => $locationId,
+                    'shortfall'   => $remaining - $actualDeducted,
+                ]);
+            }
         }
 
         return $touched;

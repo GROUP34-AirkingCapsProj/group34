@@ -117,4 +117,36 @@ class InventoryBatchServiceTest extends TestCase
 
         $this->assertSame(1, $batch->fresh()->quantity_remaining);
     }
+
+    public function test_deduct_from_receiving_falls_back_to_legacy_when_receiving_id_is_null(): void
+    {
+        $loc  = $this->makeLocation();
+        $prod = $this->makeProduct();
+
+        $this->svc->deductFromReceiving(null, $prod->product_id, $loc->location_id, 5);
+
+        $legacy = InventoryBatch::where('product_id', $prod->product_id)
+            ->where('location_id', $loc->location_id)
+            ->whereNull('receiving_id')
+            ->first();
+
+        $this->assertNotNull($legacy);
+        $this->assertSame(0, $legacy->quantity_remaining); // floored at 0, never negative
+    }
+
+    public function test_restore_fifo_goes_straight_to_legacy_when_receiving_id_is_null(): void
+    {
+        $loc  = $this->makeLocation();
+        $prod = $this->makeProduct();
+
+        $this->svc->restoreFifo($prod->product_id, $loc->location_id, 4, null);
+
+        $legacy = InventoryBatch::where('product_id', $prod->product_id)
+            ->where('location_id', $loc->location_id)
+            ->whereNull('receiving_id')
+            ->first();
+
+        $this->assertNotNull($legacy);
+        $this->assertSame(4, $legacy->quantity_remaining);
+    }
 }
