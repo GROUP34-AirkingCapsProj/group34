@@ -23,6 +23,9 @@ import { useAuth, useUserLocation } from '../context/AuthContext';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
 import ReceivingReceipt from '../components/ReceivingReceipt';
+import RecordHistoryModal from '../components/RecordHistoryModal';
+import ReceivingHistoryLog from '../components/ReceivingHistoryLog';
+import { getStatusConfig } from '../utils/poStatus';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
 import {
@@ -651,6 +654,26 @@ const BarcodeScan = () => {
   /** Set of lowercase-trimmed scanned_barcode values already in the DB for the active PO. */
   const [bsrPoReceivedBarcodes, setBsrPoReceivedBarcodes] = useState(new Set());
   const [bsrPoStatusLoading, setBsrPoStatusLoading] = useState(false);
+
+  // Receive PO: "Select PO" vs "History" tab, and the shared PO History modal.
+  const [bsrTab, setBsrTab] = useState('select'); // 'select' | 'history'
+  const [historyRecord, setHistoryRecord] = useState(null);
+  const [historyMilestones, setHistoryMilestones] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const openPoHistory = (poId) => {
+    setHistoryLoading(true);
+    Promise.all([
+      purchaseOrdersAPI.getById(poId),
+      purchaseOrdersAPI.history(poId),
+    ])
+      .then(([poRes, historyRes]) => {
+        setHistoryRecord(poRes?.data || null);
+        setHistoryMilestones(Array.isArray(historyRes?.data) ? historyRes.data : []);
+      })
+      .catch(() => { setHistoryRecord(null); setHistoryMilestones([]); })
+      .finally(() => setHistoryLoading(false));
+  };
 
   // ── IST Transfer Scan state ──────────────────────────────────────────────
   const [istList,          setIstList]          = useState([]);
@@ -2793,71 +2816,101 @@ const BarcodeScan = () => {
               <p>Scan products from approved purchase orders</p>
             </div>
           </div>
-          <div className="bsr-search-card">
-            <div className="bsr-search-inner">
-              <BsrSearchIcon />
-              <input
-                className="bsr-search-input"
-                placeholder="Search by PO ID or supplier..."
-                value={bsrPoSearchQ}
-                onChange={(e) => setBsrPoSearchQ(e.target.value)}
-              />
-            </div>
+
+          <div className="bsr-tab-nav">
+            <button type="button" className={`bsr-tab-btn${bsrTab === 'select' ? ' bsr-tab-btn--active' : ''}`} onClick={() => setBsrTab('select')}>
+              Select PO
+            </button>
+            <button type="button" className={`bsr-tab-btn${bsrTab === 'history' ? ' bsr-tab-btn--active' : ''}`} onClick={() => setBsrTab('history')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+              </svg>
+              History
+            </button>
           </div>
-          {bsrPoLoading ? (
-            <Loader label="Loading purchase orders" />
-          ) : bsrFilteredPos.length === 0 ? (
-            <div className="bsr-empty">No approved purchase orders found.</div>
-          ) : bsrFilteredPos.map((po) => {
-            const poId = po.po_id ?? po.id;
-            const scoped    = !!myLocationId;
-            const totalAmt  = scoped
-              ? bsrLocationAmount(po, myLocationId)
-              : Number(po.total_amount || po.grand_total || 0);
-            const itemCount = scoped ? bsrLocationItemCount(po, myLocationId) : bsrGetItemCount(po);
-            const breakdown = scoped ? [] : bsrWarehouseBreakdown(po);
-            const showBreakdown = !scoped && breakdown.length > 1;
-            const statusName  = po?.status?.status_name ?? po?.status_name ?? '';
-            const isPartial   = /partial/i.test(statusName);
-            const isCompleted = /complet/i.test(statusName);
-            const badgeClass  = isCompleted ? 'bsr-badge--completed' : isPartial ? 'bsr-badge--partial' : 'bsr-badge--approved';
-            const badgeLabel  = isCompleted ? 'COMPLETED' : isPartial ? 'PARTIALLY RECEIVED' : statusName.toUpperCase() || 'APPROVED';
-            return (
-              <button key={poId} type="button" className="bsr-po-card" onClick={() => handleBsrSelectPo(po)}>
-                <div className="bsr-po-card-top">
-                  <div className="bsr-po-left">
-                    <span className="bsr-po-number">{po.po_number || `PO #${poId}`}</span>
-                    <span className={`bsr-badge ${badgeClass}`}><BsrCheckIcon /> {badgeLabel}</span>
-                  </div>
-                  <div className="bsr-po-amount">
-                    <span className="bsr-amount-label">TOTAL AMOUNT</span>
-                    <span className="bsr-amount-value">{bsrFmtCurrency(totalAmt)}</span>
-                    {scoped && (
-                      <span className="bsr-amount-scope">for {enforcedLocationName || 'your warehouse'}</span>
+
+          {bsrTab === 'history' ? (
+            <ReceivingHistoryLog locations={locations} onSelectPo={openPoHistory} />
+          ) : (
+            <>
+              <div className="bsr-search-card">
+                <div className="bsr-search-inner">
+                  <BsrSearchIcon />
+                  <input
+                    className="bsr-search-input"
+                    placeholder="Search by PO ID or supplier..."
+                    value={bsrPoSearchQ}
+                    onChange={(e) => setBsrPoSearchQ(e.target.value)}
+                  />
+                </div>
+              </div>
+              {bsrPoLoading ? (
+                <Loader label="Loading purchase orders" />
+              ) : bsrFilteredPos.length === 0 ? (
+                <div className="bsr-empty">No approved purchase orders found.</div>
+              ) : bsrFilteredPos.map((po) => {
+                const poId = po.po_id ?? po.id;
+                const scoped    = !!myLocationId;
+                const totalAmt  = scoped
+                  ? bsrLocationAmount(po, myLocationId)
+                  : Number(po.total_amount || po.grand_total || 0);
+                const itemCount = scoped ? bsrLocationItemCount(po, myLocationId) : bsrGetItemCount(po);
+                const breakdown = scoped ? [] : bsrWarehouseBreakdown(po);
+                const showBreakdown = !scoped && breakdown.length > 1;
+                const statusName  = po?.status?.status_name ?? po?.status_name ?? '';
+                const isPartial   = /partial/i.test(statusName);
+                const isCompleted = /complet/i.test(statusName);
+                const badgeClass  = isCompleted ? 'bsr-badge--completed' : isPartial ? 'bsr-badge--partial' : 'bsr-badge--approved';
+                const badgeLabel  = isCompleted ? 'COMPLETED' : isPartial ? 'PARTIALLY RECEIVED' : statusName.toUpperCase() || 'APPROVED';
+                return (
+                  <button key={poId} type="button" className="bsr-po-card" onClick={() => handleBsrSelectPo(po)}>
+                    <div className="bsr-po-card-top">
+                      <div className="bsr-po-left">
+                        <span className="bsr-po-number">{po.po_number || `PO #${poId}`}</span>
+                        <span className={`bsr-badge ${badgeClass}`}><BsrCheckIcon /> {badgeLabel}</span>
+                      </div>
+                      <div className="bsr-po-amount">
+                        <span className="bsr-amount-label">TOTAL AMOUNT</span>
+                        <span className="bsr-amount-value">{bsrFmtCurrency(totalAmt)}</span>
+                        {scoped && (
+                          <span className="bsr-amount-scope">for {enforcedLocationName || 'your warehouse'}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bsr-po-card-meta">
+                      <div className="bsr-meta-col"><span className="bsr-meta-label">SUPPLIER</span><span className="bsr-meta-value">{bsrGetSupplierName(po)}</span></div>
+                      <div className="bsr-meta-col"><span className="bsr-meta-label">APPROVED BY</span><span className="bsr-meta-value">{bsrGetApprovedBy(po)}</span></div>
+                      <div className="bsr-meta-col"><span className="bsr-meta-label">EXPECTED DELIVERY</span><span className="bsr-meta-value">{bsrFmtDate(po.expected_delivery_date)}</span></div>
+                      <div className="bsr-meta-col">
+                        <span className="bsr-meta-label">ITEMS</span>
+                        <span className="bsr-meta-value">{typeof itemCount === 'number' ? `${itemCount} items` : '—'}</span>
+                      </div>
+                    </div>
+                    {showBreakdown && (
+                      <div className="bsr-po-breakdown">
+                        {breakdown.map((b) => (
+                          <span key={b.locationId} className="bsr-breakdown-chip">
+                            {b.locationName} <strong>{bsrFmtCurrency(b.amount)}</strong>
+                          </span>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                </div>
-                <div className="bsr-po-card-meta">
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">SUPPLIER</span><span className="bsr-meta-value">{bsrGetSupplierName(po)}</span></div>
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">APPROVED BY</span><span className="bsr-meta-value">{bsrGetApprovedBy(po)}</span></div>
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">EXPECTED DELIVERY</span><span className="bsr-meta-value">{bsrFmtDate(po.expected_delivery_date)}</span></div>
-                  <div className="bsr-meta-col">
-                    <span className="bsr-meta-label">ITEMS</span>
-                    <span className="bsr-meta-value">{typeof itemCount === 'number' ? `${itemCount} items` : '—'}</span>
-                  </div>
-                </div>
-                {showBreakdown && (
-                  <div className="bsr-po-breakdown">
-                    {breakdown.map((b) => (
-                      <span key={b.locationId} className="bsr-breakdown-chip">
-                        {b.locationName} <strong>{bsrFmtCurrency(b.amount)}</strong>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          <RecordHistoryModal
+            isOpen={!!historyRecord}
+            onClose={() => setHistoryRecord(null)}
+            kind="Purchase Order"
+            record={historyRecord}
+            statusLabel={historyRecord ? getStatusConfig(historyRecord.status?.status_name).label : ''}
+            statusColor={historyRecord ? getStatusConfig(historyRecord.status?.status_name).color : 'draft'}
+            milestones={historyMilestones}
+            loading={historyLoading}
+          />
         </div>
       </AdminLayout>
     );

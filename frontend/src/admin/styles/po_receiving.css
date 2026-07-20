@@ -1040,3 +1040,29 @@
 }
 .bsr-breakdown-chip { font-size: 12px; color: #6b7280; }
 .bsr-breakdown-chip strong { color: #111827; font-weight: 700; }
+
+/* ── Receive PO: Select PO / History tab switch ─────────────── */
+.bsr-tab-nav {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0;
+}
+.bsr-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+}
+.bsr-tab-btn:hover { color: #374151; }
+.bsr-tab-btn--active {
+  color: #9810FA;
+  border-bottom-color: #9810FA;
+}
