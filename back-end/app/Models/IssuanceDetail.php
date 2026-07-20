@@ -15,7 +15,7 @@ class IssuanceDetail extends Model
     protected $primaryKey = 'issuance_detail_id';
 
     protected $fillable = [
-        'issuance_id', 'product_id', 'serial_number',
+        'issuance_id', 'product_id', 'serial_number', 'receiving_id',
         'unit_price', 'quantity_issued', 'quantity_unit',
         'quantity_in_pieces', 'unit_price_per_piece', 'subtotal',
         'quantity_returned', 'condition_issued', 'condition_returned',
