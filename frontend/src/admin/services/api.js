@@ -773,6 +773,12 @@ export const receivingsAPI = {
   /** Per-product progress for a PO: ordered vs scanned, all serial numbers */
   poScanStatus: async (poId) =>
     apiRequest(`/receivings/po-scan-status/${poId}`),
+
+  /** Persistent receiving log, grouped by PO (not one row per scan). */
+  poLog: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/receivings/po-log${query ? `?${query}` : ''}`);
+  },
 };
 
 /* ======================
