@@ -12,6 +12,7 @@ use App\Models\IssuanceDetail;
 use App\Models\ItemSerial;
 use App\Models\Product;
 use App\Models\WarrantyRecord;
+use App\Services\InventoryBatchService;
 use App\Traits\ApiResponse;
 use App\Traits\NormalizesBarcode;
 use Illuminate\Http\JsonResponse;
@@ -154,6 +155,8 @@ class IssuanceScanController extends Controller
         $product      = null;
         $serialRecord = null;
 
+        $fifoWarning = null;
+
         foreach ($candidates as $candidate) {
             $serial = ItemSerial::issuableAt($locationId, $candidate)->first();
             if ($serial) {
@@ -161,6 +164,7 @@ class IssuanceScanController extends Controller
                     'applianceDetail.brand',
                 ])->find($serial->product_id);
                 $serialRecord = $serial;
+                $fifoWarning = $this->fifoWarningFor($serial, $locationId);
                 break;
             }
         }
@@ -234,7 +238,7 @@ class IssuanceScanController extends Controller
 
             return DB::transaction(function () use (
                 $issuance, $product, $serialRecord, $raw,
-                $unitPrice, $lineSubtotal, $locationId
+                $unitPrice, $lineSubtotal, $locationId, $fifoWarning
             ) {
                 $inv = Inventory::where('product_id', $product->product_id)
                     ->where('location_id', $locationId)
@@ -252,12 +256,18 @@ class IssuanceScanController extends Controller
                 $inv->available_quantity = max(0, $inv->available_quantity - 1);
                 $inv->save();
 
+                app(InventoryBatchService::class)->deductFromReceiving(
+                    $serialRecord->receiving_id, $product->product_id, $locationId, 1
+                );
+
+                $serialReceivingId = $serialRecord->receiving_id;
                 $serialRecord->delete();
 
                 $detail = IssuanceDetail::create([
                     'issuance_id'          => $issuance->issuance_id,
                     'product_id'           => $product->product_id,
                     'serial_number'        => $raw,
+                    'receiving_id'         => $serialReceivingId,
                     'unit_price'           => $unitPrice,
                     'quantity_issued'      => 1,
                     'quantity_unit'        => 'unit',
@@ -280,6 +290,7 @@ class IssuanceScanController extends Controller
 
                 return response()->json([
                     'success'         => true,
+                    'fifo_warning'    => $fifoWarning,
                     'action'          => 'applied',
                     'product_type'    => 'appliance',
                     'product_id'      => $product->product_id,
@@ -412,6 +423,38 @@ class IssuanceScanController extends Controller
                 'has_issuable_units' => $product->issuableUnits->isNotEmpty(),
             ]);
         });
+    }
+
+    /**
+     * Non-blocking FIFO guidance: if an older batch of this product is still
+     * available at this location while the scanned unit came from a newer one,
+     * return a warning string for the UI to display. Returns null otherwise.
+     */
+    private function fifoWarningFor(ItemSerial $serial, int $locationId): ?string
+    {
+        $scannedBatch = \App\Models\InventoryBatch::where('receiving_id', $serial->receiving_id)
+            ->where('product_id', $serial->product_id)
+            ->where('location_id', $locationId)
+            ->first();
+
+        $oldestBatch = \App\Models\InventoryBatch::where('product_id', $serial->product_id)
+            ->where('location_id', $locationId)
+            ->whereNotNull('receiving_id')
+            ->where('quantity_remaining', '>', 0)
+            ->orderBy('received_at', 'asc')
+            ->first();
+
+        if (! $scannedBatch || ! $oldestBatch || $scannedBatch->batch_id === $oldestBatch->batch_id) {
+            return null;
+        }
+        if (! $oldestBatch->received_at || ! $scannedBatch->received_at
+            || $scannedBatch->received_at->lte($oldestBatch->received_at)) {
+            return null;
+        }
+
+        return 'An older batch of this product (received '
+            . $oldestBatch->received_at->format('M j, Y')
+            . ') is still available at this location — consider issuing that stock first.';
     }
 
     // =========================================================
