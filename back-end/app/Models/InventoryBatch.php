@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 class InventoryBatch extends Model
 {
-    use Auditable;
+    use Auditable, ScopesToUserLocation;
 
     protected $table = 'inventory_batches';
 
@@ -21,6 +22,7 @@ class InventoryBatch extends Model
         'quantity_received',
         'quantity_remaining',
         'received_at',
+        'zone_label',
     ];
 
     protected $casts = [
