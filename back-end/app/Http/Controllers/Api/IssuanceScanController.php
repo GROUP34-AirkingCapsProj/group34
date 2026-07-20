@@ -501,10 +501,18 @@ class IssuanceScanController extends Controller
                     $inv->save();
                 }
 
+                app(InventoryBatchService::class)->restoreFifo(
+                    $detail->product_id,
+                    $issuance->location_id,
+                    $detail->quantity_in_pieces,
+                    $detail->receiving_id
+                );
+
                 if ($product->isSerialized() && $detail->serial_number) {
                     ItemSerial::create([
                         'product_id'    => $detail->product_id,
                         'location_id'   => $issuance->location_id,
+                        'receiving_id'  => $detail->receiving_id,
                         'serial_number' => $detail->serial_number,
                         'serial_type'   => 'received',
                         'status_id'     => self::STATUS_SERIAL_IN_STOCK,
