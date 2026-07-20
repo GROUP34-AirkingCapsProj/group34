@@ -420,13 +420,23 @@ class RestockAnalyticsService
     /** @return array<int, array<int,int>> locationId => [productId => open-PO qty not yet received] */
     private function openPoByWarehouse(): array
     {
+        // quantity_ordered means PACKAGES for installation materials and units
+        // (pieces) for appliances. Received quantities are always pieces, so
+        // convert ordered -> pieces before netting.
         $ordered = DB::table('purchase_order_details as pod')
             ->join('purchase_orders as po', 'po.po_id', '=', 'pod.po_id')
+            ->join('products as p', 'p.product_id', '=', 'pod.product_id')
+            ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'pod.product_id')
             ->whereIn('po.status_id', self::OPEN_PO_STATUSES)
             ->whereNull('po.deleted_at')
             ->whereNotNull('pod.location_id')
             ->groupBy('pod.location_id', 'pod.product_id')
-            ->selectRaw('pod.location_id, pod.product_id, SUM(pod.quantity_ordered) as qty')
+            ->selectRaw(
+                "pod.location_id, pod.product_id,
+                 SUM(CASE WHEN p.product_type = 'installation_material'
+                          THEN pod.quantity_ordered * GREATEST(COALESCE(imd.pieces_per_package, 1), 1)
+                          ELSE pod.quantity_ordered END) as qty"
+            )
             ->get();
 
         $received = DB::table('receiving_details as rd')
