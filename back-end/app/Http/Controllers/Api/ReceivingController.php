@@ -67,6 +67,7 @@ class ReceivingController extends Controller
                 'details.*.quantity_amount'      => 'required|integer|min:0',
                 'details.*.condition'            => 'nullable|string|max:100',
                 'details.*.scanned_barcode'      => 'nullable|string|max:191',
+                'details.*.zone_label'           => 'nullable|string|max:191',
             ]);
 
             $poId       = (int) $validated['pc_id'];
@@ -90,6 +91,7 @@ class ReceivingController extends Controller
                 $productId = (int) $detail['product_id'];
                 $qty       = (int) ($detail['quantity_amount'] ?? 0);
                 $scannedBarcode = $detail['scanned_barcode'] ?? null;
+                $zoneLabel = $detail['zone_label'] ?? null;
 
                 $product = Product::with(['applianceDetail', 'consumableDetail'])->find($productId);
                 $isSerialized = $product ? $product->isSerialized() : false;
@@ -128,7 +130,8 @@ class ReceivingController extends Controller
                     $locationId,
                     $receiving->receiving_id,
                     $qty,
-                    $receiving->receiving_date ?? now()
+                    $receiving->receiving_date ?? now(),
+                    $zoneLabel
                 );
 
                 $totalReceived += $qty;
