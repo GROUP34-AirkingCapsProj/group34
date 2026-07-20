@@ -67,7 +67,7 @@ class ReceivingController extends Controller
                 'details.*.quantity_amount'      => 'required|integer|min:0',
                 'details.*.condition'            => 'nullable|string|max:100',
                 'details.*.scanned_barcode'      => 'nullable|string|max:191',
-                'details.*.zone_label'           => 'nullable|string|max:191',
+                'details.*.zone_label'           => 'nullable|string|max:100',
             ]);
 
             $poId       = (int) $validated['pc_id'];
