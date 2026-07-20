@@ -428,6 +428,100 @@ class RestockAnalyticsServiceTest extends TestCase
     }
 
     // ---------------------------------------------------------------
+    // (C3) Open-PO netting converts material packages -> pieces
+    // ---------------------------------------------------------------
+
+    /** Insert an installation_material_details row so the product is packaged. */
+    private function makeMaterialDetail(int $productId, int $piecesPerPackage, string $packageUnit = 'box'): void
+    {
+        DB::table('installation_material_details')->insert([
+            'product_id'         => $productId,
+            'pieces_per_package' => $piecesPerPackage,
+            'package_unit'       => $packageUnit,
+            'is_serialized'      => 0,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+    }
+
+    public function test_open_po_packages_convert_to_pieces_for_materials(): void
+    {
+        // Material packaged 5 pieces/package. Same demand math as test (C):
+        // demand 1/day for 30 days, stock 3, lead 7 -> safety 3, reorder 10, target 33.
+        // Open PO of 2 PACKAGES = 10 pieces -> qty = 33 - 3 - 10 = 20.
+        // (Before the fix the engine saw 2, recommending 28.)
+        $pid = $this->makeProduct();
+        $this->makeMaterialDetail($pid, 5);
+        $this->setStock($pid, 3);
+        $this->issueDaily($pid, 1, 30);
+
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 2, // PACKAGES
+            'unit_price' => 80, 'subtotal' => 160, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
+
+        $this->assertNotNull($rec);
+        $this->assertSame(10, $rec['on_order_quantity']);   // 2 packages x 5 pieces
+        $this->assertSame(20, $rec['recommended_quantity']); // 33 - 3 - 10
+    }
+
+    public function test_partially_received_material_po_nets_in_pieces(): void
+    {
+        // Ordered 2 packages x 5 = 10 pieces; 4 pieces already received.
+        // Open = 10 - 4 = 6 pieces -> qty = 33 - 3 - 6 = 24.
+        // Note: order_date/receiving_date are 7 days apart so the measured
+        // lead time (fed by this same PO's partial receipt) comes out to
+        // exactly the DEFAULT_LEAD_TIME (7), keeping the safety/reorder/target
+        // math (3 / 10 / 33) identical to the other open-PO tests above.
+        $pid = $this->makeProduct();
+        $this->makeMaterialDetail($pid, 5);
+        $this->setStock($pid, 3);
+        $this->issueDaily($pid, 1, 30);
+
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(9)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 2, // PACKAGES
+            'unit_price' => 80, 'subtotal' => 160, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $receivingId = DB::table('receivings')->insertGetId([
+            'po_id' => $poId, 'location_id' => $this->warehouseId,
+            'receiving_number' => 'RCV-TST-' . uniqid(),
+            'receiving_date'   => $this->asOf->copy()->subDays(2)->toDateString(),
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'receiving_id');
+        DB::table('receiving_details')->insert([
+            'receiving_id' => $receivingId, 'product_id' => $pid,
+            'quantity_amount' => 4, // PIECES (always)
+            'prod_price' => 80, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
+
+        $this->assertNotNull($rec);
+        $this->assertSame(6, $rec['on_order_quantity']);     // 10 pieces ordered - 4 received
+        $this->assertSame(24, $rec['recommended_quantity']); // 33 - 3 - 6
+    }
+
+    // ---------------------------------------------------------------
     // (E) No movement: halving suggestion; no-history+no-params skipped
     // ---------------------------------------------------------------
     public function test_no_movement_product_gets_halving_suggestion(): void
