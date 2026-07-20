@@ -13,7 +13,7 @@ return new class extends Migration
         }
 
         Schema::table('inventory_batches', function (Blueprint $table) {
-            $table->string('zone_label')->nullable()->after('received_at');
+            $table->string('zone_label', 100)->nullable()->after('received_at');
         });
     }
 
