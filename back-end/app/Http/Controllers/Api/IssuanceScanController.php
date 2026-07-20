@@ -369,6 +369,8 @@ class IssuanceScanController extends Controller
             }
             $inv->save();
 
+            app(InventoryBatchService::class)->deductFifo($product->product_id, $locationId, $quantityInPieces);
+
             $detail = IssuanceDetail::create([
                 'issuance_id'          => $issuance->issuance_id,
                 'product_id'           => $product->product_id,
