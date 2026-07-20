@@ -555,6 +555,7 @@ export const inventoryAPI = {
     return apiRequest(query ? `/inventory?${query}` : '/inventory');
   },
   getById: async (id) => apiRequest(`/inventory/${id}`),
+  getBatches: async (id) => apiRequest(`/inventory/${id}/batches`),
   create: async (data) =>
     apiRequest('/inventory', {
       method: 'POST',

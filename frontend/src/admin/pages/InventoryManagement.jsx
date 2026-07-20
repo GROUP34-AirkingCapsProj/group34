@@ -115,6 +115,9 @@ const InventoryManagement = () => {
   const focusInvId = useFocusTarget('inv');
   const focusHandledRef = useRef(false);
   const [invPulse, fireInvPulse] = useFocusPulse();
+  const [expandedBatchIds, setExpandedBatchIds] = useState(new Set());
+  const [batchesByInventoryId, setBatchesByInventoryId] = useState({});
+  const [batchesLoading, setBatchesLoading] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
@@ -202,6 +205,31 @@ const InventoryManagement = () => {
       setHistoryLoading(false);
     }
   }, []);
+
+  const toggleBatches = async (inventoryId) => {
+    setExpandedBatchIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(inventoryId)) {
+        next.delete(inventoryId);
+      } else {
+        next.add(inventoryId);
+      }
+      return next;
+    });
+
+    if (!batchesByInventoryId[inventoryId]) {
+      setBatchesLoading((prev) => ({ ...prev, [inventoryId]: true }));
+      try {
+        const res = await inventoryAPI.getBatches(inventoryId);
+        const list = res?.data ?? [];
+        setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: list }));
+      } catch {
+        setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: [] }));
+      } finally {
+        setBatchesLoading((prev) => ({ ...prev, [inventoryId]: false }));
+      }
+    }
+  };
 
   useEffect(() => { fetchInventory(currentPage); }, [currentPage, fetchInventory]);
 
@@ -691,8 +719,11 @@ const InventoryManagement = () => {
                     ) : (
                       inventory.map((item) => {
                         const status = getItemStatus(item);
+                        const isExpanded = expandedBatchIds.has(item.inventory_id);
+                        const rowBatches = batchesByInventoryId[item.inventory_id] || [];
                         return (
-                          <tr key={item.inventory_id}>
+                          <React.Fragment key={item.inventory_id}>
+                          <tr>
                             <td>
                               <div className="inv-product-cell">
                                 <span className="inv-product-name">{getItemName(item)}</span>
@@ -718,10 +749,50 @@ const InventoryManagement = () => {
                             </td>
                             <td>
                               <div className="inv-cell-actions">
+                                <button
+                                  className="inv-action-link"
+                                  onClick={() => toggleBatches(item.inventory_id)}
+                                  aria-expanded={isExpanded}
+                                >
+                                  {isExpanded ? 'Hide batches' : 'Batches'}
+                                </button>
                                 <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); loadInventoryHistory(item.inventory_id); }}>View</button>
                               </div>
                             </td>
                           </tr>
+                          {isExpanded && (
+                            <tr className="inv-batch-row">
+                              <td colSpan={8}>
+                                {batchesLoading[item.inventory_id] ? (
+                                  <div className="inv-batch-loading">Loading batches…</div>
+                                ) : rowBatches.length === 0 ? (
+                                  <div className="inv-batch-empty">No batch history for this item.</div>
+                                ) : (
+                                  <table className="inv-batch-table">
+                                    <thead>
+                                      <tr>
+                                        <th>PO Number</th>
+                                        <th>Received</th>
+                                        <th>Qty Remaining</th>
+                                        <th>Qty Received</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {rowBatches.map((b) => (
+                                        <tr key={b.batch_id}>
+                                          <td>{b.is_legacy ? 'Pre-tracking stock' : (b.po_number || '—')}</td>
+                                          <td>{b.received_at || '—'}</td>
+                                          <td>{b.quantity_remaining}</td>
+                                          <td>{b.quantity_received}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         );
                       })
                     )}
