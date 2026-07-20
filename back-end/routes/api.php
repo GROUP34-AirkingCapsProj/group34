@@ -789,6 +789,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::get('/inventory/{inventory}/history', [InventoryController::class, 'stockHistory']);
+    Route::get('/inventory/{inventory}/batches', [InventoryController::class, 'batches']);
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
     Route::get('/inventory/location/{location}', [InventoryController::class, 'byLocation']);
     Route::get('/inventory/product/{product}', [InventoryController::class, 'byItem']);

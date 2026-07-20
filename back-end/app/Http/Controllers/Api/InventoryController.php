@@ -8,6 +8,7 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ReceivingDetail;
 use App\Models\ItemSerial;
+use App\Services\InventoryBatchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -59,6 +60,33 @@ class InventoryController extends Controller
 
         $perPage = $request->input('per_page', 15);
         return $this->paginated($query->paginate($perPage), 'Inventory retrieved successfully');
+    }
+
+    /**
+     * GET /api/inventory/{inventory}/batches
+     *
+     * Returns the FIFO batch breakdown for one inventory row (one product at
+     * one location), oldest batch first, legacy (untracked) batch last.
+     * Used by the drill-down UI on the Inventory page.
+     */
+    public function batches(Inventory $inventory)
+    {
+        $batches = app(InventoryBatchService::class)
+            ->batchesForDisplay($inventory->product_id, $inventory->location_id);
+
+        $data = $batches->map(function ($batch) {
+            return [
+                'batch_id'           => $batch->batch_id,
+                'receiving_id'       => $batch->receiving_id,
+                'po_number'          => $batch->receiving?->purchaseOrder?->po_number,
+                'received_at'        => $batch->received_at?->toDateString(),
+                'quantity_received'  => $batch->quantity_received,
+                'quantity_remaining' => $batch->quantity_remaining,
+                'is_legacy'          => $batch->receiving_id === null,
+            ];
+        });
+
+        return $this->success($data, 'Inventory batches retrieved successfully');
     }
 
     public function show($id)
