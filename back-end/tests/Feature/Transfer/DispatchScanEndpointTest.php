@@ -18,7 +18,7 @@ class DispatchScanEndpointTest extends TransferTestCase
         ]);
 
         $res = $this->actingAs($user, 'sanctum')
-            ->postJson("/api/ist/{$ist->transfer_id}/scan", ['barcode' => $sn]);
+            ->postJson("/api/transfers/{$ist->transfer_id}/scan", ['barcode' => $sn]);
 
         $res->assertOk();
         $res->assertJsonPath('data.total_scanned', 1);

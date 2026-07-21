@@ -149,7 +149,7 @@ class RbacRouteMatrixTest extends TestCase
             // Feature: purchase_request_approval.approve
             'purchase-requests approve'         => ['PATCH', '/api/purchase-requests/999999/approve', 'admin',              'inventory_analyst'],
             // Feature: inventory_transfers.approve
-            'transfer-requests approve'         => ['PATCH', '/api/transfer-requests/999999/approve', 'inventory_analyst',  'branch_manager'],
+            'transfers verify'                  => ['POST',  '/api/transfers/999999/verify',         'inventory_analyst',  'branch_manager'],
             // Feature: exception_detection.read
             'compliance logs'                   => ['GET',   '/api/compliance/logs',                 'branch_manager',      'inventory_analyst'],
             // Feature: audit_trail_viewing.read

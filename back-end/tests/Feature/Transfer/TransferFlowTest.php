@@ -28,7 +28,7 @@ class TransferFlowTest extends TransferTestCase
         ]);
 
         $resp = $this->actingAs($this->adminUser(), 'sanctum')
-            ->postJson("/api/ist/{$ist->transfer_id}/confirm-dispatch");
+            ->postJson("/api/transfers/{$ist->transfer_id}/confirm-dispatch");
 
         $resp->assertOk();
         $ist->refresh();
@@ -46,16 +46,16 @@ class TransferFlowTest extends TransferTestCase
         ]);
         $admin = $this->adminUser();
 
-        $this->actingAs($admin, 'sanctum')->postJson("/api/ist/{$ist->transfer_id}/confirm-dispatch")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/transfers/{$ist->transfer_id}/confirm-dispatch")->assertOk();
         $ist->refresh()->load('details');
         $detailId = (int) $ist->details->first()->transfer_detail_id;
 
-        $scan = $this->actingAs($admin, 'sanctum')->postJson("/api/ist/{$ist->transfer_id}/receive-scan", [
+        $scan = $this->actingAs($admin, 'sanctum')->postJson("/api/transfers/{$ist->transfer_id}/receive-scan", [
             'barcode' => 'EP-1', 'transfer_detail_id' => $detailId, 'quantity' => 3,
         ]);
         $scan->assertOk();
 
-        $this->actingAs($admin, 'sanctum')->postJson("/api/ist/{$ist->transfer_id}/receive", [
+        $this->actingAs($admin, 'sanctum')->postJson("/api/transfers/{$ist->transfer_id}/receive-confirm", [
             'received_date' => now()->toDateString(),
         ])->assertOk();
 
@@ -90,7 +90,7 @@ class TransferFlowTest extends TransferTestCase
         ]);
 
         $resp = $this->actingAs($this->adminUser(), 'sanctum')
-            ->getJson("/api/transfer-requests/{$req->transfer_id}");
+            ->getJson("/api/transfers/{$req->transfer_id}");
 
         $resp->assertOk()
             ->assertJsonPath('data.details.0.available_at_source', 3)
@@ -107,7 +107,8 @@ class TransferFlowTest extends TransferTestCase
 
         $numbers = [];
         for ($i = 0; $i < 5; $i++) {
-            $resp = $this->actingAs($admin, 'sanctum')->postJson('/api/transfer-requests', [
+            $resp = $this->actingAs($admin, 'sanctum')->postJson('/api/transfers', [
+                'intent'           => 'demand',
                 'from_location_id' => $from->location_id,
                 'to_location_id'   => $to->location_id,
                 'transfer_date'    => now()->toDateString(),
