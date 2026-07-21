@@ -115,14 +115,6 @@ const InventoryManagement = () => {
   const focusInvId = useFocusTarget('inv');
   const focusHandledRef = useRef(false);
   const [invPulse, fireInvPulse] = useFocusPulse();
-  const [expandedBatchIds, setExpandedBatchIds] = useState(new Set());
-  const [batchesByInventoryId, setBatchesByInventoryId] = useState({});
-  const [batchesLoading, setBatchesLoading] = useState({});
-  const [warehouseBatches, setWarehouseBatches] = useState([]);
-  const [warehouseBatchesLoading, setWarehouseBatchesLoading] = useState(false);
-  const [warehouseBatchesError, setWarehouseBatchesError] = useState(null);
-  const [editingZoneBatchId, setEditingZoneBatchId] = useState(null);
-  const [editingZoneValue, setEditingZoneValue] = useState('');
   const [serialModalBatch, setSerialModalBatch] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [smSearch, setSmSearch] = useState('');
@@ -212,48 +204,6 @@ const InventoryManagement = () => {
     }
   }, []);
 
-  const fetchBatchesForId = useCallback(async (inventoryId) => {
-    setBatchesLoading((prev) => ({ ...prev, [inventoryId]: true }));
-    try {
-      const res = await inventoryAPI.getBatches(inventoryId);
-      const list = res?.data ?? [];
-      setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: list }));
-    } catch {
-      setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: [] }));
-    } finally {
-      setBatchesLoading((prev) => ({ ...prev, [inventoryId]: false }));
-    }
-  }, []);
-
-  const toggleBatches = async (inventoryId) => {
-    setExpandedBatchIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(inventoryId)) {
-        next.delete(inventoryId);
-      } else {
-        next.add(inventoryId);
-      }
-      return next;
-    });
-
-    if (!batchesByInventoryId[inventoryId]) {
-      await fetchBatchesForId(inventoryId);
-    }
-  };
-
-  const fetchWarehouseBatches = useCallback(async () => {
-    setWarehouseBatchesLoading(true);
-    setWarehouseBatchesError(null);
-    try {
-      const res = await inventoryAPI.getWarehouseBatches();
-      setWarehouseBatches(res?.data ?? []);
-    } catch (err) {
-      setWarehouseBatchesError(err?.message || 'Failed to load warehouse batches.');
-    } finally {
-      setWarehouseBatchesLoading(false);
-    }
-  }, []);
-
   const [poGroups, setPoGroups] = useState([]);
   const [poGroupsLoading, setPoGroupsLoading] = useState(false);
   const [poGroupsError, setPoGroupsError] = useState(null);
@@ -296,16 +246,6 @@ const InventoryManagement = () => {
   useEffect(() => {
     const onScanApplied = () => {
       fetchInventory(currentPage);
-      // The batch drill-down cache has no per-item invalidation signal, so clear it
-      // wholesale to avoid showing stale batch breakdowns after a receiving/transfer/
-      // issuance event mutates batches elsewhere. Re-fetch any row that's currently
-      // expanded so it doesn't just go blank until the user re-toggles it.
-      setBatchesByInventoryId({});
-      setBatchesLoading({});
-      setExpandedBatchIds((prevExpanded) => {
-        prevExpanded.forEach((id) => fetchBatchesForId(id));
-        return prevExpanded;
-      });
       // The PO console's quantities come from a snapshot fetched only when the
       // sub-tab becomes active, so re-fetch it too when it's the one on screen.
       if (activeTab === 'inventory' && inventorySubTab === 'po-console') {
@@ -314,7 +254,7 @@ const InventoryManagement = () => {
     };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage, fetchBatchesForId, activeTab, inventorySubTab, fetchPoGroups]);
+  }, [fetchInventory, currentPage, activeTab, inventorySubTab, fetchPoGroups]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -356,11 +296,6 @@ const InventoryManagement = () => {
     fetchActivity();
     return () => { cancelled = true; };
   }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab !== 'warehouse-map') return;
-    fetchWarehouseBatches();
-  }, [activeTab, fetchWarehouseBatches]);
 
   useEffect(() => {
     if (!(activeTab === 'inventory' && inventorySubTab === 'po-console')) return;
@@ -471,39 +406,6 @@ const InventoryManagement = () => {
     return qty > reorder * 0.5 && qty <= reorder;
   }).length;
   const overstockCount = inventory.filter((i) => getItemQty(i) >= getItemMax(i)).length;
-
-  const oldestBatchIdByProduct = useMemo(() => {
-    const oldest = {};
-    for (const b of warehouseBatches) {
-      const current = oldest[b.product_id];
-      if (!current || (b.received_at && (!current.received_at || b.received_at < current.received_at))) {
-        oldest[b.product_id] = b;
-      }
-    }
-    const result = {};
-    for (const productId of Object.keys(oldest)) {
-      result[productId] = oldest[productId].batch_id;
-    }
-    return result;
-  }, [warehouseBatches]);
-
-  const startEditingZone = (batch) => {
-    setEditingZoneBatchId(batch.batch_id);
-    setEditingZoneValue(batch.zone_label || '');
-  };
-
-  const saveZoneEdit = async (batchId) => {
-    try {
-      await inventoryAPI.updateBatchZone(batchId, editingZoneValue || null);
-      setWarehouseBatches((prev) =>
-        prev.map((b) => (b.batch_id === batchId ? { ...b, zone_label: editingZoneValue || null } : b))
-      );
-      setEditingZoneBatchId(null);
-      fetchPoGroups();
-    } catch (err) {
-      toast.error(err?.message || 'Failed to update zone label.');
-    }
-  };
 
   return (
     <AdminLayout>
