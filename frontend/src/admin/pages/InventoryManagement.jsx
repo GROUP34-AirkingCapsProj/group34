@@ -254,6 +254,50 @@ const InventoryManagement = () => {
     }
   }, []);
 
+  const [poGroups, setPoGroups] = useState([]);
+  const [poGroupsLoading, setPoGroupsLoading] = useState(false);
+  const [poGroupsError, setPoGroupsError] = useState(null);
+  const [poSearch, setPoSearch] = useState('');
+  const [expandedPoKeys, setExpandedPoKeys] = useState(new Set());
+  const [poGroupDetail, setPoGroupDetail] = useState(null);
+  const [poGroupDetailLoading, setPoGroupDetailLoading] = useState(false);
+  const [poDetailTab, setPoDetailTab] = useState('overview');
+
+  const fetchPoGroups = useCallback(async () => {
+    setPoGroupsLoading(true);
+    setPoGroupsError(null);
+    try {
+      const res = await inventoryAPI.getPoGroups();
+      setPoGroups(res?.data ?? []);
+    } catch (err) {
+      setPoGroupsError(err?.message || 'Failed to load PO inventory groups.');
+    } finally {
+      setPoGroupsLoading(false);
+    }
+  }, []);
+
+  const togglePoGroup = (key) => {
+    setExpandedPoKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const openPoGroupDetail = async (group) => {
+    setPoGroupDetail({ loading: true, group });
+    setPoDetailTab('overview');
+    setPoGroupDetailLoading(true);
+    try {
+      const res = await inventoryAPI.getPoGroupDetail(group.po_id, group.warehouse_id);
+      setPoGroupDetail({ group, data: res?.data ?? null });
+    } catch (err) {
+      setPoGroupDetail({ group, error: err?.message || 'Failed to load PO details.' });
+    } finally {
+      setPoGroupDetailLoading(false);
+    }
+  };
+
   useEffect(() => { fetchInventory(currentPage); }, [currentPage, fetchInventory]);
 
   // Re-fetch when a barcode scan transaction is confirmed anywhere in the app.
@@ -273,13 +317,13 @@ const InventoryManagement = () => {
       // Same staleness problem applies to the Warehouse Map tab: its quantities and
       // FIFO badges come from a snapshot fetched only when the tab becomes active, so
       // re-fetch it too when it's the one currently on screen.
-      if (activeTab === 'warehouse-map') {
-        fetchWarehouseBatches();
+      if (activeTab === 'po-console') {
+        fetchPoGroups();
       }
     };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage, fetchBatchesForId, activeTab, fetchWarehouseBatches]);
+  }, [fetchInventory, currentPage, fetchBatchesForId, activeTab, fetchPoGroups]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -326,6 +370,11 @@ const InventoryManagement = () => {
     if (activeTab !== 'warehouse-map') return;
     fetchWarehouseBatches();
   }, [activeTab, fetchWarehouseBatches]);
+
+  useEffect(() => {
+    if (activeTab !== 'po-console') return;
+    fetchPoGroups();
+  }, [activeTab, fetchPoGroups]);
 
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
@@ -459,6 +508,7 @@ const InventoryManagement = () => {
         prev.map((b) => (b.batch_id === batchId ? { ...b, zone_label: editingZoneValue || null } : b))
       );
       setEditingZoneBatchId(null);
+      fetchPoGroups();
     } catch (err) {
       toast.error(err?.message || 'Failed to update zone label.');
     }
@@ -494,22 +544,22 @@ const InventoryManagement = () => {
             Stock Movement &amp; Turnover
           </button>
           <button
-            className={`ak-tab ${activeTab === 'inventory' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('inventory')}
+            className={`ak-tab ${activeTab === 'po-console' ? 'is-active' : ''}`}
+            onClick={() => setActiveTab('po-console')}
           >
-            Inventory
+            Inventory Monitoring Console
+          </button>
+          <button
+            className={`ak-tab ${activeTab === 'stock-level' ? 'is-active' : ''}`}
+            onClick={() => setActiveTab('stock-level')}
+          >
+            Stock-Level Monitoring
           </button>
           <button
             className={`ak-tab ${activeTab === 'activity' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('activity')}
           >
             Activity Log
-          </button>
-          <button
-            className={`ak-tab ${activeTab === 'warehouse-map' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('warehouse-map')}
-          >
-            Warehouse Map
           </button>
         </div>
 
@@ -689,7 +739,7 @@ const InventoryManagement = () => {
         {/* ════════════════════════════════════════════════
             INVENTORY TAB
         ════════════════════════════════════════════════ */}
-        {activeTab === 'inventory' && (
+        {activeTab === 'stock-level' && (
           <>
             {/* Search + Export */}
             <div className="inv-search-row">
@@ -917,116 +967,134 @@ const InventoryManagement = () => {
           </>
         )}
 
-        {activeTab === 'warehouse-map' && (
-          <div className="inv-warehouse-map">
-            {warehouseBatchesLoading ? (
-              <div className="inv-batch-loading">Loading warehouse batches…</div>
-            ) : warehouseBatchesError ? (
-              <div className="inv-batch-empty inv-batch-empty--error">{warehouseBatchesError}</div>
-            ) : warehouseBatches.length === 0 ? (
-              <div className="inv-batch-empty">No batches with remaining stock.</div>
+        {activeTab === 'po-console' && (
+          <div className="inv-table-card">
+            <div className="inv-table-top">
+              <div>
+                <h3 className="inv-table-title">Inventory Monitoring Console</h3>
+                <p className="inv-table-subtitle">Stock grouped by PO number and location (oldest first)</p>
+              </div>
+              <input
+                type="text"
+                className="inv-search"
+                placeholder="Search PO, supplier, warehouse…"
+                value={poSearch}
+                onChange={(e) => setPoSearch(e.target.value)}
+              />
+            </div>
+
+            {poGroupsLoading ? (
+              <div className="inv-batch-loading">Loading PO groups…</div>
+            ) : poGroupsError ? (
+              <div className="inv-batch-empty inv-batch-empty--error">{poGroupsError}</div>
             ) : (
-              <div className="inv-warehouse-map-grid">
-                {warehouseBatches.map((batch) => {
-                  const isOldest = oldestBatchIdByProduct[batch.product_id] === batch.batch_id;
-                  const pctRemaining = batch.quantity_received > 0
-                    ? Math.round((batch.quantity_remaining / batch.quantity_received) * 100)
-                    : 0;
-                  return (
-                    <div key={batch.batch_id} className={`inv-warehouse-map-card${isOldest ? ' inv-warehouse-map-card--fifo' : ''}`}>
-                      <div className="inv-warehouse-map-card-header">
-                        <span className="inv-warehouse-map-product">{batch.product_name}</span>
-                        {isOldest && (
-                          <span className="inv-fifo-badge" title="Oldest available batch for this product — issue this one first.">
-                            Pick this first
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="inv-warehouse-map-meta-row">
-                        <div className="inv-warehouse-map-meta">
-                          <span className="inv-warehouse-map-meta-label">PO Number</span>
-                          <span className="inv-warehouse-map-meta-value">
-                            {batch.is_legacy ? 'Pre-tracking stock' : (batch.po_number || '—')}
-                          </span>
-                        </div>
-                        <div className="inv-warehouse-map-meta">
-                          <span className="inv-warehouse-map-meta-label">Received</span>
-                          <span className="inv-warehouse-map-meta-value">{batch.received_at || '—'}</span>
-                        </div>
-                      </div>
-
-                      <div className="inv-warehouse-map-stock-row">
-                        <div className="inv-warehouse-map-stock-bar">
-                          <div className="inv-warehouse-map-stock-bar-fill" style={{ width: `${pctRemaining}%` }} />
-                        </div>
-                        <span className="inv-warehouse-map-stock-label">
-                          {batch.quantity_remaining} / {batch.quantity_received} remaining
-                        </span>
-                      </div>
-
-                      <div className="inv-warehouse-map-serials">
-                        <span className="inv-warehouse-map-meta-label">Serial Numbers</span>
-                        {batch.serials && batch.serials.length > 0 ? (
-                          <button
-                            type="button"
-                            className="inv-action-link"
-                            onClick={() => setSerialModalBatch({
-                              title: batch.product_name || batch.po_number || 'Batch',
-                              serials: batch.serials,
-                            })}
-                          >
-                            View serials ({batch.serials.length})
-                          </button>
-                        ) : (
-                          <span className="inv-warehouse-map-meta-value">—</span>
-                        )}
-                      </div>
-
-                      <div className="inv-warehouse-map-zone">
-                        {editingZoneBatchId === batch.batch_id ? (
-                          <div className="inv-warehouse-map-zone-edit">
-                            <input
-                              type="text"
-                              className="inv-warehouse-map-zone-input"
-                              value={editingZoneValue}
-                              onChange={(e) => setEditingZoneValue(e.target.value)}
-                              placeholder="e.g. Aisle 3, Shelf B"
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              className="inv-warehouse-map-zone-save"
-                              onClick={() => saveZoneEdit(batch.batch_id)}
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              className="inv-warehouse-map-zone-cancel"
-                              onClick={() => setEditingZoneBatchId(null)}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="inv-warehouse-map-zone-view">
-                            <span className={`inv-warehouse-map-zone-pill${!batch.zone_label ? ' inv-warehouse-map-zone-pill--unassigned' : ''}`}>
-                              {batch.zone_label || 'Unassigned'}
-                            </span>
-                            <button
-                              type="button"
-                              className="inv-action-link"
-                              onClick={() => startEditingZone(batch)}
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="inv-table-wrapper">
+                <table className="inv-table">
+                  <thead>
+                    <tr>
+                      <th>PO NUMBER</th>
+                      <th>WAREHOUSE</th>
+                      <th>LOCATION</th>
+                      <th>SUPPLIER</th>
+                      <th>RECEIVED</th>
+                      <th>ITEMS</th>
+                      <th>QTY</th>
+                      <th>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {poGroups.filter((g) => {
+                      const q = poSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
+                        .some((v) => (v || '').toLowerCase().includes(q));
+                    }).length === 0 ? (
+                      <tr><td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>No PO groups found</td></tr>
+                    ) : (
+                      poGroups.filter((g) => {
+                        const q = poSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
+                          .some((v) => (v || '').toLowerCase().includes(q));
+                      }).map((g) => {
+                        const isExpanded = expandedPoKeys.has(g.group_key);
+                        return (
+                          <React.Fragment key={g.group_key}>
+                            <tr>
+                              <td><strong>{g.po_number || '—'}</strong></td>
+                              <td>{g.warehouse_name || '—'}</td>
+                              <td>{g.location_label || '—'}</td>
+                              <td>{g.supplier_name || '—'}</td>
+                              <td>{g.first_received_at || '—'}</td>
+                              <td className="inv-cell-num">{g.item_count}</td>
+                              <td className="inv-cell-num">{g.total_remaining} / {g.total_received}</td>
+                              <td>
+                                <div className="inv-cell-actions">
+                                  <button className="inv-action-link" onClick={() => togglePoGroup(g.group_key)} aria-expanded={isExpanded}>
+                                    {isExpanded ? 'Hide batches' : 'Batches'}
+                                  </button>
+                                  <button className="inv-action-link" onClick={() => openPoGroupDetail(g)}>View</button>
+                                </div>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="inv-batch-row">
+                                <td colSpan={8}>
+                                  {g.batches.length === 0 ? (
+                                    <div className="inv-batch-empty">No batches.</div>
+                                  ) : (
+                                    <table className="inv-batch-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Product</th>
+                                          <th>Location</th>
+                                          <th>Received</th>
+                                          <th>Qty Remaining</th>
+                                          <th>Qty Received</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {g.batches.map((b) => (
+                                          <tr key={b.batch_id}>
+                                            <td>{b.product_name}</td>
+                                            <td>
+                                              {editingZoneBatchId === b.batch_id ? (
+                                                <span className="inv-warehouse-map-zone-edit">
+                                                  <input
+                                                    type="text"
+                                                    className="inv-warehouse-map-zone-input"
+                                                    value={editingZoneValue}
+                                                    onChange={(e) => setEditingZoneValue(e.target.value)}
+                                                    placeholder="e.g. Location 1"
+                                                    autoFocus
+                                                  />
+                                                  <button type="button" className="inv-warehouse-map-zone-save" onClick={() => saveZoneEdit(b.batch_id)}>Save</button>
+                                                  <button type="button" className="inv-warehouse-map-zone-cancel" onClick={() => setEditingZoneBatchId(null)}>Cancel</button>
+                                                </span>
+                                              ) : (
+                                                <span>
+                                                  {b.zone_label || 'Unassigned'}
+                                                  <button type="button" className="inv-action-link" style={{ marginLeft: 8 }} onClick={() => startEditingZone(b)}>Edit</button>
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td>{b.received_at || '—'}</td>
+                                            <td>{b.quantity_remaining}</td>
+                                            <td>{b.quantity_received}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

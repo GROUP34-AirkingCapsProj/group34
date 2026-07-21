@@ -609,6 +609,11 @@ export const inventoryAPI = {
       method: 'PATCH',
       body: JSON.stringify({ zone_label: zoneLabel }),
     }),
+  /** PO + warehouse inventory groups (Inventory Monitoring Console). */
+  getPoGroups: async () => apiRequest('/po-inventory-groups'),
+  /** One PO + warehouse group's 3-tab detail. */
+  getPoGroupDetail: async (poId, warehouseId) =>
+    apiRequest(`/po-inventory-groups/${poId}?location_id=${warehouseId}`),
   create: async (data) =>
     apiRequest('/inventory', {
       method: 'POST',
