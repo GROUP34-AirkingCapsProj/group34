@@ -647,6 +647,7 @@ const BarcodeScan = () => {
   const [bsrPoSearchQ, setBsrPoSearchQ] = useState('');
   const [bsrScannedItems, setBsrScannedItems] = useState([]);
   const [bsrLocationId, setBsrLocationId] = useState('');
+  const [bsrZoneLabel, setBsrZoneLabel] = useState('');
   const [bsrScanInput, setBsrScanInput] = useState('');
   const [bsrScanning, setBsrScanning] = useState(false);
   const [bsrActiveLine, setBsrActiveLine] = useState(null);
@@ -1875,6 +1876,7 @@ const BarcodeScan = () => {
         po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
         po_detail_id: bsrActiveLine.po_detail_id,
         quantity: pkgs,
+        zone_label: bsrZoneLabel || null,
       });
       const data = res?.data ?? res;
       const action = data?.action ?? data?.status;
@@ -3211,6 +3213,16 @@ const BarcodeScan = () => {
                       allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
                     />
                   )}
+                </div>
+                <div className="bsr-location-row">
+                  <label className="bsr-location-label">ZONE LABEL (OPTIONAL)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Aisle 3, Shelf B"
+                    value={bsrZoneLabel}
+                    onChange={(e) => setBsrZoneLabel(e.target.value)}
+                    title="Where this batch is physically shelved — shown on the Warehouse Map."
+                  />
                 </div>
 
                 <div className="bs-camera-box" style={{ marginBottom: 12 }}>
