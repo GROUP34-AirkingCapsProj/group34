@@ -79,6 +79,7 @@ class InventoryController extends Controller
                 'batch_id'           => $batch->batch_id,
                 'receiving_id'       => $batch->receiving_id,
                 'po_number'          => $batch->receiving?->purchaseOrder?->po_number,
+                'zone_label'         => $batch->zone_label,
                 'received_at'        => $batch->received_at?->toDateString(),
                 'quantity_received'  => $batch->quantity_received,
                 'quantity_remaining' => $batch->quantity_remaining,
