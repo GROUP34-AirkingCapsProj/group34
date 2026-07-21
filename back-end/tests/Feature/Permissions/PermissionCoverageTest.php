@@ -25,6 +25,7 @@ class PermissionCoverageTest extends TestCase
         'barcode_assignment',           // extra of Item Master
         'item_supplier_mapping',        // extra of Supplier Network
         'purchase_request_approval',    // extra of Purchase Requests
+        'po_recommendations',           // extra of Purchase Requests (Stock Parameters tab)
         'purchase_order_verification',  // extra of Purchase Orders
         'delivery_receiving',           // extra of Scan Barcode
         'delivery_receipt_generation',  // extra of Transactions
