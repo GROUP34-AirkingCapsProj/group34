@@ -478,7 +478,7 @@ const InventoryManagement = () => {
               className={`ak-tab ${inventorySubTab === 'po-console' ? 'is-active' : ''}`}
               onClick={() => setInventorySubTab('po-console')}
             >
-              Inventory Monitoring Console
+              Inventory Batch
             </button>
             <button
               className={`ak-tab ${inventorySubTab === 'stock-level' ? 'is-active' : ''}`}
@@ -750,7 +750,7 @@ const InventoryManagement = () => {
             <div className="inv-table-card">
               <div className="inv-table-top">
                 <div>
-                  <h3 className="inv-table-title">Inventory Monitoring Console</h3>
+                  <h3 className="inv-table-title">Stock-Level Monitoring</h3>
                   <p className="inv-table-subtitle">Monitoring {totalItems} SKUs across branches</p>
                 </div>
               </div>
@@ -1499,7 +1499,7 @@ const InventoryManagement = () => {
                           <div className="invd-field"><span className="invd-label">Supplier</span><span className="invd-value">{poGroupDetail.data.overview.supplier_name || '—'}</span></div>
                           <div className="invd-field"><span className="invd-label">Order Date</span><span className="invd-value">{poGroupDetail.data.overview.order_date || '—'}</span></div>
                           <div className="invd-field"><span className="invd-label">Warehouse</span><span className="invd-value">{poGroupDetail.data.overview.warehouse_name || '—'}</span></div>
-                          <div className="invd-field"><span className="invd-label">Location</span><span className="invd-value">{poGroupDetail.data.overview.location_label || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Zone</span><span className="invd-value">{poGroupDetail.data.overview.location_label || '—'}</span></div>
                           <div className="invd-field"><span className="invd-label">Items</span><span className="invd-value">{poGroupDetail.data.overview.totals.item_count}</span></div>
                         </div>
                       </div>
