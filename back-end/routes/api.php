@@ -799,6 +799,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::patch('/inventory-batches/{batch}', [InventoryBatchController::class, 'update']);
     Route::get('/po-inventory-groups', [\App\Http\Controllers\Api\PoInventoryController::class, 'index']);
     Route::get('/po-inventory-groups/{po}', [\App\Http\Controllers\Api\PoInventoryController::class, 'show']);
+    Route::patch('/po-inventory-groups/{po}', [\App\Http\Controllers\Api\PoInventoryController::class, 'updateLocation']);
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
     Route::get('/inventory/location/{location}', [InventoryController::class, 'byLocation']);
     Route::get('/inventory/product/{product}', [InventoryController::class, 'byItem']);

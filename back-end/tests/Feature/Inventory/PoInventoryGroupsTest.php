@@ -101,9 +101,37 @@ class PoInventoryGroupsTest extends TestCase
         $this->assertSame($poA->po_number, $detail['overview']['po_number']);
         $this->assertSame(1, $detail['overview']['totals']['item_count']);
 
-        $allSerials = collect($detail['serials'])->flatMap(fn ($p) => $p['serials'])->all();
+        $allSerials = collect($detail['serials'])->pluck('serial_number')->all();
         $this->assertContains($snA, $allSerials);
         $this->assertNotContains($snB, $allSerials); // isolation: other PO's serial excluded
+        // Flat rows carry per-serial metadata for the table UI.
+        $row = collect($detail['serials'])->firstWhere('serial_number', $snA);
+        $this->assertArrayHasKey('product_name', $row);
+        $this->assertArrayHasKey('serial_status', $row);
+    }
+
+    public function test_update_location_renames_zone_label_for_the_group(): void
+    {
+        $wh = Location::create(['location_code' => 'WH-' . uniqid(), 'location_name' => 'Main WH', 'location_type' => 'warehouse']);
+        $cons = Product::create(['product_code' => 'C-' . uniqid(), 'product_name' => 'Wire', 'product_type' => 'installation_material']);
+        $user = $this->makeUser();
+
+        $po = $this->makePo($wh->location_id);
+        $this->receive($user, $po, $wh->location_id, $cons->product_id, 5, 'BC-' . uniqid(), 'Location 1');
+
+        $this->actingAs($user)
+            ->patchJson('/api/po-inventory-groups/' . $po->po_id . '?location_id=' . $wh->location_id, [
+                'location_id' => $wh->location_id,
+                'zone_label'  => 'Location 9',
+            ])
+            ->assertStatus(200);
+
+        $groups = $this->actingAs($user)
+            ->getJson('/api/po-inventory-groups')
+            ->assertStatus(200)
+            ->json('data');
+        $mine = collect($groups)->firstWhere('po_id', $po->po_id);
+        $this->assertSame('Location 9', $mine['location_label']);
     }
 
     public function test_group_detail_consumable_lists_barcode(): void
@@ -121,7 +149,7 @@ class PoInventoryGroupsTest extends TestCase
             ->assertStatus(200)
             ->json('data');
 
-        $allSerials = collect($detail['serials'])->flatMap(fn ($p) => $p['serials'])->all();
+        $allSerials = collect($detail['serials'])->pluck('serial_number')->all();
         $this->assertContains($bc, $allSerials);
         $this->assertSame(10, $detail['overview']['totals']['total_received']);
     }

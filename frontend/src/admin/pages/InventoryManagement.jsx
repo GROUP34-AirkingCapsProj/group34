@@ -209,6 +209,9 @@ const InventoryManagement = () => {
   const [poGroupsError, setPoGroupsError] = useState(null);
   const [poSearch, setPoSearch] = useState('');
   const [inventorySubTab, setInventorySubTab] = useState('po-console');
+  const [editingLocKey, setEditingLocKey] = useState(null);
+  const [editingLocValue, setEditingLocValue] = useState('');
+  const [savingLoc, setSavingLoc] = useState(false);
   const [poGroupDetail, setPoGroupDetail] = useState(null);
   const [poGroupDetailLoading, setPoGroupDetailLoading] = useState(false);
   const [poDetailTab, setPoDetailTab] = useState('overview');
@@ -237,6 +240,24 @@ const InventoryManagement = () => {
       setPoGroupDetail({ group, error: err?.message || 'Failed to load PO details.' });
     } finally {
       setPoGroupDetailLoading(false);
+    }
+  };
+
+  const startEditingLoc = (group) => {
+    setEditingLocKey(group.group_key);
+    setEditingLocValue(group.location_label || '');
+  };
+
+  const saveLoc = async (group) => {
+    setSavingLoc(true);
+    try {
+      await inventoryAPI.updatePoGroupLocation(group.po_id, group.warehouse_id, editingLocValue.trim() || null);
+      setEditingLocKey(null);
+      await fetchPoGroups();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update location.');
+    } finally {
+      setSavingLoc(false);
     }
   };
 
@@ -859,10 +880,29 @@ const InventoryManagement = () => {
                       <div key={g.group_key} className={`po-slot${isOldest ? ' po-slot--fifo' : ''}`}>
                         {isOldest && <span className="po-slot-flag">Pick first</span>}
                         <div className="po-slot-top">
-                          <div className="po-slot-tag">
-                            <span className="po-slot-tag-eyebrow">Location</span>
-                            <span className="po-slot-tag-code">{g.location_label || 'Unslotted'}</span>
-                          </div>
+                          {editingLocKey === g.group_key ? (
+                            <div className="po-slot-tag po-slot-tag--edit">
+                              <span className="po-slot-tag-eyebrow">Location</span>
+                              <input
+                                type="text"
+                                className="po-slot-tag-input"
+                                value={editingLocValue}
+                                onChange={(e) => setEditingLocValue(e.target.value)}
+                                placeholder="e.g. Location 1"
+                                autoFocus
+                                onKeyDown={(e) => { if (e.key === 'Enter') saveLoc(g); if (e.key === 'Escape') setEditingLocKey(null); }}
+                              />
+                              <div className="po-slot-tag-actions">
+                                <button type="button" className="po-slot-tag-save" disabled={savingLoc} onClick={() => saveLoc(g)}>Save</button>
+                                <button type="button" className="po-slot-tag-cancel" disabled={savingLoc} onClick={() => setEditingLocKey(null)}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button type="button" className="po-slot-tag" onClick={() => startEditingLoc(g)} title="Edit location">
+                              <span className="po-slot-tag-eyebrow">Location<span className="po-slot-tag-pencil" aria-hidden="true">✎</span></span>
+                              <span className="po-slot-tag-code">{g.location_label || 'Unslotted'}</span>
+                            </button>
+                          )}
                           <div className="po-slot-ident">
                             <span className="po-slot-po">{g.po_number || '—'}</span>
                             <span className="po-slot-supplier">{g.supplier_name || 'No supplier'}</span>
@@ -1510,14 +1550,47 @@ const InventoryManagement = () => {
                       {poGroupDetail.data.serials.length === 0 ? (
                         <div className="invd-empty">No serial numbers recorded for this PO at this location.</div>
                       ) : (
-                        poGroupDetail.data.serials.map((p) => (
-                          <div className="invd-section" key={p.product_id}>
-                            <div className="invd-section-title">{p.product_name} ({p.serials.length})</div>
-                            <div className="inv-serial-chips">
-                              {p.serials.map((sn, i) => (<span className="inv-serial-chip" key={i}>{sn}</span>))}
-                            </div>
-                          </div>
-                        ))
+                        <div className="invd-table-wrap">
+                          <table className="invd-table">
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Serial Number</th>
+                                <th>Product</th>
+                                <th>Status</th>
+                                <th>Scanned By</th>
+                                <th>Date Scanned</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {poGroupDetail.data.serials.map((s, index) => (
+                                <tr key={index}>
+                                  <td className="invd-cell-num">{index + 1}</td>
+                                  <td><span className="invd-mono invd-bold">{s.serial_number}</span></td>
+                                  <td>{s.product_name}</td>
+                                  <td>
+                                    <span className={`invd-status-pill${
+                                      s.serial_status === 'In Stock' ? ' invd-pill-green'
+                                      : s.serial_status === 'Issued' ? ' invd-pill-orange'
+                                      : ' invd-pill-gray'
+                                    }`}>
+                                      {s.serial_status ?? 'Active'}
+                                    </span>
+                                  </td>
+                                  <td>{s.scanned_by_name ?? '—'}</td>
+                                  <td>
+                                    {s.scanned_at
+                                      ? new Date(s.scanned_at).toLocaleString('en-PH', {
+                                          year: 'numeric', month: 'short', day: 'numeric',
+                                          hour: '2-digit', minute: '2-digit',
+                                        })
+                                      : '—'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                     </div>
                   )}

@@ -614,6 +614,12 @@ export const inventoryAPI = {
   /** One PO + warehouse group's 3-tab detail. */
   getPoGroupDetail: async (poId, warehouseId) =>
     apiRequest(`/po-inventory-groups/${poId}?location_id=${warehouseId}`),
+  /** Rename the Location (zone label) for a whole PO + warehouse group. */
+  updatePoGroupLocation: async (poId, warehouseId, zoneLabel) =>
+    apiRequest(`/po-inventory-groups/${poId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ location_id: warehouseId, zone_label: zoneLabel }),
+    }),
   create: async (data) =>
     apiRequest('/inventory', {
       method: 'POST',
