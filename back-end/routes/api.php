@@ -311,11 +311,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/branches', function (Illuminate\Http\Request $request) {
         $request->merge(['location_type' => 'branch_office']);
-        return app()->call([LocationController::class, 'index']);
+        return app()->call([app(LocationController::class), 'index']);
     });
     Route::get('/warehouses', function (Illuminate\Http\Request $request) {
         $request->merge(['location_type' => 'warehouse']);
-        return app()->call([LocationController::class, 'index']);
+        return app()->call([app(LocationController::class), 'index']);
     });
 
     /*
