@@ -218,8 +218,26 @@ class InventoryController extends Controller
                     'suppliers.supplier_name',
                 ])
                 ->orderBy('item_serial.created_at', 'desc')
-                ->get();
+                ->get()
+                ->map(function ($s) {
+                    $s->row_stock_in  = 1;
+                    $s->row_stock_out = null; // sold serials are deleted → not attributable per row
+                    $s->row_transfer  = $s->serial_type === 'transferred' ? 1 : 0;
+                    return $s;
+                });
         } else {
+            // Pieces sold per receiving batch (issuance_details link a sale to its batch).
+            $soldByReceiving = DB::table('issuance_details')
+                ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
+                ->where('issuance_details.product_id', $productId)
+                ->where('issuances.location_id', $locationId)
+                ->whereNull('issuances.deleted_at')
+                ->whereNotNull('issuance_details.receiving_id')
+                ->groupBy('issuance_details.receiving_id')
+                ->selectRaw('issuance_details.receiving_id AS receiving_id, '
+                    . 'SUM(COALESCE(issuance_details.quantity_in_pieces, issuance_details.quantity_issued, 0)) AS sold')
+                ->pluck('sold', 'receiving_id');
+
             $serials = $receivingDetails
                 ->filter(fn($rd) => ! empty($rd->scanned_barcode))
                 ->map(fn($rd) => (object) [
@@ -234,6 +252,9 @@ class InventoryController extends Controller
                     'po_number'       => $rd->po_number,
                     'po_date'         => $rd->po_date,
                     'supplier_name'   => $rd->supplier_name,
+                    'row_stock_in'    => (int) $rd->quantity_amount,
+                    'row_stock_out'   => (int) ($soldByReceiving[$rd->receiving_id] ?? 0),
+                    'row_transfer'    => null, // transfers are not batch-linked → not attributable per row
                 ])
                 ->values();
         }
