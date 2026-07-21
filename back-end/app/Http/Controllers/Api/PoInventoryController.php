@@ -39,6 +39,7 @@ class PoInventoryController extends Controller
                     'po_number'         => $po->po_number,
                     'warehouse_id'      => $b->location_id,
                     'warehouse_name'    => $b->location?->location_name,
+                    'warehouse_type'    => $b->location?->location_type,
                     'supplier_name'     => $po->supplier?->supplier_name,
                     'order_date'        => $po->order_date?->toDateString(),
                     'first_received_at' => $b->received_at?->toDateString(),
