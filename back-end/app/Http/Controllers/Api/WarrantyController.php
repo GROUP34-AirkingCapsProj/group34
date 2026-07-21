@@ -30,7 +30,8 @@ class WarrantyController extends Controller
             'customer',
             'status',
             'issuance.location',
-        ])->orderBy('created_at', 'desc');
+        ])->forUser($request->user())
+          ->orderBy('created_at', 'desc');
 
         if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->integer('customer_id'));

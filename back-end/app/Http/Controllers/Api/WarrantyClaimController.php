@@ -24,6 +24,7 @@ class WarrantyClaimController extends Controller
     public function index(Request $request)
     {
         $query = WarrantyClaim::with(['customer', 'product', 'status', 'warranty'])
+            ->forUser($request->user())
             ->orderBy('created_at', 'desc');
 
         if ($request->filled('claim_type')) {
