@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Transfer;
 use App\Models\TransferDetail;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\BarcodeScan;
 use App\Models\TblTransferTracking;
@@ -45,6 +46,77 @@ class TransferService
     private function isSerialized(?TransferDetail $detail): bool
     {
         return ($detail?->product?->product_type) === 'appliance';
+    }
+
+    /**
+     * FIFO pick suggestions per line for an Approved IST.
+     * Appliances: individual serials tagged with their batch zone, oldest batch first.
+     * Consumables: zone + quantity per batch, oldest received_at first, capped at outstanding qty.
+     *
+     * @return array<int, array{product_id:int, product_name:string, needed:int, suggestions:array}>
+     */
+    public function pickList(Transfer $ist): array
+    {
+        $ist->loadMissing('details.product');
+        $out = [];
+
+        foreach ($ist->details as $detail) {
+            $needed = (int) $detail->quantity_requested - (int) $detail->quantity_scanned;
+            $suggestions = [];
+
+            if ($this->isSerialized($detail)) {
+                $serials = ItemSerial::where('item_serial.product_id', $detail->product_id)
+                    ->where('item_serial.location_id', $ist->from_location_id)
+                    ->where('item_serial.serial_type', 'received')
+                    ->whereNull('item_serial.transfer_id')
+                    ->leftJoin('inventory_batches as b', function ($j) use ($ist) {
+                        $j->on('b.receiving_id', '=', 'item_serial.receiving_id')
+                          ->where('b.location_id', '=', $ist->from_location_id);
+                    })
+                    ->orderByRaw('b.received_at IS NULL, b.received_at ASC')
+                    ->limit(max(0, $needed))
+                    ->get(['item_serial.serial_number', 'item_serial.receiving_id', 'b.zone_label', 'b.received_at', 'b.batch_id']);
+
+                foreach ($serials as $s) {
+                    $suggestions[] = [
+                        'serial_number' => $s->serial_number,
+                        'zone_label'    => $s->zone_label,
+                        'quantity'      => 1,
+                        'batch_id'      => $s->batch_id !== null ? (int) $s->batch_id : null,
+                        'received_at'   => $s->received_at,
+                    ];
+                }
+            } else {
+                $remaining = max(0, $needed);
+                $batches = InventoryBatch::where('product_id', $detail->product_id)
+                    ->where('location_id', $ist->from_location_id)
+                    ->where('quantity_remaining', '>', 0)
+                    ->orderBy('received_at', 'asc')
+                    ->get();
+
+                foreach ($batches as $batch) {
+                    if ($remaining <= 0) break;
+                    $take = min($remaining, (int) $batch->quantity_remaining);
+                    $suggestions[] = [
+                        'serial_number' => null,
+                        'zone_label'    => $batch->zone_label,
+                        'quantity'      => $take,
+                        'batch_id'      => (int) $batch->batch_id,
+                        'received_at'   => $batch->received_at,
+                    ];
+                    $remaining -= $take;
+                }
+            }
+
+            $out[] = [
+                'product_id'   => (int) $detail->product_id,
+                'product_name' => $detail->product?->product_name ?? "Product #{$detail->product_id}",
+                'needed'       => $needed,
+                'suggestions'  => $suggestions,
+            ];
+        }
+
+        return $out;
     }
 
     /** Fetch the inventory row for a location/product under a write lock, creating it (zeroed) if absent. */
