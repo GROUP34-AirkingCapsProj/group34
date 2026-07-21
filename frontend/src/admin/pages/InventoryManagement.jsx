@@ -240,6 +240,19 @@ const InventoryManagement = () => {
     }
   };
 
+  const fetchWarehouseBatches = useCallback(async () => {
+    setWarehouseBatchesLoading(true);
+    setWarehouseBatchesError(null);
+    try {
+      const res = await inventoryAPI.getWarehouseBatches();
+      setWarehouseBatches(res?.data ?? []);
+    } catch (err) {
+      setWarehouseBatchesError(err?.message || 'Failed to load warehouse batches.');
+    } finally {
+      setWarehouseBatchesLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchInventory(currentPage); }, [currentPage, fetchInventory]);
 
   // Re-fetch when a barcode scan transaction is confirmed anywhere in the app.
@@ -307,19 +320,6 @@ const InventoryManagement = () => {
     fetchActivity();
     return () => { cancelled = true; };
   }, [activeTab]);
-
-  const fetchWarehouseBatches = useCallback(async () => {
-    setWarehouseBatchesLoading(true);
-    setWarehouseBatchesError(null);
-    try {
-      const res = await inventoryAPI.getWarehouseBatches();
-      setWarehouseBatches(res?.data ?? []);
-    } catch (err) {
-      setWarehouseBatchesError(err?.message || 'Failed to load warehouse batches.');
-    } finally {
-      setWarehouseBatchesLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     if (activeTab !== 'warehouse-map') return;
