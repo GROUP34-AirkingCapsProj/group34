@@ -31,7 +31,8 @@ class InventoryScanEventController extends Controller
                 'user',
                 'location',
                 'toLocation',
-            ])->where('action', 'applied');
+            ])->where('action', 'applied')
+              ->forUser($request->user());
 
             if ($request->filled('transaction_type')) {
                 $query->where('transaction_type', $request->transaction_type);
