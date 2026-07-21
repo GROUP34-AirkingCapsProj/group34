@@ -674,6 +674,19 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/transfers/{id}/verify', [TransferController::class, 'verify']);
         Route::patch('/transfers/{id}/reject', [TransferController::class, 'reject']);
     });
+    Route::get('/transfers/{id}/scan-status', [TransferController::class, 'scanStatus']);
+    Route::get('/transfers/{id}/receive-form', [TransferController::class, 'receiveForm']);
+    Route::get('/transfers/{id}/receipt', [TransferController::class, 'receipt']);
+    Route::middleware('permission:inventory_transfers,create')->group(function () {
+        Route::post('/transfers/{id}/scan', [TransferController::class, 'scan']);
+        Route::delete('/transfers/{id}/scan/{scanId}', [TransferController::class, 'removeScan']);
+        Route::post('/transfers/{id}/confirm-dispatch', [TransferController::class, 'confirmDispatch']);
+    });
+    Route::middleware('permission:inventory_transfers,update')->group(function () {
+        Route::post('/transfers/{id}/receive-scan', [TransferController::class, 'receiveScan']);
+        Route::delete('/transfers/{id}/receive-scan/{scanId}', [TransferController::class, 'removeReceiveScan']);
+        Route::post('/transfers/{id}/receive-confirm', [TransferController::class, 'receiveStore']);
+    });
     Route::middleware('role:admin')->group(function () {
         Route::put('/transfers/{id}', [TransferController::class, 'update']);
         Route::post('/transfers/{id}/receive', [TransferController::class, 'receive']);
