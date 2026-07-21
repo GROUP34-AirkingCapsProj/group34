@@ -152,48 +152,96 @@ class PoInventoryController extends Controller
                 'receiving_details.scanned_barcode',
             ]);
 
-        // Serials scoped to this PO + warehouse, grouped by product, FIFO order.
+        // Serials scoped to this PO + warehouse, as a flat FIFO list with per-serial
+        // metadata (mirrors the per-SKU detail modal's serial table).
         $receivingIds = DB::table('receivings')
             ->where('po_id', $poId)->where('location_id', $locationId)
             ->pluck('receiving_id')->all();
 
-        $serialsByProduct = [];
+        $serials = collect();
         if (! empty($receivingIds)) {
-            ItemSerial::query()
+            // Appliances: unit-level rows from item_serial.
+            $appliance = ItemSerial::query()
                 ->whereIn('item_serial.receiving_id', $receivingIds)
                 ->where('item_serial.location_id', $locationId)
                 ->where('item_serial.serial_type', 'received')
                 ->join('products', 'products.product_id', '=', 'item_serial.product_id')
+                ->leftJoin('users as scanner', 'scanner.user_id', '=', 'item_serial.scanned_by')
+                ->leftJoin('status_lookup', 'status_lookup.status_id', '=', 'item_serial.status_id')
                 ->orderBy('item_serial.created_at', 'asc')
-                ->get(['item_serial.serial_number', 'item_serial.product_id', 'products.product_name'])
-                ->each(function ($s) use (&$serialsByProduct) {
-                    $serialsByProduct[$s->product_id]['product_id']   = $s->product_id;
-                    $serialsByProduct[$s->product_id]['product_name'] = $s->product_name;
-                    $serialsByProduct[$s->product_id]['serials'][]     = $s->serial_number;
-                });
+                ->get([
+                    'item_serial.serial_number',
+                    'item_serial.product_id',
+                    'products.product_name',
+                    'item_serial.created_at as scanned_at',
+                    DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
+                    'status_lookup.status_name as serial_status',
+                ]);
 
-            DB::table('receiving_details')
+            // Consumables: scanned barcodes from receiving_details, excluding products that
+            // already produced item_serial rows (appliances also carry a scanned_barcode).
+            $applianceProductIds = $appliance->pluck('product_id')->unique()->all();
+            $consumable = DB::table('receiving_details')
                 ->join('products', 'products.product_id', '=', 'receiving_details.product_id')
+                ->join('receivings', 'receivings.receiving_id', '=', 'receiving_details.receiving_id')
+                ->leftJoin('users as scanner', 'scanner.user_id', '=', 'receivings.received_by')
                 ->whereIn('receiving_details.receiving_id', $receivingIds)
                 ->whereNotNull('receiving_details.scanned_barcode')
+                ->when(! empty($applianceProductIds), fn ($q) => $q->whereNotIn('receiving_details.product_id', $applianceProductIds))
                 ->orderBy('receiving_details.created_at', 'asc')
-                ->get(['receiving_details.scanned_barcode', 'receiving_details.product_id', 'products.product_name'])
-                ->each(function ($r) use (&$serialsByProduct) {
-                    // Only consumables land here (appliances already covered above); avoid
-                    // double-listing a product that produced item_serial rows.
-                    if (isset($serialsByProduct[$r->product_id])) {
-                        return;
-                    }
-                    $serialsByProduct[$r->product_id]['product_id']   = $r->product_id;
-                    $serialsByProduct[$r->product_id]['product_name'] = $r->product_name;
-                    $serialsByProduct[$r->product_id]['serials'][]     = $r->scanned_barcode;
-                });
+                ->get([
+                    'receiving_details.scanned_barcode as serial_number',
+                    'products.product_name',
+                    'receiving_details.created_at as scanned_at',
+                    DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
+                    DB::raw("'Received' as serial_status"),
+                ]);
+
+            $serials = $appliance->concat($consumable)
+                ->sortBy('scanned_at')
+                ->map(fn ($s) => [
+                    'serial_number'   => $s->serial_number,
+                    'product_name'    => $s->product_name,
+                    'serial_status'   => $s->serial_status ?? 'In Stock',
+                    'scanned_by_name' => trim((string) ($s->scanned_by_name ?? '')) ?: null,
+                    'scanned_at'      => $s->scanned_at,
+                ])
+                ->values();
         }
 
         return $this->success([
             'overview'          => $overview,
             'receiving_history' => $receivingHistory,
-            'serials'           => array_values($serialsByProduct),
+            'serials'           => $serials,
         ], 'PO inventory group detail retrieved successfully');
+    }
+
+    /**
+     * PATCH /api/po-inventory-groups/{po}?location_id={warehouseId}
+     * Rename the Location (zone_label) for every batch in one (PO, warehouse) group.
+     */
+    public function updateLocation(Request $request, $po)
+    {
+        $validated = $request->validate([
+            'location_id' => 'required|integer',
+            'zone_label'  => 'nullable|string|max:100',
+        ]);
+
+        $poId       = (int) $po;
+        $locationId = (int) $validated['location_id'];
+        $zoneLabel  = $validated['zone_label'] ?? null;
+
+        $batchIds = InventoryBatch::forUser($request->user())
+            ->where('location_id', $locationId)
+            ->whereHas('receiving', fn ($q) => $q->where('po_id', $poId))
+            ->pluck('batch_id');
+
+        if ($batchIds->isEmpty()) {
+            return $this->notFound('No inventory found for this PO at this warehouse');
+        }
+
+        InventoryBatch::whereIn('batch_id', $batchIds)->update(['zone_label' => $zoneLabel]);
+
+        return $this->success(['zone_label' => $zoneLabel], 'Location updated successfully');
     }
 }

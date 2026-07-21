@@ -947,26 +947,67 @@
 }
 .po-slot--fifo .po-slot-top { padding-right: 70px; }
 
-/* The industrial bin tag — the signature element */
+/* The industrial bin tag — the signature element (also an edit trigger) */
 .po-slot-tag {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
   min-width: 66px;
-  max-width: 120px;
+  max-width: 140px;
   padding: 9px 11px;
+  border: none;
+  text-align: left;
   border-radius: 10px;
   background: linear-gradient(160deg, #1f2937, #0f172a);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
+button.po-slot-tag { cursor: pointer; transition: box-shadow 0.15s ease; }
+button.po-slot-tag:hover { box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.5); }
+button.po-slot-tag:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
 .po-slot-tag-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 8.5px;
   font-weight: 800;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: #f59e0b;
 }
+.po-slot-tag-pencil { font-size: 10px; opacity: 0; transition: opacity 0.15s ease; }
+button.po-slot-tag:hover .po-slot-tag-pencil { opacity: 1; }
+.po-slot-tag--edit { max-width: none; flex: 1; }
+.po-slot-tag-input {
+  margin-top: 2px;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+.po-slot-tag-input::placeholder { color: rgba(255, 255, 255, 0.4); font-weight: 400; }
+.po-slot-tag-input:focus { outline: none; border-color: #f59e0b; }
+.po-slot-tag-actions { display: flex; gap: 6px; margin-top: 6px; }
+.po-slot-tag-save,
+.po-slot-tag-cancel {
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.po-slot-tag-save { background: #f59e0b; color: #1f2937; }
+.po-slot-tag-save:hover { background: #fbbf24; }
+.po-slot-tag-cancel { background: rgba(255, 255, 255, 0.12); color: #e5e7eb; }
+.po-slot-tag-cancel:hover { background: rgba(255, 255, 255, 0.2); }
+.po-slot-tag-save:disabled,
+.po-slot-tag-cancel:disabled { opacity: 0.6; cursor: default; }
 .po-slot-tag-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 14px;
