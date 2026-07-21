@@ -817,11 +817,11 @@ const InventoryManagement = () => {
         )}
 
         {activeTab === 'inventory' && inventorySubTab === 'po-console' && (
-          <div className="inv-table-card">
-            <div className="inv-table-top">
+          <div className="po-map-wrap">
+            <div className="po-map-head">
               <div>
                 <h3 className="inv-table-title">Inventory Monitoring Console</h3>
-                <p className="inv-table-subtitle">Stock grouped by PO number and location (oldest first)</p>
+                <p className="inv-table-subtitle">Stock laid out by delivery and warehouse location · oldest first</p>
               </div>
               <input
                 type="text"
@@ -836,60 +836,69 @@ const InventoryManagement = () => {
               <div className="inv-batch-loading">Loading PO groups…</div>
             ) : poGroupsError ? (
               <div className="inv-batch-empty inv-batch-empty--error">{poGroupsError}</div>
-            ) : (
-              <div className="inv-table-wrapper">
-                <table className="inv-table">
-                  <thead>
-                    <tr>
-                      <th>PO NUMBER</th>
-                      <th>WAREHOUSE</th>
-                      <th>LOCATION</th>
-                      <th>SUPPLIER</th>
-                      <th>RECEIVED</th>
-                      <th>ITEMS</th>
-                      <th>QTY</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {poGroups.filter((g) => {
-                      const q = poSearch.trim().toLowerCase();
-                      if (!q) return true;
-                      return [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
-                        .some((v) => (v || '').toLowerCase().includes(q));
-                    }).length === 0 ? (
-                      <tr><td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>No PO groups found</td></tr>
-                    ) : (
-                      poGroups.filter((g) => {
-                        const q = poSearch.trim().toLowerCase();
-                        if (!q) return true;
-                        return [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
-                          .some((v) => (v || '').toLowerCase().includes(q));
-                      }).map((g) => {
-                        return (
-                          <React.Fragment key={g.group_key}>
-                            <tr>
-                              <td><strong>{g.po_number || '—'}</strong></td>
-                              <td>{g.warehouse_name || '—'}</td>
-                              <td>{g.location_label || '—'}</td>
-                              <td>{g.supplier_name || '—'}</td>
-                              <td>{g.first_received_at || '—'}</td>
-                              <td className="inv-cell-num">{g.item_count}</td>
-                              <td className="inv-cell-num">{g.total_remaining} / {g.total_received}</td>
-                              <td>
-                                <div className="inv-cell-actions">
-                                  <button className="inv-action-link" onClick={() => openPoGroupDetail(g)}>View</button>
-                                </div>
-                              </td>
-                            </tr>
-                          </React.Fragment>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            ) : (() => {
+              const q = poSearch.trim().toLowerCase();
+              const filtered = q
+                ? poGroups.filter((g) => [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
+                    .some((v) => (v || '').toLowerCase().includes(q)))
+                : poGroups;
+              const oldestKey = poGroups[0]?.group_key;
+
+              if (filtered.length === 0) {
+                return <div className="po-map-empty">No purchase orders match your search.</div>;
+              }
+
+              return (
+                <div className="po-map-grid">
+                  {filtered.map((g) => {
+                    const pct = g.total_received > 0
+                      ? Math.round((g.total_remaining / g.total_received) * 100)
+                      : 0;
+                    const isOldest = g.group_key === oldestKey;
+                    return (
+                      <div key={g.group_key} className={`po-slot${isOldest ? ' po-slot--fifo' : ''}`}>
+                        {isOldest && <span className="po-slot-flag">Pick first</span>}
+                        <div className="po-slot-top">
+                          <div className="po-slot-tag">
+                            <span className="po-slot-tag-eyebrow">Location</span>
+                            <span className="po-slot-tag-code">{g.location_label || 'Unslotted'}</span>
+                          </div>
+                          <div className="po-slot-ident">
+                            <span className="po-slot-po">{g.po_number || '—'}</span>
+                            <span className="po-slot-supplier">{g.supplier_name || 'No supplier'}</span>
+                            <span className="po-slot-wh">{g.warehouse_name || '—'}</span>
+                          </div>
+                        </div>
+
+                        <div className="po-slot-meta">
+                          <div className="po-slot-meta-item">
+                            <span className="po-slot-meta-label">Received</span>
+                            <span className="po-slot-meta-value">{g.first_received_at || '—'}</span>
+                          </div>
+                          <div className="po-slot-meta-item">
+                            <span className="po-slot-meta-label">Items</span>
+                            <span className="po-slot-meta-value">{g.item_count}</span>
+                          </div>
+                        </div>
+
+                        <div className="po-slot-capacity">
+                          <div className="po-slot-bar">
+                            <div className="po-slot-bar-fill" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="po-slot-bar-label">{g.total_remaining} / {g.total_received} in stock</span>
+                        </div>
+
+                        <div className="po-slot-foot">
+                          <button type="button" className="po-slot-view" onClick={() => openPoGroupDetail(g)}>
+                            View<span aria-hidden="true"> →</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
