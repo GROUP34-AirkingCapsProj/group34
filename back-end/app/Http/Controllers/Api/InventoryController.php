@@ -74,7 +74,9 @@ class InventoryController extends Controller
         $batches = app(InventoryBatchService::class)
             ->batchesForDisplay($inventory->product_id, $inventory->location_id);
 
-        $data = $batches->map(function ($batch) {
+        $serialMap = app(\App\Services\BatchSerialResolver::class)->resolve($batches);
+
+        $data = $batches->map(function ($batch) use ($serialMap) {
             return [
                 'batch_id'           => $batch->batch_id,
                 'receiving_id'       => $batch->receiving_id,
@@ -84,6 +86,7 @@ class InventoryController extends Controller
                 'quantity_received'  => $batch->quantity_received,
                 'quantity_remaining' => $batch->quantity_remaining,
                 'is_legacy'          => $batch->receiving_id === null,
+                'serials'            => $serialMap[$batch->batch_id] ?? [],
             ];
         });
 
