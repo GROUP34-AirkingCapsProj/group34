@@ -1628,6 +1628,102 @@ const InventoryManagement = () => {
             </div>
           </Modal>
         )}
+
+        {poGroupDetail && (
+          <Modal
+            isOpen={!!poGroupDetail}
+            onClose={() => { setPoGroupDetail(null); setPoDetailTab('overview'); }}
+            title={`${poGroupDetail.group?.po_number || 'PO'} — ${poGroupDetail.group?.warehouse_name || ''}`}
+            maxWidth={920}
+          >
+            <div className="inv-view-details">
+              <div className="invd-tabs">
+                <button className={`invd-tab-btn${poDetailTab === 'overview' ? ' active' : ''}`} onClick={() => setPoDetailTab('overview')}>Overview</button>
+                <button className={`invd-tab-btn${poDetailTab === 'history' ? ' active' : ''}`} onClick={() => setPoDetailTab('history')}>Stock-In History</button>
+                <button className={`invd-tab-btn${poDetailTab === 'serials' ? ' active' : ''}`} onClick={() => setPoDetailTab('serials')}>Serial Numbers</button>
+              </div>
+
+              {poGroupDetailLoading && <Loader label="Loading PO details" />}
+              {poGroupDetail.error && <div className="invd-error-msg">{poGroupDetail.error}</div>}
+
+              {!poGroupDetailLoading && poGroupDetail.data && (
+                <>
+                  {poDetailTab === 'overview' && (
+                    <div className="invd-panel">
+                      <div className="invd-section">
+                        <div className="invd-section-title">PO Information</div>
+                        <div className="invd-grid">
+                          <div className="invd-field"><span className="invd-label">PO Number</span><span className="invd-value invd-mono">{poGroupDetail.data.overview.po_number || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Supplier</span><span className="invd-value">{poGroupDetail.data.overview.supplier_name || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Order Date</span><span className="invd-value">{poGroupDetail.data.overview.order_date || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Warehouse</span><span className="invd-value">{poGroupDetail.data.overview.warehouse_name || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Location</span><span className="invd-value">{poGroupDetail.data.overview.location_label || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Items</span><span className="invd-value">{poGroupDetail.data.overview.totals.item_count}</span></div>
+                        </div>
+                      </div>
+                      <div className="invd-section">
+                        <div className="invd-section-title">Products ({poGroupDetail.data.overview.totals.total_remaining} / {poGroupDetail.data.overview.totals.total_received} remaining)</div>
+                        <div className="invd-table-wrap">
+                          <table className="invd-table">
+                            <thead><tr><th>Product</th><th>Qty Remaining</th><th>Qty Received</th></tr></thead>
+                            <tbody>
+                              {poGroupDetail.data.overview.products.map((p) => (
+                                <tr key={p.product_id}><td>{p.product_name}</td><td>{p.quantity_remaining}</td><td>{p.quantity_received}</td></tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {poDetailTab === 'history' && (
+                    <div className="invd-panel">
+                      {poGroupDetail.data.receiving_history.length === 0 ? (
+                        <div className="invd-empty">No receiving history.</div>
+                      ) : (
+                        <div className="invd-table-wrap">
+                          <table className="invd-table">
+                            <thead><tr><th>Receiving #</th><th>Date</th><th>Received By</th><th>Product</th><th>Qty</th><th>Barcode</th></tr></thead>
+                            <tbody>
+                              {poGroupDetail.data.receiving_history.map((r, i) => (
+                                <tr key={i}>
+                                  <td className="invd-mono invd-small">{r.receiving_number || '—'}</td>
+                                  <td>{r.received_at ? new Date(r.received_at).toLocaleDateString('en-PH') : '—'}</td>
+                                  <td>{r.received_by_name?.trim() || '—'}</td>
+                                  <td>{r.product_name}</td>
+                                  <td>{r.quantity_amount}</td>
+                                  <td className="invd-mono invd-small">{r.scanned_barcode || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {poDetailTab === 'serials' && (
+                    <div className="invd-panel">
+                      {poGroupDetail.data.serials.length === 0 ? (
+                        <div className="invd-empty">No serial numbers recorded for this PO at this location.</div>
+                      ) : (
+                        poGroupDetail.data.serials.map((p) => (
+                          <div className="invd-section" key={p.product_id}>
+                            <div className="invd-section-title">{p.product_name} ({p.serials.length})</div>
+                            <div className="inv-serial-chips">
+                              {p.serials.map((sn, i) => (<span className="inv-serial-chip" key={i}>{sn}</span>))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </Modal>
+        )}
       </div>
     </AdminLayout>
   );
