@@ -258,7 +258,6 @@ const InventoryManagement = () => {
   const [poGroupsLoading, setPoGroupsLoading] = useState(false);
   const [poGroupsError, setPoGroupsError] = useState(null);
   const [poSearch, setPoSearch] = useState('');
-  const [expandedPoKeys, setExpandedPoKeys] = useState(new Set());
   const [poGroupDetail, setPoGroupDetail] = useState(null);
   const [poGroupDetailLoading, setPoGroupDetailLoading] = useState(false);
   const [poDetailTab, setPoDetailTab] = useState('overview');
@@ -275,14 +274,6 @@ const InventoryManagement = () => {
       setPoGroupsLoading(false);
     }
   }, []);
-
-  const togglePoGroup = (key) => {
-    setExpandedPoKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
 
   const openPoGroupDetail = async (group) => {
     setPoGroupDetail({ loading: true, group });
@@ -1017,7 +1008,6 @@ const InventoryManagement = () => {
                         return [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
                           .some((v) => (v || '').toLowerCase().includes(q));
                       }).map((g) => {
-                        const isExpanded = expandedPoKeys.has(g.group_key);
                         return (
                           <React.Fragment key={g.group_key}>
                             <tr>
@@ -1030,65 +1020,10 @@ const InventoryManagement = () => {
                               <td className="inv-cell-num">{g.total_remaining} / {g.total_received}</td>
                               <td>
                                 <div className="inv-cell-actions">
-                                  <button className="inv-action-link" onClick={() => togglePoGroup(g.group_key)} aria-expanded={isExpanded}>
-                                    {isExpanded ? 'Hide batches' : 'Batches'}
-                                  </button>
                                   <button className="inv-action-link" onClick={() => openPoGroupDetail(g)}>View</button>
                                 </div>
                               </td>
                             </tr>
-                            {isExpanded && (
-                              <tr className="inv-batch-row">
-                                <td colSpan={8}>
-                                  {g.batches.length === 0 ? (
-                                    <div className="inv-batch-empty">No batches.</div>
-                                  ) : (
-                                    <table className="inv-batch-table">
-                                      <thead>
-                                        <tr>
-                                          <th>Product</th>
-                                          <th>Location</th>
-                                          <th>Received</th>
-                                          <th>Qty Remaining</th>
-                                          <th>Qty Received</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {g.batches.map((b) => (
-                                          <tr key={b.batch_id}>
-                                            <td>{b.product_name}</td>
-                                            <td>
-                                              {editingZoneBatchId === b.batch_id ? (
-                                                <span className="inv-warehouse-map-zone-edit">
-                                                  <input
-                                                    type="text"
-                                                    className="inv-warehouse-map-zone-input"
-                                                    value={editingZoneValue}
-                                                    onChange={(e) => setEditingZoneValue(e.target.value)}
-                                                    placeholder="e.g. Location 1"
-                                                    autoFocus
-                                                  />
-                                                  <button type="button" className="inv-warehouse-map-zone-save" onClick={() => saveZoneEdit(b.batch_id)}>Save</button>
-                                                  <button type="button" className="inv-warehouse-map-zone-cancel" onClick={() => setEditingZoneBatchId(null)}>Cancel</button>
-                                                </span>
-                                              ) : (
-                                                <span>
-                                                  {b.zone_label || 'Unassigned'}
-                                                  <button type="button" className="inv-action-link" style={{ marginLeft: 8 }} onClick={() => startEditingZone(b)}>Edit</button>
-                                                </span>
-                                              )}
-                                            </td>
-                                            <td>{b.received_at || '—'}</td>
-                                            <td>{b.quantity_remaining}</td>
-                                            <td>{b.quantity_received}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  )}
-                                </td>
-                              </tr>
-                            )}
                           </React.Fragment>
                         );
                       })
