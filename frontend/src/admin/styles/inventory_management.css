@@ -605,6 +605,41 @@
 .invd-pill-orange { background: #ffedd5; color: #c2410c; }
 .invd-pill-gray   { background: #f3f4f6; color: #6b7280; }
 
+/* Movement stat row (Serial Numbers tab) */
+.invd-move-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.invd-move-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+.invd-move-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+}
+.invd-move-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+}
+.invd-move-in       { border-color: #bbf7d0; background: #f0fdf4; }
+.invd-move-in    .invd-move-value    { color: #15803d; }
+.invd-move-out      { border-color: #fed7aa; background: #fff7ed; }
+.invd-move-out   .invd-move-value    { color: #c2410c; }
+.invd-move-transfer { border-color: #bfdbfe; background: #eff6ff; }
+.invd-move-transfer .invd-move-value { color: #1d4ed8; }
+
 /* Empty state */
 .invd-empty {
   text-align: center;

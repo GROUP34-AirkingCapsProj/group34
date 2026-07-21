@@ -1426,6 +1426,20 @@ const InventoryManagement = () => {
               ══════════════════════════════ */}
               {detailTab === 'serials' && !historyLoading && historyData && (
                 <div className="invd-panel">
+                  <div className="invd-move-stats">
+                    <div className="invd-move-stat invd-move-in">
+                      <span className="invd-move-label">Stock In</span>
+                      <span className="invd-move-value">{historyData.summary.stock_in ?? 0}</span>
+                    </div>
+                    <div className="invd-move-stat invd-move-out">
+                      <span className="invd-move-label">Stock Out</span>
+                      <span className="invd-move-value">{historyData.summary.stock_out ?? 0}</span>
+                    </div>
+                    <div className="invd-move-stat invd-move-transfer">
+                      <span className="invd-move-label">Transfers</span>
+                      <span className="invd-move-value">{historyData.summary.transferred ?? 0}</span>
+                    </div>
+                  </div>
                   {!historyData.serial_records || historyData.serial_records.length === 0 ? (
                     <div className="invd-empty">No serial numbers recorded for this product at this location.</div>
                   ) : (
