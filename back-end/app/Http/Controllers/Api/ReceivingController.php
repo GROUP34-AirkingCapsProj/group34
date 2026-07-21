@@ -11,6 +11,7 @@ use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Services\BudgetService;
+use App\Services\InventoryBatchService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -132,6 +133,7 @@ class ReceivingController extends Controller
                 'details.*.quantity_amount'      => 'required|integer|min:0',
                 'details.*.condition'            => 'nullable|string|max:100',
                 'details.*.scanned_barcode'      => 'nullable|string|max:191',
+                'details.*.zone_label'           => 'nullable|string|max:100',
             ]);
 
             $poId       = (int) $validated['pc_id'];
@@ -155,6 +157,7 @@ class ReceivingController extends Controller
                 $productId = (int) $detail['product_id'];
                 $qty       = (int) ($detail['quantity_amount'] ?? 0);
                 $scannedBarcode = $detail['scanned_barcode'] ?? null;
+                $zoneLabel = $detail['zone_label'] ?? null;
 
                 $product = Product::with(['applianceDetail', 'consumableDetail'])->find($productId);
                 $isSerialized = $product ? $product->isSerialized() : false;
@@ -181,14 +184,21 @@ class ReceivingController extends Controller
                     ]);
                 }
 
-                // Update inventory at receiving location
-                $inventory = Inventory::firstOrCreate(
-                    ['location_id' => $locationId, 'product_id' => $productId],
-                    ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
-                );
+                // Update inventory at receiving location — lock the row before mutating it
+                // and before calling InventoryBatchService, per its documented contract.
+                $inventory = $this->lockInventory($locationId, $productId);
                 $inventory->quantity_on_hand   = max(0, (int) $inventory->quantity_on_hand + $qty);
                 $inventory->available_quantity = max(0, (int) $inventory->available_quantity + $qty);
                 $inventory->save();
+
+                app(InventoryBatchService::class)->createBatch(
+                    $productId,
+                    $locationId,
+                    $receiving->receiving_id,
+                    $qty,
+                    $receiving->receiving_date ?? now(),
+                    $zoneLabel
+                );
 
                 $totalReceived += $qty;
             }
@@ -239,6 +249,25 @@ class ReceivingController extends Controller
             DB::rollBack();
             return $this->error('Failed to create receiving: ' . $e->getMessage(), 500);
         }
+    }
+
+    /**
+     * Ensure an Inventory row exists for (location, product) and return it locked
+     * (SELECT ... FOR UPDATE) within the caller's transaction. This satisfies
+     * InventoryBatchService's contract that the relevant Inventory row must
+     * already be locked before any of its methods are invoked.
+     */
+    private function lockInventory(int $locationId, int $productId): Inventory
+    {
+        Inventory::firstOrCreate(
+            ['location_id' => $locationId, 'product_id' => $productId],
+            ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
+        );
+
+        return Inventory::where('location_id', $locationId)
+            ->where('product_id', $productId)
+            ->lockForUpdate()
+            ->first();
     }
 
     public function show($id)

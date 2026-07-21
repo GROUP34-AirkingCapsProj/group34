@@ -8,12 +8,20 @@ use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\BarcodeScan;
 use App\Models\TblTransferTracking;
+use App\Services\InventoryBatchService;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class TransferService
 {
     use \App\Traits\NormalizesBarcode;
+
+    private InventoryBatchService $batches;
+
+    public function __construct(?InventoryBatchService $batches = null)
+    {
+        $this->batches = $batches ?? new InventoryBatchService();
+    }
 
     private function statusId(string $name): int
     {
@@ -108,6 +116,31 @@ class TransferService
                         ->where('product_id', $detail->product_id)
                         ->where('serial_type', 'received')
                         ->update(['serial_type' => 'transferred']);
+
+                    // Exact per-unit batch deduction: group the just-shipped serials by
+                    // their known receiving_id and decrement each linked batch directly.
+                    // Serials with no receiving_id (e.g. pre-batch-tracking stock) fall into
+                    // a single group whose key Laravel's groupBy() casts to '' (Collection
+                    // keys are always string|int, so a null group key is stringified). We
+                    // coerce that '' back to null before calling deductFromReceiving(), which
+                    // is typed ?int and would otherwise fail to cast '' to an int.
+                    // receiving_id is an auto-increment PK (starts at 1) so it is never 0,
+                    // making '' and null the only falsy values here — safe to use `?:`.
+                    ItemSerial::where('transfer_id', $locked->transfer_id)
+                        ->where('product_id', $detail->product_id)
+                        ->where('serial_type', 'transferred')
+                        ->get()
+                        ->groupBy('receiving_id')
+                        ->each(function ($group, $receivingId) use ($locked, $detail) {
+                            $this->batches->deductFromReceiving(
+                                $receivingId ? (int) $receivingId : null,
+                                $detail->product_id,
+                                $locked->from_location_id,
+                                $group->count()
+                            );
+                        });
+                } else {
+                    $this->batches->deductFifo($detail->product_id, $locked->from_location_id, $shipped);
                 }
 
                 $detail->quantity_transferred = $shipped;
@@ -366,6 +399,21 @@ class TransferService
                 $src->save();
 
                 if ($this->isSerialized($detail)) {
+                    // Read receiving_id groupings BEFORE clearing transfer_id, so the
+                    // exact batch each serial came from can still be identified.
+                    ItemSerial::where('transfer_id', $locked->transfer_id)
+                        ->where('product_id', $detail->product_id)
+                        ->get()
+                        ->groupBy('receiving_id')
+                        ->each(function ($group, $receivingId) use ($locked, $detail) {
+                            $this->batches->restoreFifo(
+                                $detail->product_id,
+                                $locked->from_location_id,
+                                $group->count(),
+                                $receivingId ? (int) $receivingId : null
+                            );
+                        });
+
                     ItemSerial::where('transfer_id', $locked->transfer_id)
                         ->where('product_id', $detail->product_id)
                         ->update([
@@ -373,6 +421,11 @@ class TransferService
                             'location_id' => $locked->from_location_id,
                             'transfer_id' => null,
                         ]);
+                } else {
+                    // Bulk products have no per-transfer batch trail, so restoration is
+                    // best-effort: it goes to the legacy catch-all batch rather than the
+                    // exact original batch. See plan header for rationale.
+                    $this->batches->restoreFifo($detail->product_id, $locked->from_location_id, $shipped, null);
                 }
             }
         });

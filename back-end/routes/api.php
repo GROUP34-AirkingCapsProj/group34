@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\InventoryBatchController;
 use App\Http\Controllers\Api\BatchController;
 use App\Http\Controllers\Api\CategoryLookupController;
 use App\Http\Controllers\Api\BrandLookupController;
@@ -793,6 +794,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::get('/inventory/{inventory}/history', [InventoryController::class, 'stockHistory']);
+    Route::get('/inventory/{inventory}/batches', [InventoryController::class, 'batches']);
+    Route::get('/inventory-batches', [InventoryBatchController::class, 'index']);
+    Route::patch('/inventory-batches/{batch}', [InventoryBatchController::class, 'update']);
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
     Route::get('/inventory/location/{location}', [InventoryController::class, 'byLocation']);
     Route::get('/inventory/product/{product}', [InventoryController::class, 'byItem']);
