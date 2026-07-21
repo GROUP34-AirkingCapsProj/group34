@@ -556,6 +556,14 @@ export const inventoryAPI = {
   },
   getById: async (id) => apiRequest(`/inventory/${id}`),
   getBatches: async (id) => apiRequest(`/inventory/${id}/batches`),
+  /** All batches with remaining stock, scoped server-side to the user's location. Powers the Warehouse Map tab. */
+  getWarehouseBatches: async () => apiRequest('/inventory-batches'),
+  /** Edit a batch's physical zone label only (never touches quantities). */
+  updateBatchZone: async (batchId, zoneLabel) =>
+    apiRequest(`/inventory-batches/${batchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ zone_label: zoneLabel }),
+    }),
   create: async (data) =>
     apiRequest('/inventory', {
       method: 'POST',
