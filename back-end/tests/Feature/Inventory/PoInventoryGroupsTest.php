@@ -79,4 +79,50 @@ class PoInventoryGroupsTest extends TestCase
         $this->assertSame(20, $mine['total_received']);
         $this->assertCount(2, $mine['batches']);
     }
+
+    public function test_group_detail_returns_scoped_serials_and_overview(): void
+    {
+        $wh = Location::create(['location_code' => 'WH-' . uniqid(), 'location_name' => 'Main WH', 'location_type' => 'warehouse']);
+        $appliance = Product::create(['product_code' => 'A-' . uniqid(), 'product_name' => 'Aircon', 'product_type' => 'appliance']);
+        $user = $this->makeUser();
+
+        $poA = $this->makePo($wh->location_id);
+        $poB = $this->makePo($wh->location_id);
+        $snA = 'SNA-' . uniqid();
+        $snB = 'SNB-' . uniqid();
+        $this->receive($user, $poA, $wh->location_id, $appliance->product_id, 1, $snA);
+        $this->receive($user, $poB, $wh->location_id, $appliance->product_id, 1, $snB);
+
+        $detail = $this->actingAs($user)
+            ->getJson('/api/po-inventory-groups/' . $poA->po_id . '?location_id=' . $wh->location_id)
+            ->assertStatus(200)
+            ->json('data');
+
+        $this->assertSame($poA->po_number, $detail['overview']['po_number']);
+        $this->assertSame(1, $detail['overview']['totals']['item_count']);
+
+        $allSerials = collect($detail['serials'])->flatMap(fn ($p) => $p['serials'])->all();
+        $this->assertContains($snA, $allSerials);
+        $this->assertNotContains($snB, $allSerials); // isolation: other PO's serial excluded
+    }
+
+    public function test_group_detail_consumable_lists_barcode(): void
+    {
+        $wh = Location::create(['location_code' => 'WH-' . uniqid(), 'location_name' => 'Main WH', 'location_type' => 'warehouse']);
+        $cons = Product::create(['product_code' => 'C-' . uniqid(), 'product_name' => 'Wire', 'product_type' => 'installation_material']);
+        $user = $this->makeUser();
+
+        $po = $this->makePo($wh->location_id);
+        $bc = 'BC-' . uniqid();
+        $this->receive($user, $po, $wh->location_id, $cons->product_id, 10, $bc);
+
+        $detail = $this->actingAs($user)
+            ->getJson('/api/po-inventory-groups/' . $po->po_id . '?location_id=' . $wh->location_id)
+            ->assertStatus(200)
+            ->json('data');
+
+        $allSerials = collect($detail['serials'])->flatMap(fn ($p) => $p['serials'])->all();
+        $this->assertContains($bc, $allSerials);
+        $this->assertSame(10, $detail['overview']['totals']['total_received']);
+    }
 }
