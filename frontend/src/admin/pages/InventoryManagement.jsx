@@ -858,6 +858,7 @@ const InventoryManagement = () => {
                                         <th>Received</th>
                                         <th>Qty Remaining</th>
                                         <th>Qty Received</th>
+                                        <th>Serial Numbers</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -867,6 +868,15 @@ const InventoryManagement = () => {
                                           <td>{b.received_at || '—'}</td>
                                           <td>{b.quantity_remaining}</td>
                                           <td>{b.quantity_received}</td>
+                                          <td>
+                                            {b.serials && b.serials.length > 0 ? (
+                                              <div className="inv-serial-chips">
+                                                {b.serials.map((sn, i) => (
+                                                  <span className="inv-serial-chip" key={i}>{sn}</span>
+                                                ))}
+                                              </div>
+                                            ) : '—'}
+                                          </td>
                                         </tr>
                                       ))}
                                     </tbody>
@@ -947,6 +957,19 @@ const InventoryManagement = () => {
                         <span className="inv-warehouse-map-stock-label">
                           {batch.quantity_remaining} / {batch.quantity_received} remaining
                         </span>
+                      </div>
+
+                      <div className="inv-warehouse-map-serials">
+                        <span className="inv-warehouse-map-meta-label">Serial Numbers</span>
+                        {batch.serials && batch.serials.length > 0 ? (
+                          <div className="inv-serial-chips">
+                            {batch.serials.map((sn, i) => (
+                              <span className="inv-serial-chip" key={i}>{sn}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="inv-warehouse-map-meta-value">—</span>
+                        )}
                       </div>
 
                       <div className="inv-warehouse-map-zone">
