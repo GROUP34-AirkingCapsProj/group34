@@ -1450,6 +1450,9 @@ const InventoryManagement = () => {
                             <th>#</th>
                             <th>Serial Number</th>
                             <th>Status</th>
+                            <th>Stock In</th>
+                            <th>Stock Out</th>
+                            <th>Transfer</th>
                             <th>Scanned By</th>
                             <th>Date Scanned</th>
                             <th>PO Number</th>
@@ -1470,6 +1473,9 @@ const InventoryManagement = () => {
                                   {s.serial_status ?? 'Active'}
                                 </span>
                               </td>
+                              <td className="invd-mono">{s.row_stock_in ?? '—'}</td>
+                              <td className="invd-mono">{s.row_stock_out ?? '—'}</td>
+                              <td className="invd-mono">{s.row_transfer ?? '—'}</td>
                               <td>{s.scanned_by_name ?? '—'}</td>
                               <td>
                                 {s.scanned_at
