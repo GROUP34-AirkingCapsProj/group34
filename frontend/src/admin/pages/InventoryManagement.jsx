@@ -844,8 +844,6 @@ const InventoryManagement = () => {
                     ) : (
                       inventory.map((item) => {
                         const status = getItemStatus(item);
-                        const isExpanded = expandedBatchIds.has(item.inventory_id);
-                        const rowBatches = batchesByInventoryId[item.inventory_id] || [];
                         return (
                           <React.Fragment key={item.inventory_id}>
                           <tr>
@@ -874,64 +872,10 @@ const InventoryManagement = () => {
                             </td>
                             <td>
                               <div className="inv-cell-actions">
-                                <button
-                                  className="inv-action-link"
-                                  onClick={() => toggleBatches(item.inventory_id)}
-                                  aria-expanded={isExpanded}
-                                >
-                                  {isExpanded ? 'Hide batches' : 'Batches'}
-                                </button>
                                 <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); loadInventoryHistory(item.inventory_id); }}>View</button>
                               </div>
                             </td>
                           </tr>
-                          {isExpanded && (
-                            <tr className="inv-batch-row">
-                              <td colSpan={8}>
-                                {batchesLoading[item.inventory_id] ? (
-                                  <div className="inv-batch-loading">Loading batches…</div>
-                                ) : rowBatches.length === 0 ? (
-                                  <div className="inv-batch-empty">No batch history for this item.</div>
-                                ) : (
-                                  <table className="inv-batch-table">
-                                    <thead>
-                                      <tr>
-                                        <th>PO Number</th>
-                                        <th>Received</th>
-                                        <th>Qty Remaining</th>
-                                        <th>Qty Received</th>
-                                        <th>Serial Numbers</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {rowBatches.map((b) => (
-                                        <tr key={b.batch_id}>
-                                          <td>{b.is_legacy ? 'Pre-tracking stock' : (b.po_number || '—')}</td>
-                                          <td>{b.received_at || '—'}</td>
-                                          <td>{b.quantity_remaining}</td>
-                                          <td>{b.quantity_received}</td>
-                                          <td>
-                                            {b.serials && b.serials.length > 0 ? (
-                                              <button
-                                                type="button"
-                                                className="inv-action-link"
-                                                onClick={() => setSerialModalBatch({
-                                                  title: b.is_legacy ? 'Pre-tracking stock' : (b.po_number || 'Batch'),
-                                                  serials: b.serials,
-                                                })}
-                                              >
-                                                View serials ({b.serials.length})
-                                              </button>
-                                            ) : '—'}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                )}
-                              </td>
-                            </tr>
-                          )}
                           </React.Fragment>
                         );
                       })
