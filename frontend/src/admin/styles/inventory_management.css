@@ -622,3 +622,182 @@
   .invd-tabs { gap: 3px; }
   .invd-tab-btn { padding: 6px 12px; font-size: 12px; }
 }
+
+/* ═══════════════════════════════════════
+   WAREHOUSE MAP TAB
+═══════════════════════════════════════ */
+.inv-batch-loading,
+.inv-batch-empty {
+  text-align: center;
+  padding: 40px 24px;
+  color: #9ca3af;
+  font-size: 13px;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  background: #fff;
+}
+.inv-batch-empty--error { color: #dc2626; background: #fef2f2; border-color: #fecaca; }
+
+.inv-warehouse-map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.inv-warehouse-map-card {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow .15s, border-color .15s;
+}
+.inv-warehouse-map-card--fifo {
+  border-color: #fed7aa;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 0 0 1px rgba(217,119,6,.08);
+}
+
+.inv-warehouse-map-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.inv-warehouse-map-product {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+}
+.inv-fifo-badge {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.inv-warehouse-map-meta-row {
+  display: flex;
+  gap: 18px;
+}
+.inv-warehouse-map-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.inv-warehouse-map-meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.inv-warehouse-map-meta-value {
+  font-size: 12.5px;
+  color: #374151;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv-warehouse-map-stock-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inv-warehouse-map-stock-bar {
+  width: 100%;
+  height: 5px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.inv-warehouse-map-stock-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #059669;
+  min-width: 2px;
+  transition: width .3s ease;
+}
+.inv-warehouse-map-stock-label {
+  font-size: 11.5px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.inv-warehouse-map-zone {
+  padding-top: 10px;
+  border-top: 1px solid #f3f4f6;
+}
+.inv-warehouse-map-zone-view {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.inv-warehouse-map-zone-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+.inv-warehouse-map-zone-pill--unassigned {
+  background: #f3f4f6;
+  color: #9ca3af;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.inv-warehouse-map-zone-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.inv-warehouse-map-zone-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  font-size: 12.5px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #374151;
+  outline: none;
+  transition: border-color .15s;
+}
+.inv-warehouse-map-zone-input:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.10); }
+.inv-warehouse-map-zone-save,
+.inv-warehouse-map-zone-cancel {
+  flex-shrink: 0;
+  padding: 6px 11px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+}
+.inv-warehouse-map-zone-save { background: #dc2626; color: #fff; }
+.inv-warehouse-map-zone-save:hover { background: #b91c1c; }
+.inv-warehouse-map-zone-cancel { background: #f3f4f6; color: #6b7280; }
+.inv-warehouse-map-zone-cancel:hover { background: #e5e7eb; color: #374151; }
+
+@media (max-width: 640px) {
+  .inv-warehouse-map-grid { grid-template-columns: 1fr; }
+}

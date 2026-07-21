@@ -906,45 +906,93 @@ const InventoryManagement = () => {
             {warehouseBatchesLoading ? (
               <div className="inv-batch-loading">Loading warehouse batches…</div>
             ) : warehouseBatchesError ? (
-              <div className="inv-batch-empty">{warehouseBatchesError}</div>
+              <div className="inv-batch-empty inv-batch-empty--error">{warehouseBatchesError}</div>
             ) : warehouseBatches.length === 0 ? (
               <div className="inv-batch-empty">No batches with remaining stock.</div>
             ) : (
               <div className="inv-warehouse-map-grid">
-                {warehouseBatches.map((batch) => (
-                  <div key={batch.batch_id} className="inv-warehouse-map-card">
-                    <div className="inv-warehouse-map-card-header">
-                      <strong>{batch.product_name}</strong>
-                      {oldestBatchIdByProduct[batch.product_id] === batch.batch_id && (
-                        <span className="inv-fifo-badge">Pick this first (FIFO)</span>
-                      )}
-                    </div>
-                    <div className="inv-warehouse-map-card-body">
-                      <div>PO: {batch.is_legacy ? 'Pre-tracking stock' : (batch.po_number || '—')}</div>
-                      <div>Received: {batch.received_at || '—'}</div>
-                      <div>Remaining: {batch.quantity_remaining} / {batch.quantity_received}</div>
+                {warehouseBatches.map((batch) => {
+                  const isOldest = oldestBatchIdByProduct[batch.product_id] === batch.batch_id;
+                  const pctRemaining = batch.quantity_received > 0
+                    ? Math.round((batch.quantity_remaining / batch.quantity_received) * 100)
+                    : 0;
+                  return (
+                    <div key={batch.batch_id} className={`inv-warehouse-map-card${isOldest ? ' inv-warehouse-map-card--fifo' : ''}`}>
+                      <div className="inv-warehouse-map-card-header">
+                        <span className="inv-warehouse-map-product">{batch.product_name}</span>
+                        {isOldest && (
+                          <span className="inv-fifo-badge" title="Oldest available batch for this product — issue this one first.">
+                            Pick this first
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="inv-warehouse-map-meta-row">
+                        <div className="inv-warehouse-map-meta">
+                          <span className="inv-warehouse-map-meta-label">PO Number</span>
+                          <span className="inv-warehouse-map-meta-value">
+                            {batch.is_legacy ? 'Pre-tracking stock' : (batch.po_number || '—')}
+                          </span>
+                        </div>
+                        <div className="inv-warehouse-map-meta">
+                          <span className="inv-warehouse-map-meta-label">Received</span>
+                          <span className="inv-warehouse-map-meta-value">{batch.received_at || '—'}</span>
+                        </div>
+                      </div>
+
+                      <div className="inv-warehouse-map-stock-row">
+                        <div className="inv-warehouse-map-stock-bar">
+                          <div className="inv-warehouse-map-stock-bar-fill" style={{ width: `${pctRemaining}%` }} />
+                        </div>
+                        <span className="inv-warehouse-map-stock-label">
+                          {batch.quantity_remaining} / {batch.quantity_received} remaining
+                        </span>
+                      </div>
+
                       <div className="inv-warehouse-map-zone">
                         {editingZoneBatchId === batch.batch_id ? (
-                          <>
+                          <div className="inv-warehouse-map-zone-edit">
                             <input
                               type="text"
+                              className="inv-warehouse-map-zone-input"
                               value={editingZoneValue}
                               onChange={(e) => setEditingZoneValue(e.target.value)}
                               placeholder="e.g. Aisle 3, Shelf B"
+                              autoFocus
                             />
-                            <button onClick={() => saveZoneEdit(batch.batch_id)}>Save</button>
-                            <button onClick={() => setEditingZoneBatchId(null)}>Cancel</button>
-                          </>
+                            <button
+                              type="button"
+                              className="inv-warehouse-map-zone-save"
+                              onClick={() => saveZoneEdit(batch.batch_id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="inv-warehouse-map-zone-cancel"
+                              onClick={() => setEditingZoneBatchId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         ) : (
-                          <>
-                            <span>{batch.zone_label || 'Unassigned'}</span>
-                            <button className="inv-action-link" onClick={() => startEditingZone(batch)}>Edit</button>
-                          </>
+                          <div className="inv-warehouse-map-zone-view">
+                            <span className={`inv-warehouse-map-zone-pill${!batch.zone_label ? ' inv-warehouse-map-zone-pill--unassigned' : ''}`}>
+                              {batch.zone_label || 'Unassigned'}
+                            </span>
+                            <button
+                              type="button"
+                              className="inv-action-link"
+                              onClick={() => startEditingZone(batch)}
+                            >
+                              Edit
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
