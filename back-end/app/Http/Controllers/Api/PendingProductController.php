@@ -197,6 +197,7 @@ class PendingProductController extends Controller
         $query = PendingProduct::query()
             ->with(['category', 'brand', 'creator', 'openingLocation'])
             ->where('status', 'pending')
+            ->forUser($request->user())
             ->orderByDesc('created_at');
 
         return $this->paginated($query->paginate($perPage), 'Pending registrations');
