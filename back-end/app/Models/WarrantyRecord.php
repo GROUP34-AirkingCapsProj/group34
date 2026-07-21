@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Auditable;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 
 class WarrantyRecord extends Model
 {
@@ -66,6 +68,21 @@ class WarrantyRecord extends Model
     public function issuanceDetail()
     {
         return $this->belongsTo(IssuanceDetail::class, 'issuance_detail_id', 'issuance_detail_id');
+    }
+
+    /**
+     * Location read-scope via the originating issuance's location.
+     */
+    public function scopeForUser(Builder $query, User $user): Builder
+    {
+        if ($user->isCentralized()) {
+            return $query;
+        }
+        $loc = $user->scopedLocationId();
+        if ($loc === null) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->whereHas('issuance', fn ($q) => $q->where('location_id', $loc));
     }
 
     public function getIsExpiredAttribute(): bool

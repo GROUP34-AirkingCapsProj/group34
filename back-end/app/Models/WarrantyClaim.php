@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 class WarrantyClaim extends Model
 {
-    use Auditable, SoftDeletes;
+    use Auditable, SoftDeletes, ScopesToUserLocation;
 
     protected $table = 'warranty_claims';
     protected $primaryKey = 'claim_id';
