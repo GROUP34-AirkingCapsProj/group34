@@ -38,7 +38,7 @@ class InventoryBatchesEndpointTest extends TestCase
         $svc = new InventoryBatchService();
         $rcv1 = Receiving::create(['location_id' => $location->location_id, 'receiving_number' => 'RCV-' . uniqid(), 'receiving_date' => now()->subDays(5)]);
         $rcv2 = Receiving::create(['location_id' => $location->location_id, 'receiving_number' => 'RCV-' . uniqid(), 'receiving_date' => now()]);
-        $svc->createBatch($product->product_id, $location->location_id, $rcv1->receiving_id, 5, now()->subDays(5));
+        $svc->createBatch($product->product_id, $location->location_id, $rcv1->receiving_id, 5, now()->subDays(5), 'Aisle 3, Shelf B');
         $svc->createBatch($product->product_id, $location->location_id, $rcv2->receiving_id, 10, now());
 
         $res = $this->actingAs($user)->getJson("/api/inventory/{$inv->inventory_id}/batches");
@@ -48,5 +48,7 @@ class InventoryBatchesEndpointTest extends TestCase
         $this->assertCount(2, $data);
         $this->assertSame($rcv1->receiving_id, $data[0]['receiving_id']);
         $this->assertSame($rcv2->receiving_id, $data[1]['receiving_id']);
+        $this->assertSame('Aisle 3, Shelf B', $data[0]['zone_label']);
+        $this->assertNull($data[1]['zone_label']);
     }
 }
