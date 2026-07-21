@@ -456,6 +456,100 @@ class TransferController extends Controller
         }
     }
 
+    public function verify(Request $request, $id, TransferService $service)
+    {
+        $validated = $request->validate([
+            'from_location_id'           => 'nullable|exists:locations,location_id',
+            'to_location_id'             => 'nullable|exists:locations,location_id',
+            'lines'                      => 'sometimes|array',
+            'lines.*.transfer_detail_id' => 'required|integer',
+            'lines.*.quantity_approved'  => 'required|integer|min:0',
+        ]);
+
+        $transfer = Transfer::with('details')->findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only submitted requests can be verified.', 422);
+        }
+
+        $newFrom = !empty($validated['from_location_id']) ? (int) $validated['from_location_id'] : $transfer->from_location_id;
+        $newTo   = !empty($validated['to_location_id']) ? (int) $validated['to_location_id'] : (int) $transfer->to_location_id;
+
+        if ($newFrom === null) {
+            return $this->error('A source location must be assigned.', 422);
+        }
+        if ((int) $newFrom === (int) $newTo) {
+            return $this->error('Source and destination must differ.', 422);
+        }
+
+        $zeroed = collect($validated['lines'] ?? [])
+            ->filter(fn ($l) => (int) $l['quantity_approved'] === 0)
+            ->pluck('transfer_detail_id')->all();
+        $survivors = $transfer->details->reject(fn ($d) => in_array($d->transfer_detail_id, $zeroed))->count();
+        if ($survivors < 1) {
+            return $this->error('At least one line must remain.', 422);
+        }
+
+        return DB::transaction(function () use ($request, $validated, $transfer, $service, $newFrom, $newTo) {
+            $user = $request->user();
+            $transfer->from_location_id = $newFrom;
+            $transfer->to_location_id   = $newTo;
+
+            foreach ($validated['lines'] ?? [] as $line) {
+                $detail = TransferDetail::where('transfer_detail_id', $line['transfer_detail_id'])
+                    ->where('transfer_id', $transfer->transfer_id)->first();
+                if (!$detail) continue;
+                if ((int) $line['quantity_approved'] === 0) {
+                    $detail->delete();
+                } else {
+                    $detail->quantity_requested = (int) $line['quantity_approved'];
+                    $detail->save();
+                }
+            }
+
+            $transfer->approved_by = $user->user_id;
+            $transfer->status_id   = $service->statusIdForTest('Approved');
+            $transfer->save();
+
+            \App\Models\TblTransferTracking::create([
+                'transfer_id' => $transfer->transfer_id,
+                'location_id' => $transfer->from_location_id,
+                'status_note' => "Verified & assigned to source by " . ($user->username ?? "user#{$user->user_id}"),
+                'recorded_by' => $user->user_id,
+                'recorded_at' => now(),
+            ]);
+
+            \App\Support\RealtimeBroadcaster::transferChanged(
+                (int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed'
+            );
+
+            return $this->success($transfer->fresh()->load(self::withRelations()), 'Transfer verified and assigned');
+        });
+    }
+
+    public function reject(Request $request, $id, TransferService $service)
+    {
+        $validated = $request->validate(['rejection_reason' => 'nullable|string|max:500']);
+        $transfer = Transfer::findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only submitted requests can be rejected.', 422);
+        }
+        $transfer->status_id = $service->statusIdForTest('Rejected');
+        if (!empty($validated['rejection_reason'])) {
+            $transfer->notes = trim("REJECTED: {$validated['rejection_reason']}\n\n" . ($transfer->notes ?? ''));
+        }
+        $transfer->save();
+        \App\Support\RealtimeBroadcaster::transferChanged(
+            (int) ($transfer->from_location_id ?? 0), (int) $transfer->to_location_id, 'request_changed'
+        );
+        return $this->success($transfer->fresh()->load(self::withRelations()), 'Transfer request rejected');
+    }
+
+    public function pickList($id, TransferService $service)
+    {
+        $transfer = Transfer::with('details.product')->findOrFail($id);
+        return $this->success($service->pickList($transfer), 'Pick list generated');
+    }
+
     public function addTracking(Request $request, $id)
     {
         try {
