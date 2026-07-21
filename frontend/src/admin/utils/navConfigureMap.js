@@ -13,7 +13,7 @@ export const EXTRA_FEATURES_BY_ROUTE = {
   '/admin/config':              ['user_account_management'],
   '/admin/draft-po-creator':    ['purchase_order_verification'],
   '/admin/archive':             ['data_archiving'],
-  '/admin/purchase-requests':   ['purchase_request_approval'],
+  '/admin/purchase-requests':   ['purchase_request_approval', 'po_recommendations'],
   '/admin/suppliers':           ['item_supplier_mapping'],
   '/admin/items':               ['barcode_assignment'],
   '/admin/categories':          ['brand_management'],
