@@ -23,7 +23,7 @@ class IssuanceController extends Controller
         try {
             $query = Issuance::query()
                 ->forUser($request->user())
-                ->with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product']);
+                ->with(['location', 'issuedToUser', 'issuedByUser', 'approvedBy', 'status', 'details.product']);
 
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);
@@ -110,7 +110,7 @@ class IssuanceController extends Controller
     public function show($id)
     {
         try {
-            $issuance = Issuance::with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product'])->findOrFail($id);
+            $issuance = Issuance::with(['location', 'issuedToUser', 'issuedByUser', 'approvedBy', 'status', 'details.product'])->findOrFail($id);
             return $this->success($issuance, 'Issuance retrieved successfully');
         } catch (\Exception $e) {
             return $this->error('Issuance not found', 404);
