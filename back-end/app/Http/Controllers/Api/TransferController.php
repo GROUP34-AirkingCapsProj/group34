@@ -32,29 +32,29 @@ class TransferController extends Controller
         return DB::table('status_lookup')->where('status_name', $statusName)->value('status_id');
     }
 
+    private static function withRelations(): array
+    {
+        return ['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'status', 'details.product'];
+    }
+
     public function index(Request $request)
     {
         try {
             $user = $request->user();
-            $query = Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'receivedBy', 'status', 'details.product']);
+            $query = Transfer::with(self::withRelations())->forUser($user);
 
-            $query->forUser($user);
-
-            if ($request->has('from_location_id')) {
-                $query->where('from_location_id', $request->from_location_id);
+            if ($request->filled('status_id')) {
+                $query->where('status_id', $request->integer('status_id'));
             }
-            if ($request->has('to_location_id')) {
-                $query->where('to_location_id', $request->to_location_id);
-            }
-            if ($request->has('status_id')) {
-                $query->where('status_id', $request->status_id);
-            }
-            if ($request->has('search')) {
+            if ($request->filled('search')) {
                 $query->where('transfer_number', 'like', '%' . $request->search . '%');
             }
 
-            $perPage = $request->get('per_page', 20);
-            return $this->paginated($query->orderBy('created_at', 'desc')->paginate($perPage), 'Transfers retrieved successfully');
+            $perPage = $request->integer('per_page', 20);
+            return $this->paginated(
+                $query->orderBy('created_at', 'desc')->paginate($perPage),
+                'Transfers retrieved'
+            );
         } catch (\Exception $e) {
             return $this->error('Failed to retrieve transfers: ' . $e->getMessage(), 500);
         }
@@ -62,68 +62,94 @@ class TransferController extends Controller
 
     public function store(Request $request, TransferService $service)
     {
-        try {
-            $validated = $request->validate([
-                'from_location_id'           => 'required|exists:locations,location_id',
-                'to_location_id'             => 'required|different:from_location_id|exists:locations,location_id',
-                'transfer_date'              => 'required|date',
-                'details'                    => 'required|array|min:1',
-                'details.*.product_id'       => 'required|exists:products,product_id',
-                'details.*.quantity_transferred' => 'required|integer|min:1',
-                'details.*.serials'          => 'sometimes|array',
-                'details.*.serials.*'        => 'string',
+        $validated = $request->validate([
+            'intent'                         => 'required|in:pull,offload,demand',
+            'from_location_id'               => 'nullable|exists:locations,location_id',
+            'to_location_id'                 => 'required|exists:locations,location_id|different:from_location_id',
+            'transfer_date'                  => 'required|date',
+            'notes'                          => 'nullable|string|max:500',
+            'products'                       => 'required|array|min:1',
+            'products.*.product_id'          => 'required|exists:products,product_id',
+            'products.*.quantity_requested'  => 'required|integer|min:1',
+        ]);
+
+        if ($validated['intent'] === 'pull') {
+            $validated['from_location_id'] = null;
+        } elseif (empty($validated['from_location_id'])) {
+            return $this->error('A source location is required for this transfer type.', 422);
+        }
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($validated, $user, $service) {
+            $status = $validated['intent'] === 'demand' ? 'Approved' : 'Pending';
+
+            $transfer = Transfer::create([
+                'transfer_request_id'        => null,
+                'intent'                     => $validated['intent'],
+                'from_location_id'           => $validated['from_location_id'],
+                'to_location_id'             => $validated['to_location_id'],
+                'transfer_number'            => 'TR-PENDING-' . uniqid('', true),
+                'transfer_date'              => $validated['transfer_date'],
+                'requested_by'               => $user->user_id,
+                'approved_by'                => $validated['intent'] === 'demand' ? $user->user_id : null,
+                'status_id'                  => $service->statusIdForTest($status),
+                'notes'                      => $validated['notes'] ?? null,
+                'total_quantity_transferred' => 0,
+                'total_quantity_received'    => 0,
+            ]);
+            $transfer->transfer_number = 'TR-' . date('Ymd') . '-' . str_pad((string) $transfer->transfer_id, 4, '0', STR_PAD_LEFT);
+            $transfer->save();
+
+            foreach ($validated['products'] as $row) {
+                $transfer->details()->create([
+                    'product_id'           => $row['product_id'],
+                    'quantity_requested'   => (int) $row['quantity_requested'],
+                    'quantity_scanned'     => 0,
+                    'quantity_transferred' => 0,
+                    'quantity_received'    => 0,
+                ]);
+            }
+
+            \App\Models\TblTransferTracking::create([
+                'transfer_id' => $transfer->transfer_id,
+                'location_id' => $validated['to_location_id'],
+                'status_note' => ucfirst($validated['intent']) . ' transfer request submitted',
+                'recorded_by' => $user->user_id,
+                'recorded_at' => now(),
             ]);
 
-            $lines = array_map(fn ($d) => [
-                'product_id' => (int) $d['product_id'],
-                'quantity'   => (int) $d['quantity_transferred'],
-                'serials'    => $d['serials'] ?? [],
-            ], $validated['details']);
-
-            $transfer = $service->directOverride(
-                (int) $validated['from_location_id'],
-                (int) $validated['to_location_id'],
-                $lines,
-                $request->user()->user_id,
-                $validated['transfer_date']
+            \App\Support\RealtimeBroadcaster::transferChanged(
+                (int) ($transfer->from_location_id ?? 0),
+                (int) $transfer->to_location_id,
+                'request_changed'
             );
 
-            try {
-                \App\Models\AuditTrail::create([
-                    'user_id'    => $request->user()?->user_id,
-                    'action'     => 'admin_direct_transfer',
-                    'table_name' => 'transfers',
-                    'record_id'  => $transfer->transfer_id,
-                    'old_values' => null,
-                    'new_values' => [
-                        'transfer_number'  => $transfer->transfer_number,
-                        'from_location_id' => $validated['from_location_id'],
-                        'to_location_id'   => $validated['to_location_id'],
-                    ],
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ]);
-            } catch (\Throwable $e) { report($e); }
-
-            return $this->success(
-                $transfer->load(['fromLocation', 'toLocation', 'details.product']),
-                'Direct transfer completed',
-                201
-            );
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        } catch (\RuntimeException $e) {
-            return $this->error($e->getMessage(), 422);
-        } catch (\Exception $e) {
-            return $this->error('Failed to complete direct transfer: ' . $e->getMessage(), 500);
-        }
+            return $this->success($transfer->load(self::withRelations()), 'Transfer request submitted', 201);
+        });
     }
 
     public function show($id)
     {
         try {
-            $transfer = Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'receivedBy', 'status', 'details.product', 'transferTracking'])->findOrFail($id);
-            return $this->success($transfer, 'Transfer retrieved successfully');
+            $transfer = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy']))
+                ->findOrFail($id);
+
+            $fromLocId = $transfer->from_location_id;
+            $availability = $fromLocId
+                ? \App\Models\Inventory::where('location_id', $fromLocId)
+                    ->whereIn('product_id', $transfer->details->pluck('product_id'))
+                    ->pluck('available_quantity', 'product_id')
+                : collect();
+
+            foreach ($transfer->details as $detail) {
+                $available = (int) ($availability[$detail->product_id] ?? 0);
+                $detail->available_at_source = $available;
+                $detail->stock_at_source     = $available;
+                $detail->shortfall           = max(0, (int) $detail->quantity_requested - $available);
+            }
+
+            return $this->success($transfer, 'Transfer retrieved');
         } catch (\Exception $e) {
             return $this->error('Transfer not found', 404);
         }
