@@ -861,3 +861,14 @@
   gap: 4px;
   margin-top: 10px;
 }
+
+/* Batch serials modal body */
+.inv-serial-modal {
+  padding-top: 12px;
+}
+.inv-serial-modal-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
