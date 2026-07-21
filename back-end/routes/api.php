@@ -25,8 +25,6 @@ use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\DeliveryReceiptController;
 use App\Http\Controllers\Api\IssuanceController;
 use App\Http\Controllers\Api\TransferController;
-use App\Http\Controllers\Api\TransferRequestController;
-use App\Http\Controllers\Api\ISTController;
 use App\Http\Controllers\Api\AdjustmentController;
 use App\Http\Controllers\Api\BarcodeAdjustmentController;
 use App\Http\Controllers\Api\ProfitLossController;
@@ -624,44 +622,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | IST — INTERBRANCH STOCK TRANSFER (IST document, linked to request)
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/ist', [ISTController::class, 'index']);
-    Route::get('/ist/prepare/{requestId}', [ISTController::class, 'prepareFromRequest']);
-    Route::get('/ist/{id}/scan-status', [ISTController::class, 'scanStatus']);
-    Route::get('/ist/{id}/receive', [ISTController::class, 'receiveForm']);
-    Route::get('/ist/{id}/receipt', [ISTController::class, 'receipt']);
-    // NOTE: /ist/{id}/receipt/pdf is a browser-download route — defined below with
-    // auth.query.token so the <a href> link can authenticate via ?token=.
-    Route::get('/ist/{id}', [ISTController::class, 'show']);
-    Route::middleware('permission:inventory_transfers,create')->group(function () {
-        Route::post('/ist', [ISTController::class, 'store']);
-        Route::post('/ist/{transferId}/scan', [ISTController::class, 'scan']);
-        Route::delete('/ist/{transferId}/scan/{scanId}', [ISTController::class, 'removeScan']);
-        Route::post('/ist/{transferId}/confirm-dispatch', [ISTController::class, 'confirmDispatch']);
-    });
-    Route::middleware('permission:inventory_transfers,update')->group(function () {
-        Route::post('/ist/{id}/receive', [ISTController::class, 'receiveStore']);
-        Route::post('/ist/{transferId}/receive-scan', [ISTController::class, 'receiveScan']);
-        Route::delete('/ist/{transferId}/receive-scan/{scanId}', [ISTController::class, 'removeReceiveScan']);
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | TRANSFER REQUESTS (interbranch stock request workflow)
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/transfer-requests', [TransferRequestController::class, 'index']);
-    Route::get('/transfer-requests/{id}', [TransferRequestController::class, 'show']);
-    Route::middleware('permission:inventory_transfers,create')->post('/transfer-requests', [TransferRequestController::class, 'store']);
-    Route::middleware('permission:inventory_transfers,approve')->group(function () {
-        Route::patch('/transfer-requests/{id}/approve', [TransferRequestController::class, 'approve']);
-        Route::patch('/transfer-requests/{id}/reject', [TransferRequestController::class, 'reject']);
-    });
-
-    /*
-    |--------------------------------------------------------------------------
     | ERD: TRANSFER (transfer)
     |--------------------------------------------------------------------------
     */
@@ -920,7 +880,7 @@ Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,r
          [IssuanceScanController::class, 'downloadDeliveryReceipt']);
 
 Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
-     ->get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
+     ->get('/transfers/{id}/receipt/pdf', [TransferController::class, 'receiptPdf']);
 
 // Goods Received Note downloads. These use standard Bearer auth (auth:sanctum),
 // NOT a ?token= query param — the frontend fetches the file with the Authorization
