@@ -256,10 +256,16 @@ const InventoryManagement = () => {
         prevExpanded.forEach((id) => fetchBatchesForId(id));
         return prevExpanded;
       });
+      // Same staleness problem applies to the Warehouse Map tab: its quantities and
+      // FIFO badges come from a snapshot fetched only when the tab becomes active, so
+      // re-fetch it too when it's the one currently on screen.
+      if (activeTab === 'warehouse-map') {
+        fetchWarehouseBatches();
+      }
     };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage, fetchBatchesForId]);
+  }, [fetchInventory, currentPage, fetchBatchesForId, activeTab, fetchWarehouseBatches]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -302,23 +308,23 @@ const InventoryManagement = () => {
     return () => { cancelled = true; };
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab !== 'warehouse-map') return;
-    let cancelled = false;
+  const fetchWarehouseBatches = useCallback(async () => {
     setWarehouseBatchesLoading(true);
     setWarehouseBatchesError(null);
-    inventoryAPI.getWarehouseBatches()
-      .then((res) => {
-        if (!cancelled) setWarehouseBatches(res?.data ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled) setWarehouseBatchesError(err?.message || 'Failed to load warehouse batches.');
-      })
-      .finally(() => {
-        if (!cancelled) setWarehouseBatchesLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [activeTab]);
+    try {
+      const res = await inventoryAPI.getWarehouseBatches();
+      setWarehouseBatches(res?.data ?? []);
+    } catch (err) {
+      setWarehouseBatchesError(err?.message || 'Failed to load warehouse batches.');
+    } finally {
+      setWarehouseBatchesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'warehouse-map') return;
+    fetchWarehouseBatches();
+  }, [activeTab, fetchWarehouseBatches]);
 
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
