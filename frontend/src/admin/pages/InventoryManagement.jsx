@@ -115,6 +115,14 @@ const InventoryManagement = () => {
   const focusInvId = useFocusTarget('inv');
   const focusHandledRef = useRef(false);
   const [invPulse, fireInvPulse] = useFocusPulse();
+  const [expandedBatchIds, setExpandedBatchIds] = useState(new Set());
+  const [batchesByInventoryId, setBatchesByInventoryId] = useState({});
+  const [batchesLoading, setBatchesLoading] = useState({});
+  const [warehouseBatches, setWarehouseBatches] = useState([]);
+  const [warehouseBatchesLoading, setWarehouseBatchesLoading] = useState(false);
+  const [warehouseBatchesError, setWarehouseBatchesError] = useState(null);
+  const [editingZoneBatchId, setEditingZoneBatchId] = useState(null);
+  const [editingZoneValue, setEditingZoneValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
@@ -203,14 +211,74 @@ const InventoryManagement = () => {
     }
   }, []);
 
+  const fetchBatchesForId = useCallback(async (inventoryId) => {
+    setBatchesLoading((prev) => ({ ...prev, [inventoryId]: true }));
+    try {
+      const res = await inventoryAPI.getBatches(inventoryId);
+      const list = res?.data ?? [];
+      setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: list }));
+    } catch {
+      setBatchesByInventoryId((prev) => ({ ...prev, [inventoryId]: [] }));
+    } finally {
+      setBatchesLoading((prev) => ({ ...prev, [inventoryId]: false }));
+    }
+  }, []);
+
+  const toggleBatches = async (inventoryId) => {
+    setExpandedBatchIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(inventoryId)) {
+        next.delete(inventoryId);
+      } else {
+        next.add(inventoryId);
+      }
+      return next;
+    });
+
+    if (!batchesByInventoryId[inventoryId]) {
+      await fetchBatchesForId(inventoryId);
+    }
+  };
+
+  const fetchWarehouseBatches = useCallback(async () => {
+    setWarehouseBatchesLoading(true);
+    setWarehouseBatchesError(null);
+    try {
+      const res = await inventoryAPI.getWarehouseBatches();
+      setWarehouseBatches(res?.data ?? []);
+    } catch (err) {
+      setWarehouseBatchesError(err?.message || 'Failed to load warehouse batches.');
+    } finally {
+      setWarehouseBatchesLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchInventory(currentPage); }, [currentPage, fetchInventory]);
 
   // Re-fetch when a barcode scan transaction is confirmed anywhere in the app.
   useEffect(() => {
-    const onScanApplied = () => fetchInventory(currentPage);
+    const onScanApplied = () => {
+      fetchInventory(currentPage);
+      // The batch drill-down cache has no per-item invalidation signal, so clear it
+      // wholesale to avoid showing stale batch breakdowns after a receiving/transfer/
+      // issuance event mutates batches elsewhere. Re-fetch any row that's currently
+      // expanded so it doesn't just go blank until the user re-toggles it.
+      setBatchesByInventoryId({});
+      setBatchesLoading({});
+      setExpandedBatchIds((prevExpanded) => {
+        prevExpanded.forEach((id) => fetchBatchesForId(id));
+        return prevExpanded;
+      });
+      // Same staleness problem applies to the Warehouse Map tab: its quantities and
+      // FIFO badges come from a snapshot fetched only when the tab becomes active, so
+      // re-fetch it too when it's the one currently on screen.
+      if (activeTab === 'warehouse-map') {
+        fetchWarehouseBatches();
+      }
+    };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage]);
+  }, [fetchInventory, currentPage, fetchBatchesForId, activeTab, fetchWarehouseBatches]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -252,6 +320,11 @@ const InventoryManagement = () => {
     fetchActivity();
     return () => { cancelled = true; };
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'warehouse-map') return;
+    fetchWarehouseBatches();
+  }, [activeTab, fetchWarehouseBatches]);
 
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
@@ -358,6 +431,38 @@ const InventoryManagement = () => {
   }).length;
   const overstockCount = inventory.filter((i) => getItemQty(i) >= getItemMax(i)).length;
 
+  const oldestBatchIdByProduct = useMemo(() => {
+    const oldest = {};
+    for (const b of warehouseBatches) {
+      const current = oldest[b.product_id];
+      if (!current || (b.received_at && (!current.received_at || b.received_at < current.received_at))) {
+        oldest[b.product_id] = b;
+      }
+    }
+    const result = {};
+    for (const productId of Object.keys(oldest)) {
+      result[productId] = oldest[productId].batch_id;
+    }
+    return result;
+  }, [warehouseBatches]);
+
+  const startEditingZone = (batch) => {
+    setEditingZoneBatchId(batch.batch_id);
+    setEditingZoneValue(batch.zone_label || '');
+  };
+
+  const saveZoneEdit = async (batchId) => {
+    try {
+      await inventoryAPI.updateBatchZone(batchId, editingZoneValue || null);
+      setWarehouseBatches((prev) =>
+        prev.map((b) => (b.batch_id === batchId ? { ...b, zone_label: editingZoneValue || null } : b))
+      );
+      setEditingZoneBatchId(null);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update zone label.');
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="ak-page inv-page">
@@ -398,6 +503,12 @@ const InventoryManagement = () => {
             onClick={() => setActiveTab('activity')}
           >
             Activity Log
+          </button>
+          <button
+            className={`ak-tab ${activeTab === 'warehouse-map' ? 'is-active' : ''}`}
+            onClick={() => setActiveTab('warehouse-map')}
+          >
+            Warehouse Map
           </button>
         </div>
 
@@ -691,8 +802,11 @@ const InventoryManagement = () => {
                     ) : (
                       inventory.map((item) => {
                         const status = getItemStatus(item);
+                        const isExpanded = expandedBatchIds.has(item.inventory_id);
+                        const rowBatches = batchesByInventoryId[item.inventory_id] || [];
                         return (
-                          <tr key={item.inventory_id}>
+                          <React.Fragment key={item.inventory_id}>
+                          <tr>
                             <td>
                               <div className="inv-product-cell">
                                 <span className="inv-product-name">{getItemName(item)}</span>
@@ -718,10 +832,50 @@ const InventoryManagement = () => {
                             </td>
                             <td>
                               <div className="inv-cell-actions">
+                                <button
+                                  className="inv-action-link"
+                                  onClick={() => toggleBatches(item.inventory_id)}
+                                  aria-expanded={isExpanded}
+                                >
+                                  {isExpanded ? 'Hide batches' : 'Batches'}
+                                </button>
                                 <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); loadInventoryHistory(item.inventory_id); }}>View</button>
                               </div>
                             </td>
                           </tr>
+                          {isExpanded && (
+                            <tr className="inv-batch-row">
+                              <td colSpan={8}>
+                                {batchesLoading[item.inventory_id] ? (
+                                  <div className="inv-batch-loading">Loading batches…</div>
+                                ) : rowBatches.length === 0 ? (
+                                  <div className="inv-batch-empty">No batch history for this item.</div>
+                                ) : (
+                                  <table className="inv-batch-table">
+                                    <thead>
+                                      <tr>
+                                        <th>PO Number</th>
+                                        <th>Received</th>
+                                        <th>Qty Remaining</th>
+                                        <th>Qty Received</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {rowBatches.map((b) => (
+                                        <tr key={b.batch_id}>
+                                          <td>{b.is_legacy ? 'Pre-tracking stock' : (b.po_number || '—')}</td>
+                                          <td>{b.received_at || '—'}</td>
+                                          <td>{b.quantity_remaining}</td>
+                                          <td>{b.quantity_received}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         );
                       })
                     )}
@@ -745,6 +899,55 @@ const InventoryManagement = () => {
               })()}
             </div>
           </>
+        )}
+
+        {activeTab === 'warehouse-map' && (
+          <div className="inv-warehouse-map">
+            {warehouseBatchesLoading ? (
+              <div className="inv-batch-loading">Loading warehouse batches…</div>
+            ) : warehouseBatchesError ? (
+              <div className="inv-batch-empty">{warehouseBatchesError}</div>
+            ) : warehouseBatches.length === 0 ? (
+              <div className="inv-batch-empty">No batches with remaining stock.</div>
+            ) : (
+              <div className="inv-warehouse-map-grid">
+                {warehouseBatches.map((batch) => (
+                  <div key={batch.batch_id} className="inv-warehouse-map-card">
+                    <div className="inv-warehouse-map-card-header">
+                      <strong>{batch.product_name}</strong>
+                      {oldestBatchIdByProduct[batch.product_id] === batch.batch_id && (
+                        <span className="inv-fifo-badge">Pick this first (FIFO)</span>
+                      )}
+                    </div>
+                    <div className="inv-warehouse-map-card-body">
+                      <div>PO: {batch.is_legacy ? 'Pre-tracking stock' : (batch.po_number || '—')}</div>
+                      <div>Received: {batch.received_at || '—'}</div>
+                      <div>Remaining: {batch.quantity_remaining} / {batch.quantity_received}</div>
+                      <div className="inv-warehouse-map-zone">
+                        {editingZoneBatchId === batch.batch_id ? (
+                          <>
+                            <input
+                              type="text"
+                              value={editingZoneValue}
+                              onChange={(e) => setEditingZoneValue(e.target.value)}
+                              placeholder="e.g. Aisle 3, Shelf B"
+                            />
+                            <button onClick={() => saveZoneEdit(batch.batch_id)}>Save</button>
+                            <button onClick={() => setEditingZoneBatchId(null)}>Cancel</button>
+                          </>
+                        ) : (
+                          <>
+                            <span>{batch.zone_label || 'Unassigned'}</span>
+                            <button className="inv-action-link" onClick={() => startEditingZone(batch)}>Edit</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* ════════════════════════════════════════════════

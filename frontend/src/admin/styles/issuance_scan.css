@@ -1336,6 +1336,11 @@
   opacity: 0.85;
 }
 
+.scan-feedback-warning {
+  font-size: 12px;
+  color: #b45309;
+}
+
 @keyframes scan-feedback-slide-in {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
