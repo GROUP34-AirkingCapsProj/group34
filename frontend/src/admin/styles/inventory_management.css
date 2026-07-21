@@ -872,3 +872,222 @@
   color: #6b7280;
   margin-bottom: 12px;
 }
+
+/* ═══════════════════════════════════════════
+   PO CONSOLE — warehouse-slot map
+   Each PO delivery is a physical storage slot,
+   anchored by its Location bin tag.
+═══════════════════════════════════════════ */
+.po-map-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.po-map-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.po-map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.po-map-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 14px;
+}
+
+.po-slot {
+  position: relative;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.po-slot:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.10);
+  border-color: #d1d5db;
+}
+.po-slot--fifo {
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), inset 3px 0 0 #f59e0b;
+}
+
+.po-slot-flag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.po-slot-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.po-slot--fifo .po-slot-top { padding-right: 70px; }
+
+/* The industrial bin tag — the signature element */
+.po-slot-tag {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 66px;
+  max-width: 120px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #1f2937, #0f172a);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.po-slot-tag-eyebrow {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #f59e0b;
+}
+.po-slot-tag-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.po-slot-ident {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.po-slot-po {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.po-slot-supplier {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.po-slot-wh {
+  font-size: 11.5px;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.po-slot-meta {
+  display: flex;
+  gap: 22px;
+}
+.po-slot-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.po-slot-meta-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+.po-slot-meta-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.po-slot-capacity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.po-slot-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: #eef2f0;
+  overflow: hidden;
+}
+.po-slot-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #10b981, #059669);
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+.po-slot-bar-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.po-slot-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  justify-content: flex-end;
+}
+.po-slot-view {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.po-slot-view:hover {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+.po-slot-view:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .po-map-grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .po-slot, .po-slot-bar-fill { transition: none; }
+  .po-slot:hover { transform: none; }
+}
