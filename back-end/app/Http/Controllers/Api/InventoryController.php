@@ -190,7 +190,10 @@ class InventoryController extends Controller
             ->orderBy('receiving_details.created_at', 'desc')
             ->get();
 
-        // ── Serial records (appliances only) ──────────────────────────────
+        // ── Serial records ───────────────────────────────────────────────
+        // Appliances (serialized): unit-level records from item_serial.
+        // Consumables/bulk (not serialized): the barcode scanned per receiving
+        // event is already captured on receiving_details — surface that instead.
         $serials = collect();
         if ($isSerialized) {
             $serials = ItemSerial::query()
@@ -216,6 +219,23 @@ class InventoryController extends Controller
                 ])
                 ->orderBy('item_serial.created_at', 'desc')
                 ->get();
+        } else {
+            $serials = $receivingDetails
+                ->filter(fn($rd) => ! empty($rd->scanned_barcode))
+                ->map(fn($rd) => (object) [
+                    'serial_id'       => $rd->receiving_detail_id,
+                    'serial_number'   => $rd->scanned_barcode,
+                    'serial_type'     => 'received',
+                    'scanned_at'      => $rd->received_at,
+                    'scanned_by_name' => $rd->received_by_name,
+                    'serial_status'   => 'Received',
+                    'receiving_number'=> $rd->receiving_number,
+                    'receiving_date'  => $rd->receiving_date,
+                    'po_number'       => $rd->po_number,
+                    'po_date'         => $rd->po_date,
+                    'supplier_name'   => $rd->supplier_name,
+                ])
+                ->values();
         }
 
         // ── Summary stats ─────────────────────────────────────────────────
