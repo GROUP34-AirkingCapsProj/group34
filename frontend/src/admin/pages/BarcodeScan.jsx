@@ -615,6 +615,7 @@ const BarcodeScan = () => {
     location_id: '',
     to_location_id: '',
     pc_id: '',
+    zone_label: '',
     adjustment_direction: 'deduct',
     ship_transfer_first: true,
     pending_transfer_id: '',
@@ -2376,6 +2377,7 @@ const BarcodeScan = () => {
                 product_id: productId,
                 quantity_amount: qtyNum,
                 condition: txForm.condition || 'Good',
+                zone_label: txForm.zone_label || null,
               },
             ],
           });
@@ -2611,6 +2613,16 @@ const BarcodeScan = () => {
             );
           })}
         </select>
+      </div>
+      <div className="bs-filter-col">
+        <label>ZONE LABEL (OPTIONAL)</label>
+        <input
+          type="text"
+          placeholder="e.g. Aisle 3, Shelf B"
+          value={txForm.zone_label}
+          onChange={(e) => setTxForm((p) => ({ ...p, zone_label: e.target.value }))}
+          title="Where this batch is physically shelved — shown on the Warehouse Map."
+        />
       </div>
     </div>
   );
