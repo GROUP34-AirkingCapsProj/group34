@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Traits\Auditable;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -75,5 +77,20 @@ class PendingProduct extends Model
     public function createdProduct(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'created_product_id', 'product_id');
+    }
+
+    /**
+     * Location read-scope by the opening location a registration was created at.
+     */
+    public function scopeForUser(Builder $query, User $user): Builder
+    {
+        if ($user->isCentralized()) {
+            return $query;
+        }
+        $loc = $user->scopedLocationId();
+        if ($loc === null) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->where('opening_location_id', $loc);
     }
 }
