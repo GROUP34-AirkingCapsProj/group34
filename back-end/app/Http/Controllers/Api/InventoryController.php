@@ -249,6 +249,24 @@ class InventoryController extends Controller
 
         $latestReceiving = $receivingDetails->first();
 
+        // ── Movement summary: distinguish customer sales from transfers ────
+        // Sold and transferred pieces come from separate tables, so a transfer
+        // can never be counted as a sale (and vice versa). Both work the same
+        // for appliances and consumables — they are recorded as quantities.
+        $soldPieces = (int) DB::table('issuance_details')
+            ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
+            ->where('issuance_details.product_id', $productId)
+            ->where('issuances.location_id', $locationId)
+            ->whereNull('issuances.deleted_at')
+            ->sum(DB::raw('COALESCE(issuance_details.quantity_in_pieces, issuance_details.quantity_issued, 0)'));
+
+        $transferredPieces = (int) DB::table('transfer_details')
+            ->join('transfers', 'transfers.transfer_id', '=', 'transfer_details.transfer_id')
+            ->where('transfer_details.product_id', $productId)
+            ->where('transfers.from_location_id', $locationId)
+            ->whereNull('transfers.deleted_at')
+            ->sum(DB::raw('COALESCE(transfer_details.quantity_transferred, 0)'));
+
         return $this->success([
             'inventory' => [
                 'inventory_id'       => $inventory->inventory_id,
@@ -296,6 +314,9 @@ class InventoryController extends Controller
                 'latest_po_number'      => $latestReceiving?->po_number ?? null,
                 'latest_supplier'       => $latestReceiving?->supplier_name ?? null,
                 'serial_count'          => $serials->count(),
+                'stock_in'              => (int) $totalPieces,
+                'stock_out'             => $soldPieces,
+                'transferred'           => $transferredPieces,
             ],
         ], 'Inventory history retrieved successfully');
     }
