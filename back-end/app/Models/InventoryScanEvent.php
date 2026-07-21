@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class InventoryScanEvent extends Model
@@ -51,5 +53,24 @@ class InventoryScanEvent extends Model
     public function purchaseOrder()
     {
         return $this->belongsTo(PurchaseOrder::class, 'po_id', 'po_id');
+    }
+
+    /**
+     * Location read-scope (dual-location: source or destination).
+     * Centralized users unfiltered; scoped users see events at their location as
+     * origin OR destination; scoped users with no location see nothing.
+     */
+    public function scopeForUser(Builder $query, User $user): Builder
+    {
+        if ($user->isCentralized()) {
+            return $query;
+        }
+        $loc = $user->scopedLocationId();
+        if ($loc === null) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->where(function ($q) use ($loc) {
+            $q->where('location_id', $loc)->orWhere('to_location_id', $loc);
+        });
     }
 }
