@@ -668,8 +668,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/transfers/archived', [TransferController::class, 'archived']);
     Route::get('/transfers', [TransferController::class, 'index']);
     Route::get('/transfers/{id}', [TransferController::class, 'show']);
+    Route::middleware('permission:inventory_transfers,create')->post('/transfers', [TransferController::class, 'store']);
     Route::middleware('role:admin')->group(function () {
-        Route::post('/transfers', [TransferController::class, 'store']);
         Route::put('/transfers/{id}', [TransferController::class, 'update']);
         Route::post('/transfers/{id}/receive', [TransferController::class, 'receive']);
         Route::post('/transfers/{id}/tracking', [TransferController::class, 'addTracking']);

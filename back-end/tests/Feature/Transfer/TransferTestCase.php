@@ -53,6 +53,20 @@ abstract class TransferTestCase extends TestCase
         ]);
     }
 
+    protected function makeUserAt(\App\Models\Location $location, string $role): \App\Models\User
+    {
+        $map = ['admin' => 1, 'inventory_analyst' => 2, 'branch_manager' => 3, 'warehouse_personnel' => 4, 'auditor' => 5];
+        return \App\Models\User::create([
+            'username'      => 'u_' . uniqid(),
+            'first_name'    => 'T',
+            'last_name'     => 'U',
+            'email'         => uniqid() . '@example.test',
+            'password_hash' => bcrypt('secret'),
+            'role_id'       => $map[$role] ?? 4,
+            'location_id'   => $location->location_id,
+        ]);
+    }
+
     protected function makeConsumable(): Product
     {
         return Product::create([
