@@ -10,15 +10,6 @@ use App\Services\TransferService;
 
 class TransferBatchFifoTest extends TransferTestCase
 {
-    private function makeReceiving(int $locationId): Receiving
-    {
-        return Receiving::create([
-            'location_id'      => $locationId,
-            'receiving_number' => 'RCV-' . uniqid(),
-            'receiving_date'   => now(),
-        ]);
-    }
-
     public function test_dispatch_consumable_deducts_oldest_batch_first(): void
     {
         $from = $this->makeLocation('WH-A');
