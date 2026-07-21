@@ -123,6 +123,7 @@ const InventoryManagement = () => {
   const [warehouseBatchesError, setWarehouseBatchesError] = useState(null);
   const [editingZoneBatchId, setEditingZoneBatchId] = useState(null);
   const [editingZoneValue, setEditingZoneValue] = useState('');
+  const [serialModalBatch, setSerialModalBatch] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
@@ -870,11 +871,16 @@ const InventoryManagement = () => {
                                           <td>{b.quantity_received}</td>
                                           <td>
                                             {b.serials && b.serials.length > 0 ? (
-                                              <div className="inv-serial-chips">
-                                                {b.serials.map((sn, i) => (
-                                                  <span className="inv-serial-chip" key={i}>{sn}</span>
-                                                ))}
-                                              </div>
+                                              <button
+                                                type="button"
+                                                className="inv-action-link"
+                                                onClick={() => setSerialModalBatch({
+                                                  title: b.is_legacy ? 'Pre-tracking stock' : (b.po_number || 'Batch'),
+                                                  serials: b.serials,
+                                                })}
+                                              >
+                                                View serials ({b.serials.length})
+                                              </button>
                                             ) : '—'}
                                           </td>
                                         </tr>
@@ -962,11 +968,16 @@ const InventoryManagement = () => {
                       <div className="inv-warehouse-map-serials">
                         <span className="inv-warehouse-map-meta-label">Serial Numbers</span>
                         {batch.serials && batch.serials.length > 0 ? (
-                          <div className="inv-serial-chips">
-                            {batch.serials.map((sn, i) => (
-                              <span className="inv-serial-chip" key={i}>{sn}</span>
-                            ))}
-                          </div>
+                          <button
+                            type="button"
+                            className="inv-action-link"
+                            onClick={() => setSerialModalBatch({
+                              title: batch.product_name || batch.po_number || 'Batch',
+                              serials: batch.serials,
+                            })}
+                          >
+                            View serials ({batch.serials.length})
+                          </button>
                         ) : (
                           <span className="inv-warehouse-map-meta-value">—</span>
                         )}
@@ -1525,6 +1536,26 @@ const InventoryManagement = () => {
 
               <div className="inv-modal-footer">
                 <button className="inv-modal-btn-cancel" onClick={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); }}>Close</button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {serialModalBatch && (
+          <Modal
+            isOpen={!!serialModalBatch}
+            onClose={() => setSerialModalBatch(null)}
+            title={`Serial Numbers — ${serialModalBatch.title}`}
+            maxWidth={560}
+          >
+            <div className="inv-serial-modal">
+              <div className="inv-serial-modal-count">
+                {serialModalBatch.serials.length} serial number{serialModalBatch.serials.length === 1 ? '' : 's'}
+              </div>
+              <div className="inv-serial-chips">
+                {serialModalBatch.serials.map((sn, i) => (
+                  <span className="inv-serial-chip" key={i}>{sn}</span>
+                ))}
               </div>
             </div>
           </Modal>
