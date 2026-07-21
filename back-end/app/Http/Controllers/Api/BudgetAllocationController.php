@@ -22,6 +22,7 @@ class BudgetAllocationController extends Controller
     public function index(Request $request)
     {
         $query = BudgetAllocation::with(['location', 'category', 'creator'])
+            ->forUser($request->user())
             ->orderBy('period_start', 'desc');
 
         if ($request->filled('location_id')) {
