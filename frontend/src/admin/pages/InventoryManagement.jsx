@@ -841,20 +841,24 @@ const InventoryManagement = () => {
           <div className="po-map-wrap">
             <div className="po-map-head">
               <div>
-                <h3 className="inv-table-title">Inventory Monitoring Console</h3>
-                <p className="inv-table-subtitle">Stock laid out by delivery and warehouse location · oldest first</p>
+                <h3 className="inv-table-title">Inventory Batch</h3>
+                <p className="inv-table-subtitle">Deliveries laid out by warehouse and zone · oldest first</p>
               </div>
-              <input
-                type="text"
-                className="inv-search"
-                placeholder="Search PO, supplier, warehouse…"
-                value={poSearch}
-                onChange={(e) => setPoSearch(e.target.value)}
-              />
+              <div className="sm-search po-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search PO, supplier, warehouse, zone…"
+                  value={poSearch}
+                  onChange={(e) => setPoSearch(e.target.value)}
+                />
+              </div>
             </div>
 
             {poGroupsLoading ? (
-              <div className="inv-batch-loading">Loading PO groups…</div>
+              <div className="inv-batch-loading">Loading batches…</div>
             ) : poGroupsError ? (
               <div className="inv-batch-empty inv-batch-empty--error">{poGroupsError}</div>
             ) : (() => {
@@ -863,77 +867,114 @@ const InventoryManagement = () => {
                 ? poGroups.filter((g) => [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
                     .some((v) => (v || '').toLowerCase().includes(q)))
                 : poGroups;
-              const oldestKey = poGroups[0]?.group_key;
 
               if (filtered.length === 0) {
                 return <div className="po-map-empty">No purchase orders match your search.</div>;
               }
 
+              const byWh = new Map();
+              filtered.forEach((g) => {
+                if (!byWh.has(g.warehouse_id)) byWh.set(g.warehouse_id, []);
+                byWh.get(g.warehouse_id).push(g);
+              });
+              const sections = [...byWh.values()].sort(
+                (a, b) => (a[0].warehouse_name || '').localeCompare(b[0].warehouse_name || '')
+              );
+
               return (
-                <div className="po-map-grid">
-                  {filtered.map((g) => {
-                    const pct = g.total_received > 0
-                      ? Math.round((g.total_remaining / g.total_received) * 100)
-                      : 0;
-                    const isOldest = g.group_key === oldestKey;
+                <div className="po-sections">
+                  {sections.map((groups) => {
+                    const wh = groups[0];
+                    const totalItems = groups.reduce((s, g) => s + (g.item_count || 0), 0);
+                    const totalRemaining = groups.reduce((s, g) => s + (g.total_remaining || 0), 0);
+                    const totalReceived = groups.reduce((s, g) => s + (g.total_received || 0), 0);
+                    const oldest = groups.reduce((min, g) =>
+                      (!min || (g.first_received_at || '') < (min.first_received_at || '')) ? g : min, null);
+                    const oldestKey = oldest?.group_key;
+                    const type = (wh.warehouse_type || '').toLowerCase();
                     return (
-                      <div key={g.group_key} className={`po-slot${isOldest ? ' po-slot--fifo' : ''}`}>
-                        {isOldest && <span className="po-slot-flag">Pick first</span>}
-                        <div className="po-slot-top">
-                          {editingLocKey === g.group_key ? (
-                            <div className="po-slot-tag po-slot-tag--edit">
-                              <span className="po-slot-tag-eyebrow">Location</span>
-                              <input
-                                type="text"
-                                className="po-slot-tag-input"
-                                value={editingLocValue}
-                                onChange={(e) => setEditingLocValue(e.target.value)}
-                                placeholder="e.g. Location 1"
-                                autoFocus
-                                onKeyDown={(e) => { if (e.key === 'Enter') saveLoc(g); if (e.key === 'Escape') setEditingLocKey(null); }}
-                              />
-                              <div className="po-slot-tag-actions">
-                                <button type="button" className="po-slot-tag-save" disabled={savingLoc} onClick={() => saveLoc(g)}>Save</button>
-                                <button type="button" className="po-slot-tag-cancel" disabled={savingLoc} onClick={() => setEditingLocKey(null)}>Cancel</button>
+                      <section className="po-section" key={wh.warehouse_id}>
+                        <div className="po-section-head">
+                          <div className="po-section-id">
+                            <span className="po-section-name">{wh.warehouse_name || '—'}</span>
+                            <span className={`po-section-type po-section-type--${type || 'default'}`}>
+                              {wh.warehouse_type || 'Location'}
+                            </span>
+                          </div>
+                          <div className="po-section-totals">
+                            <span>{groups.length} deliver{groups.length === 1 ? 'y' : 'ies'}</span>
+                            <span>{totalItems} item{totalItems === 1 ? '' : 's'}</span>
+                            <span>{totalRemaining} / {totalReceived} in stock</span>
+                          </div>
+                        </div>
+                        <div className="po-map-grid">
+                          {groups.map((g) => {
+                            const pct = g.total_received > 0
+                              ? Math.round((g.total_remaining / g.total_received) * 100)
+                              : 0;
+                            const isOldest = g.group_key === oldestKey;
+                            return (
+                              <div key={g.group_key} className={`po-slot${isOldest ? ' po-slot--fifo' : ''}`}>
+                                {isOldest && <span className="po-slot-flag">Pick first</span>}
+                                <div className="po-slot-top">
+                                  {editingLocKey === g.group_key ? (
+                                    <div className="po-slot-tag po-slot-tag--edit">
+                                      <span className="po-slot-tag-eyebrow">Zone</span>
+                                      <input
+                                        type="text"
+                                        className="po-slot-tag-input"
+                                        value={editingLocValue}
+                                        onChange={(e) => setEditingLocValue(e.target.value)}
+                                        placeholder="e.g. Zone A"
+                                        autoFocus
+                                        onKeyDown={(e) => { if (e.key === 'Enter') saveLoc(g); if (e.key === 'Escape') setEditingLocKey(null); }}
+                                      />
+                                      <div className="po-slot-tag-actions">
+                                        <button type="button" className="po-slot-tag-save" disabled={savingLoc} onClick={() => saveLoc(g)}>Save</button>
+                                        <button type="button" className="po-slot-tag-cancel" disabled={savingLoc} onClick={() => setEditingLocKey(null)}>Cancel</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button type="button" className="po-slot-tag" onClick={() => startEditingLoc(g)} title="Edit zone">
+                                      <span className="po-slot-tag-eyebrow">Zone<span className="po-slot-tag-pencil" aria-hidden="true">✎</span></span>
+                                      <span className="po-slot-tag-code">{g.location_label || 'Unzoned'}</span>
+                                    </button>
+                                  )}
+                                  <div className="po-slot-ident">
+                                    <span className="po-slot-po">{g.po_number || '—'}</span>
+                                    <span className="po-slot-supplier">{g.supplier_name || 'No supplier'}</span>
+                                    <span className="po-slot-wh">{g.warehouse_name || '—'}</span>
+                                  </div>
+                                </div>
+
+                                <div className="po-slot-meta">
+                                  <div className="po-slot-meta-item">
+                                    <span className="po-slot-meta-label">Received</span>
+                                    <span className="po-slot-meta-value">{g.first_received_at || '—'}</span>
+                                  </div>
+                                  <div className="po-slot-meta-item">
+                                    <span className="po-slot-meta-label">Items</span>
+                                    <span className="po-slot-meta-value">{g.item_count}</span>
+                                  </div>
+                                </div>
+
+                                <div className="po-slot-capacity">
+                                  <div className="po-slot-bar">
+                                    <div className="po-slot-bar-fill" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="po-slot-bar-label">{g.total_remaining} / {g.total_received} in stock</span>
+                                </div>
+
+                                <div className="po-slot-foot">
+                                  <button type="button" className="po-slot-view" onClick={() => openPoGroupDetail(g)}>
+                                    View<span aria-hidden="true"> →</span>
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <button type="button" className="po-slot-tag" onClick={() => startEditingLoc(g)} title="Edit location">
-                              <span className="po-slot-tag-eyebrow">Location<span className="po-slot-tag-pencil" aria-hidden="true">✎</span></span>
-                              <span className="po-slot-tag-code">{g.location_label || 'Unslotted'}</span>
-                            </button>
-                          )}
-                          <div className="po-slot-ident">
-                            <span className="po-slot-po">{g.po_number || '—'}</span>
-                            <span className="po-slot-supplier">{g.supplier_name || 'No supplier'}</span>
-                            <span className="po-slot-wh">{g.warehouse_name || '—'}</span>
-                          </div>
+                            );
+                          })}
                         </div>
-
-                        <div className="po-slot-meta">
-                          <div className="po-slot-meta-item">
-                            <span className="po-slot-meta-label">Received</span>
-                            <span className="po-slot-meta-value">{g.first_received_at || '—'}</span>
-                          </div>
-                          <div className="po-slot-meta-item">
-                            <span className="po-slot-meta-label">Items</span>
-                            <span className="po-slot-meta-value">{g.item_count}</span>
-                          </div>
-                        </div>
-
-                        <div className="po-slot-capacity">
-                          <div className="po-slot-bar">
-                            <div className="po-slot-bar-fill" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="po-slot-bar-label">{g.total_remaining} / {g.total_received} in stock</span>
-                        </div>
-
-                        <div className="po-slot-foot">
-                          <button type="button" className="po-slot-view" onClick={() => openPoGroupDetail(g)}>
-                            View<span aria-hidden="true"> →</span>
-                          </button>
-                        </div>
-                      </div>
+                      </section>
                     );
                   })}
                 </div>
