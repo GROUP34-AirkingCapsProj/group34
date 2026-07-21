@@ -1182,6 +1182,7 @@ const BarcodeScan = () => {
           }
           body.location_id = Number(txForm.location_id);
           body.quantity = qtyEngine;
+          body.zone_label = txForm.zone_label || null;
         }
         if (engineTransactionType === 'audit') {
           body.location_id = Number(txForm.location_id);
