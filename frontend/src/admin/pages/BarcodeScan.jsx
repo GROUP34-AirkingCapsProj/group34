@@ -2433,6 +2433,7 @@ const BarcodeScan = () => {
             transaction_type: 'receiving',
             location_id: Number(locationId),
             quantity: qtyNum,
+            zone_label: txForm.zone_label || null,
           });
           const eng = engRes?.data;
           if (!eng || typeof eng !== 'object' || eng.action === 'rejected') {
