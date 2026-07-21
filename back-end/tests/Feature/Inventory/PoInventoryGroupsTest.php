@@ -75,6 +75,7 @@ class PoInventoryGroupsTest extends TestCase
         $this->assertNotNull($mine);
         $this->assertSame($po->po_number, $mine['po_number']);
         $this->assertSame($wh->location_id, $mine['warehouse_id']);
+        $this->assertSame('warehouse', $mine['warehouse_type']);
         $this->assertSame(2, $mine['item_count']);
         $this->assertSame(20, $mine['total_received']);
         $this->assertCount(2, $mine['batches']);
