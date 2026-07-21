@@ -550,6 +550,339 @@ class TransferController extends Controller
         return $this->success($service->pickList($transfer), 'Pick list generated');
     }
 
+    private function statusId(string $name): ?int
+    {
+        $id = DB::table('status_lookup')
+            ->where('status_category', 'transfer')
+            ->where('status_name', $name)
+            ->value('status_id');
+        return $id !== null ? (int) $id : null;
+    }
+
+    /** Returns a 403 JsonResponse if the caller may not act on this IST's destination, else null. */
+    private function ensureReceiveLocation(Request $request, Transfer $ist): ?\Illuminate\Http\JsonResponse
+    {
+        $user      = $request->user();
+        $role      = $user->role?->role_name ?? '';
+        $isAdmin   = in_array($role, ['admin', 'inventory_analyst'], true);
+        $userLocId = $user->enforced_location_id ?? $user->location_id;
+
+        if (!$isAdmin && $userLocId && (int) $userLocId !== (int) $ist->to_location_id) {
+            return $this->error('You are not authorized to receive items at this destination.', 403);
+        }
+        return null;
+    }
+
+    /**
+     * Record a barcode scan against an approved IST.
+     */
+    public function scan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'barcode'            => 'required|string|max:255',
+                'transfer_detail_id' => 'sometimes|nullable|integer',
+                'quantity'           => 'sometimes|integer|min:1',
+            ]);
+
+            $approvedId = $this->statusId('Approved');
+            $ist = Transfer::with(['details.product'])
+                ->where('status_id', $approvedId)
+                ->findOrFail($id);
+
+            $result = $service->recordDispatchScan(
+                $ist,
+                $validated['barcode'],
+                $validated['transfer_detail_id'] ?? null,
+                $request->user()->user_id,
+                (int) ($validated['quantity'] ?? 1),
+            );
+
+            $ist->load('details');
+            $fullyScanned = $ist->details->every(
+                fn ($d) => (int) $d->quantity_scanned >= (int) $d->quantity_requested
+            );
+
+            return $this->success(array_merge($result, [
+                'ist_fully_scanned' => $fullyScanned,
+            ]), 'Scan recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Scan failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove a single scan — decrements quantity_scanned and deletes the barcode_scans row.
+     */
+    public function removeScan(Request $request, $id, $scanId, TransferService $service)
+    {
+        try {
+            $approvedId = $this->statusId('Approved');
+            $ist = Transfer::where('status_id', $approvedId)
+                ->findOrFail($id);
+
+            $service->removeDispatchScan($ist, (int) $scanId);
+            return $this->success(null, 'Scan removed');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to remove scan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Confirm dispatch: set IST to In Transit, deduct inventory, record tracking.
+     */
+    public function confirmDispatch(Request $request, $id, TransferService $service)
+    {
+        try {
+            $ist = Transfer::with(['details.product'])
+                ->findOrFail($id);
+
+            $result = $service->dispatch($ist, $request->user()?->user_id);
+
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'ist_dispatched',
+                    'table_name' => 'transfers',
+                    'record_id'  => $result->transfer_id,
+                    'old_values' => ['status' => 'Approved'],
+                    'new_values' => ['status' => 'In Transit', 'total_quantity_transferred' => (int) $result->total_quantity_transferred],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) { report($e); }
+
+            return $this->success([
+                'transfer_number'  => $result->transfer_number,
+                'status'           => 'In Transit',
+                'total_dispatched' => (int) $result->total_quantity_transferred,
+            ], 'IST dispatched successfully');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to confirm dispatch: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Return current scan progress for an IST (used to restore UI state across refreshes).
+     */
+    public function scanStatus($id)
+    {
+        try {
+            $ist = Transfer::with(['details.product'])
+                ->findOrFail($id);
+
+            $scanHistory = \App\Models\BarcodeScan::where('transfer_id', $id)
+                ->with('product')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            return $this->success([
+                'details'      => $ist->details,
+                'scan_history' => $scanHistory,
+            ], 'Scan status retrieved');
+        } catch (\Exception $e) {
+            return $this->error('IST not found', 404);
+        }
+    }
+
+    /**
+     * Record a receive-side barcode scan against an In Transit IST.
+     */
+    public function receiveScan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'barcode'            => 'required|string|max:255',
+                'transfer_detail_id' => 'sometimes|nullable|integer',
+                'quantity'           => 'sometimes|integer|min:1',
+            ]);
+
+            $ist = Transfer::findOrFail($id);
+
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+
+            $user   = $request->user();
+            $result = $service->recordReceiveScan(
+                $ist,
+                $validated['barcode'],
+                $validated['transfer_detail_id'] ?? null,
+                $user->user_id,
+                (int) ($validated['quantity'] ?? 1)
+            );
+
+            return $this->success($result, 'Receive scan recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Receive scan failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove a receive-side scan (undo before confirmation).
+     */
+    public function removeReceiveScan(Request $request, $id, $scanId, TransferService $service)
+    {
+        try {
+            $ist = Transfer::findOrFail($id);
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+            $service->removeReceiveScan($ist, (int) $scanId);
+            return $this->success(null, 'Receive scan removed');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to remove receive scan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Confirm receipt: update inventory at destination, set status to Received.
+     */
+    public function receiveStore(Request $request, $id, TransferService $service)
+    {
+        try {
+            $ist = Transfer::with(['details.product'])
+                ->findOrFail($id);
+
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+
+            $user   = $request->user();
+            $result = $service->receive($ist, $user->user_id);
+
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'ist_received',
+                    'table_name' => 'transfers',
+                    'record_id'  => $result->transfer_id,
+                    'old_values' => ['status' => 'In Transit'],
+                    'new_values' => ['status' => 'Received', 'total_quantity_received' => (int) $result->total_quantity_received],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) { report($e); }
+
+            return $this->success([
+                'transfer_number'         => $result->transfer_number,
+                'status'                  => 'Received',
+                'total_quantity_received' => (int) $result->total_quantity_received,
+            ], 'Transfer received successfully');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to confirm receipt: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Return IST data for the receive-confirmation form (only In Transit ISTs).
+     */
+    public function receiveForm($id)
+    {
+        try {
+            $inTransitId = $this->statusId('In Transit');
+            $ist = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy']))
+                ->where('status_id', $inTransitId)
+                ->findOrFail($id);
+
+            $serials = \App\Models\ItemSerial::where('transfer_id', $id)
+                ->select('product_id', 'serial_number')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($ist->details as $detail) {
+                $detail->item_serials = $serials->get($detail->product_id, collect())
+                    ->pluck('serial_number')
+                    ->values();
+            }
+
+            return $this->success($ist, 'IST receive form data retrieved');
+        } catch (\Exception $e) {
+            return $this->error('IST not found or not In Transit', 404);
+        }
+    }
+
+    /**
+     * Return receipt data (JSON) for a received IST.
+     */
+    public function receipt($id)
+    {
+        try {
+            $receivedId = $this->statusId('Received');
+
+            $ist = Transfer::with(array_merge(self::withRelations(), [
+                'transferTracking.recordedBy',
+                'receivedBy',
+            ]))->where('status_id', $receivedId)
+               ->findOrFail($id);
+
+            $serials = \App\Models\ItemSerial::where('transfer_id', $id)
+                ->select('product_id', 'serial_number')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($ist->details as $detail) {
+                $detail->item_serials = $serials->get($detail->product_id, collect())
+                    ->pluck('serial_number')
+                    ->values();
+            }
+
+            return $this->success($ist, 'IST receipt data retrieved');
+        } catch (\Exception $e) {
+            return $this->error('IST not found or not yet received', 404);
+        }
+    }
+
+    /**
+     * Stream a PDF receipt for a received IST.
+     */
+    public function receiptPdf($id)
+    {
+        try {
+            $receivedId = $this->statusId('Received');
+
+            $ist = Transfer::with(array_merge(self::withRelations(), [
+                'receivedBy',
+                'transferTracking.recordedBy',
+            ]))->where('status_id', $receivedId)
+               ->findOrFail($id);
+
+            $serials = \App\Models\ItemSerial::where('transfer_id', $id)
+                ->select('product_id', 'serial_number')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($ist->details as $detail) {
+                $detail->item_serials = $serials->get($detail->product_id, collect())
+                    ->pluck('serial_number')
+                    ->values();
+            }
+
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ist.receipt', ['ist' => $ist])
+                ->setPaper('a4', 'portrait');
+
+            return $pdf->download('IST-' . $ist->transfer_number . '.pdf');
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function addTracking(Request $request, $id)
     {
         try {
