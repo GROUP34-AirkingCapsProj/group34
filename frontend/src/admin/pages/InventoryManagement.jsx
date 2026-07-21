@@ -329,8 +329,8 @@ const InventoryManagement = () => {
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
   const getItemCode    = (item) => item.product?.product_code || item.item?.code || item.sku || '';
-  // Appliance model code for display (consumables have none → '').
-  const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || '';
+  // Appliance model code, falling back to barcode for consumables/bulk items.
+  const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || item.product?.barcode || '';
   const getItemQty     = (item) => Number(item.quantity_on_hand ?? item.quantity ?? 0);
   const getItemReorder = (item) => Number(item.product?.recommended_stocks || item.reorder_level || 5);
   const getItemSafety  = (item) => Number(item.product?.safety_stock) || Math.round(getItemReorder(item) * 0.25) || 1;
@@ -1177,7 +1177,7 @@ const InventoryManagement = () => {
                   Stock-In History
                   {historyData && <span className="invd-tab-count">{historyData.summary.total_receive_events}</span>}
                 </button>
-                {historyData?.product?.is_serialized && (
+                {historyData && (
                   <button className={`invd-tab-btn${detailTab === 'serials' ? ' active' : ''}`} onClick={() => setDetailTab('serials')}>
                     Serial Numbers
                     <span className="invd-tab-count">{historyData.summary.serial_count}</span>
@@ -1424,7 +1424,7 @@ const InventoryManagement = () => {
               {/* ══════════════════════════════
                   TAB: SERIAL NUMBERS
               ══════════════════════════════ */}
-              {detailTab === 'serials' && !historyLoading && historyData?.product?.is_serialized && (
+              {detailTab === 'serials' && !historyLoading && historyData && (
                 <div className="invd-panel">
                   {!historyData.serial_records || historyData.serial_records.length === 0 ? (
                     <div className="invd-empty">No serial numbers recorded for this product at this location.</div>
