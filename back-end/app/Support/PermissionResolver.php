@@ -7,6 +7,19 @@ use Illuminate\Support\Facades\DB;
 class PermissionResolver
 {
     /**
+     * Permissions deliberately carved out of the admin structural bypass:
+     * verification is auditor-only by separation of duties, so the System
+     * Administrator does NOT get these automatically — only via a per-user
+     * override (see SeederTest + VerificationPermissionTest).
+     *
+     * @var array<int, string>  "feature.action"
+     */
+    private const ADMIN_BYPASS_EXCLUDED = [
+        'budget_verification.verify',
+        'purchase_order_verification.verify',
+    ];
+
+    /**
      * Per-request memo: "feature.action" => permission_id
      *
      * @var array<string, int>
@@ -73,8 +86,10 @@ class PermissionResolver
     public function canUser(int $userId, string $feature, string $action): bool
     {
         // System Administrator always has full access — guarantees toggles can
-        // never lock admin out of any page (including the permission editor).
-        if ($this->isAdmin($userId)) {
+        // never lock admin out of any page (including the permission editor) —
+        // EXCEPT verification actions carved out to auditor-only (admin can still
+        // self-grant those via a per-user override, so it's not a hard lockout).
+        if ($this->isAdmin($userId) && ! in_array("{$feature}.{$action}", self::ADMIN_BYPASS_EXCLUDED, true)) {
             return true;
         }
 
