@@ -836,3 +836,28 @@
 @media (max-width: 640px) {
   .inv-warehouse-map-grid { grid-template-columns: 1fr; }
 }
+
+/* Per-batch serial number chips (Console expander + Warehouse Map) */
+.inv-serial-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.inv-serial-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.inv-warehouse-map-serials {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
