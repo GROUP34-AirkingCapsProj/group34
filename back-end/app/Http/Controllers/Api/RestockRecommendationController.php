@@ -25,6 +25,7 @@ class RestockRecommendationController extends Controller
     public function index(Request $request)
     {
         $query = RestockRecommendation::with('product.consumableDetail')
+            ->forUser($request->user())
             ->orderByRaw("FIELD(priority, 'CRITICAL', 'HIGH', 'MEDIUM')")
             ->orderByDesc('avg_daily_demand');
 

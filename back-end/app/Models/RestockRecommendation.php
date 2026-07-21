@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopesToUserLocation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RestockRecommendation extends Model
 {
+    use ScopesToUserLocation;
+
     protected $table = 'restock_recommendations';
     protected $primaryKey = 'recommendation_id';
     protected $fillable = [
