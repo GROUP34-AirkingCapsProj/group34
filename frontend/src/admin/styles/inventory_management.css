@@ -1132,3 +1132,58 @@ button.po-slot-tag:hover .po-slot-tag-pencil { opacity: 1; }
   .po-slot, .po-slot-bar-fill { transition: none; }
   .po-slot:hover { transform: none; }
 }
+
+/* Inventory Batch — warehouse/showroom sections */
+.po-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.po-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.po-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eef0f2;
+}
+.po-section-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.po-section-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: 0.2px;
+}
+.po-section-type {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4338ca;
+}
+.po-section-type--showroom {
+  background: #fdf2f8;
+  color: #be185d;
+}
+.po-section-totals {
+  display: flex;
+  gap: 16px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.po-section-totals span { white-space: nowrap; }
+.po-search { max-width: 320px; width: 100%; }
