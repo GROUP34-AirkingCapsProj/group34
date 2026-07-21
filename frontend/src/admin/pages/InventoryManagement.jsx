@@ -258,6 +258,7 @@ const InventoryManagement = () => {
   const [poGroupsLoading, setPoGroupsLoading] = useState(false);
   const [poGroupsError, setPoGroupsError] = useState(null);
   const [poSearch, setPoSearch] = useState('');
+  const [inventorySubTab, setInventorySubTab] = useState('po-console');
   const [poGroupDetail, setPoGroupDetail] = useState(null);
   const [poGroupDetailLoading, setPoGroupDetailLoading] = useState(false);
   const [poDetailTab, setPoDetailTab] = useState('overview');
@@ -305,16 +306,15 @@ const InventoryManagement = () => {
         prevExpanded.forEach((id) => fetchBatchesForId(id));
         return prevExpanded;
       });
-      // Same staleness problem applies to the Warehouse Map tab: its quantities and
-      // FIFO badges come from a snapshot fetched only when the tab becomes active, so
-      // re-fetch it too when it's the one currently on screen.
-      if (activeTab === 'po-console') {
+      // The PO console's quantities come from a snapshot fetched only when the
+      // sub-tab becomes active, so re-fetch it too when it's the one on screen.
+      if (activeTab === 'inventory' && inventorySubTab === 'po-console') {
         fetchPoGroups();
       }
     };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage, fetchBatchesForId, activeTab, fetchPoGroups]);
+  }, [fetchInventory, currentPage, fetchBatchesForId, activeTab, inventorySubTab, fetchPoGroups]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -363,9 +363,9 @@ const InventoryManagement = () => {
   }, [activeTab, fetchWarehouseBatches]);
 
   useEffect(() => {
-    if (activeTab !== 'po-console') return;
+    if (!(activeTab === 'inventory' && inventorySubTab === 'po-console')) return;
     fetchPoGroups();
-  }, [activeTab, fetchPoGroups]);
+  }, [activeTab, inventorySubTab, fetchPoGroups]);
 
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
@@ -535,16 +535,10 @@ const InventoryManagement = () => {
             Stock Movement &amp; Turnover
           </button>
           <button
-            className={`ak-tab ${activeTab === 'po-console' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('po-console')}
+            className={`ak-tab ${activeTab === 'inventory' ? 'is-active' : ''}`}
+            onClick={() => setActiveTab('inventory')}
           >
-            Inventory Monitoring Console
-          </button>
-          <button
-            className={`ak-tab ${activeTab === 'stock-level' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('stock-level')}
-          >
-            Stock-Level Monitoring
+            Inventory
           </button>
           <button
             className={`ak-tab ${activeTab === 'activity' ? 'is-active' : ''}`}
@@ -553,6 +547,24 @@ const InventoryManagement = () => {
             Activity Log
           </button>
         </div>
+
+        {/* ── Inventory sub-tabs ── */}
+        {activeTab === 'inventory' && (
+          <div className="ak-tabs inv-subtabs">
+            <button
+              className={`ak-tab ${inventorySubTab === 'po-console' ? 'is-active' : ''}`}
+              onClick={() => setInventorySubTab('po-console')}
+            >
+              Inventory Monitoring Console
+            </button>
+            <button
+              className={`ak-tab ${inventorySubTab === 'stock-level' ? 'is-active' : ''}`}
+              onClick={() => setInventorySubTab('stock-level')}
+            >
+              Stock-Level Monitoring
+            </button>
+          </div>
+        )}
 
         {/* ════════════════════════════════════════════════
             STOCK MOVEMENT & TURNOVER TAB
@@ -730,7 +742,7 @@ const InventoryManagement = () => {
         {/* ════════════════════════════════════════════════
             INVENTORY TAB
         ════════════════════════════════════════════════ */}
-        {activeTab === 'stock-level' && (
+        {activeTab === 'inventory' && inventorySubTab === 'stock-level' && (
           <>
             {/* Search + Export */}
             <div className="inv-search-row">
@@ -902,7 +914,7 @@ const InventoryManagement = () => {
           </>
         )}
 
-        {activeTab === 'po-console' && (
+        {activeTab === 'inventory' && inventorySubTab === 'po-console' && (
           <div className="inv-table-card">
             <div className="inv-table-top">
               <div>
