@@ -3218,6 +3218,7 @@ const BarcodeScan = () => {
                   <label className="bsr-location-label">ZONE LABEL (OPTIONAL)</label>
                   <input
                     type="text"
+                    className="bsr-location-select"
                     placeholder="e.g. Aisle 3, Shelf B"
                     value={bsrZoneLabel}
                     onChange={(e) => setBsrZoneLabel(e.target.value)}
