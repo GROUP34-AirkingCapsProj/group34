@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
 use App\Models\InventoryScanEvent;
 use App\Models\ItemSerial;
 use App\Models\Product;
@@ -14,6 +15,7 @@ use App\Models\PurchaseRequest;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Models\Transfer;
+use App\Services\InventoryBatchService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +42,7 @@ class InventoryScanTransactionController extends Controller
                 'quantity'           => 'nullable|integer|min:1',
                 'po_id'              => 'nullable|exists:purchase_orders,po_id',
                 'po_detail_id'       => 'nullable|exists:purchase_order_details,po_detail_id',
+                'zone_label'         => 'nullable|string|max:100',
             ]);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
@@ -390,6 +393,32 @@ class InventoryScanTransactionController extends Controller
                 'condition'       => 'Good',
                 'scanned_barcode' => $scannedBarcode ?: null,
             ]);
+
+            // Batch/zone tracking: accumulate repeated scans against the same receiving
+            // header into one batch row (rather than one tiny batch per scan), so the
+            // Warehouse Map/drill-down show one coherent lot per receiving event.
+            $zoneLabel = $validated['zone_label'] ?? null;
+            $existingBatch = InventoryBatch::where('receiving_id', $receiving->receiving_id)
+                ->where('product_id', $product->product_id)
+                ->where('location_id', $locationId)
+                ->first();
+            if ($existingBatch) {
+                $existingBatch->quantity_received  = (int) $existingBatch->quantity_received + $quantity;
+                $existingBatch->quantity_remaining = (int) $existingBatch->quantity_remaining + $quantity;
+                if ($zoneLabel !== null) {
+                    $existingBatch->zone_label = $zoneLabel;
+                }
+                $existingBatch->save();
+            } else {
+                app(InventoryBatchService::class)->createBatch(
+                    $product->product_id,
+                    $locationId,
+                    $receiving->receiving_id,
+                    $quantity,
+                    $receiving->receiving_date ?? now(),
+                    $zoneLabel
+                );
+            }
 
             // Register serial number for all product types that have a scanned barcode
             if ($scannedBarcode !== '') {
