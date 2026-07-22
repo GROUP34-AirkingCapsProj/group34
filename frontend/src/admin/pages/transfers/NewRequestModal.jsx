@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '../../components/Modal';
 import ProductSearchSelect from '../../components/ProductSearchSelect';
-import { transfersAPI, locationsAPI, productsAPI } from '../../services/api';
+import { transfersAPI, locationsAPI, itemsAPI } from '../../services/api';
 import { useAuth, useUserLocation } from '../../context/AuthContext';
 import { getRoleKey, ROLES } from '../../utils/roles';
 import { toast } from '../../utils/toast';
@@ -44,7 +44,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
     setLoadingRefs(true);
     Promise.all([
       locationsAPI.getAll({ per_page: 500 }),
-      productsAPI.getAll({ per_page: 1000 }),
+      itemsAPI.getAll({ per_page: 1000 }),
     ])
       .then(([locRes, prodRes]) => {
         setLocations(Array.isArray(locRes?.data) ? locRes.data : []);
@@ -54,6 +54,10 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
           name: p.product_name || p.name || '',
           code: p.product_code || p.code || '',
           type: p.product_type || '',
+          categoryId: String(p.category_id ?? ''),
+          categoryName: p.category?.category_name || '',
+          brandId: String(p.brand_id ?? ''),
+          brandName: p.brand_name || '',
         })));
       })
       .catch((e) => toast.error('Could not load references', e?.message))
