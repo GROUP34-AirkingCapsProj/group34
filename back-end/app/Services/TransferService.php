@@ -57,7 +57,7 @@ class TransferService
      */
     public function pickList(Transfer $ist): array
     {
-        $ist->loadMissing('details.product');
+        $ist->loadMissing('details.product.consumableDetail');
         $out = [];
 
         foreach ($ist->details as $detail) {
@@ -112,6 +112,8 @@ class TransferService
                 'product_id'   => (int) $detail->product_id,
                 'product_name' => $detail->product?->product_name ?? "Product #{$detail->product_id}",
                 'needed'       => $needed,
+                'pieces_per_package' => (int) ($detail->product?->consumableDetail?->pieces_per_package ?? 0),
+                'package_unit'       => $detail->product?->consumableDetail?->package_unit,
                 'suggestions'  => $suggestions,
             ];
         }

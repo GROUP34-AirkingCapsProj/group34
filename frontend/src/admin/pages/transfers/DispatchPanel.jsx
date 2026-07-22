@@ -3,6 +3,7 @@ import { transfersAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { confirmAction } from '../../utils/confirm';
 import CameraScanner from '../../components/CameraScanner';
+import { packageBreakdown } from '../../utils/packageFormat';
 
 const isLineSerialized = (detail) =>
   detail?.is_serialized || detail?.product?.is_serialized || detail?.product?.product_type === 'appliance';
@@ -153,7 +154,13 @@ const DispatchPanel = ({ transfer, onDone }) => {
             <div key={line.product_id} className="tf-pick-group">
               <div className="tf-pick-head">
                 <b>{line.product_name}</b>
-                <span className="ak-muted" style={{ fontSize: '0.78rem' }}>need {line.needed}</span>
+                <span className="ak-muted" style={{ fontSize: '0.78rem' }}>
+                  need {line.needed}
+                  {(() => {
+                    const bd = packageBreakdown(line.needed, line.pieces_per_package, line.package_unit);
+                    return bd ? ` pcs · ${bd}` : '';
+                  })()}
+                </span>
               </div>
               {(line.suggestions || []).length === 0
                 ? <div className="ak-muted" style={{ fontSize: '0.76rem' }}>No stock suggestions available.</div>
