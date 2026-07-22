@@ -28,6 +28,7 @@ import ReceivingHistoryLog from '../components/ReceivingHistoryLog';
 import { getStatusConfig } from '../utils/poStatus';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
+import TransferScanMode from './transfers/TransferScanMode';
 import {
   linesForLocation as bsrLinesForLocation,
   locationAmount as bsrLocationAmount,
@@ -113,6 +114,18 @@ const MODES = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
         <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+      </svg>
+    ),
+  },
+  {
+    key: 'transfer',
+    label: 'Transfer',
+    apiLabel: 'TRANSFER',
+    color: '#f59e0b',
+    bg: '#fffbeb',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
+        <path d="M16 3l4 4-4 4"/><path d="M20 7H4"/><path d="M8 21l-4-4 4-4"/><path d="M4 17h16"/>
       </svg>
     ),
   },
@@ -2809,6 +2822,19 @@ const BarcodeScan = () => {
               </div>
             </div>
           )}
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  /* ─────────────────────────────────────────────
+     RENDER: Transfer — dispatch/receive scanning
+  ───────────────────────────────────────────── */
+  if (scanMode?.key === 'transfer') {
+    return (
+      <AdminLayout>
+        <div className="ak-page bs-page">
+          <TransferScanMode onBack={() => setScanMode(null)} />
         </div>
       </AdminLayout>
     );
