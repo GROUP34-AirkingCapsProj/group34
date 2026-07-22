@@ -130,6 +130,9 @@ const TransfersPage = () => {
   const renderRow = (t) => {
     const sName = statusName(t);
     const meta = STATUS_META[sName] || STATUS_META.Received;
+    // In My Requests the requester is only viewing their own request — never
+    // dispatching/verifying — so the row action is always "View".
+    const actionLabel = activeTab === 'mine' ? 'View' : meta.action;
     const from = t.fromLocation?.location_name || t.from_location?.location_name;
     const to = t.toLocation?.location_name || t.to_location?.location_name || '—';
     return (
@@ -147,7 +150,7 @@ const TransfersPage = () => {
         <td><span className={`ak-badge ${meta.badge}`}>{sName}</span></td>
         <td style={{ textAlign: 'right' }}>
           <button type="button" className="ak-btn ak-btn--sm" onClick={(e) => { e.stopPropagation(); openDrawer(t); }}>
-            {meta.action}
+            {actionLabel}
           </button>
         </td>
       </tr>
