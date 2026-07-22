@@ -155,7 +155,7 @@ class TransferController extends Controller
     public function show($id)
     {
         try {
-            $transfer = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy']))
+            $transfer = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy', 'details.product.consumableDetail']))
                 ->findOrFail($id);
 
             $fromLocId = $transfer->from_location_id;

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { transfersAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { confirmWithReason } from '../../utils/confirm';
+import { packageBreakdown } from '../../utils/packageFormat';
 
 const productName = (d) => d.product?.product_name || `Product #${d.product_id}`;
 const sku = (d) => d.product?.product_code || d.product?.applianceDetail?.model_code || '—';
@@ -178,7 +179,13 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
             <div key={did} className="tf-line">
               <div className="tf-line-name">
                 <b>{productName(d)}</b>
-                <small>SKU: {sku(d)} · requested {d.quantity_requested}</small>
+                <small>
+                  SKU: {sku(d)} · requested {d.quantity_requested}
+                  {(() => {
+                    const bd = packageBreakdown(d.quantity_requested, d.product?.consumable_detail?.pieces_per_package, d.product?.consumable_detail?.package_unit);
+                    return bd ? ` pcs · ${bd}` : '';
+                  })()}
+                </small>
               </div>
               {fromLocationId && liveAvail != null && (
                 <span className={`tf-line-avail${liveShort > 0 ? ' tf-line-avail--short' : ' tf-line-avail--ok'}`}>

@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '../../components/Modal';
 import ProductSearchSelect from '../../components/ProductSearchSelect';
 import { transfersAPI, locationsAPI, itemsAPI } from '../../services/api';
+import { packageBreakdown } from '../../utils/packageFormat';
 import { useAuth, useUserLocation } from '../../context/AuthContext';
 import { getRoleKey, ROLES } from '../../utils/roles';
 import { toast } from '../../utils/toast';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-const newLine = () => ({ uid: `l-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, productId: '', quantity: 1 });
+const newLine = () => ({ uid: `l-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, productId: '', quantity: 1, packages: 0, pieces: 0 });
 
 const INTENTS = [
   { key: 'pull', label: 'Pull', desc: 'Request stock into your location' },
@@ -58,6 +59,8 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
           categoryName: p.category?.category_name || '',
           brandId: String(p.brand_id ?? ''),
           brandName: p.brand_name || '',
+          piecesPerPackage: Number(p.pieces_per_package ?? 0) || 0,
+          packageUnit: p.package_unit || '',
         })));
       })
       .catch((e) => toast.error('Could not load references', e?.message))
@@ -88,6 +91,19 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
 
   const setLineField = (uid, field, value) =>
     setLines((prev) => prev.map((l) => (l.uid === uid ? { ...l, [field]: value } : l)));
+
+  const productById = (pid) => products.find((p) => String(p.id) === String(pid));
+  // A consumable that ships in packages of >1 piece → offer packages + loose pieces.
+  const packSize = (l) => {
+    const p = productById(l.productId);
+    return p && p.type !== 'appliance' && p.piecesPerPackage > 1 ? p : null;
+  };
+  // Total requested in PIECES (the stored unit), from either the pkg/pieces pair or the single qty.
+  const lineTotalPieces = (l) => {
+    const p = packSize(l);
+    if (p) return (parseInt(l.packages, 10) || 0) * p.piecesPerPackage + (parseInt(l.pieces, 10) || 0);
+    return parseInt(l.quantity, 10) || 0;
+  };
   const addLine = () => setLines((prev) => [...prev, newLine()]);
   const removeLine = (uid) => setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.uid !== uid) : prev));
 
@@ -99,7 +115,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
   const handleSubmit = async () => {
     if (intent !== 'offload' && !toLocationId) { toast.error("Can't submit", 'Select a destination location.'); return; }
     if (intent !== 'pull' && !fromLocationId && showFrom) { toast.error("Can't submit", 'Select a source location.'); return; }
-    const validLines = lines.filter((l) => l.productId && Number(l.quantity) > 0);
+    const validLines = lines.filter((l) => l.productId && lineTotalPieces(l) > 0);
     if (validLines.length === 0) { toast.error("Can't submit", 'Add at least one product with a quantity.'); return; }
 
     const payload = {
@@ -107,7 +123,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
       to_location_id: toLocationId ? Number(toLocationId) : undefined,
       transfer_date: transferDate,
       notes: notes.trim() || undefined,
-      products: validLines.map((l) => ({ product_id: Number(l.productId), quantity_requested: Math.max(1, parseInt(l.quantity, 10) || 1) })),
+      products: validLines.map((l) => ({ product_id: Number(l.productId), quantity_requested: Math.max(1, lineTotalPieces(l)) })),
     };
     if (fromLocationId && intent !== 'pull') payload.from_location_id = Number(fromLocationId);
 
@@ -194,25 +210,53 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
         <div className="ak-field" style={{ marginBottom: '0.5rem' }}>
           <span className="ak-label">Products</span>
         </div>
-        {lines.map((l) => (
-          <div key={l.uid} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-              <ProductSearchSelect
-                products={products}
-                value={l.productId}
-                onChange={(pid) => setLineField(l.uid, 'productId', pid)}
-                disabled={loadingRefs}
-                placeholder={loadingRefs ? 'Loading…' : 'Search product…'}
-              />
+        {lines.map((l) => {
+          const pack = packSize(l);
+          const total = lineTotalPieces(l);
+          return (
+            <div key={l.uid} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                  <ProductSearchSelect
+                    products={products}
+                    value={l.productId}
+                    onChange={(pid) => setLineField(l.uid, 'productId', pid)}
+                    disabled={loadingRefs}
+                    placeholder={loadingRefs ? 'Loading…' : 'Search product…'}
+                  />
+                </div>
+                {pack ? (
+                  <>
+                    <label className="tf-qty-field" title={`${pack.piecesPerPackage} pcs per ${pack.packageUnit || 'package'}`}>
+                      <input type="number" min={0} className="ak-input" style={{ width: 64 }}
+                        value={l.packages}
+                        onChange={(e) => setLineField(l.uid, 'packages', e.target.value)} />
+                      <span className="tf-qty-unit">{pack.packageUnit || 'pkg'}×{pack.piecesPerPackage}</span>
+                    </label>
+                    <label className="tf-qty-field">
+                      <input type="number" min={0} className="ak-input" style={{ width: 56 }}
+                        value={l.pieces}
+                        onChange={(e) => setLineField(l.uid, 'pieces', e.target.value)} />
+                      <span className="tf-qty-unit">pcs</span>
+                    </label>
+                  </>
+                ) : (
+                  <input
+                    type="number" min={1} className="ak-input" style={{ width: 80 }}
+                    value={l.quantity}
+                    onChange={(e) => setLineField(l.uid, 'quantity', e.target.value)}
+                  />
+                )}
+                <button type="button" className="ak-btn ak-btn--sm ak-btn--danger" onClick={() => removeLine(l.uid)} disabled={lines.length === 1} title="Remove line">×</button>
+              </div>
+              {pack && total > 0 && (
+                <div className="ak-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                  = {total} pcs{packageBreakdown(total, pack.piecesPerPackage, pack.packageUnit) ? ` · ${packageBreakdown(total, pack.piecesPerPackage, pack.packageUnit)}` : ''}
+                </div>
+              )}
             </div>
-            <input
-              type="number" min={1} className="ak-input" style={{ width: 80 }}
-              value={l.quantity}
-              onChange={(e) => setLineField(l.uid, 'quantity', e.target.value)}
-            />
-            <button type="button" className="ak-btn ak-btn--sm ak-btn--danger" onClick={() => removeLine(l.uid)} disabled={lines.length === 1} title="Remove line">×</button>
-          </div>
-        ))}
+          );
+        })}
         <button type="button" className="ak-btn ak-btn--sm" onClick={addLine} style={{ marginTop: 4 }}>+ Add product</button>
 
         {/* Notes */}
