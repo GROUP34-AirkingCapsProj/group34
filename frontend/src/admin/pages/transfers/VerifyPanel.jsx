@@ -46,6 +46,42 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
     return () => { ok = false; };
   }, [transfer.transfer_id]);
 
+  // Consumables with a package size (e.g. 10 pcs/Box) get packages + loose-pieces
+  // entry, mirroring the requester side. packEntry holds the split; qty stays the
+  // piece total (the submit + shortfall source).
+  const ppOf = (d) => Number(d.product?.consumable_detail?.pieces_per_package || 0);
+  const [packEntry, setPackEntry] = useState(() => {
+    const init = {};
+    details.forEach((d) => {
+      const ppp = ppOf(d);
+      if (ppp > 1) {
+        const total = Number(d.quantity_requested ?? 0);
+        init[d.transfer_detail_id] = { packages: Math.floor(total / ppp), pieces: total % ppp };
+      }
+    });
+    return init;
+  });
+
+  useEffect(() => {
+    setQty((q) => {
+      const next = { ...q };
+      details.forEach((d) => {
+        const ppp = ppOf(d);
+        const did = d.transfer_detail_id;
+        if (ppp > 1 && packEntry[did]) {
+          next[did] = (Number(packEntry[did].packages) || 0) * ppp + (Number(packEntry[did].pieces) || 0);
+        }
+      });
+      return next;
+    });
+  }, [packEntry, details]);
+
+  const setPack = (did, field, raw) =>
+    setPackEntry((prev) => ({
+      ...prev,
+      [did]: { ...(prev[did] || { packages: 0, pieces: 0 }), [field]: Math.max(0, parseInt(raw, 10) || 0) },
+    }));
+
   const setLineQty = (did, v) =>
     setQty((prev) => ({ ...prev, [did]: Math.max(0, parseInt(v, 10) || 0) }));
 
@@ -194,15 +230,35 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
                 </span>
               )}
               {!fromLocationId && <span className="ak-muted" style={{ fontSize: 12 }}>select a source to see stock</span>}
-              <input
-                type="number"
-                min={0}
-                className="ak-input tf-line-qty"
-                value={qty[did] ?? 0}
-                onChange={(e) => setLineQty(did, e.target.value)}
-                disabled={busy}
-                title="Approved quantity (0 removes this line)"
-              />
+              {ppOf(d) > 1 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <label className="tf-qty-field" title={`${ppOf(d)} pcs per ${d.product?.consumable_detail?.package_unit || 'package'}`}>
+                      <input type="number" min={0} className="ak-input" style={{ width: 52 }}
+                        value={packEntry[did]?.packages ?? 0}
+                        onChange={(e) => setPack(did, 'packages', e.target.value)} disabled={busy} />
+                      <span className="tf-qty-unit">{d.product?.consumable_detail?.package_unit || 'pkg'}×{ppOf(d)}</span>
+                    </label>
+                    <label className="tf-qty-field">
+                      <input type="number" min={0} className="ak-input" style={{ width: 46 }}
+                        value={packEntry[did]?.pieces ?? 0}
+                        onChange={(e) => setPack(did, 'pieces', e.target.value)} disabled={busy} />
+                      <span className="tf-qty-unit">pcs</span>
+                    </label>
+                  </div>
+                  <span className="ak-muted" style={{ fontSize: 10.5 }}>= {Number(qty[did] || 0)} pcs approved</span>
+                </div>
+              ) : (
+                <input
+                  type="number"
+                  min={0}
+                  className="ak-input tf-line-qty"
+                  value={qty[did] ?? 0}
+                  onChange={(e) => setLineQty(did, e.target.value)}
+                  disabled={busy}
+                  title="Approved quantity (0 removes this line)"
+                />
+              )}
             </div>
           );
         })}
