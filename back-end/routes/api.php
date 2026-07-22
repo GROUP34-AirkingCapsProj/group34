@@ -630,6 +630,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/transfers/{id}', [TransferController::class, 'show']);
     Route::middleware('permission:inventory_transfers,create')->post('/transfers', [TransferController::class, 'store']);
     Route::get('/transfers/{id}/pick-list', [TransferController::class, 'pickList']);
+    Route::middleware('permission:inventory_transfers,read')
+        ->get('/transfers/{id}/source-availability', [TransferController::class, 'sourceAvailability']);
     Route::middleware('permission:inventory_transfers,approve')->group(function () {
         Route::post('/transfers/{id}/verify', [TransferController::class, 'verify']);
         Route::patch('/transfers/{id}/reject', [TransferController::class, 'reject']);

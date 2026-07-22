@@ -576,6 +576,37 @@ class TransferController extends Controller
         return $this->success($service->pickList($transfer), 'Pick list generated');
     }
 
+    public function sourceAvailability($id)
+    {
+        $transfer = Transfer::with('details')->findOrFail($id);
+        $productIds = $transfer->details->pluck('product_id')->unique()->values();
+
+        if ($productIds->isEmpty()) {
+            return $this->success([], 'Source availability');
+        }
+
+        $rows = Inventory::query()
+            ->join('locations', 'inventory.location_id', '=', 'locations.location_id')
+            ->where('locations.location_type', 'warehouse')
+            ->whereIn('inventory.product_id', $productIds)
+            ->get([
+                'inventory.location_id',
+                'inventory.product_id',
+                'inventory.available_quantity',
+                'inventory.quantity_on_hand',
+            ]);
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int) $r->location_id][(int) $r->product_id] = [
+                'available' => (int) $r->available_quantity,
+                'on_hand'   => (int) $r->quantity_on_hand,
+            ];
+        }
+
+        return $this->success($map, 'Source availability');
+    }
+
     private function statusId(string $name): ?int
     {
         $id = DB::table('status_lookup')
