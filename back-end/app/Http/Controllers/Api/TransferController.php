@@ -65,7 +65,7 @@ class TransferController extends Controller
         $validated = $request->validate([
             'intent'                         => 'required|in:pull,offload,demand',
             'from_location_id'               => 'nullable|exists:locations,location_id',
-            'to_location_id'                 => 'required|exists:locations,location_id|different:from_location_id',
+            'to_location_id'                 => 'nullable|exists:locations,location_id',
             'transfer_date'                  => 'required|date',
             'notes'                          => 'nullable|string|max:500',
             'products'                       => 'required|array|min:1',
@@ -73,10 +73,33 @@ class TransferController extends Controller
             'products.*.quantity_requested'  => 'required|integer|min:1',
         ]);
 
+        $validated['from_location_id'] = $validated['from_location_id'] ?? null;
+        $validated['to_location_id']   = $validated['to_location_id'] ?? null;
+
+        // Per-intent source/destination rules:
+        //  - pull:    requester names the destination; the analyst assigns the source later.
+        //  - offload: requester names the source; the analyst assigns the destination later
+        //             (only admin/IA can see every location's stock to decide where it goes).
+        //  - demand:  the analyst names both up front (lands Approved immediately).
         if ($validated['intent'] === 'pull') {
             $validated['from_location_id'] = null;
-        } elseif (empty($validated['from_location_id'])) {
-            return $this->error('A source location is required for this transfer type.', 422);
+            if (empty($validated['to_location_id'])) {
+                return $this->error('A destination location is required for this request.', 422);
+            }
+        } elseif ($validated['intent'] === 'offload') {
+            if (empty($validated['from_location_id'])) {
+                return $this->error('A source location is required for this request.', 422);
+            }
+            // Destination is intentionally optional — the analyst assigns it at verification.
+        } else { // demand
+            if (empty($validated['from_location_id']) || empty($validated['to_location_id'])) {
+                return $this->error('Both source and destination are required.', 422);
+            }
+        }
+
+        if (!empty($validated['from_location_id']) && !empty($validated['to_location_id'])
+            && (int) $validated['from_location_id'] === (int) $validated['to_location_id']) {
+            return $this->error('Source and destination must be different.', 422);
         }
 
         $user = $request->user();
@@ -113,7 +136,7 @@ class TransferController extends Controller
 
             \App\Models\TblTransferTracking::create([
                 'transfer_id' => $transfer->transfer_id,
-                'location_id' => $validated['to_location_id'],
+                'location_id' => $validated['to_location_id'] ?? $validated['from_location_id'],
                 'status_note' => ucfirst($validated['intent']) . ' transfer request submitted',
                 'recorded_by' => $user->user_id,
                 'recorded_at' => now(),
@@ -472,10 +495,13 @@ class TransferController extends Controller
         }
 
         $newFrom = !empty($validated['from_location_id']) ? (int) $validated['from_location_id'] : $transfer->from_location_id;
-        $newTo   = !empty($validated['to_location_id']) ? (int) $validated['to_location_id'] : (int) $transfer->to_location_id;
+        $newTo   = !empty($validated['to_location_id']) ? (int) $validated['to_location_id'] : $transfer->to_location_id;
 
         if ($newFrom === null) {
             return $this->error('A source location must be assigned.', 422);
+        }
+        if ($newTo === null) {
+            return $this->error('A destination location must be assigned.', 422);
         }
         if ((int) $newFrom === (int) $newTo) {
             return $this->error('Source and destination must differ.', 422);

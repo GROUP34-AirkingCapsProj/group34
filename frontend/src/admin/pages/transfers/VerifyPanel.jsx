@@ -22,6 +22,9 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
   const [fromLocationId, setFromLocationId] = useState(
     transfer?.from_location_id ? String(transfer.from_location_id) : '',
   );
+  const [toLocationId, setToLocationId] = useState(
+    transfer?.to_location_id ? String(transfer.to_location_id) : '',
+  );
   const [qty, setQty] = useState(() => {
     const init = {};
     details.forEach((d) => { init[d.transfer_detail_id] = d.quantity_requested ?? 0; });
@@ -39,6 +42,14 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
       toast.error("Can't verify yet", 'Select a source warehouse to fulfill this transfer.');
       return;
     }
+    if (!toLocationId) {
+      toast.error("Can't verify yet", 'Select a destination for this transfer.');
+      return;
+    }
+    if (fromLocationId === toLocationId) {
+      toast.error("Can't verify yet", 'Source and destination must be different.');
+      return;
+    }
     if (!anyApproved) {
       toast.error("Can't verify yet", 'Approve at least one line (quantity greater than zero).');
       return;
@@ -47,7 +58,7 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
     try {
       await transfersAPI.verify(transfer.transfer_id, {
         from_location_id: Number(fromLocationId),
-        to_location_id: transfer.to_location_id ? Number(transfer.to_location_id) : undefined,
+        to_location_id: Number(toLocationId),
         lines: details.map((d) => ({
           transfer_detail_id: d.transfer_detail_id,
           quantity_approved: Number(qty[d.transfer_detail_id] || 0),
@@ -101,6 +112,24 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
             {l.location_name}
           </option>
         ))}
+      </select>
+
+      <h4 className="tf-panel-section-title">Assign destination</h4>
+      <select
+        className="ak-select"
+        style={{ width: '100%', marginBottom: '1.1rem' }}
+        value={toLocationId}
+        onChange={(e) => setToLocationId(e.target.value)}
+        disabled={busy}
+      >
+        <option value="">Select destination…</option>
+        {locations
+          .filter((l) => String(l.location_id) !== fromLocationId)
+          .map((l) => (
+            <option key={l.location_id} value={String(l.location_id)}>
+              {l.location_name}
+            </option>
+          ))}
       </select>
 
       <h4 className="tf-panel-section-title">Lines to approve</h4>

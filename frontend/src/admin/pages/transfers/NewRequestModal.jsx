@@ -92,17 +92,19 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
   const removeLine = (uid) => setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.uid !== uid) : prev));
 
   const showFrom = intent === 'demand' || (intent === 'offload' && canDirect);
-  const showTo = intent === 'demand' || (intent === 'pull' && canDirect) || intent === 'offload';
+  // Offload destination is decided by the analyst at verification, so only
+  // admin/IA (canDirect) may pre-select it here.
+  const showTo = intent === 'demand' || ((intent === 'pull' || intent === 'offload') && canDirect);
 
   const handleSubmit = async () => {
-    if (!toLocationId) { toast.error("Can't submit", 'Select a destination location.'); return; }
+    if (intent !== 'offload' && !toLocationId) { toast.error("Can't submit", 'Select a destination location.'); return; }
     if (intent !== 'pull' && !fromLocationId && showFrom) { toast.error("Can't submit", 'Select a source location.'); return; }
     const validLines = lines.filter((l) => l.productId && Number(l.quantity) > 0);
     if (validLines.length === 0) { toast.error("Can't submit", 'Add at least one product with a quantity.'); return; }
 
     const payload = {
       intent,
-      to_location_id: Number(toLocationId),
+      to_location_id: toLocationId ? Number(toLocationId) : undefined,
       transfer_date: transferDate,
       notes: notes.trim() || undefined,
       products: validLines.map((l) => ({ product_id: Number(l.productId), quantity_requested: Math.max(1, parseInt(l.quantity, 10) || 1) })),
@@ -161,7 +163,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
           )}
           {showTo && (
             <div className="ak-field">
-              <span className="ak-label">Destination{intent === 'offload' ? ' (suggested)' : ''}</span>
+              <span className="ak-label">Destination{intent === 'offload' ? ' (optional — else analyst assigns)' : ''}</span>
               <select className="ak-select" value={toLocationId} onChange={(e) => setToLocationId(e.target.value)} disabled={loadingRefs || (intent === 'pull' && !canDirect)}>
                 <option value="">Select destination…</option>
                 {locOptions}
@@ -172,6 +174,14 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
             <div className="ak-field">
               <span className="ak-label">Destination</span>
               <div className="tf-meta-value" style={{ padding: '0.5rem 0' }}>Your location</div>
+            </div>
+          )}
+          {intent === 'offload' && !canDirect && (
+            <div className="ak-field">
+              <span className="ak-label">Source</span>
+              <div className="tf-meta-value" style={{ padding: '0.5rem 0' }}>
+                Your location · destination assigned by analyst
+              </div>
             </div>
           )}
           <div className="ak-field">
