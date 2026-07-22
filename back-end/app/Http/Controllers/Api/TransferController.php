@@ -576,6 +576,86 @@ class TransferController extends Controller
         return $this->success($service->pickList($transfer), 'Pick list generated');
     }
 
+    /** The requester, or an admin/IA, may edit/cancel a request while it is still Pending. */
+    private function canEditRequest($user, Transfer $transfer): bool
+    {
+        return (int) $transfer->requested_by === (int) $user->user_id
+            || in_array((int) $user->role_id, [1, 2], true); // admin, inventory_analyst
+    }
+
+    /** Edit a still-Pending request's product lines + notes (requester or admin/IA). */
+    public function updateRequest(Request $request, $id, TransferService $service)
+    {
+        $validated = $request->validate([
+            'notes'                          => 'nullable|string|max:500',
+            'products'                       => 'required|array|min:1',
+            'products.*.product_id'          => 'required|exists:products,product_id',
+            'products.*.quantity_requested'  => 'required|integer|min:1',
+        ]);
+
+        $transfer = Transfer::with('details')->findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only a pending request can be edited.', 422);
+        }
+        $user = $request->user();
+        if (!$this->canEditRequest($user, $transfer)) {
+            return $this->error('You can only edit your own pending request.', 403);
+        }
+
+        return DB::transaction(function () use ($transfer, $validated, $user) {
+            if (array_key_exists('notes', $validated)) {
+                $transfer->notes = $validated['notes'];
+            }
+            $transfer->save();
+
+            // Pending has moved no stock, so lines can be swapped wholesale.
+            $transfer->details()->delete();
+            foreach ($validated['products'] as $row) {
+                $transfer->details()->create([
+                    'product_id'           => $row['product_id'],
+                    'quantity_requested'   => (int) $row['quantity_requested'],
+                    'quantity_scanned'     => 0,
+                    'quantity_transferred' => 0,
+                    'quantity_received'    => 0,
+                ]);
+            }
+
+            \App\Models\TblTransferTracking::create([
+                'transfer_id' => $transfer->transfer_id,
+                'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
+                'status_note' => 'Request edited by ' . ($user->username ?? "user#{$user->user_id}"),
+                'recorded_by' => $user->user_id,
+                'recorded_at' => now(),
+            ]);
+
+            return $this->success($transfer->fresh()->load(self::withRelations()), 'Request updated');
+        });
+    }
+
+    /** Withdraw a still-Pending request (requester or admin/IA). Soft-deletes it. */
+    public function cancel(Request $request, $id, TransferService $service)
+    {
+        $transfer = Transfer::findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only a pending request can be cancelled.', 422);
+        }
+        $user = $request->user();
+        if (!$this->canEditRequest($user, $transfer)) {
+            return $this->error('You can only cancel your own pending request.', 403);
+        }
+
+        \App\Models\TblTransferTracking::create([
+            'transfer_id' => $transfer->transfer_id,
+            'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
+            'status_note' => 'Request cancelled by ' . ($user->username ?? "user#{$user->user_id}"),
+            'recorded_by' => $user->user_id,
+            'recorded_at' => now(),
+        ]);
+        $transfer->delete();
+
+        return $this->success(null, 'Request cancelled');
+    }
+
     public function sourceAvailability($id)
     {
         $transfer = Transfer::with('details')->findOrFail($id);

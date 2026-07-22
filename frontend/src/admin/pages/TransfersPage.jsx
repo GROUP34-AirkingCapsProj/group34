@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import { toast } from '../utils/toast';
 import NewRequestModal from './transfers/NewRequestModal';
+import { confirmAction } from '../utils/confirm';
 import VerifyPanel from './transfers/VerifyPanel';
 import DispatchPanel from './transfers/DispatchPanel';
 import ReceivePanel from './transfers/ReceivePanel';
@@ -51,11 +52,14 @@ const TransfersPage = () => {
     { key: 'done', label: 'Done' },
   ]), [canVerify]);
 
+  const myLoc = user?.enforced_location_id ?? user?.location_id ?? null;
+
   const [activeTab, setActiveTab] = useState(canVerify ? 'verify' : 'mine');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState([]);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null); // transfer being edited (Pending, requester/IA)
 
   // Detail drawer
   const [selected, setSelected] = useState(null);   // full transfer from getById
@@ -104,6 +108,23 @@ const TransfersPage = () => {
   const closeDrawer = () => setSelected(null);
   const afterAction = () => { closeDrawer(); load(); };
 
+  const handleCancel = async (t) => {
+    const ok = await confirmAction({
+      title: `Cancel ${t.transfer_number || 'this request'}?`,
+      text: 'This withdraws the request and cannot be undone.',
+      confirmText: 'Cancel request',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    try {
+      await transfersAPI.cancelRequest(t.transfer_id);
+      toast.success('Request cancelled');
+      afterAction();
+    } catch (err) {
+      toast.error("Couldn't cancel request", err?.message || '');
+    }
+  };
+
   const visibleRows = grouped[activeTab] || [];
 
   const renderRow = (t) => {
@@ -142,6 +163,16 @@ const TransfersPage = () => {
     const from = selected.fromLocation?.location_name || selected.from_location?.location_name;
     const to = selected.toLocation?.location_name || selected.to_location?.location_name || '—';
 
+    // Only the assigned source location (or admin/IA) may dispatch.
+    const isSource = myLoc != null && String(selected.from_location_id) === String(myLoc);
+    const canDispatchThis = isAdmin || isIA || isSource;
+    // Requester may edit/cancel only while still Pending. requested_by may serialize as a user object.
+    const reqBy = selected.requested_by;
+    const reqById = reqBy && typeof reqBy === 'object' ? (reqBy.user_id ?? reqBy.id) : reqBy;
+    const uid = user?.user_id ?? user?.id;
+    const isRequester = uid != null && reqById != null && String(reqById) === String(uid);
+    const canEditReq = sName === 'Pending' && (isRequester || isAdmin || isIA);
+
     return (
       <div className="ak-page" style={{ padding: 0 }}>
         <div className="tf-drawer-meta">
@@ -160,7 +191,16 @@ const TransfersPage = () => {
         {bucket === 'verify' && !canVerify && (
           <p className="ak-muted">This transfer is awaiting analyst verification.</p>
         )}
-        {bucket === 'send' && <DispatchPanel transfer={selected} onDone={afterAction} />}
+        {canEditReq && (
+          <div className="tf-actions-row" style={{ marginTop: 8 }}>
+            <button type="button" className="ak-btn ak-btn--danger" onClick={() => handleCancel(selected)}>Cancel request</button>
+            <button type="button" className="ak-btn ak-btn--primary" onClick={() => { setEditing(selected); setSelected(null); }}>Edit request</button>
+          </div>
+        )}
+        {bucket === 'send' && canDispatchThis && <DispatchPanel transfer={selected} onDone={afterAction} />}
+        {bucket === 'send' && !canDispatchThis && (
+          <p className="ak-muted">Awaiting dispatch by {from || 'the assigned warehouse'}.</p>
+        )}
         {bucket === 'receive' && <ReceivePanel transfer={selected} onDone={afterAction} />}
         {bucket === 'done' && (
           <div>
@@ -246,6 +286,7 @@ const TransfersPage = () => {
       )}
 
       <NewRequestModal isOpen={showNew} onClose={() => setShowNew(false)} onCreated={() => { setActiveTab('mine'); load(); }} />
+      <NewRequestModal isOpen={!!editing} editTransfer={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
     </AdminLayout>
   );
 };
