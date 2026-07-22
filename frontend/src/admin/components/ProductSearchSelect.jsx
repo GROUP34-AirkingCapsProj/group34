@@ -137,7 +137,7 @@ const ProductSearchSelect = ({ products, value, onChange, placeholder = 'Search 
           className="prod-search-menu"
           style={{
             position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width,
-            zIndex: 9999, maxHeight: 300, overflowY: 'auto', background: '#fff',
+            zIndex: 10050, maxHeight: 300, overflowY: 'auto', background: '#fff',
             border: '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 10px 28px rgba(0,0,0,.20)',
           }}
         >

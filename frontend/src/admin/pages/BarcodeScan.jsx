@@ -28,7 +28,6 @@ import ReceivingHistoryLog from '../components/ReceivingHistoryLog';
 import { getStatusConfig } from '../utils/poStatus';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
-import TransferScanMode from './transfers/TransferScanMode';
 import {
   linesForLocation as bsrLinesForLocation,
   locationAmount as bsrLocationAmount,
@@ -1679,6 +1678,10 @@ const BarcodeScan = () => {
       navigate('/admin/issuance-scan');
       return;
     }
+    if (mode.key === 'transfer') {
+      navigate('/admin/transfers');
+      return;
+    }
     setScanMode(mode);
     setModeIndex(idx);
     setScanResult(null);
@@ -2822,19 +2825,6 @@ const BarcodeScan = () => {
               </div>
             </div>
           )}
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  /* ─────────────────────────────────────────────
-     RENDER: Transfer — dispatch/receive scanning
-  ───────────────────────────────────────────── */
-  if (scanMode?.key === 'transfer') {
-    return (
-      <AdminLayout>
-        <div className="ak-page bs-page">
-          <TransferScanMode onBack={() => setScanMode(null)} />
         </div>
       </AdminLayout>
     );
