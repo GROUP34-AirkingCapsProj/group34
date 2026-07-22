@@ -27,9 +27,7 @@ const routePrefetchMap = {
   '/admin/purchase-requests': () => import('../pages/PurchaseRequestPage'),
   '/admin/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
   '/admin/inventory': () => import('../pages/InventoryManagement'),
-  '/admin/transfer-requests': () => import('../pages/TransferRequestPage'),
-  '/admin/transfers': () => import('../pages/StockTransferManagement'),
-  '/admin/ist': () => import('../pages/ISTManagementPage'),
+  '/admin/transfers': () => import('../pages/TransfersPage'),
   '/admin/issuances': () => import('../pages/IssuanceManagement'),
   '/admin/adjustments': () => import('../pages/AdjustmentManagement'),
   '/admin/inventory-operation': () => import('../pages/BarcodeScan'),
@@ -81,9 +79,7 @@ const adminMenuSections = [
     label: 'INVENTORY INTELLIGENCE',
     items: [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-      { name: 'Transfer Requests', path: '/admin/transfer-requests', icon: 'transfer' },
-      { name: 'Stock Transfers', path: '/admin/transfers', icon: 'transfer' },
-      { name: 'Interbranch Transfers', path: '/admin/ist', icon: 'transfer' },
+      { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
     ],
   },
   {
@@ -470,7 +466,7 @@ const Sidebar = ({
                   {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
                 </span>
               )}
-              {item.path === '/admin/ist' && awaitingIstCount > 0 && (
+              {item.path === '/admin/transfers' && awaitingIstCount > 0 && (
                 <span className="nav-item-badge">
                   {awaitingIstCount > 99 ? '99+' : awaitingIstCount}
                 </span>
