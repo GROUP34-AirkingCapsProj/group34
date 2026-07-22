@@ -1,0 +1,68 @@
+/* ============================================================================
+   Unified Transfers page — supplements ak-* primitives (airking_ds.css) and
+   the shared barcode scan workspace (bsr-* in po_receiving.css). Only the bits
+   that ak-* doesn't already give us live here: intent chips, worklist rows,
+   the detail drawer, and the pick-list guidance blocks.
+   ============================================================================ */
+
+/* ── intent chip ─────────────────────────────────────────────────────────── */
+.tf-intent {
+  font-family: var(--ak-mono, 'JetBrains Mono', monospace);
+  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 0.18rem 0.5rem; border-radius: 6px; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+}
+.tf-intent--pull   { background: #eef4ff; color: #1d4ed8; }
+.tf-intent--offload{ background: #fff7ed; color: #b45309; }
+.tf-intent--demand { background: #f1edff; color: #5b21b6; }
+
+/* ── worklist route (from → to) ──────────────────────────────────────────── */
+.tf-route { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.tf-route-node { font-weight: 600; color: var(--ak-ink, #14181f); }
+.tf-route-node--muted { color: var(--ak-ink-faint, #939aa8); font-style: italic; font-weight: 500; }
+.tf-route-arrow { color: var(--ak-ink-faint, #939aa8); }
+
+.tf-row-clickable { cursor: pointer; }
+
+/* ── detail drawer ───────────────────────────────────────────────────────── */
+.tf-drawer-meta {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.9rem 1.25rem; margin-bottom: 1.1rem;
+}
+.tf-meta-item { display: flex; flex-direction: column; gap: 0.2rem; }
+.tf-meta-label {
+  font-family: var(--ak-mono, monospace); font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ak-ink-faint, #939aa8);
+}
+.tf-meta-value { font-size: 0.9rem; color: var(--ak-ink, #14181f); font-weight: 600; }
+
+.tf-panel-section-title {
+  font-family: var(--ak-display, sans-serif); font-weight: 700; font-size: 0.95rem;
+  margin: 0 0 0.75rem; color: var(--ak-ink, #14181f);
+}
+
+/* ── verify line rows ────────────────────────────────────────────────────── */
+.tf-line { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--ak-line-soft, #eff1f7); }
+.tf-line:last-child { border-bottom: none; }
+.tf-line-name { flex: 1 1 auto; min-width: 0; }
+.tf-line-name b { display: block; font-size: 0.88rem; color: var(--ak-ink, #14181f); }
+.tf-line-name small { color: var(--ak-ink-soft, #5b6472); font-size: 0.75rem; }
+.tf-line-qty { width: 84px; text-align: center; }
+.tf-line-avail { font-size: 0.72rem; color: var(--ak-ink-soft, #5b6472); white-space: nowrap; }
+.tf-shortfall { color: #b91c1c; font-weight: 600; }
+
+/* ── pick-list guidance ──────────────────────────────────────────────────── */
+.tf-pick-group { border: 1px solid var(--ak-line, #e7e9f1); border-radius: 10px; padding: 0.75rem 0.9rem; margin-bottom: 0.7rem; background: #fbfbfe; }
+.tf-pick-head { display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.tf-pick-head b { font-size: 0.86rem; }
+.tf-pick-sugg { display: flex; align-items: center; gap: 0.5rem; font-size: 0.76rem; color: var(--ak-ink-soft, #5b6472); padding: 0.2rem 0; }
+.tf-pick-zone {
+  font-family: var(--ak-mono, monospace); font-size: 0.68rem; font-weight: 600;
+  background: #eef1f6; color: #475569; padding: 0.12rem 0.45rem; border-radius: 5px;
+}
+.tf-pick-serial { font-family: var(--ak-mono, monospace); font-size: 0.72rem; color: var(--ak-ink, #14181f); }
+
+/* keep the two-column scan workspace usable inside the narrower drawer */
+.tf-drawer .bsr-workflow { grid-template-columns: 1fr; }
+
+.tf-actions-row { display: flex; gap: 0.6rem; justify-content: flex-end; flex-wrap: wrap; margin-top: 1.1rem; }

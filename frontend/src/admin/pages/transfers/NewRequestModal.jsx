@@ -1,0 +1,221 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import Modal from '../../components/Modal';
+import ProductSearchSelect from '../../components/ProductSearchSelect';
+import { transfersAPI, locationsAPI, productsAPI } from '../../services/api';
+import { useAuth, useUserLocation } from '../../context/AuthContext';
+import { getRoleKey, ROLES } from '../../utils/roles';
+import { toast } from '../../utils/toast';
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const newLine = () => ({ uid: `l-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, productId: '', quantity: 1 });
+
+const INTENTS = [
+  { key: 'pull', label: 'Pull', desc: 'Request stock into your location' },
+  { key: 'offload', label: 'Offload', desc: 'Send stock out of your location' },
+  { key: 'demand', label: 'IA-demand', desc: 'Analyst-directed rebalancing', iaOnly: true },
+];
+
+/**
+ * New transfer request modal. Intent selector drives which location selects
+ * are shown; products come from the master catalog. Submits via transfersAPI.create.
+ */
+const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
+  const { user } = useAuth();
+  const roleKey = getRoleKey(user);
+  const isAdmin = roleKey === ROLES.ADMIN;
+  const isIA = roleKey === ROLES.INVENTORY_ANALYST;
+  const canDirect = isAdmin || isIA; // may pick both locations / use IA-demand
+  const { locationId: myLocationId } = useUserLocation();
+
+  const [intent, setIntent] = useState('pull');
+  const [fromLocationId, setFromLocationId] = useState('');
+  const [toLocationId, setToLocationId] = useState('');
+  const [transferDate, setTransferDate] = useState(todayIso());
+  const [notes, setNotes] = useState('');
+  const [lines, setLines] = useState([newLine()]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [locations, setLocations] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loadingRefs, setLoadingRefs] = useState(true);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoadingRefs(true);
+    Promise.all([
+      locationsAPI.getAll({ per_page: 500 }),
+      productsAPI.getAll({ per_page: 1000 }),
+    ])
+      .then(([locRes, prodRes]) => {
+        setLocations(Array.isArray(locRes?.data) ? locRes.data : []);
+        const rows = Array.isArray(prodRes?.data) ? prodRes.data : [];
+        setProducts(rows.map((p) => ({
+          id: String(p.product_id ?? p.id ?? ''),
+          name: p.product_name || p.name || '',
+          code: p.product_code || p.code || '',
+          type: p.product_type || '',
+        })));
+      })
+      .catch((e) => toast.error('Could not load references', e?.message))
+      .finally(() => setLoadingRefs(false));
+  }, [isOpen]);
+
+  // Reset form each time the modal opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    setIntent('pull');
+    setFromLocationId('');
+    setToLocationId(myLocationId ? String(myLocationId) : '');
+    setTransferDate(todayIso());
+    setNotes('');
+    setLines([newLine()]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Keep the implicit location aligned to intent for non-directors.
+  useEffect(() => {
+    if (canDirect) return;
+    if (intent === 'pull') { setToLocationId(myLocationId ? String(myLocationId) : ''); setFromLocationId(''); }
+    if (intent === 'offload') { setFromLocationId(myLocationId ? String(myLocationId) : ''); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent, canDirect, myLocationId]);
+
+  const availableIntents = useMemo(() => INTENTS.filter((i) => !i.iaOnly || canDirect), [canDirect]);
+
+  const setLineField = (uid, field, value) =>
+    setLines((prev) => prev.map((l) => (l.uid === uid ? { ...l, [field]: value } : l)));
+  const addLine = () => setLines((prev) => [...prev, newLine()]);
+  const removeLine = (uid) => setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.uid !== uid) : prev));
+
+  const showFrom = intent === 'demand' || (intent === 'offload' && canDirect);
+  const showTo = intent === 'demand' || (intent === 'pull' && canDirect) || intent === 'offload';
+
+  const handleSubmit = async () => {
+    if (!toLocationId) { toast.error("Can't submit", 'Select a destination location.'); return; }
+    if (intent !== 'pull' && !fromLocationId && showFrom) { toast.error("Can't submit", 'Select a source location.'); return; }
+    const validLines = lines.filter((l) => l.productId && Number(l.quantity) > 0);
+    if (validLines.length === 0) { toast.error("Can't submit", 'Add at least one product with a quantity.'); return; }
+
+    const payload = {
+      intent,
+      to_location_id: Number(toLocationId),
+      transfer_date: transferDate,
+      notes: notes.trim() || undefined,
+      products: validLines.map((l) => ({ product_id: Number(l.productId), quantity_requested: Math.max(1, parseInt(l.quantity, 10) || 1) })),
+    };
+    if (fromLocationId && intent !== 'pull') payload.from_location_id = Number(fromLocationId);
+
+    setSubmitting(true);
+    try {
+      const res = await transfersAPI.create(payload);
+      toast.success('Transfer request created', res?.data?.transfer_number || '');
+      onCreated?.();
+      onClose?.();
+    } catch (err) {
+      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : (err?.message || 'Failed to create transfer.');
+      toast.error("Couldn't create transfer", msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const locOptions = locations.map((l) => (
+    <option key={l.location_id} value={String(l.location_id)}>{l.location_name}</option>
+  ));
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="New Transfer Request" maxWidth={640}>
+      <div className="ak-page" style={{ padding: 0 }}>
+        {/* Intent selector */}
+        <div className="ak-field" style={{ marginBottom: '1rem' }}>
+          <span className="ak-label">Intent</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {availableIntents.map((i) => (
+              <button
+                key={i.key}
+                type="button"
+                className={`ak-btn${intent === i.key ? ' ak-btn--primary' : ''}`}
+                onClick={() => setIntent(i.key)}
+                title={i.desc}
+              >
+                {i.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Locations */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.9rem', marginBottom: '1rem' }}>
+          {showFrom && (
+            <div className="ak-field">
+              <span className="ak-label">Source</span>
+              <select className="ak-select" value={fromLocationId} onChange={(e) => setFromLocationId(e.target.value)} disabled={loadingRefs}>
+                <option value="">Select source…</option>
+                {locOptions}
+              </select>
+            </div>
+          )}
+          {showTo && (
+            <div className="ak-field">
+              <span className="ak-label">Destination{intent === 'offload' ? ' (suggested)' : ''}</span>
+              <select className="ak-select" value={toLocationId} onChange={(e) => setToLocationId(e.target.value)} disabled={loadingRefs || (intent === 'pull' && !canDirect)}>
+                <option value="">Select destination…</option>
+                {locOptions}
+              </select>
+            </div>
+          )}
+          {!showFrom && intent === 'pull' && !canDirect && (
+            <div className="ak-field">
+              <span className="ak-label">Destination</span>
+              <div className="tf-meta-value" style={{ padding: '0.5rem 0' }}>Your location</div>
+            </div>
+          )}
+          <div className="ak-field">
+            <span className="ak-label">Transfer date</span>
+            <input type="date" className="ak-input" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} />
+          </div>
+        </div>
+
+        {/* Product lines */}
+        <div className="ak-field" style={{ marginBottom: '0.5rem' }}>
+          <span className="ak-label">Products</span>
+        </div>
+        {lines.map((l) => (
+          <div key={l.uid} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+              <ProductSearchSelect
+                products={products}
+                value={l.productId}
+                onChange={(pid) => setLineField(l.uid, 'productId', pid)}
+                disabled={loadingRefs}
+                placeholder={loadingRefs ? 'Loading…' : 'Search product…'}
+              />
+            </div>
+            <input
+              type="number" min={1} className="ak-input" style={{ width: 80 }}
+              value={l.quantity}
+              onChange={(e) => setLineField(l.uid, 'quantity', e.target.value)}
+            />
+            <button type="button" className="ak-btn ak-btn--sm ak-btn--danger" onClick={() => removeLine(l.uid)} disabled={lines.length === 1} title="Remove line">×</button>
+          </div>
+        ))}
+        <button type="button" className="ak-btn ak-btn--sm" onClick={addLine} style={{ marginTop: 4 }}>+ Add product</button>
+
+        {/* Notes */}
+        <div className="ak-field" style={{ marginTop: '1rem' }}>
+          <span className="ak-label">Notes (optional)</span>
+          <textarea className="ak-input" style={{ minHeight: 56, resize: 'vertical', fontFamily: 'inherit' }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason / context for this transfer…" />
+        </div>
+
+        <div className="tf-actions-row">
+          <button type="button" className="ak-btn" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="button" className="ak-btn ak-btn--primary" onClick={handleSubmit} disabled={submitting || loadingRefs}>
+            {submitting ? 'Submitting…' : 'Submit Request'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+export default NewRequestModal;

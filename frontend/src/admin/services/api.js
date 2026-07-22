@@ -889,6 +889,50 @@ export const transfersAPI = {
   },
   restore: async (id) =>
     apiRequest(`/transfers/${id}/restore`, { method: 'POST' }),
+
+  /* ── Unified Transfers worklist workflow ──────────────────────────────
+     verify/reject (IA), dispatch scan (source), receive scan (destination),
+     and receipt. Body shapes are documented alongside each method. */
+
+  /** IA verifies a Pending transfer. body: { from_location_id?, to_location_id?, lines:[{transfer_detail_id, quantity_approved}] } */
+  verify: async (id, data) =>
+    apiRequest(`/transfers/${id}/verify`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  /** IA rejects a Pending transfer. body: { rejection_reason } */
+  reject: async (id, data) =>
+    apiRequest(`/transfers/${id}/reject`, { method: 'PATCH', body: JSON.stringify(data ?? {}) }),
+
+  /** FIFO pick suggestions per line for an Approved transfer. */
+  pickList: async (id) => apiRequest(`/transfers/${id}/pick-list`),
+
+  /** Live per-line dispatch scan progress + history. */
+  scanStatus: async (id) => apiRequest(`/transfers/${id}/scan-status`),
+
+  /** Record one dispatch scan. body: { barcode, transfer_detail_id?, quantity? } */
+  scan: async (id, data) =>
+    apiRequest(`/transfers/${id}/scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  removeScan: async (id, scanId) =>
+    apiRequest(`/transfers/${id}/scan/${scanId}`, { method: 'DELETE' }),
+
+  confirmDispatch: async (id) =>
+    apiRequest(`/transfers/${id}/confirm-dispatch`, { method: 'POST' }),
+
+  /** Record one receive scan. body: { barcode, transfer_detail_id?, quantity? } */
+  receiveScan: async (id, data) =>
+    apiRequest(`/transfers/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  removeReceiveScan: async (id, scanId) =>
+    apiRequest(`/transfers/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
+
+  /** Confirm receipt (-> Received). body: {} (backend infers receive location from user). */
+  receiveConfirm: async (id, data) =>
+    apiRequest(`/transfers/${id}/receive-confirm`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  receipt: async (id) => apiRequest(`/transfers/${id}/receipt`),
+
+  receiptPdfUrl: (id, token) =>
+    `${getApiBaseUrl()}/transfers/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`,
 };
 
 /* ======================
