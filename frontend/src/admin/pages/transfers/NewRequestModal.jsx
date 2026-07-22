@@ -20,7 +20,19 @@ const INTENTS = [
  * New transfer request modal. Intent selector drives which location selects
  * are shown; products come from the master catalog. Submits via transfersAPI.create.
  */
-const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
+const seedLinesFromDetails = (dets, prods) => (dets || []).map((d) => {
+  const p = prods.find((x) => String(x.id) === String(d.product_id));
+  const ppp = p?.piecesPerPackage || 0;
+  const total = Number(d.quantity_requested || 0);
+  const base = { uid: `l-${d.transfer_detail_id}-${Math.random().toString(36).slice(2, 5)}`, productId: String(d.product_id) };
+  if (p && p.type !== 'appliance' && ppp > 1) {
+    return { ...base, quantity: 1, packages: Math.floor(total / ppp), pieces: total % ppp };
+  }
+  return { ...base, quantity: total || 1, packages: 0, pieces: 0 };
+});
+
+const NewRequestModal = ({ isOpen, onClose, onCreated, editTransfer = null, onSaved }) => {
+  const isEdit = !!editTransfer;
   const { user } = useAuth();
   const roleKey = getRoleKey(user);
   const isAdmin = roleKey === ROLES.ADMIN;
@@ -50,7 +62,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
       .then(([locRes, prodRes]) => {
         setLocations(Array.isArray(locRes?.data) ? locRes.data : []);
         const rows = Array.isArray(prodRes?.data) ? prodRes.data : [];
-        setProducts(rows.map((p) => ({
+        const mapped = rows.map((p) => ({
           id: String(p.product_id ?? p.id ?? ''),
           name: p.product_name || p.name || '',
           code: p.product_code || p.code || '',
@@ -61,15 +73,24 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
           brandName: p.brand_name || '',
           piecesPerPackage: Number(p.pieces_per_package ?? 0) || 0,
           packageUnit: p.package_unit || '',
-        })));
+        }));
+        setProducts(mapped);
+        // Editing an existing request: seed lines/notes from it (locations/intent fixed).
+        if (isEdit) {
+          setIntent(editTransfer.intent || 'pull');
+          setFromLocationId(editTransfer.from_location_id ? String(editTransfer.from_location_id) : '');
+          setToLocationId(editTransfer.to_location_id ? String(editTransfer.to_location_id) : '');
+          setNotes(editTransfer.notes || '');
+          setLines(seedLinesFromDetails(editTransfer.details, mapped));
+        }
       })
       .catch((e) => toast.error('Could not load references', e?.message))
       .finally(() => setLoadingRefs(false));
-  }, [isOpen]);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset form each time the modal opens.
+  // Reset form each time the modal opens (create mode only; edit seeds from the record).
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isEdit) return;
     setIntent('pull');
     setFromLocationId('');
     setToLocationId(myLocationId ? String(myLocationId) : '');
@@ -113,17 +134,35 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
   const showTo = intent === 'demand' || ((intent === 'pull' || intent === 'offload') && canDirect);
 
   const handleSubmit = async () => {
-    if (intent !== 'offload' && !toLocationId) { toast.error("Can't submit", 'Select a destination location.'); return; }
-    if (intent !== 'pull' && !fromLocationId && showFrom) { toast.error("Can't submit", 'Select a source location.'); return; }
+    if (!isEdit && intent !== 'offload' && !toLocationId) { toast.error("Can't submit", 'Select a destination location.'); return; }
+    if (!isEdit && intent !== 'pull' && !fromLocationId && showFrom) { toast.error("Can't submit", 'Select a source location.'); return; }
     const validLines = lines.filter((l) => l.productId && lineTotalPieces(l) > 0);
     if (validLines.length === 0) { toast.error("Can't submit", 'Add at least one product with a quantity.'); return; }
+
+    const productsPayload = validLines.map((l) => ({ product_id: Number(l.productId), quantity_requested: Math.max(1, lineTotalPieces(l)) }));
+
+    if (isEdit) {
+      setSubmitting(true);
+      try {
+        await transfersAPI.updateRequest(editTransfer.transfer_id, { notes: notes.trim() || undefined, products: productsPayload });
+        toast.success('Request updated', editTransfer.transfer_number || '');
+        onSaved?.();
+        onClose?.();
+      } catch (err) {
+        const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : (err?.message || 'Failed to update request.');
+        toast.error("Couldn't update request", msg);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     const payload = {
       intent,
       to_location_id: toLocationId ? Number(toLocationId) : undefined,
       transfer_date: transferDate,
       notes: notes.trim() || undefined,
-      products: validLines.map((l) => ({ product_id: Number(l.productId), quantity_requested: Math.max(1, lineTotalPieces(l)) })),
+      products: productsPayload,
     };
     if (fromLocationId && intent !== 'pull') payload.from_location_id = Number(fromLocationId);
 
@@ -146,8 +185,9 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
   ));
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="New Transfer Request" maxWidth={640}>
+    <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? `Edit ${editTransfer.transfer_number || 'Request'}` : 'New Transfer Request'} maxWidth={640}>
       <div className="ak-page" style={{ padding: 0 }}>
+        {!isEdit && (<>
         {/* Intent selector */}
         <div className="ak-field" style={{ marginBottom: '1rem' }}>
           <span className="ak-label">Intent</span>
@@ -205,6 +245,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
             <input type="date" className="ak-input" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} />
           </div>
         </div>
+        </>)}
 
         {/* Product lines */}
         <div className="ak-field" style={{ marginBottom: '0.5rem' }}>
@@ -268,7 +309,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated }) => {
         <div className="tf-actions-row">
           <button type="button" className="ak-btn" onClick={onClose} disabled={submitting}>Cancel</button>
           <button type="button" className="ak-btn ak-btn--primary" onClick={handleSubmit} disabled={submitting || loadingRefs}>
-            {submitting ? 'Submitting…' : 'Submit Request'}
+            {submitting ? (isEdit ? 'Saving…' : 'Submitting…') : (isEdit ? 'Save changes' : 'Submit Request')}
           </button>
         </div>
       </div>

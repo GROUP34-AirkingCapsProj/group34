@@ -905,6 +905,14 @@ export const transfersAPI = {
   /** Live per-product available stock at each candidate source warehouse. */
   sourceAvailability: async (id) => apiRequest(`/transfers/${id}/source-availability`),
 
+  /** Requester (or admin/IA) edits a still-Pending request. body: { notes?, products:[{product_id, quantity_requested}] } */
+  updateRequest: async (id, data) =>
+    apiRequest(`/transfers/${id}/request`, { method: 'PATCH', body: JSON.stringify(data ?? {}) }),
+
+  /** Requester (or admin/IA) withdraws a still-Pending request (soft-deletes it). */
+  cancelRequest: async (id) =>
+    apiRequest(`/transfers/${id}/cancel`, { method: 'PATCH' }),
+
   /** FIFO pick suggestions per line for an Approved transfer. */
   pickList: async (id) => apiRequest(`/transfers/${id}/pick-list`),
 

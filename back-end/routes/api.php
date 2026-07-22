@@ -636,6 +636,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/transfers/{id}/verify', [TransferController::class, 'verify']);
         Route::patch('/transfers/{id}/reject', [TransferController::class, 'reject']);
     });
+    // Requester (or admin/IA) edits/cancels a still-Pending request; ownership enforced in-method.
+    Route::middleware('permission:inventory_transfers,update')->group(function () {
+        Route::patch('/transfers/{id}/request', [TransferController::class, 'updateRequest']);
+        Route::patch('/transfers/{id}/cancel', [TransferController::class, 'cancel']);
+    });
     Route::get('/transfers/{id}/scan-status', [TransferController::class, 'scanStatus']);
     Route::get('/transfers/{id}/receive-form', [TransferController::class, 'receiveForm']);
     Route::get('/transfers/{id}/receipt', [TransferController::class, 'receipt']);
