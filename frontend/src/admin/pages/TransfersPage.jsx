@@ -10,6 +10,7 @@ import NewRequestModal from './transfers/NewRequestModal';
 import VerifyPanel from './transfers/VerifyPanel';
 import DispatchPanel from './transfers/DispatchPanel';
 import ReceivePanel from './transfers/ReceivePanel';
+import { TransferSteps, TransferHistory } from './transfers/TransferTimeline';
 import '../styles/airking_ds.css';
 import '../styles/po_recommendation.css';
 import '../styles/po_receiving.css';
@@ -43,13 +44,14 @@ const TransfersPage = () => {
   const canVerify = isAdmin || isIA || (typeof can === 'function' && can('inventory_transfers', 'approve'));
 
   const TABS = useMemo(() => ([
+    { key: 'mine', label: 'My Requests' },
     ...(canVerify ? [{ key: 'verify', label: 'To Verify' }] : []),
     { key: 'send', label: 'To Send' },
     { key: 'receive', label: 'To Receive' },
     { key: 'done', label: 'Done' },
   ]), [canVerify]);
 
-  const [activeTab, setActiveTab] = useState(canVerify ? 'verify' : 'send');
+  const [activeTab, setActiveTab] = useState(canVerify ? 'verify' : 'mine');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState([]);
@@ -76,13 +78,14 @@ const TransfersPage = () => {
   }, []);
 
   const grouped = useMemo(() => {
-    const g = { verify: [], send: [], receive: [], done: [] };
+    const g = { mine: [], verify: [], send: [], receive: [], done: [] };
     rows.forEach((t) => {
       const bucket = STATUS_META[statusName(t)]?.tab || 'done';
       g[bucket].push(t);
+      if (user && String(t.requested_by) === String(user.user_id)) g.mine.push(t);
     });
     return g;
-  }, [rows]);
+  }, [rows, user]);
 
   const openDrawer = (t) => {
     setSelected({ transfer_id: t.transfer_id, __loading: true });
@@ -144,6 +147,8 @@ const TransfersPage = () => {
           <div className="tf-meta-item"><span className="tf-meta-label">Status</span><span className={`ak-badge ${STATUS_META[sName]?.badge || 'ak-badge--gray'}`}>{sName}</span></div>
         </div>
 
+        <TransferSteps transfer={selected} />
+
         {bucket === 'verify' && canVerify && (
           <VerifyPanel transfer={selected} locations={locations} onDone={afterAction} />
         )}
@@ -170,6 +175,8 @@ const TransfersPage = () => {
             )}
           </div>
         )}
+
+        <TransferHistory transfer={selected} />
       </div>
     );
   };
