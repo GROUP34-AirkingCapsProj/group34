@@ -82,8 +82,12 @@ const TransfersPage = () => {
     rows.forEach((t) => {
       const bucket = STATUS_META[statusName(t)]?.tab || 'done';
       g[bucket].push(t);
+      // NOTE: the eager-loaded `requestedBy` relation serializes to the key
+      // `requested_by`, shadowing the scalar FK — so this may be a user object.
+      const reqBy = t.requested_by;
+      const reqById = reqBy && typeof reqBy === 'object' ? (reqBy.user_id ?? reqBy.id) : reqBy;
       const uid = user?.user_id ?? user?.id;
-      if (uid != null && String(t.requested_by) === String(uid)) g.mine.push(t);
+      if (uid != null && reqById != null && String(reqById) === String(uid)) g.mine.push(t);
     });
     return g;
   }, [rows, user]);
