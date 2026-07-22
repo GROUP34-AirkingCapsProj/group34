@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { transfersAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { confirmWithReason } from '../../utils/confirm';
@@ -31,6 +31,19 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
     return init;
   });
   const [busy, setBusy] = useState(false);
+
+  const [availByLoc, setAvailByLoc] = useState(null); // null = loading, {} = loaded
+  const [availError, setAvailError] = useState(false);
+
+  useEffect(() => {
+    let ok = true;
+    setAvailByLoc(null);
+    setAvailError(false);
+    transfersAPI.sourceAvailability(transfer.transfer_id)
+      .then((res) => { if (ok) setAvailByLoc(res?.data && typeof res.data === 'object' ? res.data : {}); })
+      .catch(() => { if (ok) { setAvailByLoc({}); setAvailError(true); } });
+    return () => { ok = false; };
+  }, [transfer.transfer_id]);
 
   const setLineQty = (did, v) =>
     setQty((prev) => ({ ...prev, [did]: Math.max(0, parseInt(v, 10) || 0) }));
@@ -96,6 +109,12 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
     }
   };
 
+  const availFor = (productId) => {
+    if (!fromLocationId || !availByLoc) return null;
+    const entry = availByLoc[fromLocationId]?.[productId];
+    return entry ? Number(entry.available) : 0; // present-but-missing product = 0
+  };
+
   return (
     <div>
       <h4 className="tf-panel-section-title">Assign source warehouse</h4>
@@ -113,6 +132,21 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
           </option>
         ))}
       </select>
+
+      {fromLocationId && availByLoc && !availError && (() => {
+        const surviving = details.filter((d) => Number(qty[d.transfer_detail_id] || 0) > 0);
+        const okCount = surviving.filter((d) => availFor(d.product_id) >= Number(qty[d.transfer_detail_id] || 0)).length;
+        const shortAny = okCount < surviving.length;
+        const whName = warehouses.find((l) => String(l.location_id) === String(fromLocationId))?.location_name || 'This warehouse';
+        return (
+          <div className={`tf-avail-summary${shortAny ? ' tf-avail-summary--warn' : ''}`} style={{ margin: '-0.6rem 0 1.1rem' }}>
+            {whName} can fulfill {okCount} of {surviving.length} product{surviving.length === 1 ? '' : 's'}.
+            {shortAny && ' Some lines exceed available stock — partial dispatch will auto-close the remainder.'}
+          </div>
+        );
+      })()}
+      {availByLoc === null && <div className="ak-muted" style={{ margin: '-0.6rem 0 1.1rem' }}>Checking stock…</div>}
+      {availError && <div className="ak-muted" style={{ margin: '-0.6rem 0 1.1rem' }}>Availability unavailable.</div>}
 
       <h4 className="tf-panel-section-title">Assign destination</h4>
       <select
@@ -137,20 +171,22 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
         {details.length === 0 && <p className="ak-muted">No line items on this transfer.</p>}
         {details.map((d) => {
           const did = d.transfer_detail_id;
-          const avail = d.available_at_source;
-          const shortfall = d.shortfall;
+          const liveAvail = availFor(d.product_id);
+          const approvedQty = Number(qty[did] || 0);
+          const liveShort = liveAvail == null ? 0 : Math.max(0, approvedQty - liveAvail);
           return (
             <div key={did} className="tf-line">
               <div className="tf-line-name">
                 <b>{productName(d)}</b>
                 <small>SKU: {sku(d)} · requested {d.quantity_requested}</small>
               </div>
-              {avail != null && (
-                <span className="tf-line-avail">
-                  avail {avail}
-                  {Number(shortfall) > 0 && <span className="tf-shortfall"> · short {shortfall}</span>}
+              {fromLocationId && liveAvail != null && (
+                <span className={`tf-line-avail${liveShort > 0 ? ' tf-line-avail--short' : ' tf-line-avail--ok'}`}>
+                  avail {liveAvail}
+                  {liveShort > 0 && <span className="tf-shortfall"> · short {liveShort}</span>}
                 </span>
               )}
+              {!fromLocationId && <span className="ak-muted" style={{ fontSize: 12 }}>select a source to see stock</span>}
               <input
                 type="number"
                 min={0}
