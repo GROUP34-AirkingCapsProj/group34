@@ -82,7 +82,8 @@ const TransfersPage = () => {
     rows.forEach((t) => {
       const bucket = STATUS_META[statusName(t)]?.tab || 'done';
       g[bucket].push(t);
-      if (user && String(t.requested_by) === String(user.user_id)) g.mine.push(t);
+      const uid = user?.user_id ?? user?.id;
+      if (uid != null && String(t.requested_by) === String(uid)) g.mine.push(t);
     });
     return g;
   }, [rows, user]);
@@ -240,7 +241,7 @@ const TransfersPage = () => {
         </Modal>
       )}
 
-      <NewRequestModal isOpen={showNew} onClose={() => setShowNew(false)} onCreated={load} />
+      <NewRequestModal isOpen={showNew} onClose={() => setShowNew(false)} onCreated={() => { setActiveTab('mine'); load(); }} />
     </AdminLayout>
   );
 };
