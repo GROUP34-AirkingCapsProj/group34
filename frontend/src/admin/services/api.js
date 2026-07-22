@@ -902,6 +902,9 @@ export const transfersAPI = {
   reject: async (id, data) =>
     apiRequest(`/transfers/${id}/reject`, { method: 'PATCH', body: JSON.stringify(data ?? {}) }),
 
+  /** Live per-product available stock at each candidate source warehouse. */
+  sourceAvailability: async (id) => apiRequest(`/transfers/${id}/source-availability`),
+
   /** FIFO pick suggestions per line for an Approved transfer. */
   pickList: async (id) => apiRequest(`/transfers/${id}/pick-list`),
 
