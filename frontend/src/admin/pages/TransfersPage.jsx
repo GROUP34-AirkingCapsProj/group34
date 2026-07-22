@@ -85,7 +85,11 @@ const TransfersPage = () => {
     const g = { mine: [], verify: [], send: [], receive: [], done: [] };
     rows.forEach((t) => {
       const bucket = STATUS_META[statusName(t)]?.tab || 'done';
-      g[bucket].push(t);
+      // To Send is the dispatch worklist — only the assigned source location
+      // (or admin/IA) belongs there; others will see it in To Receive once shipped.
+      const isSourceUser = myLoc != null && String(t.from_location_id) === String(myLoc);
+      const excludeFromSend = bucket === 'send' && !isAdmin && !isIA && !isSourceUser;
+      if (!excludeFromSend) g[bucket].push(t);
       // NOTE: the eager-loaded `requestedBy` relation serializes to the key
       // `requested_by`, shadowing the scalar FK — so this may be a user object.
       const reqBy = t.requested_by;
@@ -94,7 +98,7 @@ const TransfersPage = () => {
       if (uid != null && reqById != null && String(reqById) === String(uid)) g.mine.push(t);
     });
     return g;
-  }, [rows, user]);
+  }, [rows, user, isAdmin, isIA, myLoc]);
 
   const openDrawer = (t) => {
     setSelected({ transfer_id: t.transfer_id, __loading: true });
