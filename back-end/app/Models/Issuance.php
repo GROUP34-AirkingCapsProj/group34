@@ -71,6 +71,11 @@ class Issuance extends Model
         return $this->hasMany(IssuanceDetail::class, 'issuance_id', 'issuance_id');
     }
 
+    public function sets(): HasMany
+    {
+        return $this->hasMany(IssuanceSet::class, 'issuance_id', 'issuance_id');
+    }
+
     public function warrantyRecords(): HasMany
     {
         return $this->hasMany(WarrantyRecord::class, 'issuance_id', 'issuance_id');

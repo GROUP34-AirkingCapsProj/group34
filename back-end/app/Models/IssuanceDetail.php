@@ -19,6 +19,8 @@ class IssuanceDetail extends Model
         'unit_price', 'quantity_issued', 'quantity_unit',
         'quantity_in_pieces', 'unit_price_per_piece', 'subtotal',
         'quantity_returned', 'condition_issued', 'condition_returned',
+        'issuance_set_id', 'batch_id', 'zone_label',
+        'cost_price_at_issue', 'quantity_requested', 'quantity_short',
     ];
 
     protected $casts = [
@@ -28,6 +30,9 @@ class IssuanceDetail extends Model
         'unit_price'            => 'decimal:2',
         'unit_price_per_piece'  => 'decimal:4',
         'subtotal'              => 'decimal:2',
+        'quantity_requested'    => 'integer',
+        'quantity_short'        => 'integer',
+        'cost_price_at_issue'   => 'decimal:2',
     ];
 
     public function issuance(): BelongsTo
@@ -44,5 +49,15 @@ class IssuanceDetail extends Model
     public function warrantyRecord(): HasOne
     {
         return $this->hasOne(WarrantyRecord::class, 'issuance_detail_id', 'issuance_detail_id');
+    }
+
+    public function issuanceSet(): BelongsTo
+    {
+        return $this->belongsTo(IssuanceSet::class, 'issuance_set_id', 'issuance_set_id');
+    }
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(InventoryBatch::class, 'batch_id', 'batch_id');
     }
 }
