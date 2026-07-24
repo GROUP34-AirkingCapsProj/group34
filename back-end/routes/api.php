@@ -455,10 +455,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:product_set_management,read')->group(function () {
-        // Task 5 adds GET /product-sets/suggest here — MUST stay before
-        // /product-sets/{id} so the literal segment doesn't get swallowed by
-        // the {id} wildcard.
         Route::get('/product-sets', [\App\Http\Controllers\Api\ProductSetController::class, 'index']);
+        Route::get('/product-sets/suggest', [\App\Http\Controllers\Api\ProductSetController::class, 'suggest']);
         Route::get('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'show']);
     });
     Route::middleware('permission:product_set_management,create')
