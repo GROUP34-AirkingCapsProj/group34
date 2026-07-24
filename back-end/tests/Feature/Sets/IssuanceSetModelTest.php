@@ -144,4 +144,49 @@ class IssuanceSetModelTest extends SetTestCase
         $this->assertContains($issuanceReservation->reservation_id, $results);
         $this->assertNotContains($transferReservation->reservation_id, $results);
     }
+
+    /**
+     * ReservationService's primary query is active()->forSource(...), so the two
+     * scopes composing correctly is what actually gates stock. Testing them only
+     * in isolation would miss a careless orWhere added to either one.
+     */
+    public function test_active_and_for_source_compose_without_leaking_rows(): void
+    {
+        $loc     = $this->makeLocation();
+        $product = $this->makeConsumable();
+
+        $base = [
+            'product_id'  => $product->product_id,
+            'location_id' => $loc->location_id,
+            'quantity'    => 1,
+        ];
+
+        $wanted = PickReservation::create($base + [
+            'source_type' => 'issuance', 'source_id' => 77,
+            'expires_at'  => now()->addMinutes(10),
+        ]);
+        $expiredSameSource = PickReservation::create($base + [
+            'source_type' => 'issuance', 'source_id' => 77,
+            'expires_at'  => now()->subMinute(),
+        ]);
+        $releasedSameSource = PickReservation::create($base + [
+            'source_type' => 'issuance', 'source_id' => 77,
+            'expires_at'  => now()->addMinutes(10),
+            'released_at' => now(),
+        ]);
+        $liveWrongSource = PickReservation::create($base + [
+            'source_type' => 'transfer', 'source_id' => 77,
+            'expires_at'  => now()->addMinutes(10),
+        ]);
+
+        foreach ([
+            PickReservation::active()->forSource('issuance', 77)->pluck('reservation_id')->all(),
+            PickReservation::forSource('issuance', 77)->active()->pluck('reservation_id')->all(),
+        ] as $results) {
+            $this->assertContains($wanted->reservation_id, $results);
+            $this->assertNotContains($expiredSameSource->reservation_id, $results);
+            $this->assertNotContains($releasedSameSource->reservation_id, $results);
+            $this->assertNotContains($liveWrongSource->reservation_id, $results);
+        }
+    }
 }
