@@ -1295,6 +1295,14 @@ export const productSetsAPI = {
   /** Ranked set suggestions for a chosen appliance product. */
   suggest: async (productId) =>
     apiRequest(`/product-sets/suggest?product_id=${productId}`),
+  /** Soft-deleted sets only. */
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/product-sets/archived?${query}` : '/product-sets/archived');
+  },
+  /** Refused with 422 if a live set has since taken the same set_code. */
+  restore: async (id) =>
+    apiRequest(`/product-sets/${id}/restore`, { method: 'POST' }),
 };
 
 /* ======================
