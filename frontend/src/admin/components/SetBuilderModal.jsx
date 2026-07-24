@@ -175,11 +175,31 @@ export default function SetBuilderModal({ isOpen, onClose, initialSet, brands, o
       toast.error('Set code and set name are required.');
       return;
     }
-    const validLines = lines.filter((l) => l.product_id && Number(l.quantity) > 0);
-    if (!validLines.length) {
+    // Never filter bad lines out silently. A BOQ runs to ~18 lines; dropping one
+    // because its quantity was left blank would save an incomplete set with no
+    // hint that anything was missing. Name the offending line instead.
+    const complete = (l) => l.product_id && Number(l.quantity) > 0;
+    const blank = (l) => !l.product_id && String(l.quantity ?? '').trim() === '';
+
+    const filledLines = lines.filter((l) => !blank(l));
+    if (!filledLines.length) {
       toast.error('Add at least one line with a product and quantity.');
       return;
     }
+
+    const firstBadIndex = filledLines.findIndex((l) => !complete(l));
+    if (firstBadIndex !== -1) {
+      const bad = filledLines[firstBadIndex];
+      const label = products.find((p) => String(p.product_id) === String(bad.product_id))?.product_name;
+      toast.error(
+        label
+          ? `Line ${firstBadIndex + 1} (${label}) needs a quantity greater than zero.`
+          : `Line ${firstBadIndex + 1} needs a product and a quantity greater than zero.`
+      );
+      return;
+    }
+
+    const validLines = filledLines;
 
     const payload = {
       set_code: form.set_code.trim(),
@@ -212,8 +232,11 @@ export default function SetBuilderModal({ isOpen, onClose, initialSet, brands, o
     } catch (err) {
       const fieldErrors = err.errors || {};
       setErrors(fieldErrors);
-      const msg = fieldErrors.set_code?.[0] || err.message || 'Failed to save the set.';
-      toast.error(msg);
+      // Surface whichever field the server actually rejected. Falling back to
+      // err.message alone would show Laravel's generic "The given data was
+      // invalid." and hide the real reason.
+      const firstFieldMessage = Object.values(fieldErrors).flat().find(Boolean);
+      toast.error(fieldErrors.set_code?.[0] || firstFieldMessage || err.message || 'Failed to save the set.');
     } finally {
       setSubmitting(false);
     }
@@ -348,8 +371,9 @@ export default function SetBuilderModal({ isOpen, onClose, initialSet, brands, o
                             disabled={!canSubmit || i === 0}
                             onClick={() => moveLine(i, -1)}
                             title="Move up"
+                            aria-label={`Move line ${i + 1} up`}
                           >
-                            {'▲'}
+                            <span aria-hidden="true">{'▲'}</span>
                           </button>
                           <button
                             type="button"
@@ -358,8 +382,9 @@ export default function SetBuilderModal({ isOpen, onClose, initialSet, brands, o
                             disabled={!canSubmit || i === lines.length - 1}
                             onClick={() => moveLine(i, 1)}
                             title="Move down"
+                            aria-label={`Move line ${i + 1} down`}
                           >
-                            {'▼'}
+                            <span aria-hidden="true">{'▼'}</span>
                           </button>
                         </div>
                       </td>
@@ -422,8 +447,9 @@ export default function SetBuilderModal({ isOpen, onClose, initialSet, brands, o
                             onClick={() => removeLine(l.key)}
                             disabled={lines.length <= 1}
                             title="Remove line"
+                            aria-label={`Remove line ${i + 1}`}
                           >
-                            {'✕'}
+                            <span aria-hidden="true">{'✕'}</span>
                           </button>
                         )}
                       </td>
