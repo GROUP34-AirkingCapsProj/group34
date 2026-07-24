@@ -1128,11 +1128,29 @@ Insert before `validatePayload()`:
             return response()->json(['success' => true, 'data' => []]);
         }
 
-        $norm = fn (?string $v) => $v === null ? null : strtolower(preg_replace('/\s+/', '', $v));
+        // Treat '' and whitespace as null: a blank capacity means "unspecified",
+        // not a literal value. Only a global middleware stops the HTTP path from
+        // persisting one; seeders and tinker write straight past it.
+        $norm = function (?string $v): ?string {
+            if ($v === null) {
+                return null;
+            }
+            $v = strtolower(preg_replace('/\s+/', '', $v));
+
+            return $v === '' ? null : $v;
+        };
 
         $wantBrand    = $detail->brand_id !== null ? (int) $detail->brand_id : null;
         $wantCapacity = $norm($detail->capacity_rating);
         $wantVariant  = $norm($detail->variant);
+
+        // An appliance with no capacity of its own gets nothing. 69 of 208
+        // appliance_details rows are capacity-less (soundbars, TVs, some
+        // chilled-water units), so treating null as "match anything" would dump
+        // the whole catalogue, all scoring zero, on a third of all selections.
+        if ($wantCapacity === null) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
 
         $sets = ProductSet::with(['lines.product', 'lines.issuableUnit', 'brand'])
             ->where('is_active', true)
@@ -1140,11 +1158,11 @@ Insert before `validatePayload()`:
             ->filter(function (ProductSet $set) use ($norm, $wantCapacity) {
                 $setCapacity = $norm($set->capacity_rating);
                 // Null capacity on the set = applies to any capacity.
-                return $setCapacity === null || $wantCapacity === null || $setCapacity === $wantCapacity;
+                return $setCapacity === null || $setCapacity === $wantCapacity;
             })
             ->map(function (ProductSet $set) use ($norm, $wantBrand, $wantCapacity, $wantVariant) {
                 $score = 0;
-                if ($wantCapacity !== null && $norm($set->capacity_rating) === $wantCapacity) {
+                if ($norm($set->capacity_rating) === $wantCapacity) {
                     $score += 4;
                 }
                 if ($wantBrand !== null && $set->brand_id !== null && (int) $set->brand_id === $wantBrand) {
