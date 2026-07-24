@@ -395,7 +395,7 @@ class ProductSetModelTest extends SetTestCase
         $set->lines()->create(['product_id' => $b->product_id, 'quantity' => 4, 'sort_order' => 2]);
 
         $this->assertSame(2, $set->fresh('lines')->lines->count());
-        $this->assertEqualsWithDelta(300.00, $set->fresh('lines')->setPrice(), 0.001);
+        $this->assertEqualsWithDelta(300.00, $set->fresh('lines')->totalPrice(), 0.001);
     }
 
     public function test_deleting_a_set_removes_its_lines(): void
@@ -466,7 +466,7 @@ class ProductSet extends Model
     }
 
     /** Sum of line quantity x product unit_price. Requires `lines.product` to be loaded or loadable. */
-    public function setPrice(): float
+    public function totalPrice(): float
     {
         $this->loadMissing('lines.product');
 
@@ -547,7 +547,15 @@ git commit -m "feat(sets): ProductSet and ProductSetLine models with price and p
 
 ---
 
-### Task 3: Unit conversion on set lines
+### Task 3: Unit conversion on set lines — ALREADY DONE, pulled forward into Task 2
+
+**Status: complete in commit `2d6889a`. Skip this task.**
+
+It was pulled forward because Task 2's code quality review found a real defect in `quantityInPieces()`: `quantity` is a `decimal(10,3)`, so ordinary values are binary fractions whose product overshoots — `1.1 * 100` evaluates to `110.00000000000001`, and the bare `ceil()` issued **111** pieces instead of 110. The same off-by-one was verified for `0.14x100`, `0.56x50`, `2.18x100`, and `1.12x25`. Since Task 9 expands sets into issuance lines through this method, every affected line would have quietly taken extra stock.
+
+The fix rounds to 6 decimals before `ceil()`. `tests/Feature/Sets/SetLineConversionTest.php` now exists with the three tests below plus a data-provider regression case per verified overshoot and a corrupt-factor case.
+
+The original task text follows for reference only — do not re-implement it.
 
 **Files:**
 - Test: `tests/Feature/Sets/SetLineConversionTest.php`
@@ -916,7 +924,7 @@ class ProductSetController extends Controller
             'capacity_rating' => $set->capacity_rating,
             'variant'         => $set->variant,
             'is_active'       => (bool) $set->is_active,
-            'set_price'       => $set->setPrice(),
+            'set_price'       => $set->totalPrice(),
             'lines'           => $set->lines->map(fn ($line) => [
                 'set_line_id'        => (int) $line->set_line_id,
                 'product_id'         => (int) $line->product_id,
