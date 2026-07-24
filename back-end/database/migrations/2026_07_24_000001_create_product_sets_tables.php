@@ -16,7 +16,11 @@ return new class extends Migration
                 $table->text('description')->nullable();
                 $table->unsignedBigInteger('brand_id')->nullable();
                 $table->string('capacity_rating', 60)->nullable();
-                $table->string('variant', 60)->nullable();
+                // 100 to match appliance_details.variant exactly. This column is
+                // compared to it for equality when suggesting a set for an aircon,
+                // so a narrower width would silently truncate a long variant label
+                // and the match would simply stop working, with no error.
+                $table->string('variant', 100)->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->unsignedBigInteger('created_by')->nullable();
                 $table->unsignedBigInteger('updated_by')->nullable();
@@ -25,6 +29,10 @@ return new class extends Migration
 
                 $table->index(['brand_id', 'capacity_rating', 'variant'], 'product_sets_match_idx');
                 $table->index('is_active');
+
+                $table->foreign('brand_id')->references('brand_id')->on('brand_lookup')->nullOnDelete();
+                $table->foreign('created_by')->references('user_id')->on('users')->nullOnDelete();
+                $table->foreign('updated_by')->references('user_id')->on('users')->nullOnDelete();
             });
         }
 
@@ -41,6 +49,13 @@ return new class extends Migration
 
                 $table->index('set_id');
                 $table->index('product_id');
+
+                // Lines are meaningless without their header, so they follow it out.
+                $table->foreign('set_id')->references('set_id')->on('product_sets')->cascadeOnDelete();
+                // A product in use by a BOQ must not vanish underneath it.
+                $table->foreign('product_id')->references('product_id')->on('products')->restrictOnDelete();
+                $table->foreign('issuable_unit_id')->references('issuable_unit_id')
+                      ->on('product_issuable_units')->nullOnDelete();
             });
         }
     }
