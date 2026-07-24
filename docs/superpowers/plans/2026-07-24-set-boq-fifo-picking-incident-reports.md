@@ -56,7 +56,7 @@ php artisan test --filter=test_method_name
 | `app/Services/FifoPickingService.php` | The FIFO rule. `suggest()` + `validateScan()`. No DB writes. |
 | `app/Traits/NormalizesBarcode.php` (**modify**, not create) | Gains `resolveScan()` — the 3-pass serial → product-barcode → receiving-barcode sequence, lifted out of `IssuanceScanController`. The trait already owns `barcodeLookupCandidates()` and `findProductByBarcodeCandidates()` and is already used by 5 call sites, so a new resolver service would only duplicate it. |
 | `app/Services/IssuanceOrderService.php` | Draft line building: add set, add custom, edit, remove, reprice. |
-| `app/Services/ReservationService.php` | Write/release `pick_reservations` and keep `inventory.available_quantity` in step. |
+| `app/Services/ReservationService.php` | Sole writer of `pick_reservations`. Holds are rows, never mutations of `inventory.available_quantity` — see the design correction at the top of Phase 2. |
 | `app/Services/IncidentService.php` | File an incident, compute FIFO exclusions, resolve into adjustment/correction/zone-update. |
 | `app/Models/ProductSet.php`, `ProductSetLine.php`, `IssuanceSet.php`, `PickReservation.php`, `IncidentReport.php` | Eloquent models. |
 | `app/Http/Controllers/Api/ProductSetController.php` | Set CRUD + `suggest`. |
@@ -1266,6 +1266,22 @@ git commit -m "feat(sets): Set Management page with BOQ builder"
 ## Phase 2 — Draft, Quote, Reservations (Tasks 7–12)
 
 Verified facts this phase depends on: `status_lookup` has columns `status_id, status_name, status_category, is_active, created_at, updated_at`. Existing issuance statuses are **30 Pending, 31 Completed, 32 Voided**. Draft gets a new auto-increment id, so nothing may hardcode it — resolve it by name.
+
+> ### DESIGN CORRECTION — reservations are derived, not deducted
+>
+> **This overrides the `ReservationService` and quote code shown later in Tasks 10, 11 and 16b. Where they disagree, this section wins.**
+>
+> As first drafted, this phase counted every hold twice. `ReservationService::reserve()` decremented `inventory.available_quantity`, *and* `IssuanceOrderController::availableFor()` separately subtracted active reservations from that same column. Order A reserving 5 of 10 would leave order B seeing 0 available instead of 5. Separately, an expired reservation's decrement was never reversed and nothing swept it, so availability leaked permanently downward.
+>
+> **The rule: a reservation is a row, never a mutation.**
+>
+> - `reserve()` inserts `pick_reservations` rows and **does not touch `inventory.available_quantity`**. It checks derived availability under `lockForUpdate()` on the inventory row first, so two concurrent confirmations still cannot both win.
+> - Availability anywhere = `inventory.available_quantity` − sum of **active** reservations at that location and product (excluding the caller's own source). This is already what `availableFor()` does; it is now the only mechanism.
+> - `releaseFor()` stamps `released_at`. That is all it needs to do — the row stops being active, so the stock is immediately visible to everyone else again.
+> - **`settleFor()` is deleted.** With availability derived, releasing and settling are the same operation. On completion the scan has already reduced `quantity_on_hand` and `available_quantity` through the existing issuance path, so dropping the hold credits nothing back; on void nothing was consumed, so dropping the hold correctly frees the stock. One method covers both, and Task 16b's release/settle asymmetry disappears with it.
+> - **Expiry needs no sweeper.** An expired reservation falls out of `active()` and its stock is available again automatically. This is the main reason for the change: no background job to write, and no way to leak.
+>
+> Consequently, drop these assertions where they appear later: any test expecting `inventory.available_quantity` to fall on confirm, or to rise on release. Assert on derived availability (the quote endpoint's `available` field, or the active-reservation sum) instead. `quantity_on_hand` behaviour is unchanged.
 
 ### Task 7: Draft status, order columns, issuance_sets, pick_reservations
 
