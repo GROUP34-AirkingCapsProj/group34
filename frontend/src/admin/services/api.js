@@ -1278,6 +1278,26 @@ export const productsAPI = {
 };
 
 /* ======================
+   PRODUCT SETS API (BOQ templates)
+====================== */
+export const productSetsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/product-sets?${query}` : '/product-sets');
+  },
+  getById: async (id) => apiRequest(`/product-sets/${id}`),
+  create: async (data) =>
+    apiRequest('/product-sets', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/product-sets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  archive: async (id) =>
+    apiRequest(`/product-sets/${id}`, { method: 'DELETE' }),
+  /** Ranked set suggestions for a chosen appliance product. */
+  suggest: async (productId) =>
+    apiRequest(`/product-sets/suggest?product_id=${productId}`),
+};
+
+/* ======================
    USERS API
 ====================== */
 export const usersAPI = {

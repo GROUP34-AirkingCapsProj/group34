@@ -20,6 +20,7 @@ const CategoryBrandManagement = lazy(() => import('./admin/pages/CategoryBrandMa
 // Procurement
 const ItemManagement = lazy(() => import('./admin/pages/ItemManagement'));
 const SupplierNetwork = lazy(() => import('./admin/pages/SupplierNetwork'));
+const SetManagementPage = lazy(() => import('./admin/pages/SetManagementPage'));
 
 // Inventory
 const InventoryManagement = lazy(() => import('./admin/pages/InventoryManagement'));
@@ -118,6 +119,7 @@ function App() {
           {/* Procurement */}
           <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
           <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
+          <Route path="/admin/sets" element={<RoleRoute><SetManagementPage /></RoleRoute>} />
           <Route path="/admin/purchase-orders" element={<Navigate to="/admin/draft-po-creator" replace />} />
           <Route path="/admin/budget-management" element={<RoleRoute><BudgetManagementPage /></RoleRoute>} />
           <Route path="/admin/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
