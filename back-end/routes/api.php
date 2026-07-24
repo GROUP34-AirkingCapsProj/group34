@@ -457,14 +457,21 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:product_set_management,read')->group(function () {
         Route::get('/product-sets', [\App\Http\Controllers\Api\ProductSetController::class, 'index']);
         Route::get('/product-sets/suggest', [\App\Http\Controllers\Api\ProductSetController::class, 'suggest']);
-        Route::get('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'show']);
     });
+    // Must be registered before /product-sets/{id} below, or "archived" is
+    // swallowed as an {id} — same reason `suggest` is declared before {id}.
+    Route::middleware('permission:product_set_management,archive')
+         ->get('/product-sets/archived', [\App\Http\Controllers\Api\ProductSetController::class, 'archived']);
+    Route::middleware('permission:product_set_management,read')
+         ->get('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'show']);
     Route::middleware('permission:product_set_management,create')
          ->post('/product-sets', [\App\Http\Controllers\Api\ProductSetController::class, 'store']);
     Route::middleware('permission:product_set_management,update')
          ->put('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'update']);
-    Route::middleware('permission:product_set_management,archive')
-         ->delete('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'destroy']);
+    Route::middleware('permission:product_set_management,archive')->group(function () {
+        Route::delete('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'destroy']);
+        Route::post('/product-sets/{id}/restore', [\App\Http\Controllers\Api\ProductSetController::class, 'restore']);
+    });
 
     /*
     |--------------------------------------------------------------------------

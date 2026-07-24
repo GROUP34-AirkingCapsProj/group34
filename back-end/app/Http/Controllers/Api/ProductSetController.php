@@ -114,6 +114,57 @@ class ProductSetController extends Controller
         return response()->json(['success' => true, 'message' => 'Set archived.']);
     }
 
+    /** Soft-deleted sets only — mirrors index() but scoped to onlyTrashed(). */
+    public function archived(Request $request): JsonResponse
+    {
+        $query = ProductSet::onlyTrashed()->with(['lines.product', 'lines.issuableUnit', 'brand']);
+
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('set_name', 'like', "%{$search}%")
+                  ->orWhere('set_code', 'like', "%{$search}%");
+            });
+        }
+
+        $sets = $query->orderByDesc('deleted_at')->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $sets->map(fn (ProductSet $s) => $this->present($s))->all(),
+        ]);
+    }
+
+    /**
+     * Restore an archived set. Refused if a live set has since taken the same
+     * set_code — the unique index is not deleted_at-scoped (see validatePayload),
+     * so restoring blind would either 500 on the DB constraint or, worse,
+     * silently succeed and leave two rows racing for one code.
+     */
+    public function restore(int $id): JsonResponse
+    {
+        $set = ProductSet::onlyTrashed()->findOrFail($id);
+
+        $codeTaken = ProductSet::where('set_code', $set->set_code)
+            ->where('set_id', '!=', $set->set_id)
+            ->exists();
+
+        if ($codeTaken) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cannot restore: set code \"{$set->set_code}\" is already in use by another set.",
+                'errors'  => ['set_code' => ["Set code \"{$set->set_code}\" is already in use by another set."]],
+            ], 422);
+        }
+
+        $set->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Set restored.',
+            'data'    => $this->present($set->fresh(['lines.product', 'lines.issuableUnit', 'brand'])),
+        ]);
+    }
+
     /**
      * Suggest sets for a chosen appliance, ranked by how well they match.
      * Capacity is the anchor: a set that declares a capacity different from the
