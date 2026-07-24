@@ -35,8 +35,14 @@ class ProductSet extends Model
         return $this->belongsTo(BrandLookup::class, 'brand_id', 'brand_id');
     }
 
-    /** Sum of line quantity x product unit_price. */
-    public function setPrice(): float
+    /**
+     * Sum of line quantity x product unit_price.
+     *
+     * Callers listing many sets should eager-load `lines.product` on the whole
+     * collection first; the loadMissing() here is a safety net for a single
+     * instance, not a substitute for batching.
+     */
+    public function totalPrice(): float
     {
         $this->loadMissing('lines.product');
 

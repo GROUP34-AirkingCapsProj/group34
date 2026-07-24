@@ -19,7 +19,7 @@ class ProductSetModelTest extends SetTestCase
         $set->lines()->create(['product_id' => $b->product_id, 'quantity' => 4, 'sort_order' => 2]);
 
         $this->assertSame(2, $set->fresh('lines')->lines->count());
-        $this->assertEqualsWithDelta(300.00, $set->fresh('lines')->setPrice(), 0.001);
+        $this->assertEqualsWithDelta(300.00, $set->fresh('lines')->totalPrice(), 0.001);
     }
 
     public function test_hard_deleting_a_set_removes_its_lines(): void
