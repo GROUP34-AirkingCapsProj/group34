@@ -24,6 +24,43 @@ class IssuanceOrderSchemaTest extends SetTestCase
         $this->assertSame(30, IssuanceStatus::pending());
     }
 
+    /**
+     * Every relationship column added by Phase 2 must carry a real constraint,
+     * not just an index. issuance_details.batch_id shipped with an index and no
+     * foreign key, and nothing caught it — this asserts the whole set so the
+     * next omission fails loudly.
+     */
+    public function test_every_phase_two_relationship_column_has_a_foreign_key(): void
+    {
+        $actual = collect(DB::select(
+            "SELECT TABLE_NAME AS t, COLUMN_NAME AS c, REFERENCED_TABLE_NAME AS rt
+             FROM information_schema.KEY_COLUMN_USAGE
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND REFERENCED_TABLE_NAME IS NOT NULL
+               AND (TABLE_NAME IN ('issuance_sets', 'pick_reservations')
+                    OR (TABLE_NAME = 'issuance_details' AND COLUMN_NAME IN ('issuance_set_id', 'batch_id')))"
+        ))->mapWithKeys(fn ($r) => ["{$r->t}.{$r->c}" => $r->rt]);
+
+        $expected = [
+            'issuance_details.issuance_set_id' => 'issuance_sets',
+            'issuance_details.batch_id'        => 'inventory_batches',
+            'issuance_sets.issuance_id'        => 'issuances',
+            'issuance_sets.set_id'             => 'product_sets',
+            'pick_reservations.product_id'     => 'products',
+            'pick_reservations.location_id'    => 'locations',
+            'pick_reservations.batch_id'       => 'inventory_batches',
+            'pick_reservations.serial_id'      => 'item_serial',
+        ];
+
+        foreach ($expected as $column => $referencedTable) {
+            $this->assertSame(
+                $referencedTable,
+                $actual[$column] ?? null,
+                "{$column} must have a foreign key referencing {$referencedTable}"
+            );
+        }
+    }
+
     public function test_deleting_issuance_cascades_away_its_issuance_sets(): void
     {
         $location = $this->makeLocation();
