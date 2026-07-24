@@ -113,6 +113,65 @@ class ProductSetController extends Controller
         return response()->json(['success' => true, 'message' => 'Set archived.']);
     }
 
+    /**
+     * Suggest sets for a chosen appliance, ranked by how well they match.
+     * Capacity is the anchor: a set that declares a capacity different from the
+     * appliance's is never offered, because a 1TR BOQ on a 3TR unit is wrong.
+     * Brand and variant refine the ranking, but a set that leaves them null is
+     * treated as "applies to any", which is how generic BOQs are authored.
+     */
+    public function suggest(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|integer|exists:products,product_id',
+        ]);
+
+        $product = \App\Models\Product::with('applianceDetail')->find($validated['product_id']);
+        $detail  = $product?->applianceDetail;
+
+        if (! $detail) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $norm = fn (?string $v) => $v === null ? null : strtolower(preg_replace('/\s+/', '', $v));
+
+        $wantBrand    = $detail->brand_id !== null ? (int) $detail->brand_id : null;
+        $wantCapacity = $norm($detail->capacity_rating);
+        $wantVariant  = $norm($detail->variant);
+
+        $sets = ProductSet::with(['lines.product', 'lines.issuableUnit', 'brand'])
+            ->where('is_active', true)
+            ->get()
+            ->filter(function (ProductSet $set) use ($norm, $wantCapacity) {
+                $setCapacity = $norm($set->capacity_rating);
+                // Null capacity on the set = applies to any capacity.
+                return $setCapacity === null || $wantCapacity === null || $setCapacity === $wantCapacity;
+            })
+            ->map(function (ProductSet $set) use ($norm, $wantBrand, $wantCapacity, $wantVariant) {
+                $score = 0;
+                if ($wantCapacity !== null && $norm($set->capacity_rating) === $wantCapacity) {
+                    $score += 4;
+                }
+                if ($wantBrand !== null && $set->brand_id !== null && (int) $set->brand_id === $wantBrand) {
+                    $score += 2;
+                }
+                if ($wantVariant !== null && $norm($set->variant) === $wantVariant) {
+                    $score += 1;
+                }
+
+                return ['set' => $set, 'score' => $score];
+            })
+            ->sortByDesc(fn ($row) => $row['score'])
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $sets->map(function ($row) {
+                return $this->present($row['set']) + ['match_score' => $row['score']];
+            })->all(),
+        ]);
+    }
+
     private function validatePayload(Request $request, ?int $ignoreId): array
     {
         return $request->validate([
