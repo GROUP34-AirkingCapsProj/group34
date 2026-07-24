@@ -25,9 +25,15 @@ class ProductSetLine extends Model
         return $this->belongsTo(ProductSet::class, 'set_id', 'set_id');
     }
 
+    /**
+     * Includes archived products on purpose. A BOQ line still refers to the
+     * product it was authored with even after that product is soft-deleted;
+     * without withTrashed() the line would render nameless and price as zero,
+     * silently understating the set total instead of showing the real figure.
+     */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'product_id', 'product_id');
+        return $this->belongsTo(Product::class, 'product_id', 'product_id')->withTrashed();
     }
 
     public function issuableUnit(): BelongsTo
@@ -38,6 +44,13 @@ class ProductSetLine extends Model
     /**
      * Quantity expressed in base pieces, applying the issuable unit's conversion_factor.
      * A line with no issuable unit is already in pieces.
+     *
+     * The round() before ceil() is load-bearing, not decoration. quantity is a
+     * decimal(10,3), so ordinary values land on binary fractions that overshoot:
+     * 1.1 * 100 evaluates to 110.00000000000001, and a bare ceil() would issue
+     * 111 pieces instead of 110. Six decimals is far finer than any real
+     * conversion factor while sitting well clear of that float noise. A genuine
+     * fraction still rounds up as intended — 1.5 pieces is still 2.
      */
     public function quantityInPieces(): int
     {
@@ -46,6 +59,6 @@ class ProductSetLine extends Model
             $factor = 1;
         }
 
-        return (int) ceil((float) $this->quantity * $factor);
+        return (int) ceil(round((float) $this->quantity * $factor, 6));
     }
 }
