@@ -135,26 +135,19 @@ class ProductSetController extends Controller
     }
 
     /**
-     * Restore an archived set. Refused if a live set has since taken the same
-     * set_code — the unique index is not deleted_at-scoped (see validatePayload),
-     * so restoring blind would either 500 on the DB constraint or, worse,
-     * silently succeed and leave two rows racing for one code.
+     * Restore an archived set.
+     *
+     * No set_code conflict check is needed, and one would be dead code: the
+     * unique index on set_code spans every row, archived included, so while
+     * this set exists no other row can hold its code — which is exactly why
+     * validatePayload() does not scope uniqueness to non-deleted rows. Restore
+     * only flips deleted_at and never touches the code.
+     *
+     * If that index ever becomes deleted_at-scoped, a guard belongs here.
      */
     public function restore(int $id): JsonResponse
     {
         $set = ProductSet::onlyTrashed()->findOrFail($id);
-
-        $codeTaken = ProductSet::where('set_code', $set->set_code)
-            ->where('set_id', '!=', $set->set_id)
-            ->exists();
-
-        if ($codeTaken) {
-            return response()->json([
-                'success' => false,
-                'message' => "Cannot restore: set code \"{$set->set_code}\" is already in use by another set.",
-                'errors'  => ['set_code' => ["Set code \"{$set->set_code}\" is already in use by another set."]],
-            ], 422);
-        }
 
         $set->restore();
 
