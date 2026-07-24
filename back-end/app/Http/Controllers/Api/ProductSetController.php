@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSet;
-use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,8 +12,6 @@ use Illuminate\Validation\Rule;
 
 class ProductSetController extends Controller
 {
-    use ApiResponse;
-
     public function index(Request $request): JsonResponse
     {
         $query = ProductSet::with(['lines.product', 'lines.issuableUnit', 'brand']);
@@ -79,15 +76,19 @@ class ProductSetController extends Controller
         $validated = $this->validatePayload($request, $id);
 
         DB::transaction(function () use ($set, $validated) {
-            $set->update(array_filter([
-                'set_code'        => $validated['set_code']        ?? null,
-                'set_name'        => $validated['set_name']        ?? null,
-                'description'     => $validated['description']     ?? null,
-                'brand_id'        => $validated['brand_id']        ?? null,
-                'capacity_rating' => $validated['capacity_rating'] ?? null,
-                'variant'         => $validated['variant']         ?? null,
-                'updated_by'      => Auth::id(),
-            ], fn ($v) => $v !== null) + ['is_active' => $validated['is_active'] ?? $set->is_active]);
+            // Keyed on presence, not on value. Filtering out nulls would make
+            // "clear this field" indistinguishable from "field omitted", so an
+            // admin could never null out brand_id to correct a wrong assignment —
+            // and brand_id feeds the set-matching index.
+            $changes = ['updated_by' => Auth::id()];
+
+            foreach (['set_code', 'set_name', 'description', 'brand_id', 'capacity_rating', 'variant', 'is_active'] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $changes[$field] = $validated[$field];
+                }
+            }
+
+            $set->update($changes);
 
             // Lines are replaced wholesale — the builder UI always posts the full list.
             if (array_key_exists('lines', $validated)) {
@@ -118,7 +119,14 @@ class ProductSetController extends Controller
             'set_code'        => [
                 $ignoreId === null ? 'required' : 'sometimes',
                 'string', 'max:60',
-                Rule::unique('product_sets', 'set_code')->ignore($ignoreId, 'set_id')->whereNull('deleted_at'),
+                // Deliberately NOT scoped to whereNull('deleted_at'). The database
+                // index on set_code is a plain unique across all rows, and MySQL
+                // cannot express a partial index; a composite with deleted_at would
+                // be worse, since MySQL treats NULLs as distinct and would then let
+                // two ACTIVE sets share a code. So an archived code stays reserved,
+                // and the caller gets a clean 422 instead of the raw 500 that a
+                // soft-delete-aware rule would produce on insert.
+                Rule::unique('product_sets', 'set_code')->ignore($ignoreId, 'set_id'),
             ],
             'set_name'        => [$ignoreId === null ? 'required' : 'sometimes', 'string', 'max:191'],
             'description'     => 'nullable|string|max:2000',
