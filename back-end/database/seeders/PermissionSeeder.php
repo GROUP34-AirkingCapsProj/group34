@@ -59,6 +59,14 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
+            // Set/BOQ catalog (/admin/sets) — admin maintains, IA and warehouse read
+            // so the issuance picker can list sets.
+            'product_set_management' => [
+                'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                'create'  => ['admin'],
+                'update'  => ['admin'],
+                'archive' => ['admin'],
+            ],
             'location_based_inventory' => [
                 'read'    => ['admin'],
                 'create'  => ['admin'],

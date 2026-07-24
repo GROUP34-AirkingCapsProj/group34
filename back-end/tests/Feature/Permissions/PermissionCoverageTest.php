@@ -33,6 +33,7 @@ class PermissionCoverageTest extends TestCase
         'inventory_adjustments',        // extra of Scan Barcode
         'data_archiving',               // extra of Archive Management
         'warranty_claims',              // extra of Warranty Records
+        'product_set_management',       // admin page lands in Task 6; no nav bundle yet
     ];
 
     private function bundleRequiredFeatures(): array

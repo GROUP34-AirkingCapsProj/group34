@@ -211,7 +211,11 @@ class RbacInfraTest extends TestCase
         $uid = uniqid();
         ['user_id' => $userId] = $this->createAdminUser($uid);
 
-        $permission = Permission::create(['feature' => 'system_configuration', 'action' => 'update']);
+        // Feature name is a fictional stand-in for infra testing, deliberately not
+        // one of PermissionSeeder::matrix()'s real feature/action pairs — using a
+        // real one (e.g. 'system_configuration') collides with the persistently
+        // seeded permissions row and fails with a unique-constraint violation.
+        $permission = Permission::create(['feature' => 'sysconf_infra_test', 'action' => 'update']);
 
         UserPermissionOverride::create([
             'user_id'       => $userId,
@@ -221,7 +225,7 @@ class RbacInfraTest extends TestCase
         ]);
 
         $resolver = new PermissionResolver();
-        $this->assertTrue($resolver->canUser($userId, 'system_configuration', 'update'));
+        $this->assertTrue($resolver->canUser($userId, 'sysconf_infra_test', 'update'));
     }
 
     public function test_non_admin_is_not_bypassed(): void
@@ -229,7 +233,9 @@ class RbacInfraTest extends TestCase
         $uid = uniqid();
         ['user_id' => $userId, 'role_id' => $roleId] = $this->createUserWithRole('analyst', $uid);
 
-        $permission = Permission::create(['feature' => 'system_configuration', 'action' => 'read']);
+        // See note above: a fictional feature name to avoid colliding with the
+        // persistently seeded permissions row for a real matrix feature.
+        $permission = Permission::create(['feature' => 'sysconf_infra_test', 'action' => 'read']);
         RolePermission::create([
             'role_id'       => $roleId,
             'permission_id' => $permission->permission_id,
@@ -237,7 +243,7 @@ class RbacInfraTest extends TestCase
         ]);
 
         $resolver = new PermissionResolver();
-        $this->assertFalse($resolver->canUser($userId, 'system_configuration', 'read'));
+        $this->assertFalse($resolver->canUser($userId, 'sysconf_infra_test', 'read'));
     }
 
     // =========================================================================
