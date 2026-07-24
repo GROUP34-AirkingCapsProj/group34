@@ -2,12 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IssuanceSet extends Model
 {
+    // Audited because was_modified records that someone departed from the
+    // standard BOQ on this order — the one fact here worth being able to trace
+    // afterwards. Matches TransferDetail, AdjustmentDetail and IssuanceDetail.
+    use Auditable;
+
     protected $table      = 'issuance_sets';
     protected $primaryKey = 'issuance_set_id';
 
