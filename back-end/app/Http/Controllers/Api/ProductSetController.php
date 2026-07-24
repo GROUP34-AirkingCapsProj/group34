@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\ProductSet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -119,6 +120,12 @@ class ProductSetController extends Controller
      * appliance's is never offered, because a 1TR BOQ on a 3TR unit is wrong.
      * Brand and variant refine the ranking, but a set that leaves them null is
      * treated as "applies to any", which is how generic BOQs are authored.
+     *
+     * An appliance with no capacity of its own gets no suggestions at all. A
+     * third of appliance_details rows are capacity-less — soundbars, TVs, and
+     * some chilled-water units — and there is nothing to anchor a match on, so
+     * offering every BOQ in the catalogue would be noise on a third of
+     * selections. The user picks a set from the dropdown in that case.
      */
     public function suggest(Request $request): JsonResponse
     {
@@ -126,18 +133,33 @@ class ProductSetController extends Controller
             'product_id' => 'required|integer|exists:products,product_id',
         ]);
 
-        $product = \App\Models\Product::with('applianceDetail')->find($validated['product_id']);
+        $product = Product::with('applianceDetail')->find($validated['product_id']);
         $detail  = $product?->applianceDetail;
 
         if (! $detail) {
             return response()->json(['success' => true, 'data' => []]);
         }
 
-        $norm = fn (?string $v) => $v === null ? null : strtolower(preg_replace('/\s+/', '', $v));
+        // Treat '' as null. Nothing in this controller can persist an empty
+        // string today, but only because a global middleware rewrites it before
+        // validation — seeders and tinker write straight past that, and an empty
+        // capacity must read as "unspecified", not as its own literal value.
+        $norm = function (?string $v): ?string {
+            if ($v === null) {
+                return null;
+            }
+            $v = strtolower(preg_replace('/\s+/', '', $v));
+
+            return $v === '' ? null : $v;
+        };
 
         $wantBrand    = $detail->brand_id !== null ? (int) $detail->brand_id : null;
         $wantCapacity = $norm($detail->capacity_rating);
         $wantVariant  = $norm($detail->variant);
+
+        if ($wantCapacity === null) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
 
         $sets = ProductSet::with(['lines.product', 'lines.issuableUnit', 'brand'])
             ->where('is_active', true)
@@ -145,11 +167,11 @@ class ProductSetController extends Controller
             ->filter(function (ProductSet $set) use ($norm, $wantCapacity) {
                 $setCapacity = $norm($set->capacity_rating);
                 // Null capacity on the set = applies to any capacity.
-                return $setCapacity === null || $wantCapacity === null || $setCapacity === $wantCapacity;
+                return $setCapacity === null || $setCapacity === $wantCapacity;
             })
             ->map(function (ProductSet $set) use ($norm, $wantBrand, $wantCapacity, $wantVariant) {
                 $score = 0;
-                if ($wantCapacity !== null && $norm($set->capacity_rating) === $wantCapacity) {
+                if ($norm($set->capacity_rating) === $wantCapacity) {
                     $score += 4;
                 }
                 if ($wantBrand !== null && $set->brand_id !== null && (int) $set->brand_id === $wantBrand) {
