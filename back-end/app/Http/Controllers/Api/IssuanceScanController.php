@@ -176,14 +176,13 @@ class IssuanceScanController extends Controller
                 'picked'     => (int) $rows->sum('quantity_issued'),
             ])->values()->all();
 
-        // TODO(Task 18): pass app(IncidentService::class)->excludedBatchIds($locationId) as the last arg.
         $verdict = app(\App\Services\FifoPickingService::class)->validateScan(
             $locationId,
             $lines,
             $raw,
             $validated['confirmed_zone'] ?? null,
             null,
-            []
+            app(\App\Services\IncidentService::class)->excludedBatchIds($locationId)
         );
 
         if (! $verdict->accepted()) {
