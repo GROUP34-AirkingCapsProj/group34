@@ -35,7 +35,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_confirming_moves_draft_to_pending_and_writes_totals(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 20);
 
@@ -54,7 +54,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_confirming_snapshots_cost_price_on_each_line(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 20);
 
@@ -71,7 +71,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_confirming_reserves_as_rows_without_touching_inventory_columns(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable();
         $this->setStock($loc->location_id, $p->product_id, 20);
 
@@ -91,7 +91,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_another_order_sees_reduced_derived_availability_after_a_confirm(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 20);
 
@@ -109,7 +109,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_short_line_records_the_shortfall_and_reduces_the_request(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 3);
 
@@ -128,7 +128,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_shortage_without_acknowledgement_is_rejected(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable();
         $this->setStock($loc->location_id, $p->product_id, 1);
 
@@ -146,7 +146,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_confirming_an_empty_order_is_rejected(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
 
         $issuance = Issuance::create([
             'location_id'   => $loc->location_id,
@@ -165,7 +165,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_confirming_twice_is_rejected_and_does_not_double_reserve(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable();
         $this->setStock($loc->location_id, $p->product_id, 20);
 
@@ -182,7 +182,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_two_orders_cannot_reserve_the_same_stock_twice(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable();
         $this->setStock($loc->location_id, $p->product_id, 6);
 
@@ -196,7 +196,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_releasing_a_hold_frees_the_stock_without_crediting_columns(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
@@ -221,7 +221,7 @@ class ConfirmQuoteTest extends SetTestCase
     public function test_confirm_with_pool_fully_held_elsewhere_rejects_and_reserves_nothing(): void
     {
         $loc  = $this->makeLocation();
-        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 5);
 
@@ -235,5 +235,30 @@ class ConfirmQuoteTest extends SetTestCase
         $res->assertStatus(422);
         $this->assertSame(0, (int) PickReservation::active()
             ->forSource('issuance', (int) $second->issuance_id)->count());
+    }
+
+    /**
+     * Confirming reserves stock and advances the order — a write. A read-only
+     * auditor holds 'read' on inventory_issuance (to view quotes and margin) but
+     * must never be able to reserve stock. This locks that boundary: the gate is
+     * 'create', not 'read'.
+     */
+    public function test_a_read_only_auditor_cannot_confirm_a_quote(): void
+    {
+        $loc     = $this->makeLocation();
+        $auditor = $this->makeUserAt($loc, 'auditor');
+        $p       = $this->makeConsumable();
+        $this->setStock($loc->location_id, $p->product_id, 20);
+
+        $issuance = $this->draftWithLine($loc, $p, 4);
+
+        $this->actingAs($auditor, 'sanctum')
+             ->postJson("/api/issuances/{$issuance->issuance_id}/confirm-quote")
+             ->assertForbidden();
+
+        // The order stayed Draft and nothing was reserved.
+        $this->assertSame(IssuanceStatus::draft(), (int) $issuance->fresh()->status_id);
+        $this->assertSame(0, (int) PickReservation::active()
+            ->forSource('issuance', (int) $issuance->issuance_id)->count());
     }
 }

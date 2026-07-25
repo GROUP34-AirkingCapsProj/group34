@@ -639,12 +639,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/issuances', [IssuanceController::class, 'index']);
     Route::middleware('permission:inventory_issuance,read')
          ->get('/issuances/{id}/quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'quote']);
-    // Gated on 'read' (not 'create'): confirm-quote advances an EXISTING draft's
-    // status and does not create a new issuance. inventory_analyst — who reviews
-    // and confirms priced quotes in this workflow — holds 'read' on this feature
-    // but not 'create' (verified against role_permissions), matching the /quote
-    // endpoint above.
-    Route::middleware('permission:inventory_issuance,read')
+    // Gated on 'create', NOT 'read': confirming a quote reserves stock and moves
+    // the order Draft -> Pending — a write with side effects, part of the counter
+    // operator's build/confirm/pick flow (warehouse_personnel, branch_manager,
+    // admin). Gating on 'read' would let a read-only auditor reserve stock.
+    Route::middleware('permission:inventory_issuance,create')
          ->post('/issuances/{id}/confirm-quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'confirmQuote']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
     Route::middleware('permission:inventory_issuance,create')->post('/issuances', [IssuanceController::class, 'store']);
