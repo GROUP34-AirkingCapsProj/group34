@@ -5846,6 +5846,11 @@ git commit -m "feat(picking): shared PickScanner and IncidentModal components"
 
 ### Task 24: Issuance three-step wizard
 
+> **Scan-rejection contract (from Task 16) — the scanner must handle TWO shapes:**
+> - **Enforcement verdict:** HTTP **422** with body `{success:false, action:'rejected', reason, scan_result:{status, overridable, expected_zone_label, ...}}`. Most HTTP clients throw on 4xx, so this arrives in the error/catch path — read `error.response.data.scan_result`. `WRONG_PRODUCT`/`UNKNOWN_BARCODE`/`OVER_PICK` are hard (`overridable:false`); `FIFO_VIOLATION` is `overridable:true` → offer the "File Incident Report" action.
+> - **Legacy rejection:** HTTP **200** with `{success:false, action:'rejected', reason}` and NO `scan_result` (barcode-not-found, serial-already-scanned, insufficient-stock). These arrive in the success/then path — check `success === false` and show `reason`; never overridable.
+> The scanner decides by: is there a `scan_result`? → render the verdict (with incident button iff `overridable`). Else → show `reason`. (Normalizing the legacy paths to 422 was left out of Task 16 as pre-existing debt/scope; the scanner absorbs both.)
+
 **Files:**
 - Create: `frontend/src/admin/components/issuance/OrderBuilder.jsx`, `frontend/src/admin/components/issuance/QuotePanel.jsx`
 - Modify: `frontend/src/admin/pages/IssuanceScanPage.jsx`, `frontend/src/admin/services/api.js`
