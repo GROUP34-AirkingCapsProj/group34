@@ -6,6 +6,7 @@ use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\Product;
 use App\Traits\NormalizesBarcode;
+use Illuminate\Support\Carbon;
 
 /**
  * The single source of truth for FIFO order across every picking flow.
@@ -132,7 +133,13 @@ class FifoPickingService
             'serial_id'     => (int) $row->serial_id,
             'batch_id'      => $row->batch_id !== null ? (int) $row->batch_id : null,
             'zone_label'    => $row->zone_label,
-            'received_at'   => $row->received_at,
+            // b.received_at comes back as a raw string from the joined table, not
+            // through the InventoryBatch cast. Normalise it to the same
+            // 'Y-m-d H:i:s' shape batchSteps() emits so a consumer can compare
+            // received_at across serial and consumable steps without surprises.
+            'received_at'   => $row->received_at !== null
+                ? Carbon::parse($row->received_at)->toDateTimeString()
+                : null,
             'quantity'      => 1,
         ])->all();
     }
