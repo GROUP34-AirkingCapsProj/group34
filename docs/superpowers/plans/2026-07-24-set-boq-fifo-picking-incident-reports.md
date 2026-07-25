@@ -2853,6 +2853,10 @@ git commit -m "feat(issuance): confirm-quote reserves stock, snapshots cost, rec
 
 ### Task 12: Draft line endpoints and the scanner gate
 
+> **Design notes carried over from Task 11 review — decide these here:**
+> - **Reservation TTL can lapse mid-pick.** A confirmed hold lives `ReservationService::TTL_MINUTES` (240) and is not tied to picking activity. If an order sits Pending past its TTL while still being picked, its holds drop out of `active()` and another order can legitimately claim the same stock. Task 12's scanner should account for this — either extend the hold on scan activity, or (simpler) surface it: when a scan lands on a Pending order whose holds have lapsed, treat availability as re-derived and let the FIFO/shortage logic handle it. Do **not** assume the reservation still exists at scan time.
+> - **The reservation invariant is only tested sequentially.** `ConfirmQuoteTest` proves correctness with sequential confirms; the `lockForUpdate` calls in `reserve()` are not exercised by a true interleaving (deleting them would still pass). Real concurrent-transaction testing is awkward in PHPUnit — left as a known gap, not a blocker.
+
 **Files:**
 - Modify: `app/Http/Controllers/Api/IssuanceOrderController.php`, `app/Http/Controllers/Api/IssuanceScanController.php`, `routes/api.php`
 - Test: `tests/Feature/Sets/DraftLineEndpointsTest.php`
