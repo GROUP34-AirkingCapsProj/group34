@@ -5487,6 +5487,11 @@ This is the phase that touches the module consolidated on 2026-07-22, which is w
 
 ### Task 21: `TransferService::pickList()` delegates to the shared engine
 
+> **Reconciliation notes from Task 14 review — the two implementations already differ slightly, all benign, but handle them at cutover:**
+> - **`isSerialized`:** `FifoPickingService::isSerialized($product)` = `product_type==='appliance'` OR `applianceDetail->is_serialized`; `TransferService::isSerialized($detail)` = `product_type==='appliance'` only. They agree on all real data (consumables have no applianceDetail row). When you delete `TransferService::isSerialized` and delegate, classification unifies on the FifoPickingService definition — verify no transfer test relies on a non-appliance-but-serialized product being treated as a consumable (none should).
+> - **`product_name`:** `suggest()` returns `null` for a missing product; `pickList()` returned `"Product #{id}"`. Re-apply the fallback when you re-attach the transfer-specific fields (`pieces_per_package`, `package_unit`) after calling `suggest()`, so the transfer UI still shows a name.
+> - **`received_at` format and tiebreakers:** `suggest()` already emits `'Y-m-d H:i:s'` for both step types and adds `batch_id`/`serial_id` tiebreakers `pickList()` lacked. These are improvements; the existing `PickListTest` should still pass because it asserts zones/quantities/order, not exact string equality — but if it asserts a raw `received_at` string, update that assertion, not the service.
+
 **Files:**
 - Modify: `app/Services/TransferService.php:58-122`
 - Test: `tests/Feature/Transfer/PickListTest.php` (existing — must keep passing unchanged)
