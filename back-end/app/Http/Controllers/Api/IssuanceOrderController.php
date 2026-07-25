@@ -117,8 +117,7 @@ class IssuanceOrderController extends Controller
             ->filter(fn ($line) => $line['quantity'] > 0)
             ->values()->all();
 
-        // TODO(Task 18): $excluded = app(\App\Services\IncidentService::class)->excludedBatchIds((int) $issuance->location_id);
-        $excluded = [];
+        $excluded = app(\App\Services\IncidentService::class)->excludedBatchIds((int) $issuance->location_id);
 
         return response()->json([
             'success' => true,
