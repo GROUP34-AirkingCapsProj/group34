@@ -17,22 +17,34 @@ class IssuanceOrderController extends Controller
         $issuance = Issuance::with(['details.product', 'sets'])->findOrFail($id);
         $showCost = $this->canSeeMargin();
 
-        $lines = $issuance->details->map(function ($detail) use ($issuance, $showCost) {
+        // Availability is stock-per-product, so two lines of the same product draw
+        // from one shared pool. `available` reports that pool (fetched once per
+        // distinct product, not once per line), but shortage is cumulative: a
+        // second line of the same product is short of whatever the earlier lines
+        // already claimed, so their combined demand can't silently exceed on-hand.
+        $locationId = (int) $issuance->location_id;
+        $productIds = $issuance->details->pluck('product_id')->map(fn ($v) => (int) $v)->unique()->values();
+        $poolFor    = $this->availabilityPool($locationId, (int) $issuance->issuance_id, $productIds->all());
+        $remaining  = $poolFor; // drawn down as lines claim their share, in line order
+
+        $lines = $issuance->details->map(function ($detail) use ($showCost, &$remaining, $poolFor) {
+            $productId = (int) $detail->product_id;
             $requested = (int) $detail->quantity_requested;
-            $available = $this->availableFor(
-                (int) $issuance->location_id,
-                (int) $detail->product_id,
-                (int) $issuance->issuance_id
-            );
+
+            $pool      = $poolFor[$productId] ?? 0;
+            $left      = $remaining[$productId] ?? 0;
+            $granted   = max(0, min($requested, $left));   // what this line can actually claim
+            $remaining[$productId] = $left - $granted;
 
             $unitPrice = (float) $detail->unit_price;
             $costPrice = (float) ($detail->cost_price_at_issue ?? $detail->product?->cost_price ?? 0);
-            $shortBy   = max(0, $requested - $available);
+            $shortBy   = $requested - $granted;
+            $available = $pool;
 
-            return array_filter([
+            return [
                 'issuance_detail_id' => (int) $detail->issuance_detail_id,
                 'issuance_set_id'    => $detail->issuance_set_id !== null ? (int) $detail->issuance_set_id : null,
-                'product_id'         => (int) $detail->product_id,
+                'product_id'         => $productId,
                 'product_name'       => $detail->product?->product_name,
                 'product_type'       => $detail->product?->product_type,
                 'quantity_requested' => $requested,
@@ -41,9 +53,12 @@ class IssuanceOrderController extends Controller
                 'available'          => $available,
                 'short_by'           => $shortBy,
                 'is_short'           => $shortBy > 0,
+                // Cost/margin are hidden as explicit null, never a missing key, so
+                // the frontend can branch on the value rather than key presence —
+                // matching total_cost/total_margin below.
                 'cost_price'         => $showCost ? $costPrice : null,
                 'line_cost'          => $showCost ? round($requested * $costPrice, 2) : null,
-            ], fn ($v, $k) => ! in_array($k, ['cost_price', 'line_cost'], true) || $v !== null, ARRAY_FILTER_USE_BOTH);
+            ];
         })->values();
 
         $subtotal        = round($lines->sum('line_total'), 2);
@@ -89,25 +104,41 @@ class IssuanceOrderController extends Controller
     }
 
     /**
-     * On-hand availability minus stock held by other orders' live reservations.
-     * Own-order holds are excluded so re-opening your own quote never reads as short.
+     * Availability per product, keyed by product_id, in two queries regardless of
+     * line count: on-hand `available_quantity` minus stock held by OTHER orders'
+     * live reservations. Own-order holds are excluded so re-opening your own quote
+     * never reads your own reservation as a shortage.
+     *
+     * @param  array<int,int>  $productIds
+     * @return array<int,int>
      */
-    protected function availableFor(int $locationId, int $productId, int $ownIssuanceId): int
+    protected function availabilityPool(int $locationId, int $ownIssuanceId, array $productIds): array
     {
-        $onHand = (int) (Inventory::where('location_id', $locationId)
-            ->where('product_id', $productId)
-            ->value('available_quantity') ?? 0);
+        if ($productIds === []) {
+            return [];
+        }
 
-        $heldElsewhere = (int) PickReservation::active()
+        $onHand = Inventory::where('location_id', $locationId)
+            ->whereIn('product_id', $productIds)
+            ->pluck('available_quantity', 'product_id');
+
+        $heldElsewhere = PickReservation::active()
             ->where('location_id', $locationId)
-            ->where('product_id', $productId)
+            ->whereIn('product_id', $productIds)
             ->where(function ($q) use ($ownIssuanceId) {
                 $q->where('source_type', '!=', 'issuance')
                   ->orWhere('source_id', '!=', $ownIssuanceId);
             })
-            ->sum('quantity');
+            ->selectRaw('product_id, SUM(quantity) AS held')
+            ->groupBy('product_id')
+            ->pluck('held', 'product_id');
 
-        return max(0, $onHand - $heldElsewhere);
+        $pool = [];
+        foreach ($productIds as $pid) {
+            $pool[$pid] = max(0, (int) ($onHand[$pid] ?? 0) - (int) ($heldElsewhere[$pid] ?? 0));
+        }
+
+        return $pool;
     }
 
     protected function canSeeMargin(): bool

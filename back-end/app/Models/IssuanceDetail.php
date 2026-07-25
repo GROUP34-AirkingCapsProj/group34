@@ -42,7 +42,13 @@ class IssuanceDetail extends Model
 
     public function product(): BelongsTo
     {
+        // withTrashed(): an issuance line is a historical record and must always
+        // resolve its product, even after that product is archived. Without it,
+        // an archived product mid-draft makes the relation null — the quote then
+        // prices the line's cost at zero and renders no name. Same reasoning as
+        // ProductSetLine::product().
         return $this->belongsTo(Product::class, 'product_id', 'product_id')
+                    ->withTrashed()
                     ->with(['applianceDetail.brand', 'consumableDetail.unit']);
     }
 
