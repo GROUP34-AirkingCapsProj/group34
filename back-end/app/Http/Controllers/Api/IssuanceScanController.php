@@ -81,7 +81,7 @@ class IssuanceScanController extends Controller
             'total_amount'     => 0,
             'notes'            => $validated['notes'] ?? null,
             'issued_by'        => $userId,
-            'status_id'        => self::STATUS_ISSUANCE_PENDING,
+            'status_id'        => \App\Support\IssuanceStatus::draft(),
         ]);
 
         $customer = Customer::find($validated['customer_id']);
@@ -137,7 +137,24 @@ class IssuanceScanController extends Controller
         ]);
 
         $issuance = Issuance::find($validated['issuance_id']);
-        if (! $issuance || $issuance->status_id !== self::STATUS_ISSUANCE_PENDING) {
+
+        if (! $issuance) {
+            return response()->json([
+                'success' => false,
+                'action'  => 'rejected',
+                'reason'  => 'Issuance session not found.',
+            ], 404);
+        }
+
+        if ((int) $issuance->status_id === \App\Support\IssuanceStatus::draft()) {
+            return response()->json([
+                'success' => false,
+                'action'  => 'rejected',
+                'reason'  => 'This order is still a draft. Confirm the quote with the customer before scanning.',
+            ], 422);
+        }
+
+        if ((int) $issuance->status_id !== self::STATUS_ISSUANCE_PENDING) {
             return response()->json([
                 'success' => false,
                 'action'  => 'rejected',
