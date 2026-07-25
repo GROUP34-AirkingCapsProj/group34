@@ -475,6 +475,18 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | Incident Reports (FIFO-violation overrides)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('permission:incident_reports,read')
+         ->get('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'index']);
+    Route::middleware('permission:incident_reports,create')
+         ->post('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'store']);
+    Route::middleware('permission:incident_reports,resolve')
+         ->post('/incident-reports/{id}/resolve', [\App\Http\Controllers\Api\IncidentReportController::class, 'resolve']);
+
+    /*
+    |--------------------------------------------------------------------------
     | ERD: PURCHASE_ORDER (purchase_order)
     |--------------------------------------------------------------------------
     */

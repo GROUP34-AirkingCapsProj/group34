@@ -67,6 +67,12 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin'],
                 'archive' => ['admin'],
             ],
+            // Incident Reports (/admin/incidents) — pickers file, IA and admin resolve.
+            'incident_reports' => [
+                'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                'create'  => ['admin', 'inventory_analyst', 'warehouse_personnel'],
+                'resolve' => ['admin', 'inventory_analyst'],
+            ],
             'location_based_inventory' => [
                 'read'    => ['admin'],
                 'create'  => ['admin'],
