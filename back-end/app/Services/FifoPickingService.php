@@ -195,16 +195,37 @@ class FifoPickingService
 
         $oldest = $this->orderedBatches($locationId, $productId, $excludedBatchIds)->first();
 
-        // No batch record at all — legacy stock predating inventory_batches.
-        // There is nothing to order against, so let it through rather than
-        // blocking a picker over missing history.
         if ($oldest === null) {
+            // orderedBatches() is empty for two very different reasons, and only
+            // the first may be waved through:
+            //   (a) the product has NO inventory_batches rows at all — legacy
+            //       stock predating batch tracking, with nothing to order against.
+            //   (b) batches exist but none are pickable: all depleted, or all
+            //       under an open incident (excludedBatchIds). Accepting here
+            //       would silently pick quarantined or phantom stock — the exact
+            //       hole this engine exists to close — so it must be blocked.
+            $hasAnyBatch = InventoryBatch::where('product_id', $productId)
+                ->where('location_id', $locationId)
+                ->exists();
+
+            if (! $hasAnyBatch) {
+                return new ScanResult(
+                    status:       ScanResult::ACCEPTED,
+                    message:      'Accepted.',
+                    productId:    $productId,
+                    productName:  $product->product_name,
+                    serialId:     $serial !== null ? (int) $serial->serial_id : null,
+                    serialNumber: $serial?->serial_number
+                );
+            }
+
             return new ScanResult(
-                status:       ScanResult::ACCEPTED,
-                message:      'Accepted.',
-                productId:    $productId,
-                productName:  $product->product_name,
-                serialId:     $serial !== null ? (int) $serial->serial_id : null,
+                status:      ScanResult::FIFO_VIOLATION,
+                message:     "No available stock of {$product->product_name} is recorded here — "
+                             . 'its batches are depleted or under review. File an Incident Report to proceed.',
+                productId:   $productId,
+                productName: $product->product_name,
+                serialId:    $serial !== null ? (int) $serial->serial_id : null,
                 serialNumber: $serial?->serial_number
             );
         }
@@ -213,8 +234,13 @@ class FifoPickingService
             ? $this->batchForSerial($locationId, $serial)
             : $this->batchForZone($locationId, $productId, $confirmedZone, $excludedBatchIds);
 
+        // When the scan maps to no batch, only ONE case is trusted: a consumable
+        // scanned without a zone (the picker is trusted to take the plan's oldest).
+        // A serial with no batch linkage, or a confirmed zone matching no batch,
+        // is a violation while older pickable stock exists — we cannot confirm the
+        // scan is that oldest stock, so it must not slip past FIFO.
         $isOldest = $scannedBatch === null
-            ? $confirmedZone === null   // consumable scan with no zone confirmation trusts the plan
+            ? ($serial === null && $confirmedZone === null)
             : (int) $scannedBatch->batch_id === (int) $oldest->batch_id;
 
         if (! $isOldest) {
@@ -230,7 +256,7 @@ class FifoPickingService
                 serialId:           $serial !== null ? (int) $serial->serial_id : null,
                 serialNumber:       $serial?->serial_number,
                 batchId:            $scannedBatch !== null ? (int) $scannedBatch->batch_id : null,
-                zoneLabel:          $scannedBatch->zone_label ?? $confirmedZone,
+                zoneLabel:          $scannedBatch?->zone_label ?? $confirmedZone,
                 expectedBatchId:    (int) $oldest->batch_id,
                 expectedZoneLabel:  $oldest->zone_label,
                 expectedReceivedAt: optional($oldest->received_at)->toDateTimeString()
