@@ -92,4 +92,61 @@ trait NormalizesBarcode
 
         return $twelve . $check;
     }
+
+    /**
+     * Resolve a scanned barcode to a product, and to a specific serial when the
+     * barcode is a serial number. Three passes, in priority order:
+     *   1. item_serial.serial_number, scoped to the location and in-stock
+     *   2. products.barcode / products.product_code
+     *   3. receiving_details.scanned_barcode — the label applied at PO receiving,
+     *      which is not stored on the product row
+     *
+     * @return array{product: ?\App\Models\Product, serial: ?\App\Models\ItemSerial, matched_by: ?string}
+     */
+    protected function resolveScan(string $rawBarcode, int $locationId): array
+    {
+        $candidates = $this->barcodeLookupCandidates($rawBarcode);
+
+        foreach ($candidates as $candidate) {
+            $serial = ItemSerial::issuableAt($locationId, $candidate)->first();
+            if ($serial) {
+                return [
+                    'product'    => Product::with('applianceDetail.brand')->find($serial->product_id),
+                    'serial'     => $serial,
+                    'matched_by' => 'serial',
+                ];
+            }
+        }
+
+        $product = $this->findProductByBarcodeCandidates($candidates);
+        if ($product) {
+            $product->load(['consumableDetail.unit']);
+
+            return ['product' => $product, 'serial' => null, 'matched_by' => 'product_barcode'];
+        }
+
+        foreach ($candidates as $candidate) {
+            $norm = strtolower(trim($candidate));
+            if ($norm === '') {
+                continue;
+            }
+
+            $detail = \Illuminate\Support\Facades\DB::table('receiving_details')
+                ->whereRaw('LOWER(TRIM(COALESCE(scanned_barcode,\'\'))) = ?', [$norm])
+                ->whereNotNull('product_id')
+                ->select('product_id')
+                ->first();
+
+            if ($detail) {
+                return [
+                    'product'    => Product::with(['applianceDetail.brand', 'consumableDetail.unit'])
+                                           ->find($detail->product_id),
+                    'serial'     => null,
+                    'matched_by' => 'receiving_barcode',
+                ];
+            }
+        }
+
+        return ['product' => null, 'serial' => null, 'matched_by' => null];
+    }
 }

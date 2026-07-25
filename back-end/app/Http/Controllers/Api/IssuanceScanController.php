@@ -166,54 +166,12 @@ class IssuanceScanController extends Controller
         // Do NOT re-resolve from the user/request to avoid any mismatch.
         $locationId = (int) $issuance->location_id;
 
-        $raw        = trim($validated['barcode']);
-        $candidates = $this->barcodeLookupCandidates($raw);
+        $raw = trim($validated['barcode']);
 
-        // Pass 1: serial number lookup (appliances) — tries all barcode candidates
-        $product      = null;
-        $serialRecord = null;
-
-        $fifoWarning = null;
-
-        foreach ($candidates as $candidate) {
-            $serial = ItemSerial::issuableAt($locationId, $candidate)->first();
-            if ($serial) {
-                $product = Product::with([
-                    'applianceDetail.brand',
-                ])->find($serial->product_id);
-                $serialRecord = $serial;
-                $fifoWarning = $this->fifoWarningFor($serial, $locationId);
-                break;
-            }
-        }
-
-        // Pass 2: product barcode / product_code lookup — multi-candidate search
-        if (! $product) {
-            $product = $this->findProductByBarcodeCandidates($candidates);
-            if ($product) {
-                $product->load(['consumableDetail.unit']);
-            }
-        }
-
-        // Pass 3: receiving barcode lookup — the barcode scanned during PO receiving is
-        // stored in receiving_details.scanned_barcode, not in products.barcode.
-        // Try each candidate so format variations (EAN-12/13, case) are all covered.
-        if (! $product) {
-            foreach ($candidates as $candidate) {
-                $norm = strtolower(trim($candidate));
-                if ($norm === '') continue;
-                $detail = DB::table('receiving_details')
-                    ->whereRaw('LOWER(TRIM(COALESCE(scanned_barcode,\'\'))) = ?', [$norm])
-                    ->whereNotNull('product_id')
-                    ->select('product_id')
-                    ->first();
-                if ($detail) {
-                    $product = Product::with(['applianceDetail.brand', 'consumableDetail.unit'])
-                        ->find($detail->product_id);
-                    break;
-                }
-            }
-        }
+        $resolved     = $this->resolveScan($raw, $locationId);
+        $product      = $resolved['product'];
+        $serialRecord = $resolved['serial'];
+        $fifoWarning  = $resolved['serial'] !== null ? $this->fifoWarningFor($resolved['serial'], $locationId) : null;
 
         if (! $product) {
             return response()->json([
