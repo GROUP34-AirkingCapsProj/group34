@@ -133,4 +133,31 @@ class FifoSuggestTest extends SetTestCase
         $this->assertSame('Zone B', $out[1]['suggestions'][0]['zone_label']);
         $this->assertSame(4, $out[1]['suggestions'][0]['quantity']);
     }
+
+    /**
+     * Serial and consumable steps must format received_at identically, so a
+     * consumer can compare the field across both without hitting a string-shape
+     * mismatch. Serial steps read a raw joined column; consumable steps go
+     * through the Carbon cast — both must land on 'Y-m-d H:i:s'.
+     */
+    public function test_received_at_has_the_same_shape_for_serials_and_consumables(): void
+    {
+        $loc  = $this->makeLocation();
+        $when = now()->subDays(7)->startOfMinute();
+
+        $consumable = $this->makeConsumable();
+        $this->makeBatch($consumable, $loc, ['quantity_remaining' => 3, 'received_at' => $when, 'zone_label' => 'Zone 1']);
+
+        $appliance = $this->makeAppliance();
+        $batch     = $this->makeBatch($appliance, $loc, ['quantity_remaining' => 1, 'received_at' => $when, 'zone_label' => 'Zone 1']);
+        $this->makeSerial($appliance, $loc, 'SN-FMT', $batch->receiving_id);
+
+        $svc = app(FifoPickingService::class);
+        $consumableStep = $svc->suggest($loc->location_id, [['product_id' => $consumable->product_id, 'quantity' => 1]])[0]['suggestions'][0];
+        $serialStep     = $svc->suggest($loc->location_id, [['product_id' => $appliance->product_id,  'quantity' => 1]])[0]['suggestions'][0];
+
+        $expected = $when->toDateTimeString();
+        $this->assertSame($expected, $consumableStep['received_at']);
+        $this->assertSame($expected, $serialStep['received_at']);
+    }
 }
