@@ -1306,6 +1306,18 @@ export const productSetsAPI = {
 };
 
 /* ======================
+   INCIDENT REPORTS API
+====================== */
+export const incidentReportsAPI = {
+  list: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/incident-reports?${query}` : '/incident-reports');
+  },
+  resolve: async (id, payload) =>
+    apiRequest(`/incident-reports/${id}/resolve`, { method: 'POST', body: JSON.stringify(payload) }),
+};
+
+/* ======================
    USERS API
 ====================== */
 export const usersAPI = {
