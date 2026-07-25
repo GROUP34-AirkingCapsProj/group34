@@ -104,6 +104,29 @@ class IssuanceOrderController extends Controller
         ]);
     }
 
+    public function pickPlan(int $id): JsonResponse
+    {
+        $issuance = Issuance::with('details.product')->findOrFail($id);
+
+        $lines = $issuance->details
+            ->groupBy('product_id')
+            ->map(fn ($rows, $pid) => [
+                'product_id' => (int) $pid,
+                'quantity'   => max(0, (int) $rows->sum('quantity_requested') - (int) $rows->sum('quantity_issued')),
+            ])
+            ->filter(fn ($line) => $line['quantity'] > 0)
+            ->values()->all();
+
+        // TODO(Task 18): $excluded = app(\App\Services\IncidentService::class)->excludedBatchIds((int) $issuance->location_id);
+        $excluded = [];
+
+        return response()->json([
+            'success' => true,
+            'data'    => app(\App\Services\FifoPickingService::class)
+                ->suggest((int) $issuance->location_id, $lines, $excluded),
+        ]);
+    }
+
     public function confirmQuote(Request $request, int $id): JsonResponse
     {
         $request->validate(['accept_shortages' => 'nullable|boolean']);

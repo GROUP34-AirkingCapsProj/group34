@@ -7,7 +7,6 @@ use App\Models\AuditTrail;
 use App\Models\Customer;
 use App\Models\DeliveryReceipt;
 use App\Models\Inventory;
-use App\Models\InventoryBatch;
 use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\ItemSerial;
@@ -134,9 +133,10 @@ class IssuanceScanController extends Controller
                 'quarter_roll', 'half_roll', '3/8_roll',
             ])],
             'location_id'   => 'nullable|integer|exists:locations,location_id',
+            'confirmed_zone' => 'nullable|string|max:100',
         ]);
 
-        $issuance = Issuance::find($validated['issuance_id']);
+        $issuance = Issuance::with('details')->find($validated['issuance_id']);
 
         if (! $issuance) {
             return response()->json([
@@ -168,10 +168,36 @@ class IssuanceScanController extends Controller
 
         $raw = trim($validated['barcode']);
 
+        $lines = $issuance->details
+            ->groupBy('product_id')
+            ->map(fn ($rows, $pid) => [
+                'product_id' => (int) $pid,
+                'quantity'   => (int) $rows->sum('quantity_requested'),
+                'picked'     => (int) $rows->sum('quantity_issued'),
+            ])->values()->all();
+
+        // TODO(Task 18): pass app(IncidentService::class)->excludedBatchIds($locationId) as the last arg.
+        $verdict = app(\App\Services\FifoPickingService::class)->validateScan(
+            $locationId,
+            $lines,
+            $raw,
+            $validated['confirmed_zone'] ?? null,
+            null,
+            []
+        );
+
+        if (! $verdict->accepted()) {
+            return response()->json([
+                'success'     => false,
+                'action'      => 'rejected',
+                'reason'      => $verdict->message,
+                'scan_result' => $verdict->toArray(),
+            ], 422);
+        }
+
         $resolved     = $this->resolveScan($raw, $locationId);
         $product      = $resolved['product'];
         $serialRecord = $resolved['serial'];
-        $fifoWarning  = $resolved['serial'] !== null ? $this->fifoWarningFor($resolved['serial'], $locationId) : null;
 
         if (! $product) {
             return response()->json([
@@ -214,7 +240,7 @@ class IssuanceScanController extends Controller
 
             return DB::transaction(function () use (
                 $issuance, $product, $serialRecord, $raw,
-                $unitPrice, $lineSubtotal, $locationId, $fifoWarning
+                $unitPrice, $lineSubtotal, $locationId
             ) {
                 $inv = Inventory::where('product_id', $product->product_id)
                     ->where('location_id', $locationId)
@@ -266,7 +292,6 @@ class IssuanceScanController extends Controller
 
                 return response()->json([
                     'success'         => true,
-                    'fifo_warning'    => $fifoWarning,
                     'action'          => 'applied',
                     'product_type'    => 'appliance',
                     'product_id'      => $product->product_id,
@@ -401,38 +426,6 @@ class IssuanceScanController extends Controller
                 'has_issuable_units' => $product->issuableUnits->isNotEmpty(),
             ]);
         });
-    }
-
-    /**
-     * Non-blocking FIFO guidance: if an older batch of this product is still
-     * available at this location while the scanned unit came from a newer one,
-     * return a warning string for the UI to display. Returns null otherwise.
-     */
-    private function fifoWarningFor(ItemSerial $serial, int $locationId): ?string
-    {
-        $scannedBatch = InventoryBatch::where('receiving_id', $serial->receiving_id)
-            ->where('product_id', $serial->product_id)
-            ->where('location_id', $locationId)
-            ->first();
-
-        $oldestBatch = InventoryBatch::where('product_id', $serial->product_id)
-            ->where('location_id', $locationId)
-            ->whereNotNull('receiving_id')
-            ->where('quantity_remaining', '>', 0)
-            ->orderBy('received_at', 'asc')
-            ->first();
-
-        if (! $scannedBatch || ! $oldestBatch || $scannedBatch->batch_id === $oldestBatch->batch_id) {
-            return null;
-        }
-        if (! $oldestBatch->received_at || ! $scannedBatch->received_at
-            || $scannedBatch->received_at->lte($oldestBatch->received_at)) {
-            return null;
-        }
-
-        return 'An older batch of this product (received '
-            . $oldestBatch->received_at->format('M j, Y')
-            . ') is still available at this location — consider issuing that stock first.';
     }
 
     // =========================================================
