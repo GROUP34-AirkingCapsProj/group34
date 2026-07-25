@@ -637,6 +637,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/issuances/archived', [IssuanceController::class, 'archived']);
     Route::get('/issuances', [IssuanceController::class, 'index']);
+    Route::middleware('permission:inventory_issuance,read')
+         ->get('/issuances/{id}/quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'quote']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
     Route::middleware('permission:inventory_issuance,create')->post('/issuances', [IssuanceController::class, 'store']);
     Route::middleware('permission:inventory_issuance,update')->put('/issuances/{id}', [IssuanceController::class, 'update']);
