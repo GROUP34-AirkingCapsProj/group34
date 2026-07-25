@@ -28,6 +28,12 @@ class ReservationService
      */
     public function reserve(string $sourceType, int $sourceId, int $locationId, array $lines): void
     {
+        // Acquire inventory-row locks in a canonical order (ascending product_id)
+        // so two multi-product orders can never lock the same pair in opposite
+        // order and deadlock. Without this, order X (products 3 then 5) and order
+        // Y (5 then 3) can each hold one lock and wait on the other.
+        usort($lines, fn ($a, $b) => (int) $a['product_id'] <=> (int) $b['product_id']);
+
         DB::transaction(function () use ($sourceType, $sourceId, $locationId, $lines) {
             foreach ($lines as $line) {
                 $productId = (int) $line['product_id'];
@@ -85,10 +91,18 @@ class ReservationService
 
     private function lockInventory(int $locationId, int $productId): Inventory
     {
-        Inventory::firstOrCreate(
-            ['location_id' => $locationId, 'product_id' => $productId],
-            ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
-        );
+        // firstOrCreate's existence check is non-locking, so two concurrent
+        // confirms for a product/location with no inventory row can both try to
+        // insert; the loser hits the unique (location_id, product_id) constraint.
+        // Swallow that — the row now exists — and fall through to the locking read.
+        try {
+            Inventory::firstOrCreate(
+                ['location_id' => $locationId, 'product_id' => $productId],
+                ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
+            );
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // Another transaction created it first; nothing to do.
+        }
 
         return Inventory::where('location_id', $locationId)
             ->where('product_id', $productId)

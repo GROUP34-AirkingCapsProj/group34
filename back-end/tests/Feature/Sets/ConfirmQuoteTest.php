@@ -238,6 +238,51 @@ class ConfirmQuoteTest extends SetTestCase
     }
 
     /**
+     * A multi-product order reserves every line. reserve() locks inventory rows
+     * in ascending product_id order regardless of the line order on the document,
+     * so two such orders can't deadlock — this at least proves the reordered
+     * locking still reserves all lines correctly.
+     */
+    public function test_a_multi_product_order_reserves_every_line(): void
+    {
+        $loc  = $this->makeLocation();
+        $user = $this->makeUserAt($loc, 'warehouse_personnel');
+        $a    = $this->makeConsumable(price: 10);
+        $b    = $this->makeConsumable(price: 20);
+        $this->setStock($loc->location_id, $a->product_id, 10);
+        $this->setStock($loc->location_id, $b->product_id, 10);
+
+        $issuance = Issuance::create([
+            'location_id'   => $loc->location_id,
+            'customer_id'   => $this->makeCustomer()->customer_id,
+            'issuance_date' => now()->toDateString(),
+            'issuance_type' => 'individual',
+            'dr_number'     => 'DR-' . uniqid(),
+            'status_id'     => IssuanceStatus::draft(),
+        ]);
+        // Add the higher product_id first, so line order != lock order.
+        $issuance->details()->create([
+            'product_id' => $b->product_id, 'quantity_requested' => 3,
+            'quantity_issued' => 0, 'unit_price' => 20, 'subtotal' => 60,
+        ]);
+        $issuance->details()->create([
+            'product_id' => $a->product_id, 'quantity_requested' => 4,
+            'quantity_issued' => 0, 'unit_price' => 10, 'subtotal' => 40,
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+             ->postJson("/api/issuances/{$issuance->issuance_id}/confirm-quote")
+             ->assertOk();
+
+        $this->assertSame(4, (int) PickReservation::active()
+            ->forSource('issuance', (int) $issuance->issuance_id)
+            ->where('product_id', $a->product_id)->sum('quantity'));
+        $this->assertSame(3, (int) PickReservation::active()
+            ->forSource('issuance', (int) $issuance->issuance_id)
+            ->where('product_id', $b->product_id)->sum('quantity'));
+    }
+
+    /**
      * Confirming reserves stock and advances the order — a write. A read-only
      * auditor holds 'read' on inventory_issuance (to view quotes and margin) but
      * must never be able to reserve stock. This locks that boundary: the gate is
