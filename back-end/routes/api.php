@@ -639,6 +639,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/issuances', [IssuanceController::class, 'index']);
     Route::middleware('permission:inventory_issuance,read')
          ->get('/issuances/{id}/quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'quote']);
+    Route::middleware('permission:inventory_issuance,read')
+         ->get('/issuances/{id}/pick-plan', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'pickPlan']);
     // Gated on 'create', NOT 'read': confirming a quote reserves stock and moves
     // the order Draft -> Pending — a write with side effects, part of the counter
     // operator's build/confirm/pick flow (warehouse_personnel, branch_manager,

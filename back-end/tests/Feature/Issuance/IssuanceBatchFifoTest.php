@@ -94,6 +94,11 @@ class IssuanceBatchFifoTest extends TestCase
             'issued_by' => $user->user_id, 'status_id' => 30,
         ]);
 
+        $issuance->details()->create([
+            'product_id' => $product->product_id, 'quantity_requested' => 1,
+            'quantity_issued' => 0, 'unit_price' => 0, 'subtotal' => 0,
+        ]);
+
         $res = $this->actingAs($user)->postJson('/api/issuance-scan/scan', [
             'issuance_id' => $issuance->issuance_id,
             'barcode'     => $sn,
@@ -102,7 +107,7 @@ class IssuanceBatchFifoTest extends TestCase
         $res->assertJson(['success' => true, 'action' => 'applied']);
         $this->assertSame(0, $batch->fresh()->quantity_remaining);
 
-        $detail = DB::table('issuance_details')->where('issuance_id', $issuance->issuance_id)->first();
+        $detail = DB::table('issuance_details')->where('issuance_id', $issuance->issuance_id)->where('serial_number', $sn)->first();
         $this->assertSame($rcv->receiving_id, (int) $detail->receiving_id);
     }
 
@@ -161,10 +166,15 @@ class IssuanceBatchFifoTest extends TestCase
             'issued_by' => $user->user_id, 'status_id' => 30,
         ]);
 
+        $issuance->details()->create([
+            'product_id' => $product->product_id, 'quantity_requested' => 2,
+            'quantity_issued' => 0, 'unit_price' => 0, 'subtotal' => 0,
+        ]);
+
         return [$user, $issuance, $snOld, $snNew, $batchOld];
     }
 
-    public function test_scanning_newer_batch_serial_returns_fifo_warning_when_older_batch_available(): void
+    public function test_scanning_newer_batch_serial_is_rejected_as_fifo_violation(): void
     {
         [$user, $issuance, $snOld, $snNew, $batchOld] = $this->makeTwoBatchFixture();
 
@@ -173,14 +183,12 @@ class IssuanceBatchFifoTest extends TestCase
             'barcode'     => $snNew,
         ]);
 
-        $res->assertJson(['success' => true, 'action' => 'applied']);
-        $warning = $res->json('fifo_warning');
-        $this->assertNotNull($warning);
-        $this->assertStringContainsString($batchOld->received_at->format('M j, Y'), $warning);
-        $this->assertStringContainsString('issuing that stock first', $warning);
+        $res->assertStatus(422);
+        $this->assertSame('FIFO_VIOLATION', $res->json('scan_result.status'));
+        $this->assertTrue($res->json('scan_result.overridable'));
     }
 
-    public function test_scanning_oldest_batch_serial_returns_no_fifo_warning(): void
+    public function test_scanning_oldest_batch_serial_is_accepted(): void
     {
         [$user, $issuance, $snOld, $snNew] = $this->makeTwoBatchFixture();
 
@@ -190,7 +198,6 @@ class IssuanceBatchFifoTest extends TestCase
         ]);
 
         $res->assertJson(['success' => true, 'action' => 'applied']);
-        $this->assertNull($res->json('fifo_warning'));
     }
 
     public function test_scanning_bulk_item_deducts_oldest_batch_first(): void
@@ -218,6 +225,11 @@ class IssuanceBatchFifoTest extends TestCase
             'dr_number' => 'DR-TEST-' . uniqid(), 'discount_type' => 'none', 'discount_percent' => 0,
             'subtotal' => 0, 'discount_amount' => 0, 'total_amount' => 0,
             'issued_by' => $user->user_id, 'status_id' => 30,
+        ]);
+
+        $issuance->details()->create([
+            'product_id' => $product->product_id, 'quantity_requested' => 8,
+            'quantity_issued' => 0, 'unit_price' => 0, 'subtotal' => 0,
         ]);
 
         $res = $this->actingAs($user)->postJson('/api/issuance-scan/scan', [
