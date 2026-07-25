@@ -66,4 +66,32 @@ class BarcodeResolveTest extends SetTestCase
         $this->assertNull($out['serial']);
         $this->assertNull($out['matched_by']);
     }
+
+    /**
+     * Pass 3: a code that is neither a serial nor on the product row, but was the
+     * barcode scanned at PO receiving. This is the one path the other tests miss,
+     * and it is a real production case — receiving-time labels live in
+     * receiving_details.scanned_barcode, not on products.
+     */
+    public function test_resolves_by_the_receiving_scanned_barcode(): void
+    {
+        $loc     = $this->makeLocation();
+        // Product's own barcode is something else, so passes 1 and 2 both miss.
+        $product = $this->makeConsumable(barcode: 'PRODUCT-OWN-BC');
+
+        DB::table('receiving_details')->insert([
+            'product_id'      => $product->product_id,
+            'scanned_barcode' => 'RCV-SCAN-ONLY',
+            'quantity_amount' => 1,
+            'prod_price'      => 0,
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+
+        $out = $this->resolver()->call('RCV-SCAN-ONLY', $loc->location_id);
+
+        $this->assertSame((int) $product->product_id, (int) $out['product']->product_id);
+        $this->assertNull($out['serial']);
+        $this->assertSame('receiving_barcode', $out['matched_by']);
+    }
 }
