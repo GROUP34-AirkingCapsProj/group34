@@ -224,4 +224,105 @@ class IssuanceQuoteTest extends SetTestCase
         $this->assertSame(10, (int) $res->json('data.lines.0.available'));
         $this->assertFalse($res->json('data.lines.0.is_short'));
     }
+
+    /**
+     * Two lines of the same product share one stock pool. The second must be
+     * short of whatever the first already claimed — otherwise both look
+     * coverable while together they exceed on-hand, which is the whole point of
+     * showing availability before the customer commits.
+     */
+    public function test_two_lines_of_the_same_product_share_one_pool(): void
+    {
+        $loc  = $this->makeLocation();
+        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $p    = $this->makeConsumable(price: 10);
+        $this->setStock($loc->location_id, $p->product_id, 10);
+
+        $issuance = $this->draftAt($loc);
+        // A set line and a custom line for the same product, 6 each = 12 > 10.
+        $issuance->details()->create([
+            'product_id' => $p->product_id, 'quantity_requested' => 6,
+            'quantity_issued' => 0, 'unit_price' => 10, 'subtotal' => 60,
+        ]);
+        $issuance->details()->create([
+            'product_id' => $p->product_id, 'quantity_requested' => 6,
+            'quantity_issued' => 0, 'unit_price' => 10, 'subtotal' => 60,
+        ]);
+
+        $res = $this->actingAs($user, 'sanctum')->getJson("/api/issuances/{$issuance->issuance_id}/quote");
+        $res->assertOk();
+
+        $lines = $res->json('data.lines');
+        $this->assertFalse($lines[0]['is_short'], 'first line is fully covered');
+        $this->assertSame(0, (int) $lines[0]['short_by']);
+        // Pool was 10, first line took 6, so the second is short by 6-4 = 2.
+        $this->assertTrue($lines[1]['is_short'], 'second line exceeds the shared pool');
+        $this->assertSame(2, (int) $lines[1]['short_by']);
+        $this->assertTrue($res->json('data.has_shortages'));
+    }
+
+    public function test_quote_still_prices_a_line_whose_product_was_archived(): void
+    {
+        $loc  = $this->makeLocation();
+        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $this->setStock($loc->location_id, $p->product_id, 10);
+
+        $issuance = $this->draftAt($loc);
+        $issuance->details()->create([
+            'product_id' => $p->product_id, 'quantity_requested' => 2,
+            'quantity_issued' => 0, 'unit_price' => 100, 'subtotal' => 200,
+        ]);
+
+        $p->delete(); // archived after the line was added
+
+        $res = $this->actingAs($user, 'sanctum')->getJson("/api/issuances/{$issuance->issuance_id}/quote");
+        $res->assertOk();
+
+        $line = $res->json('data.lines.0');
+        $this->assertNotNull($line['product_name'], 'archived product still names the line');
+        $this->assertEqualsWithDelta(200.0, (float) $line['line_total'], 0.001);
+        // Margin viewer must still see a real cost, not a zeroed one.
+        $this->assertEqualsWithDelta(120.0, (float) $res->json('data.total_cost'), 0.001);
+    }
+
+    public function test_hidden_cost_fields_are_present_as_null_not_absent(): void
+    {
+        $loc  = $this->makeLocation();
+        $user = $this->makeUserAt($loc, 'warehouse_personnel'); // no view_margin
+        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $this->setStock($loc->location_id, $p->product_id, 10);
+
+        $issuance = $this->draftAt($loc);
+        $issuance->details()->create([
+            'product_id' => $p->product_id, 'quantity_requested' => 2,
+            'quantity_issued' => 0, 'unit_price' => 100, 'subtotal' => 200,
+        ]);
+
+        $res  = $this->actingAs($user, 'sanctum')->getJson("/api/issuances/{$issuance->issuance_id}/quote");
+        $line = $res->json('data.lines.0');
+
+        // The frontend branches on value, so the keys must exist and read null,
+        // not be stripped — matching how total_cost/total_margin behave.
+        $this->assertArrayHasKey('cost_price', $line);
+        $this->assertArrayHasKey('line_cost', $line);
+        $this->assertNull($line['cost_price']);
+        $this->assertNull($line['line_cost']);
+    }
+
+    public function test_quote_on_an_empty_order_totals_zero(): void
+    {
+        $loc  = $this->makeLocation();
+        $user = $this->makeUserAt($loc, 'inventory_analyst');
+
+        $issuance = $this->draftAt($loc);
+
+        $res = $this->actingAs($user, 'sanctum')->getJson("/api/issuances/{$issuance->issuance_id}/quote");
+        $res->assertOk();
+
+        $this->assertSame([], $res->json('data.lines'));
+        $this->assertEqualsWithDelta(0.0, (float) $res->json('data.subtotal'), 0.001);
+        $this->assertEqualsWithDelta(0.0, (float) $res->json('data.total_amount'), 0.001);
+        $this->assertFalse($res->json('data.has_shortages'));
+    }
 }
