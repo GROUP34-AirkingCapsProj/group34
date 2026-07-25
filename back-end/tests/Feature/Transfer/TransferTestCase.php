@@ -107,6 +107,7 @@ abstract class TransferTestCase extends TestCase
                 'location_id'   => $locationId,
                 'serial_number' => $sn,
                 'serial_type'   => 'received',
+                'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
             ]);
             $numbers[] = $sn;
         }
@@ -178,6 +179,7 @@ abstract class TransferTestCase extends TestCase
             'receiving_id'  => $receivingId,
             'serial_number' => $sn,
             'serial_type'   => 'received',
+            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
         ]);
     }
 
