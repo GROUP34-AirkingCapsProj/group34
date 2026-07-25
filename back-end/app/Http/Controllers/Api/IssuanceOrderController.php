@@ -9,6 +9,7 @@ use App\Models\PickReservation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class IssuanceOrderController extends Controller
 {
@@ -101,6 +102,117 @@ class IssuanceOrderController extends Controller
                 'lines'            => $lines,
             ],
         ]);
+    }
+
+    public function confirmQuote(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['accept_shortages' => 'nullable|boolean']);
+
+        $issuance = Issuance::with('details.product')->findOrFail($id);
+
+        if ((int) $issuance->status_id !== \App\Support\IssuanceStatus::draft()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only a Draft issuance can be confirmed.',
+            ], 422);
+        }
+
+        if ($issuance->details->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Add at least one line before confirming.',
+            ], 422);
+        }
+
+        $locationId = (int) $issuance->location_id;
+        $productIds = $issuance->details->pluck('product_id')->map(fn ($v) => (int) $v)->unique()->values()->all();
+
+        // One shared pool per product, drawn down in line order, so two lines of
+        // the same product cannot both be granted the full quantity.
+        $remaining = $this->availabilityPool($locationId, (int) $issuance->issuance_id, $productIds);
+
+        $plan      = [];
+        $shortages = [];
+
+        foreach ($issuance->details as $detail) {
+            $productId = (int) $detail->product_id;
+            $requested = (int) $detail->quantity_requested;
+            $left      = $remaining[$productId] ?? 0;
+            $grant     = max(0, min($requested, $left));
+            $remaining[$productId] = $left - $grant;
+
+            if ($grant < $requested) {
+                $shortages[] = [
+                    'product_id'   => $productId,
+                    'product_name' => $detail->product?->product_name,
+                    'requested'    => $requested,
+                    'available'    => $grant,
+                ];
+            }
+
+            $plan[] = ['detail' => $detail, 'grant' => $grant, 'requested' => $requested];
+        }
+
+        if ($shortages !== [] && ! $request->boolean('accept_shortages')) {
+            return response()->json([
+                'success'   => false,
+                'message'   => 'Some lines cannot be fully served. Re-submit with accept_shortages to proceed short.',
+                'shortages' => $shortages,
+            ], 422);
+        }
+
+        if (collect($plan)->sum('grant') === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No stock is available for any line on this order.',
+            ], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($issuance, $plan, $locationId) {
+                $subtotal = 0.0;
+                $lines    = [];
+
+                foreach ($plan as $row) {
+                    /** @var \App\Models\IssuanceDetail $detail */
+                    $detail = $row['detail'];
+                    $grant  = (int) $row['grant'];
+                    $price  = (float) $detail->unit_price;
+
+                    $detail->update([
+                        'quantity_requested'  => $grant,
+                        'quantity_short'      => (int) $row['requested'] - $grant,
+                        'cost_price_at_issue' => (float) ($detail->product?->cost_price ?? 0),
+                        'subtotal'            => round($grant * $price, 2),
+                    ]);
+
+                    $subtotal += $grant * $price;
+
+                    if ($grant > 0) {
+                        $lines[] = ['product_id' => (int) $detail->product_id, 'quantity' => $grant];
+                    }
+                }
+
+                app(\App\Services\ReservationService::class)
+                    ->reserve('issuance', (int) $issuance->issuance_id, $locationId, $lines);
+
+                $subtotal        = round($subtotal, 2);
+                $discountPercent = (float) ($issuance->discount_percent ?? 0);
+                $discountAmount  = round($subtotal * $discountPercent / 100, 2);
+
+                $issuance->update([
+                    'subtotal'        => $subtotal,
+                    'discount_amount' => $discountAmount,
+                    'total_amount'    => round($subtotal - $discountAmount, 2),
+                    'status_id'       => \App\Support\IssuanceStatus::pending(),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            // Availability moved between the pool read and the lock — another order won the race.
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return $this->quote((int) $issuance->issuance_id);
     }
 
     /**

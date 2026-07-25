@@ -639,6 +639,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/issuances', [IssuanceController::class, 'index']);
     Route::middleware('permission:inventory_issuance,read')
          ->get('/issuances/{id}/quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'quote']);
+    // Gated on 'read' (not 'create'): confirm-quote advances an EXISTING draft's
+    // status and does not create a new issuance. inventory_analyst — who reviews
+    // and confirms priced quotes in this workflow — holds 'read' on this feature
+    // but not 'create' (verified against role_permissions), matching the /quote
+    // endpoint above.
+    Route::middleware('permission:inventory_issuance,read')
+         ->post('/issuances/{id}/confirm-quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'confirmQuote']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
     Route::middleware('permission:inventory_issuance,create')->post('/issuances', [IssuanceController::class, 'store']);
     Route::middleware('permission:inventory_issuance,update')->put('/issuances/{id}', [IssuanceController::class, 'update']);
