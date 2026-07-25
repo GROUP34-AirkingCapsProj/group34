@@ -210,6 +210,17 @@ class IssuanceOrderController extends Controller
         } catch (\RuntimeException $e) {
             // Availability moved between the pool read and the lock — another order won the race.
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Deadlock (1213) or lock-wait timeout (1205) under heavy contention.
+            // reserve() locks in canonical product order so this should not arise,
+            // but if it does the request is retryable — a 409, not a 500.
+            if (in_array((int) ($e->errorInfo[1] ?? 0), [1213, 1205], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The counter is busy reserving stock. Please try confirming again.',
+                ], 409);
+            }
+            throw $e;
         }
 
         return $this->quote((int) $issuance->issuance_id);
