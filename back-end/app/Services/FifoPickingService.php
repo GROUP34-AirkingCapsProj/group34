@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\Product;
+use App\Support\ScanResult;
 use App\Traits\NormalizesBarcode;
 use Illuminate\Support\Carbon;
 
@@ -142,5 +143,131 @@ class FifoPickingService
                 : null,
             'quantity'      => 1,
         ])->all();
+    }
+
+    /**
+     * Judge one scan against a document's line list.
+     *
+     * @param  array<int,array{product_id:int,quantity:int,picked:int}>  $lines
+     * @param  string|null  $confirmedZone  zone the picker confirmed (consumables)
+     * @param  string|null  $unitHint       reserved for unit-aware picking; unused today
+     * @param  array<int,int>  $excludedBatchIds  batches under an open incident
+     */
+    public function validateScan(
+        int $locationId,
+        array $lines,
+        string $barcode,
+        ?string $confirmedZone = null,
+        ?string $unitHint = null,
+        array $excludedBatchIds = []
+    ): ScanResult {
+        $resolved = $this->resolveScan($barcode, $locationId);
+        $product  = $resolved['product'];
+        $serial   = $resolved['serial'];
+
+        if ($product === null) {
+            return new ScanResult(
+                status:  ScanResult::UNKNOWN_BARCODE,
+                message: 'Barcode not recognised. Check the label, or that the item is stocked at this location.'
+            );
+        }
+
+        $productId = (int) $product->product_id;
+        $line      = collect($lines)->firstWhere('product_id', $productId);
+
+        if ($line === null) {
+            return new ScanResult(
+                status:      ScanResult::WRONG_PRODUCT,
+                message:     "{$product->product_name} is not on this order. Remove it and scan a listed item.",
+                productId:   $productId,
+                productName: $product->product_name
+            );
+        }
+
+        if ((int) ($line['picked'] ?? 0) >= (int) $line['quantity']) {
+            return new ScanResult(
+                status:      ScanResult::OVER_PICK,
+                message:     "{$product->product_name} is already fully picked for this order.",
+                productId:   $productId,
+                productName: $product->product_name
+            );
+        }
+
+        $oldest = $this->orderedBatches($locationId, $productId, $excludedBatchIds)->first();
+
+        // No batch record at all — legacy stock predating inventory_batches.
+        // There is nothing to order against, so let it through rather than
+        // blocking a picker over missing history.
+        if ($oldest === null) {
+            return new ScanResult(
+                status:       ScanResult::ACCEPTED,
+                message:      'Accepted.',
+                productId:    $productId,
+                productName:  $product->product_name,
+                serialId:     $serial !== null ? (int) $serial->serial_id : null,
+                serialNumber: $serial?->serial_number
+            );
+        }
+
+        $scannedBatch = $serial !== null
+            ? $this->batchForSerial($locationId, $serial)
+            : $this->batchForZone($locationId, $productId, $confirmedZone, $excludedBatchIds);
+
+        $isOldest = $scannedBatch === null
+            ? $confirmedZone === null   // consumable scan with no zone confirmation trusts the plan
+            : (int) $scannedBatch->batch_id === (int) $oldest->batch_id;
+
+        if (! $isOldest) {
+            $expectedZone = $oldest->zone_label ?? 'the oldest batch';
+
+            return new ScanResult(
+                status:  ScanResult::FIFO_VIOLATION,
+                message: "Oldest stock of {$product->product_name} is in {$expectedZone}"
+                         . ($oldest->received_at ? ' (received ' . $oldest->received_at->format('M j, Y') . ')' : '')
+                         . '. File an Incident Report to pick from elsewhere.',
+                productId:          $productId,
+                productName:        $product->product_name,
+                serialId:           $serial !== null ? (int) $serial->serial_id : null,
+                serialNumber:       $serial?->serial_number,
+                batchId:            $scannedBatch !== null ? (int) $scannedBatch->batch_id : null,
+                zoneLabel:          $scannedBatch->zone_label ?? $confirmedZone,
+                expectedBatchId:    (int) $oldest->batch_id,
+                expectedZoneLabel:  $oldest->zone_label,
+                expectedReceivedAt: optional($oldest->received_at)->toDateTimeString()
+            );
+        }
+
+        return new ScanResult(
+            status:       ScanResult::ACCEPTED,
+            message:      'Accepted.',
+            productId:    $productId,
+            productName:  $product->product_name,
+            serialId:     $serial !== null ? (int) $serial->serial_id : null,
+            serialNumber: $serial?->serial_number,
+            batchId:      (int) $oldest->batch_id,
+            zoneLabel:    $oldest->zone_label
+        );
+    }
+
+    protected function batchForSerial(int $locationId, ItemSerial $serial): ?InventoryBatch
+    {
+        if ($serial->receiving_id === null) {
+            return null;
+        }
+
+        return InventoryBatch::where('location_id', $locationId)
+            ->where('receiving_id', $serial->receiving_id)
+            ->where('product_id', $serial->product_id)
+            ->first();
+    }
+
+    protected function batchForZone(int $locationId, int $productId, ?string $zone, array $excluded): ?InventoryBatch
+    {
+        if ($zone === null) {
+            return null;
+        }
+
+        return $this->orderedBatches($locationId, $productId, $excluded)
+            ->first(fn ($batch) => strcasecmp(trim((string) $batch->zone_label), trim($zone)) === 0);
     }
 }
