@@ -720,12 +720,43 @@ class TransferController extends Controller
                 'barcode'            => 'required|string|max:255',
                 'transfer_detail_id' => 'sometimes|nullable|integer',
                 'quantity'           => 'sometimes|integer|min:1',
+                'confirmed_zone'     => 'nullable|string|max:100',
             ]);
 
             $approvedId = $this->statusId('Approved');
             $ist = Transfer::with(['details.product'])
                 ->where('status_id', $approvedId)
                 ->findOrFail($id);
+
+            // FIFO gate, shared with issuance picking so the ordering rule cannot
+            // drift between the two. Runs BEFORE any TransferService write; it only
+            // judges the scan — recording/counting/serials remain the service's job.
+            $ist->loadMissing('details');
+
+            $lines = $ist->details->map(fn ($detail) => [
+                'product_id' => (int) $detail->product_id,
+                'quantity'   => (int) $detail->quantity_requested,
+                'picked'     => (int) $detail->quantity_scanned,
+            ])->values()->all();
+
+            $locationId = (int) $ist->from_location_id;
+
+            $verdict = app(\App\Services\FifoPickingService::class)->validateScan(
+                $locationId,
+                $lines,
+                trim($validated['barcode']),
+                $validated['confirmed_zone'] ?? null,
+                null,
+                app(\App\Services\IncidentService::class)->excludedBatchIds($locationId)
+            );
+
+            if (! $verdict->accepted()) {
+                return response()->json([
+                    'success'     => false,
+                    'message'     => $verdict->message,
+                    'scan_result' => $verdict->toArray(),
+                ], 422);
+            }
 
             $result = $service->recordDispatchScan(
                 $ist,
