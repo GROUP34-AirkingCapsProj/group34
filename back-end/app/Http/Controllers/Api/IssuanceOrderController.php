@@ -235,6 +235,72 @@ class IssuanceOrderController extends Controller
      * @param  array<int,int>  $productIds
      * @return array<int,int>
      */
+    public function addSetLine(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'set_id'       => 'required|integer|exists:product_sets,set_id',
+            'set_quantity' => 'required|integer|min:1',
+        ]);
+
+        $issuance = Issuance::findOrFail($id);
+
+        try {
+            app(\App\Services\IssuanceOrderService::class)
+                ->addSet($issuance, (int) $validated['set_id'], (int) $validated['set_quantity']);
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return $this->quote($id);
+    }
+
+    public function addCustomLine(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|integer|exists:products,product_id',
+            'quantity'   => 'required|integer|min:1',
+        ]);
+
+        $issuance = Issuance::findOrFail($id);
+
+        try {
+            app(\App\Services\IssuanceOrderService::class)
+                ->addCustomLine($issuance, (int) $validated['product_id'], (int) $validated['quantity']);
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return $this->quote($id);
+    }
+
+    public function updateLine(Request $request, int $id, int $lineId): JsonResponse
+    {
+        $validated = $request->validate(['quantity' => 'required|integer|min:1']);
+        $issuance  = Issuance::findOrFail($id);
+
+        try {
+            app(\App\Services\IssuanceOrderService::class)
+                ->updateLine($issuance, $lineId, (int) $validated['quantity']);
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return $this->quote($id);
+    }
+
+    public function removeLine(int $id, int $lineId): JsonResponse
+    {
+        $issuance = Issuance::findOrFail($id);
+
+        try {
+            app(\App\Services\IssuanceOrderService::class)->removeLine($issuance, $lineId);
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return $this->quote($id);
+    }
+
     protected function availabilityPool(int $locationId, int $ownIssuanceId, array $productIds): array
     {
         if ($productIds === []) {
