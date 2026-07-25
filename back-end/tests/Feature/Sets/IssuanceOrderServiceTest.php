@@ -253,4 +253,70 @@ class IssuanceOrderServiceTest extends SetTestCase
         $this->assertCount(1, $issuance->fresh('sets')->sets);
         $this->assertCount(0, $issuance->fresh('details')->details);
     }
+
+    public function test_updating_a_line_recomputes_its_subtotal(): void
+    {
+        $issuance = $this->draft();
+        $p = $this->makeConsumable(price: 40);
+
+        $svc    = app(IssuanceOrderService::class);
+        $detail = $svc->addCustomLine($issuance, $p->product_id, 2);
+        $this->assertEqualsWithDelta(80.0, (float) $detail->subtotal, 0.001);
+
+        $updated = $svc->updateLine($issuance, (int) $detail->issuance_detail_id, 5);
+        $this->assertEqualsWithDelta(200.0, (float) $updated->subtotal, 0.001);
+    }
+
+    /**
+     * The addSet() null-product guard defends against a product row vanishing
+     * under a set line. The schema already prevents that: product_set_lines
+     * .product_id restricts deletion, so a product in use by a BOQ cannot be
+     * hard-deleted at all. This proves that invariant — the guard is
+     * belt-and-suspenders for FK-bypassing corruption, not an everyday path.
+     */
+    public function test_a_product_used_by_a_set_line_cannot_be_hard_deleted(): void
+    {
+        $product = $this->makeConsumable();
+        $set     = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set->lines()->create(['product_id' => $product->product_id, 'quantity' => 1]);
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+        $product->forceDelete();
+    }
+
+    /**
+     * An archived (soft-deleted) product still prices correctly, because
+     * ProductSetLine::product() uses withTrashed(). The guard must NOT fire here.
+     */
+    public function test_adding_a_set_still_prices_a_soft_deleted_product(): void
+    {
+        $issuance = $this->draft();
+        $product  = $this->makeConsumable(price: 90);
+
+        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set->lines()->create(['product_id' => $product->product_id, 'quantity' => 2]);
+
+        $product->delete(); // soft delete
+
+        app(IssuanceOrderService::class)->addSet($issuance, $set->set_id, 1);
+
+        $detail = $issuance->fresh('details')->details->first();
+        $this->assertEqualsWithDelta(90.0, (float) $detail->unit_price, 0.001);
+        $this->assertEqualsWithDelta(180.0, (float) $detail->subtotal, 0.001);
+    }
+
+    public function test_a_line_cannot_be_added_after_the_order_is_confirmed_under_the_lock(): void
+    {
+        // Simulates the race the lock closes: the caller holds a stale Draft
+        // instance while the row has already flipped to Pending in the database.
+        $issuance = $this->draft();
+        $p        = $this->makeConsumable();
+
+        $stale = Issuance::find($issuance->issuance_id);          // reads Draft
+        Issuance::whereKey($issuance->issuance_id)                // someone confirms
+            ->update(['status_id' => IssuanceStatus::pending()]);
+
+        $this->expectException(\RuntimeException::class);
+        app(IssuanceOrderService::class)->addCustomLine($stale, $p->product_id, 1);
+    }
 }
