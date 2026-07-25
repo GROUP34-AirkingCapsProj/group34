@@ -155,12 +155,14 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'archive' => ['admin'],
             ],
-            // Issuances have no dedicated sidebar/list gate (GET /issuances is open),
-            // so inventory_issuance has no standalone read — only the write actions.
+            // GET /issuances (list) remains ungated; 'read' here is scoped to the
+            // priced quote endpoint, and 'view_margin' further gates cost/margin visibility.
             'inventory_issuance' => [
-                'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
-                'update'  => ['admin', 'warehouse_personnel'],
-                'archive' => ['admin'],
+                'create'      => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'update'      => ['admin', 'warehouse_personnel'],
+                'archive'     => ['admin'],
+                'read'        => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                'view_margin' => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
             ],
             'inventory_transfers' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
