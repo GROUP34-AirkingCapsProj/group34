@@ -76,46 +76,64 @@ class IncidentService
      */
     public function resolve(IncidentReport $incident, string $action, array $options, int $reviewedBy): IncidentReport
     {
-        if ((int) $incident->status_id !== IncidentReport::statusId('Open')) {
-            throw new \RuntimeException('This incident has already been reviewed.');
-        }
-
-        if ($action === 'dismiss') {
-            $incident->update([
-                'status_id'       => IncidentReport::statusId('Dismissed'),
-                'reviewed_by'     => $reviewedBy,
-                'reviewed_at'     => now(),
-                'resolution_note' => $options['resolution_note'] ?? null,
-            ]);
-
-            return $incident->fresh();
-        }
-
-        if ($incident->reason === IncidentReport::REASON_WRONG_TYPE
+        // Input guards that don't touch the DB — cheap to fail fast, re-checked
+        // under the lock below where it matters.
+        if ($action === 'confirm'
+            && $incident->reason === IncidentReport::REASON_WRONG_TYPE
             && empty($options['corrected_product_id'])) {
             throw new \InvalidArgumentException('A corrected product is required to resolve a wrong-type incident.');
         }
 
-        return DB::transaction(function () use ($incident, $options, $reviewedBy) {
+        if ($action === 'confirm'
+            && $incident->reason === IncidentReport::REASON_WRONG_TYPE
+            && $incident->batch_id === null) {
+            // wrong_type means the batch was received as the wrong product; with no
+            // batch there is nothing to re-type, so closing it would leave the real
+            // stock wrong while reading as fixed.
+            throw new \InvalidArgumentException('A wrong-type incident must reference a batch to re-type.');
+        }
+
+        return DB::transaction(function () use ($incident, $action, $options, $reviewedBy) {
+            // Lock the incident row and re-check Open UNDER the lock, so two
+            // reviewers resolving at once cannot both pass the guard and
+            // double-book the write-off. The plain read outside a transaction
+            // would let both through.
+            $locked = IncidentReport::whereKey($incident->getKey())->lockForUpdate()->first();
+
+            if ($locked === null || (int) $locked->status_id !== IncidentReport::statusId('Open')) {
+                throw new \RuntimeException('This incident has already been reviewed.');
+            }
+
+            if ($action === 'dismiss') {
+                $locked->update([
+                    'status_id'       => IncidentReport::statusId('Dismissed'),
+                    'reviewed_by'     => $reviewedBy,
+                    'reviewed_at'     => now(),
+                    'resolution_note' => $options['resolution_note'] ?? null,
+                ]);
+
+                return $locked->fresh();
+            }
+
             $adjustmentId = null;
             $correctionId = null;
 
-            switch ($incident->reason) {
+            switch ($locked->reason) {
                 case IncidentReport::REASON_NOT_FOUND:
                 case IncidentReport::REASON_DAMAGED:
-                    $adjustmentId = $this->postDeduction($incident, $reviewedBy);
+                    $adjustmentId = $this->postDeduction($locked, $reviewedBy);
                     break;
 
                 case IncidentReport::REASON_WRONG_TYPE:
-                    $correctionId = $this->postCorrection($incident, (int) $options['corrected_product_id'], $reviewedBy);
+                    $correctionId = $this->postCorrection($locked, (int) $options['corrected_product_id'], $reviewedBy);
                     break;
 
                 case IncidentReport::REASON_ZONE_MISMATCH:
-                    $this->relocate($incident);
+                    $this->relocate($locked);
                     break;
             }
 
-            $incident->update([
+            $locked->update([
                 'status_id'       => IncidentReport::statusId('Resolved'),
                 'reviewed_by'     => $reviewedBy,
                 'reviewed_at'     => now(),
@@ -124,14 +142,34 @@ class IncidentService
                 'resolution_note' => $options['resolution_note'] ?? null,
             ]);
 
-            return $incident->fresh();
+            return $locked->fresh();
         });
     }
 
     /** Write the stock off the batch and the location inventory, under an Adjustment. */
     private function postDeduction(IncidentReport $incident, int $reviewedBy): int
     {
-        $quantity = max(0, (int) $incident->quantity);
+        $requested = max(0, (int) $incident->quantity);
+
+        $batch = $incident->batch_id !== null
+            ? \App\Models\InventoryBatch::lockForUpdate()->find($incident->batch_id)
+            : null;
+
+        $inventory = \App\Models\Inventory::where('location_id', $incident->location_id)
+            ->where('product_id', $incident->product_id)
+            ->lockForUpdate()
+            ->first();
+
+        // The real write-off cannot exceed what the batch actually holds (or, with
+        // no batch, what the location holds). Compute ONE deducted amount and use
+        // it for the ledger, the batch, and the location total alike — the old code
+        // recorded the full requested quantity while clamping the batch and the
+        // inventory independently, so a request larger than the batch's remaining
+        // vanished units from the location total that no batch ever lost.
+        $available = $batch !== null
+            ? (int) $batch->quantity_remaining
+            : (int) ($inventory->quantity_on_hand ?? $requested);
+        $deducted = min($requested, $available);
 
         $adjustment = \App\Models\Adjustment::create([
             'location_id'             => (int) $incident->location_id,
@@ -141,7 +179,7 @@ class IncidentService
             'adjustment_date'         => now()->toDateString(),
             'adjustment_type'         => $incident->reason === IncidentReport::REASON_DAMAGED ? 'damage' : 'loss',
             'total_variance_positive' => 0,
-            'total_variance_negative' => $quantity,
+            'total_variance_negative' => $deducted,
             'notes'                   => "Incident {$incident->incident_number}: {$incident->narrative}",
             'status_id'               => 20, // adjustment "Approved" — verified in status_lookup
         ]);
@@ -149,25 +187,17 @@ class IncidentService
         $adjustment->details()->create([
             'product_id'      => (int) $incident->product_id,
             'add_quantity'    => 0,
-            'deduct_quantity' => $quantity,
+            'deduct_quantity' => $deducted,
             'reason'          => $incident->reason,
         ]);
 
-        if ($incident->batch_id !== null) {
-            $batch = \App\Models\InventoryBatch::lockForUpdate()->find($incident->batch_id);
-            if ($batch !== null) {
-                $batch->decrement('quantity_remaining', min($quantity, (int) $batch->quantity_remaining));
-            }
+        if ($batch !== null) {
+            $batch->decrement('quantity_remaining', $deducted);
         }
 
-        $inventory = \App\Models\Inventory::where('location_id', $incident->location_id)
-            ->where('product_id', $incident->product_id)
-            ->lockForUpdate()
-            ->first();
-
         if ($inventory !== null) {
-            $inventory->decrement('quantity_on_hand', min($quantity, (int) $inventory->quantity_on_hand));
-            $inventory->decrement('available_quantity', min($quantity, (int) $inventory->available_quantity));
+            $inventory->decrement('quantity_on_hand', min($deducted, (int) $inventory->quantity_on_hand));
+            $inventory->decrement('available_quantity', min($deducted, (int) $inventory->available_quantity));
         }
 
         return (int) $adjustment->adjustment_id;
@@ -176,8 +206,10 @@ class IncidentService
     /** Re-type the batch to the product physically on the shelf. */
     private function postCorrection(IncidentReport $incident, int $correctedProductId, int $reviewedBy): int
     {
+        // Locked to match postDeduction's discipline — the re-type and the paired
+        // inventory move must see and hold a consistent batch row.
         $batch = $incident->batch_id !== null
-            ? \App\Models\InventoryBatch::find($incident->batch_id)
+            ? \App\Models\InventoryBatch::lockForUpdate()->find($incident->batch_id)
             : null;
 
         $correction = \App\Models\ScanCorrection::create([

@@ -216,4 +216,59 @@ class IncidentResolutionTest extends SetTestCase
         $rows = collect($res->json('data'))->where('reported_by', (int) $picker->user_id);
         $this->assertSame(2, (int) $rows->first()['reporter_incident_count']);
     }
+
+    /**
+     * When the reported quantity exceeds what the batch actually holds, the
+     * write-off must be clamped to the batch AND recorded at the clamped amount,
+     * so the batch, the location total, and the ledger never disagree. The old
+     * code recorded the full 10 while only the batch's 3 could physically leave,
+     * silently vanishing 7 units from the location total.
+     */
+    public function test_deduction_over_the_batch_does_not_diverge_batch_and_location(): void
+    {
+        $loc = $this->makeLocation();
+        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $p   = $this->makeConsumable();
+
+        // Location holds 50 (a bigger pool), but the incident's batch has only 3.
+        $this->setStock($loc->location_id, $p->product_id, 50);
+        $b = $this->makeBatch($p, $loc, ['quantity_remaining' => 3, 'received_at' => now(), 'zone_label' => 'Zone 1']);
+
+        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_NOT_FOUND, 10);
+
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
+             ->assertOk();
+
+        // Only 3 could leave the batch, so the ledger records 3, not 10...
+        $adjustment = \App\Models\Adjustment::with('details')->find($incident->fresh()->adjustment_id);
+        $this->assertSame(3, (int) $adjustment->total_variance_negative);
+        $this->assertSame(3, (int) $adjustment->details->first()->deduct_quantity);
+
+        // ...the batch is emptied, and the location total drops by exactly 3 (50 -> 47),
+        // not by 10 — no units vanish that no batch lost.
+        $this->assertSame(0, (int) \App\Models\InventoryBatch::find($b->batch_id)->quantity_remaining);
+        $inv = \App\Models\Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
+        $this->assertSame(47, (int) $inv->quantity_on_hand);
+    }
+
+    public function test_wrong_type_without_a_batch_is_rejected(): void
+    {
+        $loc = $this->makeLocation();
+        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $p   = $this->makeConsumable();
+        $correct = $this->makeConsumable();
+
+        // A wrong_type incident with no batch to re-type.
+        $incident = $this->openIncident($loc, $p, null, IncidentReport::REASON_WRONG_TYPE, 2);
+
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
+                 'action' => 'confirm', 'corrected_product_id' => $correct->product_id,
+             ])
+             ->assertStatus(422);
+
+        // It stays Open — nothing was closed as "fixed" while the stock is untouched.
+        $this->assertSame(IncidentReport::statusId('Open'), (int) $incident->fresh()->status_id);
+    }
 }
