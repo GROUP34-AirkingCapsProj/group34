@@ -49,76 +49,41 @@ class TransferService
     }
 
     /**
-     * FIFO pick suggestions per line for an Approved IST.
-     * Appliances: individual serials tagged with their batch zone, oldest batch first.
-     * Consumables: zone + quantity per batch, oldest received_at first, capped at outstanding qty.
-     *
-     * @return array<int, array{product_id:int, product_name:string, needed:int, suggestions:array}>
+     * FIFO pick suggestions for an approved transfer.
+     * The ordering rule lives in FifoPickingService so issuance picking and
+     * transfer dispatch can never disagree about what "oldest" means.
      */
     public function pickList(Transfer $ist): array
     {
         $ist->loadMissing('details.product.consumableDetail');
-        $out = [];
 
-        foreach ($ist->details as $detail) {
-            $needed = (int) $detail->quantity_requested - (int) $detail->quantity_scanned;
-            $suggestions = [];
+        $lines = $ist->details->map(fn ($detail) => [
+            'product_id' => (int) $detail->product_id,
+            'quantity'   => max(0, (int) $detail->quantity_requested - (int) $detail->quantity_scanned),
+        ])->values()->all();
 
-            if ($this->isSerialized($detail)) {
-                $serials = ItemSerial::where('item_serial.product_id', $detail->product_id)
-                    ->where('item_serial.location_id', $ist->from_location_id)
-                    ->where('item_serial.serial_type', 'received')
-                    ->whereNull('item_serial.transfer_id')
-                    ->leftJoin('inventory_batches as b', function ($j) use ($ist) {
-                        $j->on('b.receiving_id', '=', 'item_serial.receiving_id')
-                          ->where('b.location_id', '=', $ist->from_location_id);
-                    })
-                    ->orderByRaw('b.received_at IS NULL, b.received_at ASC')
-                    ->limit(max(0, $needed))
-                    ->get(['item_serial.serial_number', 'item_serial.receiving_id', 'b.zone_label', 'b.received_at', 'b.batch_id']);
+        $excluded = app(\App\Services\IncidentService::class)
+            ->excludedBatchIds((int) $ist->from_location_id);
 
-                foreach ($serials as $s) {
-                    $suggestions[] = [
-                        'serial_number' => $s->serial_number,
-                        'zone_label'    => $s->zone_label,
-                        'quantity'      => 1,
-                        'batch_id'      => $s->batch_id !== null ? (int) $s->batch_id : null,
-                        'received_at'   => $s->received_at,
-                    ];
-                }
-            } else {
-                $remaining = max(0, $needed);
-                $batches = InventoryBatch::where('product_id', $detail->product_id)
-                    ->where('location_id', $ist->from_location_id)
-                    ->where('quantity_remaining', '>', 0)
-                    ->orderBy('received_at', 'asc')
-                    ->get();
+        $suggested = app(\App\Services\FifoPickingService::class)
+            ->suggest((int) $ist->from_location_id, $lines, $excluded);
 
-                foreach ($batches as $batch) {
-                    if ($remaining <= 0) break;
-                    $take = min($remaining, (int) $batch->quantity_remaining);
-                    $suggestions[] = [
-                        'serial_number' => null,
-                        'zone_label'    => $batch->zone_label,
-                        'quantity'      => $take,
-                        'batch_id'      => (int) $batch->batch_id,
-                        'received_at'   => $batch->received_at,
-                    ];
-                    $remaining -= $take;
-                }
-            }
+        // Re-attach the transfer-specific fields the shared service is
+        // document-agnostic about: the "Product #{id}" name fallback and the
+        // consumable packaging columns the transfer UI reads. suggest() returns
+        // exactly one row per input line in the same order, so index alignment
+        // with $ist->details is one-to-one.
+        return collect($suggested)->map(function (array $row, int $i) use ($ist) {
+            $detail = $ist->details[$i] ?? null;
 
-            $out[] = [
-                'product_id'   => (int) $detail->product_id,
-                'product_name' => $detail->product?->product_name ?? "Product #{$detail->product_id}",
-                'needed'       => $needed,
-                'pieces_per_package' => (int) ($detail->product?->consumableDetail?->pieces_per_package ?? 0),
-                'package_unit'       => $detail->product?->consumableDetail?->package_unit,
-                'suggestions'  => $suggestions,
+            $row['product_name'] = $row['product_name']
+                ?? "Product #{$row['product_id']}";
+
+            return $row + [
+                'pieces_per_package' => (int) ($detail?->product?->consumableDetail?->pieces_per_package ?? 0),
+                'package_unit'       => $detail?->product?->consumableDetail?->package_unit,
             ];
-        }
-
-        return $out;
+        })->all();
     }
 
     /** Fetch the inventory row for a location/product under a write lock, creating it (zeroed) if absent. */
