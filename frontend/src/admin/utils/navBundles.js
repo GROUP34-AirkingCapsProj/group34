@@ -35,6 +35,7 @@ export const NAV_BUNDLES = [
 export const PERMISSION_GATED_ROUTES = {
   '/admin/warranty-claims': 'warranty_claims.create',
   '/admin/sets': 'product_set_management.read',
+  '/admin/incidents': 'incident_reports.read',
 };
 
 const granted = (perms, key) => perms != null && perms[key] === true;
