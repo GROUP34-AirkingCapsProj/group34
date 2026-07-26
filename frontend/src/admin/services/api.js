@@ -245,6 +245,11 @@ const apiRequest = async (endpoint, options = {}) => {
     const err = new Error(data.message || 'API request failed');
     err.status = response.status;
     err.errors = data.errors || null;
+    // Preserve the full parsed body so callers can read structured payloads that
+    // arrive on a non-2xx status (e.g. the issuance/transfer scan endpoints return
+    // HTTP 422 with a `scan_result` verdict). Purely additive — existing callers
+    // only read message/status/errors.
+    err.data = data;
     if (data.login_attempts_remaining !== undefined && data.login_attempts_remaining !== null) {
       err.login_attempts_remaining = data.login_attempts_remaining;
     }
@@ -1090,6 +1095,29 @@ export const issuanceScanAPI = {
     const token = getToken();
     return `${base}/issuance-scan/delivery-receipt/${issuanceId}/csv${token ? '?token=' + token : ''}`;
   },
+};
+
+/* ======================
+   ISSUANCE ORDER API (Order → Quote wizard: draft line management)
+====================== */
+export const issuanceOrderAPI = {
+  /** Priced quote + grouped lines for a draft/pending issuance. GET /issuances/{id}/quote */
+  quote: async (id) => apiRequest(`/issuances/${id}/quote`),
+  /** Add a BOQ set to the order. payload: { set_id, set_quantity } */
+  addSet: async (id, payload) =>
+    apiRequest(`/issuances/${id}/lines/set`, { method: 'POST', body: JSON.stringify(payload) }),
+  /** Add a loose custom line. payload: { product_id, quantity } */
+  addCustom: async (id, payload) =>
+    apiRequest(`/issuances/${id}/lines/custom`, { method: 'POST', body: JSON.stringify(payload) }),
+  /** Change a line's quantity. payload: { quantity } */
+  updateLine: async (id, lineId, payload) =>
+    apiRequest(`/issuances/${id}/lines/${lineId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  /** Remove a line from the order. */
+  removeLine: async (id, lineId) =>
+    apiRequest(`/issuances/${id}/lines/${lineId}`, { method: 'DELETE' }),
+  /** Confirm the quote → transitions Draft to Pending. payload: { accept_shortages? } */
+  confirmQuote: async (id, payload = {}) =>
+    apiRequest(`/issuances/${id}/confirm-quote`, { method: 'POST', body: JSON.stringify(payload) }),
 };
 
 /* ======================
