@@ -409,12 +409,10 @@ function AddCustomPath({ disabled, onAdd }) {
   const [brands, setBrands] = useState([]);
   const [categoryId, setCategoryId] = useState('');
   const [brandId, setBrandId] = useState('');
-  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [picked, setPicked] = useState(null);
+  const [productId, setProductId] = useState('');
   const [qty, setQty] = useState(1);
-  const timer = useRef(null);
 
   // Load the category + brand filter options once.
   useEffect(() => {
@@ -428,103 +426,73 @@ function AddCustomPath({ disabled, onAdd }) {
     }).catch(() => setBrands([]));
   }, []);
 
-  // Load products whenever a filter changes. Choosing a category or brand alone is
-  // enough to list products — so a picker who forgets the exact name can browse.
+  // Load the product options for the chosen category/brand. The product picker is
+  // a dropdown — no typing — so a picker who forgets the exact name just browses.
   useEffect(() => {
-    clearTimeout(timer.current);
-    if (picked) { setResults([]); return; }
-    const q = query.trim();
-    const hasFilter = categoryId || brandId || q.length >= 2;
-    if (!hasFilter) { setResults([]); return; }
-    timer.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const params = { per_page: 30 };
-        if (categoryId) params.category_id = categoryId;
-        if (brandId) params.brand_id = brandId;
-        if (q.length >= 2) params.search = q;
-        const res = await productsAPI.getAll(params);
+    if (!categoryId && !brandId) { setResults([]); setProductId(''); return; }
+    let cancelled = false;
+    setLoading(true);
+    const params = { per_page: 200 };
+    if (categoryId) params.category_id = categoryId;
+    if (brandId) params.brand_id = brandId;
+    productsAPI.getAll(params)
+      .then((res) => {
+        if (cancelled) return;
         const list = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);
         setResults(Array.isArray(list) ? list : []);
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer.current);
-  }, [categoryId, brandId, query, picked]);
+      })
+      .catch(() => { if (!cancelled) setResults([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [categoryId, brandId]);
+
+  const picked = results.find((p) => String(p.product_id) === String(productId)) || null;
+  const noFilter = !categoryId && !brandId;
 
   const add = async () => {
     if (!picked) return;
     await onAdd(picked.product_id, Math.max(1, parseInt(qty, 10) || 1));
-    setPicked(null);
-    setQuery('');
+    setProductId('');
     setQty(1);
   };
 
-  if (picked) {
-    return (
-      <div className="ak-field" style={{ gap: '0.5rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="ak-field" style={{ flex: '1 1 220px' }}>
-            <label className="ak-label">Product</label>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span style={{ fontWeight: 600 }}>{picked.product_name}</span>
-              <button type="button" className="ak-btn" onClick={() => { setPicked(null); setQuery(''); }} disabled={disabled}>Change</button>
-            </div>
-          </div>
-          <div className="ak-field" style={{ width: 100 }}>
-            <label className="ak-label">Qty</label>
-            <input className="ak-input" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} disabled={disabled} />
-          </div>
-          <button type="button" className="ak-btn ak-btn--primary" onClick={add} disabled={disabled}>Add item</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="ak-field" style={{ gap: '0.5rem' }}>
-      {/* Category + brand dropdowns so a picker can narrow the list without
-          remembering an exact product name. */}
+      {/* Category + brand dropdowns narrow the product list; pick the product from
+          the third dropdown — no free-text needed. */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <select className="ak-select" style={{ flex: '1 1 160px' }} value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={disabled}>
+        <select className="ak-select" style={{ flex: '1 1 160px' }} value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setProductId(''); }} disabled={disabled}>
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
           ))}
         </select>
-        <select className="ak-select" style={{ flex: '1 1 160px' }} value={brandId} onChange={(e) => setBrandId(e.target.value)} disabled={disabled}>
+        <select className="ak-select" style={{ flex: '1 1 160px' }} value={brandId} onChange={(e) => { setBrandId(e.target.value); setProductId(''); }} disabled={disabled}>
           <option value="">All brands</option>
           {brands.map((b) => (
             <option key={b.brand_id} value={b.brand_id}>{b.brand_name}</option>
           ))}
         </select>
       </div>
-      <div style={{ position: 'relative' }}>
-        <input
-          className="ak-input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Pick a category or brand above, or search by name/code…"
-          disabled={disabled}
-          autoComplete="off"
-        />
-        {(results.length > 0 || loading) && (
-          <div className="isp-dropdown">
-            {loading && <div className="isp-dropdown-item isp-dropdown-loading">Searching...</div>}
-            {!loading && results.length === 0 && (
-              <div className="isp-dropdown-item isp-dropdown-loading">No products match these filters.</div>
-            )}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="ak-field" style={{ flex: '1 1 220px' }}>
+          <label className="ak-label">Product</label>
+          <select className="ak-select" value={productId} onChange={(e) => setProductId(e.target.value)} disabled={disabled || noFilter || loading}>
+            <option value="">
+              {noFilter ? 'Select a category or brand first…' : loading ? 'Loading…' : (results.length ? 'Select a product…' : 'No products found')}
+            </option>
             {results.map((p) => (
-              <button key={p.product_id} type="button" className="isp-dropdown-item" onMouseDown={() => { setPicked(p); setResults([]); setQuery(p.product_name); }}>
-                <span className="isp-dropdown-name">{p.product_name}</span>
-                {p.product_code && <span className="isp-dropdown-company">{p.product_code}</span>}
-              </button>
+              <option key={p.product_id} value={p.product_id}>
+                {p.product_name}{p.product_code ? ` — ${p.product_code}` : ''}
+              </option>
             ))}
-          </div>
-        )}
+          </select>
+        </div>
+        <div className="ak-field" style={{ width: 100 }}>
+          <label className="ak-label">Qty</label>
+          <input className="ak-input" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} disabled={disabled || !picked} />
+        </div>
+        <button type="button" className="ak-btn ak-btn--primary" onClick={add} disabled={disabled || !picked}>Add item</button>
       </div>
     </div>
   );
