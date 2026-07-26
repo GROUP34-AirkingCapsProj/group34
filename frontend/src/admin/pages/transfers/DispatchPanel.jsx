@@ -2,47 +2,50 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { transfersAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { confirmAction } from '../../utils/confirm';
-import CameraScanner from '../../components/CameraScanner';
-import { packageBreakdown } from '../../utils/packageFormat';
+import PickScanner from '../../components/picking/PickScanner';
+import IncidentModal from '../../components/picking/IncidentModal';
 
 const isLineSerialized = (detail) =>
   detail?.is_serialized || detail?.product?.is_serialized || detail?.product?.product_type === 'appliance';
 
-const fmtWhen = (v) => {
-  if (!v) return '';
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toLocaleDateString();
-};
-
 /**
  * Dispatch panel — source-warehouse scanning for an Approved transfer.
- * Shows FIFO pick suggestions per line, records each unit leaving the source
- * via barcode/manual entry, then confirms dispatch (-> In Transit).
+ * Scanning now runs through the shared, FIFO-enforcing <PickScanner> (the same
+ * engine + UI as issuance picking): it renders the FIFO pick plan, records each
+ * unit leaving the source, and surfaces the server's verdict / incident path.
+ * Per-line progress, the scan history (with remove), and the dispatch
+ * confirmation are preserved around it.
  */
 const DispatchPanel = ({ transfer, onDone }) => {
   const id = transfer?.transfer_id;
   const details = transfer?.details || [];
 
-  const [pickList, setPickList] = useState([]);
+  const [plan, setPlan] = useState([]);
   const [sessionScans, setSessionScans] = useState({}); // { [did]: [{ scan_id, barcode, quantity }] }
   const [scannedTotals, setScannedTotals] = useState({}); // { [did]: total_scanned }
-  const [activeLine, setActiveLine] = useState(null);
-  const [scanInput, setScanInput] = useState('');
-  const [scanning, setScanning] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [incidentCtx, setIncidentCtx] = useState(null);
 
   const scannedTotalsRef = useRef({});
   useEffect(() => { scannedTotalsRef.current = scannedTotals; }, [scannedTotals]);
 
-  // Seed line totals from the transfer, then hydrate scan history + pick list.
+  const loadPlan = useCallback(async () => {
+    try {
+      const r = await transfersAPI.pickList(id);
+      setPlan(Array.isArray(r?.data) ? r.data : []);
+    } catch {
+      setPlan([]);
+    }
+  }, [id]);
+
+  // Seed line totals from the transfer, then hydrate scan history + pick plan.
   useEffect(() => {
     const init = {};
     details.forEach((d) => { init[d.transfer_detail_id] = d.quantity_scanned ?? 0; });
     setScannedTotals(init);
 
-    transfersAPI.pickList(id)
-      .then((r) => setPickList(Array.isArray(r?.data) ? r.data : []))
-      .catch(() => setPickList([]));
+    loadPlan();
 
     transfersAPI.scanStatus(id)
       .then((r) => {
@@ -63,53 +66,77 @@ const DispatchPanel = ({ transfer, onDone }) => {
   }, [id]);
 
   const totalScanned = Object.values(scannedTotals).reduce((s, n) => s + (n || 0), 0);
-  const activeDetail = details.find((d) => d.transfer_detail_id === activeLine) || null;
 
-  const handleLineScan = useCallback(async (code) => {
-    const barcode = String(code || '').trim();
-    if (!barcode) return;
-    if (activeLine == null) {
-      toast.error('Select a product first', 'Click an item on the left, then scan.');
-      return;
-    }
-    setScanning(true);
+  // ── PickScanner onScan ──────────────────────────────────────
+  // Mirrors IssuanceScanPage: recover the 422 verdict body via err.data, and
+  // normalize an accepted scan (HTTP 200, no scan_result) into a synthetic
+  // ACCEPTED verdict so PickScanner advances. transfer_detail_id is omitted —
+  // recordDispatchScan resolves the line from the scanned product/serial.
+  const handleScan = useCallback(async (barcode, confirmedZone) => {
+    let body;
     try {
-      const result = await transfersAPI.scan(id, { barcode, transfer_detail_id: activeLine });
-      const data = result?.data ?? result;
-      const did = data.transfer_detail_id ?? activeLine;
-      setSessionScans((prev) => ({
-        ...prev,
-        [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: data.quantity ?? 1 }],
-      }));
-      const nextTotals = { ...scannedTotalsRef.current, [did]: data.total_scanned };
-      scannedTotalsRef.current = nextTotals;
-      setScannedTotals(nextTotals);
-      toast.success(`Scanned ${data.product_name || ''}`.trim());
-      if (data.remaining === 0) {
-        const next = details.find((d) =>
-          d.transfer_detail_id !== did && (nextTotals[d.transfer_detail_id] || 0) < (d.quantity_transferred ?? d.quantity_requested ?? 0));
-        setActiveLine(next ? next.transfer_detail_id : null);
-      }
-    } catch (err) {
-      const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : (err?.message || 'Scan rejected.');
-      toast.error('Scan rejected', msg);
-    } finally {
-      setScanning(false);
+      body = await transfersAPI.scan(id, { barcode, confirmed_zone: confirmedZone });
+    } catch (e) {
+      if (e?.data) body = e.data;   // recover the HTTP 422 body (carries scan_result)
+      else throw e;
     }
-  }, [id, activeLine, details]);
+    // Accept: HTTP 200 success with NO scan_result of its own.
+    if (body?.success && !body?.scan_result) {
+      const data = body.data ?? body;
+      const did = data.transfer_detail_id;
+      if (did != null) {
+        setSessionScans((prev) => ({
+          ...prev,
+          [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: data.quantity ?? 1 }],
+        }));
+        const nextTotals = { ...scannedTotalsRef.current, [did]: data.total_scanned };
+        scannedTotalsRef.current = nextTotals;
+        setScannedTotals(nextTotals);
+      }
+      // Refetch so the picked unit drops out and the next step appears.
+      await loadPlan();
+      return {
+        scan_result: {
+          status: 'ACCEPTED',
+          accepted: true,
+          overridable: false,
+          message: `${data.product_name || 'Item'} scanned.`,
+        },
+      };
+    }
+    return body;   // rejected: 422 {scan_result} or legacy 422 {success:false, message}
+  }, [id, loadPlan]);
 
-  const submitManual = async () => {
-    const v = scanInput.trim();
-    if (!v) return;
-    setScanInput('');
-    await handleLineScan(v);
-  };
+  const onScan = useCallback(async (barcode, confirmedZone) => {
+    setScanBusy(true);
+    try {
+      return await handleScan(barcode, confirmedZone);
+    } finally {
+      setScanBusy(false);
+    }
+  }, [handleScan]);
+
+  // The incident is raised WHERE THE STOCK IS — the source (from) location.
+  const handleIncident = useCallback((context) => {
+    setIncidentCtx({
+      ...context,
+      source_type: 'transfer',
+      source_id: id,
+      location_id: transfer?.from_location_id ?? null,
+    });
+  }, [id, transfer?.from_location_id]);
+
+  const handleIncidentFiled = useCallback(async () => {
+    setIncidentCtx(null);
+    await loadPlan();   // excluded batch drops out, next step appears
+  }, [loadPlan]);
 
   const handleRemoveScan = async (did, scan) => {
     try {
       await transfersAPI.removeScan(id, scan.scan_id);
       setSessionScans((prev) => ({ ...prev, [did]: (prev[did] || []).filter((s) => s.scan_id !== scan.scan_id) }));
       setScannedTotals((prev) => ({ ...prev, [did]: Math.max(0, (prev[did] || 0) - (scan.quantity || 1)) }));
+      await loadPlan();   // restored need reappears in the plan
     } catch (err) {
       toast.error('Could not remove scan', err?.message || 'Failed to remove scan.');
     }
@@ -146,40 +173,7 @@ const DispatchPanel = ({ transfer, onDone }) => {
 
   return (
     <div className="tf-drawer">
-      {/* FIFO pick guidance */}
-      {pickList.length > 0 && (
-        <>
-          <h4 className="tf-panel-section-title">Suggested picks (FIFO)</h4>
-          {pickList.map((line) => (
-            <div key={line.product_id} className="tf-pick-group">
-              <div className="tf-pick-head">
-                <b>{line.product_name}</b>
-                <span className="ak-muted" style={{ fontSize: '0.78rem' }}>
-                  need {line.needed}
-                  {(() => {
-                    const bd = packageBreakdown(line.needed, line.pieces_per_package, line.package_unit);
-                    return bd ? ` pcs · ${bd}` : '';
-                  })()}
-                </span>
-              </div>
-              {(line.suggestions || []).length === 0
-                ? <div className="ak-muted" style={{ fontSize: '0.76rem' }}>No stock suggestions available.</div>
-                : (line.suggestions || []).map((s, i) => (
-                  <div key={`${line.product_id}-${i}`} className="tf-pick-sugg">
-                    <span className="tf-pick-zone">{s.zone_label || '—'}</span>
-                    {s.serial_number
-                      ? <span className="tf-pick-serial">{s.serial_number}</span>
-                      : <span>qty {s.quantity}</span>}
-                    {s.received_at && <span className="ak-muted">· {fmtWhen(s.received_at)}</span>}
-                  </div>
-                ))}
-            </div>
-          ))}
-        </>
-      )}
-
-      {/* Scan workspace */}
-      <div className="bsr-workflow" style={{ marginTop: '1rem' }}>
+      <div className="bsr-workflow">
         <div className="bsr-left">
           <div className="bsr-card">
             <div className="bsr-card-head">
@@ -195,22 +189,18 @@ const DispatchPanel = ({ transfer, onDone }) => {
                 const scanned = scannedTotals[did] ?? 0;
                 const remaining = Math.max(0, target - scanned);
                 const done = remaining === 0 && target > 0;
-                const isActive = activeLine === did;
                 const serialized = isLineSerialized(detail);
                 const name = detail.product?.product_name || `Product #${detail.product_id}`;
                 const pct = target > 0 ? Math.min(100, (scanned / target) * 100) : 0;
                 return (
                   <div
                     key={did}
-                    className={`bsr-item-row bsr-item-row--clickable${isActive ? ' bsr-item-row--active' : ''}${done ? ' bsr-item-row--done' : ''}`}
-                    onClick={() => !done && setActiveLine(did)}
-                    title={done ? 'Fully scanned' : 'Click to scan this item'}
+                    className={`bsr-item-row${done ? ' bsr-item-row--done' : ''}`}
                   >
                     <div className="bsr-item-info">
                       <span className="bsr-item-name">{name}</span>
                       <div className="bsr-item-badges">
                         {serialized ? <span className="bsr-serialized-badge">SERIAL</span> : <span className="bsr-bulk-badge">BULK</span>}
-                        {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
                       </div>
                     </div>
                     <div className="bsr-item-progress-row">
@@ -230,39 +220,14 @@ const DispatchPanel = ({ transfer, onDone }) => {
         <div className="bsr-right">
           <div className="bsr-card">
             <div className="bsr-card-head">
-              <div>
-                <span className="bsr-card-title">SCAN BARCODE</span>
-                {activeDetail ? (
-                  <p className="bsr-card-subtitle"><strong>{activeDetail.product?.product_name || 'Selected item'}</strong></p>
-                ) : (
-                  <p className="bsr-card-subtitle bsr-card-subtitle--warn">Select an item on the left to begin</p>
-                )}
-              </div>
+              <span className="bsr-card-title">SCAN BARCODE (FIFO ENFORCED)</span>
             </div>
-
-            <CameraScanner
-              onDecode={handleLineScan}
-              mountId="tf-dispatch-scanner"
-              storageKey="bs_inventory_camera_device_id"
-              busy={submitting || scanning || activeLine == null}
-              hint="Select a product, then scan each unit leaving the source."
+            <PickScanner
+              plan={plan}
+              onScan={onScan}
+              onIncident={handleIncident}
+              busy={scanBusy}
             />
-
-            <div className="bsr-scan-row">
-              <input
-                type="text"
-                className={`bsr-scan-input${scanning ? ' bsr-scan-input--scanning' : ''}`}
-                placeholder={activeLine != null ? 'Scan or type barcode / serial…' : 'Select an item on the left first…'}
-                value={scanInput}
-                onChange={(e) => setScanInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitManual(); } }}
-                disabled={scanning || activeLine == null}
-                autoComplete="off"
-              />
-              <button type="button" className="bsr-capture-btn" onClick={submitManual} disabled={scanning || activeLine == null || !scanInput.trim()}>
-                {scanning ? 'Scanning…' : 'Submit'}
-              </button>
-            </div>
           </div>
 
           <div className="bsr-card">
@@ -298,6 +263,12 @@ const DispatchPanel = ({ transfer, onDone }) => {
           {submitting ? 'Confirming…' : 'Confirm Dispatch'}
         </button>
       </div>
+
+      <IncidentModal
+        context={incidentCtx}
+        onFiled={handleIncidentFiled}
+        onClose={() => setIncidentCtx(null)}
+      />
     </div>
   );
 };
