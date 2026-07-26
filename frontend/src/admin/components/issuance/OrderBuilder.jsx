@@ -624,6 +624,45 @@ function AddCustomPath({ disabled, onAdd }) {
   );
 }
 
+// ── Barcode scan-to-add path (fast add / increment by exact barcode) ──────────
+function BarcodeAddPath({ disabled, onScan }) {
+  const [value, setValue] = useState('');
+  const inputRef = useRef(null);
+
+  // Keep focus in the barcode field whenever the builder is idle so consecutive
+  // scans land here without a manual click.
+  useEffect(() => {
+    if (!disabled) inputRef.current?.focus();
+  }, [disabled]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const trimmed = value.trim();
+    setValue(''); // clear after each attempt (success or failure)
+    if (!trimmed) { inputRef.current?.focus(); return; }
+    await onScan(trimmed);
+    inputRef.current?.focus();
+  };
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+      <div className="ak-field" style={{ flex: '1 1 220px' }}>
+        <input
+          ref={inputRef}
+          className="ak-input"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Scan or type a barcode, then Enter…"
+          disabled={disabled}
+          autoComplete="off"
+          autoFocus
+        />
+      </div>
+      <button type="submit" className="ak-btn ak-btn--primary" disabled={disabled}>Add by barcode</button>
+    </form>
+  );
+}
+
 // ── One editable line row ─────────────────────────────────────────────────────
 function LineRow({ line, disabled, onUpdate, onRemove }) {
   const [editing, setEditing] = useState(false);
@@ -758,6 +797,41 @@ export default function OrderBuilder({
     } catch { /* handled */ }
   };
 
+  // Barcode fast-path: resolve a scan to a product by EXACT barcode match, then
+  // increment an existing loose custom line or add a new one (qty 1). Does NOT
+  // enforce FIFO — that lives in the step-3 pick scanner.
+  const handleBarcodeScan = async (barcode) => {
+    const trimmed = barcode.trim();
+    if (!trimmed || busy) return;
+
+    let product;
+    setBusy(true);
+    try {
+      const res = await productsAPI.getAll({ search: trimmed, per_page: 20 });
+      const rows = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);
+      product = rows.find((p) => String(p.barcode) === trimmed);
+    } catch (err) {
+      toast.error(err.message || 'Barcode lookup failed.');
+      return;
+    } finally {
+      setBusy(false);
+    }
+
+    if (!product) { toast.error('Unknown barcode', `No product matches "${trimmed}".`); return; }
+
+    // Prefer a loose custom line (issuance_set_id null) so set-expanded lines are
+    // left untouched; if only a set line exists, a new custom qty-1 line is added.
+    const existing = lines.find((l) => l.product_id === product.product_id && l.issuance_set_id == null);
+    try {
+      if (existing) {
+        await run(() => issuanceOrderAPI.updateLine(issuanceId, existing.issuance_detail_id, { quantity: (existing.quantity_requested || 0) + 1 }));
+      } else {
+        await run(() => issuanceOrderAPI.addCustom(issuanceId, { product_id: product.product_id, quantity: 1 }));
+      }
+      toast.success(`${product.product_name} added`);
+    } catch { /* handled by run */ }
+  };
+
   const handleUpdateLine = async (lineId, qty) => {
     try { await run(() => issuanceOrderAPI.updateLine(issuanceId, lineId, { quantity: qty })); }
     catch { /* handled */ }
@@ -793,6 +867,10 @@ export default function OrderBuilder({
 
       {/* Add-paths */}
       <div className="ak-card" style={{ padding: '1rem', display: 'grid', gap: '1.2rem' }}>
+        <div>
+          <div className="ak-label" style={{ marginBottom: '0.4rem' }}>Scan barcode</div>
+          <BarcodeAddPath disabled={busy || !canIssue} onScan={handleBarcodeScan} />
+        </div>
         <div>
           <div className="ak-label" style={{ marginBottom: '0.4rem' }}>Add appliance</div>
           <AddAppliancePath disabled={busy || !canIssue} onAdd={handleAddAppliance} />
