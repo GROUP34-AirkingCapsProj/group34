@@ -362,150 +362,6 @@ function SetupForm({
   );
 }
 
-// ── Add-appliance path (with suggested kit) ───────────────────────────────────
-function AddAppliancePath({ disabled, onAdd }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [picked, setPicked] = useState(null);       // chosen appliance product
-  const [suggestions, setSuggestions] = useState([]); // ranked sets
-  const [suggestLoading, setSuggestLoading] = useState(false);
-  const [showOthers, setShowOthers] = useState(false);
-  const timer = useRef(null);
-
-  useEffect(() => {
-    clearTimeout(timer.current);
-    if (!query.trim() || query.trim().length < 2) { setResults([]); return; }
-    timer.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await productsAPI.getAll({ search: query, per_page: 20 });
-        const list = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);
-        setResults((Array.isArray(list) ? list : []).filter((p) => p.product_type === 'appliance'));
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer.current);
-  }, [query]);
-
-  const choose = async (p) => {
-    setPicked(p);
-    setResults([]);
-    setQuery(p.product_name);
-    setShowOthers(false);
-    setSuggestLoading(true);
-    try {
-      const res = await productSetsAPI.suggest(p.product_id);
-      setSuggestions(Array.isArray(res?.data) ? res.data : []);
-    } catch {
-      setSuggestions([]);
-    } finally {
-      setSuggestLoading(false);
-    }
-  };
-
-  const reset = () => { setPicked(null); setSuggestions([]); setQuery(''); setShowOthers(false); };
-
-  const addApplianceOnly = async () => {
-    if (!picked) return;
-    await onAdd({ appliance: picked, set: null });
-    reset();
-  };
-
-  const addWithSet = async (set) => {
-    if (!picked) return;
-    await onAdd({ appliance: picked, set });
-    reset();
-  };
-
-  const top = suggestions[0] || null;
-  const others = suggestions.slice(1);
-
-  return (
-    <div className="ak-field" style={{ gap: '0.6rem' }}>
-      {!picked && (
-        <div style={{ position: 'relative' }}>
-          <input
-            className="ak-input"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search appliance by name or code…"
-            disabled={disabled}
-            autoComplete="off"
-          />
-          {(results.length > 0 || loading) && (
-            <div className="isp-dropdown">
-              {loading && <div className="isp-dropdown-item isp-dropdown-loading">Searching...</div>}
-              {results.map((p) => (
-                <button key={p.product_id} type="button" className="isp-dropdown-item" onMouseDown={() => choose(p)}>
-                  <span className="isp-dropdown-name">{p.product_name}</span>
-                  {p.product_code && <span className="isp-dropdown-company">{p.product_code}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {picked && (
-        <div className="ak-card" style={{ padding: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <div>
-              <div style={{ fontWeight: 700 }}>{picked.product_name}</div>
-              {picked.product_code && <div className="ak-muted" style={{ fontSize: '0.8rem' }}>{picked.product_code}</div>}
-            </div>
-            <button type="button" className="ak-btn" onClick={reset} disabled={disabled}>Change</button>
-          </div>
-
-          {suggestLoading && <p className="ak-muted" style={{ marginTop: '0.6rem' }}>Finding matching kits…</p>}
-
-          {!suggestLoading && top && (
-            <div style={{ marginTop: '0.8rem', border: '1px solid var(--ak-line)', borderRadius: 10, padding: '0.8rem' }}>
-              <div className="ak-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Suggested kit</div>
-              <div style={{ fontWeight: 700, marginTop: 2 }}>{top.set_name}</div>
-              <div className="ak-muted" style={{ fontSize: '0.85rem' }}>{fmtMoney(top.set_price)}</div>
-              <button
-                type="button"
-                className="ak-btn ak-btn--primary"
-                style={{ marginTop: '0.6rem' }}
-                onClick={() => addWithSet(top)}
-                disabled={disabled}
-              >
-                Add appliance with this kit
-              </button>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.7rem', flexWrap: 'wrap' }}>
-            <button type="button" className="ak-btn" onClick={addApplianceOnly} disabled={disabled}>
-              Add appliance only
-            </button>
-            {others.length > 0 && (
-              <button type="button" className="ak-btn" onClick={() => setShowOthers((v) => !v)} disabled={disabled}>
-                {showOthers ? 'Hide other kits' : `Other kits (${others.length})`}
-              </button>
-            )}
-          </div>
-
-          {showOthers && others.length > 0 && (
-            <ul style={{ listStyle: 'none', margin: '0.6rem 0 0', padding: 0, display: 'grid', gap: '0.4rem' }}>
-              {others.map((s) => (
-                <li key={s.set_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--ak-line)', paddingBottom: '0.4rem' }}>
-                  <span>{s.set_name} <span className="ak-muted">· {fmtMoney(s.set_price)}</span></span>
-                  <button type="button" className="ak-btn" onClick={() => addWithSet(s)} disabled={disabled}>Add with this kit</button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Add-set path (plain dropdown) ─────────────────────────────────────────────
 function AddSetPath({ disabled, onAdd }) {
   const [sets, setSets] = useState([]);
@@ -624,45 +480,6 @@ function AddCustomPath({ disabled, onAdd }) {
   );
 }
 
-// ── Barcode scan-to-add path (fast add / increment by exact barcode) ──────────
-function BarcodeAddPath({ disabled, onScan }) {
-  const [value, setValue] = useState('');
-  const inputRef = useRef(null);
-
-  // Keep focus in the barcode field whenever the builder is idle so consecutive
-  // scans land here without a manual click.
-  useEffect(() => {
-    if (!disabled) inputRef.current?.focus();
-  }, [disabled]);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const trimmed = value.trim();
-    setValue(''); // clear after each attempt (success or failure)
-    if (!trimmed) { inputRef.current?.focus(); return; }
-    await onScan(trimmed);
-    inputRef.current?.focus();
-  };
-
-  return (
-    <form onSubmit={submit} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-      <div className="ak-field" style={{ flex: '1 1 220px' }}>
-        <input
-          ref={inputRef}
-          className="ak-input"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Scan or type a barcode, then Enter…"
-          disabled={disabled}
-          autoComplete="off"
-          autoFocus
-        />
-      </div>
-      <button type="submit" className="ak-btn ak-btn--primary" disabled={disabled}>Add by barcode</button>
-    </form>
-  );
-}
-
 // ── One editable line row ─────────────────────────────────────────────────────
 function LineRow({ line, disabled, onUpdate, onRemove }) {
   const [editing, setEditing] = useState(false);
@@ -759,30 +576,6 @@ export default function OrderBuilder({
     }
   };
 
-  const handleAddAppliance = async ({ appliance, set }) => {
-    setBusy(true);
-    try {
-      // Push the quote after EACH step so a failure on the second call still shows
-      // the first mutation's result (the appliance) instead of leaving it stale.
-      const first = await issuanceOrderAPI.addCustom(issuanceId, { product_id: appliance.product_id, quantity: 1 });
-      onQuoteUpdate(first?.data ?? first);
-      if (set) {
-        const second = await issuanceOrderAPI.addSet(issuanceId, { set_id: set.set_id, set_quantity: 1 });
-        onQuoteUpdate(second?.data ?? second);
-      }
-      toast.success(set ? 'Appliance and kit added.' : 'Appliance added.');
-    } catch (err) {
-      toast.error(err.message || 'Action failed.');
-      // Partial failure — refetch so the UI reflects actual server state.
-      try {
-        const q = await issuanceOrderAPI.quote(issuanceId);
-        onQuoteUpdate(q?.data ?? q);
-      } catch { /* leave prior state */ }
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleAddSet = async (setId, setQty) => {
     try {
       await run(() => issuanceOrderAPI.addSet(issuanceId, { set_id: setId, set_quantity: setQty }));
@@ -795,41 +588,6 @@ export default function OrderBuilder({
       await run(() => issuanceOrderAPI.addCustom(issuanceId, { product_id: productId, quantity: qty }));
       toast.success('Item added.');
     } catch { /* handled */ }
-  };
-
-  // Barcode fast-path: resolve a scan to a product by EXACT barcode match, then
-  // increment an existing loose custom line or add a new one (qty 1). Does NOT
-  // enforce FIFO — that lives in the step-3 pick scanner.
-  const handleBarcodeScan = async (barcode) => {
-    const trimmed = barcode.trim();
-    if (!trimmed || busy) return;
-
-    let product;
-    setBusy(true);
-    try {
-      const res = await productsAPI.getAll({ search: trimmed, per_page: 20 });
-      const rows = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);
-      product = rows.find((p) => String(p.barcode) === trimmed);
-    } catch (err) {
-      toast.error(err.message || 'Barcode lookup failed.');
-      return;
-    } finally {
-      setBusy(false);
-    }
-
-    if (!product) { toast.error('Unknown barcode', `No product matches "${trimmed}".`); return; }
-
-    // Prefer a loose custom line (issuance_set_id null) so set-expanded lines are
-    // left untouched; if only a set line exists, a new custom qty-1 line is added.
-    const existing = lines.find((l) => l.product_id === product.product_id && l.issuance_set_id == null);
-    try {
-      if (existing) {
-        await run(() => issuanceOrderAPI.updateLine(issuanceId, existing.issuance_detail_id, { quantity: (existing.quantity_requested || 0) + 1 }));
-      } else {
-        await run(() => issuanceOrderAPI.addCustom(issuanceId, { product_id: product.product_id, quantity: 1 }));
-      }
-      toast.success(`${product.product_name} added`);
-    } catch { /* handled by run */ }
   };
 
   const handleUpdateLine = async (lineId, qty) => {
@@ -868,14 +626,6 @@ export default function OrderBuilder({
       {/* Add-paths */}
       <div className="ak-card" style={{ padding: '1rem', display: 'grid', gap: '1.2rem' }}>
         <div>
-          <div className="ak-label" style={{ marginBottom: '0.4rem' }}>Scan barcode</div>
-          <BarcodeAddPath disabled={busy || !canIssue} onScan={handleBarcodeScan} />
-        </div>
-        <div>
-          <div className="ak-label" style={{ marginBottom: '0.4rem' }}>Add appliance</div>
-          <AddAppliancePath disabled={busy || !canIssue} onAdd={handleAddAppliance} />
-        </div>
-        <div>
           <div className="ak-label" style={{ marginBottom: '0.4rem' }}>Add set</div>
           <AddSetPath disabled={busy || !canIssue} onAdd={handleAddSet} />
         </div>
@@ -890,7 +640,7 @@ export default function OrderBuilder({
         <h2 className="isp-card-title" style={{ marginTop: 0 }}>Order Lines</h2>
         {!hasLines ? (
           <div style={{ textAlign: 'center', padding: '28px 0', color: '#9ca3af', fontSize: 14 }}>
-            No lines yet. Add an appliance, set, or custom item above.
+            No lines yet. Add a set or custom item above.
           </div>
         ) : (
           <div style={{ display: 'grid', gap: '1rem' }}>
