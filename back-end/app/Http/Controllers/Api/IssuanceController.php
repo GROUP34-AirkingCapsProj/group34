@@ -9,6 +9,8 @@ use App\Models\IssuanceDetail;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Support\RealtimeBroadcaster;
+use App\Support\IssuanceStatus;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -114,6 +116,27 @@ class IssuanceController extends Controller
             return $this->success($issuance, 'Issuance retrieved successfully');
         } catch (\Exception $e) {
             return $this->error('Issuance not found', 404);
+        }
+    }
+
+    public function cancel($id)
+    {
+        try {
+            return DB::transaction(function () use ($id) {
+                $issuance = Issuance::lockForUpdate()->findOrFail($id);
+
+                if ((int) $issuance->status_id !== IssuanceStatus::draft()) {
+                    return $this->error('Only a draft issue-out can be cancelled.', 422);
+                }
+
+                $issuance->update(['status_id' => IssuanceStatus::cancelled()]);
+
+                return $this->success($issuance->fresh(['status']), 'Issue-out cancelled.');
+            });
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Issuance not found', 404);
+        } catch (\Exception $e) {
+            return $this->error('Failed to cancel issue-out: ' . $e->getMessage(), 500);
         }
     }
 
