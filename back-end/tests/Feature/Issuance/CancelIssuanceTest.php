@@ -90,5 +90,7 @@ class CancelIssuanceTest extends TestCase
         $this->actingAs($user, 'sanctum')
              ->postJson("/api/issuances/{$iss->issuance_id}/cancel")
              ->assertStatus(422);
+
+        $this->assertSame(IssuanceStatus::cancelled(), (int) $iss->fresh()->status_id);
     }
 }
