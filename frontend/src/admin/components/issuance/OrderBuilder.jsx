@@ -8,6 +8,8 @@ import {
   issuanceOrderAPI,
   productSetsAPI,
   productsAPI,
+  categoriesAPI,
+  brandsAPI,
 } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { confirmAction } from '../../utils/confirm';
@@ -403,6 +405,10 @@ function AddSetPath({ disabled, onAdd }) {
 
 // ── Add-custom path (any product, any qty) ────────────────────────────────────
 function AddCustomPath({ disabled, onAdd }) {
+  const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [categoryId, setCategoryId] = useState('');
+  const [brandId, setBrandId] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -410,13 +416,34 @@ function AddCustomPath({ disabled, onAdd }) {
   const [qty, setQty] = useState(1);
   const timer = useRef(null);
 
+  // Load the category + brand filter options once.
+  useEffect(() => {
+    categoriesAPI.getAll().then((res) => {
+      const list = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);
+      setCategories(Array.isArray(list) ? list : []);
+    }).catch(() => setCategories([]));
+    brandsAPI.getAll().then((res) => {
+      const list = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);
+      setBrands(Array.isArray(list) ? list : []);
+    }).catch(() => setBrands([]));
+  }, []);
+
+  // Load products whenever a filter changes. Choosing a category or brand alone is
+  // enough to list products — so a picker who forgets the exact name can browse.
   useEffect(() => {
     clearTimeout(timer.current);
-    if (!query.trim() || query.trim().length < 2) { setResults([]); return; }
+    if (picked) { setResults([]); return; }
+    const q = query.trim();
+    const hasFilter = categoryId || brandId || q.length >= 2;
+    if (!hasFilter) { setResults([]); return; }
     timer.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await productsAPI.getAll({ search: query, per_page: 20 });
+        const params = { per_page: 30 };
+        if (categoryId) params.category_id = categoryId;
+        if (brandId) params.brand_id = brandId;
+        if (q.length >= 2) params.search = q;
+        const res = await productsAPI.getAll(params);
         const list = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);
         setResults(Array.isArray(list) ? list : []);
       } catch {
@@ -426,7 +453,7 @@ function AddCustomPath({ disabled, onAdd }) {
       }
     }, 300);
     return () => clearTimeout(timer.current);
-  }, [query]);
+  }, [categoryId, brandId, query, picked]);
 
   const add = async () => {
     if (!picked) return;
@@ -436,31 +463,9 @@ function AddCustomPath({ disabled, onAdd }) {
     setQty(1);
   };
 
-  return (
-    <div className="ak-field" style={{ gap: '0.5rem' }}>
-      {!picked ? (
-        <div style={{ position: 'relative' }}>
-          <input
-            className="ak-input"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search any product by name or code…"
-            disabled={disabled}
-            autoComplete="off"
-          />
-          {(results.length > 0 || loading) && (
-            <div className="isp-dropdown">
-              {loading && <div className="isp-dropdown-item isp-dropdown-loading">Searching...</div>}
-              {results.map((p) => (
-                <button key={p.product_id} type="button" className="isp-dropdown-item" onMouseDown={() => { setPicked(p); setResults([]); setQuery(p.product_name); }}>
-                  <span className="isp-dropdown-name">{p.product_name}</span>
-                  {p.product_code && <span className="isp-dropdown-company">{p.product_code}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
+  if (picked) {
+    return (
+      <div className="ak-field" style={{ gap: '0.5rem' }}>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div className="ak-field" style={{ flex: '1 1 220px' }}>
             <label className="ak-label">Product</label>
@@ -475,7 +480,52 @@ function AddCustomPath({ disabled, onAdd }) {
           </div>
           <button type="button" className="ak-btn ak-btn--primary" onClick={add} disabled={disabled}>Add item</button>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="ak-field" style={{ gap: '0.5rem' }}>
+      {/* Category + brand dropdowns so a picker can narrow the list without
+          remembering an exact product name. */}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <select className="ak-select" style={{ flex: '1 1 160px' }} value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={disabled}>
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
+          ))}
+        </select>
+        <select className="ak-select" style={{ flex: '1 1 160px' }} value={brandId} onChange={(e) => setBrandId(e.target.value)} disabled={disabled}>
+          <option value="">All brands</option>
+          {brands.map((b) => (
+            <option key={b.brand_id} value={b.brand_id}>{b.brand_name}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ position: 'relative' }}>
+        <input
+          className="ak-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Pick a category or brand above, or search by name/code…"
+          disabled={disabled}
+          autoComplete="off"
+        />
+        {(results.length > 0 || loading) && (
+          <div className="isp-dropdown">
+            {loading && <div className="isp-dropdown-item isp-dropdown-loading">Searching...</div>}
+            {!loading && results.length === 0 && (
+              <div className="isp-dropdown-item isp-dropdown-loading">No products match these filters.</div>
+            )}
+            {results.map((p) => (
+              <button key={p.product_id} type="button" className="isp-dropdown-item" onMouseDown={() => { setPicked(p); setResults([]); setQuery(p.product_name); }}>
+                <span className="isp-dropdown-name">{p.product_name}</span>
+                {p.product_code && <span className="isp-dropdown-company">{p.product_code}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
