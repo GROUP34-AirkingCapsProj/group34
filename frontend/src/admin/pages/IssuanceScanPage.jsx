@@ -21,9 +21,10 @@ import '../styles/issuance_scan.css';
 
 // Wizard steps. State DERIVES from the issuance status (see `currentStep`); these
 // constants are only for the stepper UI and the local Draft sub-step toggle.
-const STEP_ORDER = 1;
-const STEP_QUOTE = 2;
-const STEP_PICK = 3;
+const STEP_SETUP = 1; // order setup (customer, type, discount, location)
+const STEP_ORDER = 2; // build the line list
+const STEP_QUOTE = 3;
+const STEP_PICK = 4;
 
 const fmt = (val) => {
   const n = parseFloat(val);
@@ -82,8 +83,9 @@ export default function IssuanceScanPage() {
   // Pending drives Pick; confirmedPick is the fallback when the name map is missing.
   const isPending = statusName === 'Pending' || (confirmedPick && !isCompleted && !isTerminal);
 
-  // Effective step: Pending forces Pick; Draft uses the local sub-step toggle.
-  const currentStep = isPending ? STEP_PICK : draftStep;
+  // Effective step: Pending forces Pick; with no draft yet the user is on Order
+  // Setup; once a Draft exists the local sub-step toggle (Order/Quote) applies.
+  const currentStep = isPending ? STEP_PICK : (!issuanceId ? STEP_SETUP : draftStep);
 
   useEffect(() => { refreshUser(); }, [refreshUser]);
 
@@ -304,11 +306,13 @@ export default function IssuanceScanPage() {
   const goStep = (s) => {
     if (s === STEP_ORDER && canGoOrder) setDraftStep(STEP_ORDER);
     else if (s === STEP_QUOTE && canGoQuote) setDraftStep(STEP_QUOTE);
-    // Pick is status-driven — never a manual navigation target.
+    // Order Setup is entered by starting fresh (no draft); Pick is status-driven —
+    // neither is a manual navigation target once a draft exists.
   };
 
-  const stepLabels = ['Order', 'Quote', 'Pick'];
-  const stepReachable = [canGoOrder, canGoQuote, false];
+  const stepLabels = ['Order Setup', 'Order', 'Quote', 'Pick'];
+  // Setup is only "reachable" before a draft exists; after that it's a completed step.
+  const stepReachable = [!issuanceId, canGoOrder, canGoQuote, false];
 
   // Only trust an empty plan as "all picked" once loadPlan has actually resolved.
   const allPicked = planLoaded && plan.every((s) => Number(s?.needed) <= 0);
@@ -353,7 +357,7 @@ export default function IssuanceScanPage() {
                   ) : s}
                 </button>
                 <span className="isp-step-label">{label}</span>
-                {idx < 2 && <div className={`isp-step-line ${done ? 'isp-step-line-done' : ''}`} />}
+                {idx < stepLabels.length - 1 && <div className={`isp-step-line ${done ? 'isp-step-line-done' : ''}`} />}
               </div>
             );
           })}
@@ -401,8 +405,10 @@ export default function IssuanceScanPage() {
           </div>
         ) : (
           <>
-            {/* STEP 1 — Order */}
-            {currentStep === STEP_ORDER && (
+            {/* STEP 1–2 — Order Setup (no draft yet) then Order line-building.
+                OrderBuilder renders the setup form when there is no draft and the
+                line list once one exists, so it backs both stepper steps. */}
+            {(currentStep === STEP_SETUP || currentStep === STEP_ORDER) && (
               <OrderBuilder
                 issuanceId={issuanceId}
                 quote={quote}
