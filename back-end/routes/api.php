@@ -439,6 +439,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
          ->group(function () {
              Route::post('/init',
                  [IssuanceScanController::class, 'initSession']);
+             Route::get('/active-draft',
+                 [IssuanceScanController::class, 'activeDraft']);
              Route::post('/scan',
                  [IssuanceScanController::class, 'scanItem']);
              Route::delete('/item/{detail_id}',
