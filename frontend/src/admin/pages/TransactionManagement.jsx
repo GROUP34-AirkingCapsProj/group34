@@ -283,21 +283,38 @@ const TransactionManagement = () => {
 
         const statusName = header.status?.status_name || header.status_name || '—';
         const priced = Array.isArray(quote?.lines) && quote.lines.length > 0;
-        const lines = priced
+        const rawLines = priced
           ? quote.lines.map((l) => ({
-              key: l.issuance_detail_id ?? l.product_id,
+              productId: l.product_id ?? null,
               name: l.product_name,
-              qty: l.quantity_requested,
+              qty: Number(l.quantity_requested) || 0,
               unitPrice: l.unit_price,
-              lineTotal: l.line_total,
+              lineTotal: Number(l.line_total) || 0,
             }))
-          : (Array.isArray(header.details) ? header.details : []).map((d, i) => ({
-              key: d.issuance_detail_id ?? i,
+          : (Array.isArray(header.details) ? header.details : []).map((d) => ({
+              productId: d.product?.product_id ?? d.product_id ?? null,
               name: d.product?.product_name || 'Item',
-              qty: d.quantity_issued ?? d.quantity_requested ?? 0,
+              qty: Number(d.quantity_issued ?? d.quantity_requested ?? 0) || 0,
               unitPrice: null,
               lineTotal: null,
             }));
+
+        // A FIFO pick records one line per scanned unit, so the same product can
+        // appear many times. Group by product → one row per product, qty summed.
+        const byProduct = new Map();
+        const lines = [];
+        rawLines.forEach((r) => {
+          const k = r.productId != null ? `p:${r.productId}` : `n:${r.name}`;
+          const existing = byProduct.get(k);
+          if (existing) {
+            existing.qty += r.qty;
+            if (existing.lineTotal != null && r.lineTotal != null) existing.lineTotal += r.lineTotal;
+          } else {
+            const g = { key: k, name: r.name, qty: r.qty, unitPrice: r.unitPrice, lineTotal: r.lineTotal };
+            byProduct.set(k, g);
+            lines.push(g);
+          }
+        });
 
         if (!stale) {
           setDetail({
