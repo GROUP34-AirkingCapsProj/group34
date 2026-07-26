@@ -3,19 +3,26 @@
 namespace Tests\Feature\Sets;
 
 use App\Models\ProductSet;
+use Illuminate\Support\Facades\DB;
 
 class ProductSetCrudTest extends SetTestCase
 {
+    /** @return int[] */
+    private function brandIds(int $n = 2): array
+    {
+        return DB::table('brand_lookup')->limit($n)->pluck('brand_id')->map(fn ($id) => (int) $id)->all();
+    }
+
     public function test_admin_creates_a_set_with_lines(): void
     {
-        $loc   = $this->makeLocation();
-        $admin = $this->makeUserAt($loc, 'admin');
-        $a     = $this->makeConsumable(price: 100);
-        $b     = $this->makeConsumable(price: 25);
+        $loc      = $this->makeLocation();
+        $admin    = $this->makeUserAt($loc, 'admin');
+        $a        = $this->makeConsumable(price: 100);
+        $b        = $this->makeConsumable(price: 25);
+        $brandIds = $this->brandIds(2);
 
         $res = $this->actingAs($admin, 'sanctum')->postJson('/api/product-sets', [
-            'set_code'        => 'BOQ-3TR-NONINV',
-            'set_name'        => 'Std Installation Materials — 1st 10ft Piping',
+            'brand_ids'       => $brandIds,
             'capacity_rating' => '3TR/4HP',
             'variant'         => 'non-inverter',
             'lines'           => [
@@ -25,7 +32,22 @@ class ProductSetCrudTest extends SetTestCase
         ]);
 
         $res->assertCreated();
+
+        // Brands round-trip.
+        $returnedBrandIds = array_column($res->json('data.brands'), 'brand_id');
+        sort($returnedBrandIds);
+        $expected = $brandIds;
+        sort($expected);
+        $this->assertSame($expected, array_map('intval', $returnedBrandIds));
+
+        // Derived label is non-empty and reflects the posted capacity.
+        $this->assertNotEmpty($res->json('data.label'));
+        $this->assertStringContainsString('3TR/4HP', $res->json('data.label'));
+
+        // Lines round-trip with integer piece quantities and a computed price.
         $this->assertSame(2, count($res->json('data.lines')));
+        $this->assertSame(2, (int) $res->json('data.lines.0.quantity'));
+        $this->assertIsInt($res->json('data.lines.0.quantity'));
         $this->assertEqualsWithDelta(300.0, (float) $res->json('data.set_price'), 0.001);
     }
 
@@ -35,7 +57,7 @@ class ProductSetCrudTest extends SetTestCase
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
 
         $this->actingAs($user, 'sanctum')
-             ->postJson('/api/product-sets', ['set_code' => 'X-' . uniqid(), 'set_name' => 'Nope', 'lines' => []])
+             ->postJson('/api/product-sets', ['brand_ids' => $this->brandIds(1), 'capacity_rating' => '1TR', 'lines' => []])
              ->assertForbidden();
     }
 
@@ -43,7 +65,7 @@ class ProductSetCrudTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Listable']);
+        ProductSet::create(['capacity_rating' => '2TR', 'variant' => 'inverter']);
 
         $this->actingAs($user, 'sanctum')->getJson('/api/product-sets')->assertOk();
     }
@@ -55,76 +77,41 @@ class ProductSetCrudTest extends SetTestCase
         $a     = $this->makeConsumable();
         $c     = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Editable']);
+        $set = ProductSet::create(['capacity_rating' => '2TR']);
+        $set->brands()->sync($this->brandIds(1));
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
 
         $res = $this->actingAs($admin, 'sanctum')->putJson("/api/product-sets/{$set->set_id}", [
-            'set_name' => 'Edited',
-            'lines'    => [['product_id' => $c->product_id, 'quantity' => 9, 'sort_order' => 1]],
+            'capacity_rating' => '3TR',
+            'lines'           => [['product_id' => $c->product_id, 'quantity' => 9, 'sort_order' => 1]],
         ]);
 
         $res->assertOk();
         $lines = $res->json('data.lines');
         $this->assertCount(1, $lines);
         $this->assertSame($c->product_id, (int) $lines[0]['product_id']);
-        $this->assertEqualsWithDelta(9.0, (float) $lines[0]['quantity'], 0.001);
+        $this->assertSame(9, (int) $lines[0]['quantity']);
     }
 
-    public function test_duplicate_set_code_is_rejected(): void
-    {
-        $loc   = $this->makeLocation();
-        $admin = $this->makeUserAt($loc, 'admin');
-        ProductSet::create(['set_code' => 'DUPE-CODE', 'set_name' => 'First']);
-
-        $this->actingAs($admin, 'sanctum')
-             ->postJson('/api/product-sets', ['set_code' => 'DUPE-CODE', 'set_name' => 'Second', 'lines' => []])
-             ->assertStatus(422);
-    }
-
-    /**
-     * The set_code index is a plain unique across all rows, archived included,
-     * and MySQL cannot express a partial index. So reuse must fail validation
-     * with a clean 422 rather than passing validation and blowing up as a 500
-     * on insert.
-     */
-    public function test_reusing_an_archived_set_code_is_rejected_cleanly(): void
+    public function test_update_replaces_the_brand_list_wholesale(): void
     {
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
 
-        $set = ProductSet::create(['set_code' => 'ARCHIVED-CODE', 'set_name' => 'Retired']);
-        $set->delete();
-        $this->assertSoftDeleted('product_sets', ['set_id' => $set->set_id]);
+        $all = $this->brandIds(2);
+        $this->assertGreaterThanOrEqual(2, count($all), 'need at least 2 brands in brand_lookup');
 
-        $this->actingAs($admin, 'sanctum')
-             ->postJson('/api/product-sets', ['set_code' => 'ARCHIVED-CODE', 'set_name' => 'Reused', 'lines' => []])
-             ->assertStatus(422)
-             ->assertJsonValidationErrors('set_code');
-    }
-
-    /** brand_id feeds set matching, so an admin must be able to clear a wrong one. */
-    public function test_nullable_fields_can_be_cleared_on_update(): void
-    {
-        $loc     = $this->makeLocation();
-        $admin   = $this->makeUserAt($loc, 'admin');
-        $brandId = (int) \Illuminate\Support\Facades\DB::table('brand_lookup')->min('brand_id');
-
-        $set = ProductSet::create([
-            'set_code'    => 'SET-' . uniqid(),
-            'set_name'    => 'Has a brand',
-            'brand_id'    => $brandId,
-            'description' => 'original text',
-        ]);
+        $set = ProductSet::create(['capacity_rating' => '2TR']);
+        $set->brands()->sync([$all[0]]);
 
         $res = $this->actingAs($admin, 'sanctum')->putJson("/api/product-sets/{$set->set_id}", [
-            'brand_id'    => null,
-            'description' => null,
+            'brand_ids' => [$all[1]],
         ]);
 
         $res->assertOk();
-        $this->assertNull($res->json('data.brand_id'));
-        $this->assertNull($res->json('data.description'));
-        $this->assertNull($set->fresh()->brand_id);
+        $returned = array_map('intval', array_column($res->json('data.brands'), 'brand_id'));
+        $this->assertSame([$all[1]], $returned);
+        $this->assertSame([$all[1]], $set->brands()->pluck('brand_lookup.brand_id')->map(fn ($id) => (int) $id)->all());
     }
 
     public function test_omitted_fields_are_left_untouched_on_update(): void
@@ -132,19 +119,18 @@ class ProductSetCrudTest extends SetTestCase
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
 
-        $set = ProductSet::create([
-            'set_code'        => 'SET-' . uniqid(),
-            'set_name'        => 'Keeps its capacity',
-            'capacity_rating' => '3TR/4HP',
-        ]);
+        $set = ProductSet::create(['capacity_rating' => '3TR/4HP', 'variant' => 'non-inverter']);
+        $set->brands()->sync($this->brandIds(1));
 
         $this->actingAs($admin, 'sanctum')
-             ->putJson("/api/product-sets/{$set->set_id}", ['set_name' => 'Renamed only'])
+             ->putJson("/api/product-sets/{$set->set_id}", ['variant' => 'inverter'])
              ->assertOk();
 
         $fresh = $set->fresh();
-        $this->assertSame('Renamed only', $fresh->set_name);
+        $this->assertSame('inverter', $fresh->variant);
         $this->assertSame('3TR/4HP', $fresh->capacity_rating);
+        // brand_ids omitted → brands left untouched.
+        $this->assertCount(1, $fresh->brands);
     }
 
     public function test_archiving_a_set_hides_it_from_the_default_listing(): void
@@ -152,7 +138,7 @@ class ProductSetCrudTest extends SetTestCase
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Doomed']);
+        $set = ProductSet::create(['capacity_rating' => 'DOOMED-CAP']);
 
         $this->actingAs($admin, 'sanctum')
              ->deleteJson("/api/product-sets/{$set->set_id}")
@@ -160,27 +146,27 @@ class ProductSetCrudTest extends SetTestCase
 
         $this->assertSoftDeleted('product_sets', ['set_id' => $set->set_id]);
 
-        $names = array_column($this->actingAs($admin, 'sanctum')
-            ->getJson('/api/product-sets')->json('data'), 'set_name');
+        $caps = array_column($this->actingAs($admin, 'sanctum')
+            ->getJson('/api/product-sets')->json('data'), 'capacity_rating');
 
-        $this->assertNotContains('Doomed', $names);
+        $this->assertNotContains('DOOMED-CAP', $caps);
     }
 
     public function test_warehouse_personnel_cannot_update_or_archive_a_set(): void
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $set  = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Protected']);
+        $set  = ProductSet::create(['capacity_rating' => '2TR']);
 
         $this->actingAs($user, 'sanctum')
-             ->putJson("/api/product-sets/{$set->set_id}", ['set_name' => 'Hacked'])
+             ->putJson("/api/product-sets/{$set->set_id}", ['capacity_rating' => '9TR'])
              ->assertForbidden();
 
         $this->actingAs($user, 'sanctum')
              ->deleteJson("/api/product-sets/{$set->set_id}")
              ->assertForbidden();
 
-        $this->assertSame('Protected', $set->fresh()->set_name);
+        $this->assertSame('2TR', $set->fresh()->capacity_rating);
     }
 
     public function test_show_returns_the_set_with_its_lines_in_sort_order(): void
@@ -190,7 +176,7 @@ class ProductSetCrudTest extends SetTestCase
         $a     = $this->makeConsumable();
         $b     = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Ordered']);
+        $set = ProductSet::create(['capacity_rating' => '2TR']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1, 'sort_order' => 2]);
         $set->lines()->create(['product_id' => $b->product_id, 'quantity' => 1, 'sort_order' => 1]);
 
@@ -203,19 +189,19 @@ class ProductSetCrudTest extends SetTestCase
         $this->assertSame((int) $b->product_id, (int) $lines[0]['product_id']);
     }
 
-    public function test_search_filters_the_listing_by_name_or_code(): void
+    public function test_search_filters_the_listing_by_capacity(): void
     {
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
 
-        $needle = 'Findable' . uniqid();
-        ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => $needle]);
-        ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Something else']);
+        $needle = 'FIND' . strtoupper(uniqid());
+        ProductSet::create(['capacity_rating' => $needle]);
+        ProductSet::create(['capacity_rating' => 'OTHER-CAP']);
 
-        $names = array_column($this->actingAs($admin, 'sanctum')
-            ->getJson('/api/product-sets?search=' . urlencode($needle))->json('data'), 'set_name');
+        $caps = array_column($this->actingAs($admin, 'sanctum')
+            ->getJson('/api/product-sets?search=' . urlencode($needle))->json('data'), 'capacity_rating');
 
-        $this->assertSame([$needle], $names);
+        $this->assertSame([$needle], $caps);
     }
 
     public function test_archived_listing_returns_soft_deleted_sets_only(): void
@@ -223,15 +209,15 @@ class ProductSetCrudTest extends SetTestCase
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
 
-        $live     = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Still Live']);
-        $archived = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Retired One']);
+        $live     = ProductSet::create(['capacity_rating' => 'LIVE-CAP']);
+        $archived = ProductSet::create(['capacity_rating' => 'RETIRED-CAP']);
         $archived->delete();
 
-        $names = array_column($this->actingAs($admin, 'sanctum')
-            ->getJson('/api/product-sets/archived')->assertOk()->json('data'), 'set_name');
+        $caps = array_column($this->actingAs($admin, 'sanctum')
+            ->getJson('/api/product-sets/archived')->assertOk()->json('data'), 'capacity_rating');
 
-        $this->assertContains('Retired One', $names);
-        $this->assertNotContains('Still Live', $names);
+        $this->assertContains('RETIRED-CAP', $caps);
+        $this->assertNotContains('LIVE-CAP', $caps);
     }
 
     public function test_restore_brings_a_set_back_into_the_default_listing(): void
@@ -239,7 +225,7 @@ class ProductSetCrudTest extends SetTestCase
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Revivable']);
+        $set = ProductSet::create(['capacity_rating' => 'REVIVE-CAP']);
         $set->delete();
 
         $this->actingAs($admin, 'sanctum')
@@ -248,31 +234,17 @@ class ProductSetCrudTest extends SetTestCase
 
         $this->assertNull($set->fresh()->deleted_at);
 
-        $names = array_column($this->actingAs($admin, 'sanctum')
-            ->getJson('/api/product-sets')->json('data'), 'set_name');
-        $this->assertContains('Revivable', $names);
+        $caps = array_column($this->actingAs($admin, 'sanctum')
+            ->getJson('/api/product-sets')->json('data'), 'capacity_rating');
+        $this->assertContains('REVIVE-CAP', $caps);
     }
 
-    /**
-     * product_sets.set_code carries a plain (non-partial) unique index — see the
-     * 2026_07_24_000001 migration — so the database itself refuses a second row
-     * with an archived set's code before any application code runs; the earlier
-     * test_reusing_an_archived_set_code_is_rejected_cleanly proves that path.
-     * That means restore()'s own "is this code already live elsewhere" guard can
-     * never actually observe a conflict under the current schema — there is no
-     * way to construct one without the insert itself throwing a DB integrity
-     * error first. The guard stays in the controller as cheap, correct defense
-     * (e.g. if the index is ever loosened to a deleted_at-scoped unique), but it
-     * has no reachable "conflict found" branch to exercise here. What *is*
-     * testable, and what actually matters operationally, is that restoring twice
-     * is safe and that a restored set's code is usable normally again.
-     */
     public function test_restoring_an_already_live_set_returns_not_found(): void
     {
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Restore Twice']);
+        $set = ProductSet::create(['capacity_rating' => '2TR']);
         $set->delete();
 
         $this->actingAs($admin, 'sanctum')
@@ -280,8 +252,7 @@ class ProductSetCrudTest extends SetTestCase
              ->assertOk();
 
         // restore() scopes to onlyTrashed(), so calling it again on an already-live
-        // set — same behaviour as LocationController::restore — is a clean 404,
-        // not a 500 or a silent no-op.
+        // set is a clean 404, not a 500 or a silent no-op.
         $this->actingAs($admin, 'sanctum')
              ->postJson("/api/product-sets/{$set->set_id}/restore")
              ->assertNotFound();
@@ -294,7 +265,7 @@ class ProductSetCrudTest extends SetTestCase
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Guarded']);
+        $set = ProductSet::create(['capacity_rating' => '2TR']);
         $set->delete();
 
         $this->actingAs($user, 'sanctum')
