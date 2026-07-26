@@ -42,11 +42,34 @@ class IssuanceDraftReuseTest extends TestCase
         $id1 = $first->json('issuance_id');
 
         $second = $this->actingAs($user,'sanctum')->postJson('/api/issuance-scan/init', $this->payload($cust->customer_id,$loc->location_id));
-        $second->assertStatus(200)->assertJson(['message' => 'Resumed your unfinished order.']);
+        $second->assertStatus(200);
         $id2 = $second->json('issuance_id');
 
-        $this->assertSame((int)$id1, (int)$id2, 'init created a duplicate draft');
+        $this->assertSame((int)$id1, (int)$id2, 'init created a duplicate empty draft');
         $this->assertSame(1, \App\Models\Issuance::where('issued_by',$user->user_id)->where('status_id',IssuanceStatus::draft())->count());
+    }
+
+    public function test_a_draft_that_already_has_lines_is_not_reused(): void
+    {
+        $loc = $this->makeLocation(); $user = $this->makeUserAt($loc); $cust = $this->makeCustomer();
+        $product = \App\Models\Product::create([
+            'product_code' => 'CON-'.uniqid(), 'product_name' => 'Mat', 'product_type' => 'installation_material',
+            'barcode' => 'BC-'.uniqid(), 'unit_price' => 10, 'cost_price' => 5,
+        ]);
+
+        $first = $this->actingAs($user,'sanctum')->postJson('/api/issuance-scan/init', $this->payload($cust->customer_id,$loc->location_id));
+        $id1 = (int) $first->json('issuance_id');
+
+        // Add a line so the draft is no longer an empty placeholder.
+        $this->actingAs($user,'sanctum')
+             ->postJson("/api/issuances/{$id1}/lines/custom", ['product_id' => $product->product_id, 'quantity' => 1])
+             ->assertSuccessful();
+
+        // Starting again must NOT hijack the in-progress draft — it makes a fresh one.
+        $second = $this->actingAs($user,'sanctum')->postJson('/api/issuance-scan/init', $this->payload($cust->customer_id,$loc->location_id));
+        $id2 = (int) $second->json('issuance_id');
+
+        $this->assertNotSame($id1, $id2, 'a draft with lines was wrongly reused');
     }
 
     public function test_after_the_draft_leaves_draft_a_new_init_creates_a_fresh_one(): void

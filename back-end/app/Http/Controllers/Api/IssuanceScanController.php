@@ -64,15 +64,25 @@ class IssuanceScanController extends Controller
             $discountType    = $validated['discount_type'] ?? 'business';
         }
 
-        // One open Draft per user: resume the caller's existing unfinished order
-        // instead of stacking a duplicate Draft on every Order-Setup submit. This
-        // is a best-effort guard (no DB constraint backs it — MySQL has no partial
-        // unique index), which is fine: the frontend also guards, and a stray
-        // duplicate Draft is benign and cancelable.
-        $existingDraft = $this->openDraftFor($userId);
+        // Reuse the caller's own EMPTY open Draft (a started-but-abandoned
+        // placeholder with no lines yet) so repeat starts don't stack empty
+        // records — but refresh its header with the newly submitted setup so it
+        // reflects the current customer/terms, not a stale abandoned start. A
+        // draft that already has lines is a real in-progress order: leave it for
+        // the Transactions "Continue"/"Cancel" flow and start a fresh one here.
+        $emptyDraft = $this->openEmptyDraftFor($userId);
 
-        if ($existingDraft) {
-            return $this->initSessionResponse($existingDraft, 'Resumed your unfinished order.', 200);
+        if ($emptyDraft) {
+            $emptyDraft->update([
+                'location_id'      => $resolvedLocationId,
+                'customer_id'      => $validated['customer_id'],
+                'issuance_type'    => $validated['issuance_type'],
+                'discount_type'    => $discountType,
+                'discount_percent' => $discountPercent,
+                'notes'            => $validated['notes'] ?? null,
+            ]);
+
+            return $this->initSessionResponse($emptyDraft->fresh(), 'Issuance session started.', 200);
         }
 
         $drNumber = 'DR-' . now()->format('Ymd') . '-'
@@ -142,6 +152,16 @@ class IssuanceScanController extends Controller
     {
         return Issuance::where('issued_by', $userId)
             ->where('status_id', \App\Support\IssuanceStatus::draft())
+            ->orderByDesc('issuance_id')
+            ->first();
+    }
+
+    /** Newest open Draft that has no lines yet — a reusable started-but-empty placeholder. */
+    private function openEmptyDraftFor($userId): ?Issuance
+    {
+        return Issuance::where('issued_by', $userId)
+            ->where('status_id', \App\Support\IssuanceStatus::draft())
+            ->whereDoesntHave('details')
             ->orderByDesc('issuance_id')
             ->first();
     }

@@ -148,25 +148,11 @@ export default function IssuanceScanPage() {
         }
       })();
     } else {
-      // No ?issuance= param: resume the caller's own open draft (if any) so
-      // returning to the page drops them back into their one in-progress order
-      // rather than spawning a fresh record. Null → fall through to setup form.
-      (async () => {
-        try {
-          const res = await issuanceScanAPI.activeDraft();
-          const draftId = res?.issuance_id ?? null;
-          if (cancelled) return;
-          if (draftId != null) {
-            setSearchParams((p) => { p.set('issuance', String(draftId)); return p; }, { replace: true });
-            const q = await issuanceOrderAPI.quote(draftId);
-            if (!cancelled) setQuote(q?.data ?? q);
-          }
-        } catch {
-          // Any failure just falls through to the setup form.
-        } finally {
-          if (!cancelled) setHydrating(false);
-        }
-      })();
+      // No ?issuance= param → start fresh on the Order Setup step. We do NOT
+      // silently resume a leftover draft here: that jumped the user off Setup
+      // into an old order they never asked for. Resuming is explicit only, via
+      // the Transactions "Continue" action (which navigates with ?issuance=).
+      setHydrating(false);
     }
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
