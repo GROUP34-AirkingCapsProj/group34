@@ -19,8 +19,8 @@ import { confirmAction } from '../../utils/confirm';
  *   1. NO draft yet → the setup form (customer, issuance type, discount, location,
  *      notes). Submitting posts through issuanceScanAPI.initSession, which now
  *      creates a DRAFT and returns the session; the parent stores it.
- *   2. Draft exists → three add-paths (appliance + suggested kit / plain set /
- *      custom item) feeding one grouped line list rendered from the quote.
+ *   2. Draft exists → two add-paths (plain set / custom item) feeding one
+ *      grouped line list rendered from the quote.
  *
  * Every line mutation hits issuanceOrderAPI (which returns the fresh quote) and the
  * result is pushed up via onQuoteUpdate so grouping/totals stay in sync.
