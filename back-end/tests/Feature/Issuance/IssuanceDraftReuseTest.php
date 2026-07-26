@@ -42,7 +42,7 @@ class IssuanceDraftReuseTest extends TestCase
         $id1 = $first->json('issuance_id');
 
         $second = $this->actingAs($user,'sanctum')->postJson('/api/issuance-scan/init', $this->payload($cust->customer_id,$loc->location_id));
-        $second->assertSuccessful();
+        $second->assertStatus(200)->assertJson(['message' => 'Resumed your unfinished order.']);
         $id2 = $second->json('issuance_id');
 
         $this->assertSame((int)$id1, (int)$id2, 'init created a duplicate draft');

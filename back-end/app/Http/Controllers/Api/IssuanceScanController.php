@@ -65,11 +65,11 @@ class IssuanceScanController extends Controller
         }
 
         // One open Draft per user: resume the caller's existing unfinished order
-        // instead of stacking a duplicate Draft on every Order-Setup submit.
-        $existingDraft = Issuance::where('issued_by', $userId)
-            ->where('status_id', \App\Support\IssuanceStatus::draft())
-            ->orderByDesc('issuance_id')
-            ->first();
+        // instead of stacking a duplicate Draft on every Order-Setup submit. This
+        // is a best-effort guard (no DB constraint backs it — MySQL has no partial
+        // unique index), which is fine: the frontend also guards, and a stray
+        // duplicate Draft is benign and cancelable.
+        $existingDraft = $this->openDraftFor($userId);
 
         if ($existingDraft) {
             return $this->initSessionResponse($existingDraft, 'Resumed your unfinished order.', 200);
@@ -129,15 +129,21 @@ class IssuanceScanController extends Controller
     // =========================================================
     public function activeDraft(): JsonResponse
     {
-        $draft = Issuance::where('issued_by', Auth::id())
-            ->where('status_id', \App\Support\IssuanceStatus::draft())
-            ->orderByDesc('issuance_id')
-            ->first();
+        $draft = $this->openDraftFor(Auth::id());
 
         return response()->json([
             'success'     => true,
             'issuance_id' => $draft?->issuance_id !== null ? (int) $draft->issuance_id : null,
         ]);
+    }
+
+    /** The single home for the "one open Draft per user" rule: newest open Draft, or null. */
+    private function openDraftFor($userId): ?Issuance
+    {
+        return Issuance::where('issued_by', $userId)
+            ->where('status_id', \App\Support\IssuanceStatus::draft())
+            ->orderByDesc('issuance_id')
+            ->first();
     }
 
     // =========================================================
