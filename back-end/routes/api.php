@@ -458,10 +458,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::middleware('permission:product_set_management,read')->group(function () {
         Route::get('/product-sets', [\App\Http\Controllers\Api\ProductSetController::class, 'index']);
-        Route::get('/product-sets/suggest', [\App\Http\Controllers\Api\ProductSetController::class, 'suggest']);
     });
     // Must be registered before /product-sets/{id} below, or "archived" is
-    // swallowed as an {id} — same reason `suggest` is declared before {id}.
+    // swallowed as an {id}.
     Route::middleware('permission:product_set_management,archive')
          ->get('/product-sets/archived', [\App\Http\Controllers\Api\ProductSetController::class, 'archived']);
     Route::middleware('permission:product_set_management,read')
