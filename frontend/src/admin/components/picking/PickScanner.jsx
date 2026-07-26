@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import CameraScanner from '../CameraScanner';
 
 /**
  * PickScanner — shared, CONTROLLED scanner surface for the issuance picker and
@@ -100,7 +101,7 @@ function extractVerdict(response) {
   return response.scan_result || response.data?.scan_result || response;
 }
 
-export default function PickScanner({ plan = [], onScan, onIncident, busy = false }) {
+export default function PickScanner({ plan = [], onScan, onIncident, busy = false, camera = false }) {
   const [barcode, setBarcode] = useState('');
   const [verdict, setVerdict] = useState(null);
   const [flash, setFlash] = useState(false); // brief green pulse on ACCEPTED
@@ -149,14 +150,20 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
     return Array.from(new Set(zones));
   }, [currentStep]);
 
-  const submit = async (e) => {
-    e?.preventDefault?.();
-    const code = barcode.trim();
-    if (!code || busy || !onScan) return;
+  // The confirmed zone the current step submits: null for a serialized step (the
+  // serial identifies the batch on its own), otherwise the picker-confirmed zone.
+  const currentConfirmedZone = serialized ? null : (confirmedZone || null);
+
+  // The single scan-submit path. The manual field (Enter) and the optional camera
+  // both call this, so a camera decode is FIFO-checked and its verdict handled
+  // exactly like a manual scan.
+  const submitScan = async (code, cz) => {
+    const clean = String(code || '').trim();
+    if (!clean || busy || !onScan) return;
     // Clear the input after EVERY attempt, regardless of outcome.
     setBarcode('');
     try {
-      const response = await onScan(code, serialized ? null : (confirmedZone || null));
+      const response = await onScan(clean, cz);
       if (!mountedRef.current) return;
       const v = extractVerdict(response);
       setVerdict(v);
@@ -178,6 +185,11 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
     } finally {
       if (mountedRef.current) inputRef.current?.focus();
     }
+  };
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    submitScan(barcode, currentConfirmedZone);
   };
 
   const openIncident = () => {
@@ -294,6 +306,18 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
           />
         </div>
       </form>
+
+      {/* OPTIONAL CAMERA — feeds the SAME FIFO-checked submitScan path as the
+          manual field. Off by default so other consumers are unchanged. */}
+      {camera && (
+        <CameraScanner
+          onDecode={(code) => submitScan(String(code).trim(), currentConfirmedZone)}
+          mountId="issuance-pick-cam"
+          storageKey="issuance-pick-cam"
+          busy={busy}
+          hint="Scan the item barcode"
+        />
+      )}
 
       {/* VERDICT BANNER */}
       {verdict && banner && (

@@ -451,6 +451,7 @@ export default function IssuanceScanPage() {
                     onScan={onScan}
                     onIncident={handleIncident}
                     busy={scanBusyWrapped}
+                    camera
                   />
                 )}
 
