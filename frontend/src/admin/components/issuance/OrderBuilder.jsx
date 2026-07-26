@@ -391,7 +391,9 @@ function AddSetPath({ disabled, onAdd }) {
         <select className="ak-select" value={setId} onChange={(e) => setSetId(e.target.value)} disabled={disabled}>
           <option value="">Select a set…</option>
           {sets.map((s) => (
-            <option key={s.set_id} value={s.set_id}>{s.set_name} — {fmtMoney(s.set_price)}</option>
+            <option key={s.set_id} value={s.set_id}>
+              {(s.label || s.brand_names || 'Set')} — {fmtMoney(s.set_price)}
+            </option>
           ))}
         </select>
       </div>
