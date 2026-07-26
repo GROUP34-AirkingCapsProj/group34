@@ -834,6 +834,8 @@ export const issuancesAPI = {
     return apiRequest(query ? `/issuances?${query}` : '/issuances');
   },
   getById: async (id) => apiRequest(`/issuances/${id}`),
+  cancel: async (id) =>
+    apiRequest(`/issuances/${id}/cancel`, { method: 'POST' }),
   create: async (data) =>
     apiRequest('/issuances', { method: 'POST', body: JSON.stringify(data) }),
   update: async (id, data) =>
