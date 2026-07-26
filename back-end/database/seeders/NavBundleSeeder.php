@@ -33,12 +33,14 @@ class NavBundleSeeder extends Seeder
             ['Supplier Network',     '/admin/suppliers',            'PROCUREMENT & PLANNING',  'supplier',           'supplier_management',     'read'],
             ['Item Master',          '/admin/items',                'PROCUREMENT & PLANNING',  'items',              'item_master_management',  'read'],
             ['Categories and Brands','/admin/categories',           'PROCUREMENT & PLANNING',  'category',           'category_management',     'read'],
+            ['Set Management',       '/admin/sets',                 'PROCUREMENT & PLANNING',  'sets',               'product_set_management',  'read'],
 
             // INVENTORY INTELLIGENCE
             ['Inventory Monitoring', '/admin/inventory',            'INVENTORY INTELLIGENCE',  'inventory',          'inventory_monitoring',    'read'],
             ['Transfer Requests',    '/admin/transfer-requests',    'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
             ['Stock Transfers',      '/admin/transfers',            'INVENTORY INTELLIGENCE',  'transfer',           'stock_transfers',         'read'],
             ['Interbranch Transfers','/admin/ist',                  'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
+            ['Incident Reports',     '/admin/incidents',            'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
 
             // SALES & LOGISTICS
             ['Transactions',         '/admin/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'sales_recording',     'read'],

@@ -81,12 +81,20 @@ export const ROUTE_ACCESS = {
   '/admin/brands': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
   '/admin/inventory-operation': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
   '/admin/scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  // Set/BOQ catalog — product_set_management.read is granted to all 5 roles
+  // (sidebar visibility fallback; the route guard is permission-driven via
+  // PERMISSION_GATED_ROUTES['/admin/sets'] = product_set_management.read).
+  '/admin/sets': Object.values(ROLES),
 
   // Inventory operations
   '/admin/inventory': Object.values(ROLES),
   '/admin/transfers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
   '/admin/issuances': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
   '/admin/adjustments': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  // Incident Reports (inventory exception) — incident_reports.read is granted to
+  // all 5 roles; route guard is permission-driven via
+  // PERMISSION_GATED_ROUTES['/admin/incidents'] = incident_reports.read.
+  '/admin/incidents': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
 
   // Purchase Orders (Approval Queue — PO tab: upcoming / pending; warehouse is view-only there)
   '/admin/purchase-orders': [

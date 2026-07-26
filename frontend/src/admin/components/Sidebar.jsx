@@ -73,6 +73,7 @@ const adminMenuSections = [
       { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
       { name: 'Item Master', path: '/admin/items', icon: 'items' },
       { name: 'Categories and Brands', path: '/admin/categories', icon: 'category' },
+      { name: 'Set Management', path: '/admin/sets', icon: 'sets' },
     ],
   },
   {
@@ -80,6 +81,7 @@ const adminMenuSections = [
     items: [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
+      { name: 'Incident Reports', path: '/admin/incidents', icon: 'incident' },
     ],
   },
   {
@@ -374,6 +376,22 @@ const renderIcon = (iconType) => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <line x1="12" y1="1" x2="12" y2="23"></line>
           <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+      );
+    case 'sets':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+      );
+    case 'incident':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
         </svg>
       );
     default:
