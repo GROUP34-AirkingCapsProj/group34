@@ -33,12 +33,27 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
  *          Called on every Enter. `confirmedZone` is the zone string the picker
  *          confirmed for a CONSUMABLE step; it is null for serialized steps (the
  *          serial identifies the batch on its own). Must resolve to the server's
- *          scan response. PickScanner reads the verdict from
- *          `response.scan_result` (falling back to `response.data?.scan_result`,
- *          then the response itself) — the ScanResult::toArray() shape:
- *            { status, accepted, overridable, message, product_id, product_name,
- *              serial_id, serial_number, batch_id, zone_label,
- *              expected_batch_id, expected_zone_label, expected_received_at }
+ *          scan response. The scan endpoint has TWO rejection shapes the parent
+ *          must surface here:
+ *            1. The FIFO/pick verdict — an HTTP 200 (accepted) OR an HTTP 422
+ *               (rejected) whose body carries `scan_result`, the
+ *               ScanResult::toArray() shape:
+ *                 { status, accepted, overridable, message, product_id,
+ *                   product_name, serial_id, serial_number, batch_id, zone_label,
+ *                   expected_batch_id, expected_zone_label, expected_received_at }
+ *            2. A LEGACY HTTP 200 rejection: `{ success:false, action:'rejected',
+ *               reason }` with NO `scan_result` (barcode-not-found,
+ *               serial-already-scanned, insufficient-stock). It has `reason` and
+ *               no `message`/`status`; PickScanner renders `reason` as the banner
+ *               text and treats it as a HARD block (no incident button, since
+ *               `overridable` is absent/falsy).
+ *          PickScanner reads the verdict from `response.scan_result`, falling
+ *          back to the response body itself (so shape 2 is read as-is).
+ *          IMPORTANT: the shared `apiRequest` helper DISCARDS the response body on
+ *          a non-2xx status (it keeps only message/status/errors), so a parent
+ *          that wires onScan straight through the raw helper would LOSE
+ *          `scan_result` on a 422. The parent is responsible for catching the 422
+ *          and resolving the full body so PickScanner can read `scan_result`.
  *          The parent should refetch the plan after an ACCEPTED verdict.
  *
  *   onIncident(context) → void
@@ -74,10 +89,15 @@ function isSerializedStep(step) {
   return step.suggestions.some((s) => s && (s.serial_id != null || s.serial_number != null));
 }
 
-/** Pull the ScanResult verdict out of whatever the parent's onScan resolved to. */
+/**
+ * Pull the verdict out of whatever the parent's onScan resolved to.
+ * Order: the FIFO `scan_result` (verdict shape 1), then `data.scan_result`
+ * (some parents nest under `data`), then the response body itself — which is how
+ * the legacy `{success:false, action:'rejected', reason}` shape (2) is read.
+ */
 function extractVerdict(response) {
   if (!response) return null;
-  return response.scan_result || response.data?.scan_result || response.data || response;
+  return response.scan_result || response.data?.scan_result || response;
 }
 
 export default function PickScanner({ plan = [], onScan, onIncident, busy = false }) {
@@ -86,6 +106,18 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   const [flash, setFlash] = useState(false); // brief green pulse on ACCEPTED
   const [confirmedZone, setConfirmedZone] = useState('');
   const inputRef = useRef(null);
+  const mountedRef = useRef(true);
+  const flashTimer = useRef(null);
+
+  // Guard against setState after unmount (the async scan + flash timeout can
+  // resolve after the component is gone).
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    };
+  }, []);
 
   // The current step is the first line still needing units with something to pick.
   const steps = useMemo(
@@ -125,13 +157,18 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
     setBarcode('');
     try {
       const response = await onScan(code, serialized ? null : (confirmedZone || null));
+      if (!mountedRef.current) return;
       const v = extractVerdict(response);
       setVerdict(v);
       if (v?.status === 'ACCEPTED') {
         setFlash(true);
-        setTimeout(() => setFlash(false), 600);
+        if (flashTimer.current) clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => {
+          if (mountedRef.current) setFlash(false);
+        }, 600);
       }
     } catch (err) {
+      if (!mountedRef.current) return;
       setVerdict({
         status: 'ERROR',
         accepted: false,
@@ -139,7 +176,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
         message: err?.message || 'Scan failed. Try again.',
       });
     } finally {
-      inputRef.current?.focus();
+      if (mountedRef.current) inputRef.current?.focus();
     }
   };
 
@@ -176,6 +213,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
       {/* CURRENT STEP — the zone is the instruction, everything else is context. */}
       <div
         className="ak-card"
+        aria-live="polite"
         style={{
           textAlign: 'center',
           padding: '1.5rem 1rem',
@@ -269,7 +307,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
             padding: '0.9rem 1rem',
           }}
         >
-          <div style={{ fontWeight: 700 }}>{verdict.message || verdict.status}</div>
+          <div style={{ fontWeight: 700 }}>{verdict.message || verdict.reason || verdict.status}</div>
           {verdict.status === 'FIFO_VIOLATION' && (
             <div style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>
               Expected zone <strong>{verdict.expected_zone_label || '—'}</strong>
