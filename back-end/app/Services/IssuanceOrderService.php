@@ -25,13 +25,13 @@ class IssuanceOrderService
             throw new \InvalidArgumentException('Set quantity must be at least 1.');
         }
 
-        $set = ProductSet::with(['lines.product', 'lines.issuableUnit'])->findOrFail($setId);
+        $set = ProductSet::with(['lines.product'])->findOrFail($setId);
 
         $this->inDraftTransaction($issuance, function () use ($issuance, $set, $setQuantity) {
             $group = $issuance->sets()->create([
                 'set_id'            => $set->set_id,
                 'set_quantity'      => $setQuantity,
-                'set_name_snapshot' => $set->set_name,
+                'set_name_snapshot' => $set->label(),
                 'was_modified'      => false,
             ]);
 

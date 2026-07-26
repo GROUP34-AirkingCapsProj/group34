@@ -15,7 +15,7 @@ class IssuanceSetModelTest extends SetTestCase
         $customer = $this->makeCustomer();
         $product  = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ A']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
 
         $issuance = Issuance::create([
             'location_id'   => $loc->location_id,
@@ -29,7 +29,7 @@ class IssuanceSetModelTest extends SetTestCase
         $issuanceSet = $issuance->sets()->create([
             'set_id'            => $set->set_id,
             'set_quantity'      => 2,
-            'set_name_snapshot' => $set->set_name,
+            'set_name_snapshot' => $set->label(),
         ]);
 
         $detail = $issuance->details()->create([
@@ -53,7 +53,7 @@ class IssuanceSetModelTest extends SetTestCase
         $loc      = $this->makeLocation();
         $customer = $this->makeCustomer();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ Archived']);
+        $set = ProductSet::create(['capacity_rating' => '1.5HP', 'variant' => 'inverter']);
 
         $issuance = Issuance::create([
             'location_id'   => $loc->location_id,
@@ -67,7 +67,7 @@ class IssuanceSetModelTest extends SetTestCase
         $issuanceSet = $issuance->sets()->create([
             'set_id'            => $set->set_id,
             'set_quantity'      => 1,
-            'set_name_snapshot' => $set->set_name,
+            'set_name_snapshot' => $set->label(),
         ]);
 
         $set->delete();
