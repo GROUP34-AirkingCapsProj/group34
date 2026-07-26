@@ -93,6 +93,11 @@ export default function QuotePanel({ issuanceId, quote, canIssue, onQuoteUpdate,
     <div key={l.issuance_detail_id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 0', borderBottom: '1px solid var(--ak-line)' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600 }}>{l.product_name || `Product #${l.product_id}`}</div>
+        {/* TODO(pack/box): show packageBreakdown(quantity_requested, pieces_per_package, package_unit)
+            here (e.g. "×5 · 3 Box + 2 pcs") like Transfers, once the quote endpoint
+            (IssuanceOrderController::quote lines[]) includes pieces_per_package + package_unit.
+            The quote line currently carries only product_id/name/type + quantity, so we show
+            the piece quantity as-is rather than fabricate a breakdown. */}
         <div className="ak-muted" style={{ fontSize: '0.8rem' }}>
           ×{l.quantity_requested} · {fmtMoney(l.unit_price)} each
         </div>
