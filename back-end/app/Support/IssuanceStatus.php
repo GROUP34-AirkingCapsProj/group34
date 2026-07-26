@@ -31,6 +31,7 @@ class IssuanceStatus
     public static function pending(): int   { return self::id('Pending'); }
     public static function completed(): int { return self::id('Completed'); }
     public static function voided(): int    { return self::id('Voided'); }
+    public static function cancelled(): int { return self::id('Cancelled'); }
 
     /** Tests that create statuses inside a transaction need this between cases. */
     public static function flush(): void { self::$cache = []; }
