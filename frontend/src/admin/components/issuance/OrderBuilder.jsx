@@ -461,13 +461,13 @@ function AddCustomPath({ disabled, onAdd }) {
       {/* Category + brand dropdowns narrow the product list; pick the product from
           the third dropdown — no free-text needed. */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <select className="ak-select" style={{ flex: '1 1 160px' }} value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setProductId(''); }} disabled={disabled}>
+        <select className="ak-select" style={{ flex: '0 1 150px', maxWidth: 180 }} value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setProductId(''); }} disabled={disabled}>
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
           ))}
         </select>
-        <select className="ak-select" style={{ flex: '1 1 160px' }} value={brandId} onChange={(e) => { setBrandId(e.target.value); setProductId(''); }} disabled={disabled}>
+        <select className="ak-select" style={{ flex: '0 1 150px', maxWidth: 180 }} value={brandId} onChange={(e) => { setBrandId(e.target.value); setProductId(''); }} disabled={disabled}>
           <option value="">All brands</option>
           {brands.map((b) => (
             <option key={b.brand_id} value={b.brand_id}>{b.brand_name}</option>
@@ -475,9 +475,15 @@ function AddCustomPath({ disabled, onAdd }) {
         </select>
       </div>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div className="ak-field" style={{ flex: '1 1 220px' }}>
+        <div className="ak-field" style={{ flex: '1 1 200px', maxWidth: 320, minWidth: 0 }}>
           <label className="ak-label">Product</label>
-          <select className="ak-select" value={productId} onChange={(e) => setProductId(e.target.value)} disabled={disabled || noFilter || loading}>
+          <select
+            className="ak-select"
+            style={{ maxWidth: '100%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            disabled={disabled || noFilter || loading}
+          >
             <option value="">
               {noFilter ? 'Select a category or brand first…' : loading ? 'Loading…' : (results.length ? 'Select a product…' : 'No products found')}
             </option>
@@ -540,6 +546,11 @@ function LineRow({ line, disabled, onUpdate, onRemove }) {
         </>
       ) : (
         <>
+          {/* TODO(pack/box): show packageBreakdown(quantity_requested, pieces_per_package, package_unit)
+              here (e.g. "×5 · 3 Box + 2 pcs") like Transfers, once the quote endpoint
+              (IssuanceOrderController::quote lines[]) includes pieces_per_package + package_unit.
+              The quote line currently carries only product_id/name/type + quantity, so we show
+              the piece quantity as-is rather than fabricate a breakdown. */}
           <span className="ak-mono" style={{ minWidth: 32, textAlign: 'right' }}>×{line.quantity_requested}</span>
           <span style={{ minWidth: 90, textAlign: 'right', fontWeight: 600 }}>{fmtMoney(line.line_total)}</span>
           <button type="button" className="ak-btn" onClick={() => setEditing(true)} disabled={disabled}>Edit</button>
