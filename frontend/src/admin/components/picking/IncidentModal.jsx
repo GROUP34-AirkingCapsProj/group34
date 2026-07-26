@@ -22,8 +22,10 @@ import { toast } from '../../utils/toast';
  *              actual_zone:   string|null,
  *              quantity:    number }           // default for the qty field
  *
- *   onSubmit() → void   called AFTER a successful file; parent refetches the plan.
- *   onClose()  → void   close without filing.
+ *   onFiled() → void    called AFTER a successful file; parent refetches the plan.
+ *                       (Named like IncidentResolveDrawer's onResolved — it fires
+ *                       only on success, not on submit-attempt.)
+ *   onClose() → void    close without filing.
  *
  * Submits through incidentReportsAPI.file() with exactly the keys the store
  * endpoint validates — no photo key is posted (the photo field is presentational).
@@ -41,7 +43,7 @@ const REASONS = [
   { value: 'zone_mismatch', label: "It's here, just in a different zone" },
 ];
 
-export default function IncidentModal({ context, onSubmit, onClose }) {
+export default function IncidentModal({ context, onFiled, onClose }) {
   const isOpen = !!context;
   const [reason, setReason] = useState('not_found');
   const [quantity, setQuantity] = useState(1);
@@ -82,7 +84,7 @@ export default function IncidentModal({ context, onSubmit, onClose }) {
     try {
       await incidentReportsAPI.file(payload);
       toast.success('Incident filed. Picking may continue with the next batch.');
-      onSubmit?.();
+      onFiled?.();
     } catch (err) {
       toast.error(err?.message || 'Failed to file the incident.');
     } finally {
