@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -43,8 +44,14 @@ export default function IssuanceScanPage() {
   const isAdmin = roleKey === ROLES.ADMIN;
   const canIssue = isAdmin || (typeof can === 'function' && can('inventory_issuance', 'create'));
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [locations, setLocations] = useState([]);
   const [statusMap, setStatusMap] = useState({});   // status_id → status_name (issuance)
+  // The active issuance id lives in the URL (?issuance=<id>) so a hard refresh can
+  // rehydrate. `hydrating` guards the first render while the mount-fetch resolves,
+  // preventing an OrderBuilder setup-form flash on a mid-pick refresh.
+  const [hydrating, setHydrating] = useState(!!searchParams.get('issuance'));
 
   const [session, setSession] = useState(null);      // init response (dr_number, customer, type)
   const [quote, setQuote] = useState(null);          // quote `data` payload — source of truth for status
@@ -99,6 +106,30 @@ export default function IssuanceScanPage() {
     }
   }, []);
 
+  // ── Rehydrate from the URL on mount ─────────────────────────
+  // If ?issuance=<id> is present, load its quote; the status-derived step logic
+  // then places the user on the right step (Pending → Pick, Draft → Order/Quote,
+  // Completed → receipt). A stale/invalid id falls back to the setup form.
+  useEffect(() => {
+    const id = searchParams.get('issuance');
+    if (!id) { setHydrating(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await issuanceOrderAPI.quote(id);
+        if (!cancelled) setQuote(res?.data ?? res);
+      } catch (err) {
+        if (cancelled) return;
+        toast.error('Could not resume the previous order. Starting a new one.');
+        setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const loadPlan = useCallback(async (id = issuanceId) => {
     if (!id) return;
     setPlanLoading(true);
@@ -122,8 +153,11 @@ export default function IssuanceScanPage() {
   const handleSessionCreated = useCallback(async (res) => {
     setSession(res);
     setDraftStep(STEP_ORDER);
-    if (res?.issuance_id) await loadQuote(res.issuance_id);
-  }, [loadQuote]);
+    if (res?.issuance_id) {
+      setSearchParams((p) => { p.set('issuance', String(res.issuance_id)); return p; }, { replace: true });
+      await loadQuote(res.issuance_id);
+    }
+  }, [loadQuote, setSearchParams]);
 
   // ── Step 3: PickScanner onScan ──────────────────────────────
   // Recovers the scan verdict from BOTH rejection shapes and normalizes an
@@ -199,7 +233,8 @@ export default function IssuanceScanPage() {
     setPlan([]);
     setIncidentCtx(null);
     setReceipt(null);
-  }, []);
+    setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
+  }, [setSearchParams]);
 
   const scanBusyWrapped = useMemo(() => scanBusy || planLoading, [scanBusy, planLoading]);
 
@@ -274,20 +309,25 @@ export default function IssuanceScanPage() {
           })}
         </div>
 
-        {/* Completed → receipt summary */}
-        {isCompleted && receipt ? (
+        {/* Rehydrating from the URL — hold the wizard until the mount-fetch resolves. */}
+        {hydrating ? (
+          <div className="isp-card" style={{ textAlign: 'center', padding: '2.5rem' }}>Resuming order…</div>
+        ) : isCompleted ? (
+          /* Completed → receipt summary (survives refresh even without an in-memory receipt) */
           <div className="isp-card">
             <h2 className="isp-card-title">Issuance Completed</h2>
             <div className="isp-confirm-summary">
-              <div className="isp-confirm-row"><span>DR Number</span><strong>{receipt.dr_number ?? quote?.dr_number}</strong></div>
-              <div className="isp-confirm-row"><span>Date</span><span>{fmtDate(receipt.issuance_date)}</span></div>
-              <div className="isp-confirm-row isp-confirm-total"><span>Total Amount</span><strong>{fmt(receipt.total_amount ?? quote?.total_amount)}</strong></div>
+              <div className="isp-confirm-row"><span>DR Number</span><strong>{receipt?.dr_number ?? quote?.dr_number ?? '—'}</strong></div>
+              {receipt?.issuance_date && (
+                <div className="isp-confirm-row"><span>Date</span><span>{fmtDate(receipt.issuance_date)}</span></div>
+              )}
+              <div className="isp-confirm-row isp-confirm-total"><span>Total Amount</span><strong>{fmt(receipt?.total_amount ?? quote?.total_amount)}</strong></div>
             </div>
             <div className="isp-dr-actions no-print" style={{ marginTop: 16 }}>
               <button
                 type="button"
                 className="isp-btn-secondary"
-                onClick={() => window.open(issuanceScanAPI.drCsvUrl(receipt.issuance_id ?? issuanceId), '_blank')}
+                onClick={() => window.open(issuanceScanAPI.drCsvUrl(receipt?.issuance_id ?? issuanceId), '_blank')}
               >
                 Download DR (CSV)
               </button>
