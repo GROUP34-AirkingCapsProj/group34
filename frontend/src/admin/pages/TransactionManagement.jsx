@@ -1,12 +1,37 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
-import { receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI } from '../services/api';
+import Modal from '../components/Modal';
+import { receivingsAPI, issuancesAPI, issuanceOrderAPI, transfersAPI, adjustmentsAPI, customersAPI } from '../services/api';
+import { toast } from '../utils/toast';
+import { confirmAction } from '../utils/confirm';
 import '../styles/dashboard_air.css';
 import '../styles/transaction_management.css';
 
 const PAGE_SIZE = 20;
+
+const fmtMoney = (val) => {
+  const n = parseFloat(val);
+  if (val === null || val === undefined || Number.isNaN(n)) return '—';
+  return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const userFullName = (u) =>
+  u ? [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.username || null : null;
+
+// Class for the REAL issuance status name shown inside the detail modal.
+const issuanceStatusClass = (name) => {
+  switch (name) {
+    case 'Completed': return 'txn-status-completed';
+    case 'Pending':
+    case 'Draft':     return 'txn-status-pending';
+    case 'Voided':
+    case 'Cancelled': return 'txn-status-cancelled';
+    default:          return '';
+  }
+};
 
 const TransactionManagement = () => {
   const [transactions, setTransactions] = useState([]);
@@ -18,6 +43,14 @@ const TransactionManagement = () => {
   const [locationFilter, setLocationFilter] = useState('');
   const [locations, setLocations] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const navigate = useNavigate();
+  // Issue-out detail modal state.
+  const [activeIssuanceId, setActiveIssuanceId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const normalizeStatus = (status) => {
     if (status != null && typeof status === 'object') {
@@ -101,6 +134,7 @@ const TransactionManagement = () => {
       || (iid != null && iid !== '' ? `ISS-${iid}` : 'Issuance');
     return {
       id: `ISS-${iid ?? Math.random().toString(36).slice(2, 8)}`,
+      issuanceId: iid ?? null,
       type: 'Issuance',
       itemName:
         firstProduct?.product_name
@@ -171,8 +205,7 @@ const TransactionManagement = () => {
     };
   };
 
-  useEffect(() => {
-    const fetchAllTransactions = async () => {
+  const fetchAllTransactions = useCallback(async () => {
       setLoading(true);
       setError(null);
       try {
@@ -211,9 +244,124 @@ const TransactionManagement = () => {
       } finally {
         setLoading(false);
       }
-    };
-    fetchAllTransactions();
   }, []);
+
+  useEffect(() => {
+    fetchAllTransactions();
+  }, [fetchAllTransactions]);
+
+  // Fetch issue-out detail (header + priced quote + customer) when a row is opened.
+  useEffect(() => {
+    if (activeIssuanceId == null) return undefined;
+    let stale = false;
+    const load = async () => {
+      setDetailLoading(true);
+      setDetailError('');
+      setDetail(null);
+      try {
+        const [showRes, quoteRes] = await Promise.allSettled([
+          issuancesAPI.getById(activeIssuanceId),
+          issuanceOrderAPI.quote(activeIssuanceId),
+        ]);
+        if (showRes.status !== 'fulfilled') {
+          throw new Error(showRes.reason?.message || 'Failed to load issue-out.');
+        }
+        const header = showRes.value?.data || {};
+        const quote = quoteRes.status === 'fulfilled' ? (quoteRes.value?.data || null) : null;
+
+        // Recipient is the Customer relation (issued_to_user_id is unused for sales).
+        // show does not eager-load `customer`, so resolve the name by id when needed.
+        let customerName = header.customer?.customer_name || null;
+        const customerId = header.customer_id ?? quote?.customer_id ?? null;
+        if (!customerName && customerId) {
+          try {
+            const cRes = await customersAPI.getById(customerId);
+            customerName = cRes?.data?.customer_name || null;
+          } catch (e) { /* leave customerName null on failure */ }
+        }
+
+        const statusName = header.status?.status_name || header.status_name || '—';
+        const priced = Array.isArray(quote?.lines) && quote.lines.length > 0;
+        const lines = priced
+          ? quote.lines.map((l) => ({
+              key: l.issuance_detail_id ?? l.product_id,
+              name: l.product_name,
+              qty: l.quantity_requested,
+              unitPrice: l.unit_price,
+              lineTotal: l.line_total,
+            }))
+          : (Array.isArray(header.details) ? header.details : []).map((d, i) => ({
+              key: d.issuance_detail_id ?? i,
+              name: d.product?.product_name || 'Item',
+              qty: d.quantity_issued ?? d.quantity_requested ?? 0,
+              unitPrice: null,
+              lineTotal: null,
+            }));
+
+        if (!stale) {
+          setDetail({
+            id: activeIssuanceId,
+            drNumber: quote?.dr_number || header.dr_number || null,
+            customerName,
+            customerId,
+            locationName: header.location?.location_name || '—',
+            issuedByName: userFullName(header.issuedByUser) || '—',
+            issuanceDate: header.issuance_date || header.created_at || null,
+            statusName,
+            isDraft: statusName === 'Draft',
+            priced,
+            lines,
+            subtotal: quote?.subtotal ?? null,
+            discountAmount: quote?.discount_amount ?? null,
+            totalAmount: quote?.total_amount ?? null,
+          });
+        }
+      } catch (err) {
+        if (!stale) {
+          setDetailError(err.message || 'Failed to load issue-out.');
+          toast.error(err.message || 'Failed to load issue-out.');
+        }
+      } finally {
+        if (!stale) setDetailLoading(false);
+      }
+    };
+    load();
+    return () => { stale = true; };
+  }, [activeIssuanceId]);
+
+  const closeDetail = () => {
+    setActiveIssuanceId(null);
+    setDetail(null);
+    setDetailError('');
+  };
+
+  const handleContinueDraft = () => {
+    if (activeIssuanceId == null) return;
+    navigate('/admin/issuance-scan?issuance=' + activeIssuanceId);
+  };
+
+  const handleCancelIssueOut = async () => {
+    if (activeIssuanceId == null) return;
+    const ok = await confirmAction({
+      title: 'Cancel this issue-out?',
+      text: 'It will be kept in history as Cancelled.',
+      confirmText: 'Cancel issue-out',
+      cancelText: 'Keep it',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setCancelling(true);
+    try {
+      await issuancesAPI.cancel(activeIssuanceId);
+      toast.success('Issue-out cancelled.');
+      closeDetail();
+      fetchAllTransactions();
+    } catch (err) {
+      toast.error(err.message || 'Failed to cancel issue-out.');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const getStatusClass = (status) => {
     if (status === 'Completed') return 'txn-status-completed';
@@ -314,8 +462,28 @@ const TransactionManagement = () => {
             {filteredTransactions.length === 0 ? (
               <div className="txn-empty">No transactions found.</div>
             ) : (
-              pagedTransactions.map((txn) => (
-                <article className="txn-feed-item" key={txn.id}>
+              pagedTransactions.map((txn) => {
+                const isIssueOut = txn.type === 'Issuance' && txn.issuanceId != null;
+                return (
+                <article
+                  className="txn-feed-item"
+                  key={txn.id}
+                  {...(isIssueOut
+                    ? {
+                        role: 'button',
+                        tabIndex: 0,
+                        title: 'View issue-out details',
+                        style: { cursor: 'pointer' },
+                        onClick: () => setActiveIssuanceId(txn.issuanceId),
+                        onKeyDown: (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setActiveIssuanceId(txn.issuanceId);
+                          }
+                        },
+                      }
+                    : {})}
+                >
                   <div className="txn-feed-left">
                     <div className="txn-feed-title-row">
                       <span className={`txn-type-badge ${getTypeClass(txn.type)}`}>{txn.type}</span>
@@ -331,7 +499,8 @@ const TransactionManagement = () => {
                     <span className="txn-feed-qty">{Math.abs(Number(txn.qty || 0)).toLocaleString()} units</span>
                   </div>
                 </article>
-              ))
+                );
+              })
             )}
           </div>
           <Pagination
@@ -344,6 +513,113 @@ const TransactionManagement = () => {
           />
         </div>
       </div>
+
+      <Modal
+        isOpen={activeIssuanceId != null}
+        onClose={closeDetail}
+        title={detail?.drNumber ? `Issue-out · ${detail.drNumber}` : 'Issue-out detail'}
+        maxWidth={720}
+      >
+        {detailLoading && <Loader label="Loading issue-out" />}
+        {!detailLoading && detailError && (
+          <div className="ak-state ak-state--error" style={{ marginTop: '1rem' }}>{detailError}</div>
+        )}
+        {!detailLoading && !detailError && detail && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.7rem' }}>
+              <div>
+                <div className="ak-label">Customer</div>
+                <div>{detail.customerName || '—'}</div>
+              </div>
+              <div>
+                <div className="ak-label">Location</div>
+                <div>{detail.locationName}</div>
+              </div>
+              <div>
+                <div className="ak-label">Issued by</div>
+                <div>{detail.issuedByName}</div>
+              </div>
+              <div>
+                <div className="ak-label">Date</div>
+                <div>{formatDateTime(detail.issuanceDate)}</div>
+              </div>
+              <div>
+                <div className="ak-label">DR number</div>
+                <div>{detail.drNumber || '—'}</div>
+              </div>
+              <div>
+                <div className="ak-label">Status</div>
+                <div>
+                  <span className={`txn-status-badge ${issuanceStatusClass(detail.statusName)}`}>{detail.statusName}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="ak-label" style={{ marginBottom: '0.4rem' }}>Items</div>
+              {detail.lines.length === 0 ? (
+                <div className="ak-muted">No line items.</div>
+              ) : (
+                <table className="ak-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>Product</th>
+                      <th style={{ textAlign: 'right' }}>Qty</th>
+                      <th style={{ textAlign: 'right' }}>Unit price</th>
+                      <th style={{ textAlign: 'right' }}>Line total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.lines.map((l) => (
+                      <tr key={l.key}>
+                        <td>{l.name}</td>
+                        <td style={{ textAlign: 'right' }}>{Number(l.qty || 0).toLocaleString()}</td>
+                        <td style={{ textAlign: 'right' }}>{l.unitPrice == null ? '—' : fmtMoney(l.unitPrice)}</td>
+                        <td style={{ textAlign: 'right' }}>{l.lineTotal == null ? '—' : fmtMoney(l.lineTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {!detail.priced && (
+                <p className="ak-muted" style={{ marginTop: '0.4rem', fontSize: '0.8rem' }}>
+                  Pricing unavailable for this issue-out — showing issued quantities only.
+                </p>
+              )}
+            </div>
+
+            {detail.priced && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-end' }}>
+                <div>Subtotal: <strong>{fmtMoney(detail.subtotal)}</strong></div>
+                {Number(detail.discountAmount) > 0 && (
+                  <div>Discount: <strong>-{fmtMoney(detail.discountAmount)}</strong></div>
+                )}
+                <div style={{ fontSize: '1.05rem' }}>Total: <strong>{fmtMoney(detail.totalAmount)}</strong></div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', borderTop: '1px solid #e5e7eb', paddingTop: '0.9rem' }}>
+              {detail.isDraft ? (
+                <>
+                  <button
+                    type="button"
+                    className="ak-btn"
+                    onClick={handleCancelIssueOut}
+                    disabled={cancelling}
+                  >
+                    {cancelling ? 'Cancelling…' : 'Cancel issue-out'}
+                  </button>
+                  <button type="button" className="ak-btn ak-btn--primary" onClick={handleContinueDraft} disabled={cancelling}>
+                    Continue
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="ak-btn" onClick={closeDetail}>Close</button>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </AdminLayout>
   );
 };
