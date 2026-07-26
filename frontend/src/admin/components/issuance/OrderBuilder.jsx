@@ -415,7 +415,9 @@ function AddCustomPath({ disabled, onAdd }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [productId, setProductId] = useState('');
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(1);         // used when the product has no pack size
+  const [packages, setPackages] = useState(0); // used when pieces_per_package > 1
+  const [pieces, setPieces] = useState(0);     // loose pieces alongside packages
 
   // Load the category + brand filter options once.
   useEffect(() => {
@@ -452,11 +454,22 @@ function AddCustomPath({ disabled, onAdd }) {
   const picked = results.find((p) => String(p.product_id) === String(productId)) || null;
   const noFilter = !categoryId && !brandId;
 
+  // Pack/box quantity, same model as Transfers: a non-appliance product that ships
+  // in packages of >1 piece is entered as packages + loose pieces; everything else
+  // is a single piece count. Stored quantity is always PIECES.
+  const ppp = picked && picked.product_type !== 'appliance' ? (Number(picked.pieces_per_package) || 0) : 0;
+  const usePack = ppp > 1;
+  const totalPieces = usePack
+    ? (parseInt(packages, 10) || 0) * ppp + (parseInt(pieces, 10) || 0)
+    : (parseInt(qty, 10) || 0);
+
+  const resetQty = () => { setQty(1); setPackages(0); setPieces(0); };
+
   const add = async () => {
-    if (!picked) return;
-    await onAdd(picked.product_id, Math.max(1, parseInt(qty, 10) || 1));
+    if (!picked || totalPieces < 1) return;
+    await onAdd(picked.product_id, Math.max(1, totalPieces));
     setProductId('');
-    setQty(1);
+    resetQty();
   };
 
   return (
@@ -484,7 +497,7 @@ function AddCustomPath({ disabled, onAdd }) {
             className="ak-select"
             style={{ maxWidth: '100%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}
             value={productId}
-            onChange={(e) => setProductId(e.target.value)}
+            onChange={(e) => { setProductId(e.target.value); resetQty(); }}
             disabled={disabled || noFilter || loading}
           >
             <option value="">
@@ -497,12 +510,30 @@ function AddCustomPath({ disabled, onAdd }) {
             ))}
           </select>
         </div>
-        <div className="ak-field" style={{ width: 100 }}>
-          <label className="ak-label">Qty</label>
-          <input className="ak-input" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} disabled={disabled || !picked} />
-        </div>
-        <button type="button" className="ak-btn ak-btn--primary" onClick={add} disabled={disabled || !picked}>Add item</button>
+        {usePack ? (
+          <>
+            <div className="ak-field" style={{ width: 92 }} title={`${ppp} pcs per ${picked.package_unit || 'package'}`}>
+              <label className="ak-label">{picked.package_unit || 'Pack'}×{ppp}</label>
+              <input className="ak-input" type="number" min={0} value={packages} onChange={(e) => setPackages(e.target.value)} disabled={disabled} />
+            </div>
+            <div className="ak-field" style={{ width: 80 }}>
+              <label className="ak-label">Pieces</label>
+              <input className="ak-input" type="number" min={0} value={pieces} onChange={(e) => setPieces(e.target.value)} disabled={disabled} />
+            </div>
+          </>
+        ) : (
+          <div className="ak-field" style={{ width: 100 }}>
+            <label className="ak-label">Qty</label>
+            <input className="ak-input" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} disabled={disabled || !picked} />
+          </div>
+        )}
+        <button type="button" className="ak-btn ak-btn--primary" onClick={add} disabled={disabled || !picked || totalPieces < 1}>Add item</button>
       </div>
+      {usePack && totalPieces > 0 && (
+        <div className="ak-muted" style={{ fontSize: '0.78rem' }}>
+          = {totalPieces} pcs{packageBreakdown(totalPieces, ppp, picked.package_unit) ? ` · ${packageBreakdown(totalPieces, ppp, picked.package_unit)}` : ''}
+        </div>
+      )}
     </div>
   );
 }
