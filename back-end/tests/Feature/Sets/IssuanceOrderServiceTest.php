@@ -4,7 +4,6 @@ namespace Tests\Feature\Sets;
 
 use App\Models\Issuance;
 use App\Models\ProductSet;
-use App\Models\UnitLookup;
 use App\Services\IssuanceOrderService;
 use App\Support\IssuanceStatus;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -32,7 +31,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $a = $this->makeConsumable(price: 100);
         $b = $this->makeConsumable(price: 25);
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 2, 'sort_order' => 1]);
         $set->lines()->create(['product_id' => $b->product_id, 'quantity' => 4, 'sort_order' => 2]);
 
@@ -42,7 +41,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $this->assertCount(2, $details);
         $this->assertSame(6, (int) $details->firstWhere('product_id', $a->product_id)->quantity_requested);
         $this->assertSame(12, (int) $details->firstWhere('product_id', $b->product_id)->quantity_requested);
-        $this->assertSame('BOQ', $issuance->fresh('sets')->sets->first()->set_name_snapshot);
+        $this->assertSame($set->label(), $issuance->fresh('sets')->sets->first()->set_name_snapshot);
     }
 
     public function test_adding_the_same_set_twice_creates_two_independent_groups(): void
@@ -50,7 +49,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $issuance = $this->draft();
         $a = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
 
         $svc = app(IssuanceOrderService::class);
@@ -78,7 +77,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $issuance = $this->draft();
         $a = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 5]);
 
         $svc = app(IssuanceOrderService::class);
@@ -97,7 +96,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $a = $this->makeConsumable();
         $b = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
         $set->lines()->create(['product_id' => $b->product_id, 'quantity' => 1]);
 
@@ -121,35 +120,25 @@ class IssuanceOrderServiceTest extends SetTestCase
         app(IssuanceOrderService::class)->addCustomLine($issuance, $p->product_id, 1);
     }
 
-    public function test_set_line_with_issuable_unit_expands_using_conversion_factor(): void
+    public function test_set_line_with_fractional_quantity_rounds_to_whole_pieces_on_expansion(): void
     {
         $issuance = $this->draft();
-        $roll = $this->makeConsumable(price: 10);
+        $product  = $this->makeConsumable(price: 10);
 
-        $unit = UnitLookup::firstOrCreate(
-            ['unit_name' => 'Piece'],
-            ['unit_abbreviation' => 'pc']
-        );
-
-        $issuableUnit = $roll->issuableUnits()->create([
-            'unit_id'           => $unit->unit_id,
-            'label'             => 'Roll',
-            'conversion_factor' => 50,
-        ]);
-
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
+        // A BOQ line of 1.5 lengths rounds up to 2 whole pieces before it is
+        // multiplied out across the sets ordered.
         $set->lines()->create([
-            'product_id'       => $roll->product_id,
-            'quantity'         => 2,
-            'issuable_unit_id' => $issuableUnit->issuable_unit_id,
-            'sort_order'       => 1,
+            'product_id' => $product->product_id,
+            'quantity'   => 1.5,
+            'sort_order' => 1,
         ]);
 
         app(IssuanceOrderService::class)->addSet($issuance, $set->set_id, 3);
 
         $detail = $issuance->fresh('details')->details->first();
-        // 2 rolls * 50 pieces/roll * 3 sets = 300 pieces
-        $this->assertSame(300, (int) $detail->quantity_requested);
+        // round(1.5) = 2 pieces * 3 sets = 6 pieces
+        $this->assertSame(6, (int) $detail->quantity_requested);
     }
 
     public function test_removing_a_custom_line_does_not_touch_any_set_group(): void
@@ -158,7 +147,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $a = $this->makeConsumable();
         $custom = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
 
         $svc = app(IssuanceOrderService::class);
@@ -204,7 +193,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $issuance = $this->draft();
         $a = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
 
         $svc = app(IssuanceOrderService::class);
@@ -225,7 +214,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $issuance = $this->draft();
         $a = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
 
         $svc = app(IssuanceOrderService::class);
@@ -239,7 +228,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $issuance = $this->draft();
         $a = $this->makeConsumable();
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
 
         $svc = app(IssuanceOrderService::class);
@@ -277,7 +266,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_a_product_used_by_a_set_line_cannot_be_hard_deleted(): void
     {
         $product = $this->makeConsumable();
-        $set     = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set     = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $product->product_id, 'quantity' => 1]);
 
         $this->expectException(\Illuminate\Database\QueryException::class);
@@ -293,7 +282,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         $issuance = $this->draft();
         $product  = $this->makeConsumable(price: 90);
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $product->product_id, 'quantity' => 2]);
 
         $product->delete(); // soft delete

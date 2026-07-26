@@ -61,7 +61,7 @@ class DraftLineEndpointsTest extends SetTestCase
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $a    = $this->makeConsumable(price: 100);
 
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 2]);
 
         $issuance = $this->draftAt($loc);

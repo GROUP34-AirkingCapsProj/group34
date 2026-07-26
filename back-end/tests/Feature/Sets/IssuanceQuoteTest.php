@@ -161,7 +161,7 @@ class IssuanceQuoteTest extends SetTestCase
         $p    = $this->makeConsumable(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 100);
 
-        $set      = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'BOQ']);
+        $set      = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $issuance = $this->draftAt($loc);
         $group    = $issuance->sets()->create([
             'set_id' => $set->set_id, 'set_quantity' => 2, 'set_name_snapshot' => 'BOQ',

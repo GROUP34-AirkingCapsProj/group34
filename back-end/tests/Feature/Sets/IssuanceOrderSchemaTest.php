@@ -65,11 +65,11 @@ class IssuanceOrderSchemaTest extends SetTestCase
     {
         $location = $this->makeLocation();
         $set = DB::table('product_sets')->insertGetId([
-            'set_code'   => 'SET-' . uniqid(),
-            'set_name'   => 'Test Set',
-            'is_active'  => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'capacity_rating' => '2HP',
+            'variant'         => 'non-inverter',
+            'is_active'       => 1,
+            'created_at'      => now(),
+            'updated_at'      => now(),
         ], 'set_id');
 
         $issuanceId = DB::table('issuances')->insertGetId([
@@ -106,11 +106,11 @@ class IssuanceOrderSchemaTest extends SetTestCase
         $product = $this->makeAppliance();
 
         $set = DB::table('product_sets')->insertGetId([
-            'set_code'   => 'SET-' . uniqid(),
-            'set_name'   => 'Test Set',
-            'is_active'  => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'capacity_rating' => '2HP',
+            'variant'         => 'non-inverter',
+            'is_active'       => 1,
+            'created_at'      => now(),
+            'updated_at'      => now(),
         ], 'set_id');
 
         $issuanceId = DB::table('issuances')->insertGetId([
