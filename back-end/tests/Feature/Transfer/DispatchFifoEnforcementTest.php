@@ -103,13 +103,15 @@ class DispatchFifoEnforcementTest extends TransferTestCase
     }
 
     /**
-     * The reason the engine is shared: identical stock, identical violation,
-     * identical verdict — whichever document is doing the picking.
+     * The shared engine is what both transfer dispatch and issuance picking call
+     * to judge a scan, so both documents get an identical verdict for identical
+     * stock. Asserting the concrete FIFO_VIOLATION verdict here (rather than
+     * comparing two identical calls) is what actually pins that shared rule down;
+     * the transfer endpoint's own routing through it is covered by the tests above.
      */
-    public function test_transfer_and_issuance_return_the_same_verdict_for_the_same_violation(): void
+    public function test_shared_engine_returns_a_fifo_violation_for_a_newer_zone(): void
     {
         $src = $this->makeLocation('Src');
-        $dst = $this->makeLocation('Dst');
         $p   = $this->makeConsumable();
         $p->update(['barcode' => 'BC-PARITY']);
         $this->setStock($src->location_id, $p->product_id, 20);
@@ -118,13 +120,12 @@ class DispatchFifoEnforcementTest extends TransferTestCase
         $this->makeBatch($p, $src, ['quantity_remaining' => 5, 'received_at' => now()->subDay(),  'zone_label' => 'Zone 2']);
 
         $lines = [['product_id' => (int) $p->product_id, 'quantity' => 2, 'picked' => 0]];
-        $fifo  = app(\App\Services\FifoPickingService::class);
 
-        $transferVerdict = $fifo->validateScan($src->location_id, $lines, 'BC-PARITY', 'Zone 2');
-        $issuanceVerdict = $fifo->validateScan($src->location_id, $lines, 'BC-PARITY', 'Zone 2');
+        $verdict = app(\App\Services\FifoPickingService::class)
+            ->validateScan($src->location_id, $lines, 'BC-PARITY', 'Zone 2');
 
-        $this->assertSame($transferVerdict->status, $issuanceVerdict->status);
-        $this->assertSame($transferVerdict->expectedZoneLabel, $issuanceVerdict->expectedZoneLabel);
-        $this->assertSame(\App\Support\ScanResult::FIFO_VIOLATION, $transferVerdict->status);
+        $this->assertSame(\App\Support\ScanResult::FIFO_VIOLATION, $verdict->status);
+        $this->assertSame('Zone 1', $verdict->expectedZoneLabel);
+        $this->assertTrue($verdict->overridable());
     }
 }
