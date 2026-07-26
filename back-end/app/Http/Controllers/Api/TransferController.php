@@ -728,11 +728,11 @@ class TransferController extends Controller
                 ->where('status_id', $approvedId)
                 ->findOrFail($id);
 
+            $barcode = trim($validated['barcode']);
+
             // FIFO gate, shared with issuance picking so the ordering rule cannot
             // drift between the two. Runs BEFORE any TransferService write; it only
             // judges the scan — recording/counting/serials remain the service's job.
-            $ist->loadMissing('details');
-
             $lines = $ist->details->map(fn ($detail) => [
                 'product_id' => (int) $detail->product_id,
                 'quantity'   => (int) $detail->quantity_requested,
@@ -744,7 +744,7 @@ class TransferController extends Controller
             $verdict = app(\App\Services\FifoPickingService::class)->validateScan(
                 $locationId,
                 $lines,
-                trim($validated['barcode']),
+                $barcode,
                 $validated['confirmed_zone'] ?? null,
                 null,
                 app(\App\Services\IncidentService::class)->excludedBatchIds($locationId)
@@ -760,7 +760,7 @@ class TransferController extends Controller
 
             $result = $service->recordDispatchScan(
                 $ist,
-                $validated['barcode'],
+                $barcode,
                 $validated['transfer_detail_id'] ?? null,
                 $request->user()->user_id,
                 (int) ($validated['quantity'] ?? 1),
