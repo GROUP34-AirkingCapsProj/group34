@@ -1313,8 +1313,26 @@ export const incidentReportsAPI = {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/incident-reports?${query}` : '/incident-reports');
   },
+  /**
+   * File a new incident report (POST /incident-reports). Payload keys the store
+   * endpoint validates: source_type ('issuance'|'transfer'), source_id, location_id,
+   * product_id, batch_id?, serial_id?, expected_zone?, actual_zone?, reason
+   * (not_found|damaged|wrong_type|zone_mismatch), quantity (>=1), narrative.
+   */
+  file: async (payload) =>
+    apiRequest('/incident-reports', { method: 'POST', body: JSON.stringify(payload) }),
   resolve: async (id, payload) =>
     apiRequest(`/incident-reports/${id}/resolve`, { method: 'POST', body: JSON.stringify(payload) }),
+};
+
+/* ======================
+   PICKING API (shared FIFO pick plan for issuance + transfer dispatch)
+====================== */
+export const pickingAPI = {
+  /** FIFO pick plan for an issuance order. GET /issuances/{id}/pick-plan */
+  issuancePlan: async (id) => apiRequest(`/issuances/${id}/pick-plan`),
+  /** FIFO pick list for a transfer (IST) dispatch. GET /transfers/{id}/pick-list */
+  transferPlan: async (id) => apiRequest(`/transfers/${id}/pick-list`),
 };
 
 /* ======================
