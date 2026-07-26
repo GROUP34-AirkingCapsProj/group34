@@ -25,8 +25,8 @@ const userFullName = (u) =>
 const issuanceStatusClass = (name) => {
   switch (name) {
     case 'Completed': return 'txn-status-completed';
-    case 'Pending':
-    case 'Draft':     return 'txn-status-pending';
+    case 'Pending':   return 'txn-status-pending';
+    case 'Draft':     return 'txn-status-draft';
     case 'Voided':
     case 'Cancelled': return 'txn-status-cancelled';
     default:          return '';
@@ -62,6 +62,7 @@ const TransactionManagement = () => {
     if (!value || value === '[object object]') return 'Pending';
     if (value.includes('complete') || value.includes('received') || value.includes('done')) return 'Completed';
     if (value.includes('cancel') || value.includes('reject') || value.includes('deny') || value.includes('void')) return 'Cancelled';
+    if (value.includes('draft')) return 'Draft';
     return 'Pending';
   };
 
@@ -366,6 +367,7 @@ const TransactionManagement = () => {
   const getStatusClass = (status) => {
     if (status === 'Completed') return 'txn-status-completed';
     if (status === 'Pending') return 'txn-status-pending';
+    if (status === 'Draft') return 'txn-status-draft';
     if (status === 'Cancelled') return 'txn-status-cancelled';
     return '';
   };
@@ -442,6 +444,7 @@ const TransactionManagement = () => {
               <option value="">All Status</option>
               <option value="Completed">Completed</option>
               <option value="Pending">Pending</option>
+              <option value="Draft">Draft</option>
               <option value="Cancelled">Cancelled</option>
             </select>
             <select className="ak-select" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
