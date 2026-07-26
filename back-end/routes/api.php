@@ -665,6 +665,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::put('/issuances/{id}/lines/{lineId}',    [\App\Http\Controllers\Api\IssuanceOrderController::class, 'updateLine']);
         Route::delete('/issuances/{id}/lines/{lineId}', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'removeLine']);
     });
+    Route::middleware('permission:inventory_issuance,create')
+         ->post('/issuances/{id}/cancel', [IssuanceController::class, 'cancel']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
     Route::middleware('permission:inventory_issuance,create')->post('/issuances', [IssuanceController::class, 'store']);
     Route::middleware('permission:inventory_issuance,update')->put('/issuances/{id}', [IssuanceController::class, 'update']);
