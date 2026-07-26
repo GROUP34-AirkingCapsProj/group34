@@ -12,7 +12,7 @@ class ProductSetLine extends Model
 
     protected $fillable = [
         'set_id', 'product_id', 'quantity',
-        'issuable_unit_id', 'spec_note', 'sort_order',
+        'spec_note', 'sort_order',
     ];
 
     protected $casts = [
@@ -36,29 +36,8 @@ class ProductSetLine extends Model
         return $this->belongsTo(Product::class, 'product_id', 'product_id')->withTrashed();
     }
 
-    public function issuableUnit(): BelongsTo
-    {
-        return $this->belongsTo(ProductIssuableUnit::class, 'issuable_unit_id', 'issuable_unit_id');
-    }
-
-    /**
-     * Quantity expressed in base pieces, applying the issuable unit's conversion_factor.
-     * A line with no issuable unit is already in pieces.
-     *
-     * The round() before ceil() is load-bearing, not decoration. quantity is a
-     * decimal(10,3), so ordinary values land on binary fractions that overshoot:
-     * 1.1 * 100 evaluates to 110.00000000000001, and a bare ceil() would issue
-     * 111 pieces instead of 110. Six decimals is far finer than any real
-     * conversion factor while sitting well clear of that float noise. A genuine
-     * fraction still rounds up as intended — 1.5 pieces is still 2.
-     */
     public function quantityInPieces(): int
     {
-        $factor = (float) ($this->issuableUnit?->conversion_factor ?? 1);
-        if ($factor <= 0) {
-            $factor = 1;
-        }
-
-        return (int) ceil(round((float) $this->quantity * $factor, 6));
+        return (int) round((float) $this->quantity);
     }
 }
