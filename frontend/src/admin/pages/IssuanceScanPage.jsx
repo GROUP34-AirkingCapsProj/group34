@@ -125,26 +125,47 @@ export default function IssuanceScanPage() {
   // Completed → receipt). A stale/invalid id falls back to the setup form.
   useEffect(() => {
     const id = searchParams.get('issuance');
-    if (!id) { setHydrating(false); return; }
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await issuanceOrderAPI.quote(id);
-        if (!cancelled) setQuote(res?.data ?? res);
-      } catch (err) {
-        if (cancelled) return;
-        // Only discard the resumable session on a genuine not-found/forbidden.
-        // A transient network error keeps the param so a reload can retry.
-        if (err?.status === 404 || err?.status === 403) {
-          toast.error('Could not resume the previous order. Starting a new one.');
-          setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
-        } else {
-          toast.error(err?.message || 'Could not reach the server to resume the order. Reload to retry.');
+    if (id) {
+      (async () => {
+        try {
+          const res = await issuanceOrderAPI.quote(id);
+          if (!cancelled) setQuote(res?.data ?? res);
+        } catch (err) {
+          if (cancelled) return;
+          // Only discard the resumable session on a genuine not-found/forbidden.
+          // A transient network error keeps the param so a reload can retry.
+          if (err?.status === 404 || err?.status === 403) {
+            toast.error('Could not resume the previous order. Starting a new one.');
+            setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
+          } else {
+            toast.error(err?.message || 'Could not reach the server to resume the order. Reload to retry.');
+          }
+        } finally {
+          if (!cancelled) setHydrating(false);
         }
-      } finally {
-        if (!cancelled) setHydrating(false);
-      }
-    })();
+      })();
+    } else {
+      // No ?issuance= param: resume the caller's own open draft (if any) so
+      // returning to the page drops them back into their one in-progress order
+      // rather than spawning a fresh record. Null → fall through to setup form.
+      (async () => {
+        try {
+          const res = await issuanceScanAPI.activeDraft();
+          const draftId = res?.issuance_id ?? null;
+          if (cancelled) return;
+          if (draftId != null) {
+            setSearchParams((p) => { p.set('issuance', String(draftId)); return p; }, { replace: true });
+            const q = await issuanceOrderAPI.quote(draftId);
+            if (!cancelled) setQuote(q?.data ?? q);
+          }
+        } catch {
+          // Any failure just falls through to the setup form.
+        } finally {
+          if (!cancelled) setHydrating(false);
+        }
+      })();
+    }
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
