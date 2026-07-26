@@ -1090,6 +1090,7 @@ export const issuanceScanAPI = {
     apiRequest(`/issuance-scan/item/${detailId}`, { method: 'DELETE' }),
   getSession: async (issuanceId) =>
     apiRequest(`/issuance-scan/session/${issuanceId}`),
+  activeDraft: async () => apiRequest('/issuance-scan/active-draft'),
   complete: async (issuanceId) =>
     apiRequest(`/issuance-scan/complete/${issuanceId}`, { method: 'POST' }),
   drCsvUrl: (issuanceId) => {
