@@ -348,6 +348,11 @@
   color: #6b7280;
 }
 
+.txn-status-draft {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
 .txn-status-tbr {
   background: #f1f5f9;
   color: #475569;
