@@ -13,6 +13,7 @@ import {
 } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { confirmAction } from '../../utils/confirm';
+import { packageBreakdown } from '../../utils/packageFormat';
 
 /**
  * OrderBuilder — Step 1 of the issuance wizard.
@@ -546,12 +547,11 @@ function LineRow({ line, disabled, onUpdate, onRemove }) {
         </>
       ) : (
         <>
-          {/* TODO(pack/box): show packageBreakdown(quantity_requested, pieces_per_package, package_unit)
-              here (e.g. "×5 · 3 Box + 2 pcs") like Transfers, once the quote endpoint
-              (IssuanceOrderController::quote lines[]) includes pieces_per_package + package_unit.
-              The quote line currently carries only product_id/name/type + quantity, so we show
-              the piece quantity as-is rather than fabricate a breakdown. */}
-          <span className="ak-mono" style={{ minWidth: 32, textAlign: 'right' }}>×{line.quantity_requested}</span>
+          <span className="ak-mono" style={{ minWidth: 32, textAlign: 'right' }}>
+            ×{line.quantity_requested}
+            {packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)
+              && <span className="ak-muted" style={{ marginLeft: 6, fontWeight: 400 }}>· {packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)}</span>}
+          </span>
           <span style={{ minWidth: 90, textAlign: 'right', fontWeight: 600 }}>{fmtMoney(line.line_total)}</span>
           <button type="button" className="ak-btn" onClick={() => setEditing(true)} disabled={disabled}>Edit</button>
           <button type="button" className="ak-btn" onClick={() => onRemove(line.issuance_detail_id, line.product_name)} disabled={disabled}>Remove</button>
