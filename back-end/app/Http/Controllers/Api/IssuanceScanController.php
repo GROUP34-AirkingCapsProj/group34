@@ -64,6 +64,17 @@ class IssuanceScanController extends Controller
             $discountType    = $validated['discount_type'] ?? 'business';
         }
 
+        // One open Draft per user: resume the caller's existing unfinished order
+        // instead of stacking a duplicate Draft on every Order-Setup submit.
+        $existingDraft = Issuance::where('issued_by', $userId)
+            ->where('status_id', \App\Support\IssuanceStatus::draft())
+            ->orderByDesc('issuance_id')
+            ->first();
+
+        if ($existingDraft) {
+            return $this->initSessionResponse($existingDraft, 'Resumed your unfinished order.', 200);
+        }
+
         $drNumber = 'DR-' . now()->format('Ymd') . '-'
                    . strtoupper(substr(uniqid(), -5));
 
@@ -83,16 +94,23 @@ class IssuanceScanController extends Controller
             'status_id'        => \App\Support\IssuanceStatus::draft(),
         ]);
 
-        $customer = Customer::find($validated['customer_id']);
+        return $this->initSessionResponse($issuance, 'Issuance session started.', 201);
+    }
+
+    // Builds the identical init-session response for both the reused Draft and a
+    // freshly created one, so the wizard sees the same shape either way.
+    private function initSessionResponse(Issuance $issuance, string $message, int $status): JsonResponse
+    {
+        $customer = Customer::find($issuance->customer_id);
 
         return response()->json([
             'success'          => true,
-            'message'          => 'Issuance session started.',
+            'message'          => $message,
             'issuance_id'      => $issuance->issuance_id,
-            'dr_number'        => $drNumber,
+            'dr_number'        => $issuance->dr_number,
             'issuance_type'    => $issuance->issuance_type,
-            'discount_type'    => $discountType,
-            'discount_percent' => $discountPercent,
+            'discount_type'    => $issuance->discount_type,
+            'discount_percent' => $issuance->discount_percent,
             'customer'         => [
                 'customer_id'    => $customer->customer_id,
                 'customer_name'  => $customer->customer_name,
@@ -102,7 +120,24 @@ class IssuanceScanController extends Controller
                 'email'          => $customer->email,
                 'address'        => $customer->address,
             ],
-        ], 201);
+        ], $status);
+    }
+
+    // =========================================================
+    // GET /api/issuance-scan/active-draft
+    // The caller's current open Draft id, or null.
+    // =========================================================
+    public function activeDraft(): JsonResponse
+    {
+        $draft = Issuance::where('issued_by', Auth::id())
+            ->where('status_id', \App\Support\IssuanceStatus::draft())
+            ->orderByDesc('issuance_id')
+            ->first();
+
+        return response()->json([
+            'success'     => true,
+            'issuance_id' => $draft?->issuance_id !== null ? (int) $draft->issuance_id : null,
+        ]);
     }
 
     // =========================================================
