@@ -13,7 +13,7 @@ class ProductSetController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = ProductSet::with(['lines.product', 'brands']);
+        $query = ProductSet::with(['lines.product.consumableDetail', 'brands']);
 
         if ($request->boolean('active_only', true)) {
             $query->where('is_active', true);
@@ -35,7 +35,7 @@ class ProductSetController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $set = ProductSet::with(['lines.product', 'brands'])->findOrFail($id);
+        $set = ProductSet::with(['lines.product.consumableDetail', 'brands'])->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $this->present($set)]);
     }
@@ -63,7 +63,7 @@ class ProductSetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Set created.',
-            'data'    => $this->present($set->fresh(['lines.product', 'brands'])),
+            'data'    => $this->present($set->fresh(['lines.product.consumableDetail', 'brands'])),
         ], 201);
     }
 
@@ -100,7 +100,7 @@ class ProductSetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Set updated.',
-            'data'    => $this->present($set->fresh(['lines.product', 'brands'])),
+            'data'    => $this->present($set->fresh(['lines.product.consumableDetail', 'brands'])),
         ]);
     }
 
@@ -114,7 +114,7 @@ class ProductSetController extends Controller
     /** Soft-deleted sets only — mirrors index() but scoped to onlyTrashed(). */
     public function archived(Request $request): JsonResponse
     {
-        $query = ProductSet::onlyTrashed()->with(['lines.product', 'brands']);
+        $query = ProductSet::onlyTrashed()->with(['lines.product.consumableDetail', 'brands']);
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -144,7 +144,7 @@ class ProductSetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Set restored.',
-            'data'    => $this->present($set->fresh(['lines.product', 'brands'])),
+            'data'    => $this->present($set->fresh(['lines.product.consumableDetail', 'brands'])),
         ]);
     }
 
