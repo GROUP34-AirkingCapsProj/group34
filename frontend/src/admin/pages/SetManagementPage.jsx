@@ -70,26 +70,25 @@ const SetManagementPage = () => {
   };
 
   const openDuplicate = (set) => {
+    // Pre-fill the builder from this set MINUS its id so it saves as a new set.
     setEditingSet({
       ...set,
       set_id: undefined,
-      set_code: '',
-      set_name: `${set.set_name} (copy)`,
     });
     setBuilderOpen(true);
   };
 
   const handleArchive = async (set) => {
     const confirmed = await confirmAction({
-      title: `Archive "${set.set_name}"?`,
-      text: 'This hides the set from issuance authoring and the active list. It is not permanent — it can be restored from the Archived tab — but its set code stays reserved and cannot be reused by another set while it is archived.',
+      title: `Archive "${set.label}"?`,
+      text: 'This hides the set from issuance authoring and the active list. It is not permanent — it can be restored from the Archived tab.',
       confirmText: 'Archive',
       tone: 'danger',
     });
     if (!confirmed) return;
     try {
       await productSetsAPI.archive(set.set_id);
-      toast.success(`Set "${set.set_name}" archived.`);
+      toast.success(`Set "${set.label}" archived.`);
       load();
     } catch (err) {
       toast.error(err.message || 'Failed to archive set.');
@@ -99,11 +98,10 @@ const SetManagementPage = () => {
   const handleRestore = async (set) => {
     try {
       await productSetsAPI.restore(set.set_id);
-      toast.success(`Set "${set.set_name}" restored.`);
+      toast.success(`Set "${set.label}" restored.`);
       load();
     } catch (err) {
-      // 422 = a live set has since taken this set_code; surface the real reason.
-      toast.error(err.errors?.set_code?.[0] || err.message || 'Failed to restore set.');
+      toast.error(err.message || 'Failed to restore set.');
     }
   };
 
@@ -160,7 +158,7 @@ const SetManagementPage = () => {
           <div className="ak-search">
             <input
               className="ak-input"
-              placeholder="Search set code or name…"
+              placeholder="Search by capacity or variant…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -178,11 +176,9 @@ const SetManagementPage = () => {
             <table className="ak-table">
               <thead>
                 <tr>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th>Brand</th>
+                  <th>Brands</th>
                   <th>Capacity</th>
-                  <th>Variant</th>
+                  <th>Type</th>
                   <th>Lines</th>
                   <th>Set price</th>
                   {view === 'active' && <th>Status</th>}
@@ -192,12 +188,22 @@ const SetManagementPage = () => {
               <tbody>
                 {sets.map((s) => (
                   <tr key={s.set_id}>
-                    <td className="ak-mono">{s.set_code}</td>
-                    <td>{s.set_name}</td>
-                    <td>{s.brand_name ? <span className="ak-badge ak-badge--blue">{s.brand_name}</span> : <span className="ak-muted">Any</span>}</td>
+                    <td>
+                      {Array.isArray(s.brands) && s.brands.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                          {s.brands.map((b) => (
+                            <span key={b.brand_id} className="ak-badge ak-badge--blue">{b.brand_name}</span>
+                          ))}
+                        </div>
+                      ) : s.brand_names ? (
+                        <span className="ak-badge ak-badge--blue">{s.brand_names}</span>
+                      ) : (
+                        <span className="ak-muted">Any</span>
+                      )}
+                    </td>
                     <td>{s.capacity_rating ? <span className="ak-badge ak-badge--gray">{s.capacity_rating}</span> : <span className="ak-muted">Any</span>}</td>
                     <td>{s.variant ? <span className="ak-badge ak-badge--violet">{s.variant}</span> : <span className="ak-muted">Any</span>}</td>
-                    <td>{(s.lines || []).length}</td>
+                    <td>{s.lines?.length ?? 0}</td>
                     <td className="ak-mono">{formatMoney(s.set_price)}</td>
                     {view === 'active' && (
                       <td>
