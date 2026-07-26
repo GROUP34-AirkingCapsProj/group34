@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { useAuth, useUserLocation } from '../context/AuthContext';
@@ -59,8 +59,14 @@ export default function IssuanceScanPage() {
 
   const [plan, setPlan] = useState([]);
   const [planLoading, setPlanLoading] = useState(false);
+  const [planLoaded, setPlanLoaded] = useState(false); // true only after loadPlan resolves ≥ once
   const [scanBusy, setScanBusy] = useState(false);
   const [incidentCtx, setIncidentCtx] = useState(null);
+
+  // Set when confirmQuote succeeds. Lets the wizard advance to Pick even if the
+  // status-id→name map failed to load — a failed map load must never strand a
+  // confirmed order off the Pick step.
+  const [confirmedPick, setConfirmedPick] = useState(false);
 
   const [receipt, setReceipt] = useState(null);
   const [completing, setCompleting] = useState(false);
@@ -70,8 +76,11 @@ export default function IssuanceScanPage() {
   // Status name derived from the quote's status_id — NEVER local step state, so a
   // refresh mid-pick lands the user back on the right step.
   const statusName = quote?.status_id != null ? (statusMap[quote.status_id] ?? null) : null;
-  const isPending = statusName === 'Pending';
   const isCompleted = statusName === 'Completed';
+  // Voided/cancelled (or any non-active status) is terminal — not editable.
+  const isTerminal = statusName != null && !['Draft', 'Pending', 'Completed'].includes(statusName);
+  // Pending drives Pick; confirmedPick is the fallback when the name map is missing.
+  const isPending = statusName === 'Pending' || (confirmedPick && !isCompleted && !isTerminal);
 
   // Effective step: Pending forces Pick; Draft uses the local sub-step toggle.
   const currentStep = isPending ? STEP_PICK : draftStep;
@@ -93,7 +102,11 @@ export default function IssuanceScanPage() {
         if (s?.status_id != null) map[s.status_id] = s.status_name;
       });
       setStatusMap(map);
-    }).catch(() => {});
+    }).catch(() => {
+      // A missing map would otherwise silently lock the wizard; surface it and
+      // rely on the confirmedPick fallback to keep confirmed orders on Pick.
+      toast.error('Could not load issuance statuses. Step tracking may be limited.');
+    });
   }, []);
 
   const loadQuote = useCallback(async (id) => {
@@ -120,8 +133,14 @@ export default function IssuanceScanPage() {
         if (!cancelled) setQuote(res?.data ?? res);
       } catch (err) {
         if (cancelled) return;
-        toast.error('Could not resume the previous order. Starting a new one.');
-        setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
+        // Only discard the resumable session on a genuine not-found/forbidden.
+        // A transient network error keeps the param so a reload can retry.
+        if (err?.status === 404 || err?.status === 403) {
+          toast.error('Could not resume the previous order. Starting a new one.');
+          setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
+        } else {
+          toast.error(err?.message || 'Could not reach the server to resume the order. Reload to retry.');
+        }
       } finally {
         if (!cancelled) setHydrating(false);
       }
@@ -136,6 +155,7 @@ export default function IssuanceScanPage() {
     try {
       const res = await pickingAPI.issuancePlan(id);
       setPlan(Array.isArray(res?.data) ? res.data : []);
+      setPlanLoaded(true);   // only now is an empty plan trustworthy as "all picked"
     } catch (err) {
       toast.error(err.message || 'Failed to load the pick plan.');
     } finally {
@@ -218,6 +238,7 @@ export default function IssuanceScanPage() {
     try {
       const res = await issuanceScanAPI.complete(issuanceId);
       setReceipt(res?.issuance ?? res?.data ?? res);
+      setConfirmedPick(false);   // completed — no longer a pending pick
       await loadQuote(issuanceId);
     } catch (err) {
       toast.error(err.message || 'Failed to complete the issuance.');
@@ -226,17 +247,24 @@ export default function IssuanceScanPage() {
     }
   }, [issuanceId, loadQuote]);
 
+  const handleConfirmed = useCallback((data) => {
+    setQuote(data);
+    setConfirmedPick(true);   // advance to Pick regardless of the status-name map
+  }, []);
+
   const resetAll = useCallback(() => {
     setSession(null);
     setQuote(null);
     setDraftStep(STEP_ORDER);
     setPlan([]);
+    setPlanLoaded(false);
+    setConfirmedPick(false);
     setIncidentCtx(null);
     setReceipt(null);
     setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
   }, [setSearchParams]);
 
-  const scanBusyWrapped = useMemo(() => scanBusy || planLoading, [scanBusy, planLoading]);
+  const scanBusyWrapped = scanBusy || planLoading;
 
   // Wrap onScan to drive the busy flag while a scan is in flight.
   const onScan = useCallback(async (barcode, confirmedZone) => {
@@ -249,8 +277,8 @@ export default function IssuanceScanPage() {
   }, [handleScan]);
 
   // Stepper reachability: a door the UI must not offer when the server would slam it.
-  const canGoOrder = !isPending && !isCompleted;
-  const canGoQuote = !isPending && !isCompleted && (quote?.lines?.length ?? 0) > 0;
+  const canGoOrder = !isPending && !isCompleted && !isTerminal;
+  const canGoQuote = !isPending && !isCompleted && !isTerminal && (quote?.lines?.length ?? 0) > 0;
 
   const goStep = (s) => {
     if (s === STEP_ORDER && canGoOrder) setDraftStep(STEP_ORDER);
@@ -261,7 +289,8 @@ export default function IssuanceScanPage() {
   const stepLabels = ['Order', 'Quote', 'Pick'];
   const stepReachable = [canGoOrder, canGoQuote, false];
 
-  const allPicked = plan.filter((s) => Number(s?.needed) > 0).length === 0;
+  // Only trust an empty plan as "all picked" once loadPlan has actually resolved.
+  const allPicked = planLoaded && plan.every((s) => Number(s?.needed) <= 0);
 
   return (
     <AdminLayout>
@@ -334,6 +363,21 @@ export default function IssuanceScanPage() {
               <button type="button" className="isp-btn-ghost" onClick={resetAll}>New Order</button>
             </div>
           </div>
+        ) : isTerminal ? (
+          /* Voided/cancelled → terminal, read-only. Never an editable order form. */
+          <div className="isp-card">
+            <h2 className="isp-card-title">Order {statusName}</h2>
+            <p className="ak-muted" style={{ marginTop: 4 }}>
+              This order is {String(statusName).toLowerCase()} and can no longer be edited.
+            </p>
+            <div className="isp-confirm-summary" style={{ marginTop: 12 }}>
+              <div className="isp-confirm-row"><span>DR Number</span><strong>{quote?.dr_number ?? '—'}</strong></div>
+              <div className="isp-confirm-row isp-confirm-total"><span>Total Amount</span><strong>{fmt(quote?.total_amount)}</strong></div>
+            </div>
+            <div className="isp-dr-actions no-print" style={{ marginTop: 16 }}>
+              <button type="button" className="isp-btn-ghost" onClick={resetAll}>New Order</button>
+            </div>
+          </div>
         ) : (
           <>
             {/* STEP 1 — Order */}
@@ -362,7 +406,7 @@ export default function IssuanceScanPage() {
                 quote={quote}
                 canIssue={canIssue}
                 onQuoteUpdate={setQuote}
-                onConfirmed={setQuote}
+                onConfirmed={handleConfirmed}
                 onBack={() => setDraftStep(STEP_ORDER)}
               />
             )}

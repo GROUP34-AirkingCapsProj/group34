@@ -721,14 +721,27 @@ export default function OrderBuilder({
   };
 
   const handleAddAppliance = async ({ appliance, set }) => {
+    setBusy(true);
     try {
-      await run(async () => {
-        await issuanceOrderAPI.addCustom(issuanceId, { product_id: appliance.product_id, quantity: 1 });
-        if (set) return issuanceOrderAPI.addSet(issuanceId, { set_id: set.set_id, set_quantity: 1 });
-        return issuanceOrderAPI.quote(issuanceId);
-      });
+      // Push the quote after EACH step so a failure on the second call still shows
+      // the first mutation's result (the appliance) instead of leaving it stale.
+      const first = await issuanceOrderAPI.addCustom(issuanceId, { product_id: appliance.product_id, quantity: 1 });
+      onQuoteUpdate(first?.data ?? first);
+      if (set) {
+        const second = await issuanceOrderAPI.addSet(issuanceId, { set_id: set.set_id, set_quantity: 1 });
+        onQuoteUpdate(second?.data ?? second);
+      }
       toast.success(set ? 'Appliance and kit added.' : 'Appliance added.');
-    } catch { /* toast shown in run */ }
+    } catch (err) {
+      toast.error(err.message || 'Action failed.');
+      // Partial failure — refetch so the UI reflects actual server state.
+      try {
+        const q = await issuanceOrderAPI.quote(issuanceId);
+        onQuoteUpdate(q?.data ?? q);
+      } catch { /* leave prior state */ }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleAddSet = async (setId, setQty) => {
