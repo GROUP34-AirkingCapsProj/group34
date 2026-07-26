@@ -13,8 +13,10 @@ export const NAV_BUNDLES = [
   { name: 'Supplier Network',      routePath: '/admin/suppliers',        required: ['supplier_management.read'] },
   { name: 'Item Master',           routePath: '/admin/items',            required: ['item_master_management.read'] },
   { name: 'Categories and Brands', routePath: '/admin/categories',       required: ['category_management.read'] },
+  { name: 'Set Management',        routePath: '/admin/sets',             required: ['product_set_management.read'] },
   { name: 'Inventory Monitoring',  routePath: '/admin/inventory',        required: ['inventory_monitoring.read'] },
   { name: 'Transfers',             routePath: '/admin/transfers',        required: ['inventory_transfers.read'] },
+  { name: 'Incident Reports',      routePath: '/admin/incidents',        required: ['incident_reports.read'] },
   { name: 'Transactions',          routePath: '/admin/transactions',     required: ['sales_recording.read'] },
   { name: 'Customer Registry',     routePath: '/admin/customers',        required: ['customer_management.read'] },
   { name: 'Scan Barcode',          routePath: '/admin/inventory-operation', required: ['barcode_inventory_processing.create'] },
@@ -34,8 +36,6 @@ export const NAV_BUNDLES = [
  */
 export const PERMISSION_GATED_ROUTES = {
   '/admin/warranty-claims': 'warranty_claims.create',
-  '/admin/sets': 'product_set_management.read',
-  '/admin/incidents': 'incident_reports.read',
 };
 
 const granted = (perms, key) => perms != null && perms[key] === true;
