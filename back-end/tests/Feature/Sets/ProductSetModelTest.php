@@ -11,10 +11,7 @@ class ProductSetModelTest extends SetTestCase
         $a = $this->makeConsumable(price: 100);
         $b = $this->makeConsumable(price: 25);
 
-        $set = ProductSet::create([
-            'set_code' => 'SET-' . uniqid(),
-            'set_name' => 'Std Installation Materials',
-        ]);
+        $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 2, 'sort_order' => 1]);
         $set->lines()->create(['product_id' => $b->product_id, 'quantity' => 4, 'sort_order' => 2]);
 
@@ -25,7 +22,7 @@ class ProductSetModelTest extends SetTestCase
     public function test_hard_deleting_a_set_removes_its_lines(): void
     {
         $p = $this->makeConsumable();
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Temp']);
+        $set = ProductSet::create(['capacity_rating' => '1HP', 'variant' => 'inverter']);
         $set->lines()->create(['product_id' => $p->product_id, 'quantity' => 1]);
 
         $setId = $set->set_id;
@@ -37,7 +34,7 @@ class ProductSetModelTest extends SetTestCase
     public function test_soft_deleting_a_set_keeps_its_lines_so_restore_works(): void
     {
         $p = $this->makeConsumable();
-        $set = ProductSet::create(['set_code' => 'SET-' . uniqid(), 'set_name' => 'Archived']);
+        $set = ProductSet::create(['capacity_rating' => '2.5HP', 'variant' => 'inverter']);
         $set->lines()->create(['product_id' => $p->product_id, 'quantity' => 3]);
 
         $setId = $set->set_id;
@@ -47,5 +44,21 @@ class ProductSetModelTest extends SetTestCase
 
         $set->restore();
         $this->assertSame(1, $set->fresh('lines')->lines->count());
+    }
+
+    public function test_label_is_derived_from_brands_capacity_and_variant(): void
+    {
+        $set = \App\Models\ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
+        // Use two real brand_lookup rows.
+        $brandIds = \Illuminate\Support\Facades\DB::table('brand_lookup')->orderBy('brand_id')->limit(2)->pluck('brand_id')->all();
+        $this->assertNotEmpty($brandIds, 'need brand_lookup rows');
+        $set->brands()->sync($brandIds);
+
+        $label = $set->fresh('brands')->label();
+        $this->assertStringContainsString('2HP', $label);
+        $this->assertStringContainsString('non-inverter', $label);
+        // Contains at least the first brand's name.
+        $firstBrandName = \Illuminate\Support\Facades\DB::table('brand_lookup')->where('brand_id', $brandIds[0])->value('brand_name');
+        $this->assertStringContainsString($firstBrandName, $label);
     }
 }

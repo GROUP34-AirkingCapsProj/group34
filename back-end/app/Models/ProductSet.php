@@ -4,7 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -16,8 +16,7 @@ class ProductSet extends Model
     protected $primaryKey = 'set_id';
 
     protected $fillable = [
-        'set_code', 'set_name', 'description',
-        'brand_id', 'capacity_rating', 'variant',
+        'capacity_rating', 'variant',
         'is_active', 'created_by', 'updated_by',
     ];
 
@@ -30,9 +29,19 @@ class ProductSet extends Model
         return $this->hasMany(ProductSetLine::class, 'set_id', 'set_id')->orderBy('sort_order');
     }
 
-    public function brand(): BelongsTo
+    public function brands(): BelongsToMany
     {
-        return $this->belongsTo(BrandLookup::class, 'brand_id', 'brand_id');
+        return $this->belongsToMany(BrandLookup::class, 'product_set_brands', 'set_id', 'brand_id');
+    }
+
+    /** Derived display label, e.g. "TCL, Carrier · 2HP · Non-inverter". */
+    public function label(): string
+    {
+        $this->loadMissing('brands');
+        $brands = $this->brands->pluck('brand_name')->filter()->implode(', ');
+
+        return collect([$brands ?: 'Any brand', $this->capacity_rating, $this->variant])
+            ->filter()->implode(' · ');
     }
 
     /**
