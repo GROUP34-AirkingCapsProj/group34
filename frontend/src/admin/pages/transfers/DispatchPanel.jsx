@@ -23,6 +23,8 @@ const DispatchPanel = ({ transfer, onDone }) => {
   const [plan, setPlan] = useState([]);
   const [sessionScans, setSessionScans] = useState({}); // { [did]: [{ scan_id, barcode, quantity }] }
   const [scannedTotals, setScannedTotals] = useState({}); // { [did]: total_scanned }
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planLoaded, setPlanLoaded] = useState(false); // true only after loadPlan resolves ≥ once
   const [scanBusy, setScanBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [incidentCtx, setIncidentCtx] = useState(null);
@@ -31,11 +33,16 @@ const DispatchPanel = ({ transfer, onDone }) => {
   useEffect(() => { scannedTotalsRef.current = scannedTotals; }, [scannedTotals]);
 
   const loadPlan = useCallback(async () => {
+    setPlanLoading(true);
     try {
       const r = await transfersAPI.pickList(id);
       setPlan(Array.isArray(r?.data) ? r.data : []);
-    } catch {
-      setPlan([]);
+      setPlanLoaded(true);   // only now is an empty plan trustworthy as "all picked"
+    } catch (err) {
+      // Never silently blank the plan — that would flash a false "all picked".
+      toast.error('Could not load the pick plan.', err?.message || 'Please try again.');
+    } finally {
+      setPlanLoading(false);
     }
   }, [id]);
 
@@ -45,6 +52,7 @@ const DispatchPanel = ({ transfer, onDone }) => {
     details.forEach((d) => { init[d.transfer_detail_id] = d.quantity_scanned ?? 0; });
     setScannedTotals(init);
 
+    setPlanLoaded(false);   // don't trust the prior transfer's plan across a switch
     loadPlan();
 
     transfersAPI.scanStatus(id)
@@ -222,12 +230,16 @@ const DispatchPanel = ({ transfer, onDone }) => {
             <div className="bsr-card-head">
               <span className="bsr-card-title">SCAN BARCODE (FIFO ENFORCED)</span>
             </div>
-            <PickScanner
-              plan={plan}
-              onScan={onScan}
-              onIncident={handleIncident}
-              busy={scanBusy}
-            />
+            {!planLoaded && planLoading ? (
+              <div className="ak-card" style={{ textAlign: 'center', padding: '2rem' }}>Loading pick plan…</div>
+            ) : (
+              <PickScanner
+                plan={plan}
+                onScan={onScan}
+                onIncident={handleIncident}
+                busy={scanBusy || planLoading}
+              />
+            )}
           </div>
 
           <div className="bsr-card">
