@@ -2,35 +2,38 @@
 
 namespace Tests\Feature\Sets;
 
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class SetSchemaTest extends SetTestCase
 {
-    /** Insert a set row directly; the Eloquent models do not exist until Task 2. */
-    private function insertSet(string $code, string $name = 'BOQ'): int
-    {
-        return (int) DB::table('product_sets')->insertGetId([
-            'set_code'   => $code,
-            'set_name'   => $name,
-            'is_active'  => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ], 'set_id');
-    }
-
-    public function test_product_set_tables_exist_with_matching_columns(): void
+    public function test_product_set_tables_have_the_multibrand_shape(): void
     {
         $this->assertTrue(Schema::hasTable('product_sets'));
         $this->assertTrue(Schema::hasTable('product_set_lines'));
+        $this->assertTrue(Schema::hasTable('product_set_brands'));
 
-        foreach (['set_code', 'set_name', 'brand_id', 'capacity_rating', 'variant', 'is_active', 'deleted_at'] as $col) {
+        // A set now carries only a capacity + type; identity comes from its brands.
+        foreach (['capacity_rating', 'variant', 'is_active', 'deleted_at'] as $col) {
             $this->assertTrue(Schema::hasColumn('product_sets', $col), "product_sets missing {$col}");
         }
-        foreach (['set_id', 'product_id', 'quantity', 'issuable_unit_id', 'spec_note', 'sort_order'] as $col) {
+        foreach (['set_code', 'set_name', 'brand_id'] as $col) {
+            $this->assertFalse(Schema::hasColumn('product_sets', $col), "product_sets must not have {$col}");
+        }
+
+        // Brands are a many-to-many pivot now.
+        foreach (['set_id', 'brand_id'] as $col) {
+            $this->assertTrue(Schema::hasColumn('product_set_brands', $col), "product_set_brands missing {$col}");
+        }
+
+        // Lines keep their columns except issuable_unit_id, which is dropped.
+        foreach (['set_id', 'product_id', 'quantity', 'spec_note', 'sort_order'] as $col) {
             $this->assertTrue(Schema::hasColumn('product_set_lines', $col), "product_set_lines missing {$col}");
         }
+        $this->assertFalse(
+            Schema::hasColumn('product_set_lines', 'issuable_unit_id'),
+            'product_set_lines must not have issuable_unit_id'
+        );
     }
 
     /**
@@ -53,18 +56,14 @@ class SetSchemaTest extends SetTestCase
         );
     }
 
-    public function test_set_code_is_unique(): void
-    {
-        $code = 'DUPE-' . uniqid();
-        $this->insertSet($code);
-
-        $this->expectException(QueryException::class);
-        $this->insertSet($code, 'Second set, same code');
-    }
-
     public function test_deleting_a_set_cascades_to_its_lines(): void
     {
-        $setId   = $this->insertSet('CASCADE-' . uniqid());
+        $setId = (int) DB::table('product_sets')->insertGetId([
+            'is_active'  => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'set_id');
+
         $product = $this->makeConsumable();
 
         DB::table('product_set_lines')->insert([
