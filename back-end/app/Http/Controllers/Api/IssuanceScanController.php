@@ -660,6 +660,56 @@ class IssuanceScanController extends Controller
     }
 
     // =========================================================
+    // POST /api/issuance-scan/{issuance_id}/revert-to-draft
+    // Un-pick an abandoned picking-phase order back to a clean Draft:
+    // reverse every scanned row, release the reservations, zero the
+    // shortages, set Draft. Pending-only; idempotent on a Draft.
+    // =========================================================
+    public function revertToDraft(int $issuanceId): JsonResponse
+    {
+        return DB::transaction(function () use ($issuanceId) {
+            $issuance = Issuance::lockForUpdate()->find($issuanceId);
+
+            if (! $issuance) {
+                return $this->notFound('Issuance not found.');
+            }
+
+            if ((int) $issuance->status_id === \App\Support\IssuanceStatus::draft()) {
+                return response()->json(['success' => true, 'message' => 'Already a draft.']);
+            }
+
+            if ((int) $issuance->status_id !== self::STATUS_ISSUANCE_PENDING) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only a picking-phase (pending) issue-out can be reverted to draft.',
+                ], 422);
+            }
+
+            $issued = IssuanceDetail::where('issuance_id', $issuance->issuance_id)
+                ->where('quantity_issued', '>', 0)
+                ->get();
+            foreach ($issued as $detail) {
+                $this->reverseIssuedDetail($detail, $issuance);
+            }
+
+            app(\App\Services\ReservationService::class)
+                ->releaseFor('issuance', (int) $issuance->issuance_id);
+
+            IssuanceDetail::where('issuance_id', $issuance->issuance_id)
+                ->update(['quantity_short' => 0]);
+
+            $this->recalculateTotals($issuance->issuance_id);
+            $issuance->update(['status_id' => \App\Support\IssuanceStatus::draft()]);
+
+            return response()->json([
+                'success'     => true,
+                'message'     => 'Order reverted to draft.',
+                'issuance_id' => (int) $issuance->issuance_id,
+            ]);
+        });
+    }
+
+    // =========================================================
     // METHOD 6: downloadDeliveryReceipt() — CSV export
     // GET /api/issuance-scan/delivery-receipt/{issuance_id}/csv
     // =========================================================

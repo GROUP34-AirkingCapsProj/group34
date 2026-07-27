@@ -447,6 +447,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
                  [IssuanceScanController::class, 'removeItem']);
              Route::post('/complete/{issuance_id}',
                  [IssuanceScanController::class, 'completeIssuance']);
+             Route::post('/{issuance_id}/revert-to-draft',
+                 [IssuanceScanController::class, 'revertToDraft']);
              Route::get('/session/{issuance_id}',
                  [IssuanceScanController::class, 'getSessionStatus']);
          });
