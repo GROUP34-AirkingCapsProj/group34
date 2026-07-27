@@ -1093,6 +1093,13 @@ export const issuanceScanAPI = {
   activeDraft: async () => apiRequest('/issuance-scan/active-draft'),
   complete: async (issuanceId) =>
     apiRequest(`/issuance-scan/complete/${issuanceId}`, { method: 'POST' }),
+  revertToDraft: async (issuanceId) =>
+    apiRequest(`/issuance-scan/${issuanceId}/revert-to-draft`, { method: 'POST' }),
+  revertToDraftUrl: (issuanceId) => {
+    const base = getApiBaseUrl();
+    const token = getToken();
+    return `${base}/issuance-scan/${issuanceId}/revert-to-draft${token ? '?token=' + token : ''}`;
+  },
   drCsvUrl: (issuanceId) => {
     const base = getApiBaseUrl();
     const token = getToken();
