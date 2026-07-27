@@ -170,16 +170,56 @@ class TransferService
                         ->where('serial_type', 'transferred')
                         ->get()
                         ->groupBy('receiving_id')
-                        ->each(function ($group, $receivingId) use ($locked, $detail) {
+                        ->each(function ($group, $receivingId) use ($locked, $detail, $userId) {
+                            $batch = $receivingId
+                                ? InventoryBatch::where('receiving_id', (int) $receivingId)
+                                    ->where('product_id', $detail->product_id)
+                                    ->where('location_id', $locked->from_location_id)
+                                    ->first()
+                                : $this->batches->legacyBatch($detail->product_id, $locked->from_location_id);
+
                             $this->batches->deductFromReceiving(
                                 $receivingId ? (int) $receivingId : null,
                                 $detail->product_id,
                                 $locked->from_location_id,
                                 $group->count()
                             );
+
+                            foreach ($group as $serial) {
+                                \App\Models\InventoryBatchMovement::create([
+                                    'batch_id' => $batch->batch_id,
+                                    'movement_type' => 'transfer',
+                                    'transfer_id' => $locked->transfer_id,
+                                    'product_id' => $detail->product_id,
+                                    'from_location_id' => $locked->from_location_id,
+                                    'to_location_id' => $locked->to_location_id,
+                                    'quantity' => 1,
+                                    'serial_number' => $serial->serial_number,
+                                    'performed_by' => $userId,
+                                    'moved_at' => now(),
+                                ]);
+                            }
                         });
                 } else {
-                    $this->batches->deductFifo($detail->product_id, $locked->from_location_id, $shipped);
+                    $touched = $this->batches->deductFifo(
+                        $detail->product_id,
+                        $locked->from_location_id,
+                        $shipped
+                    );
+                    foreach ($touched as $batchId => $deductedQuantity) {
+                        if ($deductedQuantity <= 0) continue;
+                        \App\Models\InventoryBatchMovement::create([
+                            'batch_id' => $batchId,
+                            'movement_type' => 'transfer',
+                            'transfer_id' => $locked->transfer_id,
+                            'product_id' => $detail->product_id,
+                            'from_location_id' => $locked->from_location_id,
+                            'to_location_id' => $locked->to_location_id,
+                            'quantity' => $deductedQuantity,
+                            'performed_by' => $userId,
+                            'moved_at' => now(),
+                        ]);
+                    }
                 }
 
                 $detail->quantity_transferred = $shipped;

@@ -29,7 +29,7 @@ function classifyStock(filtered) {
   const totalUnits = filtered.reduce((sum, inv) => sum + (parseInt(inv.quantity) || 0), 0);
   const totalValue = filtered.reduce((sum, inv) => {
     const qty = parseInt(inv.quantity) || 0;
-    const price = parseFloat(inv.unit_price || inv.product?.unit_price || 0);
+    const price = inventoryPiecePrice(inv);
     return sum + (qty * price);
   }, 0);
   const lowStock = filtered.filter(inv => {
@@ -50,6 +50,15 @@ function classifyStock(filtered) {
     return qty > reorder && qty <= max;
   });
   return { totalUnits, totalValue, lowStock, critical, overstock, optimal, total: filtered.length || 1 };
+}
+
+function inventoryPiecePrice(inv) {
+  const packagePrice = parseFloat(inv.unit_price ?? inv.product?.unit_price ?? 0) || 0;
+  const piecesPerPackage = Math.max(
+    1,
+    parseInt(inv.pieces_per_package ?? inv.product?.pieces_per_package ?? 1, 10) || 1
+  );
+  return packagePrice / piecesPerPackage;
 }
 
 function buildItemTxCounts(filteredTx) {
@@ -343,7 +352,7 @@ const AnalyticsDashboard = () => {
           const reorderLevel = parseInt(inv.reorder_level || inv.product?.reorder_level || 10);
           const safetyStock = Math.max(Math.round(reorderLevel * 0.5), 1);
           const maxStock = parseInt(inv.max_quantity || inv.optimal_quantity || 50);
-          const price = parseFloat(inv.unit_price || inv.product?.unit_price || 0);
+          const price = inventoryPiecePrice(inv);
           const txInfo = itemTxCounts[productId] || { count: 0, totalQty: 0 };
           const dailyConsumption = txInfo.totalQty > 0 ? txInfo.totalQty / 30 : 0;
           const consumptionPct = maxStock > 0 ? Math.round(((maxStock - currentStock) / maxStock) * 100) : 0;
@@ -478,7 +487,7 @@ const AnalyticsDashboard = () => {
           const bp = branchPerfMap[bId];
           bp.items += 1;
           const qty = parseInt(inv.quantity) || 0;
-          const price = parseFloat(inv.unit_price || inv.product?.unit_price || 0);
+          const price = inventoryPiecePrice(inv);
           bp.totalValue += qty * price;
           const reorderLevel = parseInt(inv.reorder_level || 10);
           const maxStock = parseInt(inv.max_quantity || inv.optimal_quantity || 50);

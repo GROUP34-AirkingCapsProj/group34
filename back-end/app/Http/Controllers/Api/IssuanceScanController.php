@@ -315,6 +315,7 @@ class IssuanceScanController extends Controller
                     ]);
                 }
 
+                $stockBefore = (int) $inv->quantity_on_hand;
                 $inv->quantity_on_hand   = max(0, $inv->quantity_on_hand - 1);
                 $inv->available_quantity = max(0, $inv->available_quantity - 1);
                 $inv->save();
@@ -324,6 +325,10 @@ class IssuanceScanController extends Controller
                 );
 
                 $serialReceivingId = $serialRecord->receiving_id;
+                $serialBatch = \App\Models\InventoryBatch::where('product_id', $product->product_id)
+                    ->where('location_id', $locationId)
+                    ->where('receiving_id', $serialReceivingId)
+                    ->first();
                 $serialRecord->delete();
 
                 $detail = IssuanceDetail::create([
@@ -331,6 +336,11 @@ class IssuanceScanController extends Controller
                     'product_id'           => $product->product_id,
                     'serial_number'        => $raw,
                     'receiving_id'         => $serialReceivingId,
+                    'batch_id'             => $serialBatch?->batch_id,
+                    'zone_label'           => $serialBatch?->zone_label,
+                    'stock_before'         => $stockBefore,
+                    'quantity_deducted'    => 1,
+                    'stock_after'          => (int) $inv->quantity_on_hand,
                     'unit_price'           => $unitPrice,
                     'quantity_issued'      => 1,
                     'quantity_unit'        => 'unit',
@@ -339,6 +349,20 @@ class IssuanceScanController extends Controller
                     'subtotal'             => $unitPrice,
                     'condition_issued'     => 'Good',
                 ]);
+
+                if ($serialBatch) {
+                    \App\Models\InventoryBatchMovement::create([
+                        'batch_id' => $serialBatch->batch_id,
+                        'movement_type' => 'stock_out',
+                        'issuance_id' => $issuance->issuance_id,
+                        'product_id' => $product->product_id,
+                        'from_location_id' => $locationId,
+                        'quantity' => 1,
+                        'serial_number' => $raw,
+                        'performed_by' => auth()->id(),
+                        'moved_at' => now(),
+                    ]);
+                }
 
                 $this->logScanEvent(
                     $issuance->issuance_id,
@@ -410,6 +434,23 @@ class IssuanceScanController extends Controller
             $lineSubtotal, $locationId, $piecesPerPackage,
             $baseUnitName, $baseUnitAbbr
         ) {
+            // Serialize scans for this order and re-check the unpicked quantity
+            // inside the transaction. Two fast scanner/manual submissions must
+            // never both pass the earlier FIFO snapshot and over-deduct stock.
+            Issuance::whereKey($issuance->issuance_id)->lockForUpdate()->first();
+            $remainingToPick = (int) IssuanceDetail::where('issuance_id', $issuance->issuance_id)
+                ->where('product_id', $product->product_id)
+                ->selectRaw('COALESCE(SUM(quantity_requested), 0) - COALESCE(SUM(quantity_issued), 0) AS remaining')
+                ->value('remaining');
+
+            if ($quantityInPieces > $remainingToPick) {
+                return response()->json([
+                    'success' => false,
+                    'action'  => 'rejected',
+                    'reason'  => "Only {$remainingToPick} piece(s) remain to be picked for this item.",
+                ], 422);
+            }
+
             $inv = Inventory::where('product_id', $product->product_id)
                 ->where('location_id', $locationId)
                 ->lockForUpdate()->first();
@@ -423,6 +464,7 @@ class IssuanceScanController extends Controller
                 ]);
             }
 
+            $stockBefore = (int) $inv->quantity_on_hand;
             $inv->quantity_on_hand   = max(0, $inv->quantity_on_hand - $quantityInPieces);
             $inv->available_quantity = max(0, $inv->available_quantity - $quantityInPieces);
             if ($piecesPerPackage > 0) {
@@ -430,12 +472,23 @@ class IssuanceScanController extends Controller
             }
             $inv->save();
 
-            app(InventoryBatchService::class)->deductFifo($product->product_id, $locationId, $quantityInPieces);
+            $touched = app(InventoryBatchService::class)
+                ->deductFifo($product->product_id, $locationId, $quantityInPieces);
+            $batchId = array_key_first($touched);
+            $batch = $batchId
+                ? \App\Models\InventoryBatch::find($batchId)
+                : null;
 
             $detail = IssuanceDetail::create([
                 'issuance_id'          => $issuance->issuance_id,
                 'product_id'           => $product->product_id,
                 'serial_number'        => null,
+                'receiving_id'         => $batch?->receiving_id,
+                'batch_id'             => $batchId,
+                'zone_label'           => $batch?->zone_label,
+                'stock_before'         => $stockBefore,
+                'quantity_deducted'    => $quantityInPieces,
+                'stock_after'          => (int) $inv->quantity_on_hand,
                 'unit_price'           => $packagePrice,
                 'quantity_issued'      => (int) $requestedQty,
                 'quantity_unit'        => $quantityUnit,
@@ -444,6 +497,20 @@ class IssuanceScanController extends Controller
                 'subtotal'             => $lineSubtotal,
                 'condition_issued'     => 'Good',
             ]);
+
+            foreach ($touched as $touchedBatchId => $deductedQuantity) {
+                if ($deductedQuantity <= 0) continue;
+                \App\Models\InventoryBatchMovement::create([
+                    'batch_id' => $touchedBatchId,
+                    'movement_type' => 'stock_out',
+                    'issuance_id' => $issuance->issuance_id,
+                    'product_id' => $product->product_id,
+                    'from_location_id' => $locationId,
+                    'quantity' => $deductedQuantity,
+                    'performed_by' => auth()->id(),
+                    'moved_at' => now(),
+                ]);
+            }
 
             $this->logScanEvent(
                 $issuance->issuance_id,
@@ -572,7 +639,7 @@ class IssuanceScanController extends Controller
         }
 
         return DB::transaction(function () use ($issuance) {
-            $saleDate = now()->toDateString();
+            $saleDate = $issuance->issuance_date?->toDateString() ?? now()->toDateString();
 
             foreach ($issuance->details as $detail) {
                 $product = $detail->product;
@@ -583,14 +650,21 @@ class IssuanceScanController extends Controller
                 }
 
                 if ($product->isSerialized() && $detail->serial_number) {
-                    $warrantyMonths = (int) ($product->applianceDetail?->warranty_period_months ?? 0);
+                    $appliance = $product->applianceDetail;
+                    $warrantyMonths = (int) ($appliance?->warranty_period_months ?? 0);
+                    if ($warrantyMonths <= 0 && (int) ($appliance?->warranty_value ?? 0) > 0) {
+                        $warrantyMonths = $appliance->computeWarrantyMonths();
+                    }
 
                     if ($warrantyMonths > 0) {
-                        $warrantyEnd = now()->addMonths($warrantyMonths)->toDateString();
+                        $warrantyEnd = \Illuminate\Support\Carbon::parse($saleDate)
+                            ->addMonths($warrantyMonths)
+                            ->toDateString();
 
-                        WarrantyRecord::create([
-                            'issuance_id'             => $issuance->issuance_id,
+                        WarrantyRecord::updateOrCreate([
                             'issuance_detail_id'      => $detail->issuance_detail_id,
+                        ], [
+                            'issuance_id'             => $issuance->issuance_id,
                             'product_id'              => $detail->product_id,
                             'serial_number'           => $detail->serial_number,
                             'customer_id'             => $issuance->customer_id,
@@ -710,16 +784,12 @@ class IssuanceScanController extends Controller
         });
     }
 
-    // =========================================================
-    // METHOD 6: downloadDeliveryReceipt() — CSV export
-    // GET /api/issuance-scan/delivery-receipt/{issuance_id}/csv
-    // =========================================================
-    public function downloadDeliveryReceipt(int $issuanceId)
+    public function downloadDeliveryReceiptPdf(int $issuanceId)
     {
         $issuance = Issuance::with([
             'details.product.applianceDetail.brand',
             'details.product.consumableDetail.unit',
-            'details.warrantyRecord',
+            'details.warrantyRecord.status',
             'customer', 'location', 'issuedByUser', 'status',
         ])->find($issuanceId);
 
@@ -727,88 +797,16 @@ class IssuanceScanController extends Controller
             return response()->json(['success' => false, 'message' => 'Not found.'], 404);
         }
 
-        $filename = "DR-{$issuance->dr_number}.csv";
-        $headers  = [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
+        $items = $issuance->details->where('quantity_issued', '>', 0)->values();
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
+            'issuance.delivery-receipt',
+            compact('issuance', 'items')
+        )->setPaper('a4', 'landscape');
 
-        $callback = function () use ($issuance) {
-            $handle = fopen('php://output', 'w');
-
-            $issuedBy = $issuance->issuedByUser
-                ? trim(($issuance->issuedByUser->first_name ?? '')
-                      . ' ' . ($issuance->issuedByUser->last_name ?? ''))
-                : '—';
-
-            fputcsv($handle, ['DELIVERY RECEIPT']);
-            fputcsv($handle, ['DR Number',     $issuance->dr_number]);
-            fputcsv($handle, ['Date',          $issuance->issuance_date]);
-            fputcsv($handle, ['Issuance Type', ucfirst($issuance->issuance_type ?? '')]);
-            fputcsv($handle, ['Issued By',     $issuedBy]);
-            fputcsv($handle, ['Location',      $issuance->location?->location_name ?? '—']);
-
-            fputcsv($handle, []);
-            fputcsv($handle, ['CUSTOMER INFORMATION']);
-            fputcsv($handle, ['Customer Name',  $issuance->customer?->customer_name ?? '—']);
-            fputcsv($handle, ['Type',           ucfirst($issuance->customer?->customer_type ?? '—')]);
-            fputcsv($handle, ['Company',        $issuance->customer?->company_name ?? '—']);
-            fputcsv($handle, ['Contact Number', $issuance->customer?->contact_number ?? '—']);
-            fputcsv($handle, ['Email',          $issuance->customer?->email ?? '—']);
-            fputcsv($handle, ['Address',        $issuance->customer?->address ?? '—']);
-
-            fputcsv($handle, []);
-            fputcsv($handle, ['ITEMS ISSUED']);
-            fputcsv($handle, [
-                '#', 'Product Code', 'Product Name', 'Type',
-                'Brand / Unit', 'Capacity / Package',
-                'Serial Number', 'Quantity', 'Unit',
-                'Unit Price', 'Price Per Unit', 'Subtotal',
-                'Warranty Start', 'Warranty End', 'Warranty (Months)',
-            ]);
-
-            foreach ($issuance->details as $i => $d) {
-                $p  = $d->product;
-                $ad = $p?->applianceDetail;
-                $cd = $p?->consumableDetail;
-                $wr = $d->warrantyRecord;
-
-                fputcsv($handle, [
-                    $i + 1,
-                    $p?->product_code ?? '',
-                    $p?->product_name ?? '',
-                    $p ? ucfirst($p->product_type) : '',
-                    $ad?->brand?->brand_name ?? $cd?->unit?->unit_name ?? '',
-                    $ad?->capacity_rating    ?? $cd?->package_unit     ?? '',
-                    $d->serial_number        ?? '',
-                    $d->quantity_issued,
-                    $d->quantity_unit         ?? '',
-                    number_format($d->unit_price, 2),
-                    number_format($d->unit_price_per_piece, 4),
-                    number_format($d->subtotal, 2),
-                    $wr?->warranty_start_date ?? '',
-                    $wr?->warranty_end_date   ?? '',
-                    $wr?->warranty_period_months ?? '',
-                ]);
-            }
-
-            fputcsv($handle, []);
-            fputcsv($handle, ['TOTALS']);
-            fputcsv($handle, ['Subtotal (before discount)', number_format($issuance->subtotal, 2)]);
-            fputcsv($handle, ['Discount Type',   $issuance->discount_type  ?? 'None']);
-            fputcsv($handle, ['Discount %',      $issuance->discount_percent . '%']);
-            fputcsv($handle, ['Discount Amount', number_format($issuance->discount_amount, 2)]);
-            fputcsv($handle, ['TOTAL AMOUNT',    number_format($issuance->total_amount, 2)]);
-
-            if ($issuance->notes) {
-                fputcsv($handle, []);
-                fputcsv($handle, ['Notes', $issuance->notes]);
-            }
-
-            fclose($handle);
-        };
-
-        return response()->stream($callback, 200, $headers);
+        $filename = "DR-{$issuance->dr_number}.pdf";
+        return request()->boolean('preview')
+            ? $pdf->stream($filename)
+            : $pdf->download($filename);
     }
 
     // =========================================================
@@ -907,6 +905,10 @@ class IssuanceScanController extends Controller
         if (! $issuance) return;
 
         $subtotal = (float) IssuanceDetail::where('issuance_id', $issuanceId)
+            // Draft/order rows describe demand and retain their quoted subtotal.
+            // Only applied scan rows represent the POS sale; summing both would
+            // double-charge the receipt after the first pick.
+            ->where('quantity_issued', '>', 0)
             ->sum('subtotal');
 
         $discountAmount = round($subtotal * ($issuance->discount_percent / 100), 2);
@@ -956,6 +958,7 @@ class IssuanceScanController extends Controller
                 $wr = $d->warrantyRecord ?? null;
                 return [
                     'detail_id'          => $d->issuance_detail_id,
+                    'picked_at'           => $d->created_at?->toISOString(),
                     'product_id'         => $d->product_id,
                     'product_name'       => $p?->product_name,
                     'product_code'       => $p?->product_code,
@@ -972,6 +975,11 @@ class IssuanceScanController extends Controller
                     'quantity_issued'    => $d->quantity_issued,
                     'quantity_unit'      => $d->quantity_unit,
                     'quantity_in_pieces' => $d->quantity_in_pieces,
+                    'stock_before'       => $d->stock_before,
+                    'quantity_deducted'  => $d->quantity_deducted,
+                    'stock_after'        => $d->stock_after,
+                    'batch_id'           => $d->batch_id,
+                    'zone_label'         => $d->zone_label,
                     'price_per_piece'    => $d->unit_price_per_piece,
                     'subtotal'           => $d->subtotal,
                     'warranty' => $wr ? [

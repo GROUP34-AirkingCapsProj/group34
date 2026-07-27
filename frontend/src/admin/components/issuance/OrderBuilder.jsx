@@ -13,7 +13,7 @@ import {
 } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { confirmAction } from '../../utils/confirm';
-import { packageBreakdown } from '../../utils/packageFormat';
+import { packageBreakdown, piecesToPackages } from '../../utils/packageFormat';
 
 /**
  * OrderBuilder — Step 1 of the issuance wizard.
@@ -415,7 +415,9 @@ function AddCustomPath({ disabled, onAdd }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [productId, setProductId] = useState('');
-  const [qty, setQty] = useState(1); // pieces — custom items are always plain pieces
+  const [qty, setQty] = useState(1);
+  const [packages, setPackages] = useState(0);
+  const [pieces, setPieces] = useState(0);
 
   // Load the category + brand filter options once.
   useEffect(() => {
@@ -451,10 +453,14 @@ function AddCustomPath({ disabled, onAdd }) {
 
   const picked = results.find((p) => String(p.product_id) === String(productId)) || null;
   const noFilter = !categoryId && !brandId;
+  const piecesPerPackage = Number(picked?.pieces_per_package) || 0;
+  const packageUnit = picked?.package_unit || 'package';
 
-  const totalPieces = parseInt(qty, 10) || 0;
+  const totalPieces = piecesPerPackage > 1
+    ? (parseInt(packages, 10) || 0) * piecesPerPackage + (parseInt(pieces, 10) || 0)
+    : (parseInt(qty, 10) || 0);
 
-  const resetQty = () => { setQty(1); };
+  const resetQty = () => { setQty(1); setPackages(0); setPieces(0); };
 
   const add = async () => {
     if (!picked || totalPieces < 1) return;
@@ -501,10 +507,26 @@ function AddCustomPath({ disabled, onAdd }) {
             ))}
           </select>
         </div>
-        <div className="ak-field" style={{ width: 100 }}>
-          <label className="ak-label">Qty</label>
-          <input className="ak-input" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} disabled={disabled || !picked} />
-        </div>
+        {piecesPerPackage > 1 ? (
+          <>
+            <div className="ak-field" style={{ width: 100 }}>
+              <label className="ak-label">{packageUnit}</label>
+              <input className="ak-input" type="number" min={0} step={1} value={packages} onChange={(e) => setPackages(e.target.value)} disabled={disabled || !picked} />
+            </div>
+            <div className="ak-field" style={{ width: 100 }}>
+              <label className="ak-label">Pieces</label>
+              <input className="ak-input" type="number" min={0} step={1} value={pieces} onChange={(e) => setPieces(e.target.value)} disabled={disabled || !picked} />
+            </div>
+            <span className="ak-muted" style={{ paddingBottom: 10 }}>
+              {packages || 0} × {piecesPerPackage} + {pieces || 0} = <strong>{totalPieces} pieces</strong>
+            </span>
+          </>
+        ) : (
+          <div className="ak-field" style={{ width: 100 }}>
+            <label className="ak-label">Quantity</label>
+            <input className="ak-input" type="number" min={1} step={1} value={qty} onChange={(e) => setQty(e.target.value)} disabled={disabled || !picked} />
+          </div>
+        )}
         <button type="button" className="ak-btn ak-btn--primary" onClick={add} disabled={disabled || !picked || totalPieces < 1}>Add item</button>
       </div>
     </div>
@@ -515,13 +537,35 @@ function AddCustomPath({ disabled, onAdd }) {
 function LineRow({ line, disabled, onUpdate, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [qty, setQty] = useState(line.quantity_requested);
+  const [packages, setPackages] = useState(0);
+  const [pieces, setPieces] = useState(0);
+  const piecesPerPackage = Number(line.pieces_per_package) || 0;
+  const packageUnit = line.package_unit || 'package';
 
-  useEffect(() => { setQty(line.quantity_requested); }, [line.quantity_requested]);
+  useEffect(() => {
+    setQty(line.quantity_requested);
+    const breakdown = piecesToPackages(line.quantity_requested, piecesPerPackage);
+    setPackages(breakdown.boxes);
+    setPieces(breakdown.loose);
+  }, [line.quantity_requested, piecesPerPackage]);
 
   const save = async () => {
-    const q = Math.max(1, parseInt(qty, 10) || 1);
+    const q = piecesPerPackage > 1
+      ? (parseInt(packages, 10) || 0) * piecesPerPackage + (parseInt(pieces, 10) || 0)
+      : Math.max(1, parseInt(qty, 10) || 1);
+    if (q < 1) {
+      toast.error('Enter at least one piece.');
+      return;
+    }
     setEditing(false);
     if (q !== line.quantity_requested) await onUpdate(line.issuance_detail_id, q);
+  };
+  const cancelEdit = () => {
+    const breakdown = piecesToPackages(line.quantity_requested, piecesPerPackage);
+    setQty(line.quantity_requested);
+    setPackages(breakdown.boxes);
+    setPieces(breakdown.loose);
+    setEditing(false);
   };
 
   return (
@@ -539,24 +583,32 @@ function LineRow({ line, disabled, onUpdate, onRemove }) {
       </div>
       {editing ? (
         <>
-          <input
-            className="ak-input"
-            type="number"
-            min={1}
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            style={{ width: 80 }}
-            disabled={disabled}
-          />
+          {piecesPerPackage > 1 ? (
+            <>
+              <input className="ak-input" type="number" min={0} step={1} value={packages} onChange={(e) => setPackages(e.target.value)} style={{ width: 72 }} disabled={disabled} aria-label={packageUnit} />
+              <span className="ak-muted">{packageUnit} × {piecesPerPackage}</span>
+              <input className="ak-input" type="number" min={0} step={1} value={pieces} onChange={(e) => setPieces(e.target.value)} style={{ width: 72 }} disabled={disabled} aria-label="Pieces" />
+              <span className="ak-muted">pieces</span>
+            </>
+          ) : (
+            <input
+              className="ak-input"
+              type="number"
+              min={1}
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              style={{ width: 80 }}
+              disabled={disabled}
+            />
+          )}
           <button type="button" className="ak-btn ak-btn--primary" onClick={save} disabled={disabled}>Save</button>
-          <button type="button" className="ak-btn" onClick={() => { setEditing(false); setQty(line.quantity_requested); }} disabled={disabled}>Cancel</button>
+          <button type="button" className="ak-btn" onClick={cancelEdit} disabled={disabled}>Cancel</button>
         </>
       ) : (
         <>
           <span className="ak-mono" style={{ minWidth: 32, textAlign: 'right' }}>
             ×{line.quantity_requested}
-            {line.issuance_set_id != null
-              && packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)
+            {packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)
               && <span className="ak-muted" style={{ marginLeft: 6, fontWeight: 400 }}>· {packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)}</span>}
           </span>
           <span style={{ minWidth: 90, textAlign: 'right', fontWeight: 600 }}>{fmtMoney(line.line_total)}</span>

@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Inventory;
 use App\Models\Sale;
 use App\Models\SaleDetail;
+use App\Models\IssuanceDetail;
 use App\Models\CategoryLookup;
 use App\Models\BrandLookup;
 use App\Models\UnitLookup;
@@ -121,7 +122,11 @@ class BatchController extends Controller
                         $q->with(['location']);
                     },
                 ])
-                ->whereHas('sale')
+                ->whereHas('sale', function ($q) use ($user) {
+                    if ($user && ! $user->isCentralized()) {
+                        $q->where('location_id', $user->scopedLocationId());
+                    }
+                })
                 ->join('sales', 'sales_details.sales_id', '=', 'sales.sales_id')
                 ->orderByDesc('sales.created_at')
                 ->select('sales_details.*')
@@ -150,6 +155,44 @@ class BatchController extends Controller
                 ];
             })->filter(static fn ($row) => $row['product'] !== null)->values()->all();
 
+            $issued = IssuanceDetail::query()
+                ->with(['product.category', 'issuance.location'])
+                ->where('quantity_issued', '>', 0)
+                ->whereHas('issuance', function ($q) use ($user) {
+                    if ($user && ! $user->isCentralized()) {
+                        $q->where('location_id', $user->scopedLocationId());
+                    }
+                })
+                ->orderByDesc('created_at')
+                ->limit(4000)
+                ->get()
+                ->map(static function (IssuanceDetail $d) {
+                    $issuance = $d->issuance;
+                    return [
+                        'product_id'  => $d->product_id,
+                        'item_id'     => $d->product_id,
+                        'location_id' => $issuance?->location_id,
+                        'quantity'    => (int) ($d->quantity_in_pieces ?: $d->quantity_issued),
+                        'amount'      => (float) ($d->unit_price_per_piece ?: $d->unit_price),
+                        'created_at'  => $d->created_at?->toIso8601String(),
+                        'date'        => $issuance?->issuance_date?->format('Y-m-d'),
+                        'type'        => 'issuance',
+                        'notes'       => $issuance?->dr_number
+                            ? ('Issue Out ' . $issuance->dr_number)
+                            : 'Issue Out',
+                        'product'     => $d->product,
+                        'location'    => $issuance?->location,
+                    ];
+                })
+                ->filter(static fn ($row) => $row['product'] !== null)
+                ->values()
+                ->all();
+
+            $mapped = collect(array_merge($mapped, $issued))
+                ->sortByDesc('created_at')
+                ->values()
+                ->all();
+
             $data['transactions'] = [
                 'success' => true,
                 'data'    => $mapped,
@@ -157,7 +200,9 @@ class BatchController extends Controller
         }
 
         if (in_array('inventory', $parts)) {
-            $inventory = Inventory::with(['product.category', 'product.unit', 'location'])->paginate(500);
+            $inventory = Inventory::forUser($user)
+                ->with(['product.category', 'product.unit', 'location'])
+                ->paginate(500);
             $data['inventory'] = [
                 'success'    => true,
                 'data'       => $inventory->items(),

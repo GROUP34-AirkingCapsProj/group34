@@ -72,6 +72,22 @@ class IssuanceOrderServiceTest extends SetTestCase
         $this->assertEqualsWithDelta(75.0, (float) $detail->unit_price, 0.001);
     }
 
+    public function test_packaged_consumable_is_priced_per_piece_in_the_order(): void
+    {
+        $issuance = $this->draft();
+        $product = $this->makeConsumable(price: 50);
+        $product->consumableDetail()->create([
+            'pieces_per_package' => 5,
+            'package_unit' => 'box',
+        ]);
+
+        $detail = app(IssuanceOrderService::class)
+            ->addCustomLine($issuance, $product->product_id, 4);
+
+        $this->assertEqualsWithDelta(10.0, (float) $detail->unit_price, 0.001);
+        $this->assertEqualsWithDelta(40.0, (float) $detail->subtotal, 0.001);
+    }
+
     public function test_editing_a_set_line_flags_the_group_as_modified(): void
     {
         $issuance = $this->draft();

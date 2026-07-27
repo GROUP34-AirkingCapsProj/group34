@@ -105,6 +105,16 @@ class Product extends Model
         return 1;
     }
 
+    /**
+     * Product prices for installation materials are stored per package, while
+     * inventory quantities are stored as individual pieces.
+     */
+    public function getPricePerPiece(?float $price = null): float
+    {
+        $packagePrice = $price ?? (float) $this->unit_price;
+        return round($packagePrice / $this->getPiecesPerPackage(), 4);
+    }
+
     public function applianceDetail()
     {
         return $this->hasOne(ApplianceDetail::class, 'product_id', 'product_id');

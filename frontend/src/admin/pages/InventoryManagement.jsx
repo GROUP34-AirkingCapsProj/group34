@@ -117,6 +117,9 @@ const InventoryManagement = () => {
   const [invPulse, fireInvPulse] = useFocusPulse();
   const [serialModalBatch, setSerialModalBatch] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stockLocationFilter, setStockLocationFilter] = useState('');
+  const [stockCategoryFilter, setStockCategoryFilter] = useState('');
+  const [stockStatusFilter, setStockStatusFilter] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
   const [trendLoading, setTrendLoading] = useState(false);
@@ -176,6 +179,9 @@ const InventoryManagement = () => {
       setLoading(true);
       const params = { page, per_page: rowsPerPage };
       if (searchTerm) params.search = searchTerm;
+      if (stockLocationFilter) params.location_id = stockLocationFilter;
+      if (stockCategoryFilter) params.category_id = stockCategoryFilter;
+      if (stockStatusFilter) params.stock_status = stockStatusFilter;
       const res = await inventoryAPI.getAll(params);
       setInventory(Array.isArray(res.data) ? res.data : []);
       setPagination(res.pagination || { total: 0, last_page: 1 });
@@ -185,7 +191,7 @@ const InventoryManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, rowsPerPage]);
+  }, [searchTerm, stockLocationFilter, stockCategoryFilter, stockStatusFilter, rowsPerPage]);
 
   const loadInventoryHistory = useCallback(async (inventoryId) => {
     setHistoryLoading(true);
@@ -281,7 +287,7 @@ const InventoryManagement = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setCurrentPage(1), 400);
     return () => clearTimeout(debounceRef.current);
-  }, [searchTerm]);
+  }, [searchTerm, stockLocationFilter, stockCategoryFilter, stockStatusFilter]);
 
   useEffect(() => {
     if (!focusInvId || focusHandledRef.current) return;
@@ -427,6 +433,8 @@ const InventoryManagement = () => {
     return qty > reorder * 0.5 && qty <= reorder;
   }).length;
   const overstockCount = inventory.filter((i) => getItemQty(i) >= getItemMax(i)).length;
+  const stockOutHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Stock Out');
+  const transferHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Transfer');
 
   return (
     <AdminLayout>
@@ -504,6 +512,44 @@ const InventoryManagement = () => {
                     <span className={`sm-badge ${smInPct >= 0 ? 'sm-badge-green' : 'sm-badge-red'}`}>
                       {smInPct >= 0 ? '↑' : '↓'} {Math.abs(smInPct)}%
                     </span>
+                  )}
+                  {false && historyData.movement_history?.length > 0 && (
+                    <>
+                      <div className="invd-section-title" style={{ marginTop: 24 }}>Movement Timeline</div>
+                      <div className="invd-table-wrap">
+                        <table className="invd-table">
+                          <thead>
+                            <tr>
+                              <th>Movement</th>
+                              <th>Quantity</th>
+                              <th>Date &amp; Time</th>
+                              <th>Reference</th>
+                              <th>Serial / Barcode</th>
+                              <th>From</th>
+                              <th>To</th>
+                              <th>Performed By</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {historyData.movement_history.map((movement, index) => (
+                              <tr key={`${movement.type}-${movement.reference || index}-${index}`}>
+                                <td>{movement.type}</td>
+                                <td className="invd-mono">{movement.quantity}</td>
+                                <td>{movement.date_time ? new Date(movement.date_time).toLocaleString('en-PH', {
+                                  year: 'numeric', month: 'short', day: 'numeric',
+                                  hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                }) : '—'}</td>
+                                <td className="invd-mono">{movement.reference || '—'}</td>
+                                <td className="invd-mono">{movement.serial_number || '—'}</td>
+                                <td>{movement.from_location || '—'}</td>
+                                <td>{movement.to_location || '—'}</td>
+                                <td>{movement.performed_by || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -681,6 +727,37 @@ const InventoryManagement = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+              <select className="inv-filter-select" value={stockLocationFilter} onChange={(e) => setStockLocationFilter(e.target.value)}>
+                <option value="">All Locations</option>
+                {warehouses.map((location) => (
+                  <option key={location.location_id} value={location.location_id}>
+                    {location.location_name}
+                  </option>
+                ))}
+              </select>
+              <select className="inv-filter-select" value={stockCategoryFilter} onChange={(e) => setStockCategoryFilter(e.target.value)}>
+                <option value="">All Categories</option>
+                {categories.map((category) => (
+                  <option key={category.category_id} value={category.category_id}>
+                    {category.category_name}
+                  </option>
+                ))}
+              </select>
+              <select className="inv-filter-select" value={stockStatusFilter} onChange={(e) => setStockStatusFilter(e.target.value)}>
+                <option value="">All Statuses</option>
+                <option value="out">Out of Stock</option>
+                <option value="critical">Critical Low</option>
+                <option value="reorder">Reorder Point</option>
+                <option value="optimal">Optimal Level</option>
+                <option value="overstock">Overstock Risk</option>
+              </select>
+              {(stockLocationFilter || stockCategoryFilter || stockStatusFilter) && (
+                <button type="button" className="inv-filter-clear" onClick={() => {
+                  setStockLocationFilter('');
+                  setStockCategoryFilter('');
+                  setStockStatusFilter('');
+                }}>Clear</button>
+              )}
               <button className="inv-btn-export">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -1162,6 +1239,14 @@ const InventoryManagement = () => {
                   Stock-In History
                   {historyData && <span className="invd-tab-count">{historyData.summary.total_receive_events}</span>}
                 </button>
+                <button className={`invd-tab-btn${detailTab === 'stock-out' ? ' active' : ''}`} onClick={() => setDetailTab('stock-out')}>
+                  Stock-Out History
+                  {historyData && <span className="invd-tab-count">{stockOutHistory.length}</span>}
+                </button>
+                <button className={`invd-tab-btn${detailTab === 'transfers' ? ' active' : ''}`} onClick={() => setDetailTab('transfers')}>
+                  Transfer History
+                  {historyData && <span className="invd-tab-count">{transferHistory.length}</span>}
+                </button>
                 {historyData && (
                   <button className={`invd-tab-btn${detailTab === 'serials' ? ' active' : ''}`} onClick={() => setDetailTab('serials')}>
                     Serial Numbers
@@ -1294,11 +1379,21 @@ const InventoryManagement = () => {
                       <div className="invd-section-title">Cost Summary</div>
                       <div className="invd-grid">
                         <div className="invd-field">
-                          <span className="invd-label">Cost Price</span>
+                          <span className="invd-label">
+                            {historyData.product.pieces_per_package > 1 ? 'Package Cost' : 'Cost Price'}
+                          </span>
                           <span className="invd-value invd-currency">
                             ₱{parseFloat(historyData.product.cost_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
+                        {historyData.product.pieces_per_package > 1 && (
+                          <div className="invd-field">
+                            <span className="invd-label">Cost Per Piece</span>
+                            <span className="invd-value invd-currency">
+                              ₱{parseFloat(historyData.product.cost_per_piece || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                            </span>
+                          </div>
+                        )}
                         <div className="invd-field">
                           <span className="invd-label">Avg Received Cost</span>
                           <span className="invd-value invd-currency">
@@ -1308,7 +1403,7 @@ const InventoryManagement = () => {
                         <div className="invd-field">
                           <span className="invd-label">Total Stock Value</span>
                           <span className="invd-value invd-currency invd-bold">
-                            ₱{(parseFloat(historyData.product.cost_price || 0) * (historyData.inventory.quantity_on_hand || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            ₱{parseFloat(historyData.summary.current_stock_value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                         {historyData.summary.last_stocked_at && (
@@ -1366,8 +1461,11 @@ const InventoryManagement = () => {
                               <td className="invd-cell-num">{index + 1}</td>
                               <td>
                                 <span className="invd-date">
-                                  {rd.receiving_date
-                                    ? new Date(rd.receiving_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+                                  {rd.received_at
+                                    ? new Date(rd.received_at).toLocaleString('en-PH', {
+                                        year: 'numeric', month: 'short', day: 'numeric',
+                                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                      })
                                     : '—'}
                                 </span>
                                 {rd.receiving_number && <span className="invd-sub">{rd.receiving_number}</span>}
@@ -1409,6 +1507,45 @@ const InventoryManagement = () => {
               {/* ══════════════════════════════
                   TAB: SERIAL NUMBERS
               ══════════════════════════════ */}
+              {(detailTab === 'stock-out' || detailTab === 'transfers') && !historyLoading && historyData && (() => {
+                const rows = detailTab === 'stock-out' ? stockOutHistory : transferHistory;
+                const emptyLabel = detailTab === 'stock-out'
+                  ? 'No stock-out records found for this product at this location.'
+                  : 'No transfer records found for this product at this location.';
+                return (
+                  <div className="invd-panel">
+                    {rows.length === 0 ? <div className="invd-empty">{emptyLabel}</div> : (
+                      <div className="invd-table-wrap">
+                        <table className="invd-table">
+                          <thead><tr>
+                            <th>#</th><th>Date &amp; Time</th><th>Quantity</th>
+                            <th>Reference</th><th>Serial / Barcode</th>
+                            <th>From</th><th>To</th><th>Performed By</th>
+                          </tr></thead>
+                          <tbody>
+                            {rows.map((movement, index) => (
+                              <tr key={`${movement.type}-${movement.reference || index}-${index}`}>
+                                <td className="invd-cell-num">{index + 1}</td>
+                                <td>{movement.date_time ? new Date(movement.date_time).toLocaleString('en-PH', {
+                                  year: 'numeric', month: 'short', day: 'numeric',
+                                  hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                }) : '—'}</td>
+                                <td className="invd-cell-num invd-bold">{movement.quantity}</td>
+                                <td className="invd-mono">{movement.reference || '—'}</td>
+                                <td className="invd-mono">{movement.serial_number || '—'}</td>
+                                <td>{movement.from_location || '—'}</td>
+                                <td>{movement.to_location || '—'}</td>
+                                <td>{movement.performed_by || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {detailTab === 'serials' && !historyLoading && historyData && (
                 <div className="invd-panel">
                   <div className="invd-move-stats">
@@ -1424,6 +1561,14 @@ const InventoryManagement = () => {
                       <span className="invd-move-label">Transfers</span>
                       <span className="invd-move-value">{historyData.summary.transferred ?? 0}</span>
                     </div>
+                    <div className="invd-move-stat">
+                      <span className="invd-move-label">Current On Hand</span>
+                      <span className="invd-move-value">{historyData.summary.current_on_hand ?? historyData.inventory?.quantity_on_hand ?? 0}</span>
+                    </div>
+                    <div className="invd-move-stat">
+                      <span className="invd-move-label">Available</span>
+                      <span className="invd-move-value">{historyData.summary.current_available ?? historyData.inventory?.available_quantity ?? 0}</span>
+                    </div>
                   </div>
                   {!historyData.serial_records || historyData.serial_records.length === 0 ? (
                     <div className="invd-empty">No serial numbers recorded for this product at this location.</div>
@@ -1435,11 +1580,14 @@ const InventoryManagement = () => {
                             <th>#</th>
                             <th>Serial Number</th>
                             <th>Status</th>
+                            <th>Received</th>
                             <th>Stock In</th>
                             <th>Stock Out</th>
                             <th>Transfer</th>
                             <th>Scanned By</th>
-                            <th>Date Scanned</th>
+                            <th>Received At</th>
+                            <th>Stocked Out At</th>
+                            <th>Transferred At</th>
                             <th>PO Number</th>
                             <th>Supplier</th>
                           </tr>
@@ -1458,24 +1606,62 @@ const InventoryManagement = () => {
                                   {s.serial_status ?? 'Active'}
                                 </span>
                               </td>
+                              <td className="invd-mono">{s.row_quantity_received ?? s.row_stock_in ?? 0}</td>
                               <td className="invd-mono">{s.row_stock_in ?? '—'}</td>
                               <td className="invd-mono">{s.row_stock_out ?? '—'}</td>
                               <td className="invd-mono">{s.row_transfer ?? '—'}</td>
                               <td>{s.scanned_by_name ?? '—'}</td>
                               <td>
-                                {s.scanned_at
-                                  ? new Date(s.scanned_at).toLocaleString('en-PH', {
+                                {s.received_at
+                                  ? new Date(s.received_at).toLocaleString('en-PH', {
                                       year: 'numeric', month: 'short', day: 'numeric',
                                       hour: '2-digit', minute: '2-digit',
                                     })
                                   : '—'}
                               </td>
+                              <td>{s.stock_out_at ? new Date(s.stock_out_at).toLocaleString('en-PH', {
+                                year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit',
+                              }) : '—'}</td>
+                              <td>{s.transferred_at ? new Date(s.transferred_at).toLocaleString('en-PH', {
+                                year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit',
+                              }) : '—'}</td>
                               <td>
                                 {s.po_number
                                   ? <span className="invd-mono invd-small">{s.po_number}</span>
                                   : '—'}
                               </td>
                               <td>{s.supplier_name ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {historyData.movement_history?.length > 0 && (
+                    <div className="invd-table-wrap" style={{ marginTop: 24 }}>
+                      <div className="invd-section-title">Movement Timeline</div>
+                      <table className="invd-table">
+                        <thead><tr>
+                          <th>Movement</th><th>Quantity</th><th>Date &amp; Time</th>
+                          <th>Reference</th><th>Serial / Barcode</th>
+                          <th>From</th><th>To</th><th>Performed By</th>
+                        </tr></thead>
+                        <tbody>
+                          {historyData.movement_history.map((movement, index) => (
+                            <tr key={`${movement.type}-${movement.reference || index}-${index}`}>
+                              <td>{movement.type}</td>
+                              <td className="invd-mono">{movement.quantity}</td>
+                              <td>{movement.date_time ? new Date(movement.date_time).toLocaleString('en-PH', {
+                                year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                              }) : '—'}</td>
+                              <td className="invd-mono">{movement.reference || '—'}</td>
+                              <td className="invd-mono">{movement.serial_number || '—'}</td>
+                              <td>{movement.from_location || '—'}</td>
+                              <td>{movement.to_location || '—'}</td>
+                              <td>{movement.performed_by || '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1523,6 +1709,8 @@ const InventoryManagement = () => {
               <div className="invd-tabs">
                 <button className={`invd-tab-btn${poDetailTab === 'overview' ? ' active' : ''}`} onClick={() => setPoDetailTab('overview')}>Overview</button>
                 <button className={`invd-tab-btn${poDetailTab === 'history' ? ' active' : ''}`} onClick={() => setPoDetailTab('history')}>Stock-In History</button>
+                <button className={`invd-tab-btn${poDetailTab === 'stock-out' ? ' active' : ''}`} onClick={() => setPoDetailTab('stock-out')}>Stock-Out History</button>
+                <button className={`invd-tab-btn${poDetailTab === 'transfers' ? ' active' : ''}`} onClick={() => setPoDetailTab('transfers')}>Transfer History</button>
                 <button className={`invd-tab-btn${poDetailTab === 'serials' ? ' active' : ''}`} onClick={() => setPoDetailTab('serials')}>Serial Numbers</button>
               </div>
 
@@ -1635,6 +1823,39 @@ const InventoryManagement = () => {
                       )}
                     </div>
                   )}
+
+                  {(poDetailTab === 'stock-out' || poDetailTab === 'transfers') && (() => {
+                    const rows = poDetailTab === 'stock-out'
+                      ? poGroupDetail.data.stock_out_history
+                      : poGroupDetail.data.transfer_history;
+                    return (
+                      <div className="invd-panel">
+                        {!rows?.length ? (
+                          <div className="invd-empty">No {poDetailTab === 'stock-out' ? 'stock-out' : 'transfer'} history for these batches.</div>
+                        ) : (
+                          <div className="invd-table-wrap">
+                            <table className="invd-table">
+                              <thead><tr><th>Batch</th><th>Date & Time</th><th>Reference</th><th>Product</th><th>Qty</th><th>Serial Number</th>{poDetailTab === 'transfers' && <th>Destination</th>}<th>Performed By</th></tr></thead>
+                              <tbody>
+                                {rows.map((r) => (
+                                  <tr key={r.movement_id}>
+                                    <td className="invd-mono">#{r.batch_id}</td>
+                                    <td>{r.moved_at ? new Date(r.moved_at).toLocaleString('en-PH') : '—'}</td>
+                                    <td className="invd-mono invd-small">{r.reference || '—'}</td>
+                                    <td>{r.product_name}</td>
+                                    <td>{r.quantity}</td>
+                                    <td className="invd-mono invd-small">{r.serial_number || '—'}</td>
+                                    {poDetailTab === 'transfers' && <td>{r.to_location || '—'}</td>}
+                                    <td>{r.performed_by || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>

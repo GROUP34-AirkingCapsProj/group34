@@ -7,6 +7,7 @@ import OrderBuilder from '../components/issuance/OrderBuilder';
 import QuotePanel from '../components/issuance/QuotePanel';
 import PickScanner from '../components/picking/PickScanner';
 import IncidentModal from '../components/picking/IncidentModal';
+import Modal from '../components/Modal';
 import {
   locationsAPI,
   issuanceScanAPI,
@@ -61,6 +62,7 @@ export default function IssuanceScanPage() {
   const [plan, setPlan] = useState([]);
   const [planLoading, setPlanLoading] = useState(false);
   const [planLoaded, setPlanLoaded] = useState(false); // true only after loadPlan resolves ≥ once
+  const [pickedIssuance, setPickedIssuance] = useState(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [incidentCtx, setIncidentCtx] = useState(null);
 
@@ -70,6 +72,7 @@ export default function IssuanceScanPage() {
   const [confirmedPick, setConfirmedPick] = useState(false);
 
   const [receipt, setReceipt] = useState(null);
+  const [receiptPreviewOpen, setReceiptPreviewOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
 
   const issuanceId = session?.issuance_id ?? quote?.issuance_id ?? null;
@@ -202,9 +205,22 @@ export default function IssuanceScanPage() {
     }
   }, [issuanceId]);
 
+  const loadPickedItems = useCallback(async (id = issuanceId) => {
+    if (!id) return;
+    try {
+      const res = await issuanceScanAPI.getSession(id);
+      setPickedIssuance(res?.issuance ?? res?.data?.issuance ?? null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to load picked items.');
+    }
+  }, [issuanceId]);
+
   // Load the pick plan whenever the order enters the Pending (Pick) phase.
   useEffect(() => {
-    if (isPending && issuanceId) loadPlan(issuanceId);
+    if (isPending && issuanceId) {
+      loadPlan(issuanceId);
+      loadPickedItems(issuanceId);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, issuanceId]);
 
@@ -223,10 +239,12 @@ export default function IssuanceScanPage() {
   // Recovers the scan verdict from BOTH rejection shapes and normalizes an
   // accepted apply to an ACCEPTED scan_result (the scan endpoint returns
   // {success,action:'applied'} on accept, with no scan_result of its own).
-  const handleScan = useCallback(async (barcode, confirmedZone) => {
+  const handleScan = useCallback(async (barcode, confirmedZone, quantity = 1) => {
     const payload = {
       issuance_id: issuanceId,
       barcode,
+      quantity,
+      quantity_unit: 'piece',
       confirmed_zone: confirmedZone ?? null,
       location_id: quote?.location_id ?? null,
     };
@@ -238,8 +256,8 @@ export default function IssuanceScanPage() {
       else throw e;
     }
     if (body?.success && body?.action === 'applied') {
-      // Refetch so the picked unit drops out and the next step appears.
-      await loadPlan(issuanceId);
+      // Refresh both the remaining plan and the receipt-style picked list.
+      await Promise.all([loadPlan(issuanceId), loadPickedItems(issuanceId)]);
       return {
         scan_result: {
           status: 'ACCEPTED',
@@ -250,7 +268,7 @@ export default function IssuanceScanPage() {
       };
     }
     return body;   // rejected: 422 {scan_result} or legacy 200 {success:false, reason}
-  }, [issuanceId, quote?.location_id, loadPlan]);
+  }, [issuanceId, quote?.location_id, loadPlan, loadPickedItems]);
 
   const handleIncident = useCallback((context) => {
     setIncidentCtx({
@@ -278,6 +296,7 @@ export default function IssuanceScanPage() {
     try {
       const res = await issuanceScanAPI.complete(issuanceId);
       setReceipt(res?.issuance ?? res?.data ?? res);
+      setReceiptPreviewOpen(true);
       setConfirmedPick(false);   // completed — no longer a pending pick
       await loadQuote(issuanceId);
     } catch (err) {
@@ -298,9 +317,11 @@ export default function IssuanceScanPage() {
     setDraftStep(STEP_ORDER);
     setPlan([]);
     setPlanLoaded(false);
+    setPickedIssuance(null);
     setConfirmedPick(false);
     setIncidentCtx(null);
     setReceipt(null);
+    setReceiptPreviewOpen(false);
     setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
   }, [setSearchParams]);
 
@@ -319,10 +340,10 @@ export default function IssuanceScanPage() {
   const scanBusyWrapped = scanBusy || planLoading;
 
   // Wrap onScan to drive the busy flag while a scan is in flight.
-  const onScan = useCallback(async (barcode, confirmedZone) => {
+  const onScan = useCallback(async (barcode, confirmedZone, quantity) => {
     setScanBusy(true);
     try {
-      return await handleScan(barcode, confirmedZone);
+      return await handleScan(barcode, confirmedZone, quantity);
     } finally {
       setScanBusy(false);
     }
@@ -345,6 +366,9 @@ export default function IssuanceScanPage() {
 
   // Only trust an empty plan as "all picked" once loadPlan has actually resolved.
   const allPicked = planLoaded && plan.every((s) => Number(s?.needed) <= 0);
+  const pickedItems = (pickedIssuance?.items || []).filter(
+    (item) => Number(item?.quantity_in_pieces ?? item?.quantity_issued ?? 0) > 0
+  );
 
   return (
     <AdminLayout>
@@ -409,10 +433,10 @@ export default function IssuanceScanPage() {
             <div className="isp-dr-actions no-print" style={{ marginTop: 16 }}>
               <button
                 type="button"
-                className="isp-btn-secondary"
-                onClick={() => window.open(issuanceScanAPI.drCsvUrl(receipt?.issuance_id ?? issuanceId), '_blank')}
+                className="isp-btn-primary"
+                onClick={() => setReceiptPreviewOpen(true)}
               >
-                Download DR (CSV)
+                View Receipt
               </button>
               <button type="button" className="isp-btn-ghost" onClick={resetAll}>New Order</button>
             </div>
@@ -490,6 +514,86 @@ export default function IssuanceScanPage() {
                   />
                 )}
 
+                <div className="ak-card isp-dr-print">
+                  <div className="isp-dr-section-title" style={{ marginTop: 0 }}>
+                    Picked Items ({pickedItems.length})
+                  </div>
+                  {pickedItems.length === 0 ? (
+                    <p className="ak-muted" style={{ margin: 0 }}>
+                      No items picked yet. Each successful manual or camera scan will appear here.
+                    </p>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="isp-dr-table" style={{ marginBottom: 0 }}>
+                        <thead>
+                          <tr>
+                            <th>Item</th>
+                            <th>Serial Number</th>
+                            <th>FIFO Zone</th>
+                            <th>Stock Movement</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pickedItems.map((item) => {
+                            const quantity = Number(item.quantity_in_pieces ?? item.quantity_issued ?? 0);
+                            const unitLabel = item.quantity_unit || item.unit_name || 'piece';
+                            return (
+                              <tr key={item.detail_id}>
+                                <td>
+                                  <strong>{item.product_name || `Product #${item.product_id}`}</strong>
+                                  {item.product_code && (
+                                    <div className="ak-muted ak-mono" style={{ fontSize: 11 }}>
+                                      {item.product_code}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="ak-mono">
+                                  {item.serial_number || <span className="ak-muted">Not serialized</span>}
+                                </td>
+                                <td>
+                                  <span className="ak-mono">{item.zone_label || 'Unassigned'}</span>
+                                  {item.batch_id && <div className="ak-muted">Batch #{item.batch_id}</div>}
+                                </td>
+                                <td>
+                                  {item.stock_before ?? '—'} → {item.stock_after ?? '—'}
+                                  <div className="ak-muted">Deducted: {item.quantity_deducted ?? quantity}</div>
+                                </td>
+                                <td>{quantity} {unitLabel}{quantity === 1 ? '' : 's'}</td>
+                                <td>{fmt(item.price_per_piece ?? item.unit_price)}</td>
+                                <td><strong>{fmt(item.subtotal)}</strong></td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <div className="isp-dr-totals" style={{ marginTop: 16 }}>
+                        <div className="isp-dr-total-row">
+                          <span>Picked subtotal</span>
+                          <span>{fmt(pickedIssuance?.subtotal)}</span>
+                        </div>
+                        {Number(pickedIssuance?.discount_amount || 0) > 0 && (
+                          <div className="isp-dr-total-row">
+                            <span>
+                              Discount
+                              {Number(pickedIssuance?.discount_percent || 0) > 0
+                                ? ` (${pickedIssuance.discount_percent}%)`
+                                : ''}
+                            </span>
+                            <span>-{fmt(pickedIssuance.discount_amount)}</span>
+                          </div>
+                        )}
+                        <div className="isp-dr-total-grand">
+                          <span>Running total</span>
+                          <span>{fmt(pickedIssuance?.total_amount)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {allPicked && !planLoading && (
                   <div className="isp-form-actions" style={{ justifyContent: 'flex-end' }}>
                     <button
@@ -512,6 +616,32 @@ export default function IssuanceScanPage() {
           onFiled={handleIncidentFiled}
           onClose={() => setIncidentCtx(null)}
         />
+
+        <Modal
+          isOpen={receiptPreviewOpen}
+          onClose={() => setReceiptPreviewOpen(false)}
+          title={`Issuance Receipt — ${receipt?.dr_number ?? quote?.dr_number ?? ''}`}
+          maxWidth={1100}
+        >
+          <div className="isp-pdf-preview">
+            <iframe
+              title="Issuance receipt PDF preview"
+              src={issuanceScanAPI.drPdfUrl(receipt?.issuance_id ?? issuanceId, true)}
+            />
+          </div>
+          <div className="isp-dr-actions no-print" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+            <button type="button" className="isp-btn-ghost" onClick={() => setReceiptPreviewOpen(false)}>
+              Close
+            </button>
+            <button
+              type="button"
+              className="isp-btn-primary"
+              onClick={() => window.open(issuanceScanAPI.drPdfUrl(receipt?.issuance_id ?? issuanceId), '_blank')}
+            >
+              Download Receipt (PDF)
+            </button>
+          </div>
+        </Modal>
       </div>
     </AdminLayout>
   );

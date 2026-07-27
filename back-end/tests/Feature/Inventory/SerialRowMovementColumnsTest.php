@@ -100,19 +100,18 @@ class SerialRowMovementColumnsTest extends TestCase
             ->assertStatus(200)
             ->json('data.serial_records');
 
-        $byReceiving = [];
-        foreach ($records as $r) {
-            // Match rows back to their receiving via row_stock_in (12 vs 8).
-            $byReceiving[$r['row_stock_in']] = $r;
-        }
+        $this->assertSame(12, $records[0]['row_quantity_received']);
+        $this->assertSame(8, $records[1]['row_quantity_received']);
+        $first = collect($records)->firstWhere('row_quantity_received', 12);
+        $second = collect($records)->firstWhere('row_quantity_received', 8);
 
-        $this->assertSame(12, $byReceiving[12]['row_stock_in']);
-        $this->assertSame(5,  $byReceiving[12]['row_stock_out']);
-        $this->assertNull($byReceiving[12]['row_transfer']);
+        $this->assertSame(7, $first['row_stock_in']);
+        $this->assertSame(5, $first['row_stock_out']);
+        $this->assertNull($first['row_transfer']);
 
-        $this->assertSame(8, $byReceiving[8]['row_stock_in']);
-        $this->assertSame(0, $byReceiving[8]['row_stock_out']);
-        $this->assertNull($byReceiving[8]['row_transfer']);
+        $this->assertSame(8, $second['row_stock_in']);
+        $this->assertSame(0, $second['row_stock_out']);
+        $this->assertNull($second['row_transfer']);
     }
 
     public function test_appliance_rows_carry_unit_in_and_transfer_flag(): void
@@ -151,19 +150,43 @@ class SerialRowMovementColumnsTest extends TestCase
             'serial_type'   => 'transferred',
             'status_id'     => 26,
         ]);
+        $issuedSerial = 'SN-OUT-' . uniqid();
+        $issuance = Issuance::create([
+            'location_id'   => $loc->location_id,
+            'issuance_date' => now()->toDateString(),
+            'issued_by'     => $user->user_id,
+            'status_id'     => 1,
+        ]);
+        IssuanceDetail::create([
+            'issuance_id'     => $issuance->issuance_id,
+            'product_id'      => $product->product_id,
+            'serial_number'   => $issuedSerial,
+            'quantity_issued' => 1,
+        ]);
 
         $records = $this->actingAs($user)
             ->getJson('/api/inventory/' . $inventory->inventory_id . '/history')
             ->assertStatus(200)
             ->json('data.serial_records');
 
-        $this->assertCount(2, $records);
-        foreach ($records as $r) {
+        $this->assertCount(3, $records);
+        $inStockRecords = array_values(array_filter(
+            $records,
+            fn($r) => $r['serial_number'] !== $issuedSerial
+        ));
+        foreach ($inStockRecords as $r) {
+            $this->assertSame(1, $r['row_quantity_received']);
             $this->assertSame(1, $r['row_stock_in']);
-            $this->assertNull($r['row_stock_out']);
+            $this->assertSame(0, $r['row_stock_out']);
         }
-        $transferFlags = array_map(fn($r) => $r['row_transfer'], $records);
+        $transferFlags = array_map(fn($r) => $r['row_transfer'], $inStockRecords);
         sort($transferFlags);
         $this->assertSame([0, 1], $transferFlags);
+
+        $issuedRecord = collect($records)->firstWhere('serial_number', $issuedSerial);
+        $this->assertSame('Issued', $issuedRecord['serial_status']);
+        $this->assertSame(1, $issuedRecord['row_quantity_received']);
+        $this->assertSame(0, $issuedRecord['row_stock_in']);
+        $this->assertSame(1, $issuedRecord['row_stock_out']);
     }
 }

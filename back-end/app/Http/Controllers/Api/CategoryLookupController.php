@@ -25,8 +25,11 @@ class CategoryLookupController extends Controller
             $totalValue = 0;
             if ($productIds->isNotEmpty()) {
                 $agg = Inventory::join('products', 'inventory.product_id', '=', 'products.product_id')
+                    ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'products.product_id')
                     ->whereIn('inventory.product_id', $productIds)
-                    ->selectRaw('COALESCE(SUM(inventory.quantity_on_hand), 0) as units, COALESCE(SUM(inventory.quantity_on_hand * COALESCE(products.unit_price, 0)), 0) as value')
+                    ->selectRaw('COALESCE(SUM(inventory.quantity_on_hand), 0) as units, '
+                        . 'COALESCE(SUM(inventory.quantity_on_hand * COALESCE(products.unit_price, 0) '
+                        . '/ GREATEST(COALESCE(imd.pieces_per_package, 1), 1)), 0) as value')
                     ->first();
                 $totalUnits = (int) ($agg->units ?? 0);
                 $totalValue = (float) ($agg->value ?? 0);
@@ -60,8 +63,11 @@ class CategoryLookupController extends Controller
             $totalValue = 0;
             if ($productIds->isNotEmpty()) {
                 $agg = Inventory::join('products', 'inventory.product_id', '=', 'products.product_id')
+                    ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'products.product_id')
                     ->whereIn('inventory.product_id', $productIds)
-                    ->selectRaw('COALESCE(SUM(inventory.quantity_on_hand), 0) as units, COALESCE(SUM(inventory.quantity_on_hand * COALESCE(products.unit_price, 0)), 0) as value')
+                    ->selectRaw('COALESCE(SUM(inventory.quantity_on_hand), 0) as units, '
+                        . 'COALESCE(SUM(inventory.quantity_on_hand * COALESCE(products.unit_price, 0) '
+                        . '/ GREATEST(COALESCE(imd.pieces_per_package, 1), 1)), 0) as value')
                     ->first();
                 $totalUnits = (int) ($agg->units ?? 0);
                 $totalValue = (float) ($agg->value ?? 0);

@@ -563,7 +563,7 @@ const AdminDashboard = () => {
           <div className="chart-card">
             <h3>Transaction Trends</h3>
             <div className="chart-wrapper">
-              <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Sales', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+              <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Issue Outs', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
             </div>
           </div>
         </div>

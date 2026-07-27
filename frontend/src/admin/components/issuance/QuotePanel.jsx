@@ -96,10 +96,12 @@ export default function QuotePanel({ issuanceId, quote, canIssue, onQuoteUpdate,
         <div style={{ fontWeight: 600 }}>{l.product_name || `Product #${l.product_id}`}</div>
         <div className="ak-muted" style={{ fontSize: '0.8rem' }}>
           ×{l.quantity_requested}
-          {l.issuance_set_id != null
-            && packageBreakdown(l.quantity_requested, l.pieces_per_package, l.package_unit)
+          {packageBreakdown(l.quantity_requested, l.pieces_per_package, l.package_unit)
             && ` (${packageBreakdown(l.quantity_requested, l.pieces_per_package, l.package_unit)})`}
-          {' · '}{fmtMoney(l.unit_price)} each
+          {' · '}{fmtMoney(l.unit_price)} per piece
+          {Number(l.pieces_per_package) > 1 && (
+            <> · {fmtMoney(l.package_price)} per {l.package_unit || 'package'}</>
+          )}
         </div>
         {l.is_short && (
           <div style={{ color: '#b91c1c', fontSize: '0.82rem', marginTop: 2 }}>

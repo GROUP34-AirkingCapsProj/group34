@@ -13,6 +13,8 @@ use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\Transfer;
 use App\Models\TransferDetail;
+use App\Models\ConsumableDetail;
+use App\Models\BarcodeScan;
 
 class StockHistoryMovementSummaryTest extends TestCase
 {
@@ -104,6 +106,16 @@ class StockHistoryMovementSummaryTest extends TestCase
             'quantity_requested'   => 7,
             'quantity_transferred' => 7,
         ]);
+        $transferBarcode = 'TR-SERIAL-' . uniqid();
+        BarcodeScan::create([
+            'user_id' => $user->user_id,
+            'barcode' => $transferBarcode,
+            'product_id' => $product->product_id,
+            'transfer_id' => $transfer->transfer_id,
+            'scan_mode' => 'transfer',
+            'quantity' => 1,
+            'scanned_at' => now(),
+        ]);
 
         $resp = $this->actingAs($user)
             ->getJson('/api/inventory/' . $inventory->inventory_id . '/history')
@@ -114,5 +126,52 @@ class StockHistoryMovementSummaryTest extends TestCase
         $this->assertSame(20, $summary['stock_in'], 'stock_in should equal total received pieces');
         $this->assertSame(5, $summary['stock_out'], 'stock_out should count sold pieces only, not transfers');
         $this->assertSame(7, $summary['transferred'], 'transferred should count transferred pieces only, not sales');
+
+        $transferMovement = collect($resp->json('data.movement_history'))
+            ->firstWhere('type', 'Transfer');
+        $this->assertSame($transferBarcode, $transferMovement['serial_number']);
+        $this->assertSame([$transferBarcode], $transferMovement['serial_numbers']);
+
+        $serialRows = $resp->json('data.serial_records');
+        $this->assertSame(
+            5,
+            collect($serialRows)->sum('row_stock_out'),
+            'unlinked historical issue-outs should be allocated to receiving rows by FIFO'
+        );
+    }
+
+    public function test_packaged_material_stock_value_uses_piece_price(): void
+    {
+        $location = Location::create([
+            'location_code' => 'VAL-' . uniqid(),
+            'location_name' => 'Valuation Location',
+            'location_type' => 'warehouse',
+        ]);
+        $product = Product::create([
+            'product_code' => 'PACK-' . uniqid(),
+            'product_name' => 'Five Piece Roll',
+            'product_type' => 'installation_material',
+            'cost_price' => 50,
+            'unit_price' => 50,
+        ]);
+        ConsumableDetail::create([
+            'product_id' => $product->product_id,
+            'pieces_per_package' => 5,
+            'package_unit' => 'Roll',
+        ]);
+        $inventory = Inventory::create([
+            'product_id' => $product->product_id,
+            'location_id' => $location->location_id,
+            'quantity_on_hand' => 4,
+            'available_quantity' => 4,
+        ]);
+
+        $response = $this->actingAs($this->makeUser())
+            ->getJson('/api/inventory/' . $inventory->inventory_id . '/history')
+            ->assertStatus(200);
+
+        $this->assertEquals(10.0, $response->json('data.product.cost_per_piece'));
+        $this->assertEquals(10.0, $response->json('data.product.price_per_piece'));
+        $this->assertEquals(40.0, $response->json('data.summary.current_stock_value'));
     }
 }

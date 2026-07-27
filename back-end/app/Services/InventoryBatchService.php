@@ -134,9 +134,36 @@ class InventoryBatchService
         }
 
         if ($remaining > 0) {
-            $legacy = $this->legacyBatch($productId, $locationId);
-            $legacy->quantity_remaining += $remaining;
-            $legacy->save();
+            // If the original receiving link was not recorded, restore into the
+            // oldest traceable batch that has room before creating legacy stock.
+            $batches = InventoryBatch::where('product_id', $productId)
+                ->where('location_id', $locationId)
+                ->whereNotNull('receiving_id')
+                ->whereColumn('quantity_remaining', '<', 'quantity_received')
+                ->orderBy('received_at')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($batches as $batch) {
+                if ($remaining <= 0) break;
+                $restore = min(
+                    $remaining,
+                    (int) $batch->quantity_received - (int) $batch->quantity_remaining
+                );
+                $batch->quantity_remaining += $restore;
+                $batch->save();
+                $remaining -= $restore;
+            }
+
+            if ($remaining > 0) {
+                $legacy = $this->legacyBatch($productId, $locationId);
+                $legacy->quantity_remaining += $remaining;
+                $legacy->quantity_received = max(
+                    $legacy->quantity_received,
+                    $legacy->quantity_remaining
+                );
+                $legacy->save();
+            }
         }
     }
 

@@ -20,6 +20,7 @@ class IssuanceDetail extends Model
         'quantity_in_pieces', 'unit_price_per_piece', 'subtotal',
         'quantity_returned', 'condition_issued', 'condition_returned',
         'issuance_set_id', 'batch_id', 'zone_label',
+        'stock_before', 'quantity_deducted', 'stock_after',
         'cost_price_at_issue', 'quantity_requested', 'quantity_short',
     ];
 
@@ -33,6 +34,9 @@ class IssuanceDetail extends Model
         'quantity_requested'    => 'integer',
         'quantity_short'        => 'integer',
         'cost_price_at_issue'   => 'decimal:2',
+        'stock_before'          => 'integer',
+        'quantity_deducted'     => 'integer',
+        'stock_after'           => 'integer',
     ];
 
     public function issuance(): BelongsTo
