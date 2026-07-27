@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
+use App\Services\InventoryBatchService;
 
 class IssuanceController extends Controller
 {
@@ -94,6 +95,25 @@ class IssuanceController extends Controller
                 $inventory->quantity_on_hand = max(0, (int) $inventory->quantity_on_hand - $qty);
                 $inventory->available_quantity = max(0, (int) $inventory->available_quantity - $qty);
                 $inventory->save();
+
+                $touched = app(InventoryBatchService::class)->deductFifo(
+                    (int) $detail['product_id'],
+                    (int) $validated['location_id'],
+                    $qty
+                );
+                foreach ($touched as $batchId => $deductedQuantity) {
+                    if ($deductedQuantity <= 0) continue;
+                    \App\Models\InventoryBatchMovement::create([
+                        'batch_id' => $batchId,
+                        'movement_type' => 'stock_out',
+                        'issuance_id' => $issuance->issuance_id,
+                        'product_id' => $detail['product_id'],
+                        'from_location_id' => $validated['location_id'],
+                        'quantity' => $deductedQuantity,
+                        'performed_by' => $issuance->issued_by,
+                        'moved_at' => now(),
+                    ]);
+                }
             }
 
             DB::commit();

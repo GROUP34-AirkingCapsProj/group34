@@ -131,6 +131,9 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   const serialized = isSerializedStep(currentStep);
   const suggestion = currentStep?.suggestions?.[0] || null;
   const suggestedZone = suggestion?.zone_label || '';
+  // Quantity is fixed by the confirmed order. Consumables apply the current
+  // FIFO take in one scan; serialized products remain one scan per serial.
+  const scanQuantity = serialized ? 1 : Math.max(1, Number(suggestion?.quantity) || 1);
 
   // Default the zone control to the suggested zone whenever the step changes.
   useEffect(() => {
@@ -163,7 +166,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
     // Clear the input after EVERY attempt, regardless of outcome.
     setBarcode('');
     try {
-      const response = await onScan(clean, cz);
+      const response = await onScan(clean, cz, scanQuantity);
       if (!mountedRef.current) return;
       const v = extractVerdict(response);
       setVerdict(v);
@@ -254,12 +257,45 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
             ) : null
           )}
         </div>
+        {!serialized && suggestion && (
+          <div
+            style={{
+              margin: '0.75rem auto 0',
+              padding: '0.55rem 0.8rem',
+              maxWidth: 420,
+              borderRadius: 8,
+              background: '#eff6ff',
+              color: '#1e3a8a',
+              fontWeight: 700,
+            }}
+          >
+            Pick {scanQuantity} piece{scanQuantity === 1 ? '' : 's'} from zone{' '}
+            <span className="ak-mono">{suggestedZone || 'Unassigned'}</span>
+          </div>
+        )}
         {suggestion?.received_at && (
           <div className="ak-muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
             Oldest batch received {suggestion.received_at}
           </div>
         )}
       </div>
+
+      {!serialized && (currentStep?.suggestions?.length ?? 0) > 1 && (
+        <div className="ak-card" style={{ padding: '0.9rem 1rem' }}>
+          <div className="ak-label" style={{ marginBottom: '0.5rem' }}>FIFO route for this product</div>
+          <ol style={{ margin: 0, paddingLeft: '1.3rem', display: 'grid', gap: '0.35rem' }}>
+            {currentStep.suggestions.map((step, index) => (
+              <li key={`${step.batch_id ?? 'batch'}-${index}`}>
+                <strong>{step.quantity} piece{Number(step.quantity) === 1 ? '' : 's'}</strong>
+                {' from zone '}
+                <span className="ak-mono">{step.zone_label || 'Unassigned'}</span>
+                {step.received_at && <span className="ak-muted"> · received {step.received_at}</span>}
+                {index === 0 && <span className="ak-badge ak-badge--green" style={{ marginLeft: 8 }}>Pick first</span>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {/* SCAN FORM */}
       <form onSubmit={submit} className="ak-field" style={{ gap: '0.6rem' }}>
@@ -304,6 +340,14 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
             disabled={busy}
             style={{ fontSize: '1.2rem' }}
           />
+          <button
+            type="submit"
+            className="ak-btn ak-btn--primary"
+            disabled={busy || !barcode.trim()}
+            style={{ marginTop: '0.6rem' }}
+          >
+            {busy ? 'Picking…' : `Scan and pick ${scanQuantity} item${scanQuantity === 1 ? '' : 's'}`}
+          </button>
         </div>
       </form>
 

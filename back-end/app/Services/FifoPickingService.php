@@ -32,12 +32,17 @@ class FifoPickingService
         foreach ($lines as $line) {
             $productId = (int) $line['product_id'];
             $needed    = max(0, (int) $line['quantity']);
-            $product   = Product::find($productId);
+            $product   = Product::with('consumableDetail')->find($productId);
 
             $out[] = [
                 'product_id'   => $productId,
                 'product_name' => $product?->product_name,
                 'needed'       => $needed,
+                // Picking quantities are always expressed in pieces. These two
+                // fields let every picker offer package + loose-piece entry
+                // without changing the inventory unit used by the server.
+                'pieces_per_package' => (int) ($product?->getPiecesPerPackage() ?? 0),
+                'package_unit' => $product?->consumableDetail?->package_unit,
                 'suggestions'  => $this->isSerialized($product)
                     ? $this->serialSteps($locationId, $productId, $needed, $excludedBatchIds)
                     : $this->batchSteps($locationId, $productId, $needed, $excludedBatchIds),
@@ -54,6 +59,11 @@ class FifoPickingService
             ->where('location_id', $locationId)
             ->where('quantity_remaining', '>', 0)
             ->when($excludedBatchIds !== [], fn ($q) => $q->whereNotIn('batch_id', $excludedBatchIds))
+            // MySQL sorts NULL before real timestamps in ascending order. An
+            // adjustment/legacy batch without a receiving date must not jump
+            // ahead of traceable received stock and split an otherwise single-
+            // zone pick. Use dated batches FIFO, then undated legacy stock last.
+            ->orderByRaw('received_at IS NULL')
             ->orderBy('received_at', 'asc')
             ->orderBy('batch_id', 'asc')
             ->get();

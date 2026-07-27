@@ -54,6 +54,37 @@ class InventoryController extends Controller
             });
         }
 
+        if ($request->filled('category_id')) {
+            $query->whereHas('product', fn($q) => $q->where('category_id', $request->category_id));
+        }
+
+        if ($request->filled('stock_status')) {
+            $recommended = '(SELECT recommended_stocks FROM products WHERE products.product_id = inventory.product_id)';
+            $configuredMax = '(SELECT max_stock_level FROM products WHERE products.product_id = inventory.product_id)';
+            $reorder = "COALESCE(NULLIF({$recommended}, 0), NULLIF(inventory.reorder_level, 0), 5)";
+            $maximum = "COALESCE(NULLIF({$configuredMax}, 0), ({$reorder} * 4))";
+            switch ($request->stock_status) {
+                case 'out':
+                    $query->where('quantity_on_hand', '<=', 0);
+                    break;
+                case 'critical':
+                    $query->where('quantity_on_hand', '>', 0)
+                        ->whereRaw("quantity_on_hand <= ({$reorder} * 0.5)");
+                    break;
+                case 'reorder':
+                    $query->whereRaw("quantity_on_hand > ({$reorder} * 0.5)")
+                        ->whereRaw("quantity_on_hand <= {$reorder}");
+                    break;
+                case 'overstock':
+                    $query->whereRaw("quantity_on_hand >= {$maximum}");
+                    break;
+                case 'optimal':
+                    $query->whereRaw("quantity_on_hand > {$reorder}")
+                        ->whereRaw("quantity_on_hand < {$maximum}");
+                    break;
+            }
+        }
+
         if ($request->has('low_stock') && $request->low_stock) {
             $query->whereRaw('quantity_on_hand <= (SELECT recommended_stocks FROM products WHERE products.product_id = inventory.product_id)');
         }
@@ -190,7 +221,7 @@ class InventoryController extends Controller
                 'suppliers.contact_person as supplier_contact',
                 'suppliers.contact_number as supplier_phone',
             ])
-            ->orderBy('receiving_details.created_at', 'desc')
+            ->orderBy('receiving_details.created_at', 'asc')
             ->get();
 
         // ── Serial records ───────────────────────────────────────────────
@@ -199,11 +230,12 @@ class InventoryController extends Controller
         // event is already captured on receiving_details — surface that instead.
         $serials = collect();
         if ($isSerialized) {
-            $serials = ItemSerial::query()
+            $inStockSerials = ItemSerial::query()
                 ->where('item_serial.product_id', $productId)
                 ->where('item_serial.location_id', $locationId)
                 ->leftJoin('users as scanner', 'scanner.user_id', '=', 'item_serial.scanned_by')
                 ->leftJoin('receivings', 'receivings.receiving_id', '=', 'item_serial.receiving_id')
+                ->leftJoin('transfers', 'transfers.transfer_id', '=', 'item_serial.transfer_id')
                 ->leftJoin('purchase_orders', 'purchase_orders.po_id', '=', 'receivings.po_id')
                 ->leftJoin('suppliers', 'suppliers.supplier_id', '=', 'purchase_orders.supplier_id')
                 ->leftJoin('status_lookup', 'status_lookup.status_id', '=', 'item_serial.status_id')
@@ -212,6 +244,8 @@ class InventoryController extends Controller
                     'item_serial.serial_number',
                     'item_serial.serial_type',
                     'item_serial.created_at as scanned_at',
+                    'receivings.created_at as received_at_exact',
+                    'transfers.updated_at as transferred_at',
                     DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
                     'status_lookup.status_name as serial_status',
                     'receivings.receiving_number',
@@ -220,34 +254,120 @@ class InventoryController extends Controller
                     'purchase_orders.order_date as po_date',
                     'suppliers.supplier_name',
                 ])
-                ->orderBy('item_serial.created_at', 'desc')
+                ->orderBy('item_serial.created_at', 'asc')
                 ->get()
                 ->map(function ($s) {
+                    $s->row_quantity_received = 1;
                     $s->row_stock_in  = 1;
-                    $s->row_stock_out = null; // sold serials are deleted → not attributable per row
+                    $s->row_stock_out = 0;
                     $s->row_transfer  = $s->serial_type === 'transferred' ? 1 : 0;
+                    $s->received_at   = $s->received_at_exact ?? $s->scanned_at;
+                    $s->stock_out_at  = null;
                     return $s;
                 });
+
+            $issuedSerials = DB::table('issuance_details as d')
+                ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
+                ->leftJoin('users as issuer', 'issuer.user_id', '=', 'i.issued_by')
+                ->leftJoin('receivings as r', 'r.receiving_id', '=', 'd.receiving_id')
+                ->leftJoin('purchase_orders as po', 'po.po_id', '=', 'r.po_id')
+                ->leftJoin('suppliers as supplier', 'supplier.supplier_id', '=', 'po.supplier_id')
+                ->where('d.product_id', $productId)
+                ->where('i.location_id', $locationId)
+                ->whereNotNull('d.serial_number')
+                ->where('d.quantity_issued', '>', 0)
+                ->select([
+                    'd.issuance_detail_id as serial_id', 'd.serial_number',
+                    DB::raw("'issued' as serial_type"), 'd.created_at as scanned_at',
+                    'r.created_at as received_at_exact',
+                    DB::raw("CONCAT(issuer.first_name, ' ', issuer.last_name) AS scanned_by_name"),
+                    DB::raw("'Issued' as serial_status"),
+                    'r.receiving_number', 'r.receiving_date', 'po.po_number',
+                    'po.order_date as po_date', 'supplier.supplier_name',
+                ])->get()->map(function ($s) {
+                    $s->row_quantity_received = 1;
+                    $s->row_stock_in = 0;
+                    $s->row_stock_out = 1;
+                    $s->row_transfer = 0;
+                    $s->received_at = $s->received_at_exact;
+                    $s->stock_out_at = $s->scanned_at;
+                    $s->transferred_at = null;
+                    return $s;
+                });
+
+            $serials = $inStockSerials->concat($issuedSerials)
+                ->sortBy('scanned_at')->values();
         } else {
             // Pieces sold per receiving batch (issuance_details link a sale to its batch).
             $soldByReceiving = DB::table('issuance_details')
                 ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
+                ->leftJoin('inventory_batches', 'inventory_batches.batch_id', '=', 'issuance_details.batch_id')
                 ->where('issuance_details.product_id', $productId)
                 ->where('issuances.location_id', $locationId)
-                ->whereNull('issuances.deleted_at')
-                ->whereNotNull('issuance_details.receiving_id')
-                ->groupBy('issuance_details.receiving_id')
-                ->selectRaw('issuance_details.receiving_id AS receiving_id, '
+                ->whereRaw('COALESCE(issuance_details.receiving_id, inventory_batches.receiving_id) IS NOT NULL')
+                ->groupByRaw('COALESCE(issuance_details.receiving_id, inventory_batches.receiving_id)')
+                ->selectRaw('COALESCE(issuance_details.receiving_id, inventory_batches.receiving_id) AS receiving_id, '
                     . 'SUM(COALESCE(issuance_details.quantity_in_pieces, issuance_details.quantity_issued, 0)) AS sold')
                 ->pluck('sold', 'receiving_id');
 
+            // Older/manual issue-out records may have deducted inventory without
+            // storing a receiving/batch link. Allocate those pieces to receiving
+            // rows oldest-first, which is the same FIFO rule used for deduction.
+            $unlinkedSold = (int) DB::table('issuance_details')
+                ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
+                ->leftJoin('inventory_batches', 'inventory_batches.batch_id', '=', 'issuance_details.batch_id')
+                ->where('issuance_details.product_id', $productId)
+                ->where('issuances.location_id', $locationId)
+                ->whereRaw('COALESCE(issuance_details.receiving_id, inventory_batches.receiving_id) IS NULL')
+                ->sum(DB::raw('COALESCE(issuance_details.quantity_in_pieces, issuance_details.quantity_issued, 0)'));
+
+            if ($unlinkedSold > 0) {
+                foreach ($receivingDetails->sortBy('received_at') as $rd) {
+                    if ($unlinkedSold <= 0) break;
+                    $alreadyAssigned = (int) ($soldByReceiving[$rd->receiving_id] ?? 0);
+                    $batchCapacity = max(0, (int) $rd->quantity_amount - $alreadyAssigned);
+                    $allocated = min($unlinkedSold, $batchCapacity);
+                    if ($allocated > 0) {
+                        $soldByReceiving[$rd->receiving_id] = $alreadyAssigned + $allocated;
+                        $unlinkedSold -= $allocated;
+                    }
+                }
+            }
+
+            $stockOutAtByReceiving = DB::table('issuance_details as d')
+                ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
+                ->leftJoin('inventory_batches as b', 'b.batch_id', '=', 'd.batch_id')
+                ->where('d.product_id', $productId)
+                ->where('i.location_id', $locationId)
+                ->where('d.quantity_issued', '>', 0)
+                ->whereRaw('COALESCE(d.receiving_id, b.receiving_id) IS NOT NULL')
+                ->groupByRaw('COALESCE(d.receiving_id, b.receiving_id)')
+                ->selectRaw('COALESCE(d.receiving_id, b.receiving_id) AS receiving_id, MAX(d.created_at) AS stock_out_at')
+                ->pluck('stock_out_at', 'receiving_id');
+            $unlinkedStockOutAt = DB::table('issuance_details as d')
+                ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
+                ->leftJoin('inventory_batches as b', 'b.batch_id', '=', 'd.batch_id')
+                ->where('d.product_id', $productId)
+                ->where('i.location_id', $locationId)
+                ->where('d.quantity_issued', '>', 0)
+                ->whereRaw('COALESCE(d.receiving_id, b.receiving_id) IS NULL')
+                ->max('d.created_at');
+
             $serials = $receivingDetails
-                ->filter(fn($rd) => ! empty($rd->scanned_barcode))
-                ->map(fn($rd) => (object) [
+                ->sortBy('received_at')
+                ->map(function ($rd) use ($soldByReceiving, $stockOutAtByReceiving, $unlinkedStockOutAt) {
+                    $received = (int) $rd->quantity_amount;
+                    $stockOut = (int) ($soldByReceiving[$rd->receiving_id] ?? 0);
+                    return (object) [
                     'serial_id'       => $rd->receiving_detail_id,
-                    'serial_number'   => $rd->scanned_barcode,
+                    'serial_number'   => $rd->scanned_barcode ?: $rd->receiving_number,
                     'serial_type'     => 'received',
                     'scanned_at'      => $rd->received_at,
+                    'received_at'     => $rd->received_at,
+                    'stock_out_at'    => $stockOut > 0
+                        ? ($stockOutAtByReceiving[$rd->receiving_id] ?? $unlinkedStockOutAt)
+                        : null,
+                    'transferred_at'  => null,
                     'scanned_by_name' => $rd->received_by_name,
                     'serial_status'   => 'Received',
                     'receiving_number'=> $rd->receiving_number,
@@ -255,23 +375,31 @@ class InventoryController extends Controller
                     'po_number'       => $rd->po_number,
                     'po_date'         => $rd->po_date,
                     'supplier_name'   => $rd->supplier_name,
-                    'row_stock_in'    => (int) $rd->quantity_amount,
-                    'row_stock_out'   => (int) ($soldByReceiving[$rd->receiving_id] ?? 0),
+                    'row_quantity_received' => $received,
+                    'row_stock_in'    => max(0, $received - $stockOut),
+                    'row_stock_out'   => $stockOut,
                     'row_transfer'    => null, // transfers are not batch-linked → not attributable per row
-                ])
+                    ];
+                })
                 ->values();
         }
 
         // ── Summary stats ─────────────────────────────────────────────────
+        // Receiving/inventory quantities are pieces. For packaged materials,
+        // prod_price and product cost are package prices and must be converted
+        // before valuation.
         $totalCostValue = $receivingDetails->sum(
-            fn($rd) => (float) $rd->prod_price * (int) $rd->quantity_amount
+            fn($rd) => $product?->getPricePerPiece((float) $rd->prod_price)
+                * (int) $rd->quantity_amount
         );
         $totalPieces  = $receivingDetails->sum('quantity_amount');
+        $costPerPiece = $product?->getPricePerPiece((float) $product?->cost_price) ?? 0;
+        $pricePerPiece = $product?->getPricePerPiece((float) $product?->unit_price) ?? 0;
         $avgCostPrice = $totalPieces > 0
             ? round($totalCostValue / $totalPieces, 2)
-            : ($product?->cost_price ?? 0);
+            : $costPerPiece;
 
-        $latestReceiving = $receivingDetails->first();
+        $latestReceiving = $receivingDetails->sortByDesc('received_at')->first();
 
         // ── Movement summary: distinguish customer sales from transfers ────
         // Sold and transferred pieces come from separate tables, so a transfer
@@ -281,15 +409,98 @@ class InventoryController extends Controller
             ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
             ->where('issuance_details.product_id', $productId)
             ->where('issuances.location_id', $locationId)
-            ->whereNull('issuances.deleted_at')
             ->sum(DB::raw('COALESCE(issuance_details.quantity_in_pieces, issuance_details.quantity_issued, 0)'));
 
         $transferredPieces = (int) DB::table('transfer_details')
             ->join('transfers', 'transfers.transfer_id', '=', 'transfer_details.transfer_id')
             ->where('transfer_details.product_id', $productId)
             ->where('transfers.from_location_id', $locationId)
-            ->whereNull('transfers.deleted_at')
             ->sum(DB::raw('COALESCE(transfer_details.quantity_transferred, 0)'));
+
+        $movementHistory = collect();
+        foreach ($receivingDetails as $rd) {
+            $movementHistory->push([
+                'type' => 'Stock In',
+                'quantity' => (int) $rd->quantity_amount,
+                'date_time' => $rd->received_at,
+                'reference' => $rd->receiving_number,
+                'serial_number' => $rd->scanned_barcode,
+                'from_location' => $rd->supplier_name,
+                'to_location' => $inventory->location?->location_name,
+                'performed_by' => $rd->received_by_name,
+            ]);
+        }
+
+        DB::table('issuance_details as d')
+            ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
+            ->leftJoin('users as u', 'u.user_id', '=', 'i.issued_by')
+            ->where('d.product_id', $productId)
+            ->where('i.location_id', $locationId)
+            ->where('d.quantity_issued', '>', 0)
+            ->select([
+                'd.serial_number', 'd.quantity_in_pieces', 'd.quantity_issued',
+                'd.created_at', 'i.dr_number', 'i.issuance_id',
+                DB::raw("TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) as performed_by"),
+            ])->get()->each(function ($row) use ($movementHistory, $inventory) {
+                $movementHistory->push([
+                    'type' => 'Stock Out',
+                    'quantity' => (int) ($row->quantity_in_pieces ?: $row->quantity_issued),
+                    'date_time' => $row->created_at,
+                    'reference' => $row->dr_number ?: ('Issuance #' . $row->issuance_id),
+                    'serial_number' => $row->serial_number,
+                    'from_location' => $inventory->location?->location_name,
+                    'to_location' => 'Issued',
+                    'performed_by' => $row->performed_by,
+                ]);
+            });
+
+        $transferScans = DB::table('barcode_scans')
+            ->where('product_id', $productId)
+            ->where('scan_mode', 'transfer')
+            ->whereNotNull('transfer_id')
+            ->whereNotNull('barcode')
+            ->orderBy('scanned_at')
+            ->get(['transfer_id', 'barcode'])
+            ->groupBy('transfer_id')
+            ->map(fn($scans) => $scans
+                ->pluck('barcode')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all());
+
+        DB::table('transfer_details as d')
+            ->join('transfers as t', 't.transfer_id', '=', 'd.transfer_id')
+            ->leftJoin('locations as src', 'src.location_id', '=', 't.from_location_id')
+            ->leftJoin('locations as dst', 'dst.location_id', '=', 't.to_location_id')
+            ->leftJoin('users as u', function ($join) {
+                $join->on('u.user_id', '=', DB::raw('COALESCE(t.prepared_by, t.requested_by)'));
+            })
+            ->where('d.product_id', $productId)
+            ->where('d.quantity_transferred', '>', 0)
+            ->where(fn($q) => $q->where('t.from_location_id', $locationId)
+                ->orWhere('t.to_location_id', $locationId))
+            ->select([
+                'd.quantity_transferred', 't.transfer_id', 't.transfer_number',
+                't.transfer_date', 't.updated_at',
+                'src.location_name as from_location',
+                'dst.location_name as to_location',
+                DB::raw("TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) as performed_by"),
+            ])->get()->each(function ($row) use ($movementHistory, $transferScans) {
+                $serialNumbers = $transferScans->get($row->transfer_id, []);
+
+                $movementHistory->push([
+                    'type' => 'Transfer',
+                    'quantity' => (int) $row->quantity_transferred,
+                    'date_time' => $row->updated_at ?: $row->transfer_date,
+                    'reference' => $row->transfer_number,
+                    'serial_number' => implode(', ', $serialNumbers),
+                    'serial_numbers' => $serialNumbers,
+                    'from_location' => $row->from_location,
+                    'to_location' => $row->to_location,
+                    'performed_by' => $row->performed_by,
+                ]);
+            });
 
         return $this->success([
             'inventory' => [
@@ -316,6 +527,8 @@ class InventoryController extends Controller
                 'pieces_per_package' => $piecesPerPackage,
                 'cost_price'         => $product?->cost_price,
                 'unit_price'         => $product?->unit_price,
+                'cost_per_piece'     => $costPerPiece,
+                'price_per_piece'    => $pricePerPiece,
                 'category_name'      => $product?->category?->category_name,
                 'description'        => $product?->description,
                 'brand_name'         => $product?->applianceDetail?->brand?->brand_name ?? null,
@@ -329,6 +542,7 @@ class InventoryController extends Controller
             ],
             'receiving_history' => $receivingDetails,
             'serial_records'    => $serials,
+            'movement_history'  => $movementHistory->sortBy('date_time')->values(),
             'summary' => [
                 'total_receive_events'  => $receivingDetails->count(),
                 'total_pieces_received' => $totalPieces,
@@ -341,6 +555,12 @@ class InventoryController extends Controller
                 'stock_in'              => (int) $totalPieces,
                 'stock_out'             => $soldPieces,
                 'transferred'           => $transferredPieces,
+                'current_on_hand'       => (int) $inventory->quantity_on_hand,
+                'current_available'     => (int) $inventory->available_quantity,
+                'current_stock_value'   => round(
+                    (int) $inventory->quantity_on_hand * $costPerPiece,
+                    2
+                ),
             ],
         ], 'Inventory history retrieved successfully');
     }

@@ -37,8 +37,13 @@ class IssuanceOrderController extends Controller
             $granted   = max(0, min($requested, $left));   // what this line can actually claim
             $remaining[$productId] = $left - $granted;
 
-            $unitPrice = (float) $detail->unit_price;
-            $costPrice = (float) ($detail->cost_price_at_issue ?? $detail->product?->cost_price ?? 0);
+            $piecesPerPackage = max(1, (int) ($detail->product?->getPiecesPerPackage() ?? 1));
+            $unitPrice = $detail->product
+                ? round((float) $detail->product->unit_price / $piecesPerPackage, 4)
+                : (float) $detail->unit_price;
+            $costPrice = $detail->product
+                ? round((float) $detail->product->cost_price / $piecesPerPackage, 4)
+                : (float) ($detail->cost_price_at_issue ?? 0);
             $shortBy   = $requested - $granted;
             $available = $pool;
 
@@ -52,6 +57,7 @@ class IssuanceOrderController extends Controller
                 // Packaging so the UI can show a pack/box breakdown like Transfers.
                 'pieces_per_package' => (int) ($detail->product?->pieces_per_package ?? 0),
                 'package_unit'       => $detail->product?->consumableDetail?->package_unit,
+                'package_price'      => (float) ($detail->product?->unit_price ?? $unitPrice),
                 'unit_price'         => $unitPrice,
                 'line_total'         => round($requested * $unitPrice, 2),
                 'available'          => $available,
@@ -202,12 +208,24 @@ class IssuanceOrderController extends Controller
                     /** @var \App\Models\IssuanceDetail $detail */
                     $detail = $row['detail'];
                     $grant  = (int) $row['grant'];
-                    $price  = (float) $detail->unit_price;
+                    $piecesPerPackage = max(1, (int) ($detail->product?->getPiecesPerPackage() ?? 1));
+                    $price = $detail->product
+                        ? round((float) $detail->product->unit_price / $piecesPerPackage, 4)
+                        : (float) $detail->unit_price;
 
                     $detail->update([
                         'quantity_requested'  => $grant,
                         'quantity_short'      => (int) $row['requested'] - $grant,
-                        'cost_price_at_issue' => (float) ($detail->product?->cost_price ?? 0),
+                        'unit_price'           => $price,
+                        'cost_price_at_issue' => $detail->product
+                            ? round(
+                                (float) $detail->product->cost_price
+                                / max(1, $detail->product->isConsumable()
+                                    ? $detail->product->getPiecesPerPackage()
+                                    : 1),
+                                4
+                            )
+                            : 0,
                         'subtotal'            => round($grant * $price, 2),
                     ]);
 

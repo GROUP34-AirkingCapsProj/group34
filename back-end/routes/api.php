@@ -940,8 +940,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,read'])
-     ->get('/issuance-scan/delivery-receipt/{issuance_id}/csv',
-         [IssuanceScanController::class, 'downloadDeliveryReceipt']);
+     ->get('/issuance-scan/delivery-receipt/{issuance_id}/pdf',
+         [IssuanceScanController::class, 'downloadDeliveryReceiptPdf']);
 
 Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
      ->get('/transfers/{id}/receipt/pdf', [TransferController::class, 'receiptPdf']);

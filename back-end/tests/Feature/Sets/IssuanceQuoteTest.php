@@ -43,6 +43,39 @@ class IssuanceQuoteTest extends SetTestCase
         $this->assertEqualsWithDelta(360.0, (float) $res->json('data.total_amount'), 0.001);
     }
 
+    public function test_quote_divides_package_price_by_pieces_per_package(): void
+    {
+        $loc = $this->makeLocation();
+        $user = $this->makeUserAt($loc, 'inventory_analyst');
+        $product = $this->makeConsumable(price: 50, cost: 25);
+        $product->consumableDetail()->create([
+            'pieces_per_package' => 5,
+            'package_unit' => 'box',
+        ]);
+        $this->setStock($loc->location_id, $product->product_id, 20);
+
+        $issuance = $this->draftAt($loc);
+        // Simulate an older draft that incorrectly snapshotted the package
+        // price. The quote must still normalize it to the current piece price.
+        $issuance->details()->create([
+            'product_id' => $product->product_id,
+            'quantity_requested' => 4,
+            'quantity_issued' => 0,
+            'unit_price' => 50,
+            'subtotal' => 200,
+        ]);
+
+        $res = $this->actingAs($user, 'sanctum')
+            ->getJson("/api/issuances/{$issuance->issuance_id}/quote")
+            ->assertOk();
+
+        $this->assertEqualsWithDelta(50.0, (float) $res->json('data.lines.0.package_price'), 0.001);
+        $this->assertEqualsWithDelta(10.0, (float) $res->json('data.lines.0.unit_price'), 0.001);
+        $this->assertEqualsWithDelta(40.0, (float) $res->json('data.lines.0.line_total'), 0.001);
+        $this->assertEqualsWithDelta(40.0, (float) $res->json('data.subtotal'), 0.001);
+        $this->assertEqualsWithDelta(40.0, (float) $res->json('data.total_amount'), 0.001);
+    }
+
     public function test_short_line_is_flagged_with_available_quantity(): void
     {
         $loc  = $this->makeLocation();

@@ -210,9 +210,40 @@ class PoInventoryController extends Controller
                 ->values();
         }
 
+        $batchIds = $batches->pluck('batch_id')->all();
+        $movements = DB::table('inventory_batch_movements as m')
+            ->join('products as p', 'p.product_id', '=', 'm.product_id')
+            ->leftJoin('transfers as t', 't.transfer_id', '=', 'm.transfer_id')
+            ->leftJoin('issuances as i', 'i.issuance_id', '=', 'm.issuance_id')
+            ->leftJoin('locations as destination', 'destination.location_id', '=', 'm.to_location_id')
+            ->leftJoin('users as performer', 'performer.user_id', '=', 'm.performed_by')
+            ->whereIn('m.batch_id', $batchIds)
+            ->orderBy('m.moved_at', 'asc')
+            ->get([
+                'm.batch_movement_id', 'm.batch_id', 'm.movement_type',
+                'm.quantity', 'm.serial_number', 'm.moved_at',
+                'p.product_name', 't.transfer_number', 'i.dr_number',
+                'destination.location_name as to_location',
+                DB::raw("TRIM(CONCAT(COALESCE(performer.first_name,''), ' ', COALESCE(performer.last_name,''))) as performed_by"),
+            ])
+            ->map(fn ($movement) => [
+                'movement_id' => $movement->batch_movement_id,
+                'batch_id' => $movement->batch_id,
+                'type' => $movement->movement_type,
+                'product_name' => $movement->product_name,
+                'quantity' => (int) $movement->quantity,
+                'serial_number' => $movement->serial_number,
+                'reference' => $movement->transfer_number ?: $movement->dr_number,
+                'to_location' => $movement->to_location,
+                'performed_by' => $movement->performed_by ?: null,
+                'moved_at' => $movement->moved_at,
+            ]);
+
         return $this->success([
             'overview'          => $overview,
             'receiving_history' => $receivingHistory,
+            'stock_out_history' => $movements->where('type', 'stock_out')->values(),
+            'transfer_history'  => $movements->where('type', 'transfer')->values(),
             'serials'           => $serials,
         ], 'PO inventory group detail retrieved successfully');
     }

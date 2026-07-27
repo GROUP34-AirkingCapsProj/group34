@@ -1100,10 +1100,14 @@ export const issuanceScanAPI = {
     const token = getToken();
     return `${base}/issuance-scan/${issuanceId}/revert-to-draft-beacon${token ? '?token=' + token : ''}`;
   },
-  drCsvUrl: (issuanceId) => {
+  drPdfUrl: (issuanceId, preview = false) => {
     const base = getApiBaseUrl();
     const token = getToken();
-    return `${base}/issuance-scan/delivery-receipt/${issuanceId}/csv${token ? '?token=' + token : ''}`;
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (preview) params.set('preview', '1');
+    const query = params.toString();
+    return `${base}/issuance-scan/delivery-receipt/${issuanceId}/pdf${query ? '?' + query : ''}`;
   },
 };
 

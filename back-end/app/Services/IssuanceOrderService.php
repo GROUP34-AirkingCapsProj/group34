@@ -47,7 +47,7 @@ class IssuanceOrderService
                         "Cannot add set: line product #{$line->product_id} no longer exists."
                     );
                 }
-                $price = (float) $line->product->unit_price;
+                $price = $this->sellingPricePerPiece($line->product);
 
                 $issuance->details()->create([
                     'issuance_set_id'     => $group->issuance_set_id,
@@ -74,15 +74,19 @@ class IssuanceOrderService
 
         $product = Product::findOrFail($productId);
 
+        $price = $this->sellingPricePerPiece($product);
+
         return $this->inDraftTransaction($issuance, fn () => $issuance->details()->create([
             'issuance_set_id'     => null,
             'product_id'          => $product->product_id,
             'quantity_requested'  => $quantity,
             'quantity_issued'     => 0,
             'quantity_short'      => 0,
-            'unit_price'          => (float) $product->unit_price,
+            // Issuance quantities are stored in pieces, so this snapshot must
+            // also be a per-piece price (the catalog price is per package).
+            'unit_price'          => $price,
             'cost_price_at_issue' => null,
-            'subtotal'            => round($quantity * (float) $product->unit_price, 2),
+            'subtotal'            => round($quantity * $price, 2),
         ]));
     }
 
@@ -117,6 +121,14 @@ class IssuanceOrderService
             $this->flagModified($detail);
             $detail->delete();
         });
+    }
+
+    private function sellingPricePerPiece(Product $product): float
+    {
+        $packagePrice = (float) $product->unit_price;
+        $pieces = $product->isConsumable() ? $product->getPiecesPerPackage() : 1;
+
+        return round($packagePrice / max(1, $pieces), 4);
     }
 
     /** A set group whose lines were touched no longer represents the standard BOQ. */
