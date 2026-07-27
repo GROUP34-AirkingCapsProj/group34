@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { useAuth, useUserLocation } from '../context/AuthContext';
@@ -87,6 +87,14 @@ export default function IssuanceScanPage() {
   // Setup; once a Draft exists the local sub-step toggle (Order/Quote) applies.
   const currentStep = isPending ? STEP_PICK : (!issuanceId ? STEP_SETUP : draftStep);
 
+  // Mirror the live "an abandoned pick should revert to Draft" condition into a ref
+  // so unmount/beforeunload cleanups (which capture stale state) read the truth.
+  const revertableRef = useRef(false);
+  const revertFiredRef = useRef(false);
+  useEffect(() => {
+    revertableRef.current = Boolean(issuanceId) && isPending && !isCompleted && !isTerminal;
+  }, [issuanceId, isPending, isCompleted, isTerminal]);
+
   useEffect(() => { refreshUser(); }, [refreshUser]);
 
   useEffect(() => {
@@ -157,6 +165,28 @@ export default function IssuanceScanPage() {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Revert an abandoned picking-phase order on hard exits: a tab close/refresh fires
+  // a sendBeacon (best-effort), and leaving the page (unmount) fires the endpoint.
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      if (revertableRef.current && !revertFiredRef.current && issuanceId) {
+        revertFiredRef.current = true;
+        try {
+          navigator.sendBeacon(issuanceScanAPI.revertToDraftUrl(issuanceId));
+        } catch { /* best-effort */ }
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      // Navigating away inside the app: revert the abandoned pick (fire-and-forget).
+      if (revertableRef.current && !revertFiredRef.current && issuanceId) {
+        revertFiredRef.current = true;
+        issuanceScanAPI.revertToDraft(issuanceId).catch(() => {});
+      }
+    };
+  }, [issuanceId]);
 
   const loadPlan = useCallback(async (id = issuanceId) => {
     if (!id) return;
@@ -262,6 +292,7 @@ export default function IssuanceScanPage() {
   }, []);
 
   const resetAll = useCallback(() => {
+    revertFiredRef.current = false;
     setSession(null);
     setQuote(null);
     setDraftStep(STEP_ORDER);
@@ -272,6 +303,18 @@ export default function IssuanceScanPage() {
     setReceipt(null);
     setSearchParams((p) => { p.delete('issuance'); return p; }, { replace: true });
   }, [setSearchParams]);
+
+  // Best-effort revert of an abandoned picking-phase order to Draft. Safe to call
+  // when nothing is revertable (no-op) and safe to call twice (server is idempotent).
+  const revertIfAbandoned = useCallback(async () => {
+    if (!revertableRef.current || revertFiredRef.current || !issuanceId) return;
+    revertFiredRef.current = true;
+    try {
+      await issuanceScanAPI.revertToDraft(issuanceId);
+    } catch {
+      /* best-effort — the order stays resumable/cancellable either way */
+    }
+  }, [issuanceId]);
 
   const scanBusyWrapped = scanBusy || planLoading;
 
@@ -314,7 +357,7 @@ export default function IssuanceScanPage() {
               <p className="ak-sub">Build the order, confirm the quote, then pick with FIFO enforcement.</p>
             </div>
             {issuanceId && (
-              <button type="button" className="isp-btn-secondary" onClick={resetAll}>New Order</button>
+              <button type="button" className="isp-btn-secondary" onClick={async () => { await revertIfAbandoned(); resetAll(); }}>New Order</button>
             )}
           </div>
         </header>
