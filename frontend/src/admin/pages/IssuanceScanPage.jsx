@@ -210,6 +210,7 @@ export default function IssuanceScanPage() {
 
   // ── Step 1 → creates the draft ──────────────────────────────
   const handleSessionCreated = useCallback(async (res) => {
+    revertFiredRef.current = false;
     setSession(res);
     setDraftStep(STEP_ORDER);
     if (res?.issuance_id) {
@@ -292,7 +293,6 @@ export default function IssuanceScanPage() {
   }, []);
 
   const resetAll = useCallback(() => {
-    revertFiredRef.current = false;
     setSession(null);
     setQuote(null);
     setDraftStep(STEP_ORDER);

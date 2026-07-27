@@ -946,6 +946,13 @@ Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,r
 Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
      ->get('/transfers/{id}/receipt/pdf', [TransferController::class, 'receiptPdf']);
 
+// sendBeacon (tab-close/refresh) can't set an Authorization header, so the
+// issuance wizard's abandon-revert beacon authenticates via ?token= like the
+// download routes. Same controller method as the Bearer POST route above.
+Route::middleware(['auth.query.token', 'permission:inventory_issuance,create'])
+     ->post('/issuance-scan/{issuance_id}/revert-to-draft-beacon',
+         [IssuanceScanController::class, 'revertToDraft']);
+
 // Goods Received Note downloads. These use standard Bearer auth (auth:sanctum),
 // NOT a ?token= query param — the frontend fetches the file with the Authorization
 // header and hands the browser a blob, so the token never appears in the URL
