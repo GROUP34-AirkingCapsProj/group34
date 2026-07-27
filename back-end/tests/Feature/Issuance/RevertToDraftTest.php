@@ -7,7 +7,6 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use App\Models\Customer;
 use App\Models\Inventory;
-use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\Issuance;
 use App\Models\IssuanceDetail;
