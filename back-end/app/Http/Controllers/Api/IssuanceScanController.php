@@ -509,47 +509,7 @@ class IssuanceScanController extends Controller
         }
 
         return DB::transaction(function () use ($detail, $issuance) {
-            $product = Product::with(['applianceDetail', 'consumableDetail'])
-                       ->find($detail->product_id);
-
-            if ($product) {
-                $inv = Inventory::where('product_id', $detail->product_id)
-                    ->where('location_id', $issuance->location_id)
-                    ->lockForUpdate()->first();
-
-                if ($inv) {
-                    $inv->quantity_on_hand   += $detail->quantity_in_pieces;
-                    $inv->available_quantity += $detail->quantity_in_pieces;
-                    if (! $product->isSerialized()) {
-                        $pcs = $product->getPiecesPerPackage();
-                        if ($pcs > 0) {
-                            $inv->packages_on_hand = (int) floor($inv->quantity_on_hand / $pcs);
-                        }
-                    }
-                    $inv->save();
-
-                    app(InventoryBatchService::class)->restoreFifo(
-                        $detail->product_id,
-                        $issuance->location_id,
-                        $detail->quantity_in_pieces,
-                        $detail->receiving_id
-                    );
-                }
-
-                if ($product->isSerialized() && $detail->serial_number) {
-                    ItemSerial::create([
-                        'product_id'    => $detail->product_id,
-                        'location_id'   => $issuance->location_id,
-                        'receiving_id'  => $detail->receiving_id,
-                        'serial_number' => $detail->serial_number,
-                        'serial_type'   => 'received',
-                        'status_id'     => self::STATUS_SERIAL_IN_STOCK,
-                        'scanned_by'    => Auth::id(),
-                    ]);
-                }
-            }
-
-            $detail->delete();
+            $this->reverseIssuedDetail($detail, $issuance);
             $this->recalculateTotals($issuance->issuance_id);
 
             return response()->json([
@@ -837,6 +797,57 @@ class IssuanceScanController extends Controller
         } catch (\Throwable $e) {
             report($e);
         }
+    }
+
+    /**
+     * Reverse one issued detail row: return its pieces to inventory + FIFO batch,
+     * recreate the serial for a serialized appliance, then delete the row. Caller
+     * owns the surrounding transaction and any status change. Shared by removeItem()
+     * (undo one scan) and revertToDraft() (un-pick a whole order).
+     */
+    private function reverseIssuedDetail(IssuanceDetail $detail, Issuance $issuance): void
+    {
+        $product = Product::with(['applianceDetail', 'consumableDetail'])
+                   ->find($detail->product_id);
+
+        if ($product) {
+            $inv = Inventory::where('product_id', $detail->product_id)
+                ->where('location_id', $issuance->location_id)
+                ->lockForUpdate()->first();
+
+            if ($inv) {
+                $inv->quantity_on_hand   += $detail->quantity_in_pieces;
+                $inv->available_quantity += $detail->quantity_in_pieces;
+                if (! $product->isSerialized()) {
+                    $pcs = $product->getPiecesPerPackage();
+                    if ($pcs > 0) {
+                        $inv->packages_on_hand = (int) floor($inv->quantity_on_hand / $pcs);
+                    }
+                }
+                $inv->save();
+
+                app(InventoryBatchService::class)->restoreFifo(
+                    $detail->product_id,
+                    $issuance->location_id,
+                    $detail->quantity_in_pieces,
+                    $detail->receiving_id
+                );
+            }
+
+            if ($product->isSerialized() && $detail->serial_number) {
+                ItemSerial::create([
+                    'product_id'    => $detail->product_id,
+                    'location_id'   => $issuance->location_id,
+                    'receiving_id'  => $detail->receiving_id,
+                    'serial_number' => $detail->serial_number,
+                    'serial_type'   => 'received',
+                    'status_id'     => self::STATUS_SERIAL_IN_STOCK,
+                    'scanned_by'    => Auth::id(),
+                ]);
+            }
+        }
+
+        $detail->delete();
     }
 
     private function recalculateTotals(int $issuanceId): void
