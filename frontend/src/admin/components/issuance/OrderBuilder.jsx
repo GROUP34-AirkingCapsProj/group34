@@ -555,7 +555,8 @@ function LineRow({ line, disabled, onUpdate, onRemove }) {
         <>
           <span className="ak-mono" style={{ minWidth: 32, textAlign: 'right' }}>
             ×{line.quantity_requested}
-            {packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)
+            {line.issuance_set_id != null
+              && packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)
               && <span className="ak-muted" style={{ marginLeft: 6, fontWeight: 400 }}>· {packageBreakdown(line.quantity_requested, line.pieces_per_package, line.package_unit)}</span>}
           </span>
           <span style={{ minWidth: 90, textAlign: 'right', fontWeight: 600 }}>{fmtMoney(line.line_total)}</span>
