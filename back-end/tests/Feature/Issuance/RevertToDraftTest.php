@@ -23,8 +23,6 @@ class RevertToDraftTest extends TestCase
 {
     use DatabaseTransactions;
 
-    private const STATUS_PENDING = 30;
-
     /** Build a location + user + customer and return [$location, $user, $customer]. */
     private function scaffold(): array
     {
@@ -64,7 +62,7 @@ class RevertToDraftTest extends TestCase
             'quantity_on_hand' => 10, 'available_quantity' => 10, 'reorder_level' => 0,
         ]);
 
-        $issuance = $this->makeIssuance($location, $user, $customer, self::STATUS_PENDING);
+        $issuance = $this->makeIssuance($location, $user, $customer, IssuanceStatus::pending());
         $requested = IssuanceDetail::create([
             'issuance_id' => $issuance->issuance_id, 'product_id' => $product->product_id,
             'quantity_requested' => 4, 'quantity_issued' => 0, 'quantity_short' => 1,
@@ -102,7 +100,7 @@ class RevertToDraftTest extends TestCase
             'quantity_on_hand' => 7, 'available_quantity' => 7, 'reorder_level' => 0,
         ]);
 
-        $issuance = $this->makeIssuance($location, $user, $customer, self::STATUS_PENDING);
+        $issuance = $this->makeIssuance($location, $user, $customer, IssuanceStatus::pending());
         IssuanceDetail::create([
             'issuance_id' => $issuance->issuance_id, 'product_id' => $product->product_id,
             'receiving_id' => $rcv->receiving_id, 'quantity_issued' => 3, 'quantity_unit' => 'piece',
@@ -121,6 +119,7 @@ class RevertToDraftTest extends TestCase
         $this->assertSame(0, IssuanceDetail::where('issuance_id', $issuance->issuance_id)
             ->where('quantity_issued', '>', 0)->count());
         $this->assertSame(IssuanceStatus::draft(), (int) $issuance->fresh()->status_id);
+        $this->assertSame(0.0, (float) $issuance->fresh()->total_amount);
     }
 
     public function test_revert_recreates_a_scanned_serialized_appliance(): void
@@ -139,7 +138,7 @@ class RevertToDraftTest extends TestCase
             'quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0,
         ]);
 
-        $issuance = $this->makeIssuance($location, $user, $customer, self::STATUS_PENDING);
+        $issuance = $this->makeIssuance($location, $user, $customer, IssuanceStatus::pending());
         $sn = 'SN-' . uniqid();
         IssuanceDetail::create([
             'issuance_id' => $issuance->issuance_id, 'product_id' => $product->product_id,
@@ -156,6 +155,7 @@ class RevertToDraftTest extends TestCase
         $this->assertSame(1, (int) $batch->fresh()->quantity_remaining);
         $this->assertNotNull(ItemSerial::where('serial_number', $sn)->first());
         $this->assertSame(IssuanceStatus::draft(), (int) $issuance->fresh()->status_id);
+        $this->assertSame(0.0, (float) $issuance->fresh()->total_amount);
     }
 
     public function test_revert_is_idempotent_on_a_draft_and_rejects_a_completed_order(): void
@@ -168,10 +168,10 @@ class RevertToDraftTest extends TestCase
             ->assertOk()->assertJson(['success' => true]);
         $this->assertSame(IssuanceStatus::draft(), (int) $draft->fresh()->status_id);
 
-        $completed = $this->makeIssuance($location, $user, $customer, 31);
+        $completed = $this->makeIssuance($location, $user, $customer, IssuanceStatus::completed());
         $this->actingAs($user)
             ->postJson("/api/issuance-scan/{$completed->issuance_id}/revert-to-draft")
             ->assertStatus(422);
-        $this->assertSame(31, (int) $completed->fresh()->status_id);
+        $this->assertSame(IssuanceStatus::completed(), (int) $completed->fresh()->status_id);
     }
 }

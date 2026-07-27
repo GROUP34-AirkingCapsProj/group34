@@ -13,6 +13,7 @@ use App\Models\ItemSerial;
 use App\Models\Product;
 use App\Models\WarrantyRecord;
 use App\Services\InventoryBatchService;
+use App\Support\IssuanceStatus;
 use App\Traits\ApiResponse;
 use App\Traits\NormalizesBarcode;
 use Illuminate\Http\JsonResponse;
@@ -674,8 +675,8 @@ class IssuanceScanController extends Controller
                 return $this->notFound('Issuance not found.');
             }
 
-            if ((int) $issuance->status_id === \App\Support\IssuanceStatus::draft()) {
-                return response()->json(['success' => true, 'message' => 'Already a draft.']);
+            if ((int) $issuance->status_id === IssuanceStatus::draft()) {
+                return response()->json(['success' => true, 'message' => 'Already a draft.', 'issuance_id' => (int) $issuance->issuance_id]);
             }
 
             if ((int) $issuance->status_id !== self::STATUS_ISSUANCE_PENDING) {
@@ -699,7 +700,7 @@ class IssuanceScanController extends Controller
                 ->update(['quantity_short' => 0]);
 
             $this->recalculateTotals($issuance->issuance_id);
-            $issuance->update(['status_id' => \App\Support\IssuanceStatus::draft()]);
+            $issuance->update(['status_id' => IssuanceStatus::draft()]);
 
             return response()->json([
                 'success'     => true,
