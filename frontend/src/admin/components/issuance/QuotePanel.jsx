@@ -96,7 +96,8 @@ export default function QuotePanel({ issuanceId, quote, canIssue, onQuoteUpdate,
         <div style={{ fontWeight: 600 }}>{l.product_name || `Product #${l.product_id}`}</div>
         <div className="ak-muted" style={{ fontSize: '0.8rem' }}>
           ×{l.quantity_requested}
-          {packageBreakdown(l.quantity_requested, l.pieces_per_package, l.package_unit)
+          {l.issuance_set_id != null
+            && packageBreakdown(l.quantity_requested, l.pieces_per_package, l.package_unit)
             && ` (${packageBreakdown(l.quantity_requested, l.pieces_per_package, l.package_unit)})`}
           {' · '}{fmtMoney(l.unit_price)} each
         </div>
