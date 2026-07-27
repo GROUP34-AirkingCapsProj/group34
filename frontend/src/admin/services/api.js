@@ -1098,7 +1098,7 @@ export const issuanceScanAPI = {
   revertToDraftUrl: (issuanceId) => {
     const base = getApiBaseUrl();
     const token = getToken();
-    return `${base}/issuance-scan/${issuanceId}/revert-to-draft${token ? '?token=' + token : ''}`;
+    return `${base}/issuance-scan/${issuanceId}/revert-to-draft-beacon${token ? '?token=' + token : ''}`;
   },
   drCsvUrl: (issuanceId) => {
     const base = getApiBaseUrl();
