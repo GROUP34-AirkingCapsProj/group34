@@ -8,13 +8,37 @@ REM  See DEPLOYMENT.md for details.
 REM ============================================================
 
 REM ---- Adjust these for the target device if needed ----
-set "XAMPP=C:\XAMPP1"
+set "XAMPP=C:\xampp"
 set "DBNAME=airkingV5"
 set "DBUSER=root"
 set "DBPASS="
 REM ------------------------------------------------------
 
 set "ROOT=%~dp0"
+
+REM Resolve which XAMPP to use, so the script runs unedited on any device.
+REM A machine can have more than one install - picking the wrong one silently
+REM creates a second empty database and patches the wrong php.ini/httpd.conf.
+REM Order: an install that already holds %DBNAME%, else the first valid install.
+for %%D in ("%XAMPP%" "C:\xampp" "C:\XAMPP1" "C:\XAMPP" "D:\xampp") do (
+    if exist "%%~D\mysql\bin\mysql.exe" (
+        if not defined XFIRST set "XFIRST=%%~D"
+        if not defined XHASDB if exist "%%~D\mysql\data\%DBNAME%" set "XHASDB=%%~D"
+    )
+)
+if defined XHASDB (
+    set "XAMPP=!XHASDB!"
+    echo   using XAMPP: !XHASDB!  ^(already has %DBNAME%^)
+) else if defined XFIRST (
+    set "XAMPP=!XFIRST!"
+    echo   using XAMPP: !XFIRST!  ^(fresh install - %DBNAME% will be created^)
+) else (
+    echo.
+    echo   ERROR: XAMPP not found. Install XAMPP, or set the XAMPP path
+    echo          at the top of this script to your install folder.
+    goto :error
+)
+
 set "MYSQL=%XAMPP%\mysql\bin\mysql.exe"
 set "HTTPD=%XAMPP%\apache\bin\httpd.exe"
 if "%DBPASS%"=="" ( set "MYSQL_PW=" ) else ( set "MYSQL_PW=-p%DBPASS%" )
