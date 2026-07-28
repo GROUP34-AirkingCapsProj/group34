@@ -25,7 +25,7 @@ describe('notifySound', () => {
   });
 
   test('uses the supplied notification MP3', () => {
-    expect(NOTIFY_SOUND_URL).toContain('/sound/utog.mp3');
+    expect(NOTIFY_SOUND_URL).toContain('/sound/alert_ringtone.mp3');
   });
 
   test('plays the supplied file from the beginning', () => {

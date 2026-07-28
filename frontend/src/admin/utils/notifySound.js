@@ -1,7 +1,7 @@
 // Notification audio supplied from the public assets directory.
 // Browsers may block playback until the user interacts with the page, so the
 // shared audio element is unlocked on the first tap/click/keypress.
-export const NOTIFY_SOUND_URL = `${process.env.PUBLIC_URL || ''}/sound/utog.mp3`;
+export const NOTIFY_SOUND_URL = `${process.env.PUBLIC_URL || ''}/sound/alert_ringtone.mp3`;
 
 let notifyAudio = null;
 let unlockBound = false;
