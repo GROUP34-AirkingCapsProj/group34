@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from './Modal';
-import { openApiFile } from '../services/api';
+import { companySettingsAPI, openApiFile } from '../services/api';
 import { toast } from '../utils/toast';
 
 /**
@@ -11,6 +11,18 @@ import { toast } from '../utils/toast';
  * authoritative document is the downloadable PDF.
  */
 export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
+  const [paperSize, setPaperSize] = useState('a4');
+  const [companySettings, setCompanySettings] = useState({});
+
+  useEffect(() => {
+    companySettingsAPI.get()
+      .then((settings) => {
+        setCompanySettings(settings || {});
+        setPaperSize(settings?.pdf_paper_size || 'a4');
+      })
+      .catch(() => {});
+  }, []);
+
   if (!receiving) return null;
 
   const po = receiving.purchaseOrder || {};
@@ -45,9 +57,9 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Goods Received Note" maxWidth={640}>
       <div id="grn-print-area" className="grn-doc">
-        <h2 style={{ textAlign: 'center', margin: 0 }}>LGM Global Industries, Inc.</h2>
+        <h2 style={{ textAlign: 'center', margin: 0 }}>{companySettings.company_name || 'Airking Air Conditioning'}</h2>
         <p style={{ textAlign: 'center', margin: '2px 0 12px', color: '#555' }}>
-          {receiving.location?.location_name || ''}
+          {[companySettings.company_address, companySettings.company_email, companySettings.company_phone].filter(Boolean).join(' · ')}
         </p>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
           <div>
@@ -88,9 +100,14 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
       </div>
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+        <select className="po-input" aria-label="PDF paper size" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} style={{ width: 105 }}>
+          <option value="a4">A4</option>
+          <option value="letter">Letter</option>
+          <option value="legal">Legal</option>
+          <option value="a5">A5</option>
+        </select>
         <button type="button" className="ak-btn ak-btn--ghost" onClick={printReceipt}>Print</button>
-        <button type="button" className="ak-btn ak-btn--ghost" onClick={() => openApiFile(`/receivings/${receiving.receiving_id}/receipt/csv`, { download: true, filename: `GRN-${receiving.receiving_number}.csv` }).catch((e) => toast.error(e.message))}>Download CSV</button>
-        <button type="button" className="ak-btn ak-btn--primary" onClick={() => openApiFile(`/receivings/${receiving.receiving_id}/receipt/pdf`, { download: true, filename: `GRN-${receiving.receiving_number}.pdf` }).catch((e) => toast.error(e.message))}>Download PDF</button>
+        <button type="button" className="ak-btn ak-btn--primary" onClick={() => openApiFile(`/receivings/${receiving.receiving_id}/receipt/pdf?paper_size=${paperSize}`, { download: true, filename: `GRN-${receiving.receiving_number}.pdf` }).catch((e) => toast.error(e.message))}>Download PDF</button>
       </div>
     </Modal>
   );

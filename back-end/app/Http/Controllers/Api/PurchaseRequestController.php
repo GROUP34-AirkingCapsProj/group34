@@ -11,6 +11,7 @@ use App\Models\PurchaseOrderDetail;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use App\Models\Supplier;
+use App\Models\Product;
 use App\Services\BudgetService;
 use App\Services\History\RecordHistoryService;
 use App\Support\RealtimeBroadcaster;
@@ -40,6 +41,82 @@ class PurchaseRequestController extends Controller
         'details.product.consumableDetail.unit',
         'details.location',
     ];
+
+    /**
+     * Live low-stock list for the PR create form. Unlike the analytics report,
+     * this uses current inventory and does not require recommendation permissions.
+     */
+    public function lowStock(Request $request)
+    {
+        $validated = $request->validate([
+            'location_id' => 'required|integer|exists:locations,location_id',
+        ]);
+
+        $locationId = (int) $validated['location_id'];
+        $user = $request->user();
+        if (! $user->isCentralized() && (int) $user->scopedLocationId() !== $locationId) {
+            return $this->forbidden('You do not have access to this warehouse.');
+        }
+
+        $stockAtLocation = DB::table('inventory')
+            ->where('location_id', $locationId)
+            ->groupBy('product_id')
+            ->selectRaw('product_id, SUM(quantity_on_hand) as current_stock');
+
+        // Start from products, not inventory. A missing inventory row means the
+        // warehouse has zero of that product and is therefore out of stock.
+        $rows = Product::query()
+            ->where('recommended_stocks', '>', 0)
+            ->leftJoinSub($stockAtLocation, 'warehouse_stock', function ($join) {
+                $join->on('warehouse_stock.product_id', '=', 'products.product_id');
+            })
+            ->with('consumableDetail')
+            ->select('products.*')
+            ->selectRaw('COALESCE(warehouse_stock.current_stock, 0) as current_stock')
+            ->get()
+            ->filter(function ($product) {
+                return (int) $product->current_stock < (int) $product->recommended_stocks;
+            })
+            ->map(function ($product) use ($locationId) {
+                $current = max(0, (int) $product->current_stock);
+                $target = max(1, (int) $product->recommended_stocks);
+                $needed = max(1, $target - $current);
+                $isMaterial = $product->product_type === 'installation_material';
+                $piecesPerPackage = $isMaterial
+                    ? max(1, (int) ($product->consumableDetail?->pieces_per_package ?? 1))
+                    : 1;
+
+                return [
+                    'recommendation_id' => 'live-' . $locationId . '-' . $product->product_id,
+                    'product_id' => $product->product_id,
+                    'location_id' => $locationId,
+                    'current_stock' => $current,
+                    'recommended_quantity' => $needed,
+                    'priority' => $current === 0 ? 'CRITICAL' : 'HIGH',
+                    'reason_codes' => [$current === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'],
+                    'pieces_per_package' => $isMaterial ? $piecesPerPackage : null,
+                    'package_unit' => $isMaterial
+                        ? ($product->consumableDetail?->package_unit ?: null)
+                        : null,
+                    'order_packages' => $isMaterial
+                        ? (int) ceil($needed / $piecesPerPackage)
+                        : null,
+                    'product' => [
+                        'product_id' => $product->product_id,
+                        'product_code' => $product->product_code,
+                        'product_name' => $product->product_name,
+                    ],
+                ];
+            })
+            ->sortBy([
+                fn ($a, $b) => ($a['priority'] === 'CRITICAL' ? 0 : 1)
+                    <=> ($b['priority'] === 'CRITICAL' ? 0 : 1),
+                fn ($a, $b) => $b['recommended_quantity'] <=> $a['recommended_quantity'],
+            ])
+            ->values();
+
+        return $this->success($rows, 'Live low-stock products retrieved');
+    }
 
     /**
      * IA sees their own PRs.

@@ -54,10 +54,18 @@ const ReceivePanel = ({ transfer, onDone }) => {
 
     setScanning(true);
     try {
-      const result = await transfersAPI.receiveScan(id, { barcode, transfer_detail_id: activeLine, quantity });
+      const result = await transfersAPI.receiveScan(id, {
+        barcode,
+        transfer_detail_id: activeLine,
+        quantity,
+        quantity_unit: serialized ? 'piece' : 'package',
+      });
       const data = result?.data ?? result;
       const did = data.transfer_detail_id ?? activeLine;
-      setSessionScans((prev) => ({ ...prev, [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity }] }));
+      setSessionScans((prev) => ({
+        ...prev,
+        [did]: [...(prev[did] || []), { scan_id: data.scan_id, barcode, quantity: data.quantity ?? quantity }],
+      }));
       const nextTotals = { ...receivedTotalsRef.current, [did]: data.quantity_received };
       receivedTotalsRef.current = nextTotals;
       setReceivedTotals(nextTotals);
@@ -224,9 +232,14 @@ const ReceivePanel = ({ transfer, onDone }) => {
                 <input
                   type="number" min={1} value={scanQty}
                   onChange={(e) => setScanQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                  disabled={scanning} title="Quantity per scan (consumable)"
+                  disabled={scanning} title="Number of packages represented by this scan"
                   style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, textAlign: 'center' }}
                 />
+              )}
+              {activeDetail && !activeSerialized && (
+                <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>
+                  package(s) × {Number(activeDetail.product?.pieces_per_package || activeDetail.product?.consumable_detail?.pieces_per_package || 1)} pcs
+                </span>
               )}
               <button type="button" className="bsr-capture-btn" onClick={submitManual} disabled={scanning || activeLine == null || !scanInput.trim()}>
                 {scanning ? 'Scanning…' : 'Submit'}

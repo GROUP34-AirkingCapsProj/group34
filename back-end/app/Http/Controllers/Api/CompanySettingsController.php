@@ -15,6 +15,7 @@ class CompanySettingsController extends Controller
             'company_address' => SystemSetting::companyAddress(),
             'company_email'   => SystemSetting::companyEmail(),
             'company_phone'   => SystemSetting::companyPhone(),
+            'pdf_paper_size'  => SystemSetting::pdfPaperSize(),
         ]);
     }
 
@@ -25,6 +26,7 @@ class CompanySettingsController extends Controller
             'company_address' => 'sometimes|string|max:500',
             'company_email'   => 'sometimes|email|max:255',
             'company_phone'   => 'sometimes|string|max:50',
+            'pdf_paper_size'  => 'sometimes|string|in:a4,letter,legal,a5',
         ]);
 
         SystemSetting::setCompany($validated);
@@ -35,6 +37,7 @@ class CompanySettingsController extends Controller
             'company_address' => SystemSetting::companyAddress(),
             'company_email'   => SystemSetting::companyEmail(),
             'company_phone'   => SystemSetting::companyPhone(),
+            'pdf_paper_size'  => SystemSetting::pdfPaperSize(),
         ]);
     }
 }

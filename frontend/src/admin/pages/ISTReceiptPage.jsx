@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
-import { istAPI } from '../services/api';
+import { companySettingsAPI, istAPI } from '../services/api';
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -21,6 +21,7 @@ const ISTReceiptPage = () => {
   const [ist,     setIst]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
+  const [paperSize, setPaperSize] = useState('a4');
 
   const fetchIst = useCallback(() => {
     setLoading(true);
@@ -31,8 +32,13 @@ const ISTReceiptPage = () => {
   }, [id]);
 
   useEffect(() => { fetchIst(); }, [fetchIst]);
+  useEffect(() => {
+    companySettingsAPI.get()
+      .then((settings) => setPaperSize(settings?.pdf_paper_size || 'a4'))
+      .catch(() => {});
+  }, []);
 
-  const pdfUrl = istAPI.receiptPdfUrl(id);
+  const pdfUrl = istAPI.receiptPdfUrl(id, paperSize);
 
   return (
     <>
@@ -64,6 +70,10 @@ const ISTReceiptPage = () => {
         >
           Print
         </button>
+        <select value={paperSize} onChange={(e) => setPaperSize(e.target.value)} style={{ padding: '7px 10px', borderRadius: 6 }}>
+          <option value="a4">A4</option><option value="letter">Letter</option>
+          <option value="legal">Legal</option><option value="a5">A5</option>
+        </select>
         <a
           href={pdfUrl}
           target="_blank"

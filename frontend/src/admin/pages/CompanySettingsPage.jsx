@@ -10,6 +10,7 @@ const CompanySettingsPage = () => {
     company_address: '',
     company_email:   '',
     company_phone:   '',
+    pdf_paper_size:  'a4',
   });
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
@@ -24,6 +25,7 @@ const CompanySettingsPage = () => {
           company_address: data.company_address || '',
           company_email:   data.company_email   || '',
           company_phone:   data.company_phone   || '',
+          pdf_paper_size:  data.pdf_paper_size  || 'a4',
         });
       })
       .catch(() => setError('Failed to load company settings.'))
@@ -116,7 +118,7 @@ const CompanySettingsPage = () => {
                 />
               </Field>
 
-              <Field label="Company Phone" last>
+              <Field label="Company Phone">
                 <input
                   type="text"
                   className="po-input"
@@ -124,6 +126,19 @@ const CompanySettingsPage = () => {
                   onChange={e => handleChange('company_phone', e.target.value)}
                   placeholder="e.g. 0934324564"
                 />
+              </Field>
+
+              <Field label="Default PDF Paper Size" hint="Used for automatic PO and GRN PDF downloads." last>
+                <select
+                  className="po-input"
+                  value={form.pdf_paper_size}
+                  onChange={e => handleChange('pdf_paper_size', e.target.value)}
+                >
+                  <option value="a4">A4</option>
+                  <option value="letter">Letter</option>
+                  <option value="legal">Legal</option>
+                  <option value="a5">A5</option>
+                </select>
               </Field>
             </div>
 

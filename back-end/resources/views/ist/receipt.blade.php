@@ -5,9 +5,11 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <title>IST Receipt – {{ $ist->transfer_number }}</title>
 <style>
+  @page { margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, DejaVu Sans, sans-serif; font-size: 11px; color: #111; background: #fff; }
-  .page { width: 100%; max-width: 700px; margin: 0 auto; padding: 28px 32px; }
+  body { padding: 36pt; }
+  .page { width: {{ $printable_width_pt ?? 523.28 }}pt; margin: 0; padding: 0; }
 
   /* Header */
   .company-header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
@@ -31,28 +33,28 @@
   /* Products table */
   .items-table  { width: 100%; border-collapse: collapse; margin: 10px 0; }
   .items-table th {
-    background: #1e293b; color: #fff;
+    background: #fff; color: #000;
     padding: 6px 8px; text-align: left;
     font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase;
-    border: 1px solid #1e293b;
+    border: 1px solid #000;
   }
   .items-table th.center { text-align: center; }
   .items-table td {
-    padding: 5px 8px; border: 1px solid #d1d5db;
+    padding: 5px 8px; border: 1px solid #000;
     font-size: 11px; vertical-align: top;
   }
   .items-table td.center { text-align: center; }
-  .items-table tr:nth-child(even) td { background: #f8fafc; }
+  .items-table tr:nth-child(even) td { background: #fff; }
 
   /* Discrepancy row highlight */
-  .discrepancy td { background: #fff7ed !important; color: #92400e; }
+  .discrepancy td { background: #fff !important; color: #000; font-weight: bold; }
 
   /* Serial tags */
   .serial-list  { font-size: 10px; color: #374151; }
 
   /* Discrepancy section */
-  .disc-section { margin-top: 12px; padding: 8px 10px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 4px; }
-  .disc-title   { font-weight: bold; font-size: 10px; color: #92400e; margin-bottom: 6px; text-transform: uppercase; }
+  .disc-section { margin-top: 12px; padding: 8px 10px; background: #fff; border: 1px solid #000; }
+  .disc-title   { font-weight: bold; font-size: 10px; color: #000; margin-bottom: 6px; text-transform: uppercase; }
   .disc-row     { display: table; width: 100%; font-size: 10px; margin-bottom: 3px; }
   .disc-col     { display: table-cell; padding-right: 12px; }
 
@@ -75,14 +77,11 @@
   {{-- Company Header — centered letterhead; address reflects the SOURCE location --}}
   @php $srcLoc = $ist->fromLocation; @endphp
   <div class="company-header">
-    <div class="company-name">LGM Global Industries, Inc.</div>
-    @if($srcLoc?->location_name)
-      <div class="company-sub">{{ $srcLoc->location_name }}</div>
+    <div class="company-name">{{ $company['name'] ?? 'Airking Air Conditioning' }}</div>
+    @if(!empty($company['address']))<div class="company-sub">{{ $company['address'] }}</div>@endif
+    @if(!empty($company['email']) || !empty($company['phone']))
+      <div class="company-sub">{{ collect([$company['email'] ?? null, $company['phone'] ?? null])->filter()->implode(' · ') }}</div>
     @endif
-    @if($srcLoc?->address)
-      <div class="company-sub">{{ $srcLoc->address }}</div>
-    @endif
-    <div class="company-sub" style="font-size:10px;color:#666">Vat Reg. TIN#: 771-347-425-000</div>
   </div>
 
   {{-- Title + IST Number --}}

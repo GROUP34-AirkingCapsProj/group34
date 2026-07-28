@@ -6,6 +6,79 @@ use Illuminate\Support\Facades\DB;
 
 class TransferServiceTest extends TransferTestCase
 {
+    public function test_package_scans_convert_to_pieces_once_and_move_exact_inventory(): void
+    {
+        $from = $this->makeLocation('PKG-SOURCE');
+        $to = $this->makeLocation('PKG-DEST');
+        $product = $this->makeConsumable();
+        $product->update(['barcode' => 'BOX-12']);
+        \App\Models\ConsumableDetail::create([
+            'product_id' => $product->product_id,
+            'pieces_per_package' => 12,
+            'package_unit' => 'Box',
+            'is_serialized' => false,
+        ]);
+        $this->setStock($from->location_id, $product->product_id, 25);
+        $user = $this->makeUser();
+        $service = new \App\Services\TransferService();
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $product->product_id, 'quantity_requested' => 25],
+        ]);
+
+        $first = $service->recordDispatchScan($ist, 'BOX-12', null, $user->user_id, 1, true);
+        $second = $service->recordDispatchScan($ist->fresh('details'), 'BOX-12', null, $user->user_id, 1, true);
+        $last = $service->recordDispatchScan($ist->fresh('details'), 'BOX-12', null, $user->user_id, 1, true);
+
+        $this->assertSame(12, $first['quantity']);
+        $this->assertSame(24, $second['total_scanned']);
+        $this->assertSame(1, $last['quantity']);
+        $this->assertSame(25, $last['total_scanned']);
+
+        $service->dispatch($ist->fresh('details'), $user->user_id);
+        $this->assertSame(0, (int) \App\Models\Inventory::where('location_id', $from->location_id)
+            ->where('product_id', $product->product_id)->value('quantity_on_hand'));
+
+        $inTransit = $ist->fresh('details');
+        $service->recordReceiveScan($inTransit, 'BOX-12', null, $user->user_id, 1, true);
+        $service->recordReceiveScan($inTransit->fresh('details'), 'BOX-12', null, $user->user_id, 1, true);
+        $receivedLast = $service->recordReceiveScan($inTransit->fresh('details'), 'BOX-12', null, $user->user_id, 1, true);
+        $this->assertSame(1, $receivedLast['quantity']);
+
+        $service->receive($inTransit->fresh('details'), $user->user_id);
+        $this->assertSame(25, (int) \App\Models\Inventory::where('location_id', $to->location_id)
+            ->where('product_id', $product->product_id)->value('quantity_on_hand'));
+    }
+
+    public function test_received_transfer_receipt_pdf_renders_and_downloads(): void
+    {
+        $from = $this->makeLocation('PDF-SOURCE');
+        $to = $this->makeLocation('PDF-DEST');
+        $product = $this->makeConsumable();
+        $this->setStock($from->location_id, $product->product_id, 2);
+        $user = $this->makeUser();
+        $service = new \App\Services\TransferService();
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $product->product_id, 'quantity_requested' => 2],
+        ]);
+
+        $service->recordDispatchScan($ist, $product->product_code, null, $user->user_id, 2);
+        $service->dispatch($ist->fresh('details'), $user->user_id);
+        $service->recordReceiveScan($ist->fresh('details'), $product->product_code, null, $user->user_id, 2);
+        $received = $service->receive($ist->fresh('details'), $user->user_id);
+
+        $request = \Illuminate\Http\Request::create(
+            "/api/transfers/{$received->transfer_id}/receipt/pdf",
+            'GET',
+            ['paper_size' => 'a4']
+        );
+        $response = app(\App\Http\Controllers\Api\TransferController::class)
+            ->receiptPdf($request, $received->transfer_id);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertStringContainsString('application/pdf', (string) $response->headers->get('content-type'));
+        $this->assertStringContainsString('attachment', (string) $response->headers->get('content-disposition'));
+    }
+
     public function test_in_transit_and_received_statuses_exist(): void
     {
         foreach (['In Transit', 'Received'] as $name) {

@@ -370,7 +370,7 @@ class InventoryScanTransactionController extends Controller
 
             if (! $receiving) {
                 $receiving = new Receiving();
-                $receiving->receiving_number        = 'RCV-SCAN-' . str_replace('.', '', uniqid('', true));
+                $receiving->receiving_number        = 'PENDING-' . str_replace('.', '', uniqid('', true));
                 $receiving->receiving_date          = now()->toDateString();
                 $receiving->received_by             = $request->user()?->user_id;
                 $receiving->total_quantity_received = 0;
@@ -380,6 +380,7 @@ class InventoryScanTransactionController extends Controller
                     $receiving->po_id = $poId;
                 }
                 $receiving->save();
+                $receiving->assignReadableNumber();
             }
 
             $receiving->increment('total_quantity_received', $quantity);
@@ -506,6 +507,7 @@ class InventoryScanTransactionController extends Controller
                 'packages_on_hand'   => $isSerialized ? null : $inv->packages_on_hand,
                 'pieces_per_package' => $piecesPerPackage,
                 'is_serialized'      => $isSerialized,
+                'serial_number'      => $scannedBarcode ?: null,
             ];
 
             if ($poId && $remaining !== null) {

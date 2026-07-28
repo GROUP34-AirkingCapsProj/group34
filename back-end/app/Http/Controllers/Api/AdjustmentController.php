@@ -123,6 +123,32 @@ class AdjustmentController extends Controller
         }
     }
 
+    public function pdf(Request $request, $id)
+    {
+        $adjustment = Adjustment::with([
+            'location', 'createdBy', 'approvedBy', 'status', 'details.product',
+        ])->findOrFail($id);
+
+        $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+        if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+            $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+        }
+        $paperWidths = ['a4' => 595.28, 'letter' => 612, 'legal' => 612, 'a5' => 419.53];
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('adjustments.document', [
+            'adjustment' => $adjustment,
+            'printable_width_pt' => $paperWidths[$paperSize] - 72,
+            'company' => [
+                'name' => \App\Models\SystemSetting::companyName(),
+                'address' => \App\Models\SystemSetting::companyAddress(),
+                'email' => \App\Models\SystemSetting::companyEmail(),
+                'phone' => \App\Models\SystemSetting::companyPhone(),
+            ],
+        ])->setPaper($paperSize);
+
+        $filename = $adjustment->adjustment_number . '.pdf';
+        return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
+    }
+
     public function update(Request $request, $id)
     {
         try {

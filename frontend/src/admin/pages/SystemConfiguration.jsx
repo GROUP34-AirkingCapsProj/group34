@@ -169,7 +169,7 @@ const SystemConfiguration = () => {
   const [manualUser, setManualUser]        = useState('');
 
   // Company settings state
-  const [companyForm, setCompanyForm] = useState({ company_name: '', company_address: '', company_email: '', company_phone: '' });
+  const [companyForm, setCompanyForm] = useState({ company_name: '', company_address: '', company_email: '', company_phone: '', pdf_paper_size: 'a4' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyLoading, setCompanyLoading] = useState(false);
 
@@ -249,6 +249,7 @@ const SystemConfiguration = () => {
           company_address: data.company_address || '',
           company_email:   data.company_email   || '',
           company_phone:   data.company_phone   || '',
+          pdf_paper_size:  data.pdf_paper_size  || 'a4',
         });
       } catch {
         // Keep empty defaults
@@ -791,6 +792,22 @@ const SystemConfiguration = () => {
                           />
                         </div>
                       </div>
+                    </div>
+                    <div className="sc-field-row">
+                      <div className="sc-field">
+                        <label>Default PDF Paper Size</label>
+                        <select
+                          value={companyForm.pdf_paper_size}
+                          onChange={e => handleCompanyChange('pdf_paper_size', e.target.value)}
+                        >
+                          <option value="a4">A4</option>
+                          <option value="letter">Letter</option>
+                          <option value="legal">Legal</option>
+                          <option value="a5">A5</option>
+                        </select>
+                        <span className="sc-field-hint">Used by automatic PO and GRN PDF downloads.</span>
+                      </div>
+                      <div className="sc-field" />
                     </div>
                   </>
                 )}

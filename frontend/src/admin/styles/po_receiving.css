@@ -599,6 +599,13 @@
   transition: border-color 0.15s;
 }
 .bsr-location-select:focus { border-color: #9810FA; box-shadow: 0 0 0 3px rgba(152,16,250,0.10); }
+.bsr-zone-history {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.bsr-zone-history strong { color: #4b5563; font-weight: 600; }
 
 .bsr-scan-row {
   display: flex;

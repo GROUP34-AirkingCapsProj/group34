@@ -10,6 +10,7 @@ import IncidentModal from '../components/picking/IncidentModal';
 import Modal from '../components/Modal';
 import {
   locationsAPI,
+  companySettingsAPI,
   issuanceScanAPI,
   issuanceOrderAPI,
   pickingAPI,
@@ -74,6 +75,7 @@ export default function IssuanceScanPage() {
   const [receipt, setReceipt] = useState(null);
   const [receiptPreviewOpen, setReceiptPreviewOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [pdfPaperSize, setPdfPaperSize] = useState('a4');
 
   const issuanceId = session?.issuance_id ?? quote?.issuance_id ?? null;
 
@@ -104,6 +106,9 @@ export default function IssuanceScanPage() {
     locationsAPI.getAll({ per_page: 200 }).then((res) => {
       setLocations(Array.isArray(res?.data) ? res.data : []);
     }).catch(() => {});
+    companySettingsAPI.get()
+      .then((settings) => setPdfPaperSize(settings?.pdf_paper_size || 'a4'))
+      .catch(() => {});
   }, []);
 
   // Resolve the issuance status_id → name map once.
@@ -425,6 +430,10 @@ export default function IssuanceScanPage() {
             <h2 className="isp-card-title">Issuance Completed</h2>
             <div className="isp-confirm-summary">
               <div className="isp-confirm-row"><span>DR Number</span><strong>{receipt?.dr_number ?? quote?.dr_number ?? '—'}</strong></div>
+              <div className="isp-confirm-row">
+                <span>External Sales Reference</span>
+                <span>{receipt?.external_reference ?? quote?.external_reference ?? 'Not recorded'}</span>
+              </div>
               {receipt?.issuance_date && (
                 <div className="isp-confirm-row"><span>Date</span><span>{fmtDate(receipt.issuance_date)}</span></div>
               )}
@@ -626,17 +635,21 @@ export default function IssuanceScanPage() {
           <div className="isp-pdf-preview">
             <iframe
               title="Issuance receipt PDF preview"
-              src={issuanceScanAPI.drPdfUrl(receipt?.issuance_id ?? issuanceId, true)}
+              src={issuanceScanAPI.drPdfUrl(receipt?.issuance_id ?? issuanceId, true, pdfPaperSize)}
             />
           </div>
           <div className="isp-dr-actions no-print" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+            <select value={pdfPaperSize} onChange={(e) => setPdfPaperSize(e.target.value)} className="po-input" style={{ width: 105 }}>
+              <option value="a4">A4</option><option value="letter">Letter</option>
+              <option value="legal">Legal</option><option value="a5">A5</option>
+            </select>
             <button type="button" className="isp-btn-ghost" onClick={() => setReceiptPreviewOpen(false)}>
               Close
             </button>
             <button
               type="button"
               className="isp-btn-primary"
-              onClick={() => window.open(issuanceScanAPI.drPdfUrl(receipt?.issuance_id ?? issuanceId), '_blank')}
+              onClick={() => window.open(issuanceScanAPI.drPdfUrl(receipt?.issuance_id ?? issuanceId, false, pdfPaperSize), '_blank')}
             >
               Download Receipt (PDF)
             </button>

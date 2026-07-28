@@ -7,7 +7,9 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, DejaVu Sans, sans-serif; font-size: 11px; color: #111; background: #fff; }
-  .page { width: 100%; max-width: 700px; margin: 0 auto; padding: 28px 32px; }
+  @page { margin: 0; }
+  body { padding: 36pt; }
+  .page { width: {{ $printable_width_pt ?? 523.28 }}pt; margin: 0; padding: 0; }
   .company-header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
   .company-name { font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; }
   .company-sub  { font-size: 11px; color: #333; margin-top: 2px; }
@@ -38,10 +40,11 @@
 <div class="page">
   @php $loc = $receiving->location; @endphp
   <div class="company-header">
-    <div class="company-name">LGM Global Industries, Inc.</div>
-    @if($loc?->location_name)<div class="company-sub">{{ $loc->location_name }}</div>@endif
-    @if($loc?->address)<div class="company-sub">{{ $loc->address }}</div>@endif
-    <div class="company-sub" style="font-size:10px;color:#666">Vat Reg. TIN#: 771-347-425-000</div>
+    <div class="company-name">{{ $company['name'] ?? 'Airking Air Conditioning' }}</div>
+    @if(!empty($company['address']))<div class="company-sub">{{ $company['address'] }}</div>@endif
+    @if(!empty($company['email']) || !empty($company['phone']))
+      <div class="company-sub">{{ collect([$company['email'] ?? null, $company['phone'] ?? null])->filter()->implode(' · ') }}</div>
+    @endif
   </div>
 
   <div class="title-row">

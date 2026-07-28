@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 /**
  * Payload shape expected by both export functions:
@@ -261,6 +263,109 @@ export function exportPOToDocument(payload) {
   win.document.close();
   win.focus();
   setTimeout(() => win.print(), 600);
+}
+
+/** Create and immediately download a real PDF purchase-order document. */
+export function exportPOToPDF(payload, { preview = false, download = true, previewWindow = null } = {}) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const company = payload.company || {};
+  const supplier = payload.supplier || {};
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const money = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(17);
+  doc.text(company.name || 'Airking Air Conditioning', 14, 16);
+  doc.setFontSize(18);
+  doc.text('PURCHASE ORDER', 196, 16, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  if (company.address) doc.text(company.address, 14, 22);
+  if (company.email) doc.text(company.email, 14, 27);
+
+  doc.setDrawColor(152, 16, 250);
+  doc.setLineWidth(0.7);
+  doc.line(14, 32, 196, 32);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('PO NUMBER', 14, 40);
+  doc.text('ORDER DATE', 75, 40);
+  doc.text('PAYMENT TERMS', 130, 40);
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(payload.po_number || '—'), 14, 46);
+  doc.text(fmtDate(payload.order_date), 75, 46);
+  doc.text(String(payload.payment_terms || 'Net 30'), 130, 46);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('SUPPLIER', 14, 56);
+  doc.text('DELIVER TO', 108, 56);
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(supplier.name || '—'), 14, 62);
+  if (supplier.address) doc.text(String(supplier.address), 14, 67, { maxWidth: 82 });
+  const destinations = (payload.ship_to_locations || []).map((location) => location.name).filter(Boolean);
+  doc.text(destinations.join(', ') || payload.ship_to?.name || '—', 108, 62, { maxWidth: 88 });
+
+  autoTable(doc, {
+    startY: 76,
+    head: [['Qty', 'Unit', 'Model / SKU', 'Description', 'Unit Price', 'Amount']],
+    body: items.map((item) => {
+      const qty = Number(item.qty ?? item.quantity_ordered ?? 0);
+      const price = Number(item.unit_price || 0);
+      return [
+        qty,
+        item.unit || 'pc',
+        item.product_code || '—',
+        buildDescription(item),
+        money(price),
+        money(item.subtotal ?? qty * price),
+      ];
+    }),
+    theme: 'grid',
+    headStyles: { fillColor: [152, 16, 250], textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 2.5 },
+    columnStyles: {
+      0: { halign: 'right', cellWidth: 12 },
+      1: { cellWidth: 14 },
+      2: { cellWidth: 27 },
+      3: { cellWidth: 67 },
+      4: { halign: 'right', cellWidth: 28 },
+      5: { halign: 'right', cellWidth: 30 },
+    },
+  });
+
+  const finalY = doc.lastAutoTable?.finalY || 90;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(`TOTAL: ${money(payload.total_amount)}`, 196, finalY + 9, { align: 'right' });
+
+  doc.setFontSize(9);
+  doc.text('Prepared By:', 14, finalY + 24);
+  doc.text('Verified By:', 78, finalY + 24);
+  doc.text('Approved By:', 140, finalY + 24);
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(payload.prepared_by || '—'), 14, finalY + 30);
+  doc.text(String(payload.verified_by || '—'), 78, finalY + 30);
+  doc.text(String(payload.approved_by || '—'), 140, finalY + 30);
+
+  const filename = `${payload.po_number || 'Purchase-Order'}.pdf`;
+
+  if (preview) {
+    const blobUrl = URL.createObjectURL(doc.output('blob'));
+    const target = previewWindow && !previewWindow.closed
+      ? previewWindow
+      : window.open('', '_blank');
+    if (target) target.location.href = blobUrl;
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  }
+
+  // Give the browser a moment to render the preview before starting download.
+  if (download) setTimeout(() => doc.save(filename), preview ? 700 : 0);
+
+  return doc;
 }
 
 // ─── Excel ────────────────────────────────────────────────────────────────────

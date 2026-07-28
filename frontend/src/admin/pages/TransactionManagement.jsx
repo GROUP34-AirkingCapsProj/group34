@@ -4,7 +4,10 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
 import Modal from '../components/Modal';
-import { receivingsAPI, issuancesAPI, issuanceOrderAPI, transfersAPI, adjustmentsAPI, customersAPI } from '../services/api';
+import {
+  receivingsAPI, issuancesAPI, issuanceOrderAPI, issuanceScanAPI, transfersAPI,
+  adjustmentsAPI, customersAPI, companySettingsAPI, getApiBaseUrl, getToken,
+} from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import '../styles/dashboard_air.css';
@@ -51,6 +54,11 @@ const TransactionManagement = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [activeTransaction, setActiveTransaction] = useState(null);
+  const [movementDetail, setMovementDetail] = useState(null);
+  const [movementLoading, setMovementLoading] = useState(false);
+  const [movementError, setMovementError] = useState('');
+  const [pdfPaperSize, setPdfPaperSize] = useState('a4');
 
   const normalizeStatus = (status) => {
     if (status != null && typeof status === 'object') {
@@ -102,6 +110,7 @@ const TransactionManagement = () => {
 
     return {
       id: `RCV-${rid ?? Math.random().toString(36).slice(2, 8)}`,
+      entityId: rid ?? null,
       type: 'Receiving',
       itemName:
         firstProduct?.product_name
@@ -129,12 +138,14 @@ const TransactionManagement = () => {
     const location = row.location?.location_name || row.branch?.branch_name || row.source || row.location_name || 'N/A';
     const iid = row.issuance_id ?? row.id;
     const reference =
-      row.issuance_number
+      row.dr_number
+      || row.issuance_number
       || row.reference_no
       || row.issue_no
       || (iid != null && iid !== '' ? `ISS-${iid}` : 'Issuance');
     return {
       id: `ISS-${iid ?? Math.random().toString(36).slice(2, 8)}`,
+      entityId: iid ?? null,
       issuanceId: iid ?? null,
       type: 'Issuance',
       itemName:
@@ -170,6 +181,7 @@ const TransactionManagement = () => {
       || (tid != null && tid !== '' ? `TRF-${tid}` : 'Transfer');
     return {
       id: `TRF-${tid ?? Math.random().toString(36).slice(2, 8)}`,
+      entityId: tid ?? null,
       type: 'Transfer',
       itemName:
         firstProduct?.product_name
@@ -188,12 +200,16 @@ const TransactionManagement = () => {
   };
 
   const mapAdjustment = (row) => {
-    const qty = Number(row.quantity ?? row.adjusted_qty ?? row.qty ?? 0);
+    const details = Array.isArray(row.details) ? row.details : [];
+    const qty = details.length
+      ? details.reduce((sum, d) => sum + Math.abs(Number(d.add_quantity || 0) - Number(d.deduct_quantity || 0)), 0)
+      : Number(row.total_variance_positive ?? 0) + Number(row.total_variance_negative ?? 0);
     const unitPrice = Number(row.unit_cost ?? row.unit_price ?? row.cost_price ?? 0);
     const total = Number(row.total_amount ?? row.total ?? Math.abs(qty) * unitPrice ?? 0);
     const location = row.location?.location_name || row.branch?.branch_name || row.location_name || 'N/A';
     return {
       id: `ADJ-${row.adjustment_id ?? row.id ?? Math.random().toString(36).slice(2, 8)}`,
+      entityId: row.adjustment_id ?? row.id ?? null,
       type: 'Adjustment',
       itemName: row.product?.product_name || row.item_name || row.reason || 'Stock Adjustment',
       location,
@@ -249,7 +265,43 @@ const TransactionManagement = () => {
 
   useEffect(() => {
     fetchAllTransactions();
+    companySettingsAPI.get()
+      .then((settings) => setPdfPaperSize(settings?.pdf_paper_size || 'a4'))
+      .catch(() => {});
   }, [fetchAllTransactions]);
+
+  useEffect(() => {
+    if (!activeTransaction || activeTransaction.type === 'Issuance') return undefined;
+    let stale = false;
+    const api = activeTransaction.type === 'Receiving'
+      ? receivingsAPI
+      : activeTransaction.type === 'Transfer'
+        ? transfersAPI
+        : adjustmentsAPI;
+    setMovementLoading(true);
+    setMovementError('');
+    api.getById(activeTransaction.entityId)
+      .then((res) => { if (!stale) setMovementDetail(res?.data || res); })
+      .catch((err) => { if (!stale) setMovementError(err?.message || 'Failed to load transaction details.'); })
+      .finally(() => { if (!stale) setMovementLoading(false); });
+    return () => { stale = true; };
+  }, [activeTransaction]);
+
+  const transactionDocumentUrl = (txn, preview = false) => {
+    if (!txn?.entityId) return null;
+    if (txn.type === 'Issuance') return issuanceScanAPI.drPdfUrl(txn.entityId, preview, pdfPaperSize);
+    const params = new URLSearchParams();
+    const token = getToken();
+    if (token) params.set('token', token);
+    params.set('paper_size', pdfPaperSize);
+    if (preview) params.set('preview', '1');
+    const path = txn.type === 'Receiving'
+      ? `/receivings/${txn.entityId}/receipt/pdf`
+      : txn.type === 'Transfer'
+        ? `/transfers/${txn.entityId}/receipt/pdf`
+        : `/adjustments/${txn.entityId}/pdf`;
+    return `${getApiBaseUrl()}${path}?${params.toString()}`;
+  };
 
   // Fetch issue-out detail (header + priced quote + customer) when a row is opened.
   useEffect(() => {
@@ -282,22 +334,25 @@ const TransactionManagement = () => {
         }
 
         const statusName = header.status?.status_name || header.status_name || '—';
-        const priced = Array.isArray(quote?.lines) && quote.lines.length > 0;
-        const rawLines = priced
-          ? quote.lines.map((l) => ({
-              productId: l.product_id ?? null,
-              name: l.product_name,
-              qty: Number(l.quantity_requested) || 0,
-              unitPrice: l.unit_price,
-              lineTotal: Number(l.line_total) || 0,
-            }))
-          : (Array.isArray(header.details) ? header.details : []).map((d) => ({
-              productId: d.product?.product_id ?? d.product_id ?? null,
-              name: d.product?.product_name || 'Item',
-              qty: Number(d.quantity_issued ?? d.quantity_requested ?? 0) || 0,
-              unitPrice: null,
-              lineTotal: null,
-            }));
+        const quoteLines = Array.isArray(quote?.lines) ? quote.lines : [];
+        const quoteByProduct = new Map(quoteLines.map((line) => [String(line.product_id), line]));
+        const priced = quoteLines.length > 0;
+        const headerLines = Array.isArray(header.details) ? header.details : [];
+        const rawLines = (headerLines.length ? headerLines : quoteLines).map((d) => {
+          const productId = d.product?.product_id ?? d.product_id ?? null;
+          const pricedLine = quoteByProduct.get(String(productId));
+          const qty = Number(d.quantity_issued ?? d.quantity_in_pieces ?? d.quantity_requested ?? 0) || 0;
+          const unitPrice = d.unit_price_per_piece ?? d.unit_price ?? pricedLine?.unit_price ?? null;
+          return {
+            productId,
+            name: d.product?.product_name || d.product_name || 'Item',
+            code: d.product?.appliance_detail?.model_code || d.product?.product_code || '—',
+            serial: d.serial_number || d.scanned_barcode || null,
+            qty,
+            unitPrice,
+            lineTotal: d.subtotal != null ? Number(d.subtotal) : (unitPrice != null ? qty * Number(unitPrice) : null),
+          };
+        });
 
         // A FIFO pick records one line per scanned unit, so the same product can
         // appear many times. Group by product → one row per product, qty summed.
@@ -310,16 +365,18 @@ const TransactionManagement = () => {
             existing.qty += r.qty;
             if (existing.lineTotal != null && r.lineTotal != null) existing.lineTotal += r.lineTotal;
           } else {
-            const g = { key: k, name: r.name, qty: r.qty, unitPrice: r.unitPrice, lineTotal: r.lineTotal };
+            const g = { key: k, name: r.name, code: r.code, serials: r.serial ? [r.serial] : [], qty: r.qty, unitPrice: r.unitPrice, lineTotal: r.lineTotal };
             byProduct.set(k, g);
             lines.push(g);
           }
+          if (existing && r.serial && !existing.serials.includes(r.serial)) existing.serials.push(r.serial);
         });
 
         if (!stale) {
           setDetail({
             id: activeIssuanceId,
             drNumber: quote?.dr_number || header.dr_number || null,
+            externalReference: header.external_reference || quote?.external_reference || null,
             customerName,
             customerId,
             locationName: header.location?.location_name || '—',
@@ -484,25 +541,28 @@ const TransactionManagement = () => {
             ) : (
               pagedTransactions.map((txn) => {
                 const isIssueOut = txn.type === 'Issuance' && txn.issuanceId != null;
+                const openTransaction = () => {
+                  if (isIssueOut) setActiveIssuanceId(txn.issuanceId);
+                  else {
+                    setMovementDetail(null);
+                    setActiveTransaction(txn);
+                  }
+                };
                 return (
                 <article
                   className="txn-feed-item"
                   key={txn.id}
-                  {...(isIssueOut
-                    ? {
-                        role: 'button',
-                        tabIndex: 0,
-                        title: 'View issue-out details',
-                        style: { cursor: 'pointer' },
-                        onClick: () => setActiveIssuanceId(txn.issuanceId),
-                        onKeyDown: (e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setActiveIssuanceId(txn.issuanceId);
-                          }
-                        },
-                      }
-                    : {})}
+                  role="button"
+                  tabIndex={0}
+                  title={`View ${txn.type.toLowerCase()} details`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={openTransaction}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openTransaction();
+                    }
+                  }}
                 >
                   <div className="txn-feed-left">
                     <div className="txn-feed-title-row">
@@ -573,6 +633,10 @@ const TransactionManagement = () => {
                   <span className={`txn-status-badge ${issuanceStatusClass(detail.statusName)}`}>{detail.statusName}</span>
                 </div>
               </div>
+              <div>
+                <div className="ak-label">External sales reference</div>
+                <div>{detail.externalReference || 'Not recorded'}</div>
+              </div>
             </div>
 
             <div>
@@ -583,7 +647,8 @@ const TransactionManagement = () => {
                 <table className="ak-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left' }}>Product</th>
+                      <th style={{ textAlign: 'left' }}>Product / Model Code</th>
+                      <th style={{ textAlign: 'left' }}>Serial / Scanned ID</th>
                       <th style={{ textAlign: 'right' }}>Qty</th>
                       <th style={{ textAlign: 'right' }}>Unit price</th>
                       <th style={{ textAlign: 'right' }}>Line total</th>
@@ -592,7 +657,8 @@ const TransactionManagement = () => {
                   <tbody>
                     {detail.lines.map((l) => (
                       <tr key={l.key}>
-                        <td>{l.name}</td>
+                        <td><strong>{l.name}</strong><div className="ak-muted">{l.code || '—'}</div></td>
+                        <td>{l.serials?.length ? l.serials.join(', ') : '—'}</td>
                         <td style={{ textAlign: 'right' }}>{Number(l.qty || 0).toLocaleString()}</td>
                         <td style={{ textAlign: 'right' }}>{l.unitPrice == null ? '—' : fmtMoney(l.unitPrice)}</td>
                         <td style={{ textAlign: 'right' }}>{l.lineTotal == null ? '—' : fmtMoney(l.lineTotal)}</td>
@@ -619,6 +685,20 @@ const TransactionManagement = () => {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', borderTop: '1px solid #e5e7eb', paddingTop: '0.9rem' }}>
+              {!detail.isDraft && (
+                <>
+                  <select className="ak-select" value={pdfPaperSize} onChange={(e) => setPdfPaperSize(e.target.value)}>
+                    <option value="a4">A4</option><option value="letter">Letter</option>
+                    <option value="legal">Legal</option><option value="a5">A5</option>
+                  </select>
+                  <button type="button" className="ak-btn" onClick={() => window.open(transactionDocumentUrl({ type: 'Issuance', entityId: activeIssuanceId }, true), '_blank')}>
+                    View Document
+                  </button>
+                  <a className="ak-btn ak-btn--primary" href={transactionDocumentUrl({ type: 'Issuance', entityId: activeIssuanceId })} style={{ textDecoration: 'none' }}>
+                    Download PDF
+                  </a>
+                </>
+              )}
               {detail.isDraft ? (
                 <>
                   <button
@@ -639,6 +719,117 @@ const TransactionManagement = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={activeTransaction != null}
+        onClose={() => { setActiveTransaction(null); setMovementDetail(null); setMovementError(''); }}
+        title={activeTransaction ? `${activeTransaction.type} · ${activeTransaction.reference}` : 'Transaction details'}
+        maxWidth={860}
+      >
+        {movementLoading && <Loader label="Loading transaction details" />}
+        {!movementLoading && movementError && <div className="ak-state ak-state--error">{movementError}</div>}
+        {!movementLoading && !movementError && movementDetail && (() => {
+          const txn = activeTransaction;
+          const d = movementDetail;
+          const rows = (Array.isArray(d.details) ? d.details : []).map((line, index) => {
+            const product = line.product || {};
+            const code = product.model_code || product.appliance_detail?.model_code
+              || product.applianceDetail?.model_code || product.product_code || '—';
+            if (txn.type === 'Receiving') {
+              return {
+                key: line.receiving_detail_id || index,
+                product: product.product_name || `Product #${line.product_id}`,
+                code,
+                values: [
+                  Number(line.quantity_amount || 0),
+                  line.scanned_barcode || '—',
+                  line.prod_price != null ? fmtMoney(line.prod_price) : '—',
+                ],
+              };
+            }
+            if (txn.type === 'Transfer') {
+              return {
+                key: line.transfer_detail_id || index,
+                product: product.product_name || `Product #${line.product_id}`,
+                code,
+                values: [
+                  Number(line.quantity_requested || 0),
+                  Number(line.quantity_transferred || 0),
+                  Number(line.quantity_received || 0),
+                ],
+              };
+            }
+            const added = Number(line.add_quantity || 0);
+            const deducted = Number(line.deduct_quantity || 0);
+            return {
+              key: line.adjustment_detail_id || index,
+              product: product.product_name || `Product #${line.product_id}`,
+              code,
+              values: [added, deducted, `${added - deducted > 0 ? '+' : ''}${added - deducted}`, line.reason || '—'],
+            };
+          });
+          const headers = txn.type === 'Receiving'
+            ? ['Received (pcs)', 'Serial / Scanned ID', 'Recorded price']
+            : txn.type === 'Transfer'
+              ? ['Requested (pcs)', 'Dispatched (pcs)', 'Received (pcs)']
+              : ['Added', 'Deducted', 'Net change', 'Reason'];
+          const createdBy = userFullName(d.created_by || d.createdBy) || d.adjusted_by || '—';
+          const approvedBy = userFullName(d.approved_by || d.approvedBy) || '—';
+          const receivedBy = userFullName(d.received_by || d.receivedBy) || '—';
+          const statusName = d.status?.status_name || txn.status;
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(165px,1fr))', gap: 12 }}>
+                <div><div className="ak-label">Reference</div><strong>{txn.reference}</strong></div>
+                <div><div className="ak-label">Status</div><span className={`txn-status-badge ${getStatusClass(normalizeStatus(statusName))}`}>{statusName || '—'}</span></div>
+                <div><div className="ak-label">Transaction date</div>{formatDateTime(d.receiving_date || d.transfer_date || d.adjustment_date || d.created_at)}</div>
+                <div><div className="ak-label">Location</div>{d.location?.location_name || txn.location}</div>
+                {txn.type === 'Receiving' && <>
+                  <div><div className="ak-label">PO number</div>{d.purchase_order?.po_number || d.purchaseOrder?.po_number || '—'}</div>
+                  <div><div className="ak-label">Supplier</div>{d.purchase_order?.supplier?.supplier_name || d.purchaseOrder?.supplier?.supplier_name || '—'}</div>
+                  <div><div className="ak-label">Received by</div>{receivedBy}</div>
+                  <div><div className="ak-label">Total received</div>{Number(d.total_quantity_received || 0).toLocaleString()} pcs</div>
+                </>}
+                {txn.type === 'Transfer' && <>
+                  <div><div className="ak-label">From</div>{d.from_location?.location_name || d.fromLocation?.location_name || '—'}</div>
+                  <div><div className="ak-label">To</div>{d.to_location?.location_name || d.toLocation?.location_name || '—'}</div>
+                  <div><div className="ak-label">Prepared by</div>{userFullName(d.prepared_by || d.preparedBy) || '—'}</div>
+                  <div><div className="ak-label">Received by</div>{receivedBy}</div>
+                </>}
+                {txn.type === 'Adjustment' && <>
+                  <div><div className="ak-label">Adjustment type</div>{d.adjustment_type || '—'}</div>
+                  <div><div className="ak-label">Created by</div>{createdBy}</div>
+                  <div><div className="ak-label">Approved by</div>{approvedBy}</div>
+                  <div><div className="ak-label">Notes</div>{d.notes || '—'}</div>
+                </>}
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="ak-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr><th style={{ textAlign: 'left' }}>Item / Model Code</th>{headers.map((h) => <th key={h} style={{ textAlign: 'right' }}>{h}</th>)}</tr></thead>
+                  <tbody>{rows.length ? rows.map((row) => (
+                    <tr key={row.key}>
+                      <td><strong>{row.product}</strong><div className="ak-muted">{row.code}</div></td>
+                      {row.values.map((value, i) => <td key={i} style={{ textAlign: 'right' }}>{value}</td>)}
+                    </tr>
+                  )) : <tr><td colSpan={headers.length + 1}>No line items.</td></tr>}</tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+                <select className="ak-select" value={pdfPaperSize} onChange={(e) => setPdfPaperSize(e.target.value)}>
+                  <option value="a4">A4</option><option value="letter">Letter</option>
+                  <option value="legal">Legal</option><option value="a5">A5</option>
+                </select>
+                <button type="button" className="ak-btn" onClick={() => window.open(transactionDocumentUrl(txn, true), '_blank')}>View Document</button>
+                <a className="ak-btn ak-btn--primary" href={transactionDocumentUrl(txn)} style={{ textDecoration: 'none' }}>Download PDF</a>
+                <button type="button" className="ak-btn" onClick={() => { setActiveTransaction(null); setMovementDetail(null); }}>Close</button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </AdminLayout>
   );

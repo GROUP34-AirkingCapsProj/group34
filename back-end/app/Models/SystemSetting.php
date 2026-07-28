@@ -14,6 +14,7 @@ class SystemSetting extends Model
     public const KEY_COMPANY_ADDRESS         = 'company_address';
     public const KEY_COMPANY_EMAIL           = 'company_email';
     public const KEY_COMPANY_PHONE           = 'company_phone';
+    public const KEY_PDF_PAPER_SIZE          = 'pdf_paper_size';
     public const KEY_ARCHIVE_CONFIG          = 'archive_config';
     public const KEY_ARCHIVE_SCHEDULE        = 'archive_schedule';
     public const KEY_ARCHIVE_NOTIFICATIONS   = 'archive_notifications';
@@ -141,6 +142,12 @@ class SystemSetting extends Model
         return (string) (static::query()->where('key', self::KEY_COMPANY_PHONE)->value('value') ?? '');
     }
 
+    public static function pdfPaperSize(): string
+    {
+        $size = strtolower((string) static::getValue(self::KEY_PDF_PAPER_SIZE, 'a4'));
+        return in_array($size, ['a4', 'letter', 'legal', 'a5'], true) ? $size : 'a4';
+    }
+
     public static function setCompany(array $data): void
     {
         $map = [
@@ -148,6 +155,7 @@ class SystemSetting extends Model
             'company_address' => self::KEY_COMPANY_ADDRESS,
             'company_email'   => self::KEY_COMPANY_EMAIL,
             'company_phone'   => self::KEY_COMPANY_PHONE,
+            'pdf_paper_size'  => self::KEY_PDF_PAPER_SIZE,
         ];
         foreach ($map as $field => $key) {
             if (array_key_exists($field, $data)) {

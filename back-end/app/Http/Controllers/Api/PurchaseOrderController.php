@@ -575,7 +575,7 @@ class PurchaseOrderController extends Controller
                         $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
                         $i + 1,
                         $d->location?->location_name ?? $po->location?->location_name ?? '',
-                        $p?->product_code ?? '',
+                        $ad?->model_code ?? $p?->product_code ?? $p?->barcode ?? '',
                         $p?->product_name ?? '',
                         $p ? ucfirst($p->product_type) : '',
                         $ad?->brand?->brand_name ?? $cd?->unit?->unit_name ?? '',
@@ -584,8 +584,8 @@ class PurchaseOrderController extends Controller
                         $d->quantity_ordered,
                         number_format((float) $d->unit_price, 2),
                         number_format((float) $d->subtotal,   2),
-                        $i === 0 ? number_format((float) $po->total_amount, 2) : '',
-                        $i === 0 ? number_format((float) $po->grand_total,  2) : '',
+                        number_format((float) $po->total_amount, 2),
+                        number_format((float) $po->grand_total,  2),
                     ]);
                 }
             }
@@ -593,6 +593,28 @@ class PurchaseOrderController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /** Download the same formal document shown by the PO document preview. */
+    public function pdf(Request $request, $id)
+    {
+        $po = PurchaseOrder::with(self::WITH_RELATIONS)->findOrFail($id);
+        $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+        if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+            $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('purchase_orders.document', [
+            'po' => $po,
+            'company' => [
+                'name' => \App\Models\SystemSetting::companyName(),
+                'address' => \App\Models\SystemSetting::companyAddress(),
+                'email' => \App\Models\SystemSetting::companyEmail(),
+            ],
+            'paper_size' => $paperSize,
+        ])->setPaper($paperSize);
+
+        return $pdf->download($po->po_number . '.pdf');
     }
 
     // -----------------------------------------------------------------------
@@ -629,7 +651,8 @@ class PurchaseOrderController extends Controller
                 'manager_name'   => $detail->location->manager_name,
             ] : null,
             // Flat product fields (legacy — kept for backward compat)
-            'product_code'       => $p?->product_code,
+            'product_code'       => $ad?->model_code ?? $p?->product_code,
+            'model_code'         => $ad?->model_code,
             'product_name'       => $p?->product_name,
             'product_type'       => $p?->product_type,
             'is_serialized'      => $p?->isSerialized() ?? false,
@@ -643,7 +666,8 @@ class PurchaseOrderController extends Controller
             // Nested product object — required by BSR scan page (bsrActiveLine.product.X)
             'product'            => $p ? [
                 'product_id'         => $p->product_id,
-                'product_code'       => $p->product_code,
+                'product_code'       => $ad?->model_code ?? $p->product_code,
+                'model_code'         => $ad?->model_code,
                 'product_name'       => $p->product_name,
                 'product_type'       => $p->product_type,
                 'is_serialized'      => $p->isSerialized(),

@@ -52,6 +52,7 @@ const EMPTY_FORM = {
   discount_type: 'none',
   discount_percent: 0,
   location_id: '',
+  external_reference: '',
   notes: '',
 };
 
@@ -180,6 +181,7 @@ function SetupForm({
         discount_type: form.discount_type || 'none',
         discount_percent: form.issuance_type === 'business' ? parseFloat(form.discount_percent) || 0 : 0,
         location_id: effectiveLocationId,
+        external_reference: form.external_reference.trim() || null,
         notes: notesVal || null,
       };
       if (!isOneTime) payload.customer_id = parseInt(customerId, 10);
@@ -341,6 +343,20 @@ function SetupForm({
             )}
           </div>
         )}
+
+        <div className="isp-form-group">
+          <label>External Sales Reference (optional)</label>
+          <input
+            type="text"
+            maxLength={100}
+            value={form.external_reference}
+            onChange={(e) => setForm((f) => ({ ...f, external_reference: e.target.value }))}
+            placeholder="Accounting/POS receipt or invoice number"
+          />
+          <p style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
+            Links this inventory DR to the receipt from the separate accounting system. Leave blank if it will be handwritten on the printed copy.
+          </p>
+        </div>
 
         <div className="isp-form-group">
           <label>Notes (optional)</label>
