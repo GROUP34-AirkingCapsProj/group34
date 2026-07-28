@@ -5,69 +5,101 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <title>Goods Received Note – {{ $po->po_number }}</title>
 <style>
+  /*
+   * Keep the PDF page itself marginless and place the required margin on the
+   * document box. This avoids Dompdf builds that ignore @page margins.
+   * 36pt is exactly 0.5 inch.
+   */
+  @page { margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, DejaVu Sans, sans-serif; font-size: 11px; color: #111; background: #fff; }
-  .page { width: 100%; max-width: 720px; margin: 0 auto; padding: 28px 32px; }
-  .company-header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
-  .company-name { font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; }
-  .company-sub  { font-size: 11px; color: #333; margin-top: 2px; }
+  html, body { width: 100%; }
+  body {
+    padding: 36pt;
+    font-family: Arial, DejaVu Sans, sans-serif;
+    font-size: 9.5px;
+    line-height: 1.25;
+    color: #000;
+    background: #fff;
+  }
+  /*
+   * A4 is 595pt wide. Subtracting the two 36pt margins leaves a 523pt
+   * printable area. An explicit width prevents Dompdf from treating 100% as
+   * the full paper width and overflowing through the right margin.
+   */
+  .page { width: {{ $printable_width_pt ?? 523.28 }}pt; margin: 0; padding: 0; }
+  .company-header { text-align: center; border-bottom: 2px solid #000; padding: 2px 0 7px; margin-bottom: 7px; }
+  .company-name { font-family: "Times New Roman", DejaVu Serif, serif; font-size: 20px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.7px; }
+  .company-sub  { font-size: 8px !important; color: #000 !important; margin-top: 2px; }
   .divider-thin { border: none; border-top: 1px solid #bbb; margin: 8px 0; }
-  .title-row    { display: table; width: 100%; margin: 10px 0 6px; }
-  .title-left   { display: table-cell; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; }
-  .title-right  { display: table-cell; text-align: right; font-size: 11px; }
-  .title-right strong { font-size: 13px; }
+  .title-row    { display: table; width: 100%; margin: 5px 0 6px; }
+  .title-left   { display: table-cell; font-family: "Times New Roman", DejaVu Serif, serif; font-size: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.4px; }
+  .title-right  { display: table-cell; width: 44%; padding-right: 2px; text-align: right; font-size: 9px; white-space: nowrap; }
+  .title-right strong { font-size: 12px; }
   .meta-table   { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
-  .meta-table td { padding: 2px 0; font-size: 11px; vertical-align: top; }
-  .meta-label   { font-weight: bold; width: 90px; }
-  .meta-value   { padding-left: 6px; }
-  .wh-block     { margin-top: 14px; border: 1px solid #d1d5db; border-radius: 4px; }
-  .wh-head      { background: #1e293b; color: #fff; padding: 6px 10px; font-size: 11px; font-weight: bold;
-                  text-transform: uppercase; letter-spacing: .5px; }
-  .wh-sub       { font-weight: normal; color: #cbd5e1; text-transform: none; letter-spacing: 0; float: right; font-size: 10px; }
+  .meta-table td { padding: 2px 0; font-size: 9px; vertical-align: top; }
+  .meta-label   { font-weight: bold; width: 72px; white-space: nowrap; }
+  .meta-value   { padding-left: 5px; }
+  .wh-block     { margin-top: 8px; border: 1px solid #000; }
+  .wh-head      { border-bottom: 1px solid #000; background: #fff; color: #000; padding: 5px 7px; font-size: 9px; font-weight: bold;
+                  text-transform: uppercase; letter-spacing: .2px; }
+  .wh-sub       { font-weight: normal; color: #000; text-transform: none; letter-spacing: 0; float: right; font-size: 8px; }
   .items-table  { width: 100%; border-collapse: collapse; }
-  .items-table th { background: #f1f5f9; color: #334155; padding: 5px 8px; text-align: left;
-    font-size: 10px; letter-spacing: 0.3px; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+  .items-table thead { display: table-header-group; }
+  .items-table th { background: #fff; color: #000; padding: 4px; text-align: left;
+    font-size: 8px; letter-spacing: 0.1px; text-transform: uppercase; border: 1px solid #000; }
   .items-table th.center { text-align: center; }
-  .items-table td { padding: 5px 8px; border-bottom: 1px solid #eef2f7; font-size: 11px; vertical-align: top; }
+  .items-table td { padding: 4px; border: 1px solid #000; font-size: 8.5px; line-height: 1.2; vertical-align: top; }
   .items-table td.center { text-align: center; }
-  .wh-foot      { padding: 5px 10px; font-size: 10px; color: #475569; background: #f8fafc; }
-  .grand        { text-align: right; margin-top: 12px; font-size: 12px; }
-  .sig-table    { width: 100%; border-collapse: collapse; margin-top: 24px; }
-  .sig-table td { padding: 4px 0; font-size: 11px; vertical-align: top; width: 50%; }
-  .sig-label    { font-weight: bold; color: #374151; }
-  .sig-line     { border-bottom: 1px solid #374151; margin-top: 32px; margin-bottom: 4px; width: 80%; }
-  .sig-caption  { font-size: 10px; color: #64748b; }
+  .sku { color: #000; font-size: 8px; white-space: nowrap; }
+  .item-code { color: #000; font-size: 8px; font-weight: normal; white-space: nowrap; }
+  .detail { display: block; color: #000; font-size: 8px; margin-top: 1px; }
+  .serials { font-family: DejaVu Sans Mono, monospace; color: #000; font-size: 7.5px; line-height: 1.3; word-wrap: break-word; }
+  .items-table tr { page-break-inside: avoid; }
+  .wh-foot      { padding: 4px 7px; border-top: 1px solid #000; font-size: 8px; line-height: 1.25; color: #000; background: #fff; }
+  .grand        { text-align: right; margin-top: 8px; font-size: 10px; }
+  .sig-table    { width: 100%; border-collapse: collapse; margin-top: 14px; page-break-inside: avoid; }
+  .sig-table td { padding: 1px 0; font-size: 9px; vertical-align: top; width: 50%; }
+  .sig-label    { font-weight: bold; color: #000; }
+  .sig-line     { border-bottom: 1px solid #000; margin-top: 25px; margin-bottom: 3px; width: 78%; }
+  .sig-caption  { font-size: 8px; color: #000; }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="company-header">
-    <div class="company-name">LGM Global Industries, Inc.</div>
-    <div class="company-sub" style="font-size:10px;color:#666">Vat Reg. TIN#: 771-347-425-000</div>
+    <div class="company-name">{{ $company['name'] ?? 'Airking Air Conditioning' }}</div>
+    @if(!empty($company['address']))<div class="company-sub">{{ $company['address'] }}</div>@endif
+    @if(!empty($company['email']) || !empty($company['phone']))
+      <div class="company-sub">{{ collect([$company['email'] ?? null, $company['phone'] ?? null])->filter()->implode(' · ') }}</div>
+    @endif
   </div>
 
   <div class="title-row">
     <div class="title-left">Goods Received Note</div>
-    <div class="title-right">PO&nbsp;<strong>{{ $po->po_number }}</strong></div>
+    <div class="title-right">
+      GRN&nbsp;<strong>{{ implode(', ', $receiving_numbers) }}</strong><br>
+      PO&nbsp;{{ $po->po_number }}
+    </div>
   </div>
 
   <table class="meta-table">
     <tr>
       <td class="meta-label">SUPPLIER:</td>
-      <td class="meta-value">{{ $po->supplier?->supplier_name ?? '—' }}</td>
+      <td class="meta-value"><strong>{{ $po->supplier?->supplier_name ?? '—' }}</strong>@if($po->supplier?->address) · {{ $po->supplier->address }}@endif</td>
       <td style="width:20px"></td>
       <td class="meta-label">ORDER DATE:</td>
       <td class="meta-value">{{ $po->order_date ? \Carbon\Carbon::parse($po->order_date)->format('m/d/Y') : '—' }}</td>
     </tr>
     <tr>
-      <td class="meta-label">SESSIONS:</td>
-      <td class="meta-value">{{ $session_count }}</td>
+      <td class="meta-label">RECEIVING NO.:</td>
+      <td class="meta-value">{{ implode(', ', $receiving_numbers) }}</td>
       <td></td>
-      <td class="meta-label">TOTAL RECEIVED:</td>
-      <td class="meta-value">{{ $total_received }} pcs</td>
+      <td class="meta-label">RECEIVED DATE:</td>
+      <td class="meta-value">{{ $received_date }}</td>
     </tr>
   </table>
 
+  @php $rowNumber = 1; @endphp
   @forelse($warehouses as $wh)
     <div class="wh-block">
       <div class="wh-head">
@@ -77,21 +109,53 @@
       <table class="items-table">
         <thead>
           <tr>
-            <th>PRODUCT</th>
-            <th class="center" style="width:70px">ORDERED</th>
-            <th class="center" style="width:70px">RECEIVED</th>
+            <th class="center" style="width:5%">NO.</th>
+            <th>ITEM / MODEL CODE</th>
+            <th class="center" style="width:10%">ORDERED</th>
+            <th class="center" style="width:12%">RECEIVED</th>
+            <th style="width:35%">SERIAL / SCANNED ID</th>
           </tr>
         </thead>
         <tbody>
           @foreach($wh['lines'] as $line)
-            <tr>
-              <td>
-                {{ $line['name'] }}
-                @if($line['code'])<br><span style="font-size:9px;color:#94a3b8">SKU: {{ $line['code'] }}</span>@endif
-              </td>
-              <td class="center">{{ $line['ordered'] ?? '—' }}</td>
-              <td class="center">{{ $line['received'] }}</td>
-            </tr>
+            @php
+              $scanRows = count($line['scans'])
+                  ? $line['scans']
+                  : [['serial' => null, 'received' => $line['received'], 'condition' => count($line['conditions']) ? implode(', ', $line['conditions']) : 'Good']];
+              $spec = implode(' · ', array_filter([$line['brand'], $line['capacity'], $line['variant']]));
+            @endphp
+            @foreach($scanRows as $scan)
+              @php
+                $rowReceived = (int) $scan['received'];
+                $packageQty = $line['pieces_per_package'] > 0 ? $rowReceived / $line['pieces_per_package'] : 0;
+                $packageQtyText = floor($packageQty) == $packageQty
+                    ? number_format($packageQty, 0)
+                    : number_format($packageQty, 2);
+              @endphp
+              <tr>
+                <td class="center">{{ $rowNumber++ }}</td>
+                <td>
+                  <strong>{{ $line['name'] }}</strong>
+                  @if($line['code']) <span class="item-code"> · {{ $line['code'] }}</span>@endif
+                  @if($spec)<span class="detail">{{ $spec }}</span>@endif
+                </td>
+                <td class="center">
+                  @if($loop->first)
+                    {{ $line['ordered'] ?? '—' }}
+                    <span class="detail">{{ $line['type'] === 'appliance' ? 'unit' : ($line['package_unit'] ?: 'pkg') }}</span>
+                  @else
+                    <span class="detail">—</span>
+                  @endif
+                </td>
+                <td class="center">
+                  {{ $rowReceived }} {{ $line['type'] === 'appliance' ? ($rowReceived === 1 ? 'unit' : 'units') : 'pcs' }}
+                  @if($line['type'] !== 'appliance' && $line['pieces_per_package'] > 1)
+                    <span class="detail">{{ $packageQtyText }} {{ $line['package_unit'] ?: 'pkg' }}</span>
+                  @endif
+                </td>
+                <td class="serials">{{ $scan['serial'] ?: '—' }}</td>
+              </tr>
+            @endforeach
           @endforeach
         </tbody>
       </table>

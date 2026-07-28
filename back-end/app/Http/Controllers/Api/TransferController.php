@@ -376,6 +376,7 @@ class TransferController extends Controller
                 'transfer_detail_id' => 'nullable|exists:transfer_details,transfer_detail_id',
                 'barcode'            => 'nullable|string|max:100',
                 'quantity'           => 'sometimes|integer|min:1',
+                'quantity_unit'      => 'sometimes|string|in:package,piece',
                 'received_by'        => 'nullable|exists:users,user_id',
             ]);
 
@@ -764,6 +765,7 @@ class TransferController extends Controller
                 $validated['transfer_detail_id'] ?? null,
                 $request->user()->user_id,
                 (int) ($validated['quantity'] ?? 1),
+                ($validated['quantity_unit'] ?? 'package') === 'package',
             );
 
             $ist->load('details');
@@ -871,6 +873,7 @@ class TransferController extends Controller
                 'barcode'            => 'required|string|max:255',
                 'transfer_detail_id' => 'sometimes|nullable|integer',
                 'quantity'           => 'sometimes|integer|min:1',
+                'quantity_unit'      => 'sometimes|string|in:package,piece',
             ]);
 
             $ist = Transfer::findOrFail($id);
@@ -885,7 +888,8 @@ class TransferController extends Controller
                 $validated['barcode'],
                 $validated['transfer_detail_id'] ?? null,
                 $user->user_id,
-                (int) ($validated['quantity'] ?? 1)
+                (int) ($validated['quantity'] ?? 1),
+                ($validated['quantity_unit'] ?? 'package') === 'package'
             );
 
             return $this->success($result, 'Receive scan recorded');
@@ -1020,7 +1024,7 @@ class TransferController extends Controller
     /**
      * Stream a PDF receipt for a received IST.
      */
-    public function receiptPdf($id)
+    public function receiptPdf(\Illuminate\Http\Request $request, $id)
     {
         try {
             $receivedId = $this->statusId('Received');
@@ -1042,10 +1046,24 @@ class TransferController extends Controller
                     ->values();
             }
 
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ist.receipt', ['ist' => $ist])
-                ->setPaper('a4', 'portrait');
+            $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+            if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+                $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+            }
+            $paperWidths = ['a4' => 595.28, 'letter' => 612, 'legal' => 612, 'a5' => 419.53];
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ist.receipt', [
+                'ist' => $ist,
+                'printable_width_pt' => $paperWidths[$paperSize] - 72,
+                'company' => [
+                    'name' => \App\Models\SystemSetting::companyName(),
+                    'address' => \App\Models\SystemSetting::companyAddress(),
+                    'email' => \App\Models\SystemSetting::companyEmail(),
+                    'phone' => \App\Models\SystemSetting::companyPhone(),
+                ],
+            ])->setPaper($paperSize, 'portrait');
 
-            return $pdf->download('IST-' . $ist->transfer_number . '.pdf');
+            $filename = 'IST-' . $ist->transfer_number . '.pdf';
+            return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
         }

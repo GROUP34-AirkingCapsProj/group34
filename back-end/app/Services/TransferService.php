@@ -251,13 +251,20 @@ class TransferService
      * (scan_mode 'receive', quantity = $step) so removal can undo the exact amount.
      * Serialized scans are always 1 unit and must match an in-transit serial of THIS transfer.
      */
-    public function recordReceiveScan(Transfer $ist, string $barcode, ?int $transferDetailId, int $userId, int $qty = 1): array
+    public function recordReceiveScan(
+        Transfer $ist,
+        string $barcode,
+        ?int $transferDetailId,
+        int $userId,
+        int $qty = 1,
+        bool $quantityIsPackages = false
+    ): array
     {
         if ((int) $ist->status_id !== $this->statusId('In Transit')) {
             throw new RuntimeException('Only an In Transit IST can be received.');
         }
 
-        return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty) {
+        return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty, $quantityIsPackages) {
             if ($transferDetailId === null) {
                 $code = trim($barcode);
                 $match = ItemSerial::where('transfer_id', $ist->transfer_id)
@@ -295,13 +302,16 @@ class TransferService
             }
 
             $serialized = $this->isSerialized($detail);
-            $step = $serialized ? 1 : max(1, $qty);
+            $piecesPerPackage = $serialized ? 1 : $detail->product->getPiecesPerPackage();
+            $step = $serialized
+                ? 1
+                : max(1, $qty) * ($quantityIsPackages ? $piecesPerPackage : 1);
 
             $alreadyScanned = BarcodeScan::where('transfer_id', $ist->transfer_id)
                 ->where('scan_mode', 'receive')
                 ->where('barcode', $barcode)
                 ->exists();
-            if ($alreadyScanned) {
+            if ($alreadyScanned && ($serialized || ! $quantityIsPackages)) {
                 throw new RuntimeException("Barcode '{$barcode}' was already received on this transfer.");
             }
 
@@ -317,6 +327,12 @@ class TransferService
             }
 
             $shipped = (int) $detail->quantity_transferred;
+            if (! $serialized && $quantityIsPackages) {
+                $step = min($step, $shipped - (int) $detail->quantity_received);
+            }
+            if ($step < 1) {
+                throw new RuntimeException('This transfer line is already fully received.');
+            }
             if ((int) $detail->quantity_received + $step > $shipped) {
                 $remaining = $shipped - (int) $detail->quantity_received;
                 throw new RuntimeException("Only {$remaining} more unit(s) can be received on this line.");
@@ -341,6 +357,8 @@ class TransferService
                 'quantity_received'  => (int) $detail->quantity_received,
                 'quantity_shipped'   => $shipped,
                 'remaining'          => $shipped - (int) $detail->quantity_received,
+                'quantity'           => $step,
+                'pieces_per_package' => $piecesPerPackage,
             ];
         });
     }
@@ -501,9 +519,9 @@ class TransferService
                             'transfer_id' => null,
                         ]);
                 } else {
-                    // Bulk products have no per-transfer batch trail, so restoration is
-                    // best-effort: it goes to the legacy catch-all batch rather than the
-                    // exact original batch. See plan header for rationale.
+                    // Bulk products have no serial-level receiving link. Restore into
+                    // the oldest traceable batch with capacity; only excess falls back
+                    // to the legacy catch-all batch.
                     $this->batches->restoreFifo($detail->product_id, $locked->from_location_id, $shipped, null);
                 }
             }
@@ -597,26 +615,24 @@ class TransferService
      * running totals. $transferDetailId may be passed by the manual per-line UI;
      * when null it is resolved here.
      */
-    public function recordDispatchScan(Transfer $ist, string $barcode, ?int $transferDetailId, int $userId, int $qty = 1): array
+    public function recordDispatchScan(
+        Transfer $ist,
+        string $barcode,
+        ?int $transferDetailId,
+        int $userId,
+        int $qty = 1,
+        bool $quantityIsPackages = false
+    ): array
     {
         if ((int) $ist->status_id !== $this->statusId('Approved')) {
             throw new RuntimeException('Only an approved IST can be scanned for dispatch.');
         }
 
-        return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty) {
+        return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty, $quantityIsPackages) {
             $ist->loadMissing('details.product');
             $code = trim($barcode);
             if ($code === '') {
                 throw new RuntimeException('Enter a barcode or serial number.');
-            }
-
-            // Duplicate guard (same barcode already scanned on this IST).
-            $dupe = BarcodeScan::where('transfer_id', $ist->transfer_id)
-                ->where('scan_mode', 'transfer')
-                ->where('barcode', $code)
-                ->exists();
-            if ($dupe) {
-                throw new RuntimeException("Barcode '{$code}' has already been scanned for this IST.");
             }
 
             // Resolve which serial (if any) this code is, and which line it belongs to.
@@ -654,7 +670,18 @@ class TransferService
                 if ($this->isSerialized($detail)) {
                     throw new RuntimeException('Scan the individual serial number for this appliance.');
                 }
-                $step = max(1, (int) $qty);
+                $piecesPerPackage = $detail->product->getPiecesPerPackage();
+                $step = max(1, (int) $qty) * ($quantityIsPackages ? $piecesPerPackage : 1);
+            }
+
+            // Serialized identifiers must be unique. Consumable package barcodes
+            // are intentionally reusable because every box carries the same code.
+            $dupe = BarcodeScan::where('transfer_id', $ist->transfer_id)
+                ->where('scan_mode', 'transfer')
+                ->where('barcode', $code)
+                ->exists();
+            if ($dupe && ($serial || ! $quantityIsPackages)) {
+                throw new RuntimeException("Barcode '{$code}' has already been scanned for this IST.");
             }
 
             // If the caller named a line, it must match the resolved one.
@@ -669,6 +696,12 @@ class TransferService
 
             $target  = (int) $locked->quantity_requested;
             $current = (int) $locked->quantity_scanned;
+            if (! $serial && $quantityIsPackages) {
+                $step = min($step, $target - $current);
+            }
+            if ($step < 1) {
+                throw new RuntimeException('This transfer line is already fully scanned.');
+            }
             if ($current + $step > $target) {
                 $remaining = $target - $current;
                 throw new RuntimeException("Only {$remaining} more unit(s) needed for this product.");
@@ -699,6 +732,8 @@ class TransferService
                 'total_scanned'      => (int) $locked->quantity_scanned,
                 'quantity_requested' => $target,
                 'remaining'          => $target - (int) $locked->quantity_scanned,
+                'quantity'           => $step,
+                'pieces_per_package' => $serial ? 1 : $piecesPerPackage,
             ];
         });
     }

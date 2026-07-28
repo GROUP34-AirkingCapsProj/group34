@@ -20,7 +20,7 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
-import { exportPOToExcel, exportPOToDocument, distinctDeliverLocations } from '../utils/poExport';
+import { exportPOToExcel, distinctDeliverLocations } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
 import RecordHistoryModal from '../components/RecordHistoryModal';
 import ReceivingReceipt from '../components/ReceivingReceipt';
@@ -150,6 +150,7 @@ const PurchaseOrderPage = () => {
   const [allUsers,         setAllUsers]         = useState([]);
   const [locations,        setLocations]        = useState([]);
   const [companySettings,  setCompanySettings]  = useState({});
+  const [pdfPaperSize,     setPdfPaperSize]     = useState('a4');
 
   // Expected delivery
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(() => {
@@ -257,7 +258,10 @@ const PurchaseOrderPage = () => {
       .catch(() => {});
 
     companySettingsAPI.get()
-      .then(res => setCompanySettings(res || {}))
+      .then(res => {
+        setCompanySettings(res || {});
+        setPdfPaperSize(res?.pdf_paper_size || 'a4');
+      })
       .catch(() => {});
   }, []);
 
@@ -526,7 +530,7 @@ const PurchaseOrderPage = () => {
   // Shared approve/reject flow: resolve the target status_id from the lookup,
   // update the PO, refresh the list, and surface the right toasts. Both the
   // approve and reject handlers delegate here with their own copy.
-  const applyPOStatus = useCallback(async (po, { match, missingLabel, successTitle, successText, errorTitle, genericError }) => {
+  const applyPOStatus = useCallback(async (po, { match, missingLabel, successTitle, successText, errorTitle, genericError, onSuccess }) => {
     setPoActionLoading(po.po_id);
     try {
       const stRes = await statusAPI.getAll({ category: 'purchase_order' });
@@ -534,35 +538,58 @@ const PurchaseOrderPage = () => {
       const statusId = stRows.find((s) => match(String(s.status_name || '').toLowerCase()))?.status_id;
       if (!statusId) {
         toast.error(errorTitle, `No "${missingLabel}" status for purchase orders. Run backend migrations, then try again.`);
-        return;
+        return false;
       }
-      await purchaseOrdersAPI.update(String(po.po_id), {
+      const updateRes = await purchaseOrdersAPI.update(String(po.po_id), {
         status_id: statusId,
         ...(authUser?.user_id ? { approved_by: authUser.user_id } : {}),
       });
+      if (onSuccess) {
+        try {
+          await onSuccess({ ...po, ...(updateRes?.data || {}) });
+        } catch (exportError) {
+          toast.error('PO approved, but PDF download failed', exportError?.message || 'You can still export the PDF from the PO details.');
+        }
+      }
       await refreshPOStatusList();
       setSelectedPO(null);
       toast.success(successTitle, successText(po));
+      return true;
     } catch (err) {
       if (err?.status === 403) {
         toast.error(errorTitle, 'This account cannot update purchase orders.');
-        return;
+        return false;
       }
       const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || genericError;
       toast.error(errorTitle, msg);
+      return false;
     } finally {
       setPoActionLoading(null);
     }
   }, [authUser, refreshPOStatusList]);
 
-  const handleApprovePO = useCallback((po) => applyPOStatus(po, {
+  const handleApprovePO = useCallback((po) => {
+    // Reserve the preview tab while this is still a direct user click. Waiting
+    // until the approval request completes would cause browsers to block it.
+    const previewWindow = window.open('', '_blank');
+    return applyPOStatus(po, {
     match: (n) => n.includes('authori'),
     missingLabel: 'Authorized',
     successTitle: 'PO authorized',
-    successText: (p) => `${p.po_number} is now Approved.`,
+    successText: (p) => `${p.po_number} is now Approved. Its PDF download has started.`,
     errorTitle: "Couldn't authorize PO",
     genericError: 'Could not authorize this PO.',
-  }), [applyPOStatus]);
+    onSuccess: (approvedPO) => openApiFile(`/purchase-orders/${approvedPO.po_id}/pdf`, {
+      preview: true,
+      download: true,
+      previewWindow,
+      filename: `${approvedPO.po_number}.pdf`,
+    }),
+    }).then((approved) => {
+      if (!approved && previewWindow && !previewWindow.closed) previewWindow.close();
+      return approved;
+    });
+  }, [applyPOStatus]);
 
   const handleRejectPO = useCallback(async (po) => {
     if (!(await confirmAction({
@@ -622,7 +649,7 @@ const PurchaseOrderPage = () => {
     return (
       <div className="po-status-list">
         {poStatusList.map((po) => {
-          const statusCfg = getStatusConfig(po.status?.status_name);
+          const statusCfg = getStatusConfig(po.status?.status_name, po.verification_status);
           const amount    = Number(po.grand_total || po.total_amount || 0);
           const itemCount = po.details?.length ?? 0;
           const priCfg    = getPriorityFromAmount(amount, itemCount);
@@ -638,7 +665,22 @@ const PurchaseOrderPage = () => {
             : '—';
 
           return (
-            <div key={po.po_id} className="po-status-card">
+            <div
+              key={po.po_id}
+              className="po-status-card po-status-card--clickable"
+              role="button"
+              tabIndex={0}
+              aria-label={`View details for ${po.po_number}`}
+              onClick={(event) => {
+                if (!event.target.closest('button, a, input, select, textarea')) setSelectedPO(po);
+              }}
+              onKeyDown={(event) => {
+                if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+                  event.preventDefault();
+                  setSelectedPO(po);
+                }
+              }}
+            >
               {po.purchase_request && (
                 <div style={{ background: '#eff6ff', borderBottom: '1px solid #bfdbfe', padding: '6px 16px', fontSize: 12, color: '#1d4ed8', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -689,50 +731,6 @@ const PurchaseOrderPage = () => {
                 <div className="po-status-card-right">
                   <span className="po-status-total-label">TOTAL AMOUNT</span>
                   <span className="po-status-total-amount">₱{amount.toLocaleString('en-PH')}</span>
-                  <button type="button" className="po-status-view-btn" onClick={() => setSelectedPO(po)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    VIEW DETAILS
-                  </button>
-                  {statusCfg.color === 'pending' && canApprovePO && (
-                    <div className="po-status-approve-actions">
-                      <button
-                        type="button"
-                        className="aq-btn-reject"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleRejectPO(po)}
-                      >
-                        REJECT
-                      </button>
-                      <button
-                        type="button"
-                        className="aq-btn-approve"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleApprovePO(po)}
-                      >
-                        {poActionLoading === po.po_id ? 'SAVING…' : 'APPROVE'}
-                      </button>
-                    </div>
-                  )}
-                  {canVerifyPO && statusCfg.color === 'pending' && po.verification_status !== 'verified' && (
-                    <div className="po-status-approve-actions">
-                      <button
-                        type="button"
-                        className="aq-btn-reject"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleRejectPOVerification(po)}
-                      >
-                        REJECT
-                      </button>
-                      <button
-                        type="button"
-                        className="aq-btn-approve"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleVerifyPO(po)}
-                      >
-                        {poActionLoading === po.po_id ? 'SAVING…' : 'VERIFY'}
-                      </button>
-                    </div>
-                  )}
                   {canArchivePO && (
                     <ArchiveButton
                       onArchive={() => handleArchivePO(po.po_id)}
@@ -1400,7 +1398,7 @@ const PurchaseOrderPage = () => {
             ) : (
               <div className="rh-record-list">
                 {poStatusList.map((po) => {
-                  const cfg = getStatusConfig(po.status?.status_name);
+                  const cfg = getStatusConfig(po.status?.status_name, po.verification_status);
                   const amt = Number(po.grand_total || po.total_amount || 0);
                   return (
                     <div key={po.po_id} className="rh-record-row">
@@ -1430,7 +1428,7 @@ const PurchaseOrderPage = () => {
       <Modal isOpen={!!selectedPO} onClose={() => setSelectedPO(null)} title="" hideHeader maxWidth={700}>
         {selectedPO && (() => {
           const d         = selectedPO;
-          const statusCfg = getStatusConfig(d.status?.status_name);
+          const statusCfg = getStatusConfig(d.status?.status_name, d.verification_status);
           const amount    = Number(d.grand_total || d.total_amount || 0);
           const priCfg    = getPriorityFromAmount(amount, d.details?.length ?? 0);
           const createdByName = d.created_by
@@ -1641,13 +1639,9 @@ const PurchaseOrderPage = () => {
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginRight: 'auto' }}>
                         Goods Received Note — all items received on this PO
                       </span>
-                      <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => openApiFile(`/purchase-orders/${d.po_id}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}>
+                      <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => openApiFile(`/purchase-orders/${d.po_id}/receiving-receipt/pdf?paper_size=${pdfPaperSize}`).catch((e) => toast.error(e.message))}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
                         PRINT / PDF
-                      </button>
-                      <button type="button" className="po-detail-btn po-detail-btn--excel" onClick={() => openApiFile(`/purchase-orders/${d.po_id}/receiving-receipt/csv`, { download: true, filename: `GRN-${d.po_number}.csv` }).catch((e) => toast.error(e.message))}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        CSV
                       </button>
                     </div>
 
@@ -1715,25 +1709,26 @@ const PurchaseOrderPage = () => {
                   })(),
                   prepared_by: createdByName,
                   verified_by: resolveUserName(d.verified_by),
-                  // Approved By on the document = whoever approved the PR, not the PO approval-queue step
-                  approved_by: resolveUserName(d.purchase_request?.approved_by),
+                  approved_by: resolveUserName(d.approved_by),
                   order_date:             d.order_date ? String(d.order_date).slice(0, 10) : '—',
                   expected_delivery_date: d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—',
                   items: details.map(item => ({
                     location_id:       String(item.location_id ?? item.location?.location_id ?? '__none__'),
-                    product_code:      item.product?.applianceDetail?.model_code || item.model_code || '—',
-                    name:              item.product_name || '—',
+                    product_code:      item.model_code || item.product_code || item.product?.model_code || item.product?.product_code || '—',
+                    name:              item.product_name || item.product?.product_name || '—',
                     warehouse_name:    item.location_name || item.location?.location_name || null,
-                    unit:              item.unit_abbreviation || (item.product_type === 'appliance' ? 'unit' : item.unit_name || 'pc'),
+                    unit:              (item.product_type || item.product?.product_type) === 'appliance'
+                      ? 'unit'
+                      : item.package_unit || item.product?.package_unit || item.unit_abbreviation || item.product?.unit_abbreviation || item.unit_name || 'pkg',
                     qty:               item.quantity_ordered,
                     unit_price:        item.unit_price,
                     subtotal:          item.subtotal,
-                    product_type:      item.product_type,
-                    brand_name:        item.brand_name,
-                    capacity_rating:   item.capacity_rating,
-                    variant:           item.variant,
-                    pieces_per_package: item.pieces_per_package,
-                    package_unit:      item.package_unit,
+                    product_type:      item.product_type || item.product?.product_type,
+                    brand_name:        item.brand_name || item.product?.brand_name,
+                    capacity_rating:   item.capacity_rating || item.product?.capacity_rating,
+                    variant:           item.variant || item.product?.variant,
+                    pieces_per_package: item.pieces_per_package || item.product?.pieces_per_package,
+                    package_unit:      item.package_unit || item.product?.package_unit,
                   })),
                   total_amount: amount,
                 };
@@ -1759,13 +1754,52 @@ const PurchaseOrderPage = () => {
                         </button>
                       </>
                     )}
+                    {canVerifyPO && statusCfg.color === 'pending' && d.verification_status !== 'verified' && (
+                      <>
+                        <button
+                          type="button"
+                          className="aq-btn-reject"
+                          disabled={poActionLoading === d.po_id}
+                          onClick={() => handleRejectPOVerification(d)}
+                        >
+                          REJECT
+                        </button>
+                        <button
+                          type="button"
+                          className="aq-btn-approve"
+                          disabled={poActionLoading === d.po_id}
+                          onClick={() => handleVerifyPO(d)}
+                        >
+                          {poActionLoading === d.po_id ? 'SAVING…' : 'VERIFY'}
+                        </button>
+                      </>
+                    )}
+                    <select
+                      className="po-input"
+                      aria-label="PDF paper size"
+                      value={pdfPaperSize}
+                      onChange={(event) => setPdfPaperSize(event.target.value)}
+                      style={{ width: 105, minHeight: 34, padding: '5px 8px' }}
+                    >
+                      <option value="a4">A4</option>
+                      <option value="letter">Letter</option>
+                      <option value="legal">Legal</option>
+                      <option value="a5">A5</option>
+                    </select>
                     <button type="button" className="po-detail-btn po-detail-btn--excel" onClick={() => exportPOToExcel(poPayload)}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       EXPORT EXCEL
                     </button>
-                    <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => exportPOToDocument(poPayload)}>
+                    <button
+                      type="button"
+                      className="po-detail-btn po-detail-btn--doc"
+                      onClick={() => openApiFile(`/purchase-orders/${d.po_id}/pdf?paper_size=${pdfPaperSize}`, {
+                        download: true,
+                        filename: `${d.po_number}.pdf`,
+                      }).catch((e) => toast.error(e.message))}
+                    >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      EXPORT DOCUMENT
+                      EXPORT PDF
                     </button>
                   </div>
                 );
@@ -1786,8 +1820,8 @@ const PurchaseOrderPage = () => {
         onClose={() => setHistoryRecord(null)}
         kind="Purchase Order"
         record={historyRecord}
-        statusLabel={historyRecord ? getStatusConfig(historyRecord.status?.status_name).label : ''}
-        statusColor={historyRecord ? getStatusConfig(historyRecord.status?.status_name).color : 'draft'}
+        statusLabel={historyRecord ? getStatusConfig(historyRecord.status?.status_name, historyRecord.verification_status).label : ''}
+        statusColor={historyRecord ? getStatusConfig(historyRecord.status?.status_name, historyRecord.verification_status).color : 'draft'}
         milestones={historyMilestones}
         loading={historyLoading}
       />

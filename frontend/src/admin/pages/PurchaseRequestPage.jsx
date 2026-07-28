@@ -156,6 +156,9 @@ const RECO_PRIORITY_BADGE = {
   MEDIUM:   'ak-badge ak-badge--blue',
 };
 
+const LOW_STOCK_PAGE_SIZE = 10;
+const PR_ITEMS_PAGE_SIZE = 5;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -208,6 +211,10 @@ const PurchaseRequestPage = () => {
   const fetchedRecLocRef = useRef(new Set());
   // Which blocks have the suggestions panel expanded (by block id).
   const [openRecPanels, setOpenRecPanels] = useState(new Set());
+  const [lowStockPages, setLowStockPages] = useState({});
+  const [prItemPages, setPrItemPages] = useState({});
+  const [lowStockSearch, setLowStockSearch] = useState({});
+  const [lowStockPriority, setLowStockPriority] = useState({});
   const [neededByDate,     setNeededByDate]     = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 7);
     return d.toISOString().slice(0, 10);
@@ -243,6 +250,8 @@ const PurchaseRequestPage = () => {
   const [sugWarehouse,    setSugWarehouse]    = useState('');
   const [sugCategory,     setSugCategory]     = useState('');
   const [sugBrand,        setSugBrand]        = useState('');
+  const [sugSearch,       setSugSearch]       = useState('');
+  const [applyingAllSug,  setApplyingAllSug]  = useState(false);
 
   // ── Shared: modals ────────────────────────────────────────────────────────
   const [selectedPR,   setSelectedPR]   = useState(null);
@@ -351,11 +360,15 @@ const PurchaseRequestPage = () => {
 
   const filteredSuggestions = useMemo(() => suggestions.filter(s => {
     const p = productById.get(String(s.product_id));
+    const search = sugSearch.trim().toLowerCase();
+    const productName = s.product?.product_name || p?.name || '';
+    const productCode = s.product?.product_code || p?.code || '';
+    if (search && ![productName, productCode].some(value => String(value).toLowerCase().includes(search))) return false;
     if (sugCategory && String(p?.categoryId ?? '') !== sugCategory) return false;
     if (sugBrand && String(p?.brandId ?? '') !== sugBrand) return false;
     if (sugWarehouse && !(s.warehouses || []).some(w => String(w.location_id) === sugWarehouse)) return false;
     return true;
-  }), [suggestions, productById, sugCategory, sugBrand, sugWarehouse]);
+  }), [suggestions, productById, sugCategory, sugBrand, sugWarehouse, sugSearch]);
 
   // ── Fetch (and cache) the active budget for each distinct warehouse ───────
   useEffect(() => {
@@ -391,9 +404,9 @@ const PurchaseRequestPage = () => {
       if (fetchedRecLocRef.current.has(locId)) return;
       fetchedRecLocRef.current.add(locId);
       setRecsByLoc(prev => ({ ...prev, [locId]: { loading: true, recs: [] } }));
-      restockAPI.getRecommendations({ location_id: locId })
+      purchaseRequestsAPI.getLowStock(locId)
         .then(res => {
-          const recs = Array.isArray(res?.data?.recommendations) ? res.data.recommendations : [];
+          const recs = Array.isArray(res?.data) ? res.data : [];
           setRecsByLoc(prev => ({ ...prev, [locId]: { loading: false, recs } }));
         })
         .catch(() => {
@@ -463,8 +476,11 @@ const PurchaseRequestPage = () => {
   const removeBlock = useCallback((blockId) =>
     setWarehouseBlocks(p => (p.length > 1 ? p.filter(b => b.id !== blockId) : p)), []);
 
-  const setBlockWarehouse = useCallback((blockId, warehouseId) =>
-    setWarehouseBlocks(p => p.map(b => (b.id === blockId ? { ...b, warehouseId } : b))), []);
+  const setBlockWarehouse = useCallback((blockId, warehouseId) => {
+    setWarehouseBlocks(p => p.map(b => (b.id === blockId ? { ...b, warehouseId } : b)));
+    setLowStockPages(p => ({ ...p, [blockId]: 1 }));
+    setPrItemPages(p => ({ ...p, [blockId]: 1 }));
+  }, []);
 
   const addRow = useCallback((blockId) =>
     setWarehouseBlocks(p => p.map(b => (b.id === blockId ? { ...b, rows: [...b.rows, newRow()] } : b))), []);
@@ -577,6 +593,7 @@ const PurchaseRequestPage = () => {
       const firstEmpty = b.rows.length === 1 && !b.rows[0].productId;
       return { ...b, rows: firstEmpty ? [rowData] : [...b.rows, rowData] };
     }));
+    setPrItemPages(p => ({ ...p, [blockId]: Number.MAX_SAFE_INTEGER }));
 
     // Non-blocking smart-reorder check, same as handleProductSelect.
     try {
@@ -834,6 +851,43 @@ const PurchaseRequestPage = () => {
     }
   }, []);
 
+  const handleApplyAllSuggestions = useCallback(async () => {
+    if (filteredSuggestions.length === 0) return;
+    const targets = [...filteredSuggestions];
+    const ok = await confirmAction({
+      title: `Apply ${targets.length} filtered stock parameter suggestion${targets.length === 1 ? '' : 's'}?`,
+      text: 'This updates the recommended, safety, and maximum stock levels for every product currently matching the filters.',
+      confirmText: `Apply all ${targets.length}`,
+      tone: 'primary',
+    });
+    if (!ok) return;
+
+    setApplyingAllSug(true);
+    try {
+      const results = await Promise.allSettled(
+        targets.map(s => restockAPI.applySuggestion(s.suggestion_id))
+      );
+      const appliedIds = new Set(
+        targets
+          .filter((_, index) => results[index].status === 'fulfilled')
+          .map(s => s.suggestion_id)
+      );
+      setSuggestions(prev => prev.filter(s => !appliedIds.has(s.suggestion_id)));
+
+      const failed = results.length - appliedIds.size;
+      if (failed === 0) {
+        toast.success(`${appliedIds.size} stock parameter suggestion${appliedIds.size === 1 ? '' : 's'} applied`);
+      } else {
+        toast.error(
+          'Some suggestions could not be applied',
+          `${appliedIds.size} applied and ${failed} failed. Failed suggestions remain in the list.`
+        );
+      }
+    } finally {
+      setApplyingAllSug(false);
+    }
+  }, [filteredSuggestions]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER HELPERS
   // ─────────────────────────────────────────────────────────────────────────
@@ -971,13 +1025,35 @@ const PurchaseRequestPage = () => {
         const recEntry = recsByLoc[String(block.warehouseId)] || { loading: false, recs: [] };
         const usedProductIds = new Set(block.rows.map(r => String(r.productId)).filter(Boolean));
         const suggestible = (recEntry.recs || []).filter(r => !usedProductIds.has(String(r.product_id)));
-        const criticalCount = suggestible.filter(r => r.priority === 'CRITICAL').length;
+        const searchTerm = (lowStockSearch[block.id] || '').trim().toLowerCase();
+        const priorityFilter = lowStockPriority[block.id] || '';
+        const filteredLowStock = suggestible.filter(r => {
+          if (priorityFilter && r.priority !== priorityFilter) return false;
+          if (!searchTerm) return true;
+          return [r.product?.product_name, r.product?.product_code]
+            .some(value => String(value || '').toLowerCase().includes(searchTerm));
+        });
+        const criticalCount = filteredLowStock.filter(r => r.priority === 'CRITICAL').length;
+        const lowStockPageCount = Math.max(1, Math.ceil(filteredLowStock.length / LOW_STOCK_PAGE_SIZE));
+        const lowStockPage = Math.min(lowStockPages[block.id] || 1, lowStockPageCount);
+        const visibleLowStock = filteredLowStock.slice(
+          (lowStockPage - 1) * LOW_STOCK_PAGE_SIZE,
+          lowStockPage * LOW_STOCK_PAGE_SIZE
+        );
+        const prItemPageCount = Math.max(1, Math.ceil(block.rows.length / PR_ITEMS_PAGE_SIZE));
+        const prItemPage = Math.min(prItemPages[block.id] || 1, prItemPageCount);
+        const visiblePrRows = block.rows.slice(
+          (prItemPage - 1) * PR_ITEMS_PAGE_SIZE,
+          prItemPage * PR_ITEMS_PAGE_SIZE
+        );
         // Full per-warehouse reco lookup (incl. products already added) for the per-row hint.
         const recByProduct = new Map((recEntry.recs || []).map(r => [String(r.product_id), r]));
-        const panelOpen = openRecPanels.has(block.id);
+        // Open by default so PR creators immediately see the live low-stock list.
+        // The set stores blocks the user explicitly collapsed.
+        const panelOpen = !openRecPanels.has(block.id);
 
         return (
-          <div key={block.id} className="po-line-items-card" style={{ border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
+          <div key={block.id} className="po-line-items-card pr-warehouse-split" style={{ border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 16 }}>
             <div className="po-line-items-header">
               <div className="po-line-items-title" style={{ flex: 1 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
@@ -1047,7 +1123,36 @@ const PurchaseRequestPage = () => {
 
                 {panelOpen && suggestible.length > 0 && (
                   <div className="pr-reco-list">
-                    {suggestible.map(r => (
+                    <div className="pr-reco-tools">
+                      <input
+                        type="search"
+                        value={lowStockSearch[block.id] || ''}
+                        placeholder="Filter product or code…"
+                        onChange={e => {
+                          setLowStockSearch(p => ({ ...p, [block.id]: e.target.value }));
+                          setLowStockPages(p => ({ ...p, [block.id]: 1 }));
+                        }}
+                      />
+                      <select
+                        value={priorityFilter}
+                        onChange={e => {
+                          setLowStockPriority(p => ({ ...p, [block.id]: e.target.value }));
+                          setLowStockPages(p => ({ ...p, [block.id]: 1 }));
+                        }}
+                      >
+                        <option value="">All stock levels</option>
+                        <option value="CRITICAL">Out of stock</option>
+                        <option value="HIGH">Low stock</option>
+                      </select>
+                      <button
+                        type="button"
+                        disabled={visibleLowStock.length === 0}
+                        onClick={() => visibleLowStock.forEach(item => addRecommendedItem(block.id, item))}
+                      >
+                        + Add All on Page
+                      </button>
+                    </div>
+                    {visibleLowStock.map(r => (
                       <div key={r.recommendation_id} className="pr-reco-item">
                         <span className={RECO_PRIORITY_BADGE[r.priority] || 'ak-badge ak-badge--gray'}>
                           {r.priority}
@@ -1085,6 +1190,28 @@ const PurchaseRequestPage = () => {
                         </button>
                       </div>
                     ))}
+                    {lowStockPageCount > 1 && (
+                      <div className="pr-reco-pagination">
+                        <button
+                          type="button"
+                          disabled={lowStockPage === 1}
+                          onClick={() => setLowStockPages(p => ({ ...p, [block.id]: lowStockPage - 1 }))}
+                        >
+                          Previous
+                        </button>
+                        <span>
+                          Page <strong>{lowStockPage}</strong> of <strong>{lowStockPageCount}</strong>
+                          {' '}· {filteredLowStock.length} products
+                        </span>
+                        <button
+                          type="button"
+                          disabled={lowStockPage === lowStockPageCount}
+                          onClick={() => setLowStockPages(p => ({ ...p, [block.id]: lowStockPage + 1 }))}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1105,7 +1232,9 @@ const PurchaseRequestPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {block.rows.map((r, idx) => (
+                  {visiblePrRows.map((r, visibleIdx) => {
+                    const idx = ((prItemPage - 1) * PR_ITEMS_PAGE_SIZE) + visibleIdx;
+                    return (
                     <React.Fragment key={r.id}>
                       <tr>
                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
@@ -1253,10 +1382,34 @@ const PurchaseRequestPage = () => {
                         </tr>
                       )}
                     </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+
+            {prItemPageCount > 1 && (
+              <div className="pr-items-pagination">
+                <button
+                  type="button"
+                  disabled={prItemPage <= 1}
+                  onClick={() => setPrItemPages(p => ({ ...p, [block.id]: prItemPage - 1 }))}
+                >
+                  Previous
+                </button>
+                <span>
+                  Items page <strong>{prItemPage}</strong> of <strong>{prItemPageCount}</strong>
+                  {' '}({block.rows.length} items)
+                </span>
+                <button
+                  type="button"
+                  disabled={prItemPage >= prItemPageCount}
+                  onClick={() => setPrItemPages(p => ({ ...p, [block.id]: prItemPage + 1 }))}
+                >
+                  Next
+                </button>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px 16px' }}>
               <button type="button" className="po-btn po-btn-add-product" onClick={() => addRow(block.id)}>
@@ -1353,7 +1506,22 @@ const PurchaseRequestPage = () => {
             : '—';
 
           return (
-            <div key={pr.pr_id} className="po-status-card">
+            <div
+              key={pr.pr_id}
+              className="po-status-card po-status-card--clickable"
+              role="button"
+              tabIndex={0}
+              aria-label={`View details for ${pr.pr_number}`}
+              onClick={(event) => {
+                if (!event.target.closest('button, a, input, select, textarea')) setSelectedPR(pr);
+              }}
+              onKeyDown={(event) => {
+                if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+                  event.preventDefault();
+                  setSelectedPR(pr);
+                }
+              }}
+            >
               <div className="po-status-card-body">
                 <div className="po-status-card-left">
                   <div className="po-status-card-header-row">
@@ -1409,12 +1577,6 @@ const PurchaseRequestPage = () => {
                 <div className="po-status-card-right">
                   <span className="po-status-total-label">EST. TOTAL</span>
                   <span className="po-status-total-amount">{fmtPeso(pr.estimated_total)}</span>
-                  <button type="button" className="po-status-view-btn" onClick={() => setSelectedPR(pr)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                    </svg>
-                    VIEW DETAILS
-                  </button>
                   <button type="button" className="po-status-view-btn" onClick={() => openPrHistory(pr)}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                       <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
@@ -1464,11 +1626,24 @@ const PurchaseRequestPage = () => {
           const isOver     = budgetAvail !== null && prTotal > budgetAvail;
           const itemCount  = pr.details?.length ?? 0;
           const isExpanded = expandedCards.has(pr.pr_id);
-          const isApproving = actionLoading[pr.pr_id] === 'approving';
-          const isRejecting = actionLoading[pr.pr_id] === 'rejecting';
 
           return (
-            <div key={pr.pr_id} className="po-status-card">
+            <div
+              key={pr.pr_id}
+              className="po-status-card po-status-card--clickable"
+              role="button"
+              tabIndex={0}
+              aria-label={`Review ${pr.pr_number}`}
+              onClick={(event) => {
+                if (!event.target.closest('button, a, input, select, textarea')) setSelectedPR(pr);
+              }}
+              onKeyDown={(event) => {
+                if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+                  event.preventDefault();
+                  setSelectedPR(pr);
+                }
+              }}
+            >
               <div className="po-status-card-body">
                 <div className="po-status-card-left">
                   <div className="po-status-card-header-row">
@@ -1580,22 +1755,6 @@ const PurchaseRequestPage = () => {
                     </div>
                   )}
 
-                  <div className="pr-action-btns">
-                    <button type="button" className="po-status-view-btn" onClick={() => setSelectedPR(pr)}>
-                      VIEW DETAILS
-                    </button>
-                    <button type="button" className="pr-btn-reject" onClick={() => handleReject(pr.pr_id)} disabled={isRejecting}>
-                      {isRejecting ? 'REJECTING…' : 'REJECT'}
-                    </button>
-                    <button
-                      type="button"
-                      className="pr-btn-approve"
-                      onClick={() => handleApprove(pr.pr_id)}
-                      disabled={isApproving}
-                    >
-                      {isApproving ? 'APPROVING…' : 'APPROVE'}
-                    </button>
-                  </div>
                 </div>
                 <div className="po-status-card-right">
                   <span className="po-status-total-label">PR TOTAL</span>
@@ -1973,6 +2132,14 @@ const PurchaseRequestPage = () => {
 
             {!loadingSug && suggestions.length > 0 && (
               <div className="ak-toolbar" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="search"
+                  className="ak-input"
+                  style={{ minWidth: 220 }}
+                  value={sugSearch}
+                  onChange={e => setSugSearch(e.target.value)}
+                  placeholder="Filter product or code…"
+                />
                 <select className="ak-input" value={sugWarehouse} onChange={e => setSugWarehouse(e.target.value)}>
                   <option value="">All warehouses</option>
                   {warehouseLocations.map(loc => (
@@ -1993,10 +2160,15 @@ const PurchaseRequestPage = () => {
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
-                {(sugWarehouse || sugCategory || sugBrand) && (
+                {(sugSearch || sugWarehouse || sugCategory || sugBrand) && (
                   <button
                     className="ak-btn ak-btn--sm ak-btn--ghost"
-                    onClick={() => { setSugWarehouse(''); setSugCategory(''); setSugBrand(''); }}
+                    onClick={() => {
+                      setSugSearch('');
+                      setSugWarehouse('');
+                      setSugCategory('');
+                      setSugBrand('');
+                    }}
                   >
                     Clear filters
                   </button>
@@ -2004,6 +2176,17 @@ const PurchaseRequestPage = () => {
                 <span className="ak-muted" style={{ fontSize: 12, marginLeft: 'auto' }}>
                   {filteredSuggestions.length} of {suggestions.length}
                 </span>
+                {canApplyReco && (
+                  <button
+                    type="button"
+                    className="ak-btn ak-btn--sm ak-btn--primary"
+                    disabled={applyingAllSug || filteredSuggestions.length === 0 || busySuggestion !== null}
+                    onClick={handleApplyAllSuggestions}
+                    title="Apply every stock parameter suggestion currently matching the filters"
+                  >
+                    {applyingAllSug ? 'Applying…' : `Apply All Filtered (${filteredSuggestions.length})`}
+                  </button>
+                )}
               </div>
             )}
 
@@ -2051,14 +2234,14 @@ const PurchaseRequestPage = () => {
                             <>
                               <button
                                 className="ak-btn ak-btn--sm ak-btn--primary"
-                                disabled={busySuggestion === s.suggestion_id}
+                                disabled={applyingAllSug || busySuggestion === s.suggestion_id}
                                 onClick={() => handleApplySuggestion(s)}
                               >
                                 Apply
                               </button>
                               <button
                                 className="ak-btn ak-btn--sm ak-btn--ghost"
-                                disabled={busySuggestion === s.suggestion_id}
+                                disabled={applyingAllSug || busySuggestion === s.suggestion_id}
                                 onClick={() => handleDismissSuggestion(s)}
                               >
                                 Dismiss

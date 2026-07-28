@@ -79,7 +79,22 @@ const TOKEN_KEY = 'token';
  * viewing/printing) or download it. Keeping the token out of the URL avoids the
  * browser "insecure" credential-in-URL warning. Throws on non-2xx.
  */
-export const openApiFile = async (path, { download = false, filename = 'download' } = {}) => {
+export const openApiFile = async (
+  path,
+  {
+    download = false,
+    preview = false,
+    previewWindow: suppliedPreviewWindow = null,
+    filename = 'download',
+  } = {},
+) => {
+  // Reserve the preview tab during the user's click. Opening it after the
+  // authenticated fetch finishes is commonly blocked as an unsolicited popup.
+  const previewWindow = preview
+    ? (suppliedPreviewWindow && !suppliedPreviewWindow.closed
+      ? suppliedPreviewWindow
+      : window.open('', '_blank'))
+    : null;
   const token = localStorage.getItem(TOKEN_KEY);
   const url = `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
   const res = await fetch(url, {
@@ -89,6 +104,7 @@ export const openApiFile = async (path, { download = false, filename = 'download
     },
   });
   if (!res.ok) {
+    if (previewWindow) previewWindow.close();
     let msg = `Failed to load file (${res.status})`;
     try { const j = await res.json(); if (j?.message) msg = j.message; } catch (_) { /* not JSON */ }
     throw new Error(msg);
@@ -102,6 +118,7 @@ export const openApiFile = async (path, { download = false, filename = 'download
     document.body.appendChild(a);
     a.click();
     a.remove();
+    if (previewWindow) previewWindow.location.href = objUrl;
     setTimeout(() => URL.revokeObjectURL(objUrl), 10000);
   } else {
     const w = window.open(objUrl, '_blank');
@@ -973,9 +990,13 @@ export const istAPI = {
   receiveScan:       async (id, data)   => apiRequest(`/ist/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data) }),
   removeReceiveScan: async (id, scanId) => apiRequest(`/ist/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
   receipt:           async (id)         => apiRequest(`/ist/${id}/receipt`),
-  receiptPdfUrl:     (id)               => {
+  receiptPdfUrl:     (id, paperSize = null) => {
     const token = getToken();
-    return `${getApiBaseUrl()}/ist/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (paperSize) params.set('paper_size', paperSize);
+    const query = params.toString();
+    return `${getApiBaseUrl()}/transfers/${id}/receipt/pdf${query ? `?${query}` : ''}`;
   },
 };
 
@@ -1100,12 +1121,13 @@ export const issuanceScanAPI = {
     const token = getToken();
     return `${base}/issuance-scan/${issuanceId}/revert-to-draft-beacon${token ? '?token=' + token : ''}`;
   },
-  drPdfUrl: (issuanceId, preview = false) => {
+  drPdfUrl: (issuanceId, preview = false, paperSize = null) => {
     const base = getApiBaseUrl();
     const token = getToken();
     const params = new URLSearchParams();
     if (token) params.set('token', token);
     if (preview) params.set('preview', '1');
+    if (paperSize) params.set('paper_size', paperSize);
     const query = params.toString();
     return `${base}/issuance-scan/delivery-receipt/${issuanceId}/pdf${query ? '?' + query : ''}`;
   },
@@ -1454,6 +1476,8 @@ export const pendingProductsAPI = {
    PURCHASE REQUESTS API  (PR → PO workflow)
 ====================== */
 export const purchaseRequestsAPI = {
+  getLowStock: async (locationId) =>
+    apiRequest(`/purchase-requests/low-stock?${new URLSearchParams({ location_id: locationId })}`),
   getAll: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/purchase-requests?${query}` : '/purchase-requests');

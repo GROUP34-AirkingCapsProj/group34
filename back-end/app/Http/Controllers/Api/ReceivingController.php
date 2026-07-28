@@ -119,7 +119,7 @@ class ReceivingController extends Controller
             $validated = $request->validate([
                 'pc_id'                          => 'required|exists:purchase_orders,po_id',
                 'location_id'                    => 'required|exists:locations,location_id',
-                'receiving_number'               => 'required|string|max:50|unique:receivings,receiving_number',
+                'receiving_number'               => 'nullable|string|max:50',
                 'receiving_date'                 => 'required|date',
                 'received_by'                    => 'nullable|exists:users,user_id',
                 'total_quantity_received'        => 'nullable|integer|min:0',
@@ -150,7 +150,11 @@ class ReceivingController extends Controller
             $receivingData = Arr::except($validated, ['details']);
             $receivingData['po_id'] = $receivingData['pc_id'];
             unset($receivingData['pc_id']);
+            // Insert with a short-lived unique value; the primary-key based GRN
+            // is assigned immediately after creation.
+            $receivingData['receiving_number'] = 'PENDING-' . str_replace('.', '', uniqid('', true));
             $receiving = Receiving::create($receivingData);
+            $receiving->assignReadableNumber();
 
             $totalReceived = 0;
             foreach ($validated['details'] as $detail) {
@@ -371,6 +375,7 @@ class ReceivingController extends Controller
                         'product_name'        => $info['name'],
                         'is_serialized'       => $info['type'] === 'appliance',
                         'scanned_barcode'     => $rd->scanned_barcode,
+                        'serial_number'       => $rd->scanned_barcode,
                         'quantity_amount'     => (int) $rd->quantity_amount,
                         'pieces_per_package'  => $info['pcs'],
                         'created_at'          => $rd->created_at?->toISOString(),
@@ -385,7 +390,7 @@ class ReceivingController extends Controller
     }
 
     /** Stream a PDF Goods Received Note for one receiving session. */
-    public function receiptPdf($id)
+    public function receiptPdf(Request $request, $id)
     {
         $receiving = Receiving::with([
             'purchaseOrder.supplier', 'purchaseOrder.details',
@@ -396,10 +401,25 @@ class ReceivingController extends Controller
             return $this->error('Receiving not found', 404);
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('receiving.receipt', ['receiving' => $receiving])
-            ->setPaper('a4');
+        $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+        if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+            $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+        }
+        $paperWidths = ['a4' => 595.28, 'letter' => 612, 'legal' => 612, 'a5' => 419.53];
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('receiving.receipt', [
+            'receiving' => $receiving,
+            'printable_width_pt' => $paperWidths[$paperSize] - 72,
+            'company' => [
+                'name' => \App\Models\SystemSetting::companyName(),
+                'address' => \App\Models\SystemSetting::companyAddress(),
+                'email' => \App\Models\SystemSetting::companyEmail(),
+                'phone' => \App\Models\SystemSetting::companyPhone(),
+            ],
+        ])
+            ->setPaper($paperSize);
 
-        return $pdf->download('GRN-' . $receiving->receiving_number . '.pdf');
+        $filename = $receiving->receiving_number . '.pdf';
+        return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
     }
 
     /** Stream a CSV Goods Received Note for one receiving session. */
@@ -416,7 +436,7 @@ class ReceivingController extends Controller
         $orderedByProduct = collect($receiving->purchaseOrder?->details ?? [])
             ->groupBy('product_id')->map(fn ($g) => (int) $g->sum('quantity_ordered'));
 
-        $filename = 'GRN-' . $receiving->receiving_number . '.csv';
+        $filename = $receiving->receiving_number . '.csv';
         $headers  = [
             'Content-Type'        => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
@@ -458,12 +478,23 @@ class ReceivingController extends Controller
      */
     private function buildPoReceiptModel(int $poId): ?array
     {
-        $po = PurchaseOrder::with(['supplier', 'location', 'details'])->find($poId);
+        $po = PurchaseOrder::with([
+            'supplier',
+            'location',
+            'details.location',
+            'details.product.applianceDetail.brand',
+            'details.product.consumableDetail.unit',
+        ])->find($poId);
         if (! $po) {
             return null;
         }
 
-        $receivings = Receiving::with(['location', 'receivedBy', 'details.product'])
+        $receivings = Receiving::with([
+            'location',
+            'receivedBy',
+            'details.product.applianceDetail.brand',
+            'details.product.consumableDetail.unit',
+        ])
             ->where('po_id', $poId)
             ->orderBy('receiving_date')
             ->orderBy('receiving_id')
@@ -485,6 +516,9 @@ class ReceivingController extends Controller
                     'name'      => $r->location?->location_name ?? ('Warehouse #' . $whId),
                     'received'  => [],
                     'products'  => [],
+                    'serials'   => [],
+                    'scans'     => [],
+                    'conditions'=> [],
                     'sessions'  => [],
                     'receivers' => [],
                 ];
@@ -503,10 +537,34 @@ class ReceivingController extends Controller
                 $pid = (int) $d->product_id;
                 $groups[$whId]['received'][$pid] = ($groups[$whId]['received'][$pid] ?? 0) + (int) $d->quantity_amount;
                 if (! isset($groups[$whId]['products'][$pid])) {
+                    $product = $d->product;
+                    $appliance = $product?->applianceDetail;
+                    $material = $product?->consumableDetail;
                     $groups[$whId]['products'][$pid] = [
-                        'code' => $d->product?->product_code ?? '',
-                        'name' => $d->product?->product_name ?? ('Product #' . $pid),
+                        'code'               => $appliance?->model_code ?? $product?->product_code ?? $product?->barcode ?? '',
+                        'name'               => $product?->product_name ?? ('Product #' . $pid),
+                        'type'               => $product?->product_type,
+                        'brand'              => $appliance?->brand?->brand_name,
+                        'capacity'           => $appliance?->capacity_rating,
+                        'variant'            => $appliance?->variant,
+                        'pieces_per_package' => max(1, (int) ($material?->pieces_per_package ?? 1)),
+                        'package_unit'       => $material?->package_unit,
+                        'unit'               => $material?->unit?->unit_abbreviation ?? $material?->unit?->unit_name,
                     ];
+                }
+                if ($d->scanned_barcode) {
+                    $groups[$whId]['serials'][$pid][$d->scanned_barcode] = true;
+                    if (! isset($groups[$whId]['scans'][$pid][$d->scanned_barcode])) {
+                        $groups[$whId]['scans'][$pid][$d->scanned_barcode] = [
+                            'serial'    => $d->scanned_barcode,
+                            'received'  => 0,
+                            'condition' => $d->condition ?: 'Good',
+                        ];
+                    }
+                    $groups[$whId]['scans'][$pid][$d->scanned_barcode]['received'] += (int) $d->quantity_amount;
+                }
+                if ($d->condition) {
+                    $groups[$whId]['conditions'][$pid][$d->condition] = true;
                 }
             }
         }
@@ -520,8 +578,18 @@ class ReceivingController extends Controller
                 $lines[] = [
                     'code'     => $g['products'][$pid]['code'],
                     'name'     => $g['products'][$pid]['name'],
+                    'type'     => $g['products'][$pid]['type'],
+                    'brand'    => $g['products'][$pid]['brand'],
+                    'capacity' => $g['products'][$pid]['capacity'],
+                    'variant'  => $g['products'][$pid]['variant'],
+                    'unit'     => $g['products'][$pid]['unit'],
+                    'package_unit' => $g['products'][$pid]['package_unit'],
+                    'pieces_per_package' => $g['products'][$pid]['pieces_per_package'],
                     'ordered'  => $ordered,
                     'received' => $qty,
+                    'serials'  => array_keys($g['serials'][$pid] ?? []),
+                    'scans'    => array_values($g['scans'][$pid] ?? []),
+                    'conditions' => array_keys($g['conditions'][$pid] ?? []),
                 ];
                 $totalReceived += $qty;
             }
@@ -538,11 +606,23 @@ class ReceivingController extends Controller
             'warehouses'     => $warehouses,
             'total_received' => $totalReceived,
             'session_count'  => $receivings->count(),
+            'receiving_numbers' => $receivings->pluck('receiving_number')->filter()->unique()->values()->all(),
+            'received_date'  => (function () use ($receivings) {
+                $dates = $receivings->pluck('receiving_date')->filter()
+                    ->map(fn ($date) => \Carbon\Carbon::parse($date)->format('m/d/Y'))
+                    ->unique()->values();
+                if ($dates->isEmpty()) {
+                    return '—';
+                }
+                return $dates->count() === 1
+                    ? $dates->first()
+                    : $dates->first() . ' – ' . $dates->last();
+            })(),
         ];
     }
 
     /** Stream the consolidated PO Goods Received Note as a PDF. */
-    public function poReceiptPdf($poId)
+    public function poReceiptPdf(Request $request, $poId)
     {
         $model = $this->buildPoReceiptModel((int) $poId);
         if (! $model) {
@@ -552,9 +632,23 @@ class ReceivingController extends Controller
             return $this->error('No goods have been received against this purchase order yet', 404);
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('receiving.po_receipt', $model)->setPaper('a4');
+        $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+        if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+            $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+        }
+        $paperWidths = ['a4' => 595.28, 'letter' => 612, 'legal' => 612, 'a5' => 419.53];
+        $model['printable_width_pt'] = $paperWidths[$paperSize] - 72;
+        $model['company'] = [
+            'name' => \App\Models\SystemSetting::companyName(),
+            'address' => \App\Models\SystemSetting::companyAddress(),
+            'email' => \App\Models\SystemSetting::companyEmail(),
+            'phone' => \App\Models\SystemSetting::companyPhone(),
+        ];
 
-        return $pdf->download('GRN-' . $model['po']->po_number . '.pdf');
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('receiving.po_receipt', $model)->setPaper($paperSize);
+
+        $filename = 'GRN-' . $model['po']->po_number . '.pdf';
+        return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
     }
 
     /** Stream the consolidated PO Goods Received Note as a CSV. */

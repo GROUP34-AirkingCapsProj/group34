@@ -47,6 +47,7 @@ class IssuanceScanController extends Controller
             'discount_type'    => ['nullable', Rule::in(['none', 'business', 'senior', 'custom'])],
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'location_id'      => 'nullable|integer|exists:locations,location_id',
+            'external_reference' => 'nullable|string|max:100',
             'notes'            => 'nullable|string|max:1000',
         ]);
 
@@ -80,6 +81,7 @@ class IssuanceScanController extends Controller
                 'issuance_type'    => $validated['issuance_type'],
                 'discount_type'    => $discountType,
                 'discount_percent' => $discountPercent,
+                'external_reference' => $validated['external_reference'] ?? null,
                 'notes'            => $validated['notes'] ?? null,
             ]);
 
@@ -95,6 +97,7 @@ class IssuanceScanController extends Controller
             'issuance_date'    => now()->toDateString(),
             'issuance_type'    => $validated['issuance_type'],
             'dr_number'        => $drNumber,
+            'external_reference' => $validated['external_reference'] ?? null,
             'discount_type'    => $discountType,
             'discount_percent' => $discountPercent,
             'subtotal'         => 0,
@@ -119,6 +122,7 @@ class IssuanceScanController extends Controller
             'message'          => $message,
             'issuance_id'      => $issuance->issuance_id,
             'dr_number'        => $issuance->dr_number,
+            'external_reference' => $issuance->external_reference,
             'issuance_type'    => $issuance->issuance_type,
             'discount_type'    => $issuance->discount_type,
             'discount_percent' => $issuance->discount_percent,
@@ -784,7 +788,7 @@ class IssuanceScanController extends Controller
         });
     }
 
-    public function downloadDeliveryReceiptPdf(int $issuanceId)
+    public function downloadDeliveryReceiptPdf(Request $request, int $issuanceId)
     {
         $issuance = Issuance::with([
             'details.product.applianceDetail.brand',
@@ -798,10 +802,22 @@ class IssuanceScanController extends Controller
         }
 
         $items = $issuance->details->where('quantity_issued', '>', 0)->values();
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
-            'issuance.delivery-receipt',
-            compact('issuance', 'items')
-        )->setPaper('a4', 'landscape');
+        $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+        if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+            $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+        }
+        $landscapeWidths = ['a4' => 841.89, 'letter' => 792, 'legal' => 1008, 'a5' => 595.28];
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('issuance.delivery-receipt', [
+            'issuance' => $issuance,
+            'items' => $items,
+            'printable_width_pt' => $landscapeWidths[$paperSize] - 72,
+            'company' => [
+                'name' => \App\Models\SystemSetting::companyName(),
+                'address' => \App\Models\SystemSetting::companyAddress(),
+                'email' => \App\Models\SystemSetting::companyEmail(),
+                'phone' => \App\Models\SystemSetting::companyPhone(),
+            ],
+        ])->setPaper($paperSize, 'landscape');
 
         $filename = "DR-{$issuance->dr_number}.pdf";
         return request()->boolean('preview')
@@ -931,6 +947,7 @@ class IssuanceScanController extends Controller
         return [
             'issuance_id'      => $issuance->issuance_id,
             'dr_number'        => $issuance->dr_number,
+            'external_reference' => $issuance->external_reference,
             'issuance_date'    => $issuance->issuance_date,
             'issuance_type'    => $issuance->issuance_type,
             'status_name'      => $issuance->status?->status_name,

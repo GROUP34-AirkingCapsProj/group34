@@ -660,6 +660,7 @@ const BarcodeScan = () => {
   const [bsrScannedItems, setBsrScannedItems] = useState([]);
   const [bsrLocationId, setBsrLocationId] = useState('');
   const [bsrZoneLabel, setBsrZoneLabel] = useState('');
+  const [bsrExistingZoneLabels, setBsrExistingZoneLabels] = useState([]);
   const [bsrScanInput, setBsrScanInput] = useState('');
   const [bsrScanning, setBsrScanning] = useState(false);
   const [bsrActiveLine, setBsrActiveLine] = useState(null);
@@ -1719,6 +1720,7 @@ const BarcodeScan = () => {
     setBsrScannedItems([]);
     setBsrActiveLine(null);
     setBsrScanInput('');
+    setBsrZoneLabel('');
     setBsrPoReceivedBarcodes(new Set());
     // Explicitly clear the camera same-code debounce buffer on PO transition
     // so the camera cannot re-fire the previous PO's last scanned code.
@@ -1769,7 +1771,7 @@ const BarcodeScan = () => {
             id: entry.receiving_detail_id ?? Date.now() + idx,
             barcode: entry.scanned_barcode ?? '',
             productName: entry.product_name ?? 'Unknown',
-            serial: entry.is_serialized ? (entry.scanned_barcode ?? null) : null,
+            serial: entry.serial_number ?? entry.scanned_barcode ?? null,
             packages: entry.is_serialized ? null : 1,
             qty: entry.is_serialized ? null : entry.quantity_amount,
             productId: entry.product_id,
@@ -1786,6 +1788,32 @@ const BarcodeScan = () => {
 
     setTimeout(() => bsrInputRef.current?.focus(), 100);
   };
+
+  useEffect(() => {
+    if (scanMode?.key !== 'receive-po' || !bsrSelectedPo || !bsrLocationId) {
+      setBsrExistingZoneLabels([]);
+      return;
+    }
+
+    let cancelled = false;
+    inventoryAPI.getWarehouseBatches()
+      .then((res) => {
+        if (cancelled) return;
+        const batches = Array.isArray(res?.data) ? res.data : [];
+        const labels = [...new Set(
+          batches
+            .filter((batch) => String(batch.location_id) === String(bsrLocationId))
+            .map((batch) => String(batch.zone_label || '').trim())
+            .filter(Boolean),
+        )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        setBsrExistingZoneLabels(labels);
+      })
+      .catch(() => {
+        if (!cancelled) setBsrExistingZoneLabels([]);
+      });
+
+    return () => { cancelled = true; };
+  }, [scanMode?.key, bsrSelectedPo, bsrLocationId]);
 
   // Clear the scan input buffer and cancel any pending debounce whenever the
   // active line changes. Prevents a serial number typed for one product from
@@ -1839,7 +1867,7 @@ const BarcodeScan = () => {
     const inSession = bsrScannedItems.some(
       (item) => item.barcode && item.barcode.trim().toLowerCase() === normalizedCode,
     );
-    if (inSession) {
+    if (inSession && istActiveLine.product?.product_type === 'appliance') {
       bsrProcessingRef.current = true;
       setBsrAlertModal({
         type: 'error',
@@ -1922,7 +1950,7 @@ const BarcodeScan = () => {
       setBsrScannedItems((prev) => [
         {
           id: Date.now(), barcode: raw.trim(), productName,
-          serial: isSerialized ? raw.trim() : null,
+          serial: data?.serial_number || raw.trim(),
           packages: isSerialized ? null : pkgs,
           qty: isSerialized ? null : qtyReceived,
           productId, poDetailId, at: new Date().toLocaleTimeString(),
@@ -1997,7 +2025,7 @@ const BarcodeScan = () => {
       // Do NOT release bsrProcessingRef here — it stays locked until the modal
       // is dismissed, so no duplicate scan can slip through.
     }
-  }, [bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, myLocationId]);
+  }, [bsrLocationId, bsrZoneLabel, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, myLocationId]);
 
   const handleBsrScanSuccessDone = useCallback(() => {
     const result = bsrScanSuccess;
@@ -2131,6 +2159,7 @@ const BarcodeScan = () => {
         barcode:            raw.trim(),
         transfer_detail_id: detailId,
         quantity:           1,
+        quantity_unit:      istActiveLine.product?.product_type === 'appliance' ? 'piece' : 'package',
       });
       const data = res?.data ?? res;
 
@@ -3020,16 +3049,6 @@ const BarcodeScan = () => {
                 </div>
                 <h3 className="bsr-alert-title">{bsrAlertModal.title}</h3>
                 <p className="bsr-alert-message">{bsrAlertModal.message}</p>
-                {bsrAlertModal.receiptPoId && (
-                  <button
-                    type="button"
-                    onClick={() => openApiFile(`/purchase-orders/${bsrAlertModal.receiptPoId}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '9px 14px', background: '#9810FA', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
-                    Print / download receipt
-                  </button>
-                )}
                 <button
                   type="button"
                   className={`bsr-alert-dismiss-btn bsr-alert-dismiss-btn--${bsrAlertModal.type}`}
@@ -3064,16 +3083,6 @@ const BarcodeScan = () => {
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Supplier:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrGetSupplierName(bsrSelectedPo)}</span></div>
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Delivery Location:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrGetDeliveryLocation(bsrSelectedPo)}</span></div>
                   <div className="bsr-detail-row"><span className="bsr-detail-label">Expected Delivery:</span><span className="bsr-detail-value bsr-detail-value--bold">{bsrFmtDate(bsrSelectedPo?.expected_delivery_date)}</span></div>
-                  {(bsrScannedItems.length > 0 || Object.values(bsrProductProgress).some((v) => Number(v) > 0)) && (
-                    <button
-                      type="button"
-                      onClick={() => openApiFile(`/purchase-orders/${bsrSelectedPo?.po_id ?? bsrSelectedPo?.id}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 12px', background: '#9810FA', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
-                      Goods Received Note — Print / PDF
-                    </button>
-                  )}
                 </div>
               </div>
               <div className="bsr-card">
@@ -3236,11 +3245,20 @@ const BarcodeScan = () => {
                   <input
                     type="text"
                     className="bsr-location-select"
-                    placeholder="e.g. Aisle 3, Shelf B"
+                    placeholder="Select or enter a zone"
                     value={bsrZoneLabel}
                     onChange={(e) => setBsrZoneLabel(e.target.value)}
+                    list="bsr-existing-zone-labels"
                     title="Where this batch is physically shelved — shown on the Warehouse Map."
                   />
+                  <datalist id="bsr-existing-zone-labels">
+                    {bsrExistingZoneLabels.map((label) => <option key={label} value={label} />)}
+                  </datalist>
+                  <p className="bsr-zone-history">
+                    {bsrExistingZoneLabels.length > 0
+                      ? <>Previously added zones: <strong>{bsrExistingZoneLabels.join(', ')}</strong></>
+                      : 'No zone names have been added at this location yet.'}
+                  </p>
                 </div>
 
                 <div className="bs-camera-box" style={{ marginBottom: 12 }}>
@@ -3367,13 +3385,19 @@ const BarcodeScan = () => {
                       <div key={item.id} className="bsr-scanned-item">
                         <div className="bsr-scanned-item-info">
                           <span className="bsr-scanned-item-name">{item.productName}</span>
-                          <span className="bsr-scanned-item-serial">
-                            {item.serial
-                              ? item.serial
-                              : item.packages != null && item.qty != null
-                                ? `${item.packages} pkg${item.packages !== 1 ? 's' : ''} × ${item.qty / item.packages} pcs = ${item.qty} pcs`
-                                : item.qty != null ? `${item.qty} pcs` : ''}
-                          </span>
+                          {item.serial && (
+                            <span className="bsr-scanned-item-serial">
+                              Serial No.: <strong>{item.serial}</strong>
+                            </span>
+                          )}
+                          {item.packages != null && item.qty != null && (
+                            <span className="bsr-scanned-item-serial">
+                              {`${item.packages} pkg${item.packages !== 1 ? 's' : ''} × ${item.qty / item.packages} pcs = ${item.qty} pcs`}
+                            </span>
+                          )}
+                          {!item.serial && item.packages == null && item.qty != null && (
+                            <span className="bsr-scanned-item-serial">{item.qty} pcs</span>
+                          )}
                         </div>
                         <span className="bsr-scanned-item-time">{item.at}</span>
                       </div>
@@ -3382,25 +3406,37 @@ const BarcodeScan = () => {
                 )}
               </div>
               <div className="bsr-action-btns">
-                <button type="button" className="bsr-btn-cancel"
-                  onClick={handleBsrSaveExit}
-                >Save &amp; Exit</button>
                 <button type="button"
                   className={`bsr-btn-complete${(!isFullyReceived && totalScanned === 0) ? ' bsr-btn-complete--disabled' : ''}`}
-                  onClick={() => {
+                  onClick={async () => {
                     if (totalScanned === 0 && !isFullyReceived) {
                       setBsrAlertModal({ type: 'error', title: 'Nothing Scanned', message: 'No items have been scanned yet.' });
                       return;
                     }
                     const poNum = bsrSelectedPo?.po_number;
                     const count = totalScanned;
+                    const poId = bsrSelectedPo?.po_id ?? bsrSelectedPo?.id;
+                    bsrProcessingRef.current = true;
+                    let receiptDownloaded = false;
+                    try {
+                      await openApiFile(
+                        `/purchase-orders/${poId}/receiving-receipt/pdf`,
+                        {
+                          download: true,
+                          preview: true,
+                          filename: `GRN-${poNum || poId}${isFullyReceived ? '' : '-PARTIAL'}.pdf`,
+                        },
+                      );
+                      receiptDownloaded = true;
+                    } catch (e) {
+                      toast.error(e?.message || 'The receipt could not be downloaded.');
+                    }
                     if (isFullyReceived) {
                       bsrProcessingRef.current = true;
                       setBsrAlertModal({
                         type: 'success',
                         title: 'Receiving Complete',
-                        message: `All ordered items for ${poNum} have been received. The PO has been marked as Completed.`,
-                        receiptPoId: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id ?? null,
+                        message: `All ordered items for ${poNum} have been received.${receiptDownloaded ? ' The receipt was opened and downloaded as a PDF.' : ''}`,
                         onDismiss: () => {
                           setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
                         },
@@ -3410,8 +3446,7 @@ const BarcodeScan = () => {
                       setBsrAlertModal({
                         type: 'warning',
                         title: 'Partial Receiving Saved',
-                        message: `${count} item(s) recorded for ${poNum}. Not all quantities have been received — this PO remains as "Partially Received". You can resume scanning at any time.`,
-                        receiptPoId: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id ?? null,
+                        message: `${count} item(s) recorded for ${poNum}. This PO remains "Partially Received".${receiptDownloaded ? ' A partial receipt was opened and downloaded as a PDF.' : ''} You can resume scanning at any time.`,
                         onDismiss: () => {
                           setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
                         },
@@ -3419,7 +3454,7 @@ const BarcodeScan = () => {
                     }
                   }}
                   disabled={!canScan || (totalScanned === 0 && !isFullyReceived)}
-                ><BsrCheckIcon /> {isFullyReceived ? 'Complete Receiving' : 'Save & Exit'}</button>
+                ><BsrCheckIcon /> Done</button>
               </div>
             </div>
           </div>

@@ -499,6 +499,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
     Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
     Route::get('/purchase-orders/{id}', [PurchaseOrderController::class, 'show']);
+    Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/{id}/pdf', [PurchaseOrderController::class, 'pdf']);
     Route::get('/purchase-orders/{id}/history', [PurchaseOrderController::class, 'history']);
     Route::middleware('permission:purchase_order_creation,create')->post('/purchase-orders', [PurchaseOrderController::class, 'store']);
     Route::middleware('permission:purchase_order_creation,update')->put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
@@ -549,6 +550,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_request_creation,read')->group(function () {
         Route::get('/purchase-requests/archived', [PurchaseRequestController::class, 'archived']);
         Route::get('/purchase-requests/export', [PurchaseRequestController::class, 'export']);
+        Route::get('/purchase-requests/low-stock', [PurchaseRequestController::class, 'lowStock']);
     });
 
     Route::middleware('permission:purchase_request_creation,read')->get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
@@ -945,6 +947,9 @@ Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,r
 
 Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
      ->get('/transfers/{id}/receipt/pdf', [TransferController::class, 'receiptPdf']);
+
+Route::middleware(['auth.query.token', 'permission:inventory_adjustments,read'])
+     ->get('/adjustments/{id}/pdf', [AdjustmentController::class, 'pdf']);
 
 // sendBeacon (tab-close/refresh) can't set an Authorization header, so the
 // issuance wizard's abandon-revert beacon authenticates via ?token= like the

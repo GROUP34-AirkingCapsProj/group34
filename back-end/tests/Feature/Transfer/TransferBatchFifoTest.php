@@ -103,7 +103,7 @@ class TransferBatchFifoTest extends TransferTestCase
         $this->assertSame(4, $legacy->fresh()->quantity_remaining);
     }
 
-    public function test_reverse_consumable_restores_to_legacy_batch(): void
+    public function test_reverse_consumable_restores_to_oldest_traceable_batch(): void
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
@@ -122,11 +122,7 @@ class TransferBatchFifoTest extends TransferTestCase
 
         $service->reverse($ist->fresh());
 
-        $legacy = InventoryBatch::where('product_id', $prod->product_id)
-            ->where('location_id', $from->location_id)
-            ->whereNull('receiving_id')
-            ->first();
-        $this->assertSame(4, $legacy->quantity_remaining);
+        $this->assertSame(10, (int) $batch->fresh()->quantity_remaining);
     }
 
     public function test_reverse_serialized_restores_exact_batch(): void

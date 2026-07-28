@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
-import { istAPI, getApiBaseUrl } from '../services/api';
+import { istAPI } from '../services/api';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
@@ -397,7 +397,7 @@ const ISTManagementPage = () => {
                                 Print Receipt
                               </button>
                               <a
-                                href={`${getApiBaseUrl()}/ist/${ist.transfer_id}/receipt/pdf`}
+                                href={istAPI.receiptPdfUrl(ist.transfer_id)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="po-btn"

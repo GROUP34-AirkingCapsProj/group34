@@ -96,6 +96,7 @@ class IssuanceOrderController extends Controller
             'data'    => [
                 'issuance_id'      => (int) $issuance->issuance_id,
                 'dr_number'        => $issuance->dr_number,
+                'external_reference' => $issuance->external_reference,
                 'status_id'        => (int) $issuance->status_id,
                 'location_id'      => (int) $issuance->location_id,
                 'customer_id'      => (int) $issuance->customer_id,

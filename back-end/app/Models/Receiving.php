@@ -38,6 +38,24 @@ class Receiving extends Model
         'total_quantity_damaged'  => 'integer',
     ];
 
+    /**
+     * Replace the temporary insert value with a readable, globally unique GRN.
+     * The database primary key supplies uniqueness without hash-like text.
+     */
+    public function assignReadableNumber(): string
+    {
+        $date = $this->receiving_date
+            ? $this->receiving_date->format('Ymd')
+            : now()->format('Ymd');
+        $number = sprintf('GRN-%s-%06d', $date, (int) $this->receiving_id);
+
+        if ($this->receiving_number !== $number) {
+            $this->updateQuietly(['receiving_number' => $number]);
+        }
+
+        return $number;
+    }
+
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class, 'po_id', 'po_id');
