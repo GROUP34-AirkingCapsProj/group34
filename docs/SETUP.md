@@ -4,12 +4,22 @@ Windows + XAMPP. Copy-paste each block in order.
 
 **Requirements:** XAMPP (MySQL/MariaDB running), PHP 8.2+, Composer, Node 18+, Git.
 
+> **Just need the system running, not a coding setup?**
+> Don't use this guide — run **`setup-deploy.bat`** in the project root as
+> administrator instead. It does everything below automatically, plus OPcache
+> and the Apache vhost, and gives you the fast production build.
+> See [README.md → One-click setup](../README.md#one-click-setup).
+>
+> This guide is the **manual developer install** (`npm run dev`, hot reload).
+> Use it when you're writing code, or when the installer fails and you need to
+> work through the steps by hand.
+
 ---
 
 ## 1. Clone
 
 ```powershell
-cd C:\XAMPP1\htdocs
+cd C:\xampp\htdocs
 git clone https://github.com/GROUP34-AirkingCapsProj/group34.git Airking_Inventory
 cd Airking_Inventory
 git checkout backupV3
@@ -25,8 +35,8 @@ empty. The dump `airkingv5.sql` is committed at the repo root.
 Start MySQL in the XAMPP Control Panel first, then:
 
 ```powershell
-& C:\XAMPP1\mysql\bin\mysql.exe -u root -e "CREATE DATABASE airkingV5 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-cmd /c "C:\XAMPP1\mysql\bin\mysql.exe -u root airkingV5 < airkingv5.sql"
+& C:\xampp\mysql\bin\mysql.exe -u root -e "CREATE DATABASE airkingV5 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+cmd /c "C:\xampp\mysql\bin\mysql.exe -u root airkingV5 < airkingv5.sql"
 ```
 
 > The second line uses `cmd /c` because PowerShell 5.1 has no `<` input redirection.
@@ -38,7 +48,7 @@ cmd /c "C:\XAMPP1\mysql\bin\mysql.exe -u root airkingV5 < airkingv5.sql"
 ## 3. Backend
 
 ```powershell
-cd C:\XAMPP1\htdocs\Airking_Inventory\back-end
+cd C:\xampp\htdocs\Airking_Inventory\back-end
 copy .env.example .env
 composer install
 php artisan key:generate
@@ -85,7 +95,7 @@ Run `php artisan config:clear` after **any** `.env` edit or the old values stay 
 ## 4. Frontend
 
 ```powershell
-cd C:\XAMPP1\htdocs\Airking_Inventory\frontend
+cd C:\xampp\htdocs\Airking_Inventory\frontend
 copy .env.example .env
 npm install
 ```
@@ -110,7 +120,7 @@ CRA reads `.env` **once at startup** — restart `npm run dev` after editing it.
 ## 5. Run
 
 ```powershell
-cd C:\XAMPP1\htdocs\Airking_Inventory\frontend
+cd C:\xampp\htdocs\Airking_Inventory\frontend
 npm run dev
 ```
 
@@ -124,7 +134,7 @@ Starts three panes: `api` :8000, `reverb` :8080, `web` :3000. Browser opens auto
 
 `npm run dev` shells out to `php`. If PHP isn't on PATH, the `api` and `reverb` panes die
 instantly while `web` keeps running — the app loads but every request fails. Add
-`C:\XAMPP1\php` to PATH.
+`C:\xampp\php` to PATH.
 
 ---
 
@@ -159,10 +169,10 @@ Then run `npm run dev:lan` and open `http://192.168.1.50:3000` on the other devi
 | Symptom | Cause / fix |
 |---|---|
 | `SQLSTATE[HY000] [1049] Unknown database` | DB name mismatch — must be `airkingV5`, then `php artisan config:clear` |
-| `could not find driver` | Enable `extension=pdo_mysql` in `C:\XAMPP1\php\php.ini`, restart terminal |
+| `could not find driver` | Enable `extension=pdo_mysql` in `C:\xampp\php\php.ini`, restart terminal |
 | Login works, everything else 500s | Skipped `php artisan migrate` in step 3 |
 | Notification bell never fires | `reverb` pane not running, or the two `REVERB_APP_KEY` values differ |
 | `.env` change had no effect | Backend: `php artisan config:clear`. Frontend: restart `npm run dev` |
-| `php` not recognized | Add `C:\XAMPP1\php` to PATH |
+| `php` not recognized | Add `C:\xampp\php` to PATH |
 | Site loads but all API calls fail | `api` pane died — scroll up in the terminal for the PHP error |
 | Page is slow / laggy | That's the CRA dev server, not the API. Use `npm run demo` |
