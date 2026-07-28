@@ -38,15 +38,21 @@ if not exist ".env" (
     if exist ".env.example" ( copy /y ".env.example" ".env" >nul ) else ( type nul > ".env" )
     echo   .env created from example.
 )
+REM .env.example ships DB_CONNECTION=sqlite with the DB_* lines commented out,
+REM so the '#?' in each pattern below is required to uncomment them.
 powershell -NoProfile -Command ^
   "$f='%ROOT%back-end\.env'; $c=Get-Content -Raw $f;" ^
   "$c=$c -replace '(?m)^APP_ENV=.*','APP_ENV=production';" ^
   "$c=$c -replace '(?m)^APP_DEBUG=.*','APP_DEBUG=false';" ^
   "$c=$c -replace '(?m)^SESSION_DRIVER=.*','SESSION_DRIVER=file';" ^
   "$c=$c -replace '(?m)^CACHE_STORE=.*','CACHE_STORE=file';" ^
-  "$c=$c -replace '(?m)^DB_DATABASE=.*','DB_DATABASE=%DBNAME%';" ^
-  "$c=$c -replace '(?m)^DB_USERNAME=.*','DB_USERNAME=%DBUSER%';" ^
-  "Set-Content -Path $f -Value $c -Encoding ascii"
+  "$c=$c -replace '(?m)^#?\s*DB_CONNECTION=.*','DB_CONNECTION=mysql';" ^
+  "$c=$c -replace '(?m)^#?\s*DB_HOST=.*','DB_HOST=127.0.0.1';" ^
+  "$c=$c -replace '(?m)^#?\s*DB_PORT=.*','DB_PORT=3306';" ^
+  "$c=$c -replace '(?m)^#?\s*DB_DATABASE=.*','DB_DATABASE=%DBNAME%';" ^
+  "$c=$c -replace '(?m)^#?\s*DB_USERNAME=.*','DB_USERNAME=%DBUSER%';" ^
+  "$c=$c -replace '(?m)^#?\s*DB_PASSWORD=.*','DB_PASSWORD=%DBPASS%';" ^
+  "Set-Content -Path $f -Value $c -Encoding ascii; Write-Host '   .env set to mysql/%DBNAME%.'"
 findstr /B /C:"APP_KEY=base64" ".env" >nul 2>&1
 if errorlevel 1 ( call php artisan key:generate ) else ( echo   APP_KEY already set. )
 
@@ -76,22 +82,37 @@ if errorlevel 1 (
 ) else (
     for /f %%T in ('"%MYSQL%" -u %DBUSER% %MYSQL_PW% -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='%DBNAME%';"') do set "TBLCOUNT=%%T"
     if "!TBLCOUNT!"=="0" (
-        if exist "%ROOT%airking_cleans.sql" (
-            echo   importing airking_cleans.sql ...
-            "%MYSQL%" -u %DBUSER% %MYSQL_PW% %DBNAME% -e "source %ROOT:\=/%airking_cleans.sql"
+        REM airkingv5.sql is the CURRENT dump - 73 tables, migrations recorded
+        REM through 2026_07_27. Do not switch back to airking_cleans.sql: it
+        REM stops at 2026_05_10 and is missing the set/picking/incident tables.
+        if exist "%ROOT%airkingv5.sql" (
+            echo   importing airkingv5.sql ...
+            "%MYSQL%" -u %DBUSER% %MYSQL_PW% %DBNAME% < "%ROOT%airkingv5.sql"
+            if errorlevel 1 (
+                echo   ^^! import FAILED - check the dump and MySQL credentials.
+                goto :error
+            )
             echo   database imported.
         ) else (
-            echo   ^^! airking_cleans.sql not found - import your dump manually.
+            echo   ^^! airkingv5.sql not found - import your dump manually.
+            goto :error
         )
     ) else (
         echo   database already has tables ^(!TBLCOUNT!^) - skipping import.
+        if !TBLCOUNT! LSS 70 echo   ^^! only !TBLCOUNT! tables - this DB looks stale; migrate may fail.
     )
 )
 
 REM ------------------------------------------------------------
 echo.
-echo [5/8] Backend: storage link + cache config/routes...
+echo [5/8] Backend: migrate + storage link + cache config/routes...
 cd /d "%ROOT%back-end"
+REM Required: the dump's migrations table stops at 2026_07_27, so the two
+REM 2026_07_28 migrations still need to run. --force because APP_ENV=production
+REM (without it artisan waits for a y/N answer and the script hangs).
+REM Must run BEFORE config:cache so it reads the .env written in step 2.
+call php artisan migrate --force
+if errorlevel 1 goto :error
 call php artisan storage:link
 call php artisan config:cache
 call php artisan route:cache
