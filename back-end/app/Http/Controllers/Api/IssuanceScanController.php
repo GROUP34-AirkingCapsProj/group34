@@ -232,7 +232,7 @@ class IssuanceScanController extends Controller
         // Do NOT re-resolve from the user/request to avoid any mismatch.
         $locationId = (int) $issuance->location_id;
 
-        $raw = trim($validated['barcode']);
+        $raw = $this->canonicalSerial((string) $validated['barcode']);
 
         $lines = $issuance->details
             ->groupBy('product_id')
@@ -288,9 +288,10 @@ class IssuanceScanController extends Controller
                     'reason'  => 'This is a serialized appliance. Scan the individual unit serial number.',
                 ]);
             }
+            $canonicalSerial = (string) $serialRecord->serial_number;
 
             $alreadyAdded = IssuanceDetail::where('issuance_id', $issuance->issuance_id)
-                ->where('serial_number', $raw)
+                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($canonicalSerial))])
                 ->exists();
             if ($alreadyAdded) {
                 return response()->json([
@@ -304,7 +305,7 @@ class IssuanceScanController extends Controller
             $lineSubtotal = $unitPrice;
 
             return DB::transaction(function () use (
-                $issuance, $product, $serialRecord, $raw,
+                $issuance, $product, $serialRecord, $canonicalSerial,
                 $unitPrice, $lineSubtotal, $locationId
             ) {
                 $inv = Inventory::where('product_id', $product->product_id)
@@ -338,7 +339,7 @@ class IssuanceScanController extends Controller
                 $detail = IssuanceDetail::create([
                     'issuance_id'          => $issuance->issuance_id,
                     'product_id'           => $product->product_id,
-                    'serial_number'        => $raw,
+                    'serial_number'        => $canonicalSerial,
                     'receiving_id'         => $serialReceivingId,
                     'batch_id'             => $serialBatch?->batch_id,
                     'zone_label'           => $serialBatch?->zone_label,
@@ -362,7 +363,7 @@ class IssuanceScanController extends Controller
                         'product_id' => $product->product_id,
                         'from_location_id' => $locationId,
                         'quantity' => 1,
-                        'serial_number' => $raw,
+                        'serial_number' => $canonicalSerial,
                         'performed_by' => auth()->id(),
                         'moved_at' => now(),
                     ]);
@@ -372,7 +373,7 @@ class IssuanceScanController extends Controller
                     $issuance->issuance_id,
                     $product->product_id,
                     $locationId,
-                    $raw,
+                    $canonicalSerial,
                     'accepted',
                     1
                 );
@@ -390,7 +391,7 @@ class IssuanceScanController extends Controller
                     'brand_name'      => $product->applianceDetail?->brand?->brand_name,
                     'capacity_rating' => $product->applianceDetail?->capacity_rating,
                     'variant'         => $product->applianceDetail?->variant,
-                    'serial_number'   => $raw,
+                    'serial_number'   => $canonicalSerial,
                     'unit_price'      => $unitPrice,
                     'quantity'        => 1,
                     'quantity_unit'   => 'unit',

@@ -266,7 +266,7 @@ class TransferService
 
         return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty, $quantityIsPackages) {
             if ($transferDetailId === null) {
-                $code = trim($barcode);
+                $code = $this->canonicalSerial($barcode);
                 $match = ItemSerial::where('transfer_id', $ist->transfer_id)
                     ->where('serial_type', 'transferred')
                     ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($code)])
@@ -318,7 +318,7 @@ class TransferService
             if ($serialized) {
                 $match = ItemSerial::where('transfer_id', $ist->transfer_id)
                     ->where('product_id', $detail->product_id)
-                    ->where('serial_number', $barcode)
+                    ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($barcode))])
                     ->where('serial_type', 'transferred')
                     ->exists();
                 if (!$match) {
@@ -630,18 +630,23 @@ class TransferService
 
         return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty, $quantityIsPackages) {
             $ist->loadMissing('details.product');
-            $code = trim($barcode);
+            $code = $this->canonicalSerial($barcode);
             if ($code === '') {
                 throw new RuntimeException('Enter a barcode or serial number.');
             }
 
             // Resolve which serial (if any) this code is, and which line it belongs to.
             $istProductIds = $ist->details->pluck('product_id')->all();
-            $serial = ItemSerial::whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($code)])
-                ->whereIn('product_id', $istProductIds)
-                ->first();
+            $serial = null;
+            foreach ($this->barcodeLookupCandidates($code) as $candidate) {
+                $serial = ItemSerial::whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($candidate))])
+                    ->whereIn('product_id', $istProductIds)
+                    ->first();
+                if ($serial) break;
+            }
 
             if ($serial) {
+                $code = (string) $serial->serial_number;
                 // Serialized path.
                 $detail = $ist->details->firstWhere('product_id', $serial->product_id);
                 if (!$detail) {

@@ -114,6 +114,37 @@ class WarrantyClaimTest extends TestCase
         $this->assertSame((int) $pending, (int) $claim->status_id);
     }
 
+    public function test_http_init_derives_customer_from_issued_serial(): void
+    {
+        $this->actingUser();
+        $customer = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+
+        $response = $this->postJson('/api/warranty-claims/init', [
+            'serial_number' => $appliance['serial'],
+            'claim_type'    => 'repair',
+            'location_id'   => $appliance['location']->location_id,
+        ])->assertStatus(201);
+
+        $response->assertJsonPath('data.customer.customer_id', $customer->customer_id);
+    }
+
+    public function test_manual_serial_entry_accepts_common_formatting_differences(): void
+    {
+        $this->actingUser();
+        $customer = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $manuallyTyped = strtolower(str_replace('-', ' ', $appliance['serial']));
+
+        $this->postJson('/api/warranty-claims/init', [
+            'serial_number' => $manuallyTyped,
+            'claim_type'    => 'repair',
+            'location_id'   => $appliance['location']->location_id,
+        ])
+            ->assertStatus(201)
+            ->assertJsonPath('data.serial_number', $appliance['serial']);
+    }
+
     public function test_init_claim_rejects_expired_warranty(): void
     {
         $this->actingUser();
@@ -303,7 +334,7 @@ class WarrantyClaimTest extends TestCase
         ]);
     }
 
-    public function test_complete_repair_marks_original_claimed_no_new_warranty(): void
+    public function test_complete_repair_keeps_original_warranty_active_no_new_warranty(): void
     {
         $this->actingUser();
         $customer  = $this->makeCustomer();
@@ -323,8 +354,13 @@ class WarrantyClaimTest extends TestCase
         $done = $this->service()->completeClaim($claim->fresh());
 
         $this->assertSame($this->service()->claimStatusId('Completed'), (int) $done->status_id);
-        $this->assertSame(35, (int) $appliance['warranty']->fresh()->status_id);
+        $this->assertSame(33, (int) $appliance['warranty']->fresh()->status_id);
         $this->assertSame($before, \App\Models\WarrantyRecord::count(), 'Repair must not create a warranty record.');
+        $this->assertDatabaseHas('warranty_claim_returns', [
+            'claim_id' => $claim->claim_id,
+            'holding_status' => 'returned_to_customer',
+            'release_disposition' => 'repaired_return',
+        ]);
     }
 
     public function test_complete_replacement_inherits_end_date_and_is_claimable(): void
@@ -399,7 +435,7 @@ class WarrantyClaimTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true);
 
-        $this->assertSame(35, (int) $appliance['warranty']->fresh()->status_id);
+        $this->assertSame(33, (int) $appliance['warranty']->fresh()->status_id);
     }
 
     public function test_http_init_rejects_expired_with_422(): void

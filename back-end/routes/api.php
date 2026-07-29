@@ -420,12 +420,19 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
             Route::get('/',               [\App\Http\Controllers\Api\WarrantyClaimController::class, 'index']);
             Route::get('/{claimId}',      [\App\Http\Controllers\Api\WarrantyClaimController::class, 'show']);
             Route::get('/{claimId}/slip', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'downloadSlip']);
+            Route::get('/{claimId}/receipt/pdf', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'receiptPdf']);
         });
         Route::middleware('permission:warranty_claims,create')->group(function () {
             Route::post('/init',           [\App\Http\Controllers\Api\WarrantyClaimController::class, 'init']);
+            Route::post('/{claimId}/order/custom', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addCustomOrderLine']);
+            Route::post('/{claimId}/order/set', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addSetOrder']);
             Route::post('/{claimId}/item', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addItem']);
         });
-        Route::middleware('permission:warranty_claims,update')->delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
+        Route::middleware('permission:warranty_claims,update')->group(function () {
+            Route::put('/{claimId}/order/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'updateOrderLine']);
+            Route::delete('/{claimId}/order/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeOrderLine']);
+            Route::delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
+        });
         Route::middleware('permission:warranty_claims,approve')->post('/{claimId}/complete', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'complete']);
     });
 

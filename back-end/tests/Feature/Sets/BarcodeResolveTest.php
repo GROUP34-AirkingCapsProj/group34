@@ -17,6 +17,11 @@ class BarcodeResolveTest extends SetTestCase
             {
                 return $this->resolveScan($barcode, $locationId);
             }
+
+            public function canonical(string $serial): string
+            {
+                return $this->canonicalSerial($serial);
+            }
         };
     }
 
@@ -54,6 +59,14 @@ class BarcodeResolveTest extends SetTestCase
         $out = $this->resolver()->call('  bc-resolve-3 ', $loc->location_id);
 
         $this->assertSame((int) $product->product_id, (int) $out['product']->product_id);
+    }
+
+    public function test_manual_and_camera_serials_use_the_same_canonical_value(): void
+    {
+        $resolver = $this->resolver();
+
+        $this->assertSame('SN-00111', $resolver->canonical("  SN-00 111\t"));
+        $this->assertSame('1111', $resolver->canonical(" 11 11\r\n"));
     }
 
     public function test_unknown_barcode_resolves_to_nothing(): void

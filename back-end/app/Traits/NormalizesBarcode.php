@@ -8,13 +8,22 @@ use App\Models\Product;
 trait NormalizesBarcode
 {
     /**
+     * Canonical value persisted for a manually typed or camera-decoded serial.
+     * Camera decoders remove whitespace, so manual input must do the same.
+     */
+    protected function canonicalSerial(string $raw): string
+    {
+        return preg_replace('/[\p{Z}\s\x{200B}-\x{200D}\x{FEFF}]+/u', '', trim($raw)) ?? trim($raw);
+    }
+
+    /**
      * Returns a deduplicated list of candidate strings to try for a given
      * raw barcode: original, upper, lower, no-whitespace, alphanumeric-only,
      * digits-only, and EAN-13 derived from a 12-digit UPC-A.
      */
     protected function barcodeLookupCandidates(string $raw): array
     {
-        $s   = trim($raw);
+        $s   = $this->canonicalSerial($raw);
         $set = [];
 
         $add = function (string $v) use (&$set) {

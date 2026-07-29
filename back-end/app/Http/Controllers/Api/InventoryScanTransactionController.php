@@ -27,7 +27,7 @@ use Illuminate\Validation\ValidationException;
  */
 class InventoryScanTransactionController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, \App\Traits\NormalizesBarcode;
     use \App\Traits\ResolvesUserLocation;
 
     public function store(Request $request)
@@ -310,7 +310,8 @@ class InventoryScanTransactionController extends Controller
             $quantity = min($quantity, $remaining);
         }
 
-        $scannedBarcode = strtolower(trim($validated['barcode']));
+        $scannedBarcode = $this->canonicalSerial((string) $validated['barcode']);
+        $scannedBarcodeLookup = strtolower($scannedBarcode);
 
         // Global barcode uniqueness: every scanned barcode is a one-time-use identifier.
         // Once received anywhere (any PO, any line, any session), the barcode is locked
@@ -318,7 +319,7 @@ class InventoryScanTransactionController extends Controller
         if ($scannedBarcode !== '') {
             if (ReceivingDetail::query()
                 ->whereNotNull('scanned_barcode')
-                ->whereRaw('LOWER(TRIM(scanned_barcode)) = ?', [$scannedBarcode])
+                ->whereRaw("LOWER(REPLACE(REPLACE(REPLACE(TRIM(scanned_barcode), ' ', ''), CHAR(9), ''), CHAR(13), '')) = ?", [$scannedBarcodeLookup])
                 ->exists()
             ) {
                 return $this->success([
@@ -646,7 +647,7 @@ class InventoryScanTransactionController extends Controller
 
             // Keep item_serial in sync with the inventory move
             $isSerialized = $product->isSerialized();
-            $scannedBarcode = trim($validated['barcode'] ?? '');
+            $scannedBarcode = $this->canonicalSerial((string) ($validated['barcode'] ?? ''));
             if ($scannedBarcode !== '') {
                 if ($isSerialized) {
                     // Move the unit's serial record to the destination location

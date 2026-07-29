@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Modal from '../Modal';
 import LocationBadge from '../LocationBadge';
 import LocationSelector from '../LocationSelector';
+import ProductSearchSelect from '../ProductSearchSelect';
 import {
   customersAPI,
   issuanceScanAPI,
@@ -382,7 +383,7 @@ function SetupForm({
 }
 
 // ── Add-set path (plain dropdown) ─────────────────────────────────────────────
-function AddSetPath({ disabled, onAdd }) {
+export function AddSetPath({ disabled, onAdd }) {
   const [sets, setSets] = useState([]);
   const [setId, setSetId] = useState('');
   const [qty, setQty] = useState(1);
@@ -423,7 +424,7 @@ function AddSetPath({ disabled, onAdd }) {
 }
 
 // ── Add-custom path (any product, any qty) ────────────────────────────────────
-function AddCustomPath({ disabled, onAdd }) {
+export function AddCustomPath({ disabled, onAdd }) {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [categoryId, setCategoryId] = useState('');
@@ -431,6 +432,7 @@ function AddCustomPath({ disabled, onAdd }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [productId, setProductId] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [qty, setQty] = useState(1);
   const [packages, setPackages] = useState(0);
   const [pieces, setPieces] = useState(0);
@@ -450,7 +452,6 @@ function AddCustomPath({ disabled, onAdd }) {
   // Load the product options for the chosen category/brand. The product picker is
   // a dropdown — no typing — so a picker who forgets the exact name just browses.
   useEffect(() => {
-    if (!categoryId && !brandId) { setResults([]); setProductId(''); return; }
     let cancelled = false;
     setLoading(true);
     const params = { per_page: 200 };
@@ -468,7 +469,12 @@ function AddCustomPath({ disabled, onAdd }) {
   }, [categoryId, brandId]);
 
   const picked = results.find((p) => String(p.product_id) === String(productId)) || null;
-  const noFilter = !categoryId && !brandId;
+  const noFilter = false;
+  const normalizedSearch = productSearch.trim().toLowerCase();
+  const visibleProducts = results.filter((p) =>
+    !normalizedSearch
+    || `${p.product_name || ''} ${p.product_code || ''}`.toLowerCase().includes(normalizedSearch)
+  ).slice(0, 100);
   const piecesPerPackage = Number(picked?.pieces_per_package) || 0;
   const packageUnit = picked?.package_unit || 'package';
 
@@ -482,6 +488,7 @@ function AddCustomPath({ disabled, onAdd }) {
     if (!picked || totalPieces < 1) return;
     await onAdd(picked.product_id, Math.max(1, totalPieces));
     setProductId('');
+    setProductSearch('');
     resetQty();
   };
 
@@ -489,7 +496,7 @@ function AddCustomPath({ disabled, onAdd }) {
     <div className="ak-field" style={{ gap: '0.5rem' }}>
       {/* Category + brand dropdowns narrow the product list; pick the product from
           the third dropdown — no free-text needed. */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'none', gap: '0.5rem', flexWrap: 'wrap' }}>
         <select className="ak-select" style={{ flex: '0 1 150px', maxWidth: 180 }} value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setProductId(''); }} disabled={disabled}>
           <option value="">All categories</option>
           {categories.map((c) => (
@@ -506,9 +513,34 @@ function AddCustomPath({ disabled, onAdd }) {
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div className="ak-field" style={{ flex: '1 1 200px', maxWidth: 320, minWidth: 0 }}>
           <label className="ak-label">Product</label>
+          <ProductSearchSelect
+            products={results.map((p) => ({
+              ...p,
+              id: String(p.product_id),
+              name: p.product_name,
+              code: p.product_code,
+              categoryId: String(p.category_id || ''),
+              categoryName: p.category_name || p.category?.category_name,
+              brandId: String(p.brand_id || p.appliance_detail?.brand_id || ''),
+              brandName: p.brand_name || p.appliance_detail?.brand?.brand_name,
+            }))}
+            value={String(productId || '')}
+            onChange={(id) => { setProductId(String(id)); resetQty(); }}
+            placeholder={loading ? 'Loading products…' : 'Search product…'}
+            disabled={disabled || loading}
+          />
+          <input
+            className="ak-input"
+            type="search"
+            value={productSearch}
+            onChange={(e) => { setProductSearch(e.target.value); setProductId(''); resetQty(); }}
+            placeholder="Search by product name or code…"
+            disabled={disabled || loading}
+            style={{ display: 'none' }}
+          />
           <select
             className="ak-select"
-            style={{ maxWidth: '100%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}
+            style={{ display: 'none' }}
             value={productId}
             onChange={(e) => { setProductId(e.target.value); resetQty(); }}
             disabled={disabled || noFilter || loading}
@@ -516,7 +548,7 @@ function AddCustomPath({ disabled, onAdd }) {
             <option value="">
               {noFilter ? 'Select a category or brand first…' : loading ? 'Loading…' : (results.length ? 'Select a product…' : 'No products found')}
             </option>
-            {results.map((p) => (
+            {visibleProducts.map((p) => (
               <option key={p.product_id} value={p.product_id}>
                 {p.product_name}{p.product_code ? ` — ${p.product_code}` : ''}
               </option>

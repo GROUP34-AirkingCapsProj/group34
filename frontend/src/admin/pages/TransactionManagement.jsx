@@ -5,8 +5,8 @@ import Loader from '../components/Loader';
 import Pagination from '../components/Pagination';
 import Modal from '../components/Modal';
 import {
-  receivingsAPI, issuancesAPI, issuanceOrderAPI, issuanceScanAPI, transfersAPI,
-  adjustmentsAPI, customersAPI, companySettingsAPI, getApiBaseUrl, getToken,
+  receivingsAPI, issuancesAPI, issuanceOrderAPI, transfersAPI,
+  adjustmentsAPI, customersAPI, companySettingsAPI, openApiFile,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -287,20 +287,29 @@ const TransactionManagement = () => {
     return () => { stale = true; };
   }, [activeTransaction]);
 
-  const transactionDocumentUrl = (txn, preview = false) => {
+  const transactionDocumentPath = (txn, preview = false) => {
     if (!txn?.entityId) return null;
-    if (txn.type === 'Issuance') return issuanceScanAPI.drPdfUrl(txn.entityId, preview, pdfPaperSize);
     const params = new URLSearchParams();
-    const token = getToken();
-    if (token) params.set('token', token);
     params.set('paper_size', pdfPaperSize);
     if (preview) params.set('preview', '1');
-    const path = txn.type === 'Receiving'
+    const path = txn.type === 'Issuance'
+      ? `/issuance-scan/delivery-receipt/${txn.entityId}/pdf`
+      : txn.type === 'Receiving'
       ? `/receivings/${txn.entityId}/receipt/pdf`
       : txn.type === 'Transfer'
         ? `/transfers/${txn.entityId}/receipt/pdf`
         : `/adjustments/${txn.entityId}/pdf`;
-    return `${getApiBaseUrl()}${path}?${params.toString()}`;
+    return `${path}?${params.toString()}`;
+  };
+
+  const openTransactionDocument = (txn, download = false) => {
+    const path = transactionDocumentPath(txn, !download);
+    if (!path) return;
+    openApiFile(path, {
+      preview: !download,
+      download,
+      filename: `${txn.type || 'transaction'}-${txn.entityId}.pdf`,
+    }).catch((error) => toast.error(error?.message || 'Failed to load PDF.'));
   };
 
   // Fetch issue-out detail (header + priced quote + customer) when a row is opened.
@@ -691,12 +700,12 @@ const TransactionManagement = () => {
                     <option value="a4">A4</option><option value="letter">Letter</option>
                     <option value="legal">Legal</option><option value="a5">A5</option>
                   </select>
-                  <button type="button" className="ak-btn" onClick={() => window.open(transactionDocumentUrl({ type: 'Issuance', entityId: activeIssuanceId }, true), '_blank')}>
+                  <button type="button" className="ak-btn" onClick={() => openTransactionDocument({ type: 'Issuance', entityId: activeIssuanceId })}>
                     View Document
                   </button>
-                  <a className="ak-btn ak-btn--primary" href={transactionDocumentUrl({ type: 'Issuance', entityId: activeIssuanceId })} style={{ textDecoration: 'none' }}>
+                  <button type="button" className="ak-btn ak-btn--primary" onClick={() => openTransactionDocument({ type: 'Issuance', entityId: activeIssuanceId }, true)}>
                     Download PDF
-                  </a>
+                  </button>
                 </>
               )}
               {detail.isDraft ? (
@@ -823,8 +832,8 @@ const TransactionManagement = () => {
                   <option value="a4">A4</option><option value="letter">Letter</option>
                   <option value="legal">Legal</option><option value="a5">A5</option>
                 </select>
-                <button type="button" className="ak-btn" onClick={() => window.open(transactionDocumentUrl(txn, true), '_blank')}>View Document</button>
-                <a className="ak-btn ak-btn--primary" href={transactionDocumentUrl(txn)} style={{ textDecoration: 'none' }}>Download PDF</a>
+                <button type="button" className="ak-btn" onClick={() => openTransactionDocument(txn)}>View Document</button>
+                <button type="button" className="ak-btn ak-btn--primary" onClick={() => openTransactionDocument(txn, true)}>Download PDF</button>
                 <button type="button" className="ak-btn" onClick={() => { setActiveTransaction(null); setMovementDetail(null); }}>Close</button>
               </div>
             </div>
