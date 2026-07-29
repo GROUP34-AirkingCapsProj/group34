@@ -27,9 +27,27 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
 
   const po = receiving.purchaseOrder || {};
   const orderedByProduct = {};
+  const poDetailById = {};
+  const poDetailByProduct = {};
   (po.details || []).forEach((d) => {
     orderedByProduct[d.product_id] = (orderedByProduct[d.product_id] || 0) + Number(d.quantity_ordered || 0);
+    if (d.po_detail_id != null) poDetailById[d.po_detail_id] = d;
+    if (!poDetailByProduct[d.product_id]) poDetailByProduct[d.product_id] = d;
   });
+  const costFor = (detail) => {
+    const poLine = poDetailById[detail.po_detail_id] || poDetailByProduct[detail.product_id];
+    const piecesPerOrderedUnit = detail.product?.product_type === 'appliance'
+      ? 1
+      : Math.max(1, Number(detail.product?.pieces_per_package || 1));
+    return poLine
+      ? Number(poLine.unit_price || 0) / piecesPerOrderedUnit
+      : Number(detail.product?.cost_price || 0);
+  };
+  const receivedCostTotal = (receiving.details || []).reduce(
+    (sum, detail) => sum + costFor(detail) * Number(detail.quantity_amount || 0),
+    0,
+  );
+  const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const receiverName =
     receiving.received_by_name
@@ -43,10 +61,10 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
     if (!w) return;
     w.document.write(
       `<html><head><title>GRN-${receiving.receiving_number}</title>`
-      + '<style>body{font-family:Arial,sans-serif;color:#111;padding:24px}'
+      + '<style>body{font-family:"Times New Roman",serif;color:#111;padding:24px}'
       + 'table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}'
-      + 'th{background:#1e293b;color:#fff;padding:6px;text-align:left}'
-      + 'td{border-bottom:1px solid #e2e8f0;padding:6px}</style></head><body>'
+      + 'th{border-top:2px solid #111;border-bottom:2px solid #111;padding:4px;text-align:left}'
+      + 'td{border-bottom:1px solid #bbb;padding:4px}</style></head><body>'
       + node.innerHTML + '</body></html>'
     );
     w.document.close();
@@ -73,19 +91,26 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12, fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#1e293b', color: '#fff' }}>
-              <th style={{ padding: 6, textAlign: 'left' }}>Product</th>
+            <tr>
+              <th style={{ padding: 4, textAlign: 'left' }}>Product / Code</th>
               <th style={{ padding: 6 }}>Ordered</th>
               <th style={{ padding: 6 }}>Received</th>
+              <th style={{ padding: 6, textAlign: 'right' }}>Unit Cost</th>
+              <th style={{ padding: 6, textAlign: 'right' }}>Amount</th>
               <th style={{ padding: 6 }}>Condition</th>
             </tr>
           </thead>
           <tbody>
             {(receiving.details || []).map((d, i) => (
               <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: 6 }}>{d.product?.product_name || `Product #${d.product_id}`}</td>
+                <td style={{ padding: 6 }}>
+                  <strong>{d.product?.product_name || `Product #${d.product_id}`}</strong>
+                  {d.product?.product_code ? ` · ${d.product.product_code}` : ''}
+                </td>
                 <td style={{ padding: 6, textAlign: 'center' }}>{orderedByProduct[d.product_id] ?? '—'}</td>
                 <td style={{ padding: 6, textAlign: 'center' }}>{Number(d.quantity_amount || 0)}</td>
+                <td style={{ padding: 6, textAlign: 'right' }}>{money(costFor(d))}</td>
+                <td style={{ padding: 6, textAlign: 'right' }}>{money(costFor(d) * Number(d.quantity_amount || 0))}</td>
                 <td style={{ padding: 6, textAlign: 'center' }}>{d.condition || 'Good'}</td>
               </tr>
             ))}
@@ -93,6 +118,7 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
         </table>
         <p style={{ textAlign: 'right', marginTop: 8, fontSize: 13 }}>
           <strong>Total received:</strong> {Number(receiving.total_quantity_received || 0)} pcs
+          &nbsp;&nbsp; <strong>Received cost:</strong> {money(receivedCostTotal)}
         </p>
         <p style={{ marginTop: 24, fontSize: 13 }}>
           <strong>Received by:</strong> {receiverName}

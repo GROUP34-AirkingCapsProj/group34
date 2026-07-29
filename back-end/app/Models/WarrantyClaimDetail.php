@@ -10,7 +10,8 @@ class WarrantyClaimDetail extends Model
     protected $primaryKey = 'claim_detail_id';
 
     protected $fillable = [
-        'claim_id', 'product_id', 'serial_number',
+        'claim_id', 'product_id', 'product_set_id', 'line_source', 'serial_number',
+        'quantity_requested',
         'quantity_issued', 'quantity_in_pieces', 'quantity_unit',
         'unit_cost', 'line_cost',
     ];

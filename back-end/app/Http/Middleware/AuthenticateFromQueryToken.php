@@ -8,17 +8,15 @@ use Illuminate\Support\Facades\Auth;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
- * For direct-download endpoints (CSV), the frontend appends ?token=...
- * because the browser opens the URL directly and cannot set Authorization headers.
- * This middleware resolves and validates the Sanctum personal access token from the
- * query string, logs the user in on all guards, and aborts with 401 if invalid.
- * Use this INSTEAD of auth:sanctum on download-only routes.
+ * Supports legacy direct-download links that append ?token=... as well as
+ * authenticated fetches that send the token in the Authorization header.
+ * The latter keeps credentials out of URLs when the frontend loads a PDF blob.
  */
 class AuthenticateFromQueryToken
 {
     public function handle(Request $request, Closure $next)
     {
-        $queryToken = $request->query('token');
+        $queryToken = $request->bearerToken() ?: $request->query('token');
 
         if (! $queryToken) {
             return response()->json(['message' => 'Unauthenticated.'], 401);

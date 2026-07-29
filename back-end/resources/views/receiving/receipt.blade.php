@@ -6,16 +6,16 @@
 <title>Goods Received Note – {{ $receiving->receiving_number }}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, DejaVu Sans, sans-serif; font-size: 11px; color: #111; background: #fff; }
+  body { font-family: "Times New Roman", DejaVu Serif, serif; font-size: 11px; color: #000; background: #fff; }
   @page { margin: 0; }
   body { padding: 36pt; }
   .page { width: {{ $printable_width_pt ?? 523.28 }}pt; margin: 0; padding: 0; }
-  .company-header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
-  .company-name { font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; }
-  .company-sub  { font-size: 11px; color: #333; margin-top: 2px; }
+  .company-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
+  .company-name { font-size: 21px; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; }
+  .company-sub  { font-size: 9px; margin-top: 1px; }
   .divider-thin { border: none; border-top: 1px solid #bbb; margin: 8px 0; }
   .title-row    { display: table; width: 100%; margin: 10px 0 6px; }
-  .title-left   { display: table-cell; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; }
+  .title-left   { display: table-cell; font-size: 17px; font-weight: bold; }
   .title-right  { display: table-cell; text-align: right; font-size: 11px; }
   .title-right strong { font-size: 13px; }
   .meta-table   { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
@@ -23,17 +23,21 @@
   .meta-label   { font-weight: bold; width: 90px; }
   .meta-value   { padding-left: 6px; }
   .items-table  { width: 100%; border-collapse: collapse; margin: 10px 0; }
-  .items-table th { background: #1e293b; color: #fff; padding: 6px 8px; text-align: left;
-    font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; border: 1px solid #1e293b; }
+  .items-table thead { display: table-header-group; }
+  .items-table th { background: #fff; color: #000; padding: 4px 5px; text-align: left;
+    font-size: 9px; letter-spacing: 0.2px; text-transform: uppercase; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
   .items-table th.center { text-align: center; }
-  .items-table td { padding: 5px 8px; border: 1px solid #d1d5db; font-size: 11px; vertical-align: top; }
+  .items-table td { padding: 4px 5px; border-bottom: .5px solid #bbb; font-size: 11px; vertical-align: top; }
   .items-table td.center { text-align: center; }
-  .items-table tr:nth-child(even) td { background: #f8fafc; }
+  .document-box { border: 1px solid #000; padding: 6px 8px; margin: 8px 0 10px; line-height: 1.4; }
+  .document-box strong { text-transform: uppercase; }
+  .details-label { font-size: 12px; font-weight: bold; margin: 10px 0 3px; }
+  .total-row { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 5px; }
   .sig-table    { width: 100%; border-collapse: collapse; margin-top: 20px; }
   .sig-table td { padding: 4px 0; font-size: 11px; vertical-align: top; width: 50%; }
-  .sig-label    { font-weight: bold; color: #374151; }
-  .sig-line     { border-bottom: 1px solid #374151; margin-top: 32px; margin-bottom: 4px; width: 80%; }
-  .sig-caption  { font-size: 10px; color: #64748b; }
+  .sig-label    { font-weight: bold; color: #000; }
+  .sig-line     { border-bottom: 1px solid #000; margin-top: 32px; margin-bottom: 4px; width: 85%; }
+  .sig-caption  { font-size: 9px; color: #000; }
 </style>
 </head>
 <body>
@@ -69,14 +73,20 @@
     </tr>
   </table>
 
-  <hr class="divider-thin">
+  <div class="document-box">
+    <strong>Received At (Warehouse): {{ $loc?->location_name ?? '—' }}</strong><br>
+    {{ collect([$loc?->address, $loc?->city, $loc?->province, $loc?->region])->filter()->implode(', ') }}
+  </div>
 
+  <div class="details-label">Received Item Details</div>
   <table class="items-table">
     <thead>
       <tr>
-        <th>PRODUCT</th>
+        <th>PRODUCT / CODE</th>
         <th class="center" style="width:70px">ORDERED</th>
         <th class="center" style="width:70px">RECEIVED</th>
+        <th style="text-align:right;width:72px">UNIT COST</th>
+        <th style="text-align:right;width:78px">AMOUNT</th>
         <th class="center" style="width:80px">CONDITION</th>
       </tr>
     </thead>
@@ -84,33 +94,48 @@
       @php
         $orderedByProduct = collect($receiving->purchaseOrder?->details ?? [])
             ->groupBy('product_id')->map(fn($g) => (int) $g->sum('quantity_ordered'));
+        $poDetailsById = collect($receiving->purchaseOrder?->details ?? [])->keyBy('po_detail_id');
+        $poDetailsByProduct = collect($receiving->purchaseOrder?->details ?? [])->groupBy('product_id');
+        $receiptCostTotal = 0;
       @endphp
       @forelse($receiving->details as $d)
+        @php
+          $poLine = $poDetailsById[$d->po_detail_id] ?? ($poDetailsByProduct[$d->product_id] ?? collect())->first();
+          $piecesPerOrderedUnit = $d->product?->product_type === 'appliance'
+              ? 1
+              : max(1, (int) ($d->product?->pieces_per_package ?? 1));
+          $baseUnitCost = $poLine
+              ? ((float) $poLine->unit_price / $piecesPerOrderedUnit)
+              : (float) ($d->product?->cost_price ?? 0);
+          $lineCost = $baseUnitCost * (int) $d->quantity_amount;
+          $receiptCostTotal += $lineCost;
+        @endphp
         <tr>
           <td>
-            {{ $d->product?->product_name ?? "Product #{$d->product_id}" }}
+            <strong>{{ $d->product?->product_name ?? "Product #{$d->product_id}" }}</strong>
             @if($d->product?->product_code)
-              <br><span style="font-size:9px;color:#94a3b8">SKU: {{ $d->product->product_code }}</span>
+              &middot; {{ $d->product->product_code }}
             @endif
           </td>
           <td class="center">{{ $orderedByProduct[$d->product_id] ?? '—' }}</td>
           <td class="center">{{ (int) $d->quantity_amount }}</td>
+          <td style="text-align:right">&#8369;{{ number_format($baseUnitCost, 2) }}</td>
+          <td style="text-align:right">&#8369;{{ number_format($lineCost, 2) }}</td>
           <td class="center">{{ $d->condition ?? 'Good' }}</td>
         </tr>
       @empty
-        <tr><td colspan="4" class="center" style="color:#94a3b8;padding:12px">No line items.</td></tr>
+        <tr><td colspan="6" class="center" style="color:#94a3b8;padding:12px">No line items.</td></tr>
       @endforelse
     </tbody>
   </table>
 
-  <div style="text-align:right;font-size:11px;margin-top:4px">
+  <div class="total-row" style="text-align:right;font-size:11px;margin-top:4px">
     <strong>Total received:</strong> {{ (int) $receiving->total_quantity_received }} pcs
     @if((int) $receiving->total_quantity_damaged > 0)
       &nbsp;·&nbsp; <strong>Damaged:</strong> {{ (int) $receiving->total_quantity_damaged }}
     @endif
+    &nbsp;&nbsp; <strong>Received cost:</strong> &#8369;{{ number_format($receiptCostTotal, 2) }}
   </div>
-
-  <hr class="divider-thin">
 
   <table class="sig-table">
     <tr>

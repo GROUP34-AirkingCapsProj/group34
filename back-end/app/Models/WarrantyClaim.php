@@ -31,6 +31,11 @@ class WarrantyClaim extends Model
         return $this->hasMany(WarrantyClaimDetail::class, 'claim_id', 'claim_id');
     }
 
+    public function returnedUnit()
+    {
+        return $this->hasOne(WarrantyClaimReturn::class, 'claim_id', 'claim_id');
+    }
+
     public function warranty()
     {
         return $this->belongsTo(WarrantyRecord::class, 'warranty_id', 'warranty_id');

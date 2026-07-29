@@ -238,6 +238,7 @@ const DispatchPanel = ({ transfer, onDone }) => {
                 onScan={onScan}
                 onIncident={handleIncident}
                 busy={scanBusy || planLoading}
+                camera
               />
             )}
           </div>

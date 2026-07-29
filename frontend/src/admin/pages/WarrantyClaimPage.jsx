@@ -1,18 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { warrantyClaimsAPI, customersAPI, locationsAPI, getApiBaseUrl, getToken } from '../services/api';
+import { warrantyClaimsAPI, locationsAPI, openApiFile } from '../services/api';
+import CameraScanner from '../components/CameraScanner';
+import { AddSetPath, AddCustomPath } from '../components/issuance/OrderBuilder';
+import { useAuth, useUserLocation } from '../context/AuthContext';
+import { getRoleKey, ROLES } from '../utils/roles';
 import { toast } from '../utils/toast';
 import '../styles/issuance_scan.css';
 
 const STEP = { FORM: 1, ITEMS: 2, DONE: 3 };
 
 export default function WarrantyClaimPage() {
+  const { user } = useAuth();
+  const { locationId: userLocationId } = useUserLocation();
+  const roleKey = getRoleKey(user);
+  const canSeeAllLocations = [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR].includes(roleKey);
   const [step, setStep] = useState(STEP.FORM);
   const [form, setForm] = useState({
-    customer_id: '', customer_label: '', serial_number: '',
+    serial_number: '',
     claim_type: 'repair', notes: '', location_id: '',
   });
-  const [customerResults, setCustomerResults] = useState([]);
   const [locations, setLocations] = useState([]);
   const [claim, setClaim] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -30,15 +37,20 @@ export default function WarrantyClaimPage() {
     (async () => {
       try {
         const res = await locationsAPI.getAll();
-        const list = Array.isArray(res?.data) ? res.data : [];
+        const allLocations = Array.isArray(res?.data) ? res.data : [];
+        const list = canSeeAllLocations
+          ? allLocations
+          : allLocations.filter((location) => String(location.location_id ?? location.id) === String(userLocationId));
         setLocations(list);
-        if (list.length === 1) {
+        if (!canSeeAllLocations && userLocationId) {
+          setForm((f) => ({ ...f, location_id: String(userLocationId) }));
+        } else if (list.length === 1) {
           const only = list[0];
           setForm((f) => ({ ...f, location_id: String(only.location_id ?? only.id) }));
         }
       } catch { setLocations([]); }
     })();
-  }, []);
+  }, [canSeeAllLocations, userLocationId]);
 
   useEffect(() => {
     if (step === STEP.ITEMS) {
@@ -47,30 +59,14 @@ export default function WarrantyClaimPage() {
     }
   }, [step, claim]);
 
-  const searchCustomers = async (q) => {
-    setForm((f) => ({ ...f, customer_label: q, customer_id: '' }));
-    if (q.trim().length < 2) { setCustomerResults([]); return; }
-    try {
-      const res = await customersAPI.search(q);
-      setCustomerResults(Array.isArray(res?.data) ? res.data : []);
-    } catch { setCustomerResults([]); }
-  };
-
-  const pickCustomer = (c) => {
-    setForm((f) => ({ ...f, customer_id: c.customer_id, customer_label: c.customer_name }));
-    setCustomerResults([]);
-  };
-
   const startClaim = async (e) => {
     e.preventDefault();
     setError('');
-    if (!form.customer_id) { setError('Select a customer.'); return; }
     if (!form.serial_number.trim()) { setError('Enter or scan the serial number being claimed.'); return; }
     if (!form.location_id) { setError('Select a location.'); return; }
     setBusy(true);
     try {
       const res = await warrantyClaimsAPI.init({
-        customer_id: form.customer_id,
         serial_number: form.serial_number.trim(),
         claim_type: form.claim_type,
         notes: form.notes || null,
@@ -84,12 +80,13 @@ export default function WarrantyClaimPage() {
     } finally { setBusy(false); }
   };
 
-  const addItem = async () => {
-    if (!scanValue.trim() || busy) return;
+  const addItem = async (decodedValue = null) => {
+    const barcode = typeof decodedValue === 'string' ? decodedValue.trim() : scanValue.trim();
+    if (!barcode || busy) return;
     setBusy(true); setFeedback(null);
     try {
       const res = await warrantyClaimsAPI.addItem(claim.claim_id, {
-        barcode: scanValue.trim(),
+        barcode,
         quantity: claim.claim_type === 'repair' ? Number(qty) || 1 : undefined,
       });
       setClaim(res?.data ?? res);
@@ -110,6 +107,35 @@ export default function WarrantyClaimPage() {
     finally { setBusy(false); }
   };
 
+  const addCustomOrderLine = async (productId, quantityInPieces) => {
+    setBusy(true); setFeedback(null);
+    try {
+      const res = await warrantyClaimsAPI.addCustomOrderLine(claim.claim_id, productId, quantityInPieces);
+      setClaim(res?.data ?? res);
+    } catch (err) {
+      setFeedback({ ok: false, message: err.message || 'Could not add the product to the order.' });
+    } finally { setBusy(false); }
+  };
+
+  const addSetOrder = async (setId, quantity) => {
+    setBusy(true); setFeedback(null);
+    try {
+      const res = await warrantyClaimsAPI.addSetOrder(claim.claim_id, setId, quantity);
+      setClaim(res?.data ?? res);
+    } catch (err) {
+      setFeedback({ ok: false, message: err.message || 'Could not add the set to the order.' });
+    } finally { setBusy(false); }
+  };
+
+  const removeOrderLine = async (detailId) => {
+    setBusy(true);
+    try {
+      const res = await warrantyClaimsAPI.removeOrderLine(claim.claim_id, detailId);
+      setClaim(res?.data ?? res);
+    } catch (err) { toast.error(err.message || 'Could not remove the order line.'); }
+    finally { setBusy(false); }
+  };
+
   const complete = async () => {
     setBusy(true); setError('');
     try {
@@ -122,21 +148,19 @@ export default function WarrantyClaimPage() {
     } finally { setBusy(false); }
   };
 
-  const downloadSlip = () => {
-    const url = `${getApiBaseUrl()}${warrantyClaimsAPI.slipUrl(claim.claim_id)}`;
-    fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
-      .then((r) => r.blob())
-      .then((b) => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(b);
-        a.download = `${claim.claim_number}.csv`;
-        a.click();
-      })
-      .catch(() => toast.error('Could not download the claim slip.'));
-  };
+  const openClaimReceipt = (download = false) => openApiFile(
+    warrantyClaimsAPI.receiptPdfPath(claim.claim_id, !download),
+    {
+      preview: !download,
+      download,
+      filename: `${claim.claim_number}.pdf`,
+    },
+  ).catch((e) => toast.error(e.message || 'Could not load the claim receipt.'));
 
   const items = claim?.items ?? [];
   const isReplacement = claim?.claim_type === 'replacement';
+  const hasOrder = items.length > 0;
+  const allFulfilled = hasOrder && items.every((item) => item.is_fulfilled);
   const typeBadgeClass = isReplacement ? 'isp-type-warranty' : 'isp-type-business';
 
   const Steps = () => (
@@ -177,34 +201,45 @@ export default function WarrantyClaimPage() {
           <div className="isp-card">
             <h2 className="isp-card-title">New Warranty Claim</h2>
             <form className="isp-form" onSubmit={startClaim}>
-              <div className="isp-form-group" style={{ position: 'relative' }}>
-                <label>Customer</label>
-                <input
-                  value={form.customer_label}
-                  onChange={(e) => searchCustomers(e.target.value)}
+              {/*
                   placeholder="Search customer by name or code…"
-                  autoComplete="off"
-                />
-                {customerResults.length > 0 && (
-                  <div className="isp-dropdown">
-                    {customerResults.map((c) => (
-                      <button type="button" key={c.customer_id} className="isp-dropdown-item" onClick={() => pickCustomer(c)}>
-                        <span className="isp-dropdown-name">{c.customer_name}</span>
-                        <span className="isp-dropdown-company">{c.company_name || c.customer_code}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
+              */}
               <div className="isp-form-group">
                 <label>Serial Number (scan or type)</label>
-                <input
-                  value={form.serial_number}
-                  onChange={(e) => setForm((f) => ({ ...f, serial_number: e.target.value }))}
-                  placeholder="Serial number of the unit being claimed"
-                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                  <input
+                    type="text"
+                    name="warranty_serial_number"
+                    value={form.serial_number}
+                    onChange={(e) => setForm((f) => ({ ...f, serial_number: e.target.value }))}
+                    onBlur={(e) => setForm((f) => ({ ...f, serial_number: e.target.value.trim() }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                    placeholder="Serial number of the unit being claimed"
+                    autoComplete="off"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="submit"
+                    className="isp-btn-primary"
+                    disabled={busy || !form.serial_number.trim()}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {busy ? 'Checking…' : 'Submit Serial'}
+                  </button>
+                </div>
               </div>
+              <CameraScanner
+                onDecode={(value) => setForm((f) => ({ ...f, serial_number: String(value || '').trim() }))}
+                mountId="warranty-original-unit-camera"
+                storageKey="bs_inventory_camera_device_id"
+                busy={busy}
+                hint="Scan the serial number on the customer's claimed unit."
+              />
 
               <div className="isp-form-row">
                 <div className="isp-form-group">
@@ -216,7 +251,7 @@ export default function WarrantyClaimPage() {
                 </div>
                 <div className="isp-form-group">
                   <label>Location</label>
-                  <select value={form.location_id} onChange={(e) => setForm((f) => ({ ...f, location_id: e.target.value }))}>
+                  <select value={form.location_id} onChange={(e) => setForm((f) => ({ ...f, location_id: e.target.value }))} disabled={!canSeeAllLocations}>
                     <option value="">Select location…</option>
                     {locations.map((l) => {
                       const id = l.location_id ?? l.id;
@@ -232,6 +267,7 @@ export default function WarrantyClaimPage() {
               </div>
 
               <div className="isp-info-banner">
+                The customer and original issue-out are resolved automatically from this serial number.{' '}
                 Only an <strong>active</strong> warranty for this serial can be claimed. A warranty can be claimed once;
                 a replacement carries the original warranty's remaining coverage.
               </div>
@@ -266,10 +302,69 @@ export default function WarrantyClaimPage() {
               </div>
             </div>
 
-            <div className="isp-card isp-scan-card">
+            <div className="isp-card" style={{ marginBottom: 16 }}>
+              <h2 className="isp-card-title">Claimed Issue-out Item</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                <div><strong>Product</strong><br />{claim.product?.product_name || '—'}{claim.product?.product_code ? ` · ${claim.product.product_code}` : ''}</div>
+                <div><strong>Original serial</strong><br />{claim.serial_number}</div>
+                <div><strong>Issue-out reference</strong><br />{claim.warranty?.issuance_reference || '—'}</div>
+                <div><strong>Warranty coverage</strong><br />{claim.warranty?.warranty_start_date || '—'} to {claim.warranty?.warranty_end_date || '—'}</div>
+                <div><strong>Remaining coverage</strong><br />{claim.warranty?.warranty_duration_label || '—'}</div>
+                <div><strong>Inventory location</strong><br />{claim.location_name || '—'}</div>
+              </div>
+            </div>
+
+            <div className="isp-card" style={{ marginBottom: 16 }}>
+              <h2 className="isp-card-title">1. Build warranty order</h2>
+              <p className="ak-sub">Choose the required stock first. Availability is shown for {claim.location_name || 'this location'} before any scan.</p>
+              {!isReplacement && <AddSetPath disabled={busy} onAdd={addSetOrder} />}
+              <div style={{ marginTop: 14 }}>
+                <AddCustomPath disabled={busy} onAdd={addCustomOrderLine} />
+              </div>
+              {isReplacement && <div className="isp-info-banner">A replacement order accepts exactly one serialized unit.</div>}
+            </div>
+
+            <div className="isp-card">
+              <h2 className="isp-card-title">Warranty Order ({items.length})</h2>
+              {items.length === 0 ? (
+                <div className="isp-scan-hints"><span>Add a product{!isReplacement ? ' or set' : ''} to begin.</span></div>
+              ) : (
+                <div className="isp-table-wrap">
+                  <table className="isp-table">
+                    <thead><tr><th>Product / Code</th><th>Ordered</th><th>Available</th><th>Fulfilled</th><th>Status</th><th></th></tr></thead>
+                    <tbody>{items.map((it) => (
+                      <tr key={it.detail_id}>
+                        <td><div className="isp-td-product">{it.product_name}{it.product_code ? ` · ${it.product_code}` : ''}</div></td>
+                        <td>{it.quantity_requested} {it.quantity_unit || 'unit'}</td>
+                        <td>{it.available_quantity}</td>
+                        <td>{it.quantity_issued} / {it.quantity_requested}</td>
+                        <td style={{ color: it.is_fulfilled ? '#15803d' : (it.has_sufficient_stock ? '#92400e' : '#b91c1c'), fontWeight: 700 }}>
+                          {it.is_fulfilled ? 'Fulfilled' : (it.has_sufficient_stock ? 'Ready to scan' : 'Insufficient stock')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(it.quantity_issued) > 0
+                            ? <button type="button" className="isp-btn-remove" onClick={() => removeItem(it.detail_id)} disabled={busy}>Reverse scan</button>
+                            : <button type="button" className="isp-btn-remove" onClick={() => removeOrderLine(it.detail_id)} disabled={busy}>Remove</button>}
+                        </td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {hasOrder && !allFulfilled && <div className="isp-card isp-scan-card">
               <h2 className="isp-card-title">
-                {isReplacement ? 'Scan the replacement unit' : 'Scan repair parts'}
+                2. {isReplacement ? 'Scan the ordered replacement unit' : 'Scan ordered repair parts'}
               </h2>
+
+              <CameraScanner
+                onDecode={(value) => addItem(String(value || ''))}
+                mountId="warranty-claim-item-camera"
+                storageKey="bs_inventory_camera_device_id"
+                busy={busy}
+                hint={isReplacement ? 'Scan the in-stock replacement unit serial.' : 'Scan a stocked repair-part barcode.'}
+              />
 
               <div className="isp-scan-input-wrap">
                 <input
@@ -307,7 +402,7 @@ export default function WarrantyClaimPage() {
                   {feedback.message}
                 </div>
               )}
-            </div>
+            </div>}
 
             <div className="isp-card">
               <h2 className="isp-card-title">Items ({items.length})</h2>
@@ -318,9 +413,11 @@ export default function WarrantyClaimPage() {
                   <table className="isp-table">
                     <thead>
                       <tr>
-                        <th>Product</th>
+                        <th>Product / Code</th>
                         <th>Serial</th>
                         <th>Qty</th>
+                        <th>Unit Cost</th>
+                        <th>Amount</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -328,13 +425,16 @@ export default function WarrantyClaimPage() {
                       {items.map((it) => (
                         <tr key={it.detail_id}>
                           <td>
-                            <div className="isp-td-product">{it.product_name}</div>
-                            {it.model_code && <div className="isp-td-code">{it.model_code}</div>}
+                            <div className="isp-td-product">{it.product_name}{it.product_code ? ` · ${it.product_code}` : ''}</div>
                           </td>
                           <td>{it.serial_number ? <span className="isp-serial">{it.serial_number}</span> : '—'}</td>
                           <td>{it.quantity_issued}{it.quantity_unit ? ` ${it.quantity_unit}` : ''}</td>
+                          <td>₱{Number(it.unit_cost || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                          <td>₱{Number(it.line_cost || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                           <td style={{ textAlign: 'right' }}>
-                            <button type="button" className="isp-btn-remove" onClick={() => removeItem(it.detail_id)} disabled={busy}>Remove</button>
+                            {Number(it.quantity_issued) > 0 && (
+                              <button type="button" className="isp-btn-remove" onClick={() => removeItem(it.detail_id)} disabled={busy}>Reverse scan</button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -344,9 +444,12 @@ export default function WarrantyClaimPage() {
               )}
 
               <div className="isp-form-actions">
-                <button type="button" className="isp-btn-complete" onClick={complete} disabled={busy || items.length === 0}>
+                <button type="button" className="isp-btn-complete" onClick={complete} disabled={busy || !allFulfilled}>
                   Complete Claim
                 </button>
+              </div>
+              <div style={{ textAlign: 'right', fontWeight: 700, marginTop: 12 }}>
+                Total claim cost: ₱{Number(claim.parts_cost || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </div>
             </div>
           </>
@@ -359,10 +462,11 @@ export default function WarrantyClaimPage() {
             <p style={{ color: 'var(--text-secondary, #6b7280)', marginTop: 0 }}>
               {isReplacement
                 ? 'The original warranty is marked Claimed; the replacement carries the original end date and remains claimable.'
-                : 'The original warranty is marked Claimed and the repair parts were deducted from inventory.'}
+                : 'The repaired unit was returned to the customer and its original warranty remains active for the remaining coverage.'}
             </p>
             <div className="isp-form-actions" style={{ justifyContent: 'flex-start' }}>
-              <button type="button" className="isp-btn-primary" onClick={downloadSlip}>Download Claim Slip</button>
+              <button type="button" className="isp-btn-secondary" onClick={() => openClaimReceipt(false)}>View Receipt</button>
+              <button type="button" className="isp-btn-primary" onClick={() => openClaimReceipt(true)}>Download PDF</button>
               <button type="button" className="isp-btn-secondary" onClick={() => window.location.reload()}>New Claim</button>
             </div>
           </div>

@@ -121,7 +121,10 @@ export const openApiFile = async (
     if (previewWindow) previewWindow.location.href = objUrl;
     setTimeout(() => URL.revokeObjectURL(objUrl), 10000);
   } else {
-    const w = window.open(objUrl, '_blank');
+    // Reuse the tab reserved synchronously above so browsers do not block the
+    // PDF after the authenticated request finishes.
+    const w = previewWindow || window.open(objUrl, '_blank');
+    if (previewWindow) previewWindow.location.href = objUrl;
     if (!w) {
       // Popup blocked — fall back to a download so the user still gets the file.
       const a = document.createElement('a');
@@ -1062,6 +1065,16 @@ export const warrantyClaimsAPI = {
   getById: async (id) => apiRequest(`/warranty-claims/${id}`),
   init: async (data) =>
     apiRequest('/warranty-claims/init', { method: 'POST', body: JSON.stringify(data) }),
+  addCustomOrderLine: async (id, productId, quantityInPieces) =>
+    apiRequest(`/warranty-claims/${id}/order/custom`, {
+      method: 'POST', body: JSON.stringify({ product_id: productId, quantity_in_pieces: quantityInPieces }),
+    }),
+  addSetOrder: async (id, setId, quantity) =>
+    apiRequest(`/warranty-claims/${id}/order/set`, {
+      method: 'POST', body: JSON.stringify({ set_id: setId, quantity }),
+    }),
+  removeOrderLine: async (id, detailId) =>
+    apiRequest(`/warranty-claims/${id}/order/${detailId}`, { method: 'DELETE' }),
   addItem: async (id, data) =>
     apiRequest(`/warranty-claims/${id}/item`, { method: 'POST', body: JSON.stringify(data) }),
   removeItem: async (id, detailId) =>
@@ -1069,6 +1082,8 @@ export const warrantyClaimsAPI = {
   complete: async (id) =>
     apiRequest(`/warranty-claims/${id}/complete`, { method: 'POST' }),
   slipUrl: (id) => `/warranty-claims/${id}/slip`,
+  receiptPdfPath: (id, preview = false) =>
+    `/warranty-claims/${id}/receipt/pdf${preview ? '?preview=1' : ''}`,
 };
 
 /* ======================

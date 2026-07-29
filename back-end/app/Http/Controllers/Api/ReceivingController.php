@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 
 class ReceivingController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, \App\Traits\NormalizesBarcode;
 
     public function index(Request $request)
     {
@@ -160,7 +160,10 @@ class ReceivingController extends Controller
             foreach ($validated['details'] as $detail) {
                 $productId = (int) $detail['product_id'];
                 $qty       = (int) ($detail['quantity_amount'] ?? 0);
-                $scannedBarcode = $detail['scanned_barcode'] ?? null;
+                $scannedBarcode = isset($detail['scanned_barcode'])
+                    ? $this->canonicalSerial((string) $detail['scanned_barcode'])
+                    : null;
+                $scannedBarcode = $scannedBarcode !== '' ? $scannedBarcode : null;
                 $zoneLabel = $detail['zone_label'] ?? null;
 
                 $product = Product::with(['applianceDetail', 'consumableDetail'])->find($productId);
@@ -444,22 +447,38 @@ class ReceivingController extends Controller
 
         $callback = function () use ($receiving, $orderedByProduct) {
             $handle = fopen('php://output', 'w');
+            $poDetailsById = collect($receiving->purchaseOrder?->details ?? [])->keyBy('po_detail_id');
+            $poDetailsByProduct = collect($receiving->purchaseOrder?->details ?? [])->groupBy('product_id');
+            $receiptCostTotal = 0;
             fputcsv($handle, ['GRN Number', $receiving->receiving_number]);
             fputcsv($handle, ['PO Number', $receiving->purchaseOrder?->po_number ?? '']);
             fputcsv($handle, ['Supplier', $receiving->supplier?->supplier_name ?? $receiving->purchaseOrder?->supplier?->supplier_name ?? '']);
             fputcsv($handle, ['Warehouse', $receiving->location?->location_name ?? '']);
             fputcsv($handle, ['Received Date', (string) $receiving->receiving_date]);
             fputcsv($handle, []);
-            fputcsv($handle, ['Product Code', 'Product', 'Ordered', 'Received', 'Condition']);
+            fputcsv($handle, ['Product / Code', 'Ordered', 'Received', 'Unit Cost', 'Amount', 'Condition']);
             foreach ($receiving->details as $d) {
+                $poLine = $poDetailsById[$d->po_detail_id] ?? ($poDetailsByProduct[$d->product_id] ?? collect())->first();
+                $piecesPerOrderedUnit = $d->product?->product_type === 'appliance'
+                    ? 1
+                    : max(1, (int) ($d->product?->pieces_per_package ?? 1));
+                $unitCost = $poLine
+                    ? ((float) $poLine->unit_price / $piecesPerOrderedUnit)
+                    : (float) ($d->product?->cost_price ?? 0);
+                $lineCost = $unitCost * (int) $d->quantity_amount;
+                $receiptCostTotal += $lineCost;
                 fputcsv($handle, [
-                    $d->product?->product_code ?? '',
-                    $d->product?->product_name ?? ('Product #' . $d->product_id),
+                    trim(($d->product?->product_name ?? ('Product #' . $d->product_id))
+                        . (($d->product?->product_code ?? '') !== '' ? ' · ' . $d->product->product_code : '')),
                     $orderedByProduct[$d->product_id] ?? '',
                     (int) $d->quantity_amount,
+                    number_format($unitCost, 2, '.', ''),
+                    number_format($lineCost, 2, '.', ''),
                     $d->condition ?? 'Good',
                 ]);
             }
+            fputcsv($handle, []);
+            fputcsv($handle, ['Total Received Cost', '', '', '', number_format($receiptCostTotal, 2, '.', '')]);
             fclose($handle);
         };
 
@@ -502,10 +521,23 @@ class ReceivingController extends Controller
 
         // Ordered qty per (warehouse, product) from the PO lines.
         $orderedByWh = [];
+        $costByWh = [];
         foreach ($po->details as $d) {
             $wh = (int) ($d->location_id ?? $po->location_id);
-            $orderedByWh[$wh][(int) $d->product_id] =
-                ($orderedByWh[$wh][(int) $d->product_id] ?? 0) + (int) $d->quantity_ordered;
+            $pid = (int) $d->product_id;
+            $orderedByWh[$wh][$pid] =
+                ($orderedByWh[$wh][$pid] ?? 0) + (int) $d->quantity_ordered;
+
+            // PO prices are per ordered unit/package, while receiving quantities
+            // are stored in base pieces. Convert to a base-unit cost for an
+            // auditable received-value calculation.
+            $piecesPerOrderedUnit = $d->product?->product_type === 'appliance'
+                ? 1
+                : max(1, (int) ($d->product?->consumableDetail?->pieces_per_package ?? 1));
+            $baseUnits = max(0, (int) $d->quantity_ordered) * $piecesPerOrderedUnit;
+            $lineValue = (float) ($d->subtotal ?? ((float) $d->unit_price * (int) $d->quantity_ordered));
+            $costByWh[$wh][$pid]['base_units'] = ($costByWh[$wh][$pid]['base_units'] ?? 0) + $baseUnits;
+            $costByWh[$wh][$pid]['value'] = ($costByWh[$wh][$pid]['value'] ?? 0) + $lineValue;
         }
 
         $groups = [];
@@ -575,6 +607,10 @@ class ReceivingController extends Controller
             $lines = [];
             foreach ($g['received'] as $pid => $qty) {
                 $ordered = $orderedByWh[$whId][$pid] ?? ($orderedByWh[(int) $po->location_id][$pid] ?? null);
+                $costBasis = $costByWh[$whId][$pid] ?? ($costByWh[(int) $po->location_id][$pid] ?? null);
+                $unitCost = $costBasis && $costBasis['base_units'] > 0
+                    ? $costBasis['value'] / $costBasis['base_units']
+                    : 0;
                 $lines[] = [
                     'code'     => $g['products'][$pid]['code'],
                     'name'     => $g['products'][$pid]['name'],
@@ -587,6 +623,8 @@ class ReceivingController extends Controller
                     'pieces_per_package' => $g['products'][$pid]['pieces_per_package'],
                     'ordered'  => $ordered,
                     'received' => $qty,
+                    'unit_cost' => $unitCost,
+                    'line_cost' => $unitCost * $qty,
                     'serials'  => array_keys($g['serials'][$pid] ?? []),
                     'scans'    => array_values($g['scans'][$pid] ?? []),
                     'conditions' => array_keys($g['conditions'][$pid] ?? []),
@@ -605,6 +643,9 @@ class ReceivingController extends Controller
             'po'             => $po,
             'warehouses'     => $warehouses,
             'total_received' => $totalReceived,
+            'total_received_cost' => collect($warehouses)->sum(
+                fn ($warehouse) => collect($warehouse['lines'])->sum('line_cost')
+            ),
             'session_count'  => $receivings->count(),
             'receiving_numbers' => $receivings->pluck('receiving_number')->filter()->unique()->values()->all(),
             'received_date'  => (function () use ($receivings) {
@@ -676,18 +717,21 @@ class ReceivingController extends Controller
             fputcsv($handle, ['Receiving Sessions', $model['session_count']]);
             fputcsv($handle, ['Total Received', $model['total_received']]);
             fputcsv($handle, []);
-            fputcsv($handle, ['Warehouse', 'Product Code', 'Product', 'Ordered', 'Received']);
+            fputcsv($handle, ['Warehouse', 'Product / Code', 'Ordered', 'Received', 'Unit Cost', 'Amount']);
             foreach ($model['warehouses'] as $wh) {
                 foreach ($wh['lines'] as $line) {
                     fputcsv($handle, [
                         $wh['name'],
-                        $line['code'],
-                        $line['name'],
+                        trim($line['name'] . ($line['code'] ? ' · ' . $line['code'] : '')),
                         $line['ordered'] ?? '',
                         $line['received'],
+                        number_format($line['unit_cost'], 2, '.', ''),
+                        number_format($line['line_cost'], 2, '.', ''),
                     ]);
                 }
             }
+            fputcsv($handle, []);
+            fputcsv($handle, ['Total Received Cost', '', '', '', '', number_format($model['total_received_cost'], 2, '.', '')]);
             fclose($handle);
         };
 
