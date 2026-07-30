@@ -21,6 +21,7 @@ This repo has conventions that will waste your time if you discover them the har
 - **Two databases.** Dev is `airkingV5`, tests run against `airkingV5_test`. Every migration in this plan must be applied to **both**. The test command below assumes `phpunit.xml` already points at the test DB.
 - **Run tests from `back-end/`:** `php artisan test --filter=<TestName>`
 - **After changing `PermissionSeeder`,** run `php artisan config:clear` — a cached config will serve stale permissions and the failure looks like a broken middleware.
+- **The working tree already contains unrelated uncommitted changes** (`back-end/app/Http/Controllers/Api/InventoryScanTransactionController.php`, `frontend/src/admin/pages/BarcodeAdjustmentPage.jsx`, `BarcodeScan.jsx`, `IssuanceScanPage.jsx`, `TransfersPage.jsx`, and two barcode stylesheets). They are **not** part of this work. Never run a bare `git add -A`, `git add .`, or `git add <directory>` — every commit in this plan lists explicit file paths for that reason. Leave those files untouched.
 - **MySQL collation is `utf8mb4_unicode_ci`,** so string comparisons and `unique` validation are already case-insensitive. Do not add manual `LOWER()` wrapping. Where you need case-*sensitivity* (the backfill), you must ask for it explicitly with `BINARY`.
 
 ---
@@ -2685,7 +2686,11 @@ Expected: no new failures versus the pre-task baseline. `RbacRouteMatrixTest` is
 - [ ] **Step 9: Commit**
 
 ```bash
-git add back-end/app/Http/Controllers/Api/ back-end/routes/api.php back-end/tests/Feature/Lookups/RetrofitCompatTest.php
+git add back-end/app/Http/Controllers/Api/UnitLookupController.php \
+        back-end/app/Http/Controllers/Api/CategoryLookupController.php \
+        back-end/app/Http/Controllers/Api/BrandLookupController.php \
+        back-end/routes/api.php \
+        back-end/tests/Feature/Lookups/RetrofitCompatTest.php
 git commit -m "refactor(lookups): move unit/category/brand controllers onto shared trait"
 ```
 
@@ -4562,7 +4567,15 @@ Expected: eslint silent; `Compiled successfully.` from the build.
 
 ```bash
 cd /c/XAMPP1/htdocs/Airking_Inventory
-git add frontend/src back-end/database/seeders/NavBundleSeeder.php
+git add frontend/src/admin/pages/LookupManagement.jsx \
+        frontend/src/admin/styles/lookup_management.css \
+        frontend/src/App.jsx \
+        frontend/src/admin/components/Sidebar.jsx \
+        frontend/src/admin/utils/navBundles.js \
+        frontend/src/admin/utils/navConfigureMap.js \
+        frontend/src/admin/pages/CategoryBrandManagement.jsx \
+        frontend/src/admin/styles/category_brand_management.css \
+        back-end/database/seeders/NavBundleSeeder.php
 git commit -m "feat(lookups): replace categories/brands page with Item Lookups"
 ```
 
