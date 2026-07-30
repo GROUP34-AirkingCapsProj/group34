@@ -22,7 +22,8 @@ This repo has conventions that will waste your time if you discover them the har
 - **Run tests from `back-end/`:** `php artisan test --filter=<TestName>`
 - **After changing `PermissionSeeder`,** run `php artisan config:clear` — a cached config will serve stale permissions and the failure looks like a broken middleware.
 - **The working tree already contains unrelated uncommitted changes** (`back-end/app/Http/Controllers/Api/InventoryScanTransactionController.php`, `frontend/src/admin/pages/BarcodeAdjustmentPage.jsx`, `BarcodeScan.jsx`, `IssuanceScanPage.jsx`, `TransfersPage.jsx`, and two barcode stylesheets). They are **not** part of this work. Never run a bare `git add -A`, `git add .`, or `git add <directory>` — every commit in this plan lists explicit file paths for that reason. Leave those files untouched.
-- **Test fixtures inserting into `products` must supply `product_code`** — it is NOT NULL with no default and carries a unique index. Every helper in this plan uses `'PC-' . uniqid()`. `appliance_details` needs only `product_id`; `product_sets` has defaults for everything except its own unique `set_code`.
+- **Test fixtures inserting into `products` must supply `product_code`** — it is NOT NULL with no default and carries a unique index. Every helper in this plan uses `'PC-' . uniqid()`. `appliance_details` needs only `product_id`.
+- **`product_sets` in the live databases is narrower than its migration file suggests.** The migration `2026_07_24_000001_create_product_sets_tables.php` declares `set_code`, `set_name`, `description` and `brand_id`, but it is guarded by `Schema::hasTable` and never ran against these databases — the dump's version won. The real columns are: `set_id`, `capacity_rating`, `variant`, `is_active`, `created_by`, `updated_by`, timestamps, `deleted_at`. Trust `Schema::getColumnListing('product_sets')`, not the migration file. The rename cascade only touches `capacity_rating` and `variant`, both of which do exist.
 - **MySQL collation is `utf8mb4_unicode_ci`,** so string comparisons and `unique` validation are already case-insensitive. Do not add manual `LOWER()` wrapping. Where you need case-*sensitivity* (the backfill), you must ask for it explicitly with `BINARY`.
 
 ---
@@ -471,8 +472,9 @@ class LookupRenameServiceTest extends TestCase
         $this->makeApplianceRow('7XHP');
 
         DB::table('product_sets')->insert([
-            'set_code'        => 'S-'.uniqid(),
-            'set_name'        => 'Set '.uniqid(),
+            // Do NOT add set_code/set_name — the live product_sets table has
+            // only: set_id, capacity_rating, variant, is_active, created_by,
+            // updated_by, timestamps, deleted_at.
             'capacity_rating' => '7XHP',
             'created_at'      => now(),
             'updated_at'      => now(),
