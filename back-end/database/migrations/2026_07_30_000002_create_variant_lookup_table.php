@@ -14,6 +14,10 @@ return new class extends Migration
 
         Schema::create('variant_lookup', function (Blueprint $table) {
             $table->bigIncrements('variant_id');
+
+            // Width matches appliance_details.variant and product_sets.variant.
+            // The rename cascade copies this value into both, so a wider
+            // definition here would truncate silently.
             $table->string('variant_name', 100);
             $table->unsignedBigInteger('category_id')->nullable()
                 ->comment('NULL = shows for every category');

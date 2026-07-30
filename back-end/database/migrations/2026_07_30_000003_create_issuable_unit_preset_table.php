@@ -21,6 +21,8 @@ return new class extends Migration
             $table->unsignedBigInteger('unit_id');
             $table->decimal('default_conversion_factor', 10, 6)->default(1.000000)
                 ->comment('Inventory pieces per 1 of this issuable unit');
+
+            // True = this preset represents one full package.
             $table->boolean('is_whole_package')->default(false);
 
             $table->text('description')->nullable();
