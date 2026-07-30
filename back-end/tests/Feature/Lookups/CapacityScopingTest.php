@@ -57,7 +57,8 @@ class CapacityScopingTest extends LookupTestCase
         $this->postJson('/api/capacities', ['capacity_value' => $value, 'category_id' => $a->category_id])
             ->assertStatus(201);
         $this->postJson('/api/capacities', ['capacity_value' => $value, 'category_id' => $a->category_id])
-            ->assertStatus(422);
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
     }
 
     public function test_two_uncategorised_rows_may_not_share_a_value(): void
@@ -69,7 +70,9 @@ class CapacityScopingTest extends LookupTestCase
         // enforced in validation rather than by the schema. Without the
         // whereNull branch in lookupRules() this test fails.
         $this->postJson('/api/capacities', ['capacity_value' => $value])->assertStatus(201);
-        $this->postJson('/api/capacities', ['capacity_value' => $value])->assertStatus(422);
+        $this->postJson('/api/capacities', ['capacity_value' => $value])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
     }
 
     public function test_renaming_a_scoped_value_without_resending_category_id_still_checks_its_own_scope(): void
@@ -94,7 +97,8 @@ class CapacityScopingTest extends LookupTestCase
         // alone it defaults to the "global" scope and this collision is missed,
         // so the category ends up with two rows named $first.
         $this->putJson("/api/capacities/{$secondId}", ['capacity_value' => $first])
-            ->assertStatus(422);
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
 
         $this->assertDatabaseHas('capacity_lookup', [
             'capacity_id'    => $firstId,

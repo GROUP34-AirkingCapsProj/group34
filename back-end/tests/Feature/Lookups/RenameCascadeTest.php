@@ -99,7 +99,7 @@ class RenameCascadeTest extends LookupTestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors('capacity_value');
+            ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
 
         $this->assertDatabaseHas('capacity_lookup', [
             'capacity_id'    => $lookupB->capacity_id,
