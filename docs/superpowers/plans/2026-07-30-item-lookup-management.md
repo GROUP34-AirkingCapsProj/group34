@@ -1373,19 +1373,26 @@ class CapacityLookupController extends Controller
             ->count();
     }
 
-    protected function afterRename($row, string $oldName, string $newName): int
+    protected function supportsMerge(): bool
+    {
+        return true;
+    }
+
+    protected function cascadeValueChange(Model $row, string $from, string $to): int
     {
         return $this->renamer->cascade(
             [
                 'appliance_details' => 'capacity_rating',
                 'product_sets'      => 'capacity_rating',
             ],
-            $oldName,
-            $newName
+            $from,
+            $to
         );
     }
 }
 ```
+
+Add `use Illuminate\Database\Eloquent\Model;` to the imports.
 
 - [ ] **Step 6: Add the routes**
 
@@ -1895,19 +1902,26 @@ class VariantLookupController extends Controller
             ->count();
     }
 
-    protected function afterRename($row, string $oldName, string $newName): int
+    protected function supportsMerge(): bool
+    {
+        return true;
+    }
+
+    protected function cascadeValueChange(Model $row, string $from, string $to): int
     {
         return $this->renamer->cascade(
             [
                 'appliance_details' => 'variant',
                 'product_sets'      => 'variant',
             ],
-            $oldName,
-            $newName
+            $from,
+            $to
         );
     }
 }
 ```
+
+Add `use Illuminate\Database\Eloquent\Model;` to the imports.
 
 - [ ] **Step 4: Add the routes**
 
@@ -2202,9 +2216,11 @@ class IssuableUnitPresetController extends Controller
             ->count();
     }
 
-    // afterRename is deliberately NOT overridden. A preset is a template: the
-    // per-product label is independently editable and must not be rewritten
-    // when the preset it was created from is renamed.
+    // cascadeValueChange is deliberately NOT overridden, and supportsMerge()
+    // stays false. A preset is a template: the per-product label is
+    // independently editable and must not be rewritten when the preset it was
+    // created from is renamed. With no cascade, merging would archive the
+    // source and move nothing, so the trait refuses it outright.
 }
 ```
 
@@ -2259,6 +2275,8 @@ git commit -m "feat(lookups): add issuable unit preset endpoint"
 ## Task 10: Retrofit the three existing lookup controllers
 
 `UnitLookupController` is a pure vanilla case and moves fully onto the trait. `CategoryLookupController` and `BrandLookupController` keep their bespoke aggregate `index`/`performance` but drop their hand-rolled archive trio.
+
+**Trait contract reminder.** After the Task 4 review the trait exposes: `lookupOrderColumns()` (defaults to the name column alone, since only the three new tables have `sort_order` — the existing three would otherwise hit SQL error 1054), `lookupArchivedQuery()` alongside `lookupIndexQuery()` (so the `?search=` filter `unitsAPI.getArchived(params)` already sends keeps working), an **abstract** `usageCountFor()` that every consumer must implement, a `supportsMerge()` opt-in enforced by `merge()` with a 422, and `cascadeValueChange($row, $from, $to)` — named for value changes generally because both rename and merge drive it. All three controllers retrofitted here must therefore implement `usageCountFor()`.
 
 **Files:**
 - Modify: `back-end/app/Http/Controllers/Api/UnitLookupController.php`
@@ -2500,13 +2518,27 @@ class UnitLookupController extends Controller
 
     /**
      * unit_lookup predates the shared sort_order convention and has no such
-     * column, so ordering is by name alone. The ?search= parameter is retained
-     * because existing callers rely on it.
+     * column, so the trait's default name-only ordering is already correct and
+     * lookupOrderColumns() needs no override.
+     *
+     * The ?search= parameter is retained on BOTH lists because existing callers
+     * rely on it — frontend `unitsAPI.getArchived(params)` passes it too.
      */
     protected function lookupIndexQuery(Request $request)
     {
-        $query = UnitLookup::orderBy('unit_name');
+        return $this->applySearch(UnitLookup::orderBy('unit_name'), $request);
+    }
 
+    protected function lookupArchivedQuery(Request $request)
+    {
+        return $this->applySearch(
+            UnitLookup::onlyTrashed()->orderBy('deleted_at', 'desc'),
+            $request
+        );
+    }
+
+    private function applySearch($query, Request $request)
+    {
         if ($request->filled('search')) {
             $query->where('unit_name', 'like', '%' . $request->input('search') . '%');
         }
