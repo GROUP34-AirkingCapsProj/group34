@@ -56,6 +56,13 @@ class LookupRenameServiceTest extends TestCase
     {
         $this->makeApplianceRow('7XHP');
 
+        // set_code/set_name are omitted here even though
+        // database/migrations/2026_07_24_000001_create_product_sets_tables.php
+        // declares them NOT NULL. That migration is Schema::hasTable-guarded and
+        // never ran against this live/test schema, whose product_sets table has
+        // no such columns (see SHOW CREATE TABLE product_sets). This is schema
+        // drift, not a broken test — do not "fix" the insert shape without first
+        // reconciling the schema, which is out of scope here.
         DB::table('product_sets')->insert([
             'capacity_rating' => '7XHP',
             'created_at'      => now(),
@@ -72,6 +79,7 @@ class LookupRenameServiceTest extends TestCase
         );
 
         $this->assertSame(2, $updated, 'One appliance row + one set row');
+        $this->assertSame(1, DB::table('appliance_details')->where('capacity_rating', '7X HP')->count());
         $this->assertSame(1, DB::table('product_sets')->where('capacity_rating', '7X HP')->count());
     }
 
@@ -84,5 +92,62 @@ class LookupRenameServiceTest extends TestCase
         );
 
         $this->assertSame(0, $updated);
+    }
+
+    public function test_cascade_is_a_no_op_when_the_name_did_not_change(): void
+    {
+        $this->makeApplianceRow('6XHP');
+
+        $updated = app(LookupRenameService::class)->cascade(
+            ['appliance_details' => 'capacity_rating'],
+            '6XHP',
+            '6XHP'
+        );
+
+        $this->assertSame(0, $updated);
+        $this->assertSame(1, DB::table('appliance_details')->where('capacity_rating', '6XHP')->count());
+    }
+
+    public function test_cascade_is_case_sensitive_and_does_not_conflate_case_variants(): void
+    {
+        $this->makeApplianceRow('5XHP');
+        $this->makeApplianceRow('5xhp');
+
+        $updated = app(LookupRenameService::class)->cascade(
+            ['appliance_details' => 'capacity_rating'],
+            '5XHP',
+            '5X HP'
+        );
+
+        $this->assertSame(1, $updated);
+        // A plain `where` would not distinguish these two values under the
+        // table's ci collation, so assert with BINARY here too.
+        $this->assertSame(
+            1,
+            DB::table('appliance_details')->whereRaw('BINARY capacity_rating = ?', ['5X HP'])->count()
+        );
+        $this->assertSame(
+            1,
+            DB::table('appliance_details')->whereRaw('BINARY capacity_rating = ?', ['5xhp'])->count()
+        );
+    }
+
+    public function test_cascade_includes_soft_deleted_rows(): void
+    {
+        DB::table('product_sets')->insert([
+            'capacity_rating' => '4XHP',
+            'created_at'      => now(),
+            'updated_at'      => now(),
+            'deleted_at'      => now(),
+        ]);
+
+        $updated = app(LookupRenameService::class)->cascade(
+            ['product_sets' => 'capacity_rating'],
+            '4XHP',
+            '4X HP'
+        );
+
+        $this->assertSame(1, $updated);
+        $this->assertSame(1, DB::table('product_sets')->where('capacity_rating', '4X HP')->count());
     }
 }
