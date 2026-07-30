@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-30-item-lookup-management-design.md`
 
+**Sanctioned scope expansion (Task 6).** `back-end/bootstrap/app.php` gained a `ValidationException` renderer. `$request->validate()` throws directly and bypasses `ApiResponse::validationError()`, so 422 bodies were the only error shape in the app lacking a `success` key. The renderer adds it for `api/*` and JSON requests, leaving `message` and `errors` untouched. This affects every validating endpoint app-wide, which is why it is recorded here rather than buried in a commit: it was judged safe because the frontend's `apiRequest` throws on HTTP status and reads only `message`/`errors`, never `success`, on the error path (`frontend/src/admin/services/api.js:267-276`). The full backend suite showed no fallout.
+
 ---
 
 ## Environment notes (read before Task 1)
@@ -1686,6 +1688,24 @@ git commit -m "test(lookups): cover rename cascade, merge and archive semantics"
 
 Same shape as capacity, against `appliance_details.variant`. The trait is already proven, so this task only tests what is specific to variants.
 
+> ### Pattern corrections established in Task 6 — apply ALL of these here
+>
+> The Task 6 review changed the shape every sibling controller must follow. The code block further down predates them; where the two disagree, these win.
+>
+> 1. **Resolve the category from the persisted row on update.** Reading `$request->input('category_id')` alone is a data-integrity bug: on a PUT that renames only the value, `category_id` is absent, so uniqueness is checked against the `IS NULL` scope rather than the row's real category — letting two identical values into one category. Use:
+>    ```php
+>    $categoryId = $request->has('category_id')
+>        ? $request->input('category_id')
+>        : ($id !== null ? VariantLookup::withTrashed()->find($id)?->category_id : null);
+>    ```
+>    `has()` rather than `filled()`, so an explicit `null` still means "make it global". Include the regression test: two variants in one category, PUT the second's name to match the first **without sending `category_id`**, assert 422.
+> 2. **Declare `cascadeTargets()` as the single source of truth**, and have both `usageCountFor()` and `cascadeValueChange()` read it. Do not hand-write the table map twice — a count that omits `product_sets` lets `forceDestroy()` permanently delete a value live sets still reference.
+> 3. **Override `lookupIndexFilters(Request $request, $query): void`, not `lookupIndexQuery()`.** The trait now owns ordering and calls this hook from both the active and archived queries. Keep the nested closure around the `category_id = X OR category_id IS NULL` pair.
+> 4. **`sort_order` is `sometimes|integer|min:0|max:255`, never `nullable`** — the column is NOT NULL with a default, so an explicit `null` is a 500 under strict mode.
+> 5. **Use the sargable BINARY pair** in `usageCountFor()`: `->where($col, $v)->whereRaw("BINARY {$col} = ?", [$v])`.
+> 6. **Extend `Tests\Feature\Lookups\LookupTestCase`** for the shared `actingAsAdmin()` / `category()` / unique-value helpers rather than re-declaring them.
+> 7. **Assert `usage_count` non-zero somewhere**, and include a test that pins the OR grouping (archive a *global* value, then filter by a category and assert it is absent).
+
 **Files:**
 - Create: `back-end/app/Http/Controllers/Api/VariantLookupController.php`
 - Modify: `back-end/routes/api.php`
@@ -1981,6 +2001,16 @@ git commit -m "feat(lookups): add variant lookup endpoint"
 ## Task 9: Issuable unit preset endpoint
 
 No category scoping and no cascade — a preset rename must **not** touch `product_issuable_units.label`, because that label is per-product and independently editable.
+
+> ### Pattern corrections from Task 6 that apply here
+>
+> Presets have no category and no cascade, so items 1-3 of the Task 8 note do not apply. These do:
+>
+> - **`sort_order` is `sometimes|integer|min:0|max:255`, never `nullable`** — NOT NULL column, strict mode, so an explicit `null` is a 500.
+> - **Use the sargable BINARY pair** in `usageCountFor()`: `->where('label', $v)->whereRaw('BINARY label = ?', [$v])`.
+> - **Extend `Tests\Feature\Lookups\LookupTestCase`** rather than re-declaring the shared test helpers.
+> - **Assert `usage_count` non-zero** in at least one test — a hardcoded `0` must not pass.
+> - `usageCountFor()` reads `product_issuable_units.label` only. There is deliberately no `cascadeTargets()` here: presets are templates, so nothing downstream is rewritten when one is renamed.
 
 **Files:**
 - Create: `back-end/app/Http/Controllers/Api/IssuableUnitPresetController.php`
