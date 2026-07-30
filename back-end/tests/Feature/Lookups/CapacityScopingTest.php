@@ -102,17 +102,23 @@ class CapacityScopingTest extends LookupTestCase
         ]);
     }
 
-    public function test_an_archived_global_capacity_does_not_leak_into_a_category_filtered_list(): void
+    public function test_archived_values_do_not_appear_in_a_category_filtered_list(): void
     {
         $this->actingAsAdmin();
 
         $category = $this->category();
         $value = $this->uniqueValue();
 
-        // This pins the nested-closure grouping in lookupIndexFilters(): a
-        // flat where('category_id', ...)->orWhereNull('category_id') would
-        // OR past the model's soft-delete scope and resurrect this archived
-        // global row in every category's list.
+        // This pins that archiving still works once a category filter is on
+        // the query. It does NOT pin the nested-closure grouping in
+        // lookupIndexFilters(): Eloquent's own scope application groups every
+        // pre-scope where before SoftDeletingScope appends its own
+        // deleted_at is null (Builder::applyScopes() ->
+        // addNewWheresWithinGroup()), so a flat
+        // where('category_id', ...)->orWhereNull('category_id') would pass
+        // this test too. There is currently no query in this controller
+        // where the grouping is load-bearing; it becomes so the moment a
+        // second non-scope filter joins the query.
         $id = $this->postJson('/api/capacities', ['capacity_value' => $value])->json('data.capacity_id');
         $this->deleteJson("/api/capacities/{$id}")->assertStatus(200);
 
