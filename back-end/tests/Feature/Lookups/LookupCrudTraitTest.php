@@ -2,10 +2,6 @@
 
 namespace Tests\Feature\Lookups;
 
-use App\Models\ApplianceDetail;
-use App\Models\Product;
-use App\Models\ProductSet;
-
 /**
  * Exercises HandlesLookupCrud in full through the capacity endpoint, which is
  * the one lookup that uses every hook. The other five controllers get thin
@@ -130,15 +126,7 @@ class LookupCrudTraitTest extends LookupTestCase
         // A usageCountFor() hardcoded to 0 (or one that only reads part of
         // cascadeTargets(), or a non-sargable BINARY predicate that silently
         // matches nothing) would all still pass every other test here.
-        $product = Product::create([
-            'product_code' => 'PC-' . uniqid(),
-            'product_name' => 'Test Appliance',
-            'product_type' => 'appliance',
-        ]);
-        ApplianceDetail::create([
-            'product_id'      => $product->product_id,
-            'capacity_rating' => $value,
-        ]);
+        $this->applianceWith(['capacity_rating' => $value]);
 
         $row = collect($this->getJson('/api/capacities')->json('data'))
             ->firstWhere('capacity_id', $id);
@@ -152,7 +140,7 @@ class LookupCrudTraitTest extends LookupTestCase
         $value = $this->uniqueValue();
         $id = $this->postJson('/api/capacities', ['capacity_value' => $value])->json('data.capacity_id');
 
-        ProductSet::create(['capacity_rating' => $value, 'is_active' => true]);
+        $this->productSetWith(['capacity_rating' => $value]);
 
         $row = collect($this->getJson('/api/capacities')->json('data'))
             ->firstWhere('capacity_id', $id);
