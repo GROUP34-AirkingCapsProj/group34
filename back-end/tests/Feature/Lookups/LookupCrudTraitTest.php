@@ -30,7 +30,8 @@ class LookupCrudTraitTest extends LookupTestCase
         $this->postJson('/api/capacities', ['capacity_value' => $value])->assertStatus(201);
         $this->postJson('/api/capacities', ['capacity_value' => $value])
             ->assertStatus(422)
-            ->assertJsonPath('success', false);
+            ->assertJsonPath('success', false)
+            ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
     }
 
     public function test_create_rejects_a_duplicate_differing_only_in_case(): void
@@ -44,7 +45,8 @@ class LookupCrudTraitTest extends LookupTestCase
         // case-insensitive for free. This test guards that behaviour so a
         // future collation change does not silently allow near-duplicates.
         $this->postJson('/api/capacities', ['capacity_value' => strtolower($value)])
-            ->assertStatus(422);
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
     }
 
     public function test_create_rejects_a_null_sort_order(): void
