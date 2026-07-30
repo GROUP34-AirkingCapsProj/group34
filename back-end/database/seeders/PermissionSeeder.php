@@ -52,6 +52,17 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
+            // Unified Item Lookups page (/admin/categories). Covers all six
+            // lookups on the page: categories, brands, variants, capacities,
+            // units of measure and issuable unit presets. The older
+            // category_management / brand_management keys are retained and
+            // still guard their own endpoints, so effective access is unchanged.
+            'lookup_management' => [
+                'read'    => ['admin', 'inventory_analyst', 'auditor'],
+                'create'  => ['admin', 'inventory_analyst'],
+                'update'  => ['admin', 'inventory_analyst'],
+                'archive' => ['admin'],
+            ],
             // Brands are managed inside the "Categories & Brands" page (gated by
             // category_management.read), so brand_management has no standalone read.
             'brand_management' => [
