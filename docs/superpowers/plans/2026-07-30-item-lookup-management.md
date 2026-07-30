@@ -22,6 +22,7 @@ This repo has conventions that will waste your time if you discover them the har
 - **Run tests from `back-end/`:** `php artisan test --filter=<TestName>`
 - **After changing `PermissionSeeder`,** run `php artisan config:clear` — a cached config will serve stale permissions and the failure looks like a broken middleware.
 - **The working tree already contains unrelated uncommitted changes** (`back-end/app/Http/Controllers/Api/InventoryScanTransactionController.php`, `frontend/src/admin/pages/BarcodeAdjustmentPage.jsx`, `BarcodeScan.jsx`, `IssuanceScanPage.jsx`, `TransfersPage.jsx`, and two barcode stylesheets). They are **not** part of this work. Never run a bare `git add -A`, `git add .`, or `git add <directory>` — every commit in this plan lists explicit file paths for that reason. Leave those files untouched.
+- **Test fixtures inserting into `products` must supply `product_code`** — it is NOT NULL with no default and carries a unique index. Every helper in this plan uses `'PC-' . uniqid()`. `appliance_details` needs only `product_id`; `product_sets` has defaults for everything except its own unique `set_code`.
 - **MySQL collation is `utf8mb4_unicode_ci`,** so string comparisons and `unique` validation are already case-insensitive. Do not add manual `LOWER()` wrapping. Where you need case-*sensitivity* (the backfill), you must ask for it explicitly with `BINARY`.
 
 ---
@@ -1472,6 +1473,8 @@ class RenameCascadeTest extends TestCase
     private function applianceWithCapacity(string $capacity): void
     {
         $productId = DB::table('products')->insertGetId([
+            // product_code is NOT NULL and unique; omitting it fails the insert.
+            'product_code' => 'PC-' . uniqid(),
             'product_name' => 'P ' . uniqid(),
             'product_type' => 'appliance',
             'created_at'   => now(),
@@ -1703,6 +1706,8 @@ class VariantLookupTest extends TestCase
     private function applianceWithVariant(string $variant): void
     {
         $productId = DB::table('products')->insertGetId([
+            // product_code is NOT NULL and unique; omitting it fails the insert.
+            'product_code' => 'PC-' . uniqid(),
             'product_name' => 'P ' . uniqid(),
             'product_type' => 'appliance',
             'created_at'   => now(),
@@ -2037,6 +2042,8 @@ class IssuableUnitPresetTest extends TestCase
         $this->postJson('/api/issuable-unit-presets', ['label' => $label, 'unit_id' => $unit->unit_id]);
 
         $productId = DB::table('products')->insertGetId([
+            // product_code is NOT NULL and unique; omitting it fails the insert.
+            'product_code' => 'PC-' . uniqid(),
             'product_name' => 'P ' . uniqid(),
             'product_type' => 'consumable',
             'created_at'   => now(),
@@ -2068,6 +2075,8 @@ class IssuableUnitPresetTest extends TestCase
             ->json('data.preset_id');
 
         $productId = DB::table('products')->insertGetId([
+            // product_code is NOT NULL and unique; omitting it fails the insert.
+            'product_code' => 'PC-' . uniqid(),
             'product_name' => 'P ' . uniqid(),
             'product_type' => 'consumable',
             'created_at'   => now(),
@@ -2854,6 +2863,8 @@ class BackfillTest extends TestCase
     private function appliance(?string $capacity, ?string $variant, ?int $categoryId): void
     {
         $productId = DB::table('products')->insertGetId([
+            // product_code is NOT NULL and unique; omitting it fails the insert.
+            'product_code' => 'PC-' . uniqid(),
             'product_name' => 'P ' . uniqid(),
             'product_type' => 'appliance',
             'category_id'  => $categoryId,
@@ -2959,6 +2970,8 @@ class BackfillTest extends TestCase
         $label = 'Roll ' . uniqid();
 
         $productId = DB::table('products')->insertGetId([
+            // product_code is NOT NULL and unique; omitting it fails the insert.
+            'product_code' => 'PC-' . uniqid(),
             'product_name' => 'P ' . uniqid(),
             'product_type' => 'consumable',
             'created_at'   => now(),
