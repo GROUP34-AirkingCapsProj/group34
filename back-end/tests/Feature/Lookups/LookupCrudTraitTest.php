@@ -2,45 +2,17 @@
 
 namespace Tests\Feature\Lookups;
 
-use App\Models\Role;
-use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Tests\TestCase;
+use App\Models\ApplianceDetail;
+use App\Models\Product;
+use App\Models\ProductSet;
 
 /**
  * Exercises HandlesLookupCrud in full through the capacity endpoint, which is
  * the one lookup that uses every hook. The other five controllers get thin
  * tests covering only what is specific to them.
  */
-class LookupCrudTraitTest extends TestCase
+class LookupCrudTraitTest extends LookupTestCase
 {
-    use DatabaseTransactions;
-
-    private function actingAsAdmin(): User
-    {
-        $roleId = Role::where('role_name', 'admin')->value('role_id');
-        $this->assertNotNull($roleId, 'admin role missing - seed the test database');
-
-        $user = User::create([
-            'username'      => 'u_' . uniqid(),
-            'first_name'    => 'Test',
-            'last_name'     => 'Admin',
-            'email'         => uniqid() . '@example.test',
-            'password_hash' => bcrypt('secret'),
-            'role_id'       => $roleId,
-        ]);
-
-        $this->actingAs($user);
-
-        return $user;
-    }
-
-    private function uniqueValue(): string
-    {
-        // Must fit capacity_value's varchar(20).
-        return 'T' . substr(uniqid(), -8) . 'HP';
-    }
-
     public function test_create_returns_201_and_the_new_row(): void
     {
         $this->actingAsAdmin();
@@ -77,6 +49,19 @@ class LookupCrudTraitTest extends TestCase
         // future collation change does not silently allow near-duplicates.
         $this->postJson('/api/capacities', ['capacity_value' => strtolower($value)])
             ->assertStatus(422);
+    }
+
+    public function test_create_rejects_a_null_sort_order(): void
+    {
+        $this->actingAsAdmin();
+
+        // The column is a NOT NULL unsignedTinyInteger default 0. Sending an
+        // explicit JSON null (an empty numeric form field, say) must be a
+        // clean validation failure, not a SQLSTATE 1048 -> 500.
+        $this->postJson('/api/capacities', [
+            'capacity_value' => $this->uniqueValue(),
+            'sort_order'     => null,
+        ])->assertStatus(422);
     }
 
     public function test_update_changes_the_value(): void
@@ -134,5 +119,44 @@ class LookupCrudTraitTest extends TestCase
         $this->getJson('/api/capacities/99999999')
             ->assertStatus(404)
             ->assertJsonPath('success', false);
+    }
+
+    public function test_usage_count_reflects_an_appliance_detail_row(): void
+    {
+        $this->actingAsAdmin();
+        $value = $this->uniqueValue();
+        $id = $this->postJson('/api/capacities', ['capacity_value' => $value])->json('data.capacity_id');
+
+        // A usageCountFor() hardcoded to 0 (or one that only reads part of
+        // cascadeTargets(), or a non-sargable BINARY predicate that silently
+        // matches nothing) would all still pass every other test here.
+        $product = Product::create([
+            'product_code' => 'PC-' . uniqid(),
+            'product_name' => 'Test Appliance',
+            'product_type' => 'appliance',
+        ]);
+        ApplianceDetail::create([
+            'product_id'      => $product->product_id,
+            'capacity_rating' => $value,
+        ]);
+
+        $row = collect($this->getJson('/api/capacities')->json('data'))
+            ->firstWhere('capacity_id', $id);
+
+        $this->assertSame(1, $row['usage_count']);
+    }
+
+    public function test_usage_count_reflects_a_product_set_row(): void
+    {
+        $this->actingAsAdmin();
+        $value = $this->uniqueValue();
+        $id = $this->postJson('/api/capacities', ['capacity_value' => $value])->json('data.capacity_id');
+
+        ProductSet::create(['capacity_rating' => $value, 'is_active' => true]);
+
+        $row = collect($this->getJson('/api/capacities')->json('data'))
+            ->firstWhere('capacity_id', $id);
+
+        $this->assertSame(1, $row['usage_count']);
     }
 }
