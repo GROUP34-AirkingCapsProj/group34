@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -65,6 +66,20 @@ return Application::configure(basePath: dirname(__DIR__))
                     'success' => false,
                     'message' => 'Unauthenticated.',
                 ], 401);
+            }
+        });
+
+        // $request->validate() throws ValidationException directly (bypassing
+        // ApiResponse::validationError()), so without this its default render
+        // — {message, errors}, no 'success' key — is the only API shape that
+        // does not match every other error response in the app.
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors(),
+                ], $e->status);
             }
         });
     })->create();

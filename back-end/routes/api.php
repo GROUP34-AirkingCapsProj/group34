@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\InventoryScanEventController;
 use App\Http\Controllers\Api\StatusLookupController;
 use App\Http\Controllers\Api\TransactionTypeLookupController;
 use App\Http\Controllers\Api\UnitLookupController;
+use App\Http\Controllers\Api\CapacityLookupController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\AlertSettingsController;
 use App\Http\Controllers\Api\AuditTrailController;
@@ -287,6 +288,28 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('role:admin')->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
     Route::middleware('role:admin')->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
     Route::middleware('role:admin')->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
+
+    /* ---------------------------------------------------------------
+     | Capacities (Item Lookups page - Appliance tab)
+     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     * ------------------------------------------------------------- */
+    Route::middleware('permission:lookup_management,read')->group(function () {
+        Route::get('/capacities/archived', [CapacityLookupController::class, 'archived']);
+        Route::get('/capacities', [CapacityLookupController::class, 'index']);
+        Route::get('/capacities/{id}', [CapacityLookupController::class, 'show']);
+    });
+    Route::middleware('permission:lookup_management,create')
+        ->post('/capacities', [CapacityLookupController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/capacities/{id}', [CapacityLookupController::class, 'update']);
+    Route::middleware('permission:lookup_management,update')
+        ->post('/capacities/{id}/merge', [CapacityLookupController::class, 'merge']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/capacities/{id}', [CapacityLookupController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/capacities/{id}/restore', [CapacityLookupController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/capacities/{id}/force', [CapacityLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
