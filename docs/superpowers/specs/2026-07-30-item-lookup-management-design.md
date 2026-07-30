@@ -54,7 +54,9 @@ A single generic `lookup_values` table with a type discriminator was considered 
 
 Three new tables, following the existing `*_lookup` convention (soft deletes, `<name>_id` primary key):
 
-**`capacity_lookup`** — `capacity_id` PK, `capacity_value` varchar(50), `category_id` nullable FK → `category_lookup`, `description` nullable, `sort_order` tinyint, timestamps, soft deletes.
+**`capacity_lookup`** — `capacity_id` PK, `capacity_value` **varchar(20)**, `category_id` nullable FK → `category_lookup`, `description` nullable, `sort_order` tinyint, timestamps, soft deletes.
+
+> Width is deliberate. `appliance_details.capacity_rating` is varchar(20) and `product_sets.capacity_rating` is varchar(60). Since the lookup value is copied into both by the rename cascade, it must fit the narrowest — a wider lookup column would let an admin save a 40-character capacity that MySQL silently truncates on the way into `appliance_details`, permanently desynchronising the item from its lookup row. `variant_name` varchar(100) matches both destinations exactly and needs no such clamp.
 
 **`variant_lookup`** — `variant_id` PK, `variant_name` varchar(100), `category_id` nullable FK → `category_lookup`, `description` nullable, `sort_order` tinyint, timestamps, soft deletes.
 
