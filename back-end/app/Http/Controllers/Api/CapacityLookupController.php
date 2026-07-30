@@ -60,8 +60,17 @@ class CapacityLookupController extends Controller
 
         $categoryId = $request->input('category_id');
 
-        // Nested closure is required: a flat where()->orWhereNull() would
-        // escape the soft-delete scope and leak archived rows.
+        // Grouped in its own closure so this OR cannot later swallow any
+        // further where() someone adds to this query (a `search` filter,
+        // say — UnitLookupController already has one that this trait will
+        // eventually need to accommodate). It is not currently load-bearing
+        // against the soft-delete scope: Eloquent's own scope application
+        // (Builder::applyScopes() -> addNewWheresWithinGroup()) already
+        // wraps every pre-scope where in its own group before
+        // SoftDeletingScope appends deleted_at is null, so a flat
+        // where()->orWhereNull() here would not leak archived rows either.
+        // The grouping is defensive against constraints this controller
+        // might add next, not against the scope.
         $query->where(function ($q) use ($categoryId) {
             $q->where('category_id', $categoryId)->orWhereNull('category_id');
         });
