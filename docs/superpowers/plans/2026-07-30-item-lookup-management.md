@@ -18,7 +18,7 @@ This repo has conventions that will waste your time if you discover them the har
 
 - **The schema is a SQL dump, not a migration history.** Running bare `php artisan migrate` fails. Apply each new migration explicitly:
   `php artisan migrate --path=database/migrations/<file>.php`
-- **Two databases.** Dev is `airkingV5`, tests run against `airkingV5_test`. Every migration in this plan must be applied to **both**. The test command below assumes `phpunit.xml` already points at the test DB.
+- **Two databases.** Dev is `airkingV5`, tests run against `airkingV5_test`. Every migration in this plan must be applied to **both**. There is no separate `mysql_test` connection — `phpunit.xml` overrides `DB_DATABASE` on the default `mysql` connection, so target the test DB by prefixing the command: `DB_DATABASE=airkingV5_test php artisan …`. This works from the **Bash** tool only (PowerShell has no inline env-var prefix; there you would need `$env:DB_DATABASE = 'airkingV5_test'` first, and to unset it afterwards).
 - **Run tests from `back-end/`:** `php artisan test --filter=<TestName>`
 - **After changing `PermissionSeeder`,** run `php artisan config:clear` — a cached config will serve stale permissions and the failure looks like a broken middleware.
 - **The working tree already contains unrelated uncommitted changes** (`back-end/app/Http/Controllers/Api/InventoryScanTransactionController.php`, `frontend/src/admin/pages/BarcodeAdjustmentPage.jsx`, `BarcodeScan.jsx`, `IssuanceScanPage.jsx`, `TransfersPage.jsx`, and two barcode stylesheets). They are **not** part of this work. Never run a bare `git add -A`, `git add .`, or `git add <directory>` — every commit in this plan lists explicit file paths for that reason. Leave those files untouched.
@@ -234,19 +234,22 @@ Expected: three `INFO  Running migrations.` blocks, each ending `DONE`.
 
 - [ ] **Step 5: Apply all three to the test database**
 
-```bash
-php artisan migrate --database=mysql_test --path=database/migrations/2026_07_30_000001_create_capacity_lookup_table.php
-php artisan migrate --database=mysql_test --path=database/migrations/2026_07_30_000002_create_variant_lookup_table.php
-php artisan migrate --database=mysql_test --path=database/migrations/2026_07_30_000003_create_issuable_unit_preset_table.php
-```
-
-If `mysql_test` is not a configured connection, run the same three commands with `DB_DATABASE=airkingV5_test` set in the environment instead. Verify with:
+There is **no** `mysql_test` connection. `phpunit.xml` points the default `mysql` connection at `airkingV5_test` via an env override, so target the test database the same way — from the Bash tool, not PowerShell (Laravel's Dotenv does not override variables already present in the environment, which is what makes this work):
 
 ```bash
-php artisan tinker --execute="echo implode(',', \Illuminate\Support\Facades\Schema::connection('mysql_test')->getColumnListing('capacity_lookup'));"
+DB_DATABASE=airkingV5_test php artisan migrate --path=database/migrations/2026_07_30_000001_create_capacity_lookup_table.php
+DB_DATABASE=airkingV5_test php artisan migrate --path=database/migrations/2026_07_30_000002_create_variant_lookup_table.php
+DB_DATABASE=airkingV5_test php artisan migrate --path=database/migrations/2026_07_30_000003_create_issuable_unit_preset_table.php
 ```
 
-Expected output contains `capacity_id,capacity_value,category_id`.
+Verify both databases got the table:
+
+```bash
+php artisan tinker --execute="echo DB::connection()->getDatabaseName().': '.implode(',', Schema::getColumnListing('capacity_lookup'));"
+DB_DATABASE=airkingV5_test php artisan tinker --execute="echo DB::connection()->getDatabaseName().': '.implode(',', Schema::getColumnListing('capacity_lookup'));"
+```
+
+Expected: each prints its database name followed by a list containing `capacity_id,capacity_value,category_id`.
 
 - [ ] **Step 6: Commit**
 
