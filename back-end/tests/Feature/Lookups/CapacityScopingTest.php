@@ -2,43 +2,8 @@
 
 namespace Tests\Feature\Lookups;
 
-use App\Models\CategoryLookup;
-use App\Models\Role;
-use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Tests\TestCase;
-
-class CapacityScopingTest extends TestCase
+class CapacityScopingTest extends LookupTestCase
 {
-    use DatabaseTransactions;
-
-    private function actingAsAdmin(): void
-    {
-        $roleId = Role::where('role_name', 'admin')->value('role_id');
-
-        $this->actingAs(User::create([
-            'username'      => 'u_' . uniqid(),
-            'first_name'    => 'Test',
-            'last_name'     => 'Admin',
-            'email'         => uniqid() . '@example.test',
-            'password_hash' => bcrypt('secret'),
-            'role_id'       => $roleId,
-        ]));
-    }
-
-    private function category(): CategoryLookup
-    {
-        return CategoryLookup::create([
-            'category_name' => 'Cat ' . uniqid(),
-            'category_type' => 'product',
-        ]);
-    }
-
-    private function value(): string
-    {
-        return 'T' . substr(uniqid(), -8) . 'HP';
-    }
-
     public function test_filtering_by_category_returns_that_category_plus_globals(): void
     {
         $this->actingAsAdmin();
@@ -47,17 +12,17 @@ class CapacityScopingTest extends TestCase
         $fridge = $this->category();
 
         $scoped = $this->postJson('/api/capacities', [
-            'capacity_value' => $this->value(),
+            'capacity_value' => $this->uniqueValue(),
             'category_id'    => $aircon->category_id,
         ])->json('data.capacity_id');
 
         $other = $this->postJson('/api/capacities', [
-            'capacity_value' => $this->value(),
+            'capacity_value' => $this->uniqueValue(),
             'category_id'    => $fridge->category_id,
         ])->json('data.capacity_id');
 
         $global = $this->postJson('/api/capacities', [
-            'capacity_value' => $this->value(),
+            'capacity_value' => $this->uniqueValue(),
         ])->json('data.capacity_id');
 
         $ids = collect($this->getJson("/api/capacities?category_id={$aircon->category_id}")->json('data'))
@@ -74,7 +39,7 @@ class CapacityScopingTest extends TestCase
 
         $a = $this->category();
         $b = $this->category();
-        $value = $this->value();
+        $value = $this->uniqueValue();
 
         $this->postJson('/api/capacities', ['capacity_value' => $value, 'category_id' => $a->category_id])
             ->assertStatus(201);
@@ -87,7 +52,7 @@ class CapacityScopingTest extends TestCase
         $this->actingAsAdmin();
 
         $a = $this->category();
-        $value = $this->value();
+        $value = $this->uniqueValue();
 
         $this->postJson('/api/capacities', ['capacity_value' => $value, 'category_id' => $a->category_id])
             ->assertStatus(201);
@@ -98,12 +63,62 @@ class CapacityScopingTest extends TestCase
     public function test_two_uncategorised_rows_may_not_share_a_value(): void
     {
         $this->actingAsAdmin();
-        $value = $this->value();
+        $value = $this->uniqueValue();
 
         // MySQL treats NULLs as distinct in a unique index, so this case is
         // enforced in validation rather than by the schema. Without the
         // whereNull branch in lookupRules() this test fails.
         $this->postJson('/api/capacities', ['capacity_value' => $value])->assertStatus(201);
         $this->postJson('/api/capacities', ['capacity_value' => $value])->assertStatus(422);
+    }
+
+    public function test_renaming_a_scoped_value_without_resending_category_id_still_checks_its_own_scope(): void
+    {
+        $this->actingAsAdmin();
+
+        $category = $this->category();
+        $first = $this->uniqueValue();
+        $second = $this->uniqueValue();
+
+        $firstId = $this->postJson('/api/capacities', [
+            'capacity_value' => $first,
+            'category_id'    => $category->category_id,
+        ])->json('data.capacity_id');
+
+        $secondId = $this->postJson('/api/capacities', [
+            'capacity_value' => $second,
+            'category_id'    => $category->category_id,
+        ])->json('data.capacity_id');
+
+        // No category_id in this payload. If lookupRules() reads the request
+        // alone it defaults to the "global" scope and this collision is missed,
+        // so the category ends up with two rows named $first.
+        $this->putJson("/api/capacities/{$secondId}", ['capacity_value' => $first])
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('capacity_lookup', [
+            'capacity_id'    => $firstId,
+            'capacity_value' => $first,
+        ]);
+    }
+
+    public function test_an_archived_global_capacity_does_not_leak_into_a_category_filtered_list(): void
+    {
+        $this->actingAsAdmin();
+
+        $category = $this->category();
+        $value = $this->uniqueValue();
+
+        // This pins the nested-closure grouping in lookupIndexFilters(): a
+        // flat where('category_id', ...)->orWhereNull('category_id') would
+        // OR past the model's soft-delete scope and resurrect this archived
+        // global row in every category's list.
+        $id = $this->postJson('/api/capacities', ['capacity_value' => $value])->json('data.capacity_id');
+        $this->deleteJson("/api/capacities/{$id}")->assertStatus(200);
+
+        $ids = collect($this->getJson("/api/capacities?category_id={$category->category_id}")->json('data'))
+            ->pluck('capacity_id')->all();
+
+        $this->assertNotContains($id, $ids);
     }
 }

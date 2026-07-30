@@ -76,7 +76,7 @@ trait HandlesLookupCrud
         return [$this->lookupNameColumn()];
     }
 
-    /** Base listing query. Override to add filtering (e.g. by category). */
+    /** Base listing query. Override lookupIndexFilters() to add filtering (e.g. by category). */
     protected function lookupIndexQuery(Request $request)
     {
         $model = $this->lookupModel();
@@ -86,15 +86,40 @@ trait HandlesLookupCrud
             $query->orderBy($column);
         }
 
+        $this->lookupIndexFilters($request, $query);
+
         return $query;
     }
 
-    /** Base archived-listing query. Override to add filtering. */
+    /**
+     * Apply lookup-specific filtering to the active-list query. No-op by
+     * default. Override in a controller to scope by category etc.; both
+     * lookupIndexQuery() and (via lookupArchivedFilters()) the archived
+     * query call this, so a subclass supplies filtering once.
+     */
+    protected function lookupIndexFilters(Request $request, $query): void
+    {
+    }
+
+    /** Base archived-listing query. Override lookupArchivedFilters() to add filtering. */
     protected function lookupArchivedQuery(Request $request)
     {
         $model = $this->lookupModel();
+        $query = $model::onlyTrashed()->orderBy('deleted_at', 'desc');
 
-        return $model::onlyTrashed()->orderBy('deleted_at', 'desc');
+        $this->lookupArchivedFilters($request, $query);
+
+        return $query;
+    }
+
+    /**
+     * Apply lookup-specific filtering to the archived-list query. Defaults to
+     * the same filtering as the active list, so a controller that scopes one
+     * list scopes both unless it deliberately overrides this to differ.
+     */
+    protected function lookupArchivedFilters(Request $request, $query): void
+    {
+        $this->lookupIndexFilters($request, $query);
     }
 
     /** Shape of a single row in responses. */
