@@ -33,6 +33,7 @@ class PermissionCoverageTest extends TestCase
         'inventory_adjustments',        // extra of Scan Barcode
         'data_archiving',               // extra of Archive Management
         'warranty_claims',              // extra of Warranty Records
+        'lookup_management',            // mirrors category_management; own nav bundle lands with the Item Lookups page (later task)
     ];
 
     private function bundleRequiredFeatures(): array
