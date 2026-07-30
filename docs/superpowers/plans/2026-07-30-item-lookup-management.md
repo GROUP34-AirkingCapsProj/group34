@@ -549,7 +549,15 @@ class LookupRenameService
         foreach ($targets as $table => $column) {
             // Deliberately a raw query builder update: it ignores soft-delete
             // scopes, so archived sets and products stay consistent too.
-            $total += DB::table($table)->where($column, $old)->update([$column => $new]);
+            //
+            // BINARY, not a plain where: the collation is case-insensitive, but
+            // the lookup tables can legitimately hold values differing only in
+            // case (the backfill preserves them, since products reference the
+            // exact string). A ci match would rewrite the other variant's
+            // products too and orphan its lookup row.
+            $total += DB::table($table)
+                ->whereRaw("BINARY {$column} = ?", [$old])
+                ->update([$column => $new]);
         }
 
         return $total;
@@ -1357,8 +1365,11 @@ class CapacityLookupController extends Controller
 
     protected function usageCountFor($row): int
     {
+        // BINARY, not a plain where: the collation is case-insensitive, and the
+        // backfill can legitimately leave '1.5HP' and '1.5hp' as separate rows.
+        // A ci match would report each one's products against both.
         return (int) DB::table('appliance_details')
-            ->where('capacity_rating', $row->capacity_value)
+            ->whereRaw('BINARY capacity_rating = ?', [$row->capacity_value])
             ->count();
     }
 
@@ -1877,8 +1888,10 @@ class VariantLookupController extends Controller
 
     protected function usageCountFor($row): int
     {
+        // BINARY for the same reason as capacity: the collation is
+        // case-insensitive and case variants are legitimately distinct rows.
         return (int) DB::table('appliance_details')
-            ->where('variant', $row->variant_name)
+            ->whereRaw('BINARY variant = ?', [$row->variant_name])
             ->count();
     }
 
@@ -2183,8 +2196,9 @@ class IssuableUnitPresetController extends Controller
 
     protected function usageCountFor($row): int
     {
+        // BINARY for consistency with the other lookups' usage counts.
         return (int) DB::table('product_issuable_units')
-            ->where('label', $row->label)
+            ->whereRaw('BINARY label = ?', [$row->label])
             ->count();
     }
 
