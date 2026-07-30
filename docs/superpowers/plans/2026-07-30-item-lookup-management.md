@@ -4604,6 +4604,22 @@ In `back-end/database/seeders/NavBundleSeeder.php`, line 35:
 
 `frontend/src/admin/utils/roles.js` lines 80-81 already list admin, inventory_analyst and auditor for both routes, which matches `lookup_management.read`. Leave them as they are.
 
+- [ ] **Step 5b: Swap the entries in `PermissionCoverageTest::ALLOWED_NON_NAV`**
+
+`back-end/tests/Feature/Permissions/PermissionCoverageTest.php` asserts every permission feature is reachable — either it backs a nav bundle, or it is listed in `ALLOWED_NON_NAV`. Changing the seeder row above moves the bundle's feature from `category_management` to `lookup_management`, which flips both features' status at once:
+
+- **Remove** `'lookup_management'` from the list. Task 5 added it there precisely because it had no bundle yet; now it has one, so the entry is stale. (Leaving it would not fail — the check is a union — but the comment beside it would be a lie.)
+- **Add** `'category_management'` to the list, with a comment noting it is now an extra of the Item Lookups page, exactly as `brand_management` already is. Without this the test **will** fail: `category_management` is still a real catalog feature but no longer backs any bundle.
+
+Then confirm:
+
+```bash
+cd back-end
+php artisan test --filter=PermissionCoverageTest
+```
+
+Expected: PASS. A failure naming `category_management` as an orphan means the addition was missed.
+
 - [ ] **Step 6: Delete the old page and its stylesheet**
 
 ```bash
