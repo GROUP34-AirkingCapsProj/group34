@@ -20,6 +20,11 @@ This repo has conventions that will waste your time if you discover them the har
   `php artisan migrate --path=database/migrations/<file>.php`
 - **Two databases.** Dev is `airkingV5`, tests run against `airkingV5_test`. Every migration in this plan must be applied to **both**. There is no separate `mysql_test` connection — `phpunit.xml` overrides `DB_DATABASE` on the default `mysql` connection, so target the test DB by prefixing the command: `DB_DATABASE=airkingV5_test php artisan …`. This works from the **Bash** tool only (PowerShell has no inline env-var prefix; there you would need `$env:DB_DATABASE = 'airkingV5_test'` first, and to unset it afterwards).
 - **Run tests from `back-end/`:** `php artisan test --filter=<TestName>`
+- **Known-failing baseline — read before judging any test run.** Two distinct pre-existing problems, neither caused by this work. Verified by confirming this branch's entire diff against its starting point (`eec69a6`) is purely additive: 737 insertions, **zero deletions, zero modified pre-existing files**.
+  1. **9 deterministic failures** in `Tests\Feature\WarrantyClaimTest`, all throwing `WarrantyClaimException` from warranty-service logic.
+  2. **1 flaky test**: `Tests\Feature\Inventory\SerialRowMovementColumnsTest::consumable rows carry per batch in and out`. Run three times in isolation it passed once and failed twice — the assertion at line 103 depends on two serial records arriving in a particular order with no deterministic tie-break. Expect it to fail roughly two runs in three, in isolation or in a full run.
+
+  So a full `php artisan test` lands at **9 or 10 failures** before this feature adds anything. Task 21 must not treat either as a regression. A failure outside those two classes IS a regression. Fixing the flaky test is out of scope here, but it is worth a separate ticket — it will keep muddying every future test run.
 - **After changing `PermissionSeeder`,** run `php artisan config:clear` — a cached config will serve stale permissions and the failure looks like a broken middleware.
 - **The working tree already contains unrelated uncommitted changes** (`back-end/app/Http/Controllers/Api/InventoryScanTransactionController.php`, `frontend/src/admin/pages/BarcodeAdjustmentPage.jsx`, `BarcodeScan.jsx`, `IssuanceScanPage.jsx`, `TransfersPage.jsx`, and two barcode stylesheets). They are **not** part of this work. Never run a bare `git add -A`, `git add .`, or `git add <directory>` — every commit in this plan lists explicit file paths for that reason. Leave those files untouched.
 - **Test fixtures inserting into `products` must supply `product_code`** — it is NOT NULL with no default and carries a unique index. Every helper in this plan uses `'PC-' . uniqid()`. `appliance_details` needs only `product_id`.
@@ -5109,7 +5114,9 @@ cd back-end
 php artisan test
 ```
 
-Expected: green, with the ~40 new tests from this plan included. Record the pass count.
+Expected: the ~40 new tests from this plan all passing, and **only** the pre-existing failures described in the environment notes — the 9 deterministic `WarrantyClaimTest` ones, plus possibly the flaky `SerialRowMovementColumnsTest` case. So 9 or 10 failures total, and the pass count up by roughly the number of tests this plan added.
+
+Any failure outside those two classes is a regression introduced by this work — investigate it rather than shipping. If `SerialRowMovementColumnsTest` fails, re-run it in isolation a couple of times before concluding anything; it passes intermittently.
 
 - [ ] **Step 2: Build the frontend**
 
