@@ -241,7 +241,14 @@ class LookupRouteAccessTest extends LookupTestCase
     // Unauthenticated.
     // ------------------------------------------------------------------
 
-    public function test_unauthenticated_request_to_a_gated_lookup_returns_401(): void
+    /**
+     * /api/capacities is no longer permission-gated on GET (see the read/write
+     * split documented at the top of this class) — this 401 comes purely from
+     * auth:sanctum rejecting an unauthenticated caller, not from any
+     * lookup_management gate. Named to reflect that: it pins "logged out
+     * still gets 401", not "this route is otherwise gated".
+     */
+    public function test_unauthenticated_request_to_a_lookup_route_returns_401(): void
     {
         $this->getJson('/api/capacities')->assertStatus(401);
     }

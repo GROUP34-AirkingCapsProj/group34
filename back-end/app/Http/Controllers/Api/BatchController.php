@@ -15,9 +15,9 @@ use App\Models\SaleDetail;
 use App\Models\IssuanceDetail;
 use App\Models\CategoryLookup;
 use App\Models\BrandLookup;
-use App\Models\UnitLookup;
 use App\Http\Controllers\Api\CategoryLookupController;
 use App\Http\Controllers\Api\BrandLookupController;
+use App\Http\Controllers\Api\UnitLookupController;
 use App\Http\Controllers\Api\CapacityLookupController;
 use App\Http\Controllers\Api\VariantLookupController;
 use App\Http\Controllers\Api\IssuableUnitPresetController;
@@ -272,16 +272,31 @@ class BatchController extends Controller
         }
 
         if (in_array('units', $parts)) {
-            $data['units'] = [
-                'success' => true,
-                'data'    => UnitLookup::orderBy('unit_name')->get(),
-            ];
+            try {
+                $data['units'] = json_decode(
+                    app(UnitLookupController::class)->index(new Request())->getContent(), true
+                );
+            } catch (\Throwable $e) {
+                $data['units'] = ['success' => false, 'message' => $e->getMessage()];
+            }
         }
 
+        // capacities/variants/issuable_unit_presets deliberately get a fresh,
+        // empty Request rather than the live $request: capacity and variant
+        // inherit ScopesLookupsToCategory::lookupIndexFilters(), which
+        // filters on a `category_id` query param. If the live $request were
+        // passed through, a caller hitting /api/batch?...&category_id=5 for
+        // some unrelated reason would silently narrow these two includes to
+        // one category's rows (plus globals) while every other include on
+        // this endpoint ignored that same param — an inconsistency a
+        // frontend bootstrapping its full lookup set from batch would not
+        // expect. A batch include always means "everything"; per-category
+        // narrowing belongs on the dedicated /api/capacities and
+        // /api/variants endpoints, not here.
         if (in_array('capacities', $parts)) {
             try {
                 $data['capacities'] = json_decode(
-                    app(CapacityLookupController::class)->index($request)->getContent(), true
+                    app(CapacityLookupController::class)->index(new Request())->getContent(), true
                 );
             } catch (\Throwable $e) {
                 $data['capacities'] = ['success' => false, 'message' => $e->getMessage()];
@@ -291,7 +306,7 @@ class BatchController extends Controller
         if (in_array('variants', $parts)) {
             try {
                 $data['variants'] = json_decode(
-                    app(VariantLookupController::class)->index($request)->getContent(), true
+                    app(VariantLookupController::class)->index(new Request())->getContent(), true
                 );
             } catch (\Throwable $e) {
                 $data['variants'] = ['success' => false, 'message' => $e->getMessage()];
@@ -301,7 +316,7 @@ class BatchController extends Controller
         if (in_array('issuable_unit_presets', $parts)) {
             try {
                 $data['issuable_unit_presets'] = json_decode(
-                    app(IssuableUnitPresetController::class)->index($request)->getContent(), true
+                    app(IssuableUnitPresetController::class)->index(new Request())->getContent(), true
                 );
             } catch (\Throwable $e) {
                 $data['issuable_unit_presets'] = ['success' => false, 'message' => $e->getMessage()];
