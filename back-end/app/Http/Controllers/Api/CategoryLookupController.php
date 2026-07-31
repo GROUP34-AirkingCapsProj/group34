@@ -36,6 +36,12 @@ use Illuminate\Http\Request;
  * this codebase (see HandlesLookupCrud's own docblock) — the fix, if these
  * four should ever delegate to the trait, is to simply delete them from this
  * class body, not to call parent::.
+ *
+ * store()/show()/update()/destroy() stay separate methods (for the 23000
+ * duplicate-name catch below, and destroy()'s own delete), but each now
+ * routes its row through $this->transformRow() / reports the same
+ * {usage_count} shape as the trait's destroy() — so the response SHAPE
+ * matches capacity/variant/preset/unit even though the method bodies don't.
  */
 class CategoryLookupController extends Controller
 {
@@ -153,14 +159,14 @@ class CategoryLookupController extends Controller
             return $this->validationError(['category_name' => ['The category name has already been taken.']]);
         }
 
-        return $this->success($cat, 'Category created', 201);
+        return $this->success($this->transformRow($cat), 'Category created', 201);
     }
 
     public function show($category)
     {
         $cat = CategoryLookup::find($category);
         if (!$cat) return $this->notFound('Category not found');
-        return $this->success($cat);
+        return $this->success($this->transformRow($cat));
     }
 
     public function update(Request $request, $category)
@@ -179,15 +185,30 @@ class CategoryLookupController extends Controller
             return $this->validationError(['category_name' => ['The category name has already been taken.']]);
         }
 
-        return $this->success($cat, 'Category updated');
+        return $this->success($this->transformRow($cat), 'Category updated');
     }
 
+    /**
+     * Returns the same {usage_count} payload shape as
+     * HandlesLookupCrud::destroy() (see that method's docblock) so a shared
+     * frontend toast can read `data.usage_count` uniformly across all six
+     * lookups. Archiving stays permitted regardless of usage — usage_count
+     * here is informational only, same as the trait.
+     */
     public function destroy($category)
     {
         $cat = CategoryLookup::find($category);
         if (!$cat) return $this->notFound('Category not found');
+
+        $usage = $this->usageCountFor($cat);
         $cat->delete();
-        return $this->success(null, 'Category archived');
+
+        return $this->success(
+            ['usage_count' => $usage],
+            $usage > 0
+                ? "Category archived (still used by {$usage} items)"
+                : 'Category archived'
+        );
     }
 
     protected function lookupModel(): string

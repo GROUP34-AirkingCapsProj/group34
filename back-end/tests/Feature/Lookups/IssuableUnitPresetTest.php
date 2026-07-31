@@ -168,6 +168,42 @@ class IssuableUnitPresetTest extends LookupTestCase
         $response->assertJsonPath('data.unit.unit_name', $unit->unit_name);
     }
 
+    /**
+     * store()/update() call ->fresh($this->lookupEagerLoads()), not a bare
+     * ->fresh() — Model::fresh() defaults to loading no relations at all, so
+     * a bare call would come back without `unit` even though index()/show()/
+     * archived() always include it (they all route through
+     * lookupEagerLoads() too). A frontend splicing a create/update response
+     * straight into its list would blank the Unit column until a refetch;
+     * this pins that the write responses already carry it.
+     */
+    public function test_create_and_update_responses_carry_the_nested_unit(): void
+    {
+        $this->actingAsAdmin();
+        $unit = $this->unit();
+        $label = $this->uniqueValue();
+
+        $createResponse = $this->postJson('/api/issuable-unit-presets', [
+            'label'   => $label,
+            'unit_id' => $unit->unit_id,
+        ]);
+
+        $createResponse->assertStatus(201);
+        $createResponse->assertJsonPath('data.unit.unit_id', $unit->unit_id);
+        $createResponse->assertJsonPath('data.unit.unit_name', $unit->unit_name);
+
+        $presetId = $createResponse->json('data.preset_id');
+        $otherUnit = $this->unit();
+
+        $updateResponse = $this->putJson("/api/issuable-unit-presets/{$presetId}", [
+            'unit_id' => $otherUnit->unit_id,
+        ]);
+
+        $updateResponse->assertStatus(200);
+        $updateResponse->assertJsonPath('data.unit.unit_id', $otherUnit->unit_id);
+        $updateResponse->assertJsonPath('data.unit.unit_name', $otherUnit->unit_name);
+    }
+
     public function test_renaming_a_preset_does_not_touch_product_rows(): void
     {
         $this->actingAsAdmin();

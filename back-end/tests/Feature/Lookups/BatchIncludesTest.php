@@ -8,10 +8,18 @@ use App\Models\UnitLookup;
  * Covers the three new lookup includes on /api/batch — capacities, variants
  * and issuable_unit_presets — added alongside the existing categories,
  * brands and units includes. Also pins that a warehouse_personnel user (who
- * has none of the lookup_management verbs) can use these includes: /api/batch
- * carries no permission: middleware and calls each include's controller
- * index() directly in PHP, so route middleware never runs for it — this is
- * only safe because Part 1 of this task ungated all six lookup reads.
+ * has none of the lookup_management verbs) can use these includes.
+ *
+ * That is reachable by construction, not merely "safe": /api/batch carries
+ * no permission: route middleware at all, and calls each include's
+ * controller index() directly in PHP rather than dispatching through the
+ * router, so route-level permission: middleware never runs for anything
+ * included here regardless of whether the underlying GET route is gated —
+ * this test would pass even if capacities'/variants'/presets' own routes
+ * were permission-gated. For the actual route-level proof that those GETs
+ * are ungated (i.e. that hitting them directly, through the router, also
+ * succeeds for a role with none of the lookup_management verbs), see
+ * LookupRouteAccessTest.
  */
 class BatchIncludesTest extends LookupTestCase
 {
@@ -106,5 +114,65 @@ class BatchIncludesTest extends LookupTestCase
         $response->assertJsonPath('data.capacities.success', true);
         $response->assertJsonPath('data.variants.success', true);
         $response->assertJsonPath('data.issuable_unit_presets.success', true);
+    }
+
+    /**
+     * capacity/variant inherit ScopesLookupsToCategory::lookupIndexFilters(),
+     * which filters by `category_id` on the dedicated /api/capacities and
+     * /api/variants endpoints. BatchController must NOT let a stray
+     * `category_id` query param on /api/batch itself narrow this include —
+     * every other include on this endpoint ignores that param, and a page
+     * bootstrapping its full lookup set from batch needs the complete list,
+     * not one category's slice. Proven by creating a capacity scoped to a
+     * DIFFERENT category than the one named in the query string and
+     * asserting it still comes back.
+     */
+    public function test_batch_capacities_include_ignores_the_category_id_query_param(): void
+    {
+        $this->actingAsAdmin();
+
+        $categoryA = $this->category();
+        $categoryB = $this->category();
+
+        $valueInOtherCategory = $this->uniqueValue();
+        $this->postJson('/api/capacities', [
+            'capacity_value' => $valueInOtherCategory,
+            'category_id'    => $categoryB->category_id,
+        ])->assertStatus(201);
+
+        $response = $this->getJson("/api/batch?include=capacities&category_id={$categoryA->category_id}")
+            ->assertStatus(200);
+
+        $values = collect($response->json('data.capacities.data'))->pluck('capacity_value');
+        $this->assertTrue(
+            $values->contains($valueInOtherCategory),
+            'batch capacities include must return every capacity, not just category A\'s'
+        );
+    }
+
+    /**
+     * BatchController's `units` include used to return raw UnitLookup models
+     * built from a bare query, bypassing UnitLookupController::index() — so
+     * it carried no usage_count while every other lookup's batch include
+     * (which routes through its controller) did. Now it goes through
+     * UnitLookupController::index() like the rest, so usage_count must be
+     * present here too.
+     */
+    public function test_batch_units_include_carries_usage_count(): void
+    {
+        $this->actingAsAdmin();
+
+        UnitLookup::create([
+            'unit_name'         => 'Unit ' . uniqid(),
+            'unit_abbreviation' => null,
+        ]);
+
+        $response = $this->getJson('/api/batch?include=units')
+            ->assertStatus(200)
+            ->assertJsonPath('data.units.success', true);
+
+        $rows = collect($response->json('data.units.data'));
+        $this->assertTrue($rows->isNotEmpty());
+        $this->assertArrayHasKey('usage_count', $rows->first());
     }
 }

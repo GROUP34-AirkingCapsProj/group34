@@ -202,7 +202,7 @@ trait HandlesLookupCrud
         $row = $model::create($validated);
 
         return $this->success(
-            $this->transformRow($row->fresh() ?? $row),
+            $this->transformRow($row->fresh($this->lookupEagerLoads()) ?? $row),
             $this->lookupLabel() . ' created',
             201
         );
@@ -238,7 +238,7 @@ trait HandlesLookupCrud
         });
 
         return $this->success(
-            $this->transformRow($row->fresh() ?? $row),
+            $this->transformRow($row->fresh($this->lookupEagerLoads()) ?? $row),
             $cascaded > 0
                 ? $this->lookupLabel() . " updated ({$cascaded} items updated)"
                 : $this->lookupLabel() . ' updated'
@@ -317,7 +317,7 @@ trait HandlesLookupCrud
 
         $row->restore();
 
-        return $this->success($this->transformRow($row->fresh() ?? $row), $this->lookupLabel() . ' restored');
+        return $this->success($this->transformRow($row->fresh($this->lookupEagerLoads()) ?? $row), $this->lookupLabel() . ' restored');
     }
 
     public function forceDestroy($id)
