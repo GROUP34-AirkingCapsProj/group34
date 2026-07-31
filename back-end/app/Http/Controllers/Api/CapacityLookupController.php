@@ -18,6 +18,7 @@ class CapacityLookupController extends Controller
     use HandlesLookupCrud;
     use ScopesLookupsToCategory {
         ScopesLookupsToCategory::lookupIndexFilters insteadof HandlesLookupCrud;
+        ScopesLookupsToCategory::lookupUniqueRule insteadof HandlesLookupCrud;
     }
 
     public function __construct(private LookupRenameService $renamer)
@@ -67,7 +68,7 @@ class CapacityLookupController extends Controller
 
     protected function lookupRules(Request $request, $id = null): array
     {
-        $unique = $this->categoryScopedUniqueRule($request, $id);
+        $unique = $this->lookupUniqueRule($request, $id);
 
         return [
             'capacity_value' => [

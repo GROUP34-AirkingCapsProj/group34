@@ -7,6 +7,8 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 
 /**
  * The eight CRUD actions every lookup shares, plus merge.
@@ -45,6 +47,31 @@ trait HandlesLookupCrud
     }
 
     /**
+     * The configured Unique rule for this lookup's name column: unique
+     * among non-archived rows (deleted_at is null), ignoring this row's own
+     * primary key on update. Table, primary key and column all come from
+     * lookupModel()/lookupNameColumn(), so a controller never re-pastes
+     * those three literals into its own lookupRules().
+     *
+     * Override this (see ScopesLookupsToCategory::lookupUniqueRule()) for a
+     * lookup whose uniqueness is additionally scoped by another column.
+     */
+    protected function lookupUniqueRule(Request $request, $id = null): Unique
+    {
+        $modelClass = $this->lookupModel();
+        $model = new $modelClass();
+
+        $unique = Rule::unique($model->getTable(), $this->lookupNameColumn())
+            ->whereNull('deleted_at');
+
+        if ($id !== null) {
+            $unique->ignore($id, $model->getKeyName());
+        }
+
+        return $unique;
+    }
+
+    /**
      * Called inside the update transaction when the name column changed, and
      * inside the merge transaction to repoint the source's rows onto the
      * target's name. Return the number of product rows repointed.
@@ -76,11 +103,26 @@ trait HandlesLookupCrud
         return [$this->lookupNameColumn()];
     }
 
+    /**
+     * Relations to eager-load on responses that return this lookup's rows
+     * (index, archived and show). Empty by default. Override in a
+     * controller whose model has a relation worth exposing (e.g. an
+     * issuable-unit preset's unit) — one seam keeps that relation present in
+     * every response shape instead of only the ones a subclass remembered to
+     * touch.
+     *
+     * @return array<int,string>
+     */
+    protected function lookupEagerLoads(): array
+    {
+        return [];
+    }
+
     /** Base listing query. Override lookupIndexFilters() to add filtering (e.g. by category). */
     protected function lookupIndexQuery(Request $request)
     {
         $model = $this->lookupModel();
-        $query = $model::query();
+        $query = $model::query()->with($this->lookupEagerLoads());
 
         foreach ($this->lookupOrderColumns() as $column) {
             $query->orderBy($column);
@@ -105,7 +147,7 @@ trait HandlesLookupCrud
     protected function lookupArchivedQuery(Request $request)
     {
         $model = $this->lookupModel();
-        $query = $model::onlyTrashed()->orderBy('deleted_at', 'desc');
+        $query = $model::onlyTrashed()->with($this->lookupEagerLoads())->orderBy('deleted_at', 'desc');
 
         $this->lookupArchivedFilters($request, $query);
 
@@ -143,7 +185,7 @@ trait HandlesLookupCrud
     public function show($id)
     {
         $model = $this->lookupModel();
-        $row = $model::find($id);
+        $row = $model::with($this->lookupEagerLoads())->find($id);
 
         if (! $row) {
             return $this->notFound($this->lookupLabel() . ' not found');

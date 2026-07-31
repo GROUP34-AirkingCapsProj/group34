@@ -9,7 +9,6 @@ use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 /**
  * A preset is a reusable template (label + base unit + default conversion
@@ -54,19 +53,15 @@ class IssuableUnitPresetController extends Controller
         return ['sort_order', 'label'];
     }
 
-    /** Eager-load the unit relation; ordering still comes from the trait. */
-    protected function lookupIndexQuery(Request $request)
+    /** @return array<int,string> */
+    protected function lookupEagerLoads(): array
     {
-        return parent::lookupIndexQuery($request)->with('unit');
+        return ['unit'];
     }
 
     protected function lookupRules(Request $request, $id = null): array
     {
-        $unique = Rule::unique('issuable_unit_preset', 'label')->whereNull('deleted_at');
-
-        if ($id !== null) {
-            $unique->ignore($id, 'preset_id');
-        }
+        $unique = $this->lookupUniqueRule($request, $id);
 
         return [
             'label' => [
@@ -80,10 +75,15 @@ class IssuableUnitPresetController extends Controller
                 'integer',
                 'exists:unit_lookup,unit_id',
             ],
-            // The column is decimal(10,6); zero or negative would define an
-            // issuable unit that deducts nothing (or adds stock) from
-            // inventory, so the floor sits just above zero rather than at it.
-            'default_conversion_factor' => 'sometimes|numeric|min:0.000001',
+            // The column is decimal(10,6), max 9999.999999. Zero or negative
+            // would define an issuable unit that deducts nothing (or adds
+            // stock) from inventory, so the floor sits just above zero
+            // rather than at it. decimal:0,6 caps the fractional part so no
+            // value rounds UP into overflow (e.g. 9999.9999995 would
+            // otherwise round to 10000.000000 on write), and lt:10000 bounds
+            // the integer part; between them a value that fits the column's
+            // range never reaches MySQL only to raise SQLSTATE 22003.
+            'default_conversion_factor' => 'sometimes|numeric|decimal:0,6|min:0.000001|lt:10000',
             'is_whole_package'          => 'sometimes|boolean',
             'description'               => 'nullable|string',
             // 'sometimes', not 'nullable': the column is a NOT NULL

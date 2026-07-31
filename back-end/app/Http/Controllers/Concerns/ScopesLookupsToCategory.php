@@ -48,8 +48,9 @@ trait ScopesLookupsToCategory
     }
 
     /**
-     * The configured Unique rule for this lookup's name column, scoped to
-     * the category the row belongs (or will belong) to.
+     * Overrides HandlesLookupCrud::lookupUniqueRule(): the configured Unique
+     * rule for this lookup's name column, scoped to the category the row
+     * belongs (or will belong) to.
      *
      * The category to validate against must come from the request only when
      * the request actually sent the key. On a PUT that renames the value
@@ -61,7 +62,7 @@ trait ScopesLookupsToCategory
      * (letting a duplicate through) or collide with an unrelated global row
      * (rejecting a valid rename).
      */
-    protected function categoryScopedUniqueRule(Request $request, $id = null): Unique
+    protected function lookupUniqueRule(Request $request, $id = null): Unique
     {
         $modelClass = $this->lookupModel();
         $model = new $modelClass();
