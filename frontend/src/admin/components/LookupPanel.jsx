@@ -97,32 +97,55 @@ export default function LookupPanel({ config, categories = [], units = [], permi
   const [form, setForm] = useState(() => buildEmptyForm(config));
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchRows = useCallback(async () => {
+  // `isCancelled` lets a caller opt this fetch out of updating state once it
+  // resolves. Manual refreshes (after create/update/archive/restore/merge)
+  // call fetchRows() with no argument, so they always default to "never
+  // cancelled" and behave exactly as before.
+  const fetchRows = useCallback(async (isCancelled = () => false) => {
     try {
       setLoading(true);
       const [activeRes, archivedRes] = await Promise.all([
         config.api.getAll(),
         config.api.getArchived(),
       ]);
+      if (isCancelled()) return;
       setActiveRows(Array.isArray(activeRes?.data) ? activeRes.data : []);
       setArchivedRows(Array.isArray(archivedRes?.data) ? archivedRes.data : []);
       setError(null);
     } catch (err) {
+      if (isCancelled()) return;
       setError(err.message || 'Failed to load data.');
       setActiveRows([]);
       setArchivedRows([]);
     } finally {
-      setLoading(false);
+      if (!isCancelled()) setLoading(false);
     }
   }, [config]);
 
   // Reset transient UI and reload whenever the lookup being shown changes.
+  //
+  // Guarded against stale in-flight requests: fetchRows is re-invoked on
+  // every `config` change, but nothing stops an earlier request from
+  // resolving after a later one. E.g. the user clicks Categories then
+  // quickly Brands — if the Categories response lands last, an unguarded
+  // setActiveRows would put Category rows into state while `config` is
+  // already Brands, so the table would render Brands columns over Category
+  // rows, and clicking Edit would call config.api.update(row[config.idField], ...)
+  // with a Brands idField ('brand_id') against a Category row that doesn't
+  // have one — PUT /api/brands/undefined, or a genuinely wrong record if the
+  // shapes happen to overlap. The `cancelled` flag below skips every
+  // setActiveRows/setArchivedRows/setError/setLoading call belonging to a
+  // superseded request. Do not remove this guard to "simplify" the effect.
   useEffect(() => {
+    let cancelled = false;
     setSearch('');
     setShowArchived(false);
     setModalOpen(false);
     setEditingRow(null);
-    fetchRows();
+    fetchRows(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
   }, [config, fetchRows]);
 
   const openAdd = () => {
@@ -366,9 +389,9 @@ export default function LookupPanel({ config, categories = [], units = [], permi
     return String(raw);
   };
 
-  // usage_count already has a dedicated "Used by" column below; drop it from
-  // config.columns to avoid rendering it twice.
-  const displayColumns = config.columns.filter((c) => c.key !== 'usage_count');
+  // usage_count is rendered via the dedicated "Used by" column below;
+  // config.columns must never list it (see lookupConfigs.js header comment).
+  const displayColumns = config.columns;
 
   const rows = showArchived ? archivedRows : activeRows;
   const filteredRows = rows.filter((r) => {
