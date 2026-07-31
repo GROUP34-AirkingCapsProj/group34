@@ -16,7 +16,7 @@ export const EXTRA_FEATURES_BY_ROUTE = {
   '/admin/purchase-requests':   ['purchase_request_approval', 'po_recommendations'],
   '/admin/suppliers':           ['item_supplier_mapping'],
   '/admin/items':               ['barcode_assignment'],
-  '/admin/categories':          ['brand_management'],
+  '/admin/categories':          ['category_management', 'brand_management'],
   '/admin/transactions':        ['delivery_receipt_generation'],
   '/admin/inventory-operation': ['delivery_receiving', 'inventory_issuance', 'inventory_adjustments'],
   '/admin/warranties':          ['warranty_claims'],

@@ -12,7 +12,7 @@ export const NAV_BUNDLES = [
   { name: 'Purchase Orders',       routePath: '/admin/draft-po-creator', required: ['purchase_order_creation.read'] },
   { name: 'Supplier Network',      routePath: '/admin/suppliers',        required: ['supplier_management.read'] },
   { name: 'Item Master',           routePath: '/admin/items',            required: ['item_master_management.read'] },
-  { name: 'Categories and Brands', routePath: '/admin/categories',       required: ['category_management.read'] },
+  { name: 'Item Lookups',          routePath: '/admin/categories',       required: ['lookup_management.read'] },
   { name: 'Set Management',        routePath: '/admin/sets',             required: ['product_set_management.read'] },
   { name: 'Inventory Monitoring',  routePath: '/admin/inventory',        required: ['inventory_monitoring.read'] },
   { name: 'Transfers',             routePath: '/admin/transfers',        required: ['inventory_transfers.read'] },
