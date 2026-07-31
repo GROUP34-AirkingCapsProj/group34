@@ -280,14 +280,26 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: UNIT LOOKUP (unit_lookup)
     |--------------------------------------------------------------------------
     */
-    // Units, categories and brands deliberately leave their GETs ungated
-    // (unlike capacities/variants/presets, which wrap theirs in
-    // permission:lookup_management,read): these three feed pickers used
-    // app-wide by any authenticated user — ProductRegisterModal,
-    // BarcodeScan, OrderBuilder, InventoryManagement,
-    // BudgetManagementPage, SetManagementPage — and gating the reads would
-    // break those. Writes are NOT all implemented on the same key: capacities,
-    // variants, presets and units gate create/update/archive on
+    // All six item-master lookups (units, categories, brands, capacities,
+    // variants, issuable-unit-presets) leave their GETs ungated for any
+    // authenticated user: they are classification vocabularies feeding
+    // pickers used app-wide — ProductRegisterModal, BarcodeScan,
+    // OrderBuilder, InventoryManagement, BudgetManagementPage,
+    // SetManagementPage — not sensitive records. In particular,
+    // ProductRegisterModal (rendered from BarcodeScan.jsx, gated on
+    // barcode_inventory_processing.create — admin, branch_manager,
+    // warehouse_personnel) uses strict capacity/variant dropdowns, while
+    // lookup_management.read only grants admin, inventory_analyst, auditor.
+    // Those role sets overlap only on admin, so gating these reads would
+    // leave warehouse/branch users with empty dropdowns and unable to
+    // register an appliance. The unified Item Lookups admin page itself is
+    // still gated at the nav/route level on lookup_management.read — do NOT
+    // re-add a permission: middleware to any of these six GET routes "for
+    // consistency"; that re-breaks registration for two of the three roles
+    // that need it.
+    //
+    // Writes are NOT all implemented on the same key: capacities, variants,
+    // presets and units gate create/update/archive on
     // permission:lookup_management, while categories and brands deliberately
     // keep their own long-standing category_management / brand_management
     // keys so nobody's effective access changed when this page shipped.
@@ -313,12 +325,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     /* ---------------------------------------------------------------
      | Capacities (Item Lookups page - Appliance tab)
      | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     | Reads are deliberately ungated — see the comment above the
+     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
+     | mismatch).
      * ------------------------------------------------------------- */
-    Route::middleware('permission:lookup_management,read')->group(function () {
-        Route::get('/capacities/archived', [CapacityLookupController::class, 'archived']);
-        Route::get('/capacities', [CapacityLookupController::class, 'index']);
-        Route::get('/capacities/{id}', [CapacityLookupController::class, 'show']);
-    });
+    Route::get('/capacities/archived', [CapacityLookupController::class, 'archived']);
+    Route::get('/capacities', [CapacityLookupController::class, 'index']);
+    Route::get('/capacities/{id}', [CapacityLookupController::class, 'show']);
     Route::middleware('permission:lookup_management,create')
         ->post('/capacities', [CapacityLookupController::class, 'store']);
     Route::middleware('permission:lookup_management,update')
@@ -335,12 +348,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     /* ---------------------------------------------------------------
      | Variants (Item Lookups page - Appliance tab)
      | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     | Reads are deliberately ungated — see the comment above the
+     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
+     | mismatch).
      * ------------------------------------------------------------- */
-    Route::middleware('permission:lookup_management,read')->group(function () {
-        Route::get('/variants/archived', [VariantLookupController::class, 'archived']);
-        Route::get('/variants', [VariantLookupController::class, 'index']);
-        Route::get('/variants/{id}', [VariantLookupController::class, 'show']);
-    });
+    Route::get('/variants/archived', [VariantLookupController::class, 'archived']);
+    Route::get('/variants', [VariantLookupController::class, 'index']);
+    Route::get('/variants/{id}', [VariantLookupController::class, 'show']);
     Route::middleware('permission:lookup_management,create')
         ->post('/variants', [VariantLookupController::class, 'store']);
     Route::middleware('permission:lookup_management,update')
@@ -360,12 +374,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
      | No /merge route: a preset is a template, not the owner of
      | product_issuable_units.label, so there is nothing to fold two
      | presets' product rows into (see IssuableUnitPresetController).
+     | Reads are deliberately ungated — see the comment above the
+     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
+     | mismatch).
      * ------------------------------------------------------------- */
-    Route::middleware('permission:lookup_management,read')->group(function () {
-        Route::get('/issuable-unit-presets/archived', [IssuableUnitPresetController::class, 'archived']);
-        Route::get('/issuable-unit-presets', [IssuableUnitPresetController::class, 'index']);
-        Route::get('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'show']);
-    });
+    Route::get('/issuable-unit-presets/archived', [IssuableUnitPresetController::class, 'archived']);
+    Route::get('/issuable-unit-presets', [IssuableUnitPresetController::class, 'index']);
+    Route::get('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'show']);
     Route::middleware('permission:lookup_management,create')
         ->post('/issuable-unit-presets', [IssuableUnitPresetController::class, 'store']);
     Route::middleware('permission:lookup_management,update')
