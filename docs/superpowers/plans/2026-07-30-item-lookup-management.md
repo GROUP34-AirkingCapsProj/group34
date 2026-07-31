@@ -18,6 +18,14 @@ Note that both traits declare `lookupIndexFilters`, so a consuming controller ne
 
 ---
 
+## The six lookups are not gated by one permission key, and that is deliberate
+
+Two asymmetries a future refactor will be tempted to "tidy away". Both are correct; `LookupRouteAccessTest` exists to make them enforceable.
+
+**Reads.** `/capacities`, `/variants`, `/issuable-unit-presets` gate reads on `permission:lookup_management,read`. `/units`, `/categories`, `/brands` deliberately do **not** — they feed pickers in `ProductRegisterModal`, `BarcodeScan`, `OrderBuilder`, `InventoryManagement`, `BudgetManagementPage` and `SetManagementPage`. Gating them breaks half the app.
+
+**Writes.** Capacities, variants, presets and units gate on `lookup_management`. Categories and brands keep `category_management` / `brand_management`, per the spec's decision to retain the old keys so effective access is unchanged. The two matrices grant identical role sets for create/update/archive, so all six behave the same to a user despite being implemented with different keys — that equivalence is the invariant worth testing, not which key does it.
+
 ## Schema fact that bit twice — the six lookups are NOT uniform
 
 `category_lookup.category_name` and `brand_lookup.brand_name` carry **real DB UNIQUE indexes**, and those indexes are not scoped by `deleted_at`. `capacity_lookup`, `variant_lookup`, `unit_lookup` and `issuable_unit_preset` have no such constraint — their uniqueness is enforced only in validation.
