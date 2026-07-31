@@ -1,10 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import Barcode from 'react-barcode';
-import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI } from '../services/api';
+import {
+  productsAPI,
+  categoriesAPI,
+  brandsAPI,
+  unitsAPI,
+  batchAPI,
+  statusAPI,
+  capacitiesAPI,
+  variantsAPI,
+  issuableUnitPresetsAPI,
+} from '../services/api';
 import { toast } from '../utils/toast';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
@@ -15,6 +25,17 @@ import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/item_management.css';
 import '../styles/archive_management.css';
+
+/**
+ * A lookup row applies to a category when its category_id matches the
+ * selected category, or is null (null means "applies to every category").
+ * After the data backfill, nearly every capacity row is category_id=1;
+ * every other category is populated entirely by the null rows. Dropping the
+ * null arm here would make the dropdown render empty for every category but
+ * one. Mirrors ProductRegisterModal's rowAppliesToCategory.
+ */
+const rowAppliesToCategory = (row, catId) =>
+  row.category_id === null || row.category_id === undefined || Number(row.category_id) === catId;
 
 const ItemManagement = () => {
   const { user, can } = useAuth();
@@ -47,6 +68,9 @@ const ItemManagement = () => {
   const [brands, setBrands] = useState([]);
   const [units, setUnits] = useState([]);
   const [statuses, setStatuses] = useState([]);
+  const [capacities, setCapacities] = useState([]);
+  const [variants, setVariants] = useState([]);
+  const [issuableUnitPresets, setIssuableUnitPresets] = useState([]);
   const [issuableUnits, setIssuableUnits] = useState([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddBrandOpen, setIsAddBrandOpen] = useState(false);
@@ -83,21 +107,27 @@ const ItemManagement = () => {
 
   const fetchLookups = useCallback(async () => {
     try {
-      const batchRes = await batchAPI.get({ include: ['categories', 'brands', 'units'] });
+      const batchRes = await batchAPI.get({ include: ['categories', 'brands', 'units', 'capacities', 'variants'] });
       const batchData = batchRes?.data || {};
       setCategories(Array.isArray(batchData.categories?.data) ? batchData.categories.data : []);
       setBrands(Array.isArray(batchData.brands?.data) ? batchData.brands.data : []);
       setUnits(Array.isArray(batchData.units?.data) ? batchData.units.data : []);
+      setCapacities(Array.isArray(batchData.capacities?.data) ? batchData.capacities.data : []);
+      setVariants(Array.isArray(batchData.variants?.data) ? batchData.variants.data : []);
     } catch (err) {
       console.error('Failed to fetch lookups via batch:', err);
       try {
-        const [catRes, brandRes, unitsRes] = await Promise.all([
+        const [catRes, brandRes, unitsRes, capRes, varRes] = await Promise.all([
           categoriesAPI.getAll(),
           brandsAPI.getAll(),
           unitsAPI.getAll(),
+          capacitiesAPI.getAll(),
+          variantsAPI.getAll(),
         ]);
         setCategories(Array.isArray(catRes?.data) ? catRes.data : []);
         setBrands(Array.isArray(brandRes?.data) ? brandRes.data : []);
+        setCapacities(Array.isArray(capRes?.data) ? capRes.data : []);
+        setVariants(Array.isArray(varRes?.data) ? varRes.data : []);
         setUnits(Array.isArray(unitsRes?.data) ? unitsRes.data : []);
       } catch (fallbackErr) {
         console.error('Fallback fetch also failed:', fallbackErr);
@@ -111,6 +141,14 @@ const ItemManagement = () => {
     } catch (statusErr) {
       console.error('Failed to fetch statuses:', statusErr);
       setStatuses([]);
+    }
+    // Issuable unit presets — used as a shortcut when adding an issuable unit row.
+    try {
+      const presetRes = await issuableUnitPresetsAPI.getAll();
+      setIssuableUnitPresets(Array.isArray(presetRes?.data) ? presetRes.data : []);
+    } catch (presetErr) {
+      console.error('Failed to fetch issuable unit presets:', presetErr);
+      setIssuableUnitPresets([]);
     }
   }, []);
 
@@ -410,6 +448,28 @@ const ItemManagement = () => {
     }]);
   };
 
+  /**
+   * Seed a new issuable-unit row from a preset. Values are COPIED, not
+   * linked: the row becomes an independently editable product setting from
+   * this point on. The backend deliberately does not cascade preset
+   * renames/updates into products that already have their own row, so
+   * later edits to the preset (or edits to this row) must not reach back
+   * into each other.
+   */
+  const handleAddIssuableUnitFromPreset = (presetId) => {
+    const preset = issuableUnitPresets.find((p) => String(p.preset_id) === String(presetId));
+    if (!preset) return;
+    setIssuableUnits(prev => [...prev, {
+      issuable_unit_id:    null,
+      unit_id:             preset.unit_id ?? preset.unit?.unit_id ?? '',
+      label:               preset.label || '',
+      conversion_factor:   preset.default_conversion_factor ?? 1,
+      is_whole_package:    Boolean(preset.is_whole_package),
+      show_as_quick_action: true,
+      sort_order:          prev.length,
+    }]);
+  };
+
   const updateIssuableUnit = (idx, field, value) => {
     setIssuableUnits(prev => prev.map((iu, i) =>
       i === idx ? { ...iu, [field]: value } : iu
@@ -546,6 +606,55 @@ const ItemManagement = () => {
     const name = (cat.category_name || '').toLowerCase();
     return name.includes('refrigerator') || name.includes('aircon') || name.includes('air conditioning');
   };
+
+  /** Filtered capacity options, plus the item's current value if it would otherwise be dropped. */
+  const filteredCapacities = useMemo(() => {
+    const catId = formData.category_id ? Number(formData.category_id) : null;
+    const base = capacities.filter((c) => rowAppliesToCategory(c, catId));
+    const current = formData.capacity_rating;
+    if (current && !base.some((c) => c.capacity_value === current)) {
+      return [...base, { capacity_id: `__current-${current}`, capacity_value: current, __archived: true }];
+    }
+    return base;
+  }, [capacities, formData.category_id, formData.capacity_rating]);
+
+  /** Filtered variant options, plus the item's current value if it would otherwise be dropped. */
+  const filteredVariants = useMemo(() => {
+    const catId = formData.category_id ? Number(formData.category_id) : null;
+    const base = variants.filter((v) => rowAppliesToCategory(v, catId));
+    const current = formData.variant;
+    if (current && !base.some((v) => v.variant_name === current)) {
+      return [...base, { variant_id: `__current-${current}`, variant_name: current, __archived: true }];
+    }
+    return base;
+  }, [variants, formData.category_id, formData.variant]);
+
+  /**
+   * When the selected appliance category changes (or the lookup lists
+   * finish loading), drop a capacity/variant that no longer applies to it
+   * rather than silently submitting a value from another category. Never
+   * clear without telling the user why. Mirrors ProductRegisterModal.
+   */
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const catId = formData.category_id ? Number(formData.category_id) : null;
+    setFormData((f) => {
+      let next = f;
+      let clearedCapacity = false;
+      let clearedVariant = false;
+      if (f.capacity_rating && !capacities.some((c) => c.capacity_value === f.capacity_rating && rowAppliesToCategory(c, catId))) {
+        next = { ...next, capacity_rating: '' };
+        clearedCapacity = true;
+      }
+      if (f.variant && !variants.some((v) => v.variant_name === f.variant && rowAppliesToCategory(v, catId))) {
+        next = { ...next, variant: '' };
+        clearedVariant = true;
+      }
+      if (clearedCapacity) toast.info('Capacity cleared: not available for the selected category.');
+      if (clearedVariant) toast.info('Variant cleared: not available for the selected category.');
+      return next;
+    });
+  }, [isModalOpen, formData.category_id, capacities, variants]);
 
   // Filtered items (client-side safeguard; backend params are also applied)
   const filteredItems = items.filter(item => {
@@ -1111,12 +1220,11 @@ const ItemManagement = () => {
                       onChange={(e) => setFormData({ ...formData, capacity_rating: e.target.value })}
                     >
                       <option value="">Select Capacity (optional)</option>
-                      <option value="1HP">1HP</option>
-                      <option value="1.5HP">1.5HP</option>
-                      <option value="2HP">2HP</option>
-                      <option value="2.5HP">2.5HP</option>
-                      <option value="3HP">3HP</option>
-                      <option value="5HP">5HP</option>
+                      {filteredCapacities.map((c) => (
+                        <option key={c.capacity_id} value={c.capacity_value}>
+                          {c.__archived ? `${c.capacity_value} (archived)` : c.capacity_value}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1183,12 +1291,17 @@ const ItemManagement = () => {
                 <div className="im-form-row">
                   <div className="im-form-field">
                     <label>VARIANT</label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.variant}
                       onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
-                      placeholder="e.g. Non-Inverter"
-                    />
+                    >
+                      <option value="">Select variant (optional)</option>
+                      {filteredVariants.map((v) => (
+                        <option key={v.variant_id} value={v.variant_name}>
+                          {v.__archived ? `${v.variant_name} (archived)` : v.variant_name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="im-form-field">
                     <label>COLOR</label>
@@ -1458,13 +1571,32 @@ const ItemManagement = () => {
                         Define how this product can be issued. These appear as quick-action buttons during issuance.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      className="issuable-add-btn"
-                      onClick={handleAddIssuableUnit}
-                    >
-                      Add Unit
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      {issuableUnitPresets.length > 0 && (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) handleAddIssuableUnitFromPreset(e.target.value);
+                          }}
+                          className="issuable-unit-select"
+                          aria-label="Add from preset"
+                        >
+                          <option value="">+ Add from preset…</option>
+                          {issuableUnitPresets.map((p) => (
+                            <option key={p.preset_id} value={p.preset_id}>
+                              {p.label} (×{p.default_conversion_factor})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        type="button"
+                        className="issuable-add-btn"
+                        onClick={handleAddIssuableUnit}
+                      >
+                        Add Unit
+                      </button>
+                    </div>
                   </div>
 
                   {issuableUnits.length === 0 ? (
