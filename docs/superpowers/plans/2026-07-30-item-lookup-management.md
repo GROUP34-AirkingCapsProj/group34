@@ -3509,6 +3509,30 @@ git commit -m "feat(lookups): add capacity, variant and preset batch includes"
 
 ---
 
+## Response-shape contract — read before Tasks 15-20
+
+What each lookup's `index()` actually returns, verified against the code after the backend-coherence pass. The generic panel consumes all six, so anything not in this table is a special case that should not exist.
+
+| Lookup | Endpoint | id key | name key | Row keys | Filters | Order |
+|---|---|---|---|---|---|---|
+| Categories | `/api/categories` | `category_id` | `category_name` | + `category_type`, `description`, `items_count`, `total_units`, `total_value`, `avg_price`, `usage_count` | none | name |
+| Brands | `/api/brands` | `brand_id` | `brand_name` | + `description`, `items_count`, `total_units`, `total_value`, `usage_count` | none | name |
+| Units | `/api/units` | `unit_id` | `unit_name` | + `unit_abbreviation`, timestamps, `usage_count` | `?search=` | name |
+| Capacities | `/api/capacities` | `capacity_id` | `capacity_value` | + `category_id`, `description`, `sort_order`, timestamps, `usage_count` | `?category_id=` (own + globals) | `sort_order`, value |
+| Variants | `/api/variants` | `variant_id` | `variant_name` | + `category_id`, `description`, `sort_order`, timestamps, `usage_count` | `?category_id=` (own + globals) | `sort_order`, name |
+| Presets | `/api/issuable-unit-presets` | `preset_id` | `label` | + `unit_id`, `default_conversion_factor` (float), `is_whole_package` (bool), `description`, `sort_order`, timestamps, `usage_count`, nested `unit{}` | none | `sort_order`, label |
+
+**`usage_count` is on all six**, in every response — index, show, store, update, restore, archived. Write responses carry the eager-loaded relation too, so a save response can be spliced into the list without a refetch.
+
+**Four asymmetries the config must encode** (they are deliberate, not bugs):
+
+1. **Only capacities and variants are category-scoped**, and only they expose `/merge`. Presets return 422 from merge by design; categories, brands and units have no merge route at all. The config needs a per-lookup `supportsMerge` flag — it already does.
+2. **Categories and brands change shape between active and archived.** Active rows come from their bespoke aggregate `index()`; archived rows come from the trait and carry timestamps but no aggregates. Any aggregate column will be empty on the archived view for those two. Render `—` rather than special-casing.
+3. **`avg_price` exists on categories only**, not brands. The two bespoke shapes are not the same shape.
+4. **Capacities and variants expose `category_id` but no nested `category`.** The panel resolves the name from the categories list it already holds.
+
+**Batch is deliberately unfiltered.** `/api/batch` passes a fresh `Request` into every lookup include, so `?category_id=` on a batch call does *not* narrow capacities or variants. Per-category narrowing belongs on the dedicated endpoints. Note the include key is snake_case (`issuable_unit_presets`) while the URL is kebab (`/api/issuable-unit-presets`) — carry both in the config rather than deriving one from the other.
+
 ## Task 14: Frontend API modules
 
 **Files:**
