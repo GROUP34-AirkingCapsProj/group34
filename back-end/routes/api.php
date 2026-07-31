@@ -280,12 +280,17 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: UNIT LOOKUP (unit_lookup)
     |--------------------------------------------------------------------------
     */
+    // Units, categories and brands deliberately leave their GETs ungated
+    // (unlike capacities/variants/presets, which wrap theirs in
+    // permission:lookup_management,read): these three feed pickers used
+    // app-wide by any authenticated user — ProductRegisterModal,
+    // BarcodeScan, OrderBuilder, InventoryManagement,
+    // BudgetManagementPage, SetManagementPage — and gating the reads would
+    // break those. Writes ARE unified: all six lookups now gate
+    // create/update/archive on permission:lookup_management.
     Route::get('/units/archived', [UnitLookupController::class, 'archived']);
     Route::get('/units', [UnitLookupController::class, 'index']);
     Route::get('/units/{id}', [UnitLookupController::class, 'show']);
-    // Units now share the lookup_management feature with capacities, variants
-    // and issuable-unit presets — all six Item Lookups controllers are gated
-    // identically.
     Route::middleware('permission:lookup_management,create')
         ->post('/units', [UnitLookupController::class, 'store']);
     Route::middleware('permission:lookup_management,update')

@@ -4037,7 +4037,7 @@ CREATE TABLE `transfer_tracking` (
 CREATE TABLE `unit_lookup` (
   `unit_id` bigint(20) UNSIGNED NOT NULL,
   `unit_name` varchar(50) NOT NULL,
-  `unit_abbreviation` varchar(10) NOT NULL,
+  `unit_abbreviation` varchar(10) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL

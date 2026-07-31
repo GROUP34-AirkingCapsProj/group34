@@ -42,13 +42,17 @@ class UnitLookupController extends Controller
     protected function lookupRules(Request $request, $id = null): array
     {
         return [
+            // Widths mirror the columns exactly (unit_name varchar(50),
+            // unit_abbreviation varchar(10)) so an over-length value is a
+            // clean 422 instead of reaching MySQL and raising SQLSTATE 22001
+            // under strict mode.
             'unit_name' => [
                 $id === null ? 'required' : 'sometimes',
                 'string',
-                'max:100',
+                'max:50',
                 $this->lookupUniqueRule($request, $id),
             ],
-            'unit_abbreviation' => 'nullable|string|max:20',
+            'unit_abbreviation' => 'nullable|string|max:10',
         ];
     }
 

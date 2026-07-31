@@ -9,8 +9,34 @@ use App\Models\BrandLookup;
 use App\Models\Inventory;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
+/**
+ * Partial retrofit onto HandlesLookupCrud (see UnitLookupController for the
+ * full retrofit; capacity/variant/preset/unit all use the trait's CRUD
+ * outright).
+ *
+ * index() is bespoke and stays that way: it returns the
+ * items_count/total_units/total_value aggregate the dashboards and the
+ * Brands admin page consume, which the trait has no hook for.
+ * store()/show()/update()/destroy() are ALSO bespoke, defined in this class
+ * body below — that is a deliberate choice, not an oversight: PHP resolves a
+ * class-body method over a same-named trait method silently, with no
+ * conflict warning, so the trait's store/show/update/destroy are discarded
+ * here in favour of these four. (Confirmed via ReflectionMethod during
+ * review — all four resolve to this file, not the trait.) Only
+ * archived()/restore()/forceDestroy() actually come from HandlesLookupCrud.
+ *
+ * Because these four are intentionally shadowed, `parent::store()` etc. must
+ * NEVER be added to reach the trait's versions — Controller (the actual
+ * parent class) doesn't have them, so parent:: resolves to
+ * App\Http\Controllers\Controller, an empty abstract class, and raises "Call
+ * to undefined method". This exact mistake already shipped a 500 once in
+ * this codebase (see HandlesLookupCrud's own docblock) — the fix, if these
+ * four should ever delegate to the trait, is to simply delete them from this
+ * class body, not to call parent::.
+ */
 class BrandLookupController extends Controller
 {
     use ApiResponse;
@@ -45,16 +71,46 @@ class BrandLookupController extends Controller
                 'items_count' => $itemCount,
                 'total_units' => $totalUnits,
                 'total_value' => round($totalValue, 2),
+                // Equals items_count for brands (both count appliance_details
+                // by brand_id) — included anyway so a generic frontend panel
+                // consuming all six lookup shapes can rely on usage_count
+                // being present everywhere, capacity/variant/preset/unit
+                // included, without a per-lookup shape shim.
+                'usage_count' => $itemCount,
             ];
         });
 
         return $this->success($result->toArray(), 'Brands retrieved');
     }
 
+    /**
+     * brand_lookup.brand_name carries a real DB-level UNIQUE constraint that
+     * is NOT scoped by deleted_at (unlike capacity/variant, whose scope_idx
+     * indexes are non-unique and enforce uniqueness purely at the app
+     * layer). lookupRules()'s lookupUniqueRule() deliberately exempts
+     * archived rows so an archived name never blocks a new one — but for
+     * THIS table the DB disagrees: an archived row still occupies its name
+     * in the unique index. Reusing an archived brand_name therefore passes
+     * validation and then hits MySQL SQLSTATE 23000. Caught here and turned
+     * into the same 422 shape a failed unique validation rule would have
+     * produced, instead of an uncaught 500. See CategoryLookupController for
+     * the identical situation there, and RetrofitCompatTest for the
+     * regression test.
+     */
     public function store(Request $request)
     {
         $validated = $request->validate($this->lookupRules($request));
-        $brand = BrandLookup::create($validated);
+
+        try {
+            $brand = BrandLookup::create($validated);
+        } catch (QueryException $e) {
+            if ((string) $e->getCode() !== '23000') {
+                throw $e;
+            }
+
+            return $this->validationError(['brand_name' => ['The brand name has already been taken.']]);
+        }
+
         return $this->success($brand, 'Brand created', 201);
     }
 
@@ -70,7 +126,17 @@ class BrandLookupController extends Controller
         $b = BrandLookup::find($brand);
         if (!$b) return $this->notFound('Brand not found');
         $validated = $request->validate($this->lookupRules($request, $brand));
-        $b->update($validated);
+
+        try {
+            $b->update($validated);
+        } catch (QueryException $e) {
+            if ((string) $e->getCode() !== '23000') {
+                throw $e;
+            }
+
+            return $this->validationError(['brand_name' => ['The brand name has already been taken.']]);
+        }
+
         return $this->success($b, 'Brand updated');
     }
 

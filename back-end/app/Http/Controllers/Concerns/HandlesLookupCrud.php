@@ -7,6 +7,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Unique;
 
@@ -274,6 +275,22 @@ trait HandlesLookupCrud
         );
     }
 
+    /**
+     * lookupUniqueRule()'s ->whereNull('deleted_at') means create/update
+     * correctly ignore archived rows when checking for a duplicate name —
+     * but that same exemption means a name can be archived, reused by a
+     * new active row, and then the archived one restored on top of it,
+     * producing two active rows with the same name. Create is exempt from
+     * this check on purpose (an archived value must never block a new
+     * one); restore is not, because restoring is what turns an archived
+     * name back into an active duplicate.
+     *
+     * Reuses lookupUniqueRule() (an empty Request, so category-scoped
+     * lookups like capacity/variant fall through to their own id-lookup
+     * branch and scope this to the row's own category) rather than
+     * re-deriving the scope here, so this can never drift from whatever
+     * scoping create/update actually enforce.
+     */
     public function restore($id)
     {
         $model = $this->lookupModel();
@@ -281,6 +298,21 @@ trait HandlesLookupCrud
 
         if (! $row) {
             return $this->notFound('Archived ' . strtolower($this->lookupLabel()) . ' not found');
+        }
+
+        $column = $this->lookupNameColumn();
+        $value = (string) $row->{$column};
+
+        $conflict = Validator::make(
+            [$column => $value],
+            [$column => [$this->lookupUniqueRule(new Request(), $id)]]
+        );
+
+        if ($conflict->fails()) {
+            return $this->error(
+                "Cannot restore: an active {$this->lookupLabel()} named '{$value}' already exists",
+                409
+            );
         }
 
         $row->restore();

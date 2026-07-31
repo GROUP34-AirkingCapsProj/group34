@@ -9,8 +9,34 @@ use App\Models\Product;
 use App\Models\Inventory;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
+/**
+ * Partial retrofit onto HandlesLookupCrud (see UnitLookupController for the
+ * full retrofit; capacity/variant/preset/unit all use the trait's CRUD
+ * outright).
+ *
+ * index() and performance() are bespoke and stay that way: they return the
+ * items_count/total_units/total_value/avg_price aggregate the dashboards and
+ * the Categories admin page consume, which the trait has no hook for.
+ * store()/show()/update()/destroy() are ALSO bespoke, defined in this class
+ * body below — that is a deliberate choice, not an oversight: PHP resolves a
+ * class-body method over a same-named trait method silently, with no
+ * conflict warning, so the trait's store/show/update/destroy are discarded
+ * here in favour of these four. (Confirmed via ReflectionMethod during
+ * review — all four resolve to this file, not the trait.) Only
+ * archived()/restore()/forceDestroy() actually come from HandlesLookupCrud.
+ *
+ * Because these four are intentionally shadowed, `parent::store()` etc. must
+ * NEVER be added to reach the trait's versions — Controller (the actual
+ * parent class) doesn't have them, so parent:: resolves to
+ * App\Http\Controllers\Controller, an empty abstract class, and raises "Call
+ * to undefined method". This exact mistake already shipped a 500 once in
+ * this codebase (see HandlesLookupCrud's own docblock) — the fix, if these
+ * four should ever delegate to the trait, is to simply delete them from this
+ * class body, not to call parent::.
+ */
 class CategoryLookupController extends Controller
 {
     use ApiResponse;
@@ -47,6 +73,12 @@ class CategoryLookupController extends Controller
                 'total_units' => $totalUnits,
                 'total_value' => round($totalValue, 2),
                 'avg_price' => $itemCount > 0 ? round($totalValue / max(1, $totalUnits), 2) : 0,
+                // Equals items_count for categories (both count products by
+                // category_id) — included anyway so a generic frontend panel
+                // consuming all six lookup shapes can rely on usage_count
+                // being present everywhere, capacity/variant/preset/unit
+                // included, without a per-lookup shape shim.
+                'usage_count' => $itemCount,
             ];
         });
 
@@ -88,11 +120,39 @@ class CategoryLookupController extends Controller
         return $this->success($rows, 'Category performance retrieved');
     }
 
+    /**
+     * category_lookup.category_name carries a real DB-level UNIQUE
+     * constraint that is NOT scoped by deleted_at (see
+     * database/migrations/...create_capacity_lookup_table for how
+     * capacity/variant differ: their scope_idx indexes are non-unique, so
+     * uniqueness there is enforced purely at the app layer). lookupRules()'s
+     * lookupUniqueRule() deliberately exempts archived rows
+     * (->whereNull('deleted_at')) so an archived name never blocks a
+     * genuinely new one — but for THIS table the DB disagrees: an archived
+     * row still occupies its name in the unique index. Reusing an archived
+     * category_name therefore passes validation and then hits MySQL
+     * SQLSTATE 23000. Caught here and turned into the same 422 shape a
+     * failed unique validation rule would have produced, instead of an
+     * uncaught 500. (This also means the archived-row exemption in
+     * lookupUniqueRule() is currently inert for categories in practice — a
+     * duplicate can never actually land — see RetrofitCompatTest for the
+     * regression test.)
+     */
     public function store(Request $request)
     {
         $validated = $request->validate($this->lookupRules($request));
         $validated['category_type'] = $validated['category_type'] ?? 'product';
-        $cat = CategoryLookup::create($validated);
+
+        try {
+            $cat = CategoryLookup::create($validated);
+        } catch (QueryException $e) {
+            if ((string) $e->getCode() !== '23000') {
+                throw $e;
+            }
+
+            return $this->validationError(['category_name' => ['The category name has already been taken.']]);
+        }
+
         return $this->success($cat, 'Category created', 201);
     }
 
@@ -108,7 +168,17 @@ class CategoryLookupController extends Controller
         $cat = CategoryLookup::find($category);
         if (!$cat) return $this->notFound('Category not found');
         $validated = $request->validate($this->lookupRules($request, $category));
-        $cat->update($validated);
+
+        try {
+            $cat->update($validated);
+        } catch (QueryException $e) {
+            if ((string) $e->getCode() !== '23000') {
+                throw $e;
+            }
+
+            return $this->validationError(['category_name' => ['The category name has already been taken.']]);
+        }
+
         return $this->success($cat, 'Category updated');
     }
 
