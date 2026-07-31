@@ -2611,12 +2611,22 @@ class UnitLookupController extends Controller
         ];
     }
 
-    protected function usageCountFor($row): int
+    protected function usageCountFor(Model $row): int
     {
-        return (int) DB::table('products')->where('unit_id', $row->unit_id)->count();
+        // NOT products.unit_id — that column does not exist. The unit FK lives
+        // on installation_material_details (one row per consumable product),
+        // which is what "products using this unit" actually means here.
+        // issuable_unit_preset and product_issuable_units also reference
+        // unit_lookup, but with RESTRICT, so the trait's forceDestroy catches
+        // those as a 422 rather than counting them.
+        return (int) DB::table('installation_material_details')
+            ->where('unit_id', $row->unit_id)
+            ->count();
     }
 }
 ```
+
+> **`unit_abbreviation` was NOT NULL with no default**, while its validation rule said `nullable`. Because Laravel's global `ConvertEmptyStringsToNull` rewrites a blank form field to `null`, leaving the optional Abbreviation input empty on the new Units tab would have been a 500. Migration `2026_07_30_000005_make_unit_abbreviation_nullable.php` makes the column match its rule.
 
 - [ ] **Step 4: Drop the archive trio from `CategoryLookupController`**
 
