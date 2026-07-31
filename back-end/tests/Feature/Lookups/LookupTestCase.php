@@ -24,41 +24,31 @@ abstract class LookupTestCase extends TestCase
 
     protected function actingAsAdmin(): User
     {
-        $roleId = Role::where('role_name', 'admin')->value('role_id');
-        $this->assertNotNull($roleId, 'admin role missing - seed the test database');
-
-        $user = User::create([
-            'username'      => 'u_' . uniqid(),
-            'first_name'    => 'Test',
-            'last_name'     => 'Admin',
-            'email'         => uniqid() . '@example.test',
-            'password_hash' => bcrypt('secret'),
-            'role_id'       => $roleId,
-        ]);
-
-        $this->actingAs($user);
-
-        return $user;
+        return $this->actingAsRole('admin');
     }
 
     /**
      * Authenticates a user with an arbitrary role (by role_name), for tests
      * that need to walk the permission matrix across multiple roles rather
      * than just the admin bypass covered by actingAsAdmin().
+     *
+     * $attributes lets a caller override/extend the default User::create
+     * payload — e.g. a location-scoped user for routes carrying the
+     * location.scope (EnsureAssignedLocationAccess) middleware.
      */
-    protected function actingAsRole(string $roleName): User
+    protected function actingAsRole(string $roleName, array $attributes = []): User
     {
         $roleId = Role::where('role_name', $roleName)->value('role_id');
         $this->assertNotNull($roleId, "role missing - seed the test database: {$roleName}");
 
-        $user = User::create([
+        $user = User::create(array_merge([
             'username'      => 'u_' . uniqid(),
             'first_name'    => 'Test',
             'last_name'     => ucfirst($roleName),
             'email'         => uniqid() . '@example.test',
             'password_hash' => bcrypt('secret'),
             'role_id'       => $roleId,
-        ]);
+        ], $attributes));
 
         $this->actingAs($user);
 
