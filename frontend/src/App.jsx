@@ -15,7 +15,7 @@ const Dashboard = lazy(() => import('./admin/pages/Dashboard'));
 
 // System Setup
 const LocationManagement = lazy(() => import('./admin/pages/LocationManagement'));
-const CategoryBrandManagement = lazy(() => import('./admin/pages/CategoryBrandManagement'));
+const LookupManagement = lazy(() => import('./admin/pages/LookupManagement'));
 
 // Procurement
 const ItemManagement = lazy(() => import('./admin/pages/ItemManagement'));
@@ -114,8 +114,8 @@ function App() {
           <Route path="/admin/locations" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/branches" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/warehouses" element={<RoleRoute><LocationManagement /></RoleRoute>} />
-          <Route path="/admin/categories" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
-          <Route path="/admin/brands" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
+          <Route path="/admin/categories" element={<RoleRoute><LookupManagement /></RoleRoute>} />
+          <Route path="/admin/brands" element={<RoleRoute><LookupManagement /></RoleRoute>} />
 
           {/* Procurement */}
           <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />

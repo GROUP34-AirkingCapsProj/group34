@@ -32,7 +32,7 @@ class NavBundleSeeder extends Seeder
             ['Purchase Orders',      '/admin/draft-po-creator',     'PROCUREMENT & PLANNING',  'procurement',        'purchase_order_creation', 'read'],
             ['Supplier Network',     '/admin/suppliers',            'PROCUREMENT & PLANNING',  'supplier',           'supplier_management',     'read'],
             ['Item Master',          '/admin/items',                'PROCUREMENT & PLANNING',  'items',              'item_master_management',  'read'],
-            ['Categories and Brands','/admin/categories',           'PROCUREMENT & PLANNING',  'category',           'category_management',     'read'],
+            ['Item Lookups',          '/admin/categories',          'PROCUREMENT & PLANNING',  'category',           'lookup_management',       'read'],
             ['Set Management',       '/admin/sets',                 'PROCUREMENT & PLANNING',  'sets',               'product_set_management',  'read'],
 
             // INVENTORY INTELLIGENCE
@@ -93,6 +93,16 @@ class NavBundleSeeder extends Seeder
                     ],
                     ['is_required' => true]
                 );
+
+                // Prune links to any OTHER permission on this bundle. Without
+                // this the seeder only ever adds: changing a bundle's feature
+                // (as when /admin/categories moved from category_management to
+                // lookup_management) leaves the old link in place, and the
+                // bundle then requires BOTH permissions — silently hiding the
+                // nav item from users who hold only the new one.
+                NavBundlePermission::where('bundle_id', $bundle->bundle_id)
+                    ->where('permission_id', '!=', $permission->permission_id)
+                    ->delete();
             }
         });
 
