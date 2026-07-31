@@ -8,14 +8,13 @@ import {
   unitsAPI,
   locationsAPI,
   batchAPI,
+  capacitiesAPI,
+  variantsAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/item_management.css';
-
-/** Matches backend ProductController / Item Management appliance capacities. */
-const APPLIANCE_CAPACITY_RATINGS = ['1HP', '1.5HP', '2HP', '2.5HP', '3HP', '5HP'];
 
 /** Used when GET /consumable-supply/catalog fails or returns empty (e.g. backend route missing). */
 const DEFAULT_SUPPLY_TYPES = [
@@ -53,6 +52,18 @@ const emptyConsumable = (barcode) => ({
   unit_price: '',
   cost_price: '',
 });
+
+/**
+ * A lookup row applies to a category when its category_id matches the
+ * selected category, or is null (null means "applies to every category").
+ * After the data backfill, nearly every capacity row is category_id=1 (the
+ * appliance category almost everything belonged to before lookups existed);
+ * every other category is populated entirely by the null rows. Dropping the
+ * null arm here would make the dropdown render empty for every category but
+ * one.
+ */
+const rowAppliesToCategory = (row, catId) =>
+  row.category_id === null || row.category_id === undefined || Number(row.category_id) === catId;
 
 const emptyAppliance = (barcode) => ({
   barcode: barcode || '',
@@ -97,6 +108,8 @@ export default function ProductRegisterModal({
   const [brands, setBrands] = useState([]);
   const [units, setUnits] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [capacities, setCapacities] = useState([]);
+  const [variants, setVariants] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [con, setCon] = useState(() => emptyConsumable(initialBarcode));
   const [app, setApp] = useState(() => emptyAppliance(initialBarcode));
@@ -106,21 +119,27 @@ export default function ProductRegisterModal({
       setLocations(Array.isArray(r?.data) ? r.data : []);
     }).catch(() => setLocations([]));
 
-    batchAPI.get({ include: ['categories', 'brands', 'units'] }).then((res) => {
+    batchAPI.get({ include: ['categories', 'brands', 'units', 'capacities', 'variants'] }).then((res) => {
       const d = res?.data || {};
       setCategories(Array.isArray(d.categories?.data) ? d.categories.data : []);
       setBrands(Array.isArray(d.brands?.data) ? d.brands.data : []);
       setUnits(Array.isArray(d.units?.data) ? d.units.data : []);
+      setCapacities(Array.isArray(d.capacities?.data) ? d.capacities.data : []);
+      setVariants(Array.isArray(d.variants?.data) ? d.variants.data : []);
     }).catch(async () => {
       try {
-        const [c, b, u] = await Promise.all([
+        const [c, b, u, cap, v] = await Promise.all([
           categoriesAPI.getAll(),
           brandsAPI.getAll(),
           unitsAPI.getAll(),
+          capacitiesAPI.getAll(),
+          variantsAPI.getAll(),
         ]);
         setCategories(Array.isArray(c?.data) ? c.data : []);
         setBrands(Array.isArray(b?.data) ? b.data : []);
         setUnits(Array.isArray(u?.data) ? u.data : []);
+        setCapacities(Array.isArray(cap?.data) ? cap.data : []);
+        setVariants(Array.isArray(v?.data) ? v.data : []);
       } catch {
         /* ignore */
       }
@@ -184,6 +203,55 @@ export default function ProductRegisterModal({
       };
     });
   }, [isOpen, supplyTypesLoading, supplyTypes, packagingUnits]);
+
+  /** Filtered capacity options, plus the item's current value if it would otherwise be dropped. */
+  const filteredCapacities = useMemo(() => {
+    const catId = app.category_id ? Number(app.category_id) : null;
+    const base = capacities.filter((c) => rowAppliesToCategory(c, catId));
+    const current = app.capacity_rating;
+    if (current && !base.some((c) => c.capacity_value === current)) {
+      return [...base, { capacity_id: `__current-${current}`, capacity_value: current, __archived: true }];
+    }
+    return base;
+  }, [capacities, app.category_id, app.capacity_rating]);
+
+  /** Filtered variant options, plus the item's current value if it would otherwise be dropped. */
+  const filteredVariants = useMemo(() => {
+    const catId = app.category_id ? Number(app.category_id) : null;
+    const base = variants.filter((v) => rowAppliesToCategory(v, catId));
+    const current = app.variant;
+    if (current && !base.some((v) => v.variant_name === current)) {
+      return [...base, { variant_id: `__current-${current}`, variant_name: current, __archived: true }];
+    }
+    return base;
+  }, [variants, app.category_id, app.variant]);
+
+  /**
+   * When the selected appliance category changes (or the lookup lists
+   * finish loading), drop a capacity/variant that no longer applies to it
+   * rather than silently submitting a value from another category. Never
+   * clear without telling the user why.
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+    const catId = app.category_id ? Number(app.category_id) : null;
+    setApp((a) => {
+      let next = a;
+      let clearedCapacity = false;
+      let clearedVariant = false;
+      if (a.capacity_rating && !capacities.some((c) => c.capacity_value === a.capacity_rating && rowAppliesToCategory(c, catId))) {
+        next = { ...next, capacity_rating: '' };
+        clearedCapacity = true;
+      }
+      if (a.variant && !variants.some((v) => v.variant_name === a.variant && rowAppliesToCategory(v, catId))) {
+        next = { ...next, variant: '' };
+        clearedVariant = true;
+      }
+      if (clearedCapacity) toast.info('Capacity cleared: not available for the selected category.');
+      if (clearedVariant) toast.info('Variant cleared: not available for the selected category.');
+      return next;
+    });
+  }, [isOpen, app.category_id, capacities, variants]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -469,44 +537,48 @@ export default function ProductRegisterModal({
                 </div>
                 <div className="im-form-field">
                   <label>CAPACITY</label>
-                  <input
-                    type="text"
-                    value={app.capacity_rating}
-                    onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
-                    placeholder="e.g. 1HP"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="im-form-field">
-                <label>CAPACITY</label>
-                {!showApplianceModelCode ? (
                   <select
                     value={app.capacity_rating}
                     onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
                   >
                     <option value="">Select capacity (optional)</option>
-                    {APPLIANCE_CAPACITY_RATINGS.map((r) => (
-                      <option key={r} value={r}>{r}</option>
+                    {filteredCapacities.map((c) => (
+                      <option key={c.capacity_id} value={c.capacity_value}>
+                        {c.__archived ? `${c.capacity_value} (archived)` : c.capacity_value}
+                      </option>
                     ))}
                   </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={app.capacity_rating}
-                    onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
-                    placeholder="e.g. 1HP"
-                  />
-                )}
+                </div>
+              </div>
+            ) : (
+              <div className="im-form-field">
+                <label>CAPACITY</label>
+                <select
+                  value={app.capacity_rating}
+                  onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
+                >
+                  <option value="">Select capacity (optional)</option>
+                  {filteredCapacities.map((c) => (
+                    <option key={c.capacity_id} value={c.capacity_value}>
+                      {c.__archived ? `${c.capacity_value} (archived)` : c.capacity_value}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
             <div className="im-form-field">
               <label>VARIANT</label>
-              <input
-                type="text"
+              <select
                 value={app.variant}
                 onChange={(e) => setApp((a) => ({ ...a, variant: e.target.value }))}
-              />
+              >
+                <option value="">Select variant (optional)</option>
+                {filteredVariants.map((v) => (
+                  <option key={v.variant_id} value={v.variant_name}>
+                    {v.__archived ? `${v.variant_name} (archived)` : v.variant_name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="im-form-row">
               <div className="im-form-field">
