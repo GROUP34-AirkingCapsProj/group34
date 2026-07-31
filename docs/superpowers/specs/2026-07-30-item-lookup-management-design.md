@@ -110,7 +110,15 @@ The trait uses the `ApiResponse` trait exactly as the existing controllers do, s
 - `UnitLookupController` is a pure vanilla case and moves fully onto the trait; its 122 lines collapse to a config block and it gains the usage count.
 - `CategoryLookupController` and `BrandLookupController` keep their bespoke `index`/`performance` (the inventory-value aggregates are real logic) but drop their hand-rolled `archived`/`restore`/`forceDestroy` for the trait's. Their `index` already returns `items_count`, so the usage-count contract is consistent across all six.
 
-**Routes** — `/api/capacities`, `/api/variants`, `/api/issuable-unit-presets`, each with the same eight-route shape categories use minus the category-specific `performance`: `index`, `show`, `archived`, `store`, `update`, `destroy`, `restore`, `force`. `/api/units` keeps its paths but its `role:admin,inventory_analyst` / `role:admin` middleware is replaced with `permission:lookup_management,{verb}`.
+**Routes** — `/api/capacities`, `/api/variants`, `/api/issuable-unit-presets`, each with the same eight-route shape categories use minus the category-specific `performance`: `index`, `show`, `archived`, `store`, `update`, `destroy`, `restore`, `force`. `/api/units` keeps
+
+> **Correction made during implementation: reads on all six lookups are ungated.**
+>
+> This spec originally gated reads on the three new lookups behind `permission:lookup_management,read`, matching the admin page's own gate. That was wrong, and it would have shipped a broken item master.
+>
+> `ProductRegisterModal` — which registers a product and, after this feature, uses strict capacity and variant dropdowns — is rendered from `BarcodeScan.jsx`, gated on `barcode_inventory_processing.create`: **admin, branch_manager, warehouse_personnel**. `lookup_management.read` grants **admin, inventory_analyst, auditor**. The two overlap only on admin, so a warehouse or branch user opening that modal would have seen empty capacity and variant dropdowns and been unable to register an appliance.
+>
+> Reads on capacities, variants and presets are therefore ungated, exactly as units, categories and brands already are and for exactly the same reason: these are classification vocabularies that feed pickers across the app, not sensitive records. The admin *page* stays gated on `lookup_management.read`, and every **write** stays gated on the appropriate key. This also removes the question of `/api/batch` bypassing the read gates — there is no read gate to bypass. its paths but its `role:admin,inventory_analyst` / `role:admin` middleware is replaced with `permission:lookup_management,{verb}`.
 
 **Permission** — one new feature key `lookup_management` in `PermissionSeeder`:
 

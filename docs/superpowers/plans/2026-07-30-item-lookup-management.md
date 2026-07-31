@@ -20,9 +20,11 @@ Note that both traits declare `lookupIndexFilters`, so a consuming controller ne
 
 ## The six lookups are not gated by one permission key, and that is deliberate
 
-Two asymmetries a future refactor will be tempted to "tidy away". Both are correct; `LookupRouteAccessTest` exists to make them enforceable.
+`LookupRouteAccessTest` exists to make the following enforceable.
 
-**Reads.** `/capacities`, `/variants`, `/issuable-unit-presets` gate reads on `permission:lookup_management,read`. `/units`, `/categories`, `/brands` deliberately do **not** — they feed pickers in `ProductRegisterModal`, `BarcodeScan`, `OrderBuilder`, `InventoryManagement`, `BudgetManagementPage` and `SetManagementPage`. Gating them breaks half the app.
+**Reads — ungated on all six.** This changed during Task 13 and the change is load-bearing. Reads were originally gated on the three new lookups; that would have broken product registration. `ProductRegisterModal` is rendered from `BarcodeScan.jsx`, gated on `barcode_inventory_processing.create` (**admin, branch_manager, warehouse_personnel**), while `lookup_management.read` grants **admin, inventory_analyst, auditor** — overlapping only on admin. With strict dropdowns, a warehouse or branch user would have seen empty capacity and variant selects and been unable to register an appliance.
+
+All six are classification vocabularies feeding pickers across the app (`ProductRegisterModal`, `BarcodeScan`, `OrderBuilder`, `InventoryManagement`, `BudgetManagementPage`, `SetManagementPage`), so all six read freely for any authenticated user. The admin *page* stays gated on `lookup_management.read`; every write stays gated. This also moots the `/api/batch` bypass concern — there is no read gate left to bypass.
 
 **Writes.** Capacities, variants, presets and units gate on `lookup_management`. Categories and brands keep `category_management` / `brand_management`, per the spec's decision to retain the old keys so effective access is unchanged. The two matrices grant identical role sets for create/update/archive, so all six behave the same to a user despite being implemented with different keys — that equivalence is the invariant worth testing, not which key does it.
 
