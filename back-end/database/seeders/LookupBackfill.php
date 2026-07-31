@@ -24,6 +24,11 @@ use Illuminate\Support\Facades\DB;
  *      NULL, which means "applies everywhere" downstream.
  *   3. Every insert is guarded by an existence check first, so running this
  *      twice inserts nothing the second time.
+ *   4. A value is reconciled across appliance_details and product_sets
+ *      *before* anything is written. A value present in product_sets is
+ *      always global; that wins over whatever category appliance_details
+ *      alone would have claimed, so the same string never lands as both a
+ *      category-scoped row and a global row.
  */
 class LookupBackfill
 {
@@ -42,29 +47,16 @@ class LookupBackfill
     {
         $maxLen = 20;
 
-        // Appliance-derived values carry a category when every product using
-        // that exact string agrees on one.
-        $rows = DB::table('appliance_details')
+        $applianceRows = DB::table('appliance_details')
             ->join('products', 'products.product_id', '=', 'appliance_details.product_id')
             ->select('appliance_details.capacity_rating as value', 'products.category_id as category_id')
             ->get();
 
-        $groups = static::groupByExactValue($rows, 'value', $maxLen);
-
-        foreach ($groups as $value => $categoryIds) {
-            $category = static::unambiguousCategory($categoryIds);
-            static::insertIfMissing('capacity_lookup', 'capacity_value', $value, $category);
-        }
-
-        // product_sets carries no category, so every value found there is
-        // global regardless of what appliance_details concluded.
-        $setValues = DB::table('product_sets')
+        $setRows = DB::table('product_sets')
             ->select('capacity_rating as value')
             ->get();
 
-        foreach (static::groupByExactValue($setValues, 'value', $maxLen) as $value => $ignored) {
-            static::insertIfMissing('capacity_lookup', 'capacity_value', $value, null);
-        }
+        static::backfillLookupTable($applianceRows, $setRows, 'capacity_lookup', 'capacity_value', $maxLen);
     }
 
     // -----------------------------------------------------------------
@@ -75,24 +67,58 @@ class LookupBackfill
     {
         $maxLen = 100;
 
-        $rows = DB::table('appliance_details')
+        $applianceRows = DB::table('appliance_details')
             ->join('products', 'products.product_id', '=', 'appliance_details.product_id')
             ->select('appliance_details.variant as value', 'products.category_id as category_id')
             ->get();
 
-        $groups = static::groupByExactValue($rows, 'value', $maxLen);
-
-        foreach ($groups as $value => $categoryIds) {
-            $category = static::unambiguousCategory($categoryIds);
-            static::insertIfMissing('variant_lookup', 'variant_name', $value, $category);
-        }
-
-        $setValues = DB::table('product_sets')
+        $setRows = DB::table('product_sets')
             ->select('variant as value')
             ->get();
 
-        foreach (static::groupByExactValue($setValues, 'value', $maxLen) as $value => $ignored) {
-            static::insertIfMissing('variant_lookup', 'variant_name', $value, null);
+        static::backfillLookupTable($applianceRows, $setRows, 'variant_lookup', 'variant_name', $maxLen);
+    }
+
+    /**
+     * Reconciles the appliance-derived (category-scoped or ambiguous) values
+     * against the product_sets-derived (always global) values for one lookup
+     * table *before* writing anything, so a value that appears in both
+     * sources produces exactly one row rather than two.
+     *
+     * Naively inserting per-source (appliance pass first, then sets pass)
+     * would let a value that is unambiguously category X in appliance_details
+     * also pick up a second, category_id-NULL row from product_sets — the
+     * frontend unions "rows for my category" with "global rows", so a
+     * category-X item would show that value twice, and the two rows could
+     * then be renamed independently and diverge. A value found in
+     * product_sets at all is inherently global (sets carry no category), so
+     * it always wins: it suppresses whatever category the appliance pass
+     * would otherwise have claimed for that exact string.
+     */
+    protected static function backfillLookupTable(
+        iterable $applianceRows,
+        iterable $setRows,
+        string $table,
+        string $column,
+        int $maxLen
+    ): void {
+        $applianceGroups = static::groupByExactValue($applianceRows, 'value', $maxLen);
+        $setGroups = static::groupByExactValue($setRows, 'value', $maxLen);
+
+        $entries = [];
+
+        foreach ($applianceGroups as $value => $categoryIds) {
+            $entries[$value] = static::unambiguousCategory($categoryIds);
+        }
+
+        // Sets have no category concept; a value seen here is global, full
+        // stop, overriding any category the appliance pass computed above.
+        foreach ($setGroups as $value => $ignored) {
+            $entries[$value] = null;
+        }
+
+        foreach ($entries as $value => $category) {
+            static::insertIfMissing($table, $column, $value, $category);
         }
     }
 
@@ -102,8 +128,22 @@ class LookupBackfill
 
     protected static function backfillPresets(): void
     {
+        // product_issuable_units.label and issuable_unit_preset.label are
+        // both varchar(100) today, so nothing can overflow right now — but
+        // this server's sql_mode is not strict, so if the source column is
+        // ever widened without widening the destination to match, an insert
+        // here would truncate silently instead of erroring. Route label
+        // through the same length guard as capacity/variant so that failure
+        // mode becomes "skipped" instead of "silently corrupted".
+        $maxLen = 100;
+
+        // orderBy(issuable_unit_id) makes the "first row per label wins" pick
+        // below deterministic: if two products share a label with a
+        // different unit_id/conversion_factor, the lowest-id row wins,
+        // consistently, rather than whatever order MySQL happens to return.
         $rows = DB::table('product_issuable_units')
-            ->select('label', 'unit_id', 'conversion_factor', 'is_whole_package')
+            ->select('issuable_unit_id', 'label', 'unit_id', 'conversion_factor', 'is_whole_package')
+            ->orderBy('issuable_unit_id')
             ->get();
 
         // Group by exact label (case-sensitive), keep the first occurrence's
@@ -112,11 +152,7 @@ class LookupBackfill
         foreach ($rows as $row) {
             $label = $row->label;
 
-            if ($label === null) {
-                continue;
-            }
-
-            if (trim($label) === '') {
+            if (! static::isValidValue($label, $maxLen)) {
                 continue;
             }
 
@@ -218,6 +254,14 @@ class LookupBackfill
         return $only === null ? null : (int) $only;
     }
 
+    /**
+     * Deliberately does not filter out soft-deleted rows (no
+     * whereNull('deleted_at') here): if an admin has archived this exact
+     * value already, re-running the backfill must not resurrect it just
+     * because a product still references it. Respecting that admin decision
+     * beats re-litigating it on every run — the value simply stays archived
+     * until someone restores it by hand.
+     */
     protected static function insertIfMissing(string $table, string $column, string $value, ?int $categoryId): void
     {
         $exists = DB::table($table)
