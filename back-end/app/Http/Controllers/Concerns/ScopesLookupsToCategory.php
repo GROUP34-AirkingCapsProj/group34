@@ -76,8 +76,27 @@ trait ScopesLookupsToCategory
         $unique = Rule::unique($table, $column)
             ->whereNull('deleted_at')
             ->where(function ($query) use ($categoryId) {
-                // MySQL's unique index treats NULLs as distinct, so two global
-                // rows could otherwise share a value. Branch explicitly.
+                // MySQL's unique index treats NULLs as distinct, so a DB-level
+                // unique constraint alone would let two global (uncategorised)
+                // rows share a value — that's why this is enforced here in
+                // validation instead.
+                //
+                // The explicit whereNull/where split below is belt-and-braces,
+                // not what makes that enforcement work: Query\Builder::where()
+                // already converts a null value to whereNull() internally
+                // (vendor/laravel/framework/.../Query/Builder.php ~line 936),
+                // and Laravel's ConvertEmptyStringsToNull middleware normalises
+                // an incoming '' to null before it ever reaches a controller.
+                // So from an HTTP request $categoryId can only be null or a
+                // real value — never '' — and $query->where('category_id', $categoryId)
+                // alone would behave identically to this branch in both cases.
+                // The branch exists only to protect a future non-HTTP caller
+                // that passes '' directly (bypassing the middleware) and to
+                // make the intent explicit for readers. Because no HTTP path
+                // can reach the `where` arm with an empty string, this branch
+                // cannot be killed by a feature/HTTP test — don't spend time
+                // trying; if you need to prove it, test categoryScopedUniqueRule()
+                // directly with $request->merge(['category_id' => '']).
                 return ($categoryId === null || $categoryId === '')
                     ? $query->whereNull('category_id')
                     : $query->where('category_id', $categoryId);
