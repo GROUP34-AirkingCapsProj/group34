@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\HandlesLookupCrud;
 use App\Http\Controllers\Controller;
 use App\Models\ApplianceDetail;
 use App\Models\BrandLookup;
 use App\Models\Inventory;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 class BrandLookupController extends Controller
 {
     use ApiResponse;
+    use HandlesLookupCrud;
 
     /**
      * List brands with item count and total value (from items matching brand name + inventory).
@@ -50,10 +53,7 @@ class BrandLookupController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'brand_name' => 'required|string|max:100|unique:brand_lookup,brand_name',
-            'description' => 'nullable|string',
-        ]);
+        $validated = $request->validate($this->lookupRules($request));
         $brand = BrandLookup::create($validated);
         return $this->success($brand, 'Brand created', 201);
     }
@@ -69,10 +69,7 @@ class BrandLookupController extends Controller
     {
         $b = BrandLookup::find($brand);
         if (!$b) return $this->notFound('Brand not found');
-        $validated = $request->validate([
-            'brand_name' => 'sometimes|string|max:100|unique:brand_lookup,brand_name,' . $brand . ',brand_id',
-            'description' => 'nullable|string',
-        ]);
+        $validated = $request->validate($this->lookupRules($request, $brand));
         $b->update($validated);
         return $this->success($b, 'Brand updated');
     }
@@ -85,25 +82,36 @@ class BrandLookupController extends Controller
         return $this->success(null, 'Brand archived');
     }
 
-    public function archived()
+    protected function lookupModel(): string
     {
-        $brands = BrandLookup::onlyTrashed()->orderBy('deleted_at', 'desc')->get();
-        return $this->success($brands->toArray(), 'Archived brands retrieved');
+        return BrandLookup::class;
     }
 
-    public function restore($brand)
+    protected function lookupNameColumn(): string
     {
-        $b = BrandLookup::onlyTrashed()->find($brand);
-        if (!$b) return $this->notFound('Archived brand not found');
-        $b->restore();
-        return $this->success($b, 'Brand restored');
+        return 'brand_name';
     }
 
-    public function forceDestroy($brand)
+    protected function lookupLabel(): string
     {
-        $b = BrandLookup::onlyTrashed()->find($brand);
-        if (!$b) return $this->notFound('Archived brand not found');
-        $b->forceDelete();
-        return $this->success(null, 'Brand permanently deleted');
+        return 'Brand';
+    }
+
+    protected function lookupRules(Request $request, $id = null): array
+    {
+        return [
+            'brand_name' => [
+                $id === null ? 'required' : 'sometimes',
+                'string',
+                'max:100',
+                $this->lookupUniqueRule($request, $id),
+            ],
+            'description' => 'nullable|string',
+        ];
+    }
+
+    protected function usageCountFor(Model $row): int
+    {
+        return ApplianceDetail::where('brand_id', $row->brand_id)->count();
     }
 }
