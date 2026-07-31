@@ -41,6 +41,30 @@ abstract class LookupTestCase extends TestCase
         return $user;
     }
 
+    /**
+     * Authenticates a user with an arbitrary role (by role_name), for tests
+     * that need to walk the permission matrix across multiple roles rather
+     * than just the admin bypass covered by actingAsAdmin().
+     */
+    protected function actingAsRole(string $roleName): User
+    {
+        $roleId = Role::where('role_name', $roleName)->value('role_id');
+        $this->assertNotNull($roleId, "role missing - seed the test database: {$roleName}");
+
+        $user = User::create([
+            'username'      => 'u_' . uniqid(),
+            'first_name'    => 'Test',
+            'last_name'     => ucfirst($roleName),
+            'email'         => uniqid() . '@example.test',
+            'password_hash' => bcrypt('secret'),
+            'role_id'       => $roleId,
+        ]);
+
+        $this->actingAs($user);
+
+        return $user;
+    }
+
     protected function category(): CategoryLookup
     {
         return CategoryLookup::create([
