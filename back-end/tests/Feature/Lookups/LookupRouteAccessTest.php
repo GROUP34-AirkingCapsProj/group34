@@ -9,12 +9,21 @@ namespace Tests\Feature\Lookups;
  *   - capacities / variants / issuable-unit-presets: reads AND writes are
  *     gated behind permission:lookup_management (new, admin-page-only
  *     endpoints).
- *   - units / categories / brands: writes are gated behind the same
- *     permission:lookup_management verbs, but reads are deliberately left
- *     open to any authenticated user, because they feed pickers used
- *     app-wide (ProductRegisterModal, BarcodeScan, OrderBuilder,
- *     InventoryManagement, BudgetManagementPage, SetManagementPage). See the
- *     comment above the unit_lookup routes in routes/api.php.
+ *   - units: writes are gated behind the same permission:lookup_management
+ *     verbs, but reads are deliberately left open to any authenticated user.
+ *   - categories / brands: writes are gated behind their own long-standing
+ *     category_management / brand_management keys, NOT lookup_management
+ *     directly — deliberately, so nobody's effective access changed when the
+ *     unified Item Lookups page shipped. Those two matrices grant the exact
+ *     same role sets as lookup_management for create/update/archive, so all
+ *     six lookups behave identically to a caller regardless of which key
+ *     implements them (see
+ *     test_inventory_analyst_gets_the_same_outcome_on_categories_and_brands_as_on_capacities
+ *     below). Reads on all three of units/categories/brands are ungated
+ *     because they feed pickers used app-wide (ProductRegisterModal,
+ *     BarcodeScan, OrderBuilder, InventoryManagement, BudgetManagementPage,
+ *     SetManagementPage). See the comment above the unit_lookup routes in
+ *     routes/api.php.
  *
  * lookup_management matrix (PermissionSeeder):
  *   read    -> admin, inventory_analyst, auditor
@@ -62,6 +71,16 @@ class LookupRouteAccessTest extends LookupTestCase
             ->assertStatus(403);
     }
 
+    /**
+     * NOTE: the 403 on create here is produced by the app\Http\Middleware\
+     * AuditorReadOnly group middleware, which blanket-denies every non-GET
+     * request for the auditor role before permission: middleware ever runs —
+     * not by the lookup_management grant (auditor isn't in create's list
+     * either, but this test can't tell the two apart). It only proves
+     * auditor is read-only here; it does NOT prove lookup_management,create
+     * is enforced. See test_warehouse_personnel_cannot_write_a_capacity for
+     * the assertion that actually exercises the permission gate.
+     */
     public function test_auditor_can_read_but_cannot_create_a_capacity(): void
     {
         $this->actingAsRole('auditor');
@@ -79,6 +98,24 @@ class LookupRouteAccessTest extends LookupTestCase
         $this->getJson('/api/capacities')->assertStatus(403);
         $this->getJson('/api/variants')->assertStatus(403);
         $this->getJson('/api/issuable-unit-presets')->assertStatus(403);
+    }
+
+    /**
+     * warehouse_personnel is not subject to AuditorReadOnly (that middleware
+     * only touches the auditor role), so a 403 here can only come from the
+     * permission: middleware itself rejecting the lookup_management,create /
+     * ,update grant. This is what actually pins the capacities write gate —
+     * the auditor-based tests above prove auditor is read-only, not that the
+     * permission check runs.
+     */
+    public function test_warehouse_personnel_cannot_write_a_capacity(): void
+    {
+        $this->actingAsRole('warehouse_personnel');
+
+        $this->postJson('/api/capacities', ['capacity_value' => $this->uniqueValue()])
+            ->assertStatus(403);
+        $this->putJson('/api/capacities/1', ['capacity_value' => $this->uniqueValue()])
+            ->assertStatus(403);
     }
 
     /**
@@ -142,8 +179,9 @@ class LookupRouteAccessTest extends LookupTestCase
     // SetManagementPage), so their GETs are deliberately left ungated for
     // any authenticated user. If this test starts failing with a 403,
     // someone gated these reads "for consistency" and broke those pickers —
-    // do not fix it by adding permission:lookup_management,read to the
-    // routes; fix the route instead.
+    // do NOT "fix" it by loosening this test to expect 403; revert whatever
+    // added permission:lookup_management,read (or similar) to these GET
+    // routes instead.
     // ------------------------------------------------------------------
 
     public function test_warehouse_personnel_can_still_read_units_categories_and_brands(): void
@@ -165,18 +203,24 @@ class LookupRouteAccessTest extends LookupTestCase
     }
 
     // ------------------------------------------------------------------
-    // Units specifically — the middleware moved from role-gating to
-    // permission-gating; confirm the failure mode is a clean 403, not a 500.
+    // Units specifically — auditor was previously blocked here by
+    // role-based gating; confirm the current permission-based path still
+    // fails clean (403) rather than raising a 500 in the retrofit.
     // ------------------------------------------------------------------
 
+    /**
+     * NOTE: like test_auditor_can_read_but_cannot_create_a_capacity, this
+     * 403 is produced by AuditorReadOnly (which blanket-denies every
+     * non-GET for the auditor role) as much as by lookup_management,create.
+     * What this test actually pins is that neither the retrofit nor the
+     * permission: middleware itself throws — a 403, not a 500.
+     */
     public function test_auditor_gets_a_clean_403_writing_to_units(): void
     {
         $this->actingAsRole('auditor');
 
-        $response = $this->postJson('/api/units', ['unit_name' => $this->uniqueValue()]);
-
-        $response->assertStatus(403);
-        $this->assertNotEquals(500, $response->getStatusCode());
+        $this->postJson('/api/units', ['unit_name' => $this->uniqueValue()])
+            ->assertStatus(403);
     }
 
     // ------------------------------------------------------------------
