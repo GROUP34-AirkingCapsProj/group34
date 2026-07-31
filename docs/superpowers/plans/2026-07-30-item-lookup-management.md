@@ -18,6 +18,15 @@ Note that both traits declare `lookupIndexFilters`, so a consuming controller ne
 
 ---
 
+## Schema fact that bit twice — the six lookups are NOT uniform
+
+`category_lookup.category_name` and `brand_lookup.brand_name` carry **real DB UNIQUE indexes**, and those indexes are not scoped by `deleted_at`. `capacity_lookup`, `variant_lookup`, `unit_lookup` and `issuable_unit_preset` have no such constraint — their uniqueness is enforced only in validation.
+
+Two consequences, both of which produced bugs:
+
+1. **A soft-deleted category or brand still occupies its name.** The shared `lookupUniqueRule()` adds `->whereNull('deleted_at')`, so validation reports the name as free while the DB disagrees — an uncaught `SQLSTATE 23000` and a 500. `CategoryLookupController` and `BrandLookupController` therefore catch `QueryException` in `store()`/`update()` and return a 422.
+2. **The restore-collision guard in `HandlesLookupCrud::restore()` is only reachable for the four tables without a DB unique index.** For category and brand the duplicate can never be created in the first place, so the guard is dead code there — correct to keep, but do not write a test asserting it fires for those two.
+
 ## Standing requirements for every task
 
 - **Exercise every route you add, at least once, in a test.** Task 9 shipped a `GET /api/issuable-unit-presets` that was a hard 500 — `parent::lookupIndexQuery()` cannot resolve, because a method defined in a class body discards the same-named trait method and `parent::` then searches the empty abstract `Controller`. All nine tests passed because not one of them called the index route. `route:list` showing a route proves only that it is registered, not that it works.
