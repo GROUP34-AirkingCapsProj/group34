@@ -209,12 +209,51 @@ class BackfillTest extends LookupTestCase
         // destination.
         $overLength = str_repeat('X', 25);
 
+        // Positive control: a second, 20-character value from the same source
+        // must land. Without this, the test would still pass if the entire
+        // product_sets source were deleted, since it only ever asserted
+        // absence.
+        $suffix = substr(uniqid(), -5);
+        $validLength = str_repeat('Y', 15) . $suffix; // 20 chars total
+
         $this->productSetWith(['capacity_rating' => $overLength]);
+        $this->productSetWith(['capacity_rating' => $validLength]);
 
         LookupBackfill::run();
 
-        $row = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$overLength])->first();
+        $overLengthRow = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$overLength])->first();
+        $validLengthRow = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$validLength])->first();
 
-        $this->assertNull($row);
+        $this->assertNull($overLengthRow);
+        $this->assertNotNull($validLengthRow);
+    }
+
+    /** @test */
+    public function value_present_in_both_appliance_and_set_sources_yields_one_global_row(): void
+    {
+        $category = $this->category();
+        $value = $this->uniqueValue();
+
+        $product = \App\Models\Product::create([
+            'product_code' => 'PC-' . uniqid(),
+            'product_name' => 'A',
+            'product_type' => 'appliance',
+            'category_id'  => $category->category_id,
+        ]);
+        \App\Models\ApplianceDetail::create([
+            'product_id'      => $product->product_id,
+            'is_serialized'   => true,
+            'capacity_rating' => $value,
+        ]);
+
+        // Same exact value also named on a set, which carries no category.
+        $this->productSetWith(['capacity_rating' => $value]);
+
+        LookupBackfill::run();
+
+        $rows = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->get();
+
+        $this->assertCount(1, $rows, 'a value seen in both sources must not produce a category-scoped row plus a global row');
+        $this->assertNull($rows->first()->category_id);
     }
 }
