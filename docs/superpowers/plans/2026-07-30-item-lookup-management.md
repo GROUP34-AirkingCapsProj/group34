@@ -3377,6 +3377,12 @@ git commit -m "feat(lookups): backfill lookup tables from existing free-text val
 
 ## Task 13: Add the new lookups to the batch endpoint
 
+> **This task can silently defeat the read gates Task 11 just pinned.** `/api/capacities`, `/api/variants` and `/api/issuable-unit-presets` gate their reads on `permission:lookup_management,read`. `/api/batch` is a different route with its own middleware, and it calls those controllers' `index()` methods **directly in PHP** — the route middleware never runs. So a user denied `/api/capacities` could read the same rows through `?include=capacities` unless the batch handler checks for itself.
+>
+> Before writing the includes, establish what `/api/batch` is gated on today and decide deliberately: either have each new include perform its own `lookup_management.read` check and omit the key when denied, or accept that batch is broader and say why in a comment. Then pin whichever you choose with a test in `LookupRouteAccessTest` — a `warehouse_personnel` user hitting `/api/batch?include=capacities` should get whatever you decided, and a future change should not be able to alter it silently.
+>
+> Note the existing `categories` / `brands` / `units` includes are unaffected: those reads are deliberately ungated everywhere.
+
 Lets the management page and the item form fetch everything in one request instead of six.
 
 **Files:**
