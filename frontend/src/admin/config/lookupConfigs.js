@@ -47,6 +47,11 @@
  * filter. This config does not expose it — the panel filters all six lookups
  * client-side uniformly, so the units `?search=` param is left unused by
  * design, not by oversight.
+ *
+ * `usage_count` is rendered by LookupPanel itself, as a mandatory trailing
+ * "Used by" column on every lookup. Do NOT list `usage_count` in any entry's
+ * `columns` array below — the panel appends it unconditionally, so doing so
+ * would render it twice.
  */
 import {
   categoriesAPI,
@@ -98,7 +103,6 @@ export const LOOKUP_CONFIGS = {
       { key: 'category_type', label: 'Type' },
       { key: 'items_count', label: 'Items' },
       { key: 'total_value', label: 'Total value', format: 'currency' },
-      { key: 'usage_count', label: 'Usage' },
     ],
   },
 
@@ -128,7 +132,6 @@ export const LOOKUP_CONFIGS = {
       { key: 'brand_name', label: 'Name' },
       { key: 'items_count', label: 'Items' },
       { key: 'total_value', label: 'Total value', format: 'currency' },
-      { key: 'usage_count', label: 'Usage' },
     ],
   },
 
@@ -160,7 +163,6 @@ export const LOOKUP_CONFIGS = {
     columns: [
       { key: 'unit_name', label: 'Name' },
       { key: 'unit_abbreviation', label: 'Abbreviation' },
-      { key: 'usage_count', label: 'Usage' },
     ],
   },
 
@@ -207,7 +209,6 @@ export const LOOKUP_CONFIGS = {
       { key: 'capacity_value', label: 'Value' },
       { key: 'category_name', label: 'Category' },
       { key: 'sort_order', label: 'Sort order' },
-      { key: 'usage_count', label: 'Usage' },
     ],
   },
 
@@ -253,7 +254,6 @@ export const LOOKUP_CONFIGS = {
       { key: 'variant_name', label: 'Name' },
       { key: 'category_name', label: 'Category' },
       { key: 'sort_order', label: 'Sort order' },
-      { key: 'usage_count', label: 'Usage' },
     ],
   },
 
@@ -317,7 +317,6 @@ export const LOOKUP_CONFIGS = {
       { key: 'unit_name', label: 'Unit' },
       { key: 'default_conversion_factor', label: 'Conversion factor', format: 'decimal' },
       { key: 'is_whole_package', label: 'Full package', format: 'bool' },
-      { key: 'usage_count', label: 'Usage' },
     ],
   },
 };
