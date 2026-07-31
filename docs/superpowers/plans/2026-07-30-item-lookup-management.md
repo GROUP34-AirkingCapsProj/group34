@@ -4742,6 +4742,8 @@ git commit -m "feat(lookups): replace categories/brands page with Item Lookups"
 
 ## Task 18: Strict capacity and variant selects in `ProductRegisterModal`
 
+> **The "NULL = shows everywhere" branch must work on day one, or the picker looks empty.** After the backfill, the dev database's capacity rows nearly all carry `category_id = 1`, because that is the category almost every existing appliance belongs to. Any *other* category therefore has no capacity of its own, and the dropdown is populated entirely by the uncategorised rows. If the filter only returns `category_id = X` and drops the `IS NULL` arm, the select renders empty for every category but one — and it will look like a data problem rather than a filter bug. Verify against a second category explicitly during the manual pass in Task 21.
+
 **Files:**
 - Modify: `frontend/src/admin/components/ProductRegisterModal.jsx`
 
