@@ -17,6 +17,36 @@
  * keys the panel resolves itself:
  *   - 'category_name' — looked up from the row's category_id
  *   - 'unit_name'      — looked up from the row's nested unit object
+ *
+ * Column `format` values (optional; how the raw/derived value is displayed):
+ *   - 'bool'     — render truthy/falsy as Yes/No (React renders true/false as
+ *                  nothing, so any boolean column MUST set this)
+ *   - 'currency' — render as peso-formatted money
+ *   - 'decimal'  — render a decimal(10,6)-sourced numeric string (e.g. "1.000000")
+ *                  trimmed for display
+ *
+ * Field-level flags:
+ *   - `omitWhenBlank: true` — the panel must NOT submit this key at all when
+ *     the input is blank, rather than sending '' (which Laravel's
+ *     ConvertEmptyStringsToNull turns into a present `null`, failing
+ *     `sometimes|integer` validation). Used on the three `sort_order` fields.
+ *     Do not "fix" a blank sort_order by defaulting it to 0 — that silently
+ *     reorders rows; the column must stay unset to keep the DB default.
+ *   - `allowEmpty: true` — on `category` fields, tells the panel to offer a
+ *     blank "All categories" / "Uncategorized" option, matching the backend's
+ *     `nullable|integer|exists:...` rule for capacity/variant category_id.
+ *
+ * category_id filtering gotcha: when calling a categoryScoped lookup's
+ * `getAll`, only pass `category_id` when a category is actually selected.
+ * `URLSearchParams` stringifies `undefined` as the literal string
+ * "undefined", so `getAll({ category_id: undefined })` sends
+ * `?category_id=undefined` to the API instead of omitting the param.
+ *
+ * Server-side search: `unitsAPI.getAll` accepts `?search=` (filters on
+ * unit_name) and it is the only one of the six lookups with a server-side
+ * filter. This config does not expose it — the panel filters all six lookups
+ * client-side uniformly, so the units `?search=` param is left unused by
+ * design, not by oversight.
  */
 import {
   categoriesAPI,
@@ -67,7 +97,7 @@ export const LOOKUP_CONFIGS = {
       { key: 'category_name', label: 'Name' },
       { key: 'category_type', label: 'Type' },
       { key: 'items_count', label: 'Items' },
-      { key: 'total_value', label: 'Total value' },
+      { key: 'total_value', label: 'Total value', format: 'currency' },
       { key: 'usage_count', label: 'Usage' },
     ],
   },
@@ -97,7 +127,7 @@ export const LOOKUP_CONFIGS = {
     columns: [
       { key: 'brand_name', label: 'Name' },
       { key: 'items_count', label: 'Items' },
-      { key: 'total_value', label: 'Total value' },
+      { key: 'total_value', label: 'Total value', format: 'currency' },
       { key: 'usage_count', label: 'Usage' },
     ],
   },
@@ -155,6 +185,7 @@ export const LOOKUP_CONFIGS = {
         name: 'category_id',
         label: 'Category',
         type: 'category',
+        allowEmpty: true,
         hint: 'Scopes this capacity to a category.',
       },
       {
@@ -168,6 +199,7 @@ export const LOOKUP_CONFIGS = {
         type: 'number',
         min: 0,
         max: 255,
+        omitWhenBlank: true,
         hint: 'Leave blank to use the default order. Integer 0-255.',
       },
     ],
@@ -199,6 +231,7 @@ export const LOOKUP_CONFIGS = {
         name: 'category_id',
         label: 'Category',
         type: 'category',
+        allowEmpty: true,
         hint: 'Scopes this variant to a category.',
       },
       {
@@ -212,6 +245,7 @@ export const LOOKUP_CONFIGS = {
         type: 'number',
         min: 0,
         max: 255,
+        omitWhenBlank: true,
         hint: 'Leave blank to use the default order. Integer 0-255.',
       },
     ],
@@ -252,9 +286,9 @@ export const LOOKUP_CONFIGS = {
         type: 'number',
         required: true,
         default: 1,
-        min: 0,
-        max: 10000,
-        step: 'any',
+        min: 0.000001,
+        max: 9999.999999,
+        step: 0.000001,
         hint: 'Number of inventory pieces deducted per one of this issuable unit. Must be greater than 0 and less than 10000, up to 6 decimal places.',
       },
       {
@@ -274,14 +308,15 @@ export const LOOKUP_CONFIGS = {
         type: 'number',
         min: 0,
         max: 255,
+        omitWhenBlank: true,
         hint: 'Leave blank to use the default order. Integer 0-255.',
       },
     ],
     columns: [
       { key: 'label', label: 'Label' },
       { key: 'unit_name', label: 'Unit' },
-      { key: 'default_conversion_factor', label: 'Conversion factor' },
-      { key: 'is_whole_package', label: 'Full package' },
+      { key: 'default_conversion_factor', label: 'Conversion factor', format: 'decimal' },
+      { key: 'is_whole_package', label: 'Full package', format: 'bool' },
       { key: 'usage_count', label: 'Usage' },
     ],
   },
