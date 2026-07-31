@@ -95,6 +95,46 @@ class LookupRouteAccessTest extends LookupTestCase
         $this->getJson('/api/issuable-unit-presets')->assertStatus(403);
     }
 
+    /**
+     * Categories and brands do NOT gate their writes on lookup_management
+     * directly — they keep their own long-standing category_management /
+     * brand_management keys (see the comment above the unit_lookup routes
+     * in routes/api.php). That is deliberate: nobody's effective access was
+     * meant to change when the unified Item Lookups page shipped. But
+     * PermissionSeeder::matrix() grants category_management and
+     * brand_management the exact same role sets as lookup_management for
+     * create/update/archive, so from a user's perspective all six lookups
+     * should behave identically regardless of which key implements them.
+     *
+     * This test pins that user-visible equivalence rather than the
+     * implementation detail: if someone edits category_management's (or
+     * brand_management's) grants so the Item Lookups page starts behaving
+     * inconsistently across its own tabs, this must fail even though
+     * test_inventory_analyst_can_read_create_and_update_but_not_archive
+     * (which only exercises capacities/lookup_management) would not catch
+     * it.
+     */
+    public function test_inventory_analyst_gets_the_same_outcome_on_categories_and_brands_as_on_capacities(): void
+    {
+        $this->actingAsRole('inventory_analyst');
+
+        $categoryId = $this->postJson('/api/categories', ['category_name' => $this->uniqueValue()])
+            ->assertStatus(201)
+            ->json('data.category_id');
+        $this->putJson("/api/categories/{$categoryId}", ['category_name' => $this->uniqueValue()])
+            ->assertStatus(200);
+        $this->deleteJson("/api/categories/{$categoryId}")
+            ->assertStatus(403);
+
+        $brandId = $this->postJson('/api/brands', ['brand_name' => $this->uniqueValue()])
+            ->assertStatus(201)
+            ->json('data.brand_id');
+        $this->putJson("/api/brands/{$brandId}", ['brand_name' => $this->uniqueValue()])
+            ->assertStatus(200);
+        $this->deleteJson("/api/brands/{$brandId}")
+            ->assertStatus(403);
+    }
+
     // ------------------------------------------------------------------
     // The read asymmetry — pinned in both directions. Units, categories and
     // brands feed pickers used throughout the app (ProductRegisterModal,

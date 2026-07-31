@@ -286,8 +286,16 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // app-wide by any authenticated user — ProductRegisterModal,
     // BarcodeScan, OrderBuilder, InventoryManagement,
     // BudgetManagementPage, SetManagementPage — and gating the reads would
-    // break those. Writes ARE unified: all six lookups now gate
-    // create/update/archive on permission:lookup_management.
+    // break those. Writes are NOT all implemented on the same key: capacities,
+    // variants, presets and units gate create/update/archive on
+    // permission:lookup_management, while categories and brands deliberately
+    // keep their own long-standing category_management / brand_management
+    // keys so nobody's effective access changed when this page shipped.
+    // PermissionSeeder::matrix() grants category_management and
+    // brand_management the exact same role sets as lookup_management for
+    // create/update/archive, so all six lookups behave identically from a
+    // user's perspective even though two are wired through different keys —
+    // see LookupRouteAccessTest for the test that pins that equivalence.
     Route::get('/units/archived', [UnitLookupController::class, 'archived']);
     Route::get('/units', [UnitLookupController::class, 'index']);
     Route::get('/units/{id}', [UnitLookupController::class, 'show']);
