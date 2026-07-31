@@ -98,6 +98,38 @@ class LookupCrudTraitTest extends LookupTestCase
         $this->assertContains($id, $activeIds);
     }
 
+    /**
+     * lookupUniqueRule() adds ->whereNull('deleted_at') so create/update
+     * correctly ignore archived rows when checking for a duplicate name —
+     * but that same exemption meant restore() could put a name back into
+     * active use on top of an unrelated row that reused it while archived:
+     * archive "1.5HP", create a new "1.5HP", then Restore on the archived
+     * one produced two active capacities with the same value. This is a
+     * trait-level behaviour (HandlesLookupCrud::restore()), so proven once
+     * here for all six lookups rather than per-controller.
+     */
+    public function test_restore_is_blocked_by_an_active_duplicate_name(): void
+    {
+        $this->actingAsAdmin();
+        $value = $this->uniqueValue();
+
+        $archivedId = $this->postJson('/api/capacities', ['capacity_value' => $value])
+            ->json('data.capacity_id');
+        $this->deleteJson("/api/capacities/{$archivedId}")->assertStatus(200);
+
+        // Reuses the now-archived value on a new active row.
+        $this->postJson('/api/capacities', ['capacity_value' => $value])->assertStatus(201);
+
+        $response = $this->postJson("/api/capacities/{$archivedId}/restore");
+
+        $response->assertStatus(409);
+
+        // The archived row must still be archived (restore did not happen).
+        $archivedIds = collect($this->getJson('/api/capacities/archived')->json('data'))
+            ->pluck('capacity_id')->all();
+        $this->assertContains($archivedId, $archivedIds);
+    }
+
     public function test_force_delete_removes_an_unused_archived_row(): void
     {
         $this->actingAsAdmin();
