@@ -1184,6 +1184,7 @@ export const categoriesAPI = {
     apiRequest(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/categories/${id}`, { method: 'DELETE' }),
   restore: async (id) => apiRequest(`/categories/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/categories/${id}/force`, { method: 'DELETE' }),
 };
 
 /* ======================
@@ -1206,6 +1207,7 @@ export const unitsAPI = {
   },
   restore: async (id) =>
     apiRequest(`/units/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/units/${id}/force`, { method: 'DELETE' }),
 };
 
 /* ======================
@@ -1220,6 +1222,65 @@ export const brandsAPI = {
     apiRequest(`/brands/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/brands/${id}`, { method: 'DELETE' }),
   restore: async (id) => apiRequest(`/brands/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/brands/${id}/force`, { method: 'DELETE' }),
+};
+
+/* ======================
+   CAPACITIES API
+====================== */
+export const capacitiesAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/capacities?${query}` : '/capacities');
+  },
+  getArchived: async () => apiRequest('/capacities/archived'),
+  create: async (data) =>
+    apiRequest('/capacities', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/capacities/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/capacities/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/capacities/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/capacities/${id}/force`, { method: 'DELETE' }),
+  merge: async (id, targetId) =>
+    apiRequest(`/capacities/${id}/merge`, { method: 'POST', body: JSON.stringify({ target_id: targetId }) }),
+};
+
+/* ======================
+   VARIANTS API
+====================== */
+export const variantsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/variants?${query}` : '/variants');
+  },
+  getArchived: async () => apiRequest('/variants/archived'),
+  create: async (data) =>
+    apiRequest('/variants', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/variants/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/variants/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/variants/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/variants/${id}/force`, { method: 'DELETE' }),
+  merge: async (id, targetId) =>
+    apiRequest(`/variants/${id}/merge`, { method: 'POST', body: JSON.stringify({ target_id: targetId }) }),
+};
+
+/* ======================
+   ISSUABLE UNIT PRESETS API
+====================== */
+export const issuableUnitPresetsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/issuable-unit-presets?${query}` : '/issuable-unit-presets');
+  },
+  getArchived: async () => apiRequest('/issuable-unit-presets/archived'),
+  create: async (data) =>
+    apiRequest('/issuable-unit-presets', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/issuable-unit-presets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/issuable-unit-presets/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/issuable-unit-presets/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/issuable-unit-presets/${id}/force`, { method: 'DELETE' }),
 };
 
 /* ======================
