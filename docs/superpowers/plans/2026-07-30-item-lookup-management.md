@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-30-item-lookup-management-design.md`
 
+**Second shared trait (added in Task 8).** `back-end/app/Http/Controllers/Concerns/ScopesLookupsToCategory.php` holds the two blocks that were byte-identical between the capacity and variant controllers: `lookupIndexFilters()` and a `categoryScopedUniqueRule()` builder. Both prior review rounds found real bugs in exactly that code, so keeping two copies invited a fix landing in one file only. It applies to capacity and variant **and nothing else** — issuable-unit presets and the three retrofit targets are not category-scoped. A base class was considered and rejected: at 2 of 6 consumers it would burn PHP's single-inheritance slot on the minority case.
+
+Note that both traits declare `lookupIndexFilters`, so a consuming controller needs an explicit `insteadof` to disambiguate.
+
 **Sanctioned scope expansion (Task 6).** `back-end/bootstrap/app.php` gained a `ValidationException` renderer. `$request->validate()` throws directly and bypasses `ApiResponse::validationError()`, so 422 bodies were the only error shape in the app lacking a `success` key. The renderer adds it for `api/*` and JSON requests, leaving `message` and `errors` untouched. This affects every validating endpoint app-wide, which is why it is recorded here rather than buried in a commit: it was judged safe because the frontend's `apiRequest` throws on HTTP status and reads only `message`/`errors`, never `success`, on the error path (`frontend/src/admin/services/api.js:267-276`). The full backend suite showed no fallout.
 
 ---
