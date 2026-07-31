@@ -3645,6 +3645,11 @@ git commit -m "feat(lookups): add capacity, variant and preset API modules"
 
 ---
 
+> ### Two API-module gotchas for Tasks 15-16
+>
+> 1. **`URLSearchParams` stringifies `undefined` and `null` literally.** `getAll({ category_id: undefined })` produces `?category_id=undefined` — the string, sent to the backend — not an omitted parameter. The panel will hold filter state that is undefined before a selection is made, so it must strip empty values before calling `getAll`, or build the params object conditionally. This pattern is inherited from `unitsAPI.getAll` and exists across all four params-accepting modules.
+> 2. **`categoriesAPI.getAll` and `brandsAPI.getAll` take no arguments.** JavaScript silently ignores extra arguments, so a uniform `config.api.getAll({...})` call will not throw for those two — it will quietly ignore the filter. Only capacities and variants are category-scoped anyway, so this is fine today; just do not assume a filter passed uniformly is honoured uniformly.
+
 ## Task 15: The lookup config file
 
 One config object per lookup. This is the file someone edits to add a seventh lookup.
