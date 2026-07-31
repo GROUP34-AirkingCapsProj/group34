@@ -120,10 +120,52 @@ class IssuableUnitPresetTest extends LookupTestCase
 
         $this->productWithIssuableUnit($unit, $label);
 
+        // A second row differing only in case must NOT count: this is what
+        // makes the sargable BINARY pair in usageCountFor() worth having —
+        // a bare ->where('label', $value) alone (or a match on unit_id
+        // instead of label) would also pass with just the first row.
+        $this->productWithIssuableUnit($unit, strtolower($label));
+
         $response = $this->getJson('/api/issuable-unit-presets/' . $preset->preset_id);
 
         $response->assertStatus(200);
         $response->assertJsonPath('data.usage_count', 1);
+    }
+
+    public function test_index_lists_the_preset_with_its_nested_unit(): void
+    {
+        $this->actingAsAdmin();
+        $unit = $this->unit();
+        $label = $this->uniqueValue();
+
+        IssuableUnitPreset::create([
+            'label'   => $label,
+            'unit_id' => $unit->unit_id,
+        ]);
+
+        $response = $this->getJson('/api/issuable-unit-presets');
+
+        $response->assertStatus(200);
+        $row = collect($response->json('data'))->firstWhere('label', $label);
+
+        $this->assertNotNull($row, 'The created preset must appear in the index');
+        $this->assertSame($unit->unit_name, $row['unit']['unit_name'] ?? null);
+    }
+
+    public function test_show_returns_the_preset_with_its_nested_unit(): void
+    {
+        $this->actingAsAdmin();
+        $unit = $this->unit();
+
+        $preset = IssuableUnitPreset::create([
+            'label'   => $this->uniqueValue(),
+            'unit_id' => $unit->unit_id,
+        ]);
+
+        $response = $this->getJson('/api/issuable-unit-presets/' . $preset->preset_id);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.unit.unit_name', $unit->unit_name);
     }
 
     public function test_renaming_a_preset_does_not_touch_product_rows(): void
@@ -196,6 +238,53 @@ class IssuableUnitPresetTest extends LookupTestCase
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['default_conversion_factor']);
+    }
+
+    /**
+     * The column is decimal(10,6), max 9999.999999. A value at that ceiling
+     * must be accepted; 10000 (and anything that would round up into it,
+     * or overflow via scientific notation) must be rejected with 422 rather
+     * than reaching MySQL and raising SQLSTATE 22003.
+     */
+    public function test_default_conversion_factor_boundary(): void
+    {
+        $this->actingAsAdmin();
+        $unit = $this->unit();
+
+        $atCeiling = $this->postJson('/api/issuable-unit-presets', [
+            'label'                     => $this->uniqueValue(),
+            'unit_id'                   => $unit->unit_id,
+            'default_conversion_factor' => '9999.999999',
+        ]);
+        $atCeiling->assertStatus(201);
+
+        $overCeiling = $this->postJson('/api/issuable-unit-presets', [
+            'label'                     => $this->uniqueValue(),
+            'unit_id'                   => $unit->unit_id,
+            'default_conversion_factor' => 10000,
+        ]);
+        $overCeiling->assertStatus(422);
+        $overCeiling->assertJsonValidationErrors(['default_conversion_factor']);
+
+        // Would round UP to 10000.000000 on write if only lt:10000 guarded
+        // the column, since decimal:0,6 is what actually rejects it.
+        $roundsIntoOverflow = $this->postJson('/api/issuable-unit-presets', [
+            'label'                     => $this->uniqueValue(),
+            'unit_id'                   => $unit->unit_id,
+            'default_conversion_factor' => '9999.9999995',
+        ]);
+        $roundsIntoOverflow->assertStatus(422);
+        $roundsIntoOverflow->assertJsonValidationErrors(['default_conversion_factor']);
+
+        // Scientific notation passes the bare `numeric` rule but must be
+        // caught by decimal:0,6 before it can overflow the column.
+        $scientificNotation = $this->postJson('/api/issuable-unit-presets', [
+            'label'                     => $this->uniqueValue(),
+            'unit_id'                   => $unit->unit_id,
+            'default_conversion_factor' => '1e10',
+        ]);
+        $scientificNotation->assertStatus(422);
+        $scientificNotation->assertJsonValidationErrors(['default_conversion_factor']);
     }
 
     public function test_sort_order_null_is_rejected_with_422_not_500(): void
