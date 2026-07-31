@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\CategoryLookupController;
 use App\Http\Controllers\Api\BrandLookupController;
 use App\Http\Controllers\Api\CapacityLookupController;
 use App\Http\Controllers\Api\VariantLookupController;
+use App\Http\Controllers\Api\IssuableUnitPresetController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
@@ -333,6 +334,29 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         ->post('/variants/{id}/restore', [VariantLookupController::class, 'restore']);
     Route::middleware('permission:lookup_management,archive')
         ->delete('/variants/{id}/force', [VariantLookupController::class, 'forceDestroy']);
+
+    /* ---------------------------------------------------------------
+     | Issuable unit presets (Item Lookups page)
+     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     | No /merge route: a preset is a template, not the owner of
+     | product_issuable_units.label, so there is nothing to fold two
+     | presets' product rows into (see IssuableUnitPresetController).
+     * ------------------------------------------------------------- */
+    Route::middleware('permission:lookup_management,read')->group(function () {
+        Route::get('/issuable-unit-presets/archived', [IssuableUnitPresetController::class, 'archived']);
+        Route::get('/issuable-unit-presets', [IssuableUnitPresetController::class, 'index']);
+        Route::get('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'show']);
+    });
+    Route::middleware('permission:lookup_management,create')
+        ->post('/issuable-unit-presets', [IssuableUnitPresetController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'update']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/issuable-unit-presets/{id}/restore', [IssuableUnitPresetController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/issuable-unit-presets/{id}/force', [IssuableUnitPresetController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
