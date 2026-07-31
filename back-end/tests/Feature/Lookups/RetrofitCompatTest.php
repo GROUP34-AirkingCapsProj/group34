@@ -25,16 +25,18 @@ class RetrofitCompatTest extends LookupTestCase
     }
 
     /**
-     * unit_abbreviation is a NOT NULL varchar(10) column with no default at
-     * the DB layer (pre-existing schema fact, unrelated to this retrofit),
-     * so every POST /api/units in this file must supply one or the insert
-     * 500s with SQLSTATE 1364 regardless of what the validation rule says.
+     * Exercises the real default path: unit_abbreviation omitted, exactly
+     * as the Item Lookups page's optional Abbreviation field posts when
+     * left blank (ConvertEmptyStringsToNull turns "" into null upstream of
+     * the controller). unit_lookup.unit_abbreviation used to be NOT NULL
+     * with no default, which made this 500 regardless of the `nullable`
+     * validation rule; migration 2026_07_30_000005 fixed the column to
+     * match its rule.
      */
     protected function createUnit(?string $name = null): \Illuminate\Testing\TestResponse
     {
         return $this->postJson('/api/units', [
-            'unit_name'         => $name ?? $this->uniqueValue(),
-            'unit_abbreviation' => 'u',
+            'unit_name' => $name ?? $this->uniqueValue(),
         ]);
     }
 
@@ -83,6 +85,61 @@ class RetrofitCompatTest extends LookupTestCase
         $this->assertNotNull($row);
         $this->assertArrayHasKey('usage_count', $row);
         $this->assertSame(1, $row['usage_count']);
+    }
+
+    // -----------------------------------------------------------------
+    // unit_abbreviation is nullable both in validation and at the DB layer
+    // (migration 2026_07_30_000005). The Item Lookups page's Abbreviation
+    // field is optional; a blank input posts "" -> null via
+    // ConvertEmptyStringsToNull, and an explicit null must behave the same.
+    // -----------------------------------------------------------------
+
+    public function test_create_unit_without_abbreviation_succeeds_with_null(): void
+    {
+        $this->actingAsAdmin();
+        $name = $this->uniqueValue();
+
+        $response = $this->postJson('/api/units', ['unit_name' => $name]);
+
+        $response->assertStatus(201);
+        $this->assertNull($response->json('data.unit_abbreviation'));
+        $this->assertDatabaseHas('unit_lookup', [
+            'unit_name'         => $name,
+            'unit_abbreviation' => null,
+        ]);
+    }
+
+    public function test_create_unit_with_explicit_null_abbreviation_succeeds(): void
+    {
+        $this->actingAsAdmin();
+        $name = $this->uniqueValue();
+
+        $response = $this->postJson('/api/units', [
+            'unit_name'         => $name,
+            'unit_abbreviation' => null,
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertNull($response->json('data.unit_abbreviation'));
+        $this->assertDatabaseHas('unit_lookup', [
+            'unit_name'         => $name,
+            'unit_abbreviation' => null,
+        ]);
+    }
+
+    public function test_units_index_returns_abbreviation_key_when_null(): void
+    {
+        $this->actingAsAdmin();
+        $name = $this->uniqueValue();
+
+        $this->postJson('/api/units', ['unit_name' => $name])->assertStatus(201);
+
+        $row = collect($this->getJson('/api/units')->json('data'))
+            ->firstWhere('unit_name', $name);
+
+        $this->assertNotNull($row);
+        $this->assertArrayHasKey('unit_abbreviation', $row);
+        $this->assertNull($row['unit_abbreviation']);
     }
 
     // -----------------------------------------------------------------
