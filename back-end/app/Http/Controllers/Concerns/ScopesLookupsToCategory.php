@@ -96,7 +96,7 @@ trait ScopesLookupsToCategory
                 // make the intent explicit for readers. Because no HTTP path
                 // can reach the `where` arm with an empty string, this branch
                 // cannot be killed by a feature/HTTP test — don't spend time
-                // trying; if you need to prove it, test categoryScopedUniqueRule()
+                // trying; if you need to prove it, test lookupUniqueRule()
                 // directly with $request->merge(['category_id' => '']).
                 return ($categoryId === null || $categoryId === '')
                     ? $query->whereNull('category_id')

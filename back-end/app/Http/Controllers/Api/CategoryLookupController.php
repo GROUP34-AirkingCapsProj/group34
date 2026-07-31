@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\HandlesLookupCrud;
 use App\Http\Controllers\Controller;
 use App\Models\CategoryLookup;
 use App\Models\Product;
 use App\Models\Inventory;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 class CategoryLookupController extends Controller
 {
     use ApiResponse;
+    use HandlesLookupCrud;
 
     /**
      * List categories with item count and total value (from items matching category name + inventory).
@@ -87,11 +90,7 @@ class CategoryLookupController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'category_name' => 'required|string|max:100|unique:category_lookup,category_name',
-            'category_type' => 'nullable|string|max:50',
-            'description' => 'nullable|string',
-        ]);
+        $validated = $request->validate($this->lookupRules($request));
         $validated['category_type'] = $validated['category_type'] ?? 'product';
         $cat = CategoryLookup::create($validated);
         return $this->success($cat, 'Category created', 201);
@@ -108,11 +107,7 @@ class CategoryLookupController extends Controller
     {
         $cat = CategoryLookup::find($category);
         if (!$cat) return $this->notFound('Category not found');
-        $validated = $request->validate([
-            'category_name' => 'sometimes|string|max:100|unique:category_lookup,category_name,' . $category . ',category_id',
-            'category_type' => 'nullable|string|max:50',
-            'description' => 'nullable|string',
-        ]);
+        $validated = $request->validate($this->lookupRules($request, $category));
         $cat->update($validated);
         return $this->success($cat, 'Category updated');
     }
@@ -125,25 +120,42 @@ class CategoryLookupController extends Controller
         return $this->success(null, 'Category archived');
     }
 
-    public function archived()
+    protected function lookupModel(): string
     {
-        $categories = CategoryLookup::onlyTrashed()->orderBy('deleted_at', 'desc')->get();
-        return $this->success($categories->toArray(), 'Archived categories retrieved');
+        return CategoryLookup::class;
     }
 
-    public function restore($category)
+    protected function lookupNameColumn(): string
     {
-        $cat = CategoryLookup::onlyTrashed()->find($category);
-        if (!$cat) return $this->notFound('Archived category not found');
-        $cat->restore();
-        return $this->success($cat, 'Category restored');
+        return 'category_name';
     }
 
-    public function forceDestroy($category)
+    protected function lookupLabel(): string
     {
-        $cat = CategoryLookup::onlyTrashed()->find($category);
-        if (!$cat) return $this->notFound('Archived category not found');
-        $cat->forceDelete();
-        return $this->success(null, 'Category permanently deleted');
+        return 'Category';
+    }
+
+    protected function lookupLabelPlural(): string
+    {
+        return 'Categories';
+    }
+
+    protected function lookupRules(Request $request, $id = null): array
+    {
+        return [
+            'category_name' => [
+                $id === null ? 'required' : 'sometimes',
+                'string',
+                'max:100',
+                $this->lookupUniqueRule($request, $id),
+            ],
+            'category_type' => 'nullable|string|max:50',
+            'description'   => 'nullable|string',
+        ];
+    }
+
+    protected function usageCountFor(Model $row): int
+    {
+        return Product::where('category_id', $row->category_id)->count();
     }
 }
