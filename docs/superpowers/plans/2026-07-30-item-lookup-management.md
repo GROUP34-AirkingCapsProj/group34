@@ -18,6 +18,12 @@ Note that both traits declare `lookupIndexFilters`, so a consuming controller ne
 
 ---
 
+## Standing requirements for every task
+
+- **Exercise every route you add, at least once, in a test.** Task 9 shipped a `GET /api/issuable-unit-presets` that was a hard 500 — `parent::lookupIndexQuery()` cannot resolve, because a method defined in a class body discards the same-named trait method and `parent::` then searches the empty abstract `Controller`. All nine tests passed because not one of them called the index route. `route:list` showing a route proves only that it is registered, not that it works.
+- **Bound every input against its column.** Validation that omits an upper bound hands MySQL an out-of-range value and turns a 422 into a 500. `default_conversion_factor` reached `decimal(10,6)` unbounded and accepted both `99999.5` and the string `"1e10"`.
+- **Assert *why* a request was rejected**, never a bare status — see the note in the Task 8 block.
+
 ## Environment notes (read before Task 1)
 
 This repo has conventions that will waste your time if you discover them the hard way:
