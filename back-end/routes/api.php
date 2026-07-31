@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\BatchController;
 use App\Http\Controllers\Api\CategoryLookupController;
 use App\Http\Controllers\Api\BrandLookupController;
 use App\Http\Controllers\Api\CapacityLookupController;
+use App\Http\Controllers\Api\VariantLookupController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
@@ -310,6 +311,28 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         ->post('/capacities/{id}/restore', [CapacityLookupController::class, 'restore']);
     Route::middleware('permission:lookup_management,archive')
         ->delete('/capacities/{id}/force', [CapacityLookupController::class, 'forceDestroy']);
+
+    /* ---------------------------------------------------------------
+     | Variants (Item Lookups page - Appliance tab)
+     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     * ------------------------------------------------------------- */
+    Route::middleware('permission:lookup_management,read')->group(function () {
+        Route::get('/variants/archived', [VariantLookupController::class, 'archived']);
+        Route::get('/variants', [VariantLookupController::class, 'index']);
+        Route::get('/variants/{id}', [VariantLookupController::class, 'show']);
+    });
+    Route::middleware('permission:lookup_management,create')
+        ->post('/variants', [VariantLookupController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/variants/{id}', [VariantLookupController::class, 'update']);
+    Route::middleware('permission:lookup_management,update')
+        ->post('/variants/{id}/merge', [VariantLookupController::class, 'merge']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/variants/{id}', [VariantLookupController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/variants/{id}/restore', [VariantLookupController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/variants/{id}/force', [VariantLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
