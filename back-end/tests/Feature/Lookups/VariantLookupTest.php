@@ -178,4 +178,73 @@ class VariantLookupTest extends LookupTestCase
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['sort_order']);
     }
+
+    /**
+     * 8. max:100 is variant's one divergence from the capacity template.
+     * A 100-char value must be accepted; 101 must be rejected with 422 —
+     * otherwise MySQL silently truncates on write into appliance_details.variant.
+     */
+    public function test_variant_name_accepts_100_characters_and_rejects_101(): void
+    {
+        $this->actingAsAdmin();
+
+        $exactly100 = str_repeat('A', 100);
+        $accepted = $this->postJson('/api/variants', ['variant_name' => $exactly100]);
+        $accepted->assertStatus(201);
+        $accepted->assertJsonPath('data.variant_name', $exactly100);
+
+        $exactly101 = str_repeat('B', 101);
+        $rejected = $this->postJson('/api/variants', ['variant_name' => $exactly101]);
+        $rejected->assertStatus(422);
+        $rejected->assertJsonValidationErrors(['variant_name']);
+    }
+
+    /** 9. Merging moves products from the source's value onto the target's, and archives the source. */
+    public function test_merge_moves_products_and_archives_the_source(): void
+    {
+        $this->actingAsAdmin();
+
+        $sourceValue = $this->uniqueValue();
+        $targetValue = $this->uniqueValue();
+
+        $source = VariantLookup::create(['variant_name' => $sourceValue]);
+        $target = VariantLookup::create(['variant_name' => $targetValue]);
+
+        $this->applianceWith(['variant' => $sourceValue]);
+        $this->applianceWith(['variant' => $sourceValue]);
+        $this->applianceWith(['variant' => $targetValue]);
+
+        $response = $this->postJson("/api/variants/{$source->variant_id}/merge", [
+            'target_id' => $target->variant_id,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertSame(2, $response->json('data.moved'));
+
+        $this->assertDatabaseMissing('appliance_details', ['variant' => $sourceValue]);
+        $this->assertSame(3, \App\Models\ApplianceDetail::where('variant', $targetValue)->count());
+
+        $list = $this->getJson('/api/variants')->json('data');
+        $this->assertNull(
+            collect($list)->firstWhere('variant_id', $source->variant_id),
+            'A merged source must not remain in the active list'
+        );
+        $this->assertNotNull(collect($list)->firstWhere('variant_id', $target->variant_id));
+    }
+
+    /**
+     * 10. Two uncategorised variants cannot share a name. MySQL treats NULLs
+     * as distinct in a unique index, so this is enforced in validation via
+     * the explicit whereNull('category_id') branch, not the schema.
+     */
+    public function test_two_uncategorised_variants_may_not_share_a_value(): void
+    {
+        $this->actingAsAdmin();
+        $value = $this->uniqueValue();
+
+        $this->postJson('/api/variants', ['variant_name' => $value])->assertStatus(201);
+        $this->postJson('/api/variants', ['variant_name' => $value])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['variant_name' => 'has already been taken']);
+    }
 }
