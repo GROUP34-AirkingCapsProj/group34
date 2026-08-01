@@ -629,6 +629,10 @@ const ItemManagement = () => {
     return base;
   }, [variants, formData.category_id, formData.variant]);
 
+  /** True once at least one real (non-archived) capacity/variant option applies to the selected category. */
+  const hasFilteredCapacities = filteredCapacities.some((c) => !c.__archived);
+  const hasFilteredVariants = filteredVariants.some((v) => !v.__archived);
+
   /**
    * When the selected appliance category changes (or the lookup lists
    * finish loading), drop a capacity/variant that no longer applies to it
@@ -1226,6 +1230,9 @@ const ItemManagement = () => {
                         </option>
                       ))}
                     </select>
+                    {!hasFilteredCapacities && (
+                      <p className="im-barcode-hint">No capacities defined for this category. Add them on the Item Lookups page.</p>
+                    )}
                   </div>
                 </div>
                 <div className="im-form-row">
@@ -1302,6 +1309,9 @@ const ItemManagement = () => {
                         </option>
                       ))}
                     </select>
+                    {!hasFilteredVariants && (
+                      <p className="im-barcode-hint">No variants defined for this category. Add them on the Item Lookups page.</p>
+                    )}
                   </div>
                   <div className="im-form-field">
                     <label>COLOR</label>
