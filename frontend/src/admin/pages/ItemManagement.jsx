@@ -1683,6 +1683,22 @@ const ItemManagement = () => {
                                   ).toFixed(2)}
                                 </span>
                               )}
+                              {Number.isFinite(parseFloat(iu.conversion_factor)) && parseFloat(iu.conversion_factor) > 0 && (
+                                <p className="im-barcode-hint">
+                                  {(() => {
+                                    const factor = parseFloat(iu.conversion_factor);
+                                    const ppp = parseFloat(formData.pieces_per_package);
+                                    if (!ppp || ppp <= 0) {
+                                      return `= ${factor} pieces`;
+                                    }
+                                    const packages = factor / ppp;
+                                    if (Number.isInteger(packages)) {
+                                      return `= ${factor} pieces · ${packages} full package${packages === 1 ? '' : 's'}`;
+                                    }
+                                    return `= ${factor} pieces · ${packages.toFixed(2).replace(/\.?0+$/, '')} of a package`;
+                                  })()}
+                                </p>
+                              )}
                             </td>
                             <td className="issuable-checkbox-cell">
                               <input
