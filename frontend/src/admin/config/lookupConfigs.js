@@ -289,7 +289,7 @@ export const LOOKUP_CONFIGS = {
         min: 0.000001,
         max: 9999.999999,
         step: 0.000001,
-        hint: 'Number of inventory pieces deducted per one of this issuable unit. Must be greater than 0 and less than 10000, up to 6 decimal places.',
+        hint: 'Pieces deducted per one of this unit — not packages. Example: a "5 Packs" unit on a product with 50 pieces per package should be 250, not 5. Must be greater than 0 and less than 10000, up to 6 decimal places.',
       },
       {
         name: 'is_whole_package',
