@@ -226,6 +226,10 @@ export default function ProductRegisterModal({
     return base;
   }, [variants, app.category_id, app.variant]);
 
+  /** True once at least one real (non-archived) capacity/variant option applies to the selected category. */
+  const hasFilteredCapacities = filteredCapacities.some((c) => !c.__archived);
+  const hasFilteredVariants = filteredVariants.some((v) => !v.__archived);
+
   /**
    * When the selected appliance category changes (or the lookup lists
    * finish loading), drop a capacity/variant that no longer applies to it
@@ -548,6 +552,9 @@ export default function ProductRegisterModal({
                       </option>
                     ))}
                   </select>
+                  {!hasFilteredCapacities && (
+                    <p className="im-barcode-hint">No capacities defined for this category. Add them on the Item Lookups page.</p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -564,6 +571,9 @@ export default function ProductRegisterModal({
                     </option>
                   ))}
                 </select>
+                {!hasFilteredCapacities && (
+                  <p className="im-barcode-hint">No capacities defined for this category. Add them on the Item Lookups page.</p>
+                )}
               </div>
             )}
             <div className="im-form-field">
@@ -579,6 +589,9 @@ export default function ProductRegisterModal({
                   </option>
                 ))}
               </select>
+              {!hasFilteredVariants && (
+                <p className="im-barcode-hint">No variants defined for this category. Add them on the Item Lookups page.</p>
+              )}
             </div>
             <div className="im-form-row">
               <div className="im-form-field">
