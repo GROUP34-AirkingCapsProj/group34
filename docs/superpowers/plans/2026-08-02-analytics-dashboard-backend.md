@@ -1009,6 +1009,8 @@ Add to `DashboardAnalyticsService`:
     /** Recommendations older than this are recomputed on demand. */
     private const RECOMMENDATION_MAX_AGE_HOURS = 24;
     private const STOCKOUT_HORIZON_DAYS        = 30;
+    /** Guards against a burst of page loads all triggering a recompute. */
+    private const REFRESH_GUARD_KEY = 'analytics-dashboard-restock-refresh';
 
     public function predictions(?int $locationId, ?int $categoryId): array
     {
@@ -1022,9 +1024,14 @@ Add to `DashboardAnalyticsService`:
             ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
             ->when($locationId, fn (Builder $q) => $q->where('r.location_id', $locationId))
             ->when($categoryId, fn (Builder $q) => $q->where('p.category_id', $categoryId))
+            // LOWER() is required, not cosmetic: analyze() persists 'CRITICAL'/
+            // 'HIGH'/'MEDIUM', but the UI renders `pred-priority-badge ${priority}`
+            // against CSS classes .critical/.high/.medium, and $priorityRank /
+            // $summaryFor below compare lowercase. Without it the badges render
+            // unstyled and every priority tile counts zero.
             ->selectRaw("r.product_id, p.product_name, l.location_name,
                          r.current_stock, r.reorder_level, r.recommended_quantity,
-                         r.priority, r.days_of_cover, r.avg_daily_demand,
+                         LOWER(r.priority) AS priority, r.days_of_cover, r.avg_daily_demand,
                          COALESCE(p.safety_stock, 0) AS safety_stock,
                          r.recommended_quantity * ({$cost}) AS est_cost")
             ->get();
@@ -1090,14 +1097,34 @@ Add to `DashboardAnalyticsService`:
      */
     private function ensureRecommendationsFresh(): void
     {
-        $newest = DB::table('restock_recommendations')->max('run_at');
+        // NOT run_at: analyze() truncates that to startOfDay(), so it cannot
+        // express age — the window would degenerate into "has it run since local
+        // midnight", making every page load between 00:00 and the 06:00
+        // scheduled run trigger a full 90-day recompute. created_at is the real
+        // insert time.
+        $newest = DB::table('restock_recommendations')->max('created_at');
 
         if ($newest !== null
             && \Carbon\Carbon::parse($newest)->gt(now()->subHours(self::RECOMMENDATION_MAX_AGE_HOURS))) {
             return;
         }
 
-        $this->restock->run();
+        // Cache::add is atomic: only the first caller in the window wins, so a
+        // burst of loads triggers exactly one recompute instead of all of them
+        // queueing on the engine's 15s lock.
+        if (! Cache::add(self::REFRESH_GUARD_KEY, true, now()->addMinutes(15))) {
+            return;
+        }
+
+        try {
+            $this->restock->run();
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            // RestockAnalyticsService::run() wraps its work in
+            // Cache::lock(...)->block(15, ...), which THROWS on timeout. Letting
+            // that escape would turn a busy background recompute into a 500 for
+            // the whole dashboard. Stale numbers beat an error page.
+            report($e);
+        }
     }
 ```
 
