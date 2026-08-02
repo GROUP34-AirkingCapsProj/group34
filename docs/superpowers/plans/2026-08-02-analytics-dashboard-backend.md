@@ -39,7 +39,7 @@ cd back-end && php artisan test --filter=SomeTest
 | `installation_material_details` | `consumable_detail_id` | Holds `pieces_per_package`. Only for `product_type = 'installation_material'`. |
 | `restock_recommendations` | id | Populated by `analytics:restock`; warehouse locations only. |
 
-**Incident status IDs** (from `status_lookup` where `status_category = 'incident'`): Open = **46**, Resolved = **47**, Dismissed = **48**. Never hardcode these in application code — use `IncidentReport::statusId('Open')`. You MAY hardcode them in test fixtures.
+**Incident status IDs: never hardcode them anywhere, including test fixtures.** They differ per database — `airkingV5` (dev) uses Open=46 / Resolved=47 / Dismissed=48, but `airkingV5_test` uses Open=765 / Resolved=766 / Dismissed=767. Always resolve them via `IncidentReport::statusId('Open')`, in application code and fixtures alike.
 
 **Adjustment "Approved" status ID is 20** (`status_category = 'adjustment'`).
 
