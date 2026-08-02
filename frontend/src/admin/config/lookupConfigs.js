@@ -1,5 +1,5 @@
 /**
- * Data-driven definitions for the six item-master lookups consolidated onto the
+ * Data-driven definitions for the item-master lookups consolidated onto the
  * Lookups admin page. This file is plain configuration — no components, no
  * rendering logic. `LookupPanel` (built separately) reads one entry from
  * LOOKUP_CONFIGS and renders the add/edit form + list table generically.
@@ -59,7 +59,6 @@ import {
   unitsAPI,
   capacitiesAPI,
   variantsAPI,
-  issuableUnitPresetsAPI,
 } from '../services/api';
 
 export const LOOKUP_CONFIGS = {
@@ -256,69 +255,6 @@ export const LOOKUP_CONFIGS = {
       { key: 'sort_order', label: 'Sort order' },
     ],
   },
-
-  presets: {
-    label: 'Issuable Unit Presets',
-    singular: 'Preset',
-    api: issuableUnitPresetsAPI,
-    idField: 'preset_id',
-    nameField: 'label',
-    categoryScoped: false,
-    supportsMerge: false,
-    fields: [
-      {
-        name: 'label',
-        label: 'Label',
-        type: 'text',
-        required: true,
-        maxLength: 100,
-        placeholder: 'Roll',
-      },
-      {
-        name: 'unit_id',
-        label: 'Unit',
-        type: 'unit',
-        required: true,
-      },
-      {
-        name: 'default_conversion_factor',
-        label: 'Default conversion factor',
-        type: 'number',
-        required: true,
-        default: 1,
-        min: 0.000001,
-        max: 9999.999999,
-        step: 0.000001,
-        hint: 'Pieces deducted per one of this unit — not packages. Example: a "5 Packs" unit on a product with 50 pieces per package should be 250, not 5. Must be greater than 0 and less than 10000, up to 6 decimal places.',
-      },
-      {
-        name: 'is_whole_package',
-        label: 'Represents one full package',
-        type: 'checkbox',
-        hint: 'Check if this preset represents one full package.',
-      },
-      {
-        name: 'description',
-        label: 'Description (optional)',
-        type: 'textarea',
-      },
-      {
-        name: 'sort_order',
-        label: 'Sort order',
-        type: 'number',
-        min: 0,
-        max: 255,
-        omitWhenBlank: true,
-        hint: 'Leave blank to use the default order. Integer 0-255.',
-      },
-    ],
-    columns: [
-      { key: 'label', label: 'Label' },
-      { key: 'unit_name', label: 'Unit' },
-      { key: 'default_conversion_factor', label: 'Conversion factor', format: 'decimal' },
-      { key: 'is_whole_package', label: 'Full package', format: 'bool' },
-    ],
-  },
 };
 
 export const LOOKUP_TABS = [
@@ -330,7 +266,7 @@ export const LOOKUP_TABS = [
   {
     key: 'installation',
     label: 'Installation Materials Lookup',
-    lookups: ['units', 'presets'],
+    lookups: ['units'],
   },
 ];
 

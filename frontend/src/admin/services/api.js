@@ -1266,24 +1266,6 @@ export const variantsAPI = {
 };
 
 /* ======================
-   ISSUABLE UNIT PRESETS API
-====================== */
-export const issuableUnitPresetsAPI = {
-  getAll: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/issuable-unit-presets?${query}` : '/issuable-unit-presets');
-  },
-  getArchived: async () => apiRequest('/issuable-unit-presets/archived'),
-  create: async (data) =>
-    apiRequest('/issuable-unit-presets', { method: 'POST', body: JSON.stringify(data) }),
-  update: async (id, data) =>
-    apiRequest(`/issuable-unit-presets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: async (id) => apiRequest(`/issuable-unit-presets/${id}`, { method: 'DELETE' }),
-  restore: async (id) => apiRequest(`/issuable-unit-presets/${id}/restore`, { method: 'POST' }),
-  forceDelete: async (id) => apiRequest(`/issuable-unit-presets/${id}/force`, { method: 'DELETE' }),
-};
-
-/* ======================
    STATUS LOOKUP API
 ====================== */
 export const statusAPI = {
@@ -1406,15 +1388,6 @@ export const productsAPI = {
   },
   restore: async (id) =>
     apiRequest(`/products/${id}/restore`, { method: 'POST' }),
-  getIssuableUnits: async (productId) =>
-    apiRequest(`/products/${productId}/issuable-units`),
-  storeIssuableUnit: async (productId, data) =>
-    apiRequest(`/products/${productId}/issuable-units`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  destroyIssuableUnit: async (iuId) =>
-    apiRequest(`/products/issuable-units/${iuId}`, { method: 'DELETE' }),
 };
 
 /* ======================
