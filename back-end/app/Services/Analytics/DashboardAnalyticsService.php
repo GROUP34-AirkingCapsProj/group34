@@ -383,6 +383,143 @@ class DashboardAnalyticsService
         ];
     }
 
+    /**
+     * Confirmed losses only: an incident counts when it produced an Adjustment,
+     * i.e. when IncidentService::postDeduction() actually removed stock.
+     *
+     * Reasons are NOT whitelisted here on purpose. wrong_type resolves to a
+     * ScanCorrection (the batch is re-typed) and zone_mismatch to a relocate —
+     * in both cases the goods still exist and nothing was lost. Keying off
+     * adjustment_id means this stays correct when new reasons are added.
+     */
+    private function confirmedLossQuery(?int $locationId, ?int $categoryId): Builder
+    {
+        return DB::table('incident_reports as ir')
+            ->join('adjustments as a', 'a.adjustment_id', '=', 'ir.adjustment_id')
+            ->join('adjustment_details as ad', function ($join) {
+                $join->on('ad.adjustment_id', '=', 'a.adjustment_id')
+                     ->on('ad.product_id', '=', 'ir.product_id');
+            })
+            ->join('products as p', 'p.product_id', '=', 'ir.product_id')
+            ->leftJoin('locations as l', 'l.location_id', '=', 'a.location_id')
+            ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
+            ->leftJoin('category_lookup as c', 'c.category_id', '=', 'p.category_id')
+            ->whereNotNull('ir.adjustment_id')
+            ->when($locationId, fn (Builder $q) => $q->where('a.location_id', $locationId))
+            ->when($categoryId, fn (Builder $q) => $q->where('p.category_id', $categoryId));
+    }
+
+    public function profitLoss(?int $locationId, ?int $categoryId): array
+    {
+        $cost  = self::PIECE_COST;
+        $value = "ad.deduct_quantity * ({$cost})";
+
+        $totals = $this->confirmedLossQuery($locationId, $categoryId)
+            ->selectRaw("a.adjustment_type,
+                         SUM(ad.deduct_quantity) AS units,
+                         SUM({$value}) AS amount")
+            ->groupBy('a.adjustment_type')
+            ->get()
+            ->keyBy('adjustment_type');
+
+        $byLocation = $this->confirmedLossQuery($locationId, $categoryId)
+            ->selectRaw("COALESCE(l.location_name, 'Unknown Location') AS name, SUM({$value}) AS amount")
+            ->groupBy('l.location_name')
+            ->orderByDesc('amount')
+            ->get()
+            ->map(static fn ($r) => ['name' => $r->name, 'amount' => round((float) $r->amount, 2)])
+            ->all();
+
+        $byCategory = $this->confirmedLossQuery($locationId, $categoryId)
+            ->selectRaw("COALESCE(c.category_name, 'Uncategorized') AS name, SUM({$value}) AS amount")
+            ->groupBy('c.category_name')
+            ->orderByDesc('amount')
+            ->get();
+
+        $maxCategory = (float) ($byCategory->max('amount') ?: 1);
+
+        $pendingCount = (int) DB::table('incident_reports as ir')
+            ->where('ir.status_id', \App\Models\IncidentReport::statusId('Open'))
+            ->whereIn('ir.reason', [
+                \App\Models\IncidentReport::REASON_DAMAGED,
+                \App\Models\IncidentReport::REASON_NOT_FOUND,
+            ])
+            ->when($locationId, fn (Builder $q) => $q->where('ir.location_id', $locationId))
+            ->count();
+
+        $damaged = $totals->get('damage');
+        $stolen  = $totals->get('loss');
+
+        return [
+            'profitLossStats' => [
+                'totalProfitLoss' => round((float) $totals->sum('amount'), 2),
+                'stolenUnits'     => (int) ($stolen?->units ?? 0),
+                'damagedUnits'    => (int) ($damaged?->units ?? 0),
+                'pendingReports'  => $pendingCount,
+            ],
+            'lossByBranch'   => $byLocation,
+            'lossByCategory' => $byCategory->map(static fn ($r) => [
+                'name'       => $r->name,
+                'amount'     => round((float) $r->amount, 2),
+                'percentage' => (int) round(((float) $r->amount / $maxCategory) * 100),
+            ])->all(),
+            'recentLossIncidents' => $this->recentLossIncidents($locationId, $categoryId),
+        ];
+    }
+
+    /**
+     * Confirmed write-offs plus still-open damaged/not_found reports.
+     *
+     * Open rows show the quantity and value that WOULD be lost if confirmed, so
+     * reviewers can see what is at stake, but they are excluded from the header
+     * total above — the status badge is what distinguishes them.
+     */
+    private function recentLossIncidents(?int $locationId, ?int $categoryId): array
+    {
+        $cost = self::PIECE_COST;
+
+        return DB::table('incident_reports as ir')
+            ->leftJoin('adjustments as a', 'a.adjustment_id', '=', 'ir.adjustment_id')
+            ->leftJoin('adjustment_details as ad', function ($join) {
+                $join->on('ad.adjustment_id', '=', 'ir.adjustment_id')
+                     ->on('ad.product_id', '=', 'ir.product_id');
+            })
+            ->join('products as p', 'p.product_id', '=', 'ir.product_id')
+            ->leftJoin('locations as l', 'l.location_id', '=', 'ir.location_id')
+            ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
+            ->leftJoin('category_lookup as c', 'c.category_id', '=', 'p.category_id')
+            ->whereIn('ir.reason', [
+                \App\Models\IncidentReport::REASON_DAMAGED,
+                \App\Models\IncidentReport::REASON_NOT_FOUND,
+            ])
+            ->where(function ($q) {
+                $q->whereNotNull('ir.adjustment_id')
+                  ->orWhere('ir.status_id', \App\Models\IncidentReport::statusId('Open'));
+            })
+            ->when($locationId, fn (Builder $q) => $q->where('ir.location_id', $locationId))
+            ->when($categoryId, fn (Builder $q) => $q->where('p.category_id', $categoryId))
+            ->selectRaw("ir.created_at, ir.reason, ir.narrative, ir.adjustment_id,
+                         p.product_name,
+                         COALESCE(l.location_name, 'Unknown Location') AS location_name,
+                         COALESCE(c.category_name, 'Uncategorized') AS category_name,
+                         COALESCE(ad.deduct_quantity, ir.quantity) AS qty,
+                         COALESCE(ad.deduct_quantity, ir.quantity) * ({$cost}) AS loss_value")
+            ->orderByDesc('ir.created_at')
+            ->limit(10)
+            ->get()
+            ->map(static fn ($r) => [
+                'date'         => $r->created_at,
+                'itemName'     => $r->product_name,
+                'branchName'   => $r->location_name,
+                'itemCategory' => $r->category_name,
+                'lossType'     => $r->reason === \App\Models\IncidentReport::REASON_DAMAGED ? 'damaged' : 'stolen',
+                'qty'          => (int) $r->qty,
+                'lossValue'    => round((float) $r->loss_value, 2),
+                'reason'       => $r->narrative ?? 'Incident report',
+                'status'       => $r->adjustment_id !== null ? 'approved' : 'pending',
+            ])->all();
+    }
+
     /** Guards against a burst of page loads all triggering a recompute. */
     private const REFRESH_GUARD_KEY = 'analytics-dashboard-restock-refresh';
 
