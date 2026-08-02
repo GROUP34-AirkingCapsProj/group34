@@ -385,7 +385,6 @@ CREATE TABLE `barcode_scans` (
 CREATE TABLE `brand_lookup` (
   `brand_id` bigint(20) UNSIGNED NOT NULL,
   `brand_name` varchar(100) NOT NULL,
-  `description` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
@@ -395,23 +394,23 @@ CREATE TABLE `brand_lookup` (
 -- Dumping data for table `brand_lookup`
 --
 
-INSERT INTO `brand_lookup` (`brand_id`, `brand_name`, `description`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'Airking', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(2, 'Samsung', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(3, 'LG', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(4, 'Panasonic', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(5, 'Sony', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(6, 'Whirlpool', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(7, 'Condura', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(8, 'Hanabishi', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(9, 'Imarflex', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(10, 'TCL', NULL, '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(11, 'CHiQ', NULL, '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
-(12, 'Iffalcon', NULL, '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
-(13, 'Midea', NULL, '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
-(14, 'Haier', NULL, '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
-(15, 'Carrier', NULL, '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
-(16, 'Koppel', NULL, '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL);
+INSERT INTO `brand_lookup` (`brand_id`, `brand_name`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(1, 'Airking', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(2, 'Samsung', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(3, 'LG', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(4, 'Panasonic', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(5, 'Sony', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(6, 'Whirlpool', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(7, 'Condura', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(8, 'Hanabishi', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(9, 'Imarflex', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(10, 'TCL', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(11, 'CHiQ', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
+(12, 'Iffalcon', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
+(13, 'Midea', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
+(14, 'Haier', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
+(15, 'Carrier', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
+(16, 'Koppel', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL);
 
 -- --------------------------------------------------------
 
@@ -500,7 +499,6 @@ CREATE TABLE `category_lookup` (
   `category_id` bigint(20) UNSIGNED NOT NULL,
   `category_name` varchar(100) NOT NULL,
   `category_type` varchar(50) NOT NULL COMMENT 'appliance | installation_material',
-  `description` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
@@ -510,28 +508,28 @@ CREATE TABLE `category_lookup` (
 -- Dumping data for table `category_lookup`
 --
 
-INSERT INTO `category_lookup` (`category_id`, `category_name`, `category_type`, `description`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'Air Conditioning', 'appliance', 'Air conditioning units', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(2, 'Television', 'appliance', 'TVs and displays', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(3, 'Refrigerator', 'appliance', 'Refrigerators and freezers', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(4, 'Washing Machine', 'appliance', 'Washing machines', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(5, 'Small Appliances', 'appliance', 'Small home appliances', '2026-04-22 21:50:17', '2026-04-22 21:50:17', '2026-07-07 17:33:06'),
-(6, 'Installation Materials', 'installation_material', 'Air conditioning spare parts', '2026-04-22 21:50:17', '2026-07-07 17:31:34', '2026-07-07 17:50:59'),
-(7, 'Copper Tubing', 'installation_material', 'Copper tubing and fittings', '2026-04-22 21:50:17', '2026-04-22 21:50:17', '2026-07-07 17:31:34'),
-(8, 'Accessories', 'installation_material', 'General accessories', '2026-04-22 21:50:17', '2026-04-22 21:50:17', '2026-07-07 17:31:34'),
-(9, 'Water Dispenser', 'appliance', 'Water dispensers (top load / bottom load)', '2026-07-07 17:31:34', '2026-07-07 17:31:34', NULL),
-(10, 'Copper Tube', 'installation_material', 'Copper tubing (rolls / per foot)', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(11, 'PE Foam', 'installation_material', 'Polyethylene foam insulation', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(12, 'Rubber Insulation', 'installation_material', 'Rubber insulation tubing', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(13, 'Brackets', 'installation_material', 'Aircon mounting brackets', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(14, 'Consumables', 'installation_material', 'Tapes, solvent, welding, misc consumables', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(15, 'Electricals', 'installation_material', 'Wires, cords, breakers, enclosures', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(16, 'Bolts, Nuts & Small Items', 'installation_material', 'Bolts, nuts, screws, clamps, small hardware', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(17, 'Refrigerants', 'installation_material', 'Refrigerant gases', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(18, 'PVC Fittings', 'installation_material', 'PVC clamps, elbows, tees, pipes, cladding', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(19, 'Capacitors', 'installation_material', 'Run/start capacitors', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
-(20, 'Copper Fittings', 'installation_material', 'Copper elbows, couplings, drain hose', '2026-07-07 17:50:59', '2026-07-07 17:50:59', '2026-07-07 18:15:56'),
-(21, 'Basic Tools', 'installation_material', 'Tube cutters, benders, hand torch', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL);
+INSERT INTO `category_lookup` (`category_id`, `category_name`, `category_type`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(1, 'Air Conditioning', 'appliance', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(2, 'Television', 'appliance', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(3, 'Refrigerator', 'appliance', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(4, 'Washing Machine', 'appliance', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(5, 'Small Appliances', 'appliance', '2026-04-22 21:50:17', '2026-04-22 21:50:17', '2026-07-07 17:33:06'),
+(6, 'Installation Materials', 'installation_material', '2026-04-22 21:50:17', '2026-07-07 17:31:34', '2026-07-07 17:50:59'),
+(7, 'Copper Tubing', 'installation_material', '2026-04-22 21:50:17', '2026-04-22 21:50:17', '2026-07-07 17:31:34'),
+(8, 'Accessories', 'installation_material', '2026-04-22 21:50:17', '2026-04-22 21:50:17', '2026-07-07 17:31:34'),
+(9, 'Water Dispenser', 'appliance', '2026-07-07 17:31:34', '2026-07-07 17:31:34', NULL),
+(10, 'Copper Tube', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(11, 'PE Foam', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(12, 'Rubber Insulation', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(13, 'Brackets', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(14, 'Consumables', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(15, 'Electricals', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(16, 'Bolts, Nuts & Small Items', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(17, 'Refrigerants', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(18, 'PVC Fittings', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(19, 'Capacitors', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(20, 'Copper Fittings', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', '2026-07-07 18:15:56'),
+(21, 'Basic Tools', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL);
 
 -- --------------------------------------------------------
 
