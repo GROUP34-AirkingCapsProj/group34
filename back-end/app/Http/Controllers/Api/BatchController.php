@@ -280,7 +280,7 @@ class BatchController extends Controller
             }
         }
 
-        // capacities/variants/issuable_unit_presets deliberately get a fresh,
+        // capacities/variants deliberately get a fresh,
         // empty Request rather than the live $request: capacity and variant
         // inherit ScopesLookupsToCategory::lookupIndexFilters(), which
         // filters on a `category_id` query param. If the live $request were
