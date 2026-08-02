@@ -72,9 +72,6 @@ const ItemManagement = () => {
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddBrandOpen, setIsAddBrandOpen] = useState(false);
   const [isAddUnitOpen, setIsAddUnitOpen] = useState(false);
-  // Setter kept for the "add unit of measure" modal (Unit of Measure field's + button);
-  // the value itself is no longer read now that the only target field left is this one.
-  const [, setAddUnitTargetIdx] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newBrandName, setNewBrandName] = useState('');
   const [newUnitName, setNewUnitName] = useState('');
@@ -382,7 +379,6 @@ const ItemManagement = () => {
       }
       setNewUnitName('');
       setNewUnitAbbrev('');
-      setAddUnitTargetIdx(null);
       setIsAddUnitOpen(false);
       toast.success('Unit added.');
     } catch (err) {
@@ -1379,7 +1375,7 @@ const ItemManagement = () => {
                       <button
                         type="button"
                         className="im-inline-add-btn"
-                        onClick={() => { setAddUnitTargetIdx(null); setIsAddUnitOpen(true); }}
+                        onClick={() => setIsAddUnitOpen(true)}
                         title="Add new unit of measure"
                       >
                         +
@@ -1673,7 +1669,7 @@ const ItemManagement = () => {
       {isAddUnitOpen && (
         <Modal
           isOpen={isAddUnitOpen}
-          onClose={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+          onClose={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); }}
           title="Add Unit of Measure"
         >
           <form onSubmit={handleCreateUnit} className="im-add-simple-form">
@@ -1700,7 +1696,7 @@ const ItemManagement = () => {
               <button
                 type="button"
                 className="im-modal-btn-cancel"
-                onClick={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+                onClick={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); }}
               >
                 CANCEL
               </button>
