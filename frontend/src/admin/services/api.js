@@ -409,6 +409,26 @@ export const passwordResetAPI = {
 };
 
 /* ======================
+   ANALYTICS DASHBOARD API
+   Server-computed per-tab analytics. Replaces the page's old client-side
+   computation over /api/batch, which truncated at 500 inventory rows and
+   could not reach incident data at all.
+====================== */
+export const analyticsAPI = {
+  _qs: (params = {}) => {
+    const entries = Object.entries(params).filter(([, v]) => v !== '' && v != null);
+    const qs = new URLSearchParams(entries).toString();
+    return qs ? `?${qs}` : '';
+  },
+  getStockLevel: async (params = {}) => apiRequest(`/analytics/stock-level${analyticsAPI._qs(params)}`),
+  getMovement: async (params = {}) => apiRequest(`/analytics/movement${analyticsAPI._qs(params)}`),
+  getPredictions: async (params = {}) => apiRequest(`/analytics/predictions${analyticsAPI._qs(params)}`),
+  getProfitLoss: async (params = {}) => apiRequest(`/analytics/profit-loss${analyticsAPI._qs(params)}`),
+  getLocationPerformance: async (params = {}) => apiRequest(`/analytics/location-performance${analyticsAPI._qs(params)}`),
+  getFilters: async () => apiRequest('/analytics/filters'),
+};
+
+/* ======================
    BATCH API (single request for multiple resources)
 ====================== */
 export const batchAPI = {
