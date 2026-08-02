@@ -404,8 +404,6 @@ const ItemManagement = () => {
   const getBarcodeFormat = (value) =>
     /^\d{13}$/.test(String(value || '')) ? 'EAN13' : 'CODE128';
 
-
-
   const handleSubmit = async (e) => {
     if (isViewOnly) {
       toast.info('Saving items is disabled for Inventory Analyst.');

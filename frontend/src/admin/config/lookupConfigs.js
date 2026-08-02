@@ -8,28 +8,31 @@
  *   - 'text'      — single-line text input
  *   - 'textarea'  — multi-line text input
  *   - 'number'    — numeric input
- *   - 'checkbox'  — boolean toggle
+ *   - 'checkbox'  — boolean toggle (supported but not currently used by any
+ *                  config below)
  *   - 'select'    — fixed-option dropdown (uses `options`)
  *   - 'category'  — category picker (loads categories, stores category_id)
  *   - 'unit'      — unit-of-measure picker (loads units, stores unit_id)
+ *                  (supported but not currently used by any config below)
  *
- * Column `key` values are usually a raw field on the row, except two derived
- * keys the panel resolves itself:
+ * Column `key` values are usually a raw field on the row, except one derived
+ * key the panel resolves itself:
  *   - 'category_name' — looked up from the row's category_id
- *   - 'unit_name'      — looked up from the row's nested unit object
  *
  * Column `format` values (optional; how the raw/derived value is displayed):
  *   - 'bool'     — render truthy/falsy as Yes/No (React renders true/false as
  *                  nothing, so any boolean column MUST set this)
+ *                  (supported but not currently used by any config below)
  *   - 'currency' — render as peso-formatted money
  *   - 'decimal'  — render a decimal(10,6)-sourced numeric string (e.g. "1.000000")
  *                  trimmed for display
+ *                  (supported but not currently used by any config below)
  *
  * Field-level flags:
  *   - `omitWhenBlank: true` — the panel must NOT submit this key at all when
  *     the input is blank, rather than sending '' (which Laravel's
  *     ConvertEmptyStringsToNull turns into a present `null`, failing
- *     `sometimes|integer` validation). Used on the three `sort_order` fields.
+ *     `sometimes|integer` validation). Used on the two `sort_order` fields.
  *     Do not "fix" a blank sort_order by defaulting it to 0 — that silently
  *     reorders rows; the column must stay unset to keep the DB default.
  *   - `allowEmpty: true` — on `category` fields, tells the panel to offer a
@@ -43,8 +46,8 @@
  * `?category_id=undefined` to the API instead of omitting the param.
  *
  * Server-side search: `unitsAPI.getAll` accepts `?search=` (filters on
- * unit_name) and it is the only one of the six lookups with a server-side
- * filter. This config does not expose it — the panel filters all six lookups
+ * unit_name) and it is the only one of the five lookups with a server-side
+ * filter. This config does not expose it — the panel filters all five lookups
  * client-side uniformly, so the units `?search=` param is left unused by
  * design, not by oversight.
  *
