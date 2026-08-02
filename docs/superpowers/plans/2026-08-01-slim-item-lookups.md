@@ -62,6 +62,13 @@ Expected: **14 passed**.
 
 # CHANGE A — fix `category_type`
 
+> **Tasks 1 and 2 are one deploy unit.** A value rename has no safe ordering: change the data first and the frontend filters on the old string; change the frontend first and it filters on a string the data does not yet hold. Either way there is a window where the installation-material category dropdown is empty. Do not stop between them, and do not ship Task 1 alone.
+>
+> **Five paths produce `category_type`, not three.** The original spec listed the Item Lookups page, `CategoryLookupController`'s default, and `ProductController`'s auto-create. Two more surfaced during Task 1 and are folded into it:
+>
+> - `back-end/database/seeders/CategoriesAndBrandsSeeder.php` seeds five categories as `'product'`. Re-running that seeder on any database recreates the invisible-category defect.
+> - `back-end/tests/Feature/Lookups/LookupTestCase.php`'s shared `category()` fixture also mints `'product'`. Harmless under transaction isolation, but it is the codebase's own helper producing the value being eliminated.
+
 ## Task 1: Backend — migration and the two auto-create paths
 
 **Files:**
@@ -319,6 +326,16 @@ Around line 1144 it reads:
 ```
 
 **Do not change this.** The `!c.category_type ||` fallback is deliberate — a null type still means "show for appliances", and that is why null-typed categories were never part of the bug.
+
+- [ ] **Step 3b: Tighten the validation rule, now that its callers are fixed**
+
+`CategoryLookupController::lookupRules()` currently allows `category_type` to be `nullable|string|max:50` — which is how `'product'` got in. Now that this task has fixed the two callers that would otherwise break, add the constraint:
+
+```php
+            'category_type' => 'nullable|string|in:appliance,installation_material',
+```
+
+This is the rule that stops the defect recurring through the API, and it can only land **after** Steps 1-4 — adding it earlier would have 422'd every save from the Item Lookups page and from `ItemManagement.jsx:320`.
 
 - [ ] **Step 4: Fix the dropdown options**
 
