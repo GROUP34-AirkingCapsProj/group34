@@ -317,7 +317,7 @@ const ItemManagement = () => {
     try {
       // Tag the new category with the current form's product type so it appears
       // in the type-filtered category dropdown (appliance vs installation material).
-      const category_type = productType === 'installation_material' ? 'consumable' : 'appliance';
+      const category_type = productType === 'installation_material' ? 'installation_material' : 'appliance';
       const res = await categoriesAPI.create({ category_name: name, category_type });
       const created = res?.data || res;
       if (created) {
@@ -1344,7 +1344,7 @@ const ItemManagement = () => {
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                       >
                         <option value="">Select Category</option>
-                        {categories.filter(c => c.category_type === 'consumable').map((c) => (
+                        {categories.filter(c => c.category_type === 'installation_material').map((c) => (
                           <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                         ))}
                       </select>
