@@ -23,7 +23,7 @@ use App\Models\UnitLookup;
  */
 class BatchIncludesTest extends LookupTestCase
 {
-    public function test_batch_returns_the_three_new_includes_as_arrays(): void
+    public function test_batch_returns_the_two_new_includes_as_arrays(): void
     {
         $this->actingAsAdmin();
 

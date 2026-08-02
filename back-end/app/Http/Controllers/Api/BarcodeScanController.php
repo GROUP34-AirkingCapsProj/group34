@@ -90,7 +90,6 @@ class BarcodeScanController extends Controller
                     'status',
                     'applianceDetail.brand',
                     'consumableDetail.unit',
-                    'issuableUnits.unit',
                 ]);
 
                 $piecesPerPkg  = $product->getPiecesPerPackage();

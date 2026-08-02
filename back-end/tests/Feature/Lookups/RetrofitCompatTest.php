@@ -503,7 +503,7 @@ class RetrofitCompatTest extends LookupTestCase
         // usageCountFor counts installation_material_details, so the app guard
         // refuses before the DB is asked. This matters more than it used to:
         // the RESTRICT foreign keys that used to back it up lived on the
-        // issuable-unit tables, and those are gone.
+        // issuable-unit tables, which are being removed.
         $this->deleteJson("/api/units/{$unit->unit_id}/force")
             ->assertStatus(422)
             ->assertJsonPath('success', false);
