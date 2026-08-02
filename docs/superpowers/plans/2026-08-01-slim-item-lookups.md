@@ -407,6 +407,10 @@ In `airkingv5.sql`, the `category_lookup` CREATE statement contains:
 
 Change the comment to `'appliance | installation_material'`.
 
+> **Confirmed targets, located during Task 2's review:** the stale `COMMENT` around line 502, and **15 stray rows** in the `category_lookup` INSERT — 14 `'consumable'` and 1 `'accessory'` — around lines 513-537.
+>
+> Note the dump's rows no longer match the dev database: the dump still holds all 15 stray values while dev has none, because the migration only touched the database. **This is a targeted edit of the dump, not a re-dump** — regenerating from dev would pull in unrelated drift.
+
 - [ ] **Step 3: Rewrite the values in the INSERT rows**
 
 In the same file, the `INSERT INTO \`category_lookup\`` statement has one row per category, each carrying a `category_type` value. Replace every `'consumable'` and `'accessory'` in **that statement's rows only** with `'installation_material'`.
