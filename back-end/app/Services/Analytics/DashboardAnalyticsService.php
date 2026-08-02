@@ -36,6 +36,9 @@ class DashboardAnalyticsService
      */
     private const REORDER_POINT = 'COALESCE(NULLIF(i.reorder_level, 0), p.recommended_stocks, 0)';
 
+    /** Trailing window, in days, for consumption and turnover. */
+    private const MOVEMENT_WINDOW_DAYS = 30;
+
     private function inventoryQuery(?int $locationId, ?int $categoryId): Builder
     {
         return DB::table('inventory as i')
@@ -162,5 +165,133 @@ class DashboardAnalyticsService
                 'optimal'  => (int) $r->max_stock_level,
             ])
             ->all();
+    }
+
+    public function movement(?int $locationId, ?int $categoryId): array
+    {
+        $to   = now()->toDateString();
+        $from = now()->subDays(self::MOVEMENT_WINDOW_DAYS - 1)->toDateString();
+
+        // One demand definition, shared with the restock engine, so the Movement
+        // and Predictions tabs can never tell different stories.
+        $demand = $this->restock->dailyDemandByLocation($from, $to);
+
+        // Collapse to [productId => units] for the locations in scope.
+        $consumed = [];
+        foreach ($demand as $locId => $products) {
+            if ($locationId !== null && (int) $locId !== $locationId) {
+                continue;
+            }
+            foreach ($products as $productId => $series) {
+                $consumed[(int) $productId] = ($consumed[(int) $productId] ?? 0) + array_sum($series);
+            }
+        }
+
+        $stockRows = $this->inventoryQuery($locationId, $categoryId)
+            ->selectRaw('i.product_id,
+                         p.product_name,
+                         COALESCE(c.category_name, \'Uncategorized\') AS category_name,
+                         SUM(i.quantity_on_hand) AS on_hand')
+            ->groupBy('i.product_id', 'p.product_name', 'c.category_name')
+            ->get();
+
+        $items = $stockRows->map(function ($r) use ($consumed) {
+            $productId = (int) $r->product_id;
+            $onHand    = (int) $r->on_hand;
+            $units     = (float) ($consumed[$productId] ?? 0);
+
+            return [
+                'productId'   => $productId,
+                'name'        => $r->product_name,
+                'category'    => $r->category_name,
+                'onHand'      => $onHand,
+                'unitsOut'    => $units,
+                // Turnover: units consumed per unit of stock held. With no stock
+                // but real consumption the ratio is undefined, so fall back to the
+                // raw consumed count rather than dividing by zero.
+                'turnover'    => $onHand > 0 ? round($units / $onHand, 1) : $units,
+            ];
+        })->values();
+
+        // The UI renders consumption on a percentage bar, so scale against the
+        // busiest product in scope. An absolute unit count has no natural ceiling.
+        $peak = (float) max(1, $items->max('unitsOut') ?? 1);
+
+        $sorted    = $items->sortByDesc('turnover')->values();
+        $fast      = $sorted->where('turnover', '>=', 6)->take(5)->values();
+        $slow      = $sorted->where('turnover', '>', 0)->where('turnover', '<=', 3)->take(4)->values();
+        $moved     = $items->where('unitsOut', '>', 0);
+        $avgTurn   = $moved->count() > 0 ? (int) round($moved->avg('turnover')) : 0;
+
+        $optimalCount = (int) $this->inventoryQuery($locationId, $categoryId)
+            ->whereRaw($this->bucketExpression() . " = 'optimal'")
+            ->count();
+
+        return [
+            'movementStats' => [
+                'avgTurnoverRate'  => $avgTurn,
+                'fastMovingCount'  => $fast->count(),
+                'slowMovingCount'  => $slow->count(),
+                'optimalStockCount'=> $optimalCount,
+            ],
+            'fastMovingItems' => $fast->map(static fn ($i) => [
+                'name'     => $i['name'],
+                'category' => $i['category'],
+                'rate'     => (int) round($i['turnover']),
+            ])->all(),
+            'slowMovingItems' => $slow->map(static fn ($i) => [
+                'name'     => $i['name'],
+                'category' => $i['category'],
+                'rate'     => (int) round($i['turnover']),
+            ])->all(),
+            'consumptionData' => $items->sortByDesc('unitsOut')->take(10)->values()
+                ->map(static function ($i) use ($peak) {
+                    $status = 'In Stock';
+                    if ($i['onHand'] <= 0) {
+                        $status = 'Out of Stock';
+                    } elseif ($i['turnover'] >= 6) {
+                        $status = 'Low Stock';
+                    }
+
+                    return [
+                        'name'            => $i['name'],
+                        'currentStock'    => $i['onHand'],
+                        'consumptionRate' => (int) round(($i['unitsOut'] / $peak) * 100),
+                        'turnover'        => ((int) round($i['turnover'])) . 'x/mo',
+                        'status'          => $status,
+                    ];
+                })->all(),
+            'weeklyMovement' => $this->weeklyBuckets($demand, $locationId),
+        ];
+    }
+
+    /**
+     * Trailing four weeks of demand, oldest first, matching the chart's
+     * "Week 1..Week 4" labels.
+     *
+     * @param  array<int,array<int,array<string,float>>>  $demand
+     * @return array<int,int>
+     */
+    private function weeklyBuckets(array $demand, ?int $locationId): array
+    {
+        $buckets = [0, 0, 0, 0];
+        $today   = now()->startOfDay();
+
+        foreach ($demand as $locId => $products) {
+            if ($locationId !== null && (int) $locId !== $locationId) {
+                continue;
+            }
+            foreach ($products as $series) {
+                foreach ($series as $day => $qty) {
+                    $daysAgo = \Carbon\Carbon::parse($day)->startOfDay()->diffInDays($today);
+                    $index   = 3 - intdiv($daysAgo, 7);
+                    if ($index >= 0 && $index <= 3) {
+                        $buckets[$index] += (int) $qty;
+                    }
+                }
+            }
+        }
+
+        return $buckets;
     }
 }
