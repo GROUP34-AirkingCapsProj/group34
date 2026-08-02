@@ -18,16 +18,11 @@ use Illuminate\Support\Facades\DB;
  *   1. Case variants are preserved as separate rows (grouping happens in PHP,
  *      existence checks use BINARY) because products reference the exact
  *      string, and collapsing case would orphan whichever spelling loses.
- *   2. A category is only ever claimed when every product using a value
- *      agrees on the same category_id. Anything ambiguous gets category_id
- *      NULL, which means "applies everywhere" downstream.
- *   3. Every insert is guarded by an existence check first, so running this
+ *   2. Every insert is guarded by an existence check first, so running this
  *      twice inserts nothing the second time.
- *   4. A value is reconciled across appliance_details and product_sets
- *      *before* anything is written. A value present in product_sets is
- *      always global; that wins over whatever category appliance_details
- *      alone would have claimed, so the same string never lands as both a
- *      category-scoped row and a global row.
+ *   3. Both sources (appliance_details and product_sets) are reconciled into
+ *      one set of distinct values *before* anything is written, so a value
+ *      named by both sources produces exactly one row.
  */
 class LookupBackfill
 {
@@ -46,8 +41,7 @@ class LookupBackfill
         $maxLen = 20;
 
         $applianceRows = DB::table('appliance_details')
-            ->join('products', 'products.product_id', '=', 'appliance_details.product_id')
-            ->select('appliance_details.capacity_rating as value', 'products.category_id as category_id')
+            ->select('capacity_rating as value')
             ->get();
 
         $setRows = DB::table('product_sets')
@@ -66,8 +60,7 @@ class LookupBackfill
         $maxLen = 100;
 
         $applianceRows = DB::table('appliance_details')
-            ->join('products', 'products.product_id', '=', 'appliance_details.product_id')
-            ->select('appliance_details.variant as value', 'products.category_id as category_id')
+            ->select('variant as value')
             ->get();
 
         $setRows = DB::table('product_sets')
@@ -78,20 +71,9 @@ class LookupBackfill
     }
 
     /**
-     * Reconciles the appliance-derived (category-scoped or ambiguous) values
-     * against the product_sets-derived (always global) values for one lookup
-     * table *before* writing anything, so a value that appears in both
-     * sources produces exactly one row rather than two.
-     *
-     * Naively inserting per-source (appliance pass first, then sets pass)
-     * would let a value that is unambiguously category X in appliance_details
-     * also pick up a second, category_id-NULL row from product_sets — the
-     * frontend unions "rows for my category" with "global rows", so a
-     * category-X item would show that value twice, and the two rows could
-     * then be renamed independently and diverge. A value found in
-     * product_sets at all is inherently global (sets carry no category), so
-     * it always wins: it suppresses whatever category the appliance pass
-     * would otherwise have claimed for that exact string.
+     * Reconciles the values from both sources into one distinct set *before*
+     * writing anything, so a value named by appliance_details and product_sets
+     * alike produces exactly one row rather than two.
      */
     protected static function backfillLookupTable(
         iterable $applianceRows,
@@ -100,23 +82,11 @@ class LookupBackfill
         string $column,
         int $maxLen
     ): void {
-        $applianceGroups = static::groupByExactValue($applianceRows, 'value', $maxLen);
-        $setGroups = static::groupByExactValue($setRows, 'value', $maxLen);
+        $values = static::distinctExactValues($applianceRows, 'value', $maxLen)
+            + static::distinctExactValues($setRows, 'value', $maxLen);
 
-        $entries = [];
-
-        foreach ($applianceGroups as $value => $categoryIds) {
-            $entries[$value] = static::unambiguousCategory($categoryIds);
-        }
-
-        // Sets have no category concept; a value seen here is global, full
-        // stop, overriding any category the appliance pass computed above.
-        foreach ($setGroups as $value => $ignored) {
-            $entries[$value] = null;
-        }
-
-        foreach ($entries as $value => $category) {
-            static::insertIfMissing($table, $column, $value, $category);
+        foreach (array_keys($values) as $value) {
+            static::insertIfMissing($table, $column, (string) $value);
         }
     }
 
@@ -125,14 +95,16 @@ class LookupBackfill
     // -----------------------------------------------------------------
 
     /**
-     * Groups rows by the exact (case-sensitive) string in $column, skipping
-     * null, empty, whitespace-only, and over-length values. Returns
-     * [ exactValue => array of category_id values seen (or [] if the row
-     * objects carry no category_id property) ].
+     * The distinct exact (case-sensitive) strings in $column, skipping null,
+     * empty, whitespace-only and over-length values. Returned as array keys
+     * so "1.5HP" and "1.5hp" stay distinct — PHP array keys are compared
+     * byte-wise, unlike the utf8mb4_unicode_ci column they came from.
+     *
+     * @return array<array-key,true>
      */
-    protected static function groupByExactValue(iterable $rows, string $column, int $maxLen): array
+    protected static function distinctExactValues(iterable $rows, string $column, int $maxLen): array
     {
-        $groups = [];
+        $values = [];
 
         foreach ($rows as $row) {
             $value = $row->{$column} ?? null;
@@ -141,16 +113,10 @@ class LookupBackfill
                 continue;
             }
 
-            if (! array_key_exists($value, $groups)) {
-                $groups[$value] = [];
-            }
-
-            if (property_exists($row, 'category_id')) {
-                $groups[$value][] = $row->category_id;
-            }
+            $values[$value] = true;
         }
 
-        return $groups;
+        return $values;
     }
 
     protected static function isValidValue(?string $value, int $maxLen): bool
@@ -171,28 +137,6 @@ class LookupBackfill
     }
 
     /**
-     * Returns the single category_id every entry agrees on, or null if the
-     * value spans more than one category (or category tracking wasn't
-     * available for this source).
-     */
-    protected static function unambiguousCategory(array $categoryIds): ?int
-    {
-        if (empty($categoryIds)) {
-            return null;
-        }
-
-        $unique = array_unique($categoryIds);
-
-        if (count($unique) !== 1) {
-            return null;
-        }
-
-        $only = reset($unique);
-
-        return $only === null ? null : (int) $only;
-    }
-
-    /**
      * Deliberately does not filter out soft-deleted rows (no
      * whereNull('deleted_at') here): if an admin has archived this exact
      * value already, re-running the backfill must not resurrect it just
@@ -200,15 +144,10 @@ class LookupBackfill
      * beats re-litigating it on every run — the value simply stays archived
      * until someone restores it by hand.
      */
-    protected static function insertIfMissing(string $table, string $column, string $value, ?int $categoryId): void
+    protected static function insertIfMissing(string $table, string $column, string $value): void
     {
         $exists = DB::table($table)
             ->whereRaw("BINARY {$column} = ?", [$value])
-            ->when(
-                $categoryId === null,
-                fn ($q) => $q->whereNull('category_id'),
-                fn ($q) => $q->where('category_id', $categoryId)
-            )
             ->exists();
 
         if ($exists) {
@@ -216,11 +155,9 @@ class LookupBackfill
         }
 
         DB::table($table)->insert([
-            $column       => $value,
-            'category_id' => $categoryId,
-            'sort_order'  => 0,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            $column      => $value,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 }

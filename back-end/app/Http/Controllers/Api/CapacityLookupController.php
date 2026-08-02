@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\HandlesLookupCrud;
-use App\Http\Controllers\Concerns\ScopesLookupsToCategory;
 use App\Http\Controllers\Controller;
 use App\Models\CapacityLookup;
 use App\Services\LookupRenameService;
@@ -16,10 +15,6 @@ class CapacityLookupController extends Controller
 {
     use ApiResponse;
     use HandlesLookupCrud;
-    use ScopesLookupsToCategory {
-        ScopesLookupsToCategory::lookupIndexFilters insteadof HandlesLookupCrud;
-        ScopesLookupsToCategory::lookupUniqueRule insteadof HandlesLookupCrud;
-    }
 
     public function __construct(private LookupRenameService $renamer)
     {
@@ -45,12 +40,6 @@ class CapacityLookupController extends Controller
         return 'Capacities';
     }
 
-    /** capacity_lookup has a sort_order column, so order by it before the name. */
-    protected function lookupOrderColumns(): array
-    {
-        return ['sort_order', 'capacity_value'];
-    }
-
     /**
      * Every table/column pair holding this lookup's value as a plain string.
      * Both usageCountFor() and cascadeValueChange() read this, so the two can
@@ -71,24 +60,16 @@ class CapacityLookupController extends Controller
         $unique = $this->lookupUniqueRule($request, $id);
 
         return [
+            // max:20 is not cosmetic: capacity_value must stay within what
+            // appliance_details.capacity_rating (varchar(20)) can hold, or a
+            // cascade would truncate under MySQL strict mode.
             'capacity_value' => [
                 $id === null ? 'required' : 'sometimes',
                 'string',
                 'max:20',
                 $unique,
             ],
-            'category_id' => 'nullable|integer|exists:category_lookup,category_id',
             'description' => 'nullable|string',
-            // 'sometimes', not 'nullable': the column is a NOT NULL
-            // unsignedTinyInteger default 0, and with strict mode on, a JSON
-            // {"sort_order": null} (an empty numeric form field, say) would
-            // otherwise pass validation, reach the query builder as a literal
-            // NULL, and raise SQLSTATE 1048 -> a 500. 'sometimes' means an
-            // absent key is skipped (validated() omits it, the model falls
-            // back to the column default), but a key that IS present is still
-            // validated — so an explicit null fails 'integer' and returns a
-            // clean 422 instead.
-            'sort_order' => 'sometimes|integer|min:0|max:255',
         ];
     }
 

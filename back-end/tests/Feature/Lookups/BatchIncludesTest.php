@@ -72,40 +72,6 @@ class BatchIncludesTest extends LookupTestCase
     }
 
     /**
-     * capacity/variant inherit ScopesLookupsToCategory::lookupIndexFilters(),
-     * which filters by `category_id` on the dedicated /api/capacities and
-     * /api/variants endpoints. BatchController must NOT let a stray
-     * `category_id` query param on /api/batch itself narrow this include —
-     * every other include on this endpoint ignores that param, and a page
-     * bootstrapping its full lookup set from batch needs the complete list,
-     * not one category's slice. Proven by creating a capacity scoped to a
-     * DIFFERENT category than the one named in the query string and
-     * asserting it still comes back.
-     */
-    public function test_batch_capacities_include_ignores_the_category_id_query_param(): void
-    {
-        $this->actingAsAdmin();
-
-        $categoryA = $this->category();
-        $categoryB = $this->category();
-
-        $valueInOtherCategory = $this->uniqueValue();
-        $this->postJson('/api/capacities', [
-            'capacity_value' => $valueInOtherCategory,
-            'category_id'    => $categoryB->category_id,
-        ])->assertStatus(201);
-
-        $response = $this->getJson("/api/batch?include=capacities&category_id={$categoryA->category_id}")
-            ->assertStatus(200);
-
-        $values = collect($response->json('data.capacities.data'))->pluck('capacity_value');
-        $this->assertTrue(
-            $values->contains($valueInOtherCategory),
-            'batch capacities include must return every capacity, not just category A\'s'
-        );
-    }
-
-    /**
      * BatchController's `units` include used to return raw UnitLookup models
      * built from a bare query, bypassing UnitLookupController::index() — so
      * it carried no usage_count while every other lookup's batch include
