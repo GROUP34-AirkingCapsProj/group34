@@ -108,4 +108,21 @@ class CategoryTypeTest extends LookupTestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('category_type');
     }
+
+    public function test_a_null_category_type_is_rejected_with_the_right_error(): void
+    {
+        $this->actingAsAdmin();
+
+        $id = $this->postJson('/api/categories', ['category_name' => 'Cat ' . uniqid()])
+            ->assertStatus(201)
+            ->json('data.category_id');
+
+        // The column is NOT NULL. Before the rule was tightened this reached
+        // the database, raised SQLSTATE 23000, and was caught by update()'s
+        // duplicate-name handler — so the caller was told their name was
+        // taken. The error must name the field that is actually wrong.
+        $this->putJson("/api/categories/{$id}", ['category_type' => null])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('category_type');
+    }
 }

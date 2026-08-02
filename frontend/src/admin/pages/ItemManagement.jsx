@@ -1141,6 +1141,11 @@ const ItemManagement = () => {
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                       >
                         <option value="">Select Category</option>
+                        {/* category_type is NOT NULL at the schema level and the API rule now
+                            rejects anything but 'appliance'/'installation_material', so
+                            !c.category_type can't fire in practice. Left in as belt-and-braces:
+                            a hypothetical null still surfaces under Appliances instead of
+                            vanishing from both dropdowns. */}
                         {categories.filter(c => !c.category_type || c.category_type === 'appliance').map((c) => (
                           <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                         ))}
