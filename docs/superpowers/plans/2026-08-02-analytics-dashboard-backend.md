@@ -725,11 +725,17 @@ Add these methods to `DashboardAnalyticsService`:
             }
         }
 
+        $reorder = self::REORDER_POINT;
+
+        // The reorder point is wrapped in MAX() because this query groups by
+        // product across locations, and ONLY_FULL_GROUP_BY rejects bare
+        // references to i.reorder_level / p.recommended_stocks here.
         $stockRows = $this->inventoryQuery($locationId, $categoryId)
-            ->selectRaw('i.product_id,
+            ->selectRaw("i.product_id,
                          p.product_name,
-                         COALESCE(c.category_name, \'Uncategorized\') AS category_name,
-                         SUM(i.quantity_on_hand) AS on_hand')
+                         COALESCE(c.category_name, 'Uncategorized') AS category_name,
+                         SUM(i.quantity_on_hand) AS on_hand,
+                         MAX({$reorder}) AS reorder_point")
             ->groupBy('i.product_id', 'p.product_name', 'c.category_name')
             ->get();
 
@@ -743,6 +749,7 @@ Add these methods to `DashboardAnalyticsService`:
                 'name'        => $r->product_name,
                 'category'    => $r->category_name,
                 'onHand'      => $onHand,
+                'reorderPoint'=> (int) $r->reorder_point,
                 'unitsOut'    => $units,
                 // Turnover: units consumed per unit of stock held. With no stock
                 // but real consumption the ratio is undefined, so fall back to the
@@ -784,10 +791,14 @@ Add these methods to `DashboardAnalyticsService`:
             ])->all(),
             'consumptionData' => $items->sortByDesc('unitsOut')->take(10)->values()
                 ->map(static function ($i) use ($peak) {
+                    // Status keys off STOCK LEVEL, not turnover. Labelling a
+                    // fast mover "Low Stock" while it has 500 units on hand
+                    // would be plainly false; use the same reorder-point
+                    // definition the Stock Level tab uses.
                     $status = 'In Stock';
                     if ($i['onHand'] <= 0) {
                         $status = 'Out of Stock';
-                    } elseif ($i['turnover'] >= 6) {
+                    } elseif ($i['onHand'] <= $i['reorderPoint']) {
                         $status = 'Low Stock';
                     }
 
@@ -812,7 +823,9 @@ Add these methods to `DashboardAnalyticsService`:
      */
     private function weeklyBuckets(array $demand, ?int $locationId): array
     {
-        $buckets = [0, 0, 0, 0];
+        // Accumulated as float and rounded once at the end. Truncating each day
+        // individually would sum seven days of 0.6 units to 0 instead of 4.
+        $buckets = [0.0, 0.0, 0.0, 0.0];
         $today   = now()->startOfDay();
 
         foreach ($demand as $locId => $products) {
@@ -824,13 +837,13 @@ Add these methods to `DashboardAnalyticsService`:
                     $daysAgo = $today->diffInDays(\Carbon\Carbon::parse($day)->startOfDay());
                     $index   = 3 - intdiv($daysAgo, 7);
                     if ($index >= 0 && $index <= 3) {
-                        $buckets[$index] += (int) $qty;
+                        $buckets[$index] += (float) $qty;
                     }
                 }
             }
         }
 
-        return $buckets;
+        return array_map(static fn ($v) => (int) round($v), $buckets);
     }
 ```
 
