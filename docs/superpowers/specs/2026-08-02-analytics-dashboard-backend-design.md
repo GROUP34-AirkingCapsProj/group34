@@ -5,6 +5,14 @@
 **Status:** Implemented 2026-08-03 on backupV3, not pushed.
 Plan: `docs/superpowers/plans/2026-08-02-analytics-dashboard-backend.md`
 
+> **Seeder removed.** `AnalyticsDemoDataSeeder` was written, run once to verify
+> every tab against real data, then deleted along with the ~6,800 demo rows it
+> created — the dev database is heading toward real use, so fabricated inventory
+> and sales history would be misleading as a starting point. The seeder is
+> recoverable from git history (commit `12ed53a`) if a demo dataset is ever
+> needed again. The "Demo seed data" section below is retained as a record of
+> what it did.
+
 ## Problem
 
 `frontend/src/admin/pages/AnalyticsDashboard.jsx` renders five tabs of inventory
