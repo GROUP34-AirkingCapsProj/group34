@@ -83,7 +83,7 @@ class DashboardAnalyticsService
             ->get()
             ->keyBy('bucket');
 
-        $count = fn (string $b) => (int) ($rows[$b]->row_count ?? 0);
+        $count = fn (string $b) => (int) ($rows->get($b)?->row_count ?? 0);
 
         $critical  = $count('critical');
         $low       = $count('low');
