@@ -49,8 +49,40 @@ class CategoryTypeTest extends LookupTestCase
         $this->assertSame('installation_material', $cat->category_type);
     }
 
-    public function test_no_category_carries_a_type_outside_the_two_valid_values(): void
+    public function test_product_import_types_an_appliance_category_as_appliance(): void
     {
+        $this->actingAsAdmin();
+
+        $catName = 'Cat ' . uniqid();
+
+        // Pins the branch a mutant survived: forcing $categoryType to
+        // 'installation_material' unconditionally still passed the
+        // installation-material-derivation test above, because that test
+        // never exercised the appliance path. product_type omitted here on
+        // purpose — the default branch (no product_type / anything other
+        // than 'installation_material') must resolve to 'appliance'.
+        $this->postJson('/api/products', [
+            'product_code' => 'PC-' . uniqid(),
+            'product_name' => 'Appliance ' . uniqid(),
+            'category'     => $catName,
+        ])->assertSuccessful();
+
+        $cat = CategoryLookup::where('category_name', $catName)->first();
+
+        $this->assertNotNull($cat, 'the category should have been auto-created');
+        $this->assertSame('appliance', $cat->category_type);
+    }
+
+    public function test_migrated_database_has_no_stray_category_types(): void
+    {
+        // Queries the live database rather than data this test itself
+        // creates, so it can catch a stray value arriving from a seeder or a
+        // restored dump. That also means it would pass vacuously on an empty
+        // table — assert non-empty first so that case fails loudly instead
+        // of silently proving nothing.
+        $total = DB::table('category_lookup')->count();
+        $this->assertGreaterThan(0, $total, 'category_lookup is empty — this test cannot verify anything');
+
         // The migration normalises consumable and accessory. Anything else
         // would be invisible in both Item Master dropdowns.
         $stray = DB::table('category_lookup')

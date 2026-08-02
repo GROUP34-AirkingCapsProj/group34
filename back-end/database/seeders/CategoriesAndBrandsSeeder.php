@@ -10,12 +10,15 @@ class CategoriesAndBrandsSeeder extends Seeder
 {
     public function run(): void
     {
+        // category_type must be 'appliance' or 'installation_material' —
+        // anything else (the old 'product' default) is invisible in both
+        // Item Master dropdowns. All five of these are appliances by name.
         $categories = [
-            ['category_name' => 'Air Conditioning', 'category_type' => 'product', 'description' => 'Air conditioning units'],
-            ['category_name' => 'Television', 'category_type' => 'product', 'description' => 'TVs and displays'],
-            ['category_name' => 'Washing Machine', 'category_type' => 'product', 'description' => 'Washing machines and dryers'],
-            ['category_name' => 'Refrigerator', 'category_type' => 'product', 'description' => 'Refrigerators and freezers'],
-            ['category_name' => 'Small Appliances', 'category_type' => 'product', 'description' => 'Small home appliances'],
+            ['category_name' => 'Air Conditioning', 'category_type' => 'appliance', 'description' => 'Air conditioning units'],
+            ['category_name' => 'Television', 'category_type' => 'appliance', 'description' => 'TVs and displays'],
+            ['category_name' => 'Washing Machine', 'category_type' => 'appliance', 'description' => 'Washing machines and dryers'],
+            ['category_name' => 'Refrigerator', 'category_type' => 'appliance', 'description' => 'Refrigerators and freezers'],
+            ['category_name' => 'Small Appliances', 'category_type' => 'appliance', 'description' => 'Small home appliances'],
         ];
 
         foreach ($categories as $c) {

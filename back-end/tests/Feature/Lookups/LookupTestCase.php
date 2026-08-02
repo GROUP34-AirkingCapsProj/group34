@@ -59,7 +59,7 @@ abstract class LookupTestCase extends TestCase
     {
         return CategoryLookup::create([
             'category_name' => 'Cat ' . uniqid(),
-            'category_type' => 'product',
+            'category_type' => 'appliance',
         ]);
     }
 

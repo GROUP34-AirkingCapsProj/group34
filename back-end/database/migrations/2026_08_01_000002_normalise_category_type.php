@@ -8,11 +8,16 @@ return new class extends Migration
     /**
      * Normalises category_type to exactly two values.
      *
-     * ItemManagement.jsx filters categories with `=== 'appliance'` and
-     * `=== 'installation_material'`. Anything else matches neither and the
-     * category becomes unselectable in both dropdowns. 'consumable' is the
-     * old name for installation materials; 'accessory' was never handled by
-     * either filter. Using 'installation_material' matches
+     * ItemManagement.jsx currently filters categories with `=== 'appliance'`
+     * and `=== 'consumable'`; the second filter is being changed to
+     * `=== 'installation_material'` in a companion frontend change (Task 2 of
+     * the same plan). Until that lands, this migration and that frontend fix
+     * are one deploy unit — deploying this without it would make every
+     * 'installation_material' row (both the ones converted here and any
+     * created afterwards by the now-fixed ProductController) briefly
+     * unselectable, exactly the defect being fixed. 'consumable' is the old
+     * name for installation materials; 'accessory' was never handled by
+     * either filter. 'installation_material' was chosen because it matches
      * products.product_type, which already uses that word.
      */
     public function up(): void
@@ -23,14 +28,18 @@ return new class extends Migration
     }
 
     /**
-     * Reverses the rename. This CANNOT distinguish the rows that were
-     * 'accessory' before up() ran — they come back as 'consumable'. That is
-     * the honest limit of a value migration with no record of the prior value.
+     * Deliberately does nothing.
+     *
+     * A value rename cannot be reversed safely. This migration has no record
+     * of which rows were 'consumable' and which were 'accessory', and by the
+     * time anyone rolls back, ProductController and the Item Lookups page are
+     * both creating 'installation_material' rows of their own. Rewriting every
+     * such row to 'consumable' would corrupt those and leave the frontend —
+     * which filters on 'installation_material' — unable to display them.
+     *
+     * To revert, restore category_lookup from a backup taken before up() ran.
      */
     public function down(): void
     {
-        DB::table('category_lookup')
-            ->where('category_type', 'installation_material')
-            ->update(['category_type' => 'consumable']);
     }
 };
