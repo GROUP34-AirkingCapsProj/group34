@@ -14,7 +14,7 @@ import { confirmAction } from '../utils/confirm';
  * Props:
  *   config       {object}  one entry from LOOKUP_CONFIGS
  *   categories   {array}   for the `category` field type + `category_name` column
- *   units        {array}   for the `unit` field type + `unit_name` column
+ *   units        {array}   for the `unit` field type
  *   permissions  {canCreate, canUpdate, canArchive}
  */
 const formatMoney = (n) =>
@@ -376,9 +376,6 @@ export default function LookupPanel({ config, categories = [], units = [], permi
         (c) => String(c.category_id) === String(row.category_id)
       );
       return match ? match.category_name : '—';
-    }
-    if (col.key === 'unit_name') {
-      return row.unit?.unit_name || '—';
     }
 
     const raw = row[col.key];
