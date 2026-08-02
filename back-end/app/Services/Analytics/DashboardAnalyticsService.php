@@ -191,7 +191,8 @@ class DashboardAnalyticsService
             ->selectRaw('i.product_id,
                          p.product_name,
                          COALESCE(c.category_name, \'Uncategorized\') AS category_name,
-                         SUM(i.quantity_on_hand) AS on_hand')
+                         SUM(i.quantity_on_hand) AS on_hand,
+                         MAX(' . self::REORDER_POINT . ') AS reorder_point')
             ->groupBy('i.product_id', 'p.product_name', 'c.category_name')
             ->get();
 
@@ -201,15 +202,16 @@ class DashboardAnalyticsService
             $units     = (float) ($consumed[$productId] ?? 0);
 
             return [
-                'productId'   => $productId,
-                'name'        => $r->product_name,
-                'category'    => $r->category_name,
-                'onHand'      => $onHand,
-                'unitsOut'    => $units,
+                'productId'    => $productId,
+                'name'         => $r->product_name,
+                'category'     => $r->category_name,
+                'onHand'       => $onHand,
+                'reorderPoint' => (int) $r->reorder_point,
+                'unitsOut'     => $units,
                 // Turnover: units consumed per unit of stock held. With no stock
                 // but real consumption the ratio is undefined, so fall back to the
                 // raw consumed count rather than dividing by zero.
-                'turnover'    => $onHand > 0 ? round($units / $onHand, 1) : $units,
+                'turnover'     => $onHand > 0 ? round($units / $onHand, 1) : $units,
             ];
         })->values();
 
@@ -227,6 +229,12 @@ class DashboardAnalyticsService
             ->whereRaw($this->bucketExpression() . " = 'optimal'")
             ->count();
 
+        $toRateShape = static fn ($i) => [
+            'name'     => $i['name'],
+            'category' => $i['category'],
+            'rate'     => (int) round($i['turnover']),
+        ];
+
         return [
             'movementStats' => [
                 'avgTurnoverRate'  => $avgTurn,
@@ -234,23 +242,19 @@ class DashboardAnalyticsService
                 'slowMovingCount'  => $slow->count(),
                 'optimalStockCount'=> $optimalCount,
             ],
-            'fastMovingItems' => $fast->map(static fn ($i) => [
-                'name'     => $i['name'],
-                'category' => $i['category'],
-                'rate'     => (int) round($i['turnover']),
-            ])->all(),
-            'slowMovingItems' => $slow->map(static fn ($i) => [
-                'name'     => $i['name'],
-                'category' => $i['category'],
-                'rate'     => (int) round($i['turnover']),
-            ])->all(),
+            'fastMovingItems' => $fast->map($toRateShape)->all(),
+            'slowMovingItems' => $slow->map($toRateShape)->all(),
             'consumptionData' => $items->sortByDesc('unitsOut')->take(10)->values()
                 ->map(static function ($i) use ($peak) {
-                    $status = 'In Stock';
+                    // Status reflects stock level against the reorder point,
+                    // the same definition the Stock Level tab uses — not
+                    // turnover, which measures speed, not scarcity.
                     if ($i['onHand'] <= 0) {
                         $status = 'Out of Stock';
-                    } elseif ($i['turnover'] >= 6) {
+                    } elseif ($i['onHand'] <= $i['reorderPoint']) {
                         $status = 'Low Stock';
+                    } else {
+                        $status = 'In Stock';
                     }
 
                     return [
@@ -274,7 +278,7 @@ class DashboardAnalyticsService
      */
     private function weeklyBuckets(array $demand, ?int $locationId): array
     {
-        $buckets = [0, 0, 0, 0];
+        $buckets = [0.0, 0.0, 0.0, 0.0];
         $today   = now()->startOfDay();
 
         foreach ($demand as $locId => $products) {
@@ -286,12 +290,12 @@ class DashboardAnalyticsService
                     $daysAgo = \Carbon\Carbon::parse($day)->startOfDay()->diffInDays($today);
                     $index   = 3 - intdiv($daysAgo, 7);
                     if ($index >= 0 && $index <= 3) {
-                        $buckets[$index] += (int) $qty;
+                        $buckets[$index] += (float) $qty;
                     }
                 }
             }
         }
 
-        return $buckets;
+        return array_map(static fn ($v) => (int) round($v), $buckets);
     }
 }

@@ -173,4 +173,372 @@ class MovementAnalyticsTest extends TestCase
         $this->assertSame(0, $result['movementStats']['avgTurnoverRate']);
         $this->assertSame([0, 0, 0, 0], $result['weeklyMovement']);
     }
+
+    public function test_status_reflects_reorder_point_not_turnover(): void
+    {
+        $locationId = (int) DB::table('locations')->insertGetId([
+            'location_code' => 'TST-WH-' . uniqid(),
+            'location_name' => 'Status Warehouse',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+
+        $zeroQtyId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Zero Qty',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 100,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        $lowStockId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'At Reorder Point',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 100,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        // Well stocked AND fast moving: the regression this test locks down.
+        // Old logic keyed "Low Stock" off turnover >= 6, so this would have
+        // been mislabeled despite having 50x its reorder point on hand.
+        $healthyFastId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Healthy Fast Mover',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 5000,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        DB::table('inventory')->insert([
+            [
+                'location_id'        => $locationId,
+                'product_id'         => $zeroQtyId,
+                'quantity_on_hand'   => 0,
+                'available_quantity' => 0,
+                'reorder_level'      => 0,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ],
+            [
+                'location_id'        => $locationId,
+                'product_id'         => $lowStockId,
+                'quantity_on_hand'   => 5,
+                'available_quantity' => 5,
+                'reorder_level'      => 0,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ],
+            [
+                'location_id'        => $locationId,
+                'product_id'         => $healthyFastId,
+                'quantity_on_hand'   => 500,
+                'available_quantity' => 500,
+                'reorder_level'      => 0,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ],
+        ]);
+
+        $salesId = (int) DB::table('sales')->insertGetId([
+            'location_id'    => $locationId,
+            'invoice_number' => 'TST-INV-' . uniqid(),
+            'sale_date'      => now()->subDays(5)->toDateString(),
+            'order_date'     => now()->subDays(5)->toDateString(),
+            'created_at'     => now()->subDays(5),
+            'updated_at'     => now()->subDays(5),
+        ], 'sales_id');
+
+        DB::table('sales_details')->insert([
+            'sales_id'   => $salesId,
+            'product_id' => $healthyFastId,
+            'quantity'   => 3000,
+            'unit_price' => 100,
+            'subtotal'   => 300000,
+            'created_at' => now()->subDays(5),
+            'updated_at' => now()->subDays(5),
+        ]);
+
+        $result = app(\App\Services\Analytics\DashboardAnalyticsService::class)
+            ->movement($locationId, null);
+
+        $statusOf = fn (string $name) => collect($result['consumptionData'])->firstWhere('name', $name)['status'];
+
+        $this->assertSame('Out of Stock', $statusOf('Zero Qty'));
+        $this->assertSame('Low Stock', $statusOf('At Reorder Point'));
+        $this->assertSame('In Stock', $statusOf('Healthy Fast Mover'));
+    }
+
+    public function test_fast_and_slow_movers_are_classified_by_turnover(): void
+    {
+        $locationId = (int) DB::table('locations')->insertGetId([
+            'location_code' => 'TST-WH-' . uniqid(),
+            'location_name' => 'Classification Warehouse',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+
+        $fastId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Fast Mover',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 500,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        $slowId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Slow Mover',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 500,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        DB::table('inventory')->insert([
+            [
+                'location_id'        => $locationId,
+                'product_id'         => $fastId,
+                'quantity_on_hand'   => 50,
+                'available_quantity' => 50,
+                'reorder_level'      => 0,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ],
+            [
+                'location_id'        => $locationId,
+                'product_id'         => $slowId,
+                'quantity_on_hand'   => 100,
+                'available_quantity' => 100,
+                'reorder_level'      => 0,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ],
+        ]);
+
+        $salesId = (int) DB::table('sales')->insertGetId([
+            'location_id'    => $locationId,
+            'invoice_number' => 'TST-INV-' . uniqid(),
+            'sale_date'      => now()->subDays(5)->toDateString(),
+            'order_date'     => now()->subDays(5)->toDateString(),
+            'created_at'     => now()->subDays(5),
+            'updated_at'     => now()->subDays(5),
+        ], 'sales_id');
+
+        DB::table('sales_details')->insert([
+            [
+                'sales_id'   => $salesId,
+                'product_id' => $fastId,
+                'quantity'   => 300,
+                'unit_price' => 100,
+                'subtotal'   => 30000,
+                'created_at' => now()->subDays(5),
+                'updated_at' => now()->subDays(5),
+            ],
+            [
+                'sales_id'   => $salesId,
+                'product_id' => $slowId,
+                'quantity'   => 200,
+                'unit_price' => 100,
+                'subtotal'   => 20000,
+                'created_at' => now()->subDays(5),
+                'updated_at' => now()->subDays(5),
+            ],
+        ]);
+
+        $result = app(\App\Services\Analytics\DashboardAnalyticsService::class)
+            ->movement($locationId, null);
+
+        $fast = collect($result['fastMovingItems'])->firstWhere('name', 'Fast Mover');
+        $slow = collect($result['slowMovingItems'])->firstWhere('name', 'Slow Mover');
+
+        $this->assertSame(['name' => 'Fast Mover', 'category' => 'Uncategorized', 'rate' => 6], $fast);
+        $this->assertSame(['name' => 'Slow Mover', 'category' => 'Uncategorized', 'rate' => 2], $slow);
+    }
+
+    public function test_weekly_bucket_places_sale_in_correct_week_index(): void
+    {
+        $locationId = (int) DB::table('locations')->insertGetId([
+            'location_code' => 'TST-WH-' . uniqid(),
+            'location_name' => 'Bucket Warehouse',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+
+        $productId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Bucket Probe',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 100,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        DB::table('inventory')->insert([
+            'location_id'        => $locationId,
+            'product_id'         => $productId,
+            'quantity_on_hand'   => 20,
+            'available_quantity' => 20,
+            'reorder_level'      => 0,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+
+        // ~10 days ago: intdiv(10, 7) = 1, so index = 3 - 1 = 2 (not 1 or 3).
+        $salesId = (int) DB::table('sales')->insertGetId([
+            'location_id'    => $locationId,
+            'invoice_number' => 'TST-INV-' . uniqid(),
+            'sale_date'      => now()->subDays(10)->toDateString(),
+            'order_date'     => now()->subDays(10)->toDateString(),
+            'created_at'     => now()->subDays(10),
+            'updated_at'     => now()->subDays(10),
+        ], 'sales_id');
+
+        DB::table('sales_details')->insert([
+            'sales_id'   => $salesId,
+            'product_id' => $productId,
+            'quantity'   => 5,
+            'unit_price' => 100,
+            'subtotal'   => 500,
+            'created_at' => now()->subDays(10),
+            'updated_at' => now()->subDays(10),
+        ]);
+
+        $result = app(\App\Services\Analytics\DashboardAnalyticsService::class)
+            ->movement($locationId, null);
+
+        $this->assertSame([0, 0, 5, 0], $result['weeklyMovement']);
+    }
+
+    public function test_consumption_rate_scales_against_the_busiest_product(): void
+    {
+        $locationId = (int) DB::table('locations')->insertGetId([
+            'location_code' => 'TST-WH-' . uniqid(),
+            'location_name' => 'Peak Warehouse',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+
+        $busyId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Busy Product',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 500,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        $quietId = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Quiet Product',
+            'product_type'       => 'appliance',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 10,
+            'max_stock_level'    => 500,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+
+        DB::table('inventory')->insert([
+            [
+                'location_id'        => $locationId,
+                'product_id'         => $busyId,
+                'quantity_on_hand'   => 200,
+                'available_quantity' => 200,
+                'reorder_level'      => 0,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ],
+            [
+                'location_id'        => $locationId,
+                'product_id'         => $quietId,
+                'quantity_on_hand'   => 200,
+                'available_quantity' => 200,
+                'reorder_level'      => 0,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ],
+        ]);
+
+        $salesId = (int) DB::table('sales')->insertGetId([
+            'location_id'    => $locationId,
+            'invoice_number' => 'TST-INV-' . uniqid(),
+            'sale_date'      => now()->subDays(5)->toDateString(),
+            'order_date'     => now()->subDays(5)->toDateString(),
+            'created_at'     => now()->subDays(5),
+            'updated_at'     => now()->subDays(5),
+        ], 'sales_id');
+
+        DB::table('sales_details')->insert([
+            [
+                'sales_id'   => $salesId,
+                'product_id' => $busyId,
+                'quantity'   => 100,
+                'unit_price' => 100,
+                'subtotal'   => 10000,
+                'created_at' => now()->subDays(5),
+                'updated_at' => now()->subDays(5),
+            ],
+            [
+                'sales_id'   => $salesId,
+                'product_id' => $quietId,
+                'quantity'   => 50,
+                'unit_price' => 100,
+                'subtotal'   => 5000,
+                'created_at' => now()->subDays(5),
+                'updated_at' => now()->subDays(5),
+            ],
+        ]);
+
+        $result = app(\App\Services\Analytics\DashboardAnalyticsService::class)
+            ->movement($locationId, null);
+
+        $busy  = collect($result['consumptionData'])->firstWhere('name', 'Busy Product');
+        $quiet = collect($result['consumptionData'])->firstWhere('name', 'Quiet Product');
+
+        $this->assertSame(100, $busy['consumptionRate']);
+        $this->assertSame(50, $quiet['consumptionRate']);
+    }
 }
