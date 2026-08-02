@@ -3,6 +3,7 @@
 namespace App\Services\Analytics;
 
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -382,21 +383,40 @@ class DashboardAnalyticsService
         ];
     }
 
+    /** Guards against a burst of page loads all triggering a recompute. */
+    private const REFRESH_GUARD_KEY = 'analytics-dashboard-restock-refresh';
+
     /**
      * The restock engine is driven by a daily scheduled command. On a dev box
      * that scheduler is not running, which would leave this tab permanently
      * blank and indistinguishable from a bug. If the table is empty or stale,
-     * compute it now.
+     * compute it now — but never at the cost of failing the request.
      */
     private function ensureRecommendationsFresh(): void
     {
-        $newest = DB::table('restock_recommendations')->max('run_at');
+        // NOT run_at: analyze() truncates that to startOfDay(), so it cannot
+        // express age — it would read as stale every night between midnight and
+        // the 06:00 scheduled run. created_at is the real insert time.
+        $newest = DB::table('restock_recommendations')->max('created_at');
 
         if ($newest !== null
             && \Carbon\Carbon::parse($newest)->gt(now()->subHours(self::RECOMMENDATION_MAX_AGE_HOURS))) {
             return;
         }
 
-        $this->restock->run();
+        // Cache::add is atomic: only the first caller in the window wins, so a
+        // burst of loads triggers exactly one recompute instead of all of them
+        // queueing on the engine's 15s lock.
+        if (! Cache::add(self::REFRESH_GUARD_KEY, true, now()->addMinutes(15))) {
+            return;
+        }
+
+        try {
+            $this->restock->run();
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            // Another process is already recomputing. Serving slightly stale (or
+            // empty) recommendations beats failing the whole dashboard.
+            report($e);
+        }
     }
 }
