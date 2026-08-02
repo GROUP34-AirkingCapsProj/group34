@@ -7,17 +7,16 @@
  * Field `type` values understood by LookupPanel:
  *   - 'text'      — single-line text input
  *   - 'textarea'  — multi-line text input
+ *                  (supported but not currently used by any config below)
  *   - 'number'    — numeric input
+ *                  (supported but not currently used by any config below)
  *   - 'checkbox'  — boolean toggle (supported but not currently used by any
  *                  config below)
  *   - 'select'    — fixed-option dropdown (uses `options`)
- *   - 'category'  — category picker (loads categories, stores category_id)
  *   - 'unit'      — unit-of-measure picker (loads units, stores unit_id)
  *                  (supported but not currently used by any config below)
  *
- * Column `key` values are usually a raw field on the row, except one derived
- * key the panel resolves itself:
- *   - 'category_name' — looked up from the row's category_id
+ * Column `key` values are raw fields on the row.
  *
  * Column `format` values (optional; how the raw/derived value is displayed):
  *   - 'bool'     — render truthy/falsy as Yes/No (React renders true/false as
@@ -32,18 +31,8 @@
  *   - `omitWhenBlank: true` — the panel must NOT submit this key at all when
  *     the input is blank, rather than sending '' (which Laravel's
  *     ConvertEmptyStringsToNull turns into a present `null`, failing
- *     `sometimes|integer` validation). Used on the two `sort_order` fields.
- *     Do not "fix" a blank sort_order by defaulting it to 0 — that silently
- *     reorders rows; the column must stay unset to keep the DB default.
- *   - `allowEmpty: true` — on `category` fields, tells the panel to offer a
- *     blank "All categories" / "Uncategorized" option, matching the backend's
- *     `nullable|integer|exists:...` rule for capacity/variant category_id.
- *
- * category_id filtering gotcha: when calling a categoryScoped lookup's
- * `getAll`, only pass `category_id` when a category is actually selected.
- * `URLSearchParams` stringifies `undefined` as the literal string
- * "undefined", so `getAll({ category_id: undefined })` sends
- * `?category_id=undefined` to the API instead of omitting the param.
+ *     `sometimes|integer` validation).
+ *     (supported but not currently used by any config below)
  *
  * Server-side search: `unitsAPI.getAll` accepts `?search=` (filters on
  * unit_name) and it is the only one of the five lookups with a server-side
@@ -71,7 +60,6 @@ export const LOOKUP_CONFIGS = {
     api: categoriesAPI,
     idField: 'category_id',
     nameField: 'category_name',
-    categoryScoped: false,
     supportsMerge: false,
     fields: [
       {
@@ -92,11 +80,6 @@ export const LOOKUP_CONFIGS = {
           { value: 'installation_material', label: 'Installation Material' },
         ],
       },
-      {
-        name: 'description',
-        label: 'Description (optional)',
-        type: 'textarea',
-      },
     ],
     columns: [
       { key: 'category_name', label: 'Name' },
@@ -112,7 +95,6 @@ export const LOOKUP_CONFIGS = {
     api: brandsAPI,
     idField: 'brand_id',
     nameField: 'brand_name',
-    categoryScoped: false,
     supportsMerge: false,
     fields: [
       {
@@ -121,11 +103,6 @@ export const LOOKUP_CONFIGS = {
         type: 'text',
         required: true,
         maxLength: 100,
-      },
-      {
-        name: 'description',
-        label: 'Description (optional)',
-        type: 'textarea',
       },
     ],
     columns: [
@@ -141,7 +118,6 @@ export const LOOKUP_CONFIGS = {
     api: unitsAPI,
     idField: 'unit_id',
     nameField: 'unit_name',
-    categoryScoped: false,
     supportsMerge: false,
     fields: [
       {
@@ -172,7 +148,6 @@ export const LOOKUP_CONFIGS = {
     api: capacitiesAPI,
     idField: 'capacity_id',
     nameField: 'capacity_value',
-    categoryScoped: true,
     supportsMerge: true,
     fields: [
       {
@@ -183,32 +158,9 @@ export const LOOKUP_CONFIGS = {
         maxLength: 20,
         placeholder: '1.5HP',
       },
-      {
-        name: 'category_id',
-        label: 'Category',
-        type: 'category',
-        allowEmpty: true,
-        hint: 'Scopes this capacity to a category.',
-      },
-      {
-        name: 'description',
-        label: 'Description (optional)',
-        type: 'textarea',
-      },
-      {
-        name: 'sort_order',
-        label: 'Sort order',
-        type: 'number',
-        min: 0,
-        max: 255,
-        omitWhenBlank: true,
-        hint: 'Leave blank to use the default order. Integer 0-255.',
-      },
     ],
     columns: [
       { key: 'capacity_value', label: 'Value' },
-      { key: 'category_name', label: 'Category' },
-      { key: 'sort_order', label: 'Sort order' },
     ],
   },
 
@@ -218,7 +170,6 @@ export const LOOKUP_CONFIGS = {
     api: variantsAPI,
     idField: 'variant_id',
     nameField: 'variant_name',
-    categoryScoped: true,
     supportsMerge: true,
     fields: [
       {
@@ -228,32 +179,9 @@ export const LOOKUP_CONFIGS = {
         required: true,
         maxLength: 100,
       },
-      {
-        name: 'category_id',
-        label: 'Category',
-        type: 'category',
-        allowEmpty: true,
-        hint: 'Scopes this variant to a category.',
-      },
-      {
-        name: 'description',
-        label: 'Description (optional)',
-        type: 'textarea',
-      },
-      {
-        name: 'sort_order',
-        label: 'Sort order',
-        type: 'number',
-        min: 0,
-        max: 255,
-        omitWhenBlank: true,
-        hint: 'Leave blank to use the default order. Integer 0-255.',
-      },
     ],
     columns: [
       { key: 'variant_name', label: 'Name' },
-      { key: 'category_name', label: 'Category' },
-      { key: 'sort_order', label: 'Sort order' },
     ],
   },
 };

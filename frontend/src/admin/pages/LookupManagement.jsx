@@ -41,7 +41,6 @@ const LookupManagement = () => {
 
   const activeTab = tabForLookup(activeLookup);
 
-  const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
   const [refLoading, setRefLoading] = useState(true);
   const [refError, setRefError] = useState(null);
@@ -49,23 +48,17 @@ const LookupManagement = () => {
   const fetchReferenceData = useCallback(async () => {
     try {
       setRefLoading(true);
-      const batchRes = await batchAPI.get({ include: ['categories', 'units'] });
+      const batchRes = await batchAPI.get({ include: ['units'] });
       const batchData = batchRes?.data || {};
-      setCategories(Array.isArray(batchData.categories?.data) ? batchData.categories.data : []);
       setUnits(Array.isArray(batchData.units?.data) ? batchData.units.data : []);
       setRefError(null);
     } catch (err) {
       try {
-        const [catRes, unitRes] = await Promise.all([
-          categoriesAPI.getAll(),
-          unitsAPI.getAll(),
-        ]);
-        setCategories(Array.isArray(catRes?.data) ? catRes.data : []);
+        const unitRes = await unitsAPI.getAll();
         setUnits(Array.isArray(unitRes?.data) ? unitRes.data : []);
         setRefError(null);
       } catch (fallbackErr) {
         setRefError(fallbackErr.message || 'Failed to load reference data.');
-        setCategories([]);
         setUnits([]);
       }
     } finally {
@@ -171,7 +164,6 @@ const LookupManagement = () => {
             <LookupPanel
               key={activeLookup}
               config={config}
-              categories={categories}
               units={units}
               permissions={permissions}
             />

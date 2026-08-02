@@ -13,7 +13,6 @@ import { confirmAction } from '../utils/confirm';
  *
  * Props:
  *   config       {object}  one entry from LOOKUP_CONFIGS
- *   categories   {array}   for the `category` field type + `category_name` column
  *   units        {array}   for the `unit` field type
  *   permissions  {canCreate, canUpdate, canArchive}
  */
@@ -70,7 +69,7 @@ const buildPayload = (config, form) => {
       // fails `sometimes|integer` validation server-side.
       return;
     }
-    if (f.type === 'number' || f.type === 'category' || f.type === 'unit') {
+    if (f.type === 'number' || f.type === 'unit') {
       payload[f.name] = isBlank(raw) ? null : Number(raw);
     } else if (f.type === 'checkbox') {
       payload[f.name] = !!raw;
@@ -81,7 +80,7 @@ const buildPayload = (config, form) => {
   return payload;
 };
 
-export default function LookupPanel({ config, categories = [], units = [], permissions = {} }) {
+export default function LookupPanel({ config, units = [], permissions = {} }) {
   const { canCreate = false, canUpdate = false, canArchive = false } = permissions;
 
   const [activeRows, setActiveRows] = useState([]);
@@ -331,22 +330,6 @@ export default function LookupPanel({ config, categories = [], units = [], permi
             ))}
           </select>
         );
-      case 'category':
-        return (
-          <select
-            className="ak-select"
-            value={value}
-            required={!!f.required}
-            onChange={(e) => setField(f.name, e.target.value)}
-          >
-            {f.allowEmpty && <option value="">All categories</option>}
-            {categories.map((c) => (
-              <option key={c.category_id} value={c.category_id}>
-                {c.category_name}
-              </option>
-            ))}
-          </select>
-        );
       case 'unit':
         return (
           <select
@@ -370,14 +353,6 @@ export default function LookupPanel({ config, categories = [], units = [], permi
   };
 
   const renderCell = (row, col) => {
-    if (col.key === 'category_name') {
-      if (row.category_id === null || row.category_id === undefined) return 'All categories';
-      const match = categories.find(
-        (c) => String(c.category_id) === String(row.category_id)
-      );
-      return match ? match.category_name : '—';
-    }
-
     const raw = row[col.key];
     if (raw === undefined || raw === null || raw === '') return '—';
     if (col.format === 'bool') return raw ? 'Yes' : 'No';

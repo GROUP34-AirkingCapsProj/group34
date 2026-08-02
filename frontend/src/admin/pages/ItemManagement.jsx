@@ -25,17 +25,6 @@ import '../styles/dashboard_air.css';
 import '../styles/item_management.css';
 import '../styles/archive_management.css';
 
-/**
- * A lookup row applies to a category when its category_id matches the
- * selected category, or is null (null means "applies to every category").
- * After the data backfill, nearly every capacity row is category_id=1;
- * every other category is populated entirely by the null rows. Dropping the
- * null arm here would make the dropdown render empty for every category but
- * one. Mirrors ProductRegisterModal's rowAppliesToCategory.
- */
-const rowAppliesToCategory = (row, catId) =>
-  row.category_id === null || row.category_id === undefined || Number(row.category_id) === catId;
-
 const ItemManagement = () => {
   const { user, can } = useAuth();
   const roleKey = getRoleKey(user || {});
@@ -504,58 +493,29 @@ const ItemManagement = () => {
     return name.includes('refrigerator') || name.includes('aircon') || name.includes('air conditioning');
   };
 
-  /** Filtered capacity options, plus the item's current value if it would otherwise be dropped. */
+  /** Capacity options, plus the item's current value if it would otherwise be dropped. */
   const filteredCapacities = useMemo(() => {
-    const catId = formData.category_id ? Number(formData.category_id) : null;
-    const base = capacities.filter((c) => rowAppliesToCategory(c, catId));
+    const base = capacities;
     const current = formData.capacity_rating;
     if (current && !base.some((c) => c.capacity_value === current)) {
       return [...base, { capacity_id: `__current-${current}`, capacity_value: current, __archived: true }];
     }
     return base;
-  }, [capacities, formData.category_id, formData.capacity_rating]);
+  }, [capacities, formData.capacity_rating]);
 
-  /** Filtered variant options, plus the item's current value if it would otherwise be dropped. */
+  /** Variant options, plus the item's current value if it would otherwise be dropped. */
   const filteredVariants = useMemo(() => {
-    const catId = formData.category_id ? Number(formData.category_id) : null;
-    const base = variants.filter((v) => rowAppliesToCategory(v, catId));
+    const base = variants;
     const current = formData.variant;
     if (current && !base.some((v) => v.variant_name === current)) {
       return [...base, { variant_id: `__current-${current}`, variant_name: current, __archived: true }];
     }
     return base;
-  }, [variants, formData.category_id, formData.variant]);
+  }, [variants, formData.variant]);
 
-  /** True once at least one real (non-archived) capacity/variant option applies to the selected category. */
+  /** True once at least one real (non-archived) capacity/variant option exists. */
   const hasFilteredCapacities = filteredCapacities.some((c) => !c.__archived);
   const hasFilteredVariants = filteredVariants.some((v) => !v.__archived);
-
-  /**
-   * When the selected appliance category changes (or the lookup lists
-   * finish loading), drop a capacity/variant that no longer applies to it
-   * rather than silently submitting a value from another category. Never
-   * clear without telling the user why. Mirrors ProductRegisterModal.
-   */
-  useEffect(() => {
-    if (!isModalOpen) return;
-    const catId = formData.category_id ? Number(formData.category_id) : null;
-    setFormData((f) => {
-      let next = f;
-      let clearedCapacity = false;
-      let clearedVariant = false;
-      if (f.capacity_rating && !capacities.some((c) => c.capacity_value === f.capacity_rating && rowAppliesToCategory(c, catId))) {
-        next = { ...next, capacity_rating: '' };
-        clearedCapacity = true;
-      }
-      if (f.variant && !variants.some((v) => v.variant_name === f.variant && rowAppliesToCategory(v, catId))) {
-        next = { ...next, variant: '' };
-        clearedVariant = true;
-      }
-      if (clearedCapacity) toast.info('Capacity cleared: not available for the selected category.');
-      if (clearedVariant) toast.info('Variant cleared: not available for the selected category.');
-      return next;
-    });
-  }, [isModalOpen, formData.category_id, capacities, variants]);
 
   // Filtered items (client-side safeguard; backend params are also applied)
   const filteredItems = items.filter(item => {
@@ -1128,7 +1088,7 @@ const ItemManagement = () => {
                       ))}
                     </select>
                     {!hasFilteredCapacities && (
-                      <p className="im-barcode-hint">No capacities defined for this category. Add them on the Item Lookups page.</p>
+                      <p className="im-barcode-hint">No capacities defined yet. Add them on the Item Lookups page.</p>
                     )}
                   </div>
                 </div>
@@ -1212,7 +1172,7 @@ const ItemManagement = () => {
                       ))}
                     </select>
                     {!hasFilteredVariants && (
-                      <p className="im-barcode-hint">No variants defined for this category. Add them on the Item Lookups page.</p>
+                      <p className="im-barcode-hint">No variants defined yet. Add them on the Item Lookups page.</p>
                     )}
                   </div>
                   <div className="im-form-field">
