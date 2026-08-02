@@ -306,9 +306,13 @@ class RestockAnalyticsService
      * and so never match a warehouse id (excluded from per-warehouse demand) but
      * are still summed into the org-wide total for suggestions.
      *
+     * Public because DashboardAnalyticsService reuses it for the Movement tab —
+     * the dashboard and the restock engine must agree on what "demand" means, so
+     * there is exactly one definition and one query. Pure read, no side effects.
+     *
      * @return array<int, array<int, array<string, float>>> locationId => productId => [Y-m-d => qty out]
      */
-    private function dailyDemandByLocation(string $from, string $to): array
+    public function dailyDemandByLocation(string $from, string $to): array
     {
         $byLoc = [];
 
