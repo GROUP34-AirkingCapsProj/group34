@@ -546,27 +546,59 @@ class DashboardAnalyticsService
             ->groupBy('i.location_id', 'l.location_name')
             ->get();
 
-        $to     = now()->toDateString();
-        $from   = now()->subDays(self::MOVEMENT_WINDOW_DAYS - 1)->toDateString();
+        $to   = now()->toDateString();
+        $from = now()->subDays(self::MOVEMENT_WINDOW_DAYS - 1)->toDateString();
+
         $demand = $this->restock->dailyDemandByLocation($from, $to);
 
-        $performance = $rows->map(function ($r) use ($demand) {
+        // Per-(location, product) on-hand, needed to turn raw demand into a
+        // turnover RATIO. Grouped separately from the aggregate above because
+        // ONLY_FULL_GROUP_BY won't let a per-product breakdown coexist with the
+        // location-level SUMs in one query.
+        $onHandByLocation = [];
+        $this->inventoryQuery(null, $categoryId)
+            ->selectRaw('i.location_id, i.product_id, SUM(i.quantity_on_hand) AS on_hand')
+            ->groupBy('i.location_id', 'i.product_id')
+            ->get()
+            ->each(function ($r) use (&$onHandByLocation) {
+                $onHandByLocation[(int) $r->location_id][(int) $r->product_id] = (float) $r->on_hand;
+            });
+
+        $performance = $rows->map(function ($r) use ($demand, $onHandByLocation) {
             $items      = (int) $r->items;
             $lowStock   = (int) $r->low_stock_count;
             $efficiency = $items > 0 ? (int) round((($items - $lowStock) / $items) * 100) : 0;
             $totalValue = (float) $r->total_value;
+            $locId      = (int) $r->location_id;
 
-            $locationDemand = $demand[(int) $r->location_id] ?? [];
-            $movedUnits     = array_sum(array_map('array_sum', $locationDemand));
-            $avgTurnover    = count($locationDemand) > 0
-                ? (int) round($movedUnits / max(1, count($locationDemand)))
-                : 0;
+            // Turnover here MUST mean the same thing it means on the Movement
+            // tab — consumed ÷ on-hand, per product, then averaged — not a raw
+            // "units moved per active SKU" count. The two tabs render this under
+            // the identical "{n}x/mo" label, so a different definition here
+            // would silently disagree with Movement for the same location.
+            $productDemand = $demand[$locId] ?? [];
+            $onHand        = $onHandByLocation[$locId] ?? [];
+            $ratios        = [];
+            foreach ($onHand as $productId => $qty) {
+                if ($qty <= 0) {
+                    continue;
+                }
+                $consumed = array_sum($productDemand[$productId] ?? []);
+                if ($consumed > 0) {
+                    $ratios[] = $consumed / $qty;
+                }
+            }
+            $avgTurnover = count($ratios) > 0 ? (int) round(array_sum($ratios) / count($ratios)) : 0;
 
             return [
-                'id'                   => (int) $r->location_id,
+                'id'                   => $locId,
                 'name'                 => $r->location_name ?? 'Unknown Location',
                 'items'                => $items,
                 'totalValue'           => round($totalValue, 2),
+                // lowStockCount and restockNeeded are the same population
+                // (qty <= reorder point) surfaced on two different cards — that
+                // duplication is intentional and matches the original page, not
+                // a bug to consolidate.
                 'lowStockCount'        => $lowStock,
                 'criticalPriority'     => (int) $r->critical_count,
                 'restockNeeded'        => (int) $r->restock_needed,
@@ -574,12 +606,18 @@ class DashboardAnalyticsService
                 'avgTurnover'          => $avgTurnover,
                 'efficiencyScore'      => $efficiency,
                 'performance'          => $efficiency >= 80 ? 'Excellent' : 'Needs Improvement',
-                'stockValueFormatted'  => $totalValue >= 1000000
-                    ? '₱' . number_format($totalValue / 1000000, 1) . 'M'
-                    : '₱' . number_format($totalValue / 1000) . 'K',
+                'stockValueFormatted'  => match (true) {
+                    $totalValue >= 1_000_000 => '₱' . number_format($totalValue / 1_000_000, 1) . 'M',
+                    $totalValue >= 1_000     => '₱' . number_format($totalValue / 1_000) . 'K',
+                    default                  => '₱' . number_format($totalValue),
+                },
             ];
         })
-        ->sortByDesc(static fn ($b) => sprintf('%05d%020.2f', $b['efficiencyScore'], $b['totalValue']))
+        // PHP compares arrays element-wise, so this ranks correctly even when
+        // totalValue is negative (bad-data state) — a string-formatted sort key
+        // would invert negative comparisons.
+        ->sort(static fn ($a, $b) =>
+            [$b['efficiencyScore'], $b['totalValue']] <=> [$a['efficiencyScore'], $a['totalValue']])
         ->values();
 
         return [
@@ -597,6 +635,11 @@ class DashboardAnalyticsService
      * Dropdown contents. Locations are NOT restricted to branch_office: the old
      * page filtered on that type, and since this deployment has none, the
      * dropdown rendered empty and every filtered view collapsed to zero.
+     *
+     * Also NOT filtered on is_active: locationPerformance() groups whatever
+     * inventory exists, including at a deactivated location. Hiding inactive
+     * locations here would let the performance tab show a location the
+     * dropdown can't select — so the two are kept reconcilable on purpose.
      */
     public function filters(): array
     {
