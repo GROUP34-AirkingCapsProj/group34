@@ -106,9 +106,16 @@ class ProductController extends Controller
 
             // Resolve category string → ID
             if (empty($input['category_id']) && !empty($input['category'])) {
+                // Derive the type from the product being imported. Hardcoding
+                // 'product' created categories that matched neither Item Master
+                // dropdown filter, so the product could never be re-categorised.
+                $categoryType = ($input['product_type'] ?? null) === 'installation_material'
+                    ? 'installation_material'
+                    : 'appliance';
+
                 $cat = CategoryLookup::firstOrCreate(
                     ['category_name' => trim($input['category'])],
-                    ['category_type' => 'product']
+                    ['category_type' => $categoryType]
                 );
                 $input['category_id'] = $cat->category_id;
             }
