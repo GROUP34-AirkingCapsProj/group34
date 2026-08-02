@@ -147,7 +147,10 @@ class CategoryLookupController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate($this->lookupRules($request));
-        $validated['category_type'] = $validated['category_type'] ?? 'product';
+        // 'appliance', not 'product': ItemManagement.jsx filters on exactly
+        // 'appliance' / 'installation_material', so any other value makes the
+        // category invisible in both dropdowns.
+        $validated['category_type'] = $validated['category_type'] ?? 'appliance';
 
         try {
             $cat = CategoryLookup::create($validated);
