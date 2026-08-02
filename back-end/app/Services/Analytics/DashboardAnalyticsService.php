@@ -520,6 +520,105 @@ class DashboardAnalyticsService
             ])->all();
     }
 
+    public function locationPerformance(?int $categoryId): array
+    {
+        $bucket  = $this->bucketExpression();
+        $price   = self::PIECE_PRICE;
+        $cost    = self::PIECE_COST;
+        $reorder = self::REORDER_POINT;
+
+        // Restock target: the configured ceiling, else the reorder point. Without
+        // the fallback every product with a null max_stock_level would contribute
+        // zero restock cost and understate the location's true need.
+        $target = "COALESCE(p.max_stock_level, {$reorder})";
+
+        $rows = $this->inventoryQuery(null, $categoryId)
+            ->selectRaw("i.location_id,
+                         l.location_name,
+                         COUNT(*) AS items,
+                         SUM(i.quantity_on_hand * ({$price})) AS total_value,
+                         SUM(CASE WHEN {$bucket} IN ('low', 'critical') THEN 1 ELSE 0 END) AS low_stock_count,
+                         SUM(CASE WHEN i.quantity_on_hand <= 0 THEN 1 ELSE 0 END) AS critical_count,
+                         SUM(CASE WHEN i.quantity_on_hand <= {$reorder} THEN 1 ELSE 0 END) AS restock_needed,
+                         SUM(CASE WHEN i.quantity_on_hand <= {$reorder}
+                                  THEN GREATEST({$target} - i.quantity_on_hand, 0) * ({$cost})
+                                  ELSE 0 END) AS restock_cost")
+            ->groupBy('i.location_id', 'l.location_name')
+            ->get();
+
+        $to     = now()->toDateString();
+        $from   = now()->subDays(self::MOVEMENT_WINDOW_DAYS - 1)->toDateString();
+        $demand = $this->restock->dailyDemandByLocation($from, $to);
+
+        $performance = $rows->map(function ($r) use ($demand) {
+            $items      = (int) $r->items;
+            $lowStock   = (int) $r->low_stock_count;
+            $efficiency = $items > 0 ? (int) round((($items - $lowStock) / $items) * 100) : 0;
+            $totalValue = (float) $r->total_value;
+
+            $locationDemand = $demand[(int) $r->location_id] ?? [];
+            $movedUnits     = array_sum(array_map('array_sum', $locationDemand));
+            $avgTurnover    = count($locationDemand) > 0
+                ? (int) round($movedUnits / max(1, count($locationDemand)))
+                : 0;
+
+            return [
+                'id'                   => (int) $r->location_id,
+                'name'                 => $r->location_name ?? 'Unknown Location',
+                'items'                => $items,
+                'totalValue'           => round($totalValue, 2),
+                'lowStockCount'        => $lowStock,
+                'criticalPriority'     => (int) $r->critical_count,
+                'restockNeeded'        => (int) $r->restock_needed,
+                'restockCost'          => round((float) $r->restock_cost, 2),
+                'avgTurnover'          => $avgTurnover,
+                'efficiencyScore'      => $efficiency,
+                'performance'          => $efficiency >= 80 ? 'Excellent' : 'Needs Improvement',
+                'stockValueFormatted'  => $totalValue >= 1000000
+                    ? '₱' . number_format($totalValue / 1000000, 1) . 'M'
+                    : '₱' . number_format($totalValue / 1000) . 'K',
+            ];
+        })
+        ->sortByDesc(static fn ($b) => sprintf('%05d%020.2f', $b['efficiencyScore'], $b['totalValue']))
+        ->values();
+
+        return [
+            'branchPerformanceData' => $performance->all(),
+            'branchRestockingNeeds' => $performance->map(static fn ($b) => [
+                'name'             => $b['name'],
+                'restockNeeded'    => $b['restockNeeded'],
+                'criticalPriority' => $b['criticalPriority'],
+                'restockCost'      => $b['restockCost'],
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Dropdown contents. Locations are NOT restricted to branch_office: the old
+     * page filtered on that type, and since this deployment has none, the
+     * dropdown rendered empty and every filtered view collapsed to zero.
+     */
+    public function filters(): array
+    {
+        return [
+            'locations' => DB::table('locations')
+                ->orderBy('location_name')
+                ->get(['location_id', 'location_name', 'location_type'])
+                ->map(static fn ($l) => [
+                    'id'   => (int) $l->location_id,
+                    'name' => $l->location_name,
+                    'type' => $l->location_type,
+                ])->all(),
+            'categories' => DB::table('category_lookup')
+                ->orderBy('category_name')
+                ->get(['category_id', 'category_name'])
+                ->map(static fn ($c) => [
+                    'id'   => (int) $c->category_id,
+                    'name' => $c->category_name,
+                ])->all(),
+        ];
+    }
+
     /** Guards against a burst of page loads all triggering a recompute. */
     private const REFRESH_GUARD_KEY = 'analytics-dashboard-restock-refresh';
 
