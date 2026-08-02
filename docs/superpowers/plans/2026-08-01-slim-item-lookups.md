@@ -15,6 +15,7 @@
 ## Environment notes — read before Task 1
 
 - **The schema is a SQL dump, not a migration history.** Bare `php artisan migrate` fails. Apply each migration explicitly with `--path=`.
+- **Always pass `--force` to `migrate`.** This machine runs `APP_ENV=production` locally (it backs the `npm run demo` prod-build workflow), so `artisan migrate` stops on an "APPLICATION IN PRODUCTION — are you sure?" confirmation. A non-interactive agent shell reads that as a hang, not a prompt. Discovered during Task 4.
 - **Two databases.** Dev is `airkingV5`; the test DB is targeted as `DB_DATABASE=airkingV5_test php artisan …` from the **Bash** tool only (PowerShell has no inline env-var prefix). There is no separate connection — `phpunit.xml` overrides `DB_DATABASE` on the default one.
 - **Run backend commands from `back-end/`, frontend from `frontend/`.**
 - **Known-failing baseline, do NOT chase:** 9 tests in `Tests\Feature\WarrantyClaimTest` fail (`WarrantyClaimException`), plus a flaky `Tests\Feature\Inventory\SerialRowMovementColumnsTest::consumable rows carry per batch in and out` that passes about one run in three. Current: **691 passed**, 9-10 failed, 1 skipped.
