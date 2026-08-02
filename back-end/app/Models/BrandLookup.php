@@ -14,7 +14,6 @@ class BrandLookup extends Model
 
     protected $fillable = [
         'brand_name',
-        'description',
     ];
 
     // Relationships
