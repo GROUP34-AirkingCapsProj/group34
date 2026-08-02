@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SerialController;
+use App\Http\Controllers\Api\AnalyticsDashboardController;
 // ERD-aligned controllers
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\BudgetAllocationController;
@@ -676,6 +677,21 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:po_recommendations,update')->group(function () {
         Route::post('/restock/suggestions/{id}/apply', [RestockRecommendationController::class, 'applySuggestion']);
         Route::post('/restock/suggestions/{id}/dismiss', [RestockRecommendationController::class, 'dismissSuggestion']);
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Analytics Dashboard (admin / inventory analyst / auditor)
+    |----------------------------------------------------------------------
+    | Spec: docs/superpowers/specs/2026-08-02-analytics-dashboard-backend-design.md
+    */
+    Route::middleware('permission:analytics_dashboard,read')->group(function () {
+        Route::get('/analytics/stock-level',          [AnalyticsDashboardController::class, 'stockLevel']);
+        Route::get('/analytics/movement',             [AnalyticsDashboardController::class, 'movement']);
+        Route::get('/analytics/predictions',          [AnalyticsDashboardController::class, 'predictions']);
+        Route::get('/analytics/profit-loss',          [AnalyticsDashboardController::class, 'profitLoss']);
+        Route::get('/analytics/location-performance', [AnalyticsDashboardController::class, 'locationPerformance']);
+        Route::get('/analytics/filters',              [AnalyticsDashboardController::class, 'filters']);
     });
 
     /*
