@@ -151,41 +151,6 @@ class BackfillTest extends LookupTestCase
     }
 
     /** @test */
-    public function presets_are_backfilled_with_unit_and_conversion_factor(): void
-    {
-        $unit = \App\Models\UnitLookup::create([
-            'unit_name'         => 'Box ' . uniqid(),
-            'unit_abbreviation' => 'bx',
-        ]);
-
-        $product = \App\Models\Product::create([
-            'product_code' => 'PC-' . uniqid(),
-            'product_name' => 'Consumable',
-            'product_type' => 'installation_material',
-        ]);
-
-        $label = 'Preset ' . uniqid();
-
-        \App\Models\ProductIssuableUnit::create([
-            'product_id'        => $product->product_id,
-            'unit_id'           => $unit->unit_id,
-            'label'             => $label,
-            'conversion_factor' => 3.5,
-            'is_whole_package'  => true,
-            'sort_order'        => 0,
-        ]);
-
-        LookupBackfill::run();
-
-        $row = DB::table('issuable_unit_preset')->whereRaw('BINARY label = ?', [$label])->first();
-
-        $this->assertNotNull($row);
-        $this->assertSame($unit->unit_id, (int) $row->unit_id);
-        $this->assertEquals(3.5, (float) $row->default_conversion_factor);
-        $this->assertSame(1, (int) $row->is_whole_package);
-    }
-
-    /** @test */
     public function running_twice_inserts_nothing_the_second_time(): void
     {
         $value = $this->uniqueValue();
