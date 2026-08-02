@@ -245,7 +245,7 @@ class CategoryLookupController extends Controller
                 'max:100',
                 $this->lookupUniqueRule($request, $id),
             ],
-            'category_type' => 'nullable|string|max:50',
+            'category_type' => 'nullable|string|in:appliance,installation_material',
             'description'   => 'nullable|string',
         ];
     }

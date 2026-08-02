@@ -86,12 +86,10 @@ export const LOOKUP_CONFIGS = {
         label: 'Type',
         type: 'select',
         required: true,
-        default: 'product',
+        default: 'appliance',
         options: [
-          { value: 'product', label: 'Product' },
-          { value: 'part', label: 'Part' },
-          { value: 'accessory', label: 'Accessory' },
-          { value: 'service', label: 'Service' },
+          { value: 'appliance', label: 'Appliance' },
+          { value: 'installation_material', label: 'Installation Material' },
         ],
       },
       {

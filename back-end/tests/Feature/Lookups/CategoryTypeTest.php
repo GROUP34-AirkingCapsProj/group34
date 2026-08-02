@@ -93,4 +93,19 @@ class CategoryTypeTest extends LookupTestCase
 
         $this->assertEmpty($stray->all(), 'stray category_type values: ' . $stray->implode(', '));
     }
+
+    public function test_an_invalid_category_type_is_rejected(): void
+    {
+        $this->actingAsAdmin();
+
+        // 'product' is the value that caused the defect: it matched neither
+        // Item Master dropdown filter, so the category became unselectable.
+        // The in: rule is what stops it recurring through the API.
+        $this->postJson('/api/categories', [
+            'category_name' => 'Cat ' . uniqid(),
+            'category_type' => 'product',
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('category_type');
+    }
 }
