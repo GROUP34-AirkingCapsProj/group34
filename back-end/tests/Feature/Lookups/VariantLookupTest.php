@@ -27,10 +27,17 @@ class VariantLookupTest extends LookupTestCase
         $this->assertNotNull(collect($list)->firstWhere('variant_name', $value));
     }
 
-    // 2. "A variant carries no category" belongs with Task 7: the API no
-    // longer accepts or scopes on category_id, but variant_lookup.category_id
-    // is still a real (always-null) column, so $row->toArray() still emits the
-    // key. Assert its absence once the column itself is dropped.
+    /** 2. A variant carries no category. */
+    public function test_a_variant_carries_no_category(): void
+    {
+        $this->actingAsAdmin();
+
+        $row = $this->postJson('/api/variants', ['variant_name' => $this->uniqueValue()])
+            ->assertStatus(201)
+            ->json('data');
+
+        $this->assertArrayNotHasKey('category_id', $row);
+    }
 
     /** 3. Renaming cascades into appliance_details. */
     public function test_renaming_cascades_into_appliance_details(): void
