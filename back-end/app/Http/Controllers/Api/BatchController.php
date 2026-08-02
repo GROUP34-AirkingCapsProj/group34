@@ -20,19 +20,18 @@ use App\Http\Controllers\Api\BrandLookupController;
 use App\Http\Controllers\Api\UnitLookupController;
 use App\Http\Controllers\Api\CapacityLookupController;
 use App\Http\Controllers\Api\VariantLookupController;
-use App\Http\Controllers\Api\IssuableUnitPresetController;
 use Illuminate\Http\Request;
 
 /**
  * Returns multiple resources in one request to reduce round-trips.
- * GET /api/batch?include=users,roles,branches,locations,items,inventory,transactions,sales,dashboard,categories,brands,units,capacities,variants,issuable_unit_presets
+ * GET /api/batch?include=users,roles,branches,locations,items,inventory,transactions,sales,dashboard,categories,brands,units,capacities,variants
  *
  * NOTE: this endpoint carries no permission: route middleware, and every
  * include below calls its controller's index()/show() method directly in
  * PHP rather than dispatching through the router — so route-level
  * permission: middleware never runs for anything included here. That is
- * safe today only because all six item-master lookups (units, categories,
- * brands, capacities, variants, issuable_unit_presets) have deliberately
+ * safe today only because all five item-master lookups (units, categories,
+ * brands, capacities, variants) have deliberately
  * ungated GETs (see routes/api.php). Do NOT add an include for a resource
  * whose GET route IS permission-gated without first adding an equivalent
  * check inside this method — the route gate will not protect it here.
@@ -310,16 +309,6 @@ class BatchController extends Controller
                 );
             } catch (\Throwable $e) {
                 $data['variants'] = ['success' => false, 'message' => $e->getMessage()];
-            }
-        }
-
-        if (in_array('issuable_unit_presets', $parts)) {
-            try {
-                $data['issuable_unit_presets'] = json_decode(
-                    app(IssuableUnitPresetController::class)->index(new Request())->getContent(), true
-                );
-            } catch (\Throwable $e) {
-                $data['issuable_unit_presets'] = ['success' => false, 'message' => $e->getMessage()];
             }
         }
 

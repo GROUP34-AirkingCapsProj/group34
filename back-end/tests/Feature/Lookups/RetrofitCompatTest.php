@@ -7,7 +7,6 @@ use App\Models\BrandLookup;
 use App\Models\CapacityLookup;
 use App\Models\CategoryLookup;
 use App\Models\Inventory;
-use App\Models\IssuableUnitPreset;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\UnitLookup;
@@ -466,24 +465,49 @@ class RetrofitCompatTest extends LookupTestCase
     }
 
     // -----------------------------------------------------------------
-    // 10: force-deleting a unit still referenced by a preset -> 422 not 500
+    // 10: force-deleting a unit still in use -> 422 not 500 (app-level guard)
     // -----------------------------------------------------------------
 
-    public function test_force_delete_unit_referenced_by_preset_returns_422_not_500(): void
+    public function test_force_deleting_a_unit_in_use_is_refused(): void
     {
         $this->actingAsAdmin();
-        $unit = $this->unit();
 
-        IssuableUnitPreset::create([
-            'label'   => $this->uniqueValue(),
-            'unit_id' => $unit->unit_id,
+        $unit = UnitLookup::create([
+            'unit_name'         => 'Unit ' . uniqid(),
+            'unit_abbreviation' => 'u' . substr(uniqid(), -4),
+        ]);
+
+        // Do NOT use LookupTestCase::applianceWith() here — it returns an
+        // ApplianceDetail (not a Product) and hardcodes product_type as
+        // 'appliance', merging your attributes into the detail row. We need a
+        // real installation_material product, so create it directly.
+        $productId = DB::table('products')->insertGetId([
+            'product_code' => 'PC-' . uniqid(),
+            'product_name' => 'Material ' . uniqid(),
+            'product_type' => 'installation_material',
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        DB::table('installation_material_details')->insert([
+            'product_id'         => $productId,
+            'unit_id'            => $unit->unit_id,
+            'pieces_per_package' => 10,
+            'package_unit'       => 'Box',
+            'created_at'         => now(),
+            'updated_at'         => now(),
         ]);
 
         $this->deleteJson("/api/units/{$unit->unit_id}")->assertStatus(200);
 
-        $response = $this->deleteJson("/api/units/{$unit->unit_id}/force");
+        // usageCountFor counts installation_material_details, so the app guard
+        // refuses before the DB is asked. This matters more than it used to:
+        // the RESTRICT foreign keys that used to back it up lived on the
+        // issuable-unit tables, and those are gone.
+        $this->deleteJson("/api/units/{$unit->unit_id}/force")
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
 
-        $response->assertStatus(422);
         $this->assertDatabaseHas('unit_lookup', ['unit_id' => $unit->unit_id]);
     }
 }

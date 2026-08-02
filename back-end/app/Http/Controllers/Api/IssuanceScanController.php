@@ -406,15 +406,12 @@ class IssuanceScanController extends Controller
 
         // ── CONSUMABLE BRANCH ─────────────────────────────────
 
-        // Ensure consumableDetail.unit and issuableUnits.unit are loaded.
+        // Ensure consumableDetail.unit is loaded.
         if (! $product->relationLoaded('consumableDetail')) {
-            $product->load('consumableDetail.unit', 'issuableUnits.unit');
+            $product->load('consumableDetail.unit');
         } else {
             if ($product->consumableDetail && ! $product->consumableDetail->relationLoaded('unit')) {
                 $product->consumableDetail->load('unit');
-            }
-            if (! $product->relationLoaded('issuableUnits')) {
-                $product->load('issuableUnits.unit');
             }
         }
 
@@ -554,9 +551,7 @@ class IssuanceScanController extends Controller
                     . ($product->consumableDetail?->package_unit ?? $baseUnitName)
                     . " ÷ {$piecesPerPackage} {$baseUnitName}s"
                     . " = ₱{$pricePerPiece} per {$baseUnitName}",
-                'quick_actions'      => $product->buildConsumableQuickActions(),
                 'dropdown_units'     => $product->getIssuableDropdownUnits(),
-                'has_issuable_units' => $product->issuableUnits->isNotEmpty(),
             ]);
         });
     }

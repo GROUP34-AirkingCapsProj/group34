@@ -116,9 +116,7 @@ class BarcodeScanController extends Controller
                     'package_unit'       => $product->consumableDetail?->package_unit             ?? null,
                     'package_price'      => $packagePrice,
                     'price_per_piece'    => $pricePerPiece,
-                    'quick_actions'      => $product->buildConsumableQuickActions(),
                     'dropdown_units'     => $product->getIssuableDropdownUnits(),
-                    'has_issuable_units' => $product->issuableUnits->isNotEmpty(),
                 ], 'Product found');
             }
 
