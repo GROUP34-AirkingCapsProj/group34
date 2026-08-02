@@ -5,9 +5,8 @@ namespace Database\Seeders;
 use Illuminate\Support\Facades\DB;
 
 /**
- * One-time backfill that populates capacity_lookup, variant_lookup and
- * issuable_unit_preset from values already in use across appliance_details,
- * product_sets and product_issuable_units.
+ * One-time backfill that populates capacity_lookup and variant_lookup from
+ * values already in use across appliance_details and product_sets.
  *
  * This is deliberately a plain class (not an Eloquent seeder invoked via
  * `db:seed`, and not inline in the migration) so it can be exercised directly
@@ -36,7 +35,6 @@ class LookupBackfill
     {
         static::backfillCapacities();
         static::backfillVariants();
-        static::backfillPresets();
     }
 
     // -----------------------------------------------------------------
@@ -119,66 +117,6 @@ class LookupBackfill
 
         foreach ($entries as $value => $category) {
             static::insertIfMissing($table, $column, $value, $category);
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // Issuable unit presets
-    // -----------------------------------------------------------------
-
-    protected static function backfillPresets(): void
-    {
-        // product_issuable_units.label and issuable_unit_preset.label are
-        // both varchar(100) today, so nothing can overflow right now — but
-        // this server's sql_mode is not strict, so if the source column is
-        // ever widened without widening the destination to match, an insert
-        // here would truncate silently instead of erroring. Route label
-        // through the same length guard as capacity/variant so that failure
-        // mode becomes "skipped" instead of "silently corrupted".
-        $maxLen = 100;
-
-        // orderBy(issuable_unit_id) makes the "first row per label wins" pick
-        // below deterministic: if two products share a label with a
-        // different unit_id/conversion_factor, the lowest-id row wins,
-        // consistently, rather than whatever order MySQL happens to return.
-        $rows = DB::table('product_issuable_units')
-            ->select('issuable_unit_id', 'label', 'unit_id', 'conversion_factor', 'is_whole_package')
-            ->orderBy('issuable_unit_id')
-            ->get();
-
-        // Group by exact label (case-sensitive), keep the first occurrence's
-        // attributes for each distinct label.
-        $byLabel = [];
-        foreach ($rows as $row) {
-            $label = $row->label;
-
-            if (! static::isValidValue($label, $maxLen)) {
-                continue;
-            }
-
-            if (! array_key_exists($label, $byLabel)) {
-                $byLabel[$label] = $row;
-            }
-        }
-
-        foreach ($byLabel as $label => $row) {
-            $exists = DB::table('issuable_unit_preset')
-                ->whereRaw('BINARY label = ?', [$label])
-                ->exists();
-
-            if ($exists) {
-                continue;
-            }
-
-            DB::table('issuable_unit_preset')->insert([
-                'label'                     => $label,
-                'unit_id'                   => $row->unit_id,
-                'default_conversion_factor' => $row->conversion_factor,
-                'is_whole_package'          => $row->is_whole_package,
-                'sort_order'                => 0,
-                'created_at'                => now(),
-                'updated_at'                => now(),
-            ]);
         }
     }
 
