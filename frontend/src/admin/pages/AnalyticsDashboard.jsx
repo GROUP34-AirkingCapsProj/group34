@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
-import { batchAPI } from '../services/api';
+import { analyticsAPI } from '../services/api';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -13,126 +13,6 @@ import {
 import '../styles/analytics_dashboard.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
-
-// Tab-to-resource mapping — each tab only requests what it needs
-const TAB_RESOURCES = {
-  'stock-level': ['dashboard', 'branches', 'inventory', 'items'],
-  'movement': ['branches', 'inventory', 'transactions', 'items'],
-  'predictions': ['branches', 'inventory', 'transactions', 'items'],
-  'profit-loss': ['branches', 'inventory', 'transactions', 'items'],
-  'branch-performance': ['branches', 'inventory', 'transactions', 'items'],
-};
-
-// --- Pure helper functions (no re-creation per render) ---
-
-function classifyStock(filtered) {
-  const totalUnits = filtered.reduce((sum, inv) => sum + (parseInt(inv.quantity) || 0), 0);
-  const totalValue = filtered.reduce((sum, inv) => {
-    const qty = parseInt(inv.quantity) || 0;
-    const price = inventoryPiecePrice(inv);
-    return sum + (qty * price);
-  }, 0);
-  const lowStock = filtered.filter(inv => {
-    const qty = parseInt(inv.quantity) || 0;
-    const reorder = parseInt(inv.reorder_level || 10);
-    return qty > 0 && qty <= reorder;
-  });
-  const critical = filtered.filter(inv => (parseInt(inv.quantity) || 0) === 0);
-  const overstock = filtered.filter(inv => {
-    const qty = parseInt(inv.quantity) || 0;
-    const max = parseInt(inv.max_quantity || inv.optimal_quantity || 50);
-    return qty > max;
-  });
-  const optimal = filtered.filter(inv => {
-    const qty = parseInt(inv.quantity) || 0;
-    const reorder = parseInt(inv.reorder_level || 10);
-    const max = parseInt(inv.max_quantity || inv.optimal_quantity || 50);
-    return qty > reorder && qty <= max;
-  });
-  return { totalUnits, totalValue, lowStock, critical, overstock, optimal, total: filtered.length || 1 };
-}
-
-function inventoryPiecePrice(inv) {
-  const packagePrice = parseFloat(inv.unit_price ?? inv.product?.unit_price ?? 0) || 0;
-  const piecesPerPackage = Math.max(
-    1,
-    parseInt(inv.pieces_per_package ?? inv.product?.pieces_per_package ?? 1, 10) || 1
-  );
-  return packagePrice / piecesPerPackage;
-}
-
-function buildItemTxCounts(filteredTx) {
-  const counts = {};
-  filteredTx.forEach(tx => {
-    const id = tx.product_id ?? tx.item_id;
-    if (!id) return;
-    if (!counts[id]) counts[id] = { count: 0, totalQty: 0, product: tx.product };
-    counts[id].count += 1;
-    counts[id].totalQty += Math.abs(parseInt(tx.quantity) || 0);
-  });
-  return counts;
-}
-
-function buildItemAnalysis(filtered, itemTxCounts) {
-  return filtered.map(inv => {
-    const productId = inv.product_id;
-    const currentStock = parseInt(inv.quantity) || 0;
-    const maxStock = parseInt(inv.max_quantity || inv.optimal_quantity || 50);
-    const txInfo = itemTxCounts[productId] || { count: 0, totalQty: 0 };
-    const turnoverRate = currentStock > 0
-      ? Math.round((txInfo.totalQty / currentStock) * 10) / 10
-      : txInfo.totalQty > 0 ? txInfo.totalQty : 0;
-    const consumptionRate = maxStock > 0
-      ? Math.round(((maxStock - currentStock) / maxStock) * 100)
-      : 0;
-    return {
-      itemId: productId,
-      name: inv.product?.product_name || inv.item_name || 'Unknown Item',
-      category: inv.product?.category?.category_name || inv.product?.category || 'Uncategorized',
-      currentStock, maxStock,
-      txCount: txInfo.count, totalQty: txInfo.totalQty,
-      turnoverRate, consumptionRate,
-    };
-  });
-}
-
-function applyFilters(list, branch, category, branchKey = 'branch_id', catAccessor = inv => inv.product?.category?.category_name || inv.product?.category || '') {
-  let result = branch ? list.filter(r => String(r[branchKey]) === String(branch)) : list;
-  if (category) result = result.filter(r => catAccessor(r) === category);
-  return result;
-}
-
-/** Map Laravel inventory rows to the shape analytics helpers expect */
-function normalizeInventoryRecord(inv) {
-  const product = inv.product || {};
-  const loc = inv.location || {};
-  const branch = loc.branch || inv.branch || null;
-  const qty = parseInt(inv.quantity_on_hand ?? inv.quantity ?? inv.available_quantity ?? 0, 10) || 0;
-  const recRaw = inv.reorder_level ?? product.recommended_stocks ?? 10;
-  const reorder = Math.max(1, parseInt(recRaw, 10) || 10);
-  const maxStock = parseInt(inv.max_quantity ?? inv.optimal_quantity ?? Math.max(reorder * 5, 50), 10) || Math.max(reorder * 5, 50);
-  return {
-    ...inv,
-    quantity: qty,
-    branch_id: inv.branch_id ?? loc.branch_id ?? branch?.id,
-    unit_price: parseFloat(inv.unit_price ?? product.unit_price ?? 0),
-    reorder_level: reorder,
-    max_quantity: maxStock,
-    optimal_quantity: inv.optimal_quantity != null ? inv.optimal_quantity : reorder * 3,
-    product,
-    branch: branch || inv.branch,
-  };
-}
-
-function normalizeTransactionRecord(tx) {
-  const product = tx.product || {};
-  return {
-    ...tx,
-    product_id: tx.product_id ?? tx.item_id,
-    branch_id: tx.branch_id ?? tx.branch?.id,
-    product: Object.keys(product).length ? product : tx.product,
-  };
-}
 
 const AnalyticsDashboard = () => {
   const [activeTab, setActiveTab] = useState('stock-level');
@@ -190,347 +70,66 @@ const AnalyticsDashboard = () => {
     branchPerformanceData, branchRestockingNeeds,
   } = tabData;
 
-  // Cached raw API response — avoids redundant network calls on tab/filter changes
-  const rawCacheRef = useRef({});
-  const [dataReady, setDataReady] = useState(0);
 
-  // Fetch only the resources the active tab needs, merging into cache
-  const fetchTabData = useCallback(async () => {
+  // One request per tab. The server returns exactly the shape each tab renders,
+  // so there is no client-side computation left to do.
+  const TAB_FETCHERS = useMemo(() => ({
+    'stock-level':        analyticsAPI.getStockLevel,
+    'movement':           analyticsAPI.getMovement,
+    'predictions':        analyticsAPI.getPredictions,
+    'profit-loss':        analyticsAPI.getProfitLoss,
+    'branch-performance': analyticsAPI.getLocationPerformance,
+  }), []);
+
+  // Load the filter dropdowns once.
+  useEffect(() => {
+    let cancelled = false;
+
+    analyticsAPI.getFilters()
+      .then((res) => {
+        if (cancelled) return;
+        const data = res?.data ?? {};
+        setBranches(Array.isArray(data.locations) ? data.locations : []);
+        setCategories(Array.isArray(data.categories) ? data.categories : []);
+      })
+      .catch((err) => {
+        console.error('Failed to load analytics filters:', err);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // Refetch whenever the tab or either filter changes.
+  useEffect(() => {
+    let cancelled = false;
+    const fetcher = TAB_FETCHERS[activeTab];
+    if (!fetcher) return undefined;
+
     const isFirstLoad = !hasLoadedOnce.current;
-    const needed = TAB_RESOURCES[activeTab] || TAB_RESOURCES['stock-level'];
-    const missing = needed.filter(r => !rawCacheRef.current[r]);
+    if (isFirstLoad) setInitialLoading(true);
+    else setRefreshing(true);
 
-    if (missing.length === 0) {
-      // All resources already cached — trigger reprocessing only
-      setDataReady(v => v + 1);
-      return;
-    }
+    fetcher({ location_id: selectedBranch, category_id: selectedCategory })
+      .then((res) => {
+        if (cancelled) return;
+        setTabData((prev) => ({ ...prev, ...(res?.data ?? {}) }));
+        hasLoadedOnce.current = true;
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message);
+        console.error('Failed to fetch analytics data:', err);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setInitialLoading(false);
+        setRefreshing(false);
+      });
 
-    try {
-      if (isFirstLoad) setInitialLoading(true);
-      else setRefreshing(true);
+    return () => { cancelled = true; };
+  }, [TAB_FETCHERS, activeTab, selectedBranch, selectedCategory]);
 
-      const res = await batchAPI.get({ include: missing });
-      const data = res?.data ?? {};
-
-      // Merge fetched resources into cache
-      missing.forEach(key => { if (data[key]) rawCacheRef.current[key] = data[key]; });
-
-      // Populate filter dropdowns from cached data
-      const branchList = Array.isArray(rawCacheRef.current.branches?.data) ? rawCacheRef.current.branches.data : [];
-      const itemsList = Array.isArray(rawCacheRef.current.items?.data) ? rawCacheRef.current.items.data : [];
-      setBranches(branchList);
-      setCategories([...new Set(itemsList.map(it => it.category?.category_name || it.category).filter(Boolean))]);
-
-      hasLoadedOnce.current = true;
-      setDataReady(v => v + 1);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-      console.error('Failed to fetch dashboard data:', err);
-    } finally {
-      setInitialLoading(false);
-      setRefreshing(false);
-    }
-  }, [activeTab]);
-
-  // Fetch on mount and when active tab changes (only fetches missing resources)
-  useEffect(() => {
-    fetchTabData();
-  }, [fetchTabData]);
-
-  // Process ONLY the active tab's data from the cached response
-  useEffect(() => {
-    const cache = rawCacheRef.current;
-
-    const inventoryList = Array.isArray(cache.inventory?.data)
-      ? cache.inventory.data.map(normalizeInventoryRecord)
-      : [];
-    const transactionList = Array.isArray(cache.transactions?.data)
-      ? cache.transactions.data.map(normalizeTransactionRecord)
-      : [];
-    const dash = cache.dashboard ?? {};
-
-    // Apply branch & category filters
-    const filtered = applyFilters(inventoryList, selectedBranch, selectedCategory, 'branch_id', inv => inv.product?.category?.category_name || inv.product?.category || '');
-    const filteredTx = applyFilters(transactionList, selectedBranch, selectedCategory, 'branch_id', tx => tx.product?.category?.category_name || tx.product?.category || '');
-
-    switch (activeTab) {
-      case 'stock-level': {
-        const { totalUnits, totalValue, lowStock, critical, overstock, optimal, total } = classifyStock(filtered);
-        const belowReorder = lowStock.length + critical.length;
-        const aboveSafety = optimal.length + overstock.length;
-        setTabData(prev => ({
-          ...prev,
-          statsData: {
-            totalStockValue: totalValue, totalUnits,
-            lowStockItems: dash.stats?.low_stock || lowStock.length,
-            criticalItems: critical.length,
-          },
-          stockDistribution: {
-            optimal: { count: optimal.length, percentage: Math.round((optimal.length / total) * 100) },
-            lowStock: { count: lowStock.length, percentage: Math.round((lowStock.length / total) * 100) },
-            critical: { count: critical.length, percentage: Math.round((critical.length / total) * 100) },
-            overstock: { count: overstock.length, percentage: Math.round((overstock.length / total) * 100) },
-          },
-          reorderCompliance: {
-            rate: total > 0 ? Math.round(((total - belowReorder) / total) * 100) : 0,
-            belowReorderPoint: belowReorder,
-            aboveSafetyStock: aboveSafety,
-          },
-          criticalItems: lowStock.concat(critical).slice(0, 6).map(inv => ({
-            name: inv.product?.product_name || inv.item_name || 'Unknown Item',
-            location: [inv.branch?.name || inv.warehouse?.name || '', inv.warehouse?.name || inv.location?.name || ''].filter(Boolean).join(' \u2022 ') || 'N/A',
-            current: parseInt(inv.quantity) || 0,
-            max: parseInt(inv.reorder_level || 10),
-          })),
-          overstockItems: overstock.slice(0, 6).map(inv => ({
-            name: inv.product?.product_name || inv.item_name || 'Unknown Item',
-            location: [inv.branch?.name || inv.warehouse?.name || '', inv.warehouse?.name || inv.location?.name || ''].filter(Boolean).join(' \u2022 ') || 'N/A',
-            current: parseInt(inv.quantity) || 0,
-            optimal: parseInt(inv.max_quantity || inv.optimal_quantity || 50),
-          })),
-        }));
-        break;
-      }
-      case 'movement': {
-        const { optimal } = classifyStock(filtered);
-        const itemTxCounts = buildItemTxCounts(filteredTx);
-        const itemAnalysis = buildItemAnalysis(filtered, itemTxCounts);
-        const sorted = [...itemAnalysis].sort((a, b) => b.turnoverRate - a.turnoverRate);
-        const fastItems = sorted.filter(i => i.turnoverRate >= 6).slice(0, 5);
-        const slowItems = sorted.filter(i => i.turnoverRate > 0 && i.turnoverRate <= 3).slice(0, 4);
-        const fastDisplay = fastItems.length > 0 ? fastItems : sorted.slice(0, 5);
-        const slowDisplay = slowItems.length > 0 ? slowItems : sorted.filter(i => i.turnoverRate <= 3).slice(0, 4);
-        const avgTurnover = itemAnalysis.length > 0
-          ? Math.round(itemAnalysis.reduce((s, i) => s + i.turnoverRate, 0) / itemAnalysis.length)
-          : 0;
-        const topConsumption = [...itemAnalysis]
-          .sort((a, b) => b.consumptionRate - a.consumptionRate)
-          .slice(0, 10)
-          .map(i => {
-            let status = 'In Stock';
-            if (i.currentStock === 0) status = 'Out of Stock';
-            else if (i.currentStock <= (i.maxStock * 0.2)) status = 'Low Stock';
-            return {
-              name: i.name, currentStock: i.currentStock,
-              consumptionRate: i.consumptionRate,
-              turnover: `${i.turnoverRate > 0 ? Math.round(i.turnoverRate) : 0}x/mo`,
-              status,
-            };
-          });
-        const now = new Date();
-        const weekBuckets = [0, 0, 0, 0];
-        filteredTx.forEach(tx => {
-          const txDate = new Date(tx.created_at || tx.date);
-          const diffDays = Math.floor((now - txDate) / (1000 * 60 * 60 * 24));
-          const weekIndex = Math.floor(diffDays / 7);
-          if (weekIndex >= 0 && weekIndex < 4) {
-            weekBuckets[3 - weekIndex] += Math.abs(parseInt(tx.quantity) || 0);
-          }
-        });
-        setTabData(prev => ({
-          ...prev,
-          movementStats: {
-            avgTurnoverRate: avgTurnover,
-            fastMovingCount: fastDisplay.length,
-            slowMovingCount: slowDisplay.length,
-            optimalStockCount: optimal.length,
-          },
-          fastMovingItems: fastDisplay.map(i => ({ name: i.name, category: i.category, rate: Math.round(i.turnoverRate) })),
-          slowMovingItems: slowDisplay.map(i => ({ name: i.name, category: i.category, rate: Math.round(i.turnoverRate) })),
-          consumptionData: topConsumption,
-          weeklyMovement: weekBuckets,
-        }));
-        break;
-      }
-      case 'predictions': {
-        const itemTxCounts = buildItemTxCounts(filteredTx);
-        const predictionItems = filtered.map(inv => {
-          const productId = inv.product_id;
-          const currentStock = parseInt(inv.quantity) || 0;
-          const reorderLevel = parseInt(inv.reorder_level || inv.product?.reorder_level || 10);
-          const safetyStock = Math.max(Math.round(reorderLevel * 0.5), 1);
-          const maxStock = parseInt(inv.max_quantity || inv.optimal_quantity || 50);
-          const price = inventoryPiecePrice(inv);
-          const txInfo = itemTxCounts[productId] || { count: 0, totalQty: 0 };
-          const dailyConsumption = txInfo.totalQty > 0 ? txInfo.totalQty / 30 : 0;
-          const consumptionPct = maxStock > 0 ? Math.round(((maxStock - currentStock) / maxStock) * 100) : 0;
-          const daysLeft = dailyConsumption > 0
-            ? Math.round(currentStock / dailyConsumption)
-            : currentStock > 0 ? 999 : 0;
-          const suggestedQty = Math.max(maxStock - currentStock, 0);
-          const estCost = suggestedQty * price;
-          let priority = 'none';
-          if (currentStock === 0 || daysLeft <= 7) priority = 'critical';
-          else if (currentStock <= reorderLevel || daysLeft <= 14) priority = 'high';
-          else if (currentStock <= reorderLevel * 1.5 || daysLeft <= 30) priority = 'medium';
-          return {
-            itemId: productId, name: inv.product?.product_name || inv.item_name || 'Unknown Item',
-            branchName: inv.branch?.name || 'Unknown Location',
-            currentStock, reorderLevel, safetyStock, maxStock, price,
-            dailyConsumption, consumptionPct, daysLeft, suggestedQty, estCost, priority,
-          };
-        });
-        const needsRestock = predictionItems.filter(i => i.priority !== 'none');
-        const stockoutItems = predictionItems.filter(i => i.daysLeft <= 30 && i.daysLeft < 999);
-        const criticalPriorityCount = needsRestock.filter(i => i.priority === 'critical').length;
-        const totalRestockCost = needsRestock.reduce((s, i) => s + i.estCost, 0);
-        const priorityOrder = { critical: 0, high: 1, medium: 2 };
-        const critItems = needsRestock.filter(i => i.priority === 'critical');
-        const highItems = needsRestock.filter(i => i.priority === 'high');
-        const medItems = needsRestock.filter(i => i.priority === 'medium');
-        setTabData(prev => ({
-          ...prev,
-          predictionsStats: {
-            predictedStockouts: stockoutItems.length,
-            restockNeeded: needsRestock.length,
-            criticalPriority: criticalPriorityCount,
-            estRestockCost: totalRestockCost,
-          },
-          stockoutTimeline: stockoutItems
-            .sort((a, b) => a.daysLeft - b.daysLeft)
-            .slice(0, 10)
-            .map(i => ({
-              name: i.name, branch: i.branchName, currentStock: i.currentStock,
-              consumptionPct: i.consumptionPct, reorderLevel: i.reorderLevel,
-              suggestedQty: i.suggestedQty, daysLeft: i.daysLeft,
-            })),
-          restockRecommendations: needsRestock
-            .sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3))
-            .slice(0, 10)
-            .map(i => ({
-              priority: i.priority, name: i.name, branch: i.branchName,
-              currentStock: i.currentStock, reorderLevel: i.reorderLevel,
-              safetyStock: i.safetyStock, suggestedQty: i.suggestedQty, estCost: i.estCost,
-            })),
-          prioritySummary: {
-            critical: { count: critItems.length, units: critItems.reduce((s, i) => s + i.suggestedQty, 0), cost: critItems.reduce((s, i) => s + i.estCost, 0) },
-            high: { count: highItems.length, units: highItems.reduce((s, i) => s + i.suggestedQty, 0), cost: highItems.reduce((s, i) => s + i.estCost, 0) },
-            medium: { count: medItems.length, units: medItems.reduce((s, i) => s + i.suggestedQty, 0), cost: medItems.reduce((s, i) => s + i.estCost, 0) },
-          },
-        }));
-        break;
-      }
-      case 'profit-loss': {
-        const lossTx = filteredTx.filter(tx => {
-          const txType = (tx.type || '').toLowerCase();
-          const notes = (tx.notes || '').toLowerCase();
-          return txType === 'adjustment' ||
-            notes.includes('damaged') || notes.includes('stolen') ||
-            notes.includes('lost') || notes.includes('missing') ||
-            notes.includes('damage') || notes.includes('theft') ||
-            notes.includes('broken') || notes.includes('expired');
-        });
-        const classifiedLoss = lossTx.map(tx => {
-          const notes = (tx.notes || '').toLowerCase();
-          const qty = Math.abs(parseInt(tx.quantity) || 0);
-          const price = parseFloat(tx.amount || tx.product?.unit_price || 0);
-          const lossValue = qty * (price > 0 ? price : 1);
-          let lossType = 'damaged';
-          if (notes.includes('stolen') || notes.includes('theft') || notes.includes('missing')) lossType = 'stolen';
-          let status = 'approved';
-          if (notes.includes('pending') || notes.includes('review')) status = 'pending';
-          return {
-            date: tx.created_at || tx.date || '',
-            itemName: tx.product?.product_name || tx.item_name || 'Unknown Item',
-            branchName: tx.branch?.name || 'Unknown Location',
-            itemCategory: tx.product?.category?.category_name || tx.product?.category || 'Uncategorized',
-            lossType, qty, lossValue,
-            reason: tx.notes || 'Stock adjustment', status,
-          };
-        });
-        const totalLoss = classifiedLoss.reduce((s, l) => s + l.lossValue, 0);
-        const stolenCount = classifiedLoss.filter(l => l.lossType === 'stolen').reduce((s, l) => s + l.qty, 0);
-        const damagedCount = classifiedLoss.filter(l => l.lossType === 'damaged').reduce((s, l) => s + l.qty, 0);
-        const pendingCount = classifiedLoss.filter(l => l.status === 'pending').length;
-        const branchLossMap = {};
-        classifiedLoss.forEach(l => {
-          if (!branchLossMap[l.branchName]) branchLossMap[l.branchName] = 0;
-          branchLossMap[l.branchName] += l.lossValue;
-        });
-        const branchLossArr = Object.entries(branchLossMap)
-          .map(([name, amount]) => ({ name, amount }))
-          .sort((a, b) => b.amount - a.amount);
-        const catLossMap = {};
-        classifiedLoss.forEach(l => {
-          if (!catLossMap[l.itemCategory]) catLossMap[l.itemCategory] = 0;
-          catLossMap[l.itemCategory] += l.lossValue;
-        });
-        const catLossArr = Object.entries(catLossMap)
-          .map(([name, amount]) => ({ name, amount }))
-          .sort((a, b) => b.amount - a.amount);
-        const maxCatLoss = catLossArr.length > 0 ? catLossArr[0].amount : 1;
-        setTabData(prev => ({
-          ...prev,
-          profitLossStats: { totalProfitLoss: totalLoss, stolenUnits: stolenCount, damagedUnits: damagedCount, pendingReports: pendingCount },
-          lossByBranch: branchLossArr,
-          lossByCategory: catLossArr.map(c => ({ ...c, percentage: Math.round((c.amount / maxCatLoss) * 100) })),
-          recentLossIncidents: classifiedLoss.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10),
-        }));
-        break;
-      }
-      case 'branch-performance': {
-        const itemTxCounts = buildItemTxCounts(filteredTx);
-        const branchPerfMap = {};
-        const branchInvSource = selectedBranch ? filtered : inventoryList;
-        branchInvSource.forEach(inv => {
-          const bId = inv.branch_id;
-          const bName = inv.branch?.name || 'Unknown Location';
-          if (!branchPerfMap[bId]) {
-            branchPerfMap[bId] = {
-              id: bId, name: bName, items: 0, totalValue: 0,
-              lowStockCount: 0, totalTurnover: 0, turnoverItems: 0,
-              restockNeeded: 0, criticalPriority: 0, restockCost: 0,
-            };
-          }
-          const bp = branchPerfMap[bId];
-          bp.items += 1;
-          const qty = parseInt(inv.quantity) || 0;
-          const price = inventoryPiecePrice(inv);
-          bp.totalValue += qty * price;
-          const reorderLevel = parseInt(inv.reorder_level || 10);
-          const maxStock = parseInt(inv.max_quantity || inv.optimal_quantity || 50);
-          if (qty <= reorderLevel && qty > 0) bp.lowStockCount += 1;
-          if (qty === 0) { bp.lowStockCount += 1; bp.criticalPriority += 1; }
-          const txInfo = itemTxCounts[inv.product_id] || { totalQty: 0 };
-          if (qty > 0 && txInfo.totalQty > 0) {
-            bp.totalTurnover += Math.round((txInfo.totalQty / qty) * 10) / 10;
-            bp.turnoverItems += 1;
-          }
-          if (qty <= reorderLevel) {
-            bp.restockNeeded += 1;
-            bp.restockCost += Math.max(maxStock - qty, 0) * price;
-          }
-        });
-        const branchPerfArr = Object.values(branchPerfMap)
-          .filter(b => b.items > 0)
-          .map(b => {
-            const avgTurnover = b.turnoverItems > 0 ? Math.round(b.totalTurnover / b.turnoverItems) : 0;
-            const efficiencyScore = b.items > 0 ? Math.round(((b.items - b.lowStockCount) / b.items) * 100) : 0;
-            const performance = efficiencyScore >= 80 ? 'Excellent' : 'Needs Improvement';
-            return {
-              ...b, avgTurnover, efficiencyScore, performance,
-              stockValueFormatted: b.totalValue >= 1000000
-                ? `\u20B1${(b.totalValue / 1000000).toFixed(1)}M`
-                : `\u20B1${Math.round(b.totalValue / 1000)}K`,
-            };
-          })
-          .sort((a, b) => b.efficiencyScore - a.efficiencyScore || b.totalValue - a.totalValue);
-        setTabData(prev => ({
-          ...prev,
-          branchPerformanceData: branchPerfArr,
-          branchRestockingNeeds: branchPerfArr.map(b => ({
-            name: b.name, restockNeeded: b.restockNeeded,
-            criticalPriority: b.criticalPriority, restockCost: b.restockCost,
-          })),
-        }));
-        break;
-      }
-      default:
-        break;
-    }
-  }, [dataReady, activeTab, selectedBranch, selectedCategory]);
 
 
   // Memoized chart data — only recalculates when underlying data changes
@@ -1005,7 +604,7 @@ const AnalyticsDashboard = () => {
       {/* Projected Stock-Out Timeline */}
       <div className="analytics-card pred-timeline-card">
         <h3>Projected Stock-Out Timeline</h3>
-        <p className="card-subtitle">Items predicted to run out within 30 days</p>
+        <p className="card-subtitle">Warehouse replenishment &mdash; items predicted to run out within 30 days</p>
 
         <div className="pred-timeline-list">
           {stockoutTimeline.length === 0 ? (
@@ -1443,8 +1042,8 @@ const AnalyticsDashboard = () => {
             className="branch-filter-select"
           >
             <option value="">All Category</option>
-            {categories.map((cat, idx) => (
-              <option key={idx} value={cat}>{cat}</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
             ))}
           </select>
           <select
