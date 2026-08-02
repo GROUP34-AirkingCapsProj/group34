@@ -455,7 +455,28 @@ git commit -m "fix(lookups): normalise category_type in the schema dump"
 
 ## Task 4: Archive the descriptor variants
 
-Independent of everything else and immediately useful — do it first so the variant dropdown is clean before the scoping change makes all rows visible.
+> **REORDERED — run Task 5 first.** This task originally went first so the variant
+> dropdown would be clean before the scoping change made all rows visible. That
+> ordering is unsafe.
+>
+> `ItemManagement.jsx:539-558` holds an effect whose dependency array includes
+> `isModalOpen`, so it fires on **every edit-modal open**, not only on a category
+> change. Line 550 clears `formData.variant` whenever the stored value is absent
+> from the active `variants` list. Archiving the 52 descriptors makes exactly that
+> true for the ~200 products that store one: open such a product to edit its
+> price, and the variant is cleared (with a toast, but cleared); save, and
+> `:437` — `variant: formData.variant || null` — persists the loss.
+>
+> The `(archived)` fallback at `:518-527` does **not** prevent this. It adds the
+> stored value back as a dropdown *option*; the effect has already wiped the form
+> *state*. The two mechanisms work against each other.
+>
+> Task 5 Steps 4-5 delete that effect outright. Running Task 5 first closes the
+> window rather than patching it. The only cost is that the dropdown briefly shows
+> all 54 variants between Task 5 and Task 4 — cosmetic, and gone one task later.
+>
+> **Order: 5 → 4 → 6 → 7.** The two are otherwise independent; Task 5 is frontend
+> only, Task 4 is a data migration.
 
 **Files:**
 - Create: `back-end/database/migrations/2026_08_01_000003_archive_descriptor_variants.php`
