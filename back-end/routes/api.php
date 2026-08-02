@@ -11,7 +11,6 @@ use App\Http\Controllers\Api\BatchController;
 use App\Http\Controllers\Api\BrandLookupController;
 use App\Http\Controllers\Api\CapacityLookupController;
 use App\Http\Controllers\Api\CategoryLookupController;
-use App\Http\Controllers\Api\IssuableUnitPresetController;
 use App\Http\Controllers\Api\VariantLookupController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
@@ -280,8 +279,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: UNIT LOOKUP (unit_lookup)
     |--------------------------------------------------------------------------
     */
-    // All six item-master lookups (units, categories, brands, capacities,
-    // variants, issuable-unit-presets) leave their GETs ungated for any
+    // All five item-master lookups (units, categories, brands, capacities,
+    // variants) leave their GETs ungated for any
     // authenticated user: they are classification vocabularies feeding
     // pickers used app-wide — ProductRegisterModal, BarcodeScan,
     // OrderBuilder, InventoryManagement, BudgetManagementPage,
@@ -299,7 +298,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // that need it.
     //
     // Writes are NOT all implemented on the same key: capacities, variants,
-    // presets and units gate create/update/archive on
+    // and units gate create/update/archive on
     // permission:lookup_management, while categories and brands deliberately
     // keep their own long-standing category_management / brand_management
     // keys so nobody's effective access changed when this page shipped.
@@ -368,30 +367,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:lookup_management,archive')
         ->delete('/variants/{id}/force', [VariantLookupController::class, 'forceDestroy']);
 
-    /* ---------------------------------------------------------------
-     | Issuable unit presets (Item Lookups page)
-     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
-     | No /merge route: a preset is a template, not the owner of
-     | product_issuable_units.label, so there is nothing to fold two
-     | presets' product rows into (see IssuableUnitPresetController).
-     | Reads are deliberately ungated — see the comment above the
-     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
-     | mismatch).
-     * ------------------------------------------------------------- */
-    Route::get('/issuable-unit-presets/archived', [IssuableUnitPresetController::class, 'archived']);
-    Route::get('/issuable-unit-presets', [IssuableUnitPresetController::class, 'index']);
-    Route::get('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'show']);
-    Route::middleware('permission:lookup_management,create')
-        ->post('/issuable-unit-presets', [IssuableUnitPresetController::class, 'store']);
-    Route::middleware('permission:lookup_management,update')
-        ->put('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'update']);
-    Route::middleware('permission:lookup_management,archive')
-        ->delete('/issuable-unit-presets/{id}', [IssuableUnitPresetController::class, 'destroy']);
-    Route::middleware('permission:lookup_management,archive')
-        ->post('/issuable-unit-presets/{id}/restore', [IssuableUnitPresetController::class, 'restore']);
-    Route::middleware('permission:lookup_management,archive')
-        ->delete('/issuable-unit-presets/{id}/force', [IssuableUnitPresetController::class, 'forceDestroy']);
-
     /*
     |--------------------------------------------------------------------------
     | ERD: LOCATION (location) — unified physical places
@@ -428,13 +403,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/products/archived', [ProductController::class, 'archived']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/export', [ProductController::class, 'export']);
-    // Issuable units — must be BEFORE /{product} wildcard
-    Route::get('/products/{id}/issuable-units', [ProductController::class, 'issuableUnits']);
-    Route::put('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'updateIssuableUnit']);
-    Route::delete('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'destroyIssuableUnit']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::middleware('permission:item_master_management,create')->post('/products', [ProductController::class, 'store']);
-    Route::middleware('permission:item_master_management,create')->post('/products/{id}/issuable-units', [ProductController::class, 'storeIssuableUnit']);
     Route::middleware('permission:item_master_management,update')->put('/products/{product}', [ProductController::class, 'update']);
     Route::middleware('permission:item_master_management,archive')->delete('/products/{product}', [ProductController::class, 'destroy']);
     Route::middleware('permission:item_master_management,archive')->post('/products/{id}/restore', [ProductController::class, 'restore']);

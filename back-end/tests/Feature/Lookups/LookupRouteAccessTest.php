@@ -3,11 +3,11 @@
 namespace Tests\Feature\Lookups;
 
 /**
- * Locks the permission enforcement on the six item-lookup endpoints and, just
+ * Locks the permission enforcement on the five item-lookup endpoints and, just
  * as importantly, the deliberate read/write split between them:
  *
- *   - All six (units, categories, brands, capacities, variants,
- *     issuable-unit-presets) read freely for any authenticated user. They
+ *   - All five (units, categories, brands, capacities, variants) read
+ *     freely for any authenticated user. They
  *     are classification vocabularies feeding pickers used app-wide
  *     (ProductRegisterModal, BarcodeScan, OrderBuilder, InventoryManagement,
  *     BudgetManagementPage, SetManagementPage), not sensitive records — so
@@ -19,7 +19,7 @@ namespace Tests\Feature\Lookups;
  *     admin. Gating these reads would leave warehouse/branch users unable
  *     to register an appliance. The unified Item Lookups admin page is
  *     still gated at the nav/route level on lookup_management.read.
- *   - capacities / variants / issuable-unit-presets: writes are gated
+ *   - capacities / variants: writes are gated
  *     behind permission:lookup_management (new, admin-page-only mutations).
  *   - units: writes are gated behind the same permission:lookup_management
  *     verbs.
@@ -28,12 +28,12 @@ namespace Tests\Feature\Lookups;
  *     directly — deliberately, so nobody's effective access changed when the
  *     unified Item Lookups page shipped. Those two matrices grant the exact
  *     same role sets as lookup_management for create/update/archive, so all
- *     six lookups behave identically to a caller regardless of which key
+ *     five lookups behave identically to a caller regardless of which key
  *     implements them (see
  *     test_inventory_analyst_gets_the_same_outcome_on_categories_and_brands_as_on_capacities
  *     below).
  *
- * If any test below starts failing with a 403 on a GET to one of these six
+ * If any test below starts failing with a 403 on a GET to one of these five
  * endpoints, someone re-added a permission: gate to a read route "for
  * consistency" — do NOT loosen the test; revert the route change instead.
  *
@@ -129,7 +129,7 @@ class LookupRouteAccessTest extends LookupTestCase
      * meant to change when the unified Item Lookups page shipped. But
      * PermissionSeeder::matrix() grants category_management and
      * brand_management the exact same role sets as lookup_management for
-     * create/update/archive, so from a user's perspective all six lookups
+     * create/update/archive, so from a user's perspective all five lookups
      * should behave identically regardless of which key implements them.
      *
      * This test pins that user-visible equivalence rather than the
@@ -162,9 +162,8 @@ class LookupRouteAccessTest extends LookupTestCase
     }
 
     // ------------------------------------------------------------------
-    // The read/write split — pinned in both directions. All six lookups
-    // (units, categories, brands, capacities, variants,
-    // issuable-unit-presets) feed pickers used throughout the app
+    // The read/write split — pinned in both directions. All five lookups
+    // (units, categories, brands, capacities, variants) feed pickers used throughout the app
     // (ProductRegisterModal, BarcodeScan, OrderBuilder, InventoryManagement,
     // BudgetManagementPage, SetManagementPage), so their GETs are
     // deliberately left ungated for any authenticated user — including
@@ -176,7 +175,7 @@ class LookupRouteAccessTest extends LookupTestCase
     // route instead.
     // ------------------------------------------------------------------
 
-    public function test_warehouse_personnel_can_read_all_six_lookups(): void
+    public function test_warehouse_personnel_can_read_all_five_lookups(): void
     {
         $this->actingAsRole('warehouse_personnel');
 
@@ -185,7 +184,6 @@ class LookupRouteAccessTest extends LookupTestCase
         $this->getJson('/api/brands')->assertStatus(200);
         $this->getJson('/api/capacities')->assertStatus(200);
         $this->getJson('/api/variants')->assertStatus(200);
-        $this->getJson('/api/issuable-unit-presets')->assertStatus(200);
     }
 
     /**
@@ -195,7 +193,7 @@ class LookupRouteAccessTest extends LookupTestCase
      * gets its own read assertion rather than relying solely on the
      * warehouse_personnel coverage above.
      */
-    public function test_branch_manager_can_read_all_six_lookups(): void
+    public function test_branch_manager_can_read_all_five_lookups(): void
     {
         $this->actingAsRole('branch_manager');
 
@@ -204,7 +202,6 @@ class LookupRouteAccessTest extends LookupTestCase
         $this->getJson('/api/brands')->assertStatus(200);
         $this->getJson('/api/capacities')->assertStatus(200);
         $this->getJson('/api/variants')->assertStatus(200);
-        $this->getJson('/api/issuable-unit-presets')->assertStatus(200);
     }
 
     public function test_warehouse_personnel_cannot_write_to_units_categories_or_brands(): void
