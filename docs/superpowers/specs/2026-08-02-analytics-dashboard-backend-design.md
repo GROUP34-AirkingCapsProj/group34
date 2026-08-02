@@ -49,6 +49,42 @@ computation reads fields that do not exist and invents the ones it cannot find.
    and calls controller `index()` methods directly in PHP, bypassing route-level
    gates by design (documented in `BatchController`'s class docblock).
 
+### Database state (verified 2026-08-02, `airkingV5`)
+
+The dev database holds **master data only**. There is no operational history at
+all:
+
+| Populated | Empty |
+|---|---|
+| `products` 336, `locations` 3, `users` 12 | `inventory` **0** |
+| `stock_parameter_suggestions` 336 | `sales_details` **0**, `issuance_details` **0** |
+| lookups, permissions, nav bundles | `adjustments` **0**, `adjustment_details` **0** |
+| `suppliers` 2, `customers` 1 | `incident_reports` **0**, `profit_loss` **0** |
+| | `restock_recommendations` **0** |
+
+None of the nine seeders in `database/seeders/` produce operational data.
+
+This reframes the problem. The seven defects above are real and were each
+verified by reading code, and they would still break the page once data exists —
+but the *dominant immediate reason* the dashboard is blank is that there is
+nothing to display. Fixing the code alone would render zeros in every tile, which
+is visually indistinguishable from the current bug.
+
+The `locations` table also confirms defect 1 by direct observation rather than
+inference:
+
+| location_id | name | type |
+|---|---|---|
+| 1 | CDO Warehouse A | `warehouse` |
+| 2 | CDO Main Showroom | `showroom` |
+| 3 | CDO Warehouse B | `warehouse` |
+
+There are **zero** `location_type = 'branch_office'` rows, and the filter is
+populated from `Branch`, which queries exactly that type. The "All Location"
+dropdown is therefore empty on screen today. It also means the two warehouses
+(1 and 3) give the warehouse-scoped Predictions tab real coverage, while the
+showroom carries the sales activity.
+
 ## Constraints
 
 - **No UI markup is removed, added or restyled.** Every tile, list, table, bar and
@@ -262,6 +298,43 @@ joined to `locations`, fixing defect 2. Metrics keep their current definitions:
 The two `<select>` elements and their `All Location` / `All Category` options are
 unchanged; only their contents become complete.
 
+## Demo seed data
+
+`database/seeders/AnalyticsDemoDataSeeder.php`, following the idempotent pattern
+already established by `DemoProductDataSeeder`: it only fills operational tables
+that are empty, is safe to re-run, and is never run in production. Dev database
+(`airkingV5`) only.
+
+Without it the dashboard renders zeros regardless of backend correctness, and
+neither the implementation nor the fix can be visually verified.
+
+It generates a coherent history across the 3 existing locations and 336 existing
+products — it does not create products or locations:
+
+- **Inventory** — rows across both warehouses and the showroom, with stock levels
+  deliberately spread so every Stock Level bucket is non-empty: some at zero
+  (Critical), some at or below reorder point (Low), some above `max_stock_level`
+  (Overstock), the rest between (Optimal). Also exercises the null
+  `max_stock_level` path.
+- **~90 days of sales and issuances** — enough history to satisfy
+  `RestockAnalyticsService`'s 90/30-day windows, so demand velocity, trend, days
+  of cover and turnover are all real rather than degenerate. Volumes vary per
+  product so fast-moving and slow-moving tiers are genuinely distinguishable, and
+  vary per location so Location Performance ranks meaningfully.
+- **Incidents covering all four reasons** — resolved `damaged` and `not_found`
+  (each producing a real Adjustment through the normal service path, so the
+  incident→adjustment chain is authentic), resolved `wrong_type` and
+  `zone_mismatch` (which must contribute zero loss), one dismissed incident, and
+  one still open (to populate Pending Reports). This makes the Profit Loss rule
+  provably correct on screen, not just in tests.
+- **Restock recommendations** — produced by running `analytics:restock` against
+  the seeded history rather than being written directly, so the Predictions tab
+  shows genuine engine output.
+
+Seeded quantities are written through the existing services where a service owns
+the write (incidents in particular), so the demo data obeys the same invariants as
+real usage and cannot drift from what the app would have produced.
+
 ## Testing
 
 PHPUnit feature tests per service method against `airkingV5_test` using
@@ -289,6 +362,13 @@ Priority cases:
 Frontend: extend the existing page test to assert each tab renders values from a
 mocked endpoint response, and that no tab computes locally.
 
+Manual verification, only possible once the seeder has run: every tab shows
+non-zero values; the location dropdown lists all three locations (it is empty
+today); selecting a location narrows the numbers instead of zeroing them; and the
+Profit Loss total, checked by hand, equals the sum of only the `damaged` and
+`not_found` write-offs — with the seeded `wrong_type` and `zone_mismatch`
+incidents visibly contributing nothing.
+
 ## Out of scope
 
 - Any change to `RestockAnalyticsService`'s recommendation logic or warehouse
@@ -300,3 +380,6 @@ mocked endpoint response, and that no tab computes locally.
 - Date-range controls, export, or drill-through — all would add UI, which the
   constraint forbids.
 - Retiring `/api/batch`, which other pages still use.
+- Seeding anything into production, or creating new products or locations. The
+  demo seeder is dev-only and works with the 336 products and 3 locations that
+  already exist.
