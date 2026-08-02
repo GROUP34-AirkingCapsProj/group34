@@ -280,18 +280,12 @@ class BatchController extends Controller
             }
         }
 
-        // capacities/variants deliberately get a fresh,
-        // empty Request rather than the live $request: capacity and variant
-        // inherit ScopesLookupsToCategory::lookupIndexFilters(), which
-        // filters on a `category_id` query param. If the live $request were
-        // passed through, a caller hitting /api/batch?...&category_id=5 for
-        // some unrelated reason would silently narrow these two includes to
-        // one category's rows (plus globals) while every other include on
-        // this endpoint ignored that same param — an inconsistency a
-        // frontend bootstrapping its full lookup set from batch would not
-        // expect. A batch include always means "everything"; per-category
-        // narrowing belongs on the dedicated /api/capacities and
-        // /api/variants endpoints, not here.
+        // capacities/variants deliberately get a fresh, empty Request rather
+        // than the live $request: a batch include always means "everything",
+        // so these includes take no query params at all. Passing $request
+        // through would couple them to whatever unrelated params happen to be
+        // on the /api/batch URL; any narrowing belongs on the dedicated
+        // /api/capacities and /api/variants endpoints, not here.
         if (in_array('capacities', $parts)) {
             try {
                 $data['capacities'] = json_decode(

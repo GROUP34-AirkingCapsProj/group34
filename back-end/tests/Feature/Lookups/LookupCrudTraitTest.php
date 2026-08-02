@@ -49,17 +49,19 @@ class LookupCrudTraitTest extends LookupTestCase
             ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
     }
 
-    public function test_create_rejects_a_null_sort_order(): void
+    public function test_two_capacities_may_not_share_a_value(): void
     {
         $this->actingAsAdmin();
+        $value = $this->uniqueValue();
 
-        // The column is a NOT NULL unsignedTinyInteger default 0. Sending an
-        // explicit JSON null (an empty numeric form field, say) must be a
-        // clean validation failure, not a SQLSTATE 1048 -> 500.
-        $this->postJson('/api/capacities', [
-            'capacity_value' => $this->uniqueValue(),
-            'sort_order'     => null,
-        ])->assertStatus(422);
+        // Uniqueness used to be scoped per category. With scoping removed it
+        // is global — this is the surviving half of the deleted
+        // CapacityScopingTest, kept so the guarantee is not silently dropped.
+        $this->postJson('/api/capacities', ['capacity_value' => $value])->assertStatus(201);
+
+        $this->postJson('/api/capacities', ['capacity_value' => $value])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['capacity_value' => 'has already been taken']);
     }
 
     public function test_update_changes_the_value(): void

@@ -7,9 +7,8 @@ use App\Models\VariantLookup;
 /**
  * Variant-specific coverage. The CRUD trait itself is already exhaustively
  * proven by LookupCrudTraitTest and RenameCascadeTest against capacity — this
- * only covers what differs for variant: its own column name/width, that its
- * cascade spans both appliance_details and product_sets, and its category
- * scoping.
+ * only covers what differs for variant: its own column name/width and that
+ * its cascade spans both appliance_details and product_sets.
  */
 class VariantLookupTest extends LookupTestCase
 {
@@ -28,35 +27,10 @@ class VariantLookupTest extends LookupTestCase
         $this->assertNotNull(collect($list)->firstWhere('variant_name', $value));
     }
 
-    /** 2. Category scoping — a category's own values plus globals appear; another category's do not. */
-    public function test_category_scoping(): void
-    {
-        $this->actingAsAdmin();
-
-        $aircon = $this->category();
-        $fridge = $this->category();
-
-        $scoped = $this->postJson('/api/variants', [
-            'variant_name' => $this->uniqueValue(),
-            'category_id'  => $aircon->category_id,
-        ])->json('data.variant_id');
-
-        $other = $this->postJson('/api/variants', [
-            'variant_name' => $this->uniqueValue(),
-            'category_id'  => $fridge->category_id,
-        ])->json('data.variant_id');
-
-        $global = $this->postJson('/api/variants', [
-            'variant_name' => $this->uniqueValue(),
-        ])->json('data.variant_id');
-
-        $ids = collect($this->getJson("/api/variants?category_id={$aircon->category_id}")->json('data'))
-            ->pluck('variant_id')->all();
-
-        $this->assertContains($scoped, $ids, "The category's own values must appear");
-        $this->assertContains($global, $ids, 'Uncategorised values must appear for every category');
-        $this->assertNotContains($other, $ids, "Another category's values must not appear");
-    }
+    // 2. "A variant carries no category" belongs with Task 7: the API no
+    // longer accepts or scopes on category_id, but variant_lookup.category_id
+    // is still a real (always-null) column, so $row->toArray() still emits the
+    // key. Assert its absence once the column itself is dropped.
 
     /** 3. Renaming cascades into appliance_details. */
     public function test_renaming_cascades_into_appliance_details(): void
@@ -108,46 +82,6 @@ class VariantLookupTest extends LookupTestCase
         $this->assertDatabaseHas('product_sets', ['variant' => $new]);
     }
 
-    /**
-     * 5. The update-scope regression: two variants in one category, PUT the
-     * second's name to match the first without sending category_id. Must be
-     * rejected with the uniqueness message, and the row must not be renamed.
-     */
-    public function test_renaming_a_scoped_value_without_resending_category_id_still_checks_its_own_scope(): void
-    {
-        $this->actingAsAdmin();
-
-        $category = $this->category();
-        $first = $this->uniqueValue();
-        $second = $this->uniqueValue();
-
-        $firstId = $this->postJson('/api/variants', [
-            'variant_name' => $first,
-            'category_id'  => $category->category_id,
-        ])->json('data.variant_id');
-
-        $secondId = $this->postJson('/api/variants', [
-            'variant_name' => $second,
-            'category_id'  => $category->category_id,
-        ])->json('data.variant_id');
-
-        // No category_id in this payload. If lookupRules() reads the request
-        // alone it defaults to the "global" scope and this collision is
-        // missed, so the category ends up with two rows named $first.
-        $this->putJson("/api/variants/{$secondId}", ['variant_name' => $first])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['variant_name' => 'has already been taken']);
-
-        $this->assertDatabaseHas('variant_lookup', [
-            'variant_id'   => $secondId,
-            'variant_name' => $second,
-        ]);
-        $this->assertDatabaseHas('variant_lookup', [
-            'variant_id'   => $firstId,
-            'variant_name' => $first,
-        ]);
-    }
-
     /** 6. usage_count is reported non-zero for a variant in use. */
     public function test_usage_count_reported_for_a_variant_in_use(): void
     {
@@ -163,20 +97,6 @@ class VariantLookupTest extends LookupTestCase
 
         $response->assertStatus(200);
         $this->assertSame(2, $response->json('data.usage_count'));
-    }
-
-    /** 7. sort_order: null is rejected 422, not a 500. */
-    public function test_sort_order_null_is_rejected_with_422_not_500(): void
-    {
-        $this->actingAsAdmin();
-
-        $response = $this->postJson('/api/variants', [
-            'variant_name' => $this->uniqueValue(),
-            'sort_order'   => null,
-        ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['sort_order']);
     }
 
     /**
@@ -233,11 +153,11 @@ class VariantLookupTest extends LookupTestCase
     }
 
     /**
-     * 10. Two uncategorised variants cannot share a name. MySQL treats NULLs
-     * as distinct in a unique index, so this is enforced in validation via
-     * the explicit whereNull('category_id') branch, not the schema.
+     * 10. Two variants cannot share a name. variant_lookup carries no
+     * DB-level unique constraint on variant_name, so this is enforced purely
+     * in validation.
      */
-    public function test_two_uncategorised_variants_may_not_share_a_value(): void
+    public function test_two_variants_may_not_share_a_value(): void
     {
         $this->actingAsAdmin();
         $value = $this->uniqueValue();

@@ -8,80 +8,18 @@ use Illuminate\Support\Facades\DB;
 class BackfillTest extends LookupTestCase
 {
     /** @test */
-    public function distinct_values_are_inserted_once_with_category_when_unambiguous(): void
+    public function a_value_used_by_two_products_is_inserted_once(): void
     {
-        $category = $this->category();
         $value = $this->uniqueValue();
 
-        $product = \App\Models\Product::create([
-            'product_code' => 'PC-' . uniqid(),
-            'product_name' => 'A',
-            'product_type' => 'appliance',
-            'category_id'  => $category->category_id,
-        ]);
-        \App\Models\ApplianceDetail::create([
-            'product_id'      => $product->product_id,
-            'is_serialized'   => true,
-            'capacity_rating' => $value,
-        ]);
-
-        $product2 = \App\Models\Product::create([
-            'product_code' => 'PC-' . uniqid(),
-            'product_name' => 'B',
-            'product_type' => 'appliance',
-            'category_id'  => $category->category_id,
-        ]);
-        \App\Models\ApplianceDetail::create([
-            'product_id'      => $product2->product_id,
-            'is_serialized'   => true,
-            'capacity_rating' => $value,
-        ]);
+        $this->applianceWith(['capacity_rating' => $value]);
+        $this->applianceWith(['capacity_rating' => $value]);
 
         LookupBackfill::run();
 
         $rows = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->get();
 
         $this->assertCount(1, $rows);
-        $this->assertSame($category->category_id, (int) $rows->first()->category_id);
-    }
-
-    /** @test */
-    public function value_spanning_two_categories_leaves_category_null(): void
-    {
-        $categoryA = $this->category();
-        $categoryB = $this->category();
-        $value = $this->uniqueValue();
-
-        $productA = \App\Models\Product::create([
-            'product_code' => 'PC-' . uniqid(),
-            'product_name' => 'A',
-            'product_type' => 'appliance',
-            'category_id'  => $categoryA->category_id,
-        ]);
-        \App\Models\ApplianceDetail::create([
-            'product_id'      => $productA->product_id,
-            'is_serialized'   => true,
-            'capacity_rating' => $value,
-        ]);
-
-        $productB = \App\Models\Product::create([
-            'product_code' => 'PC-' . uniqid(),
-            'product_name' => 'B',
-            'product_type' => 'appliance',
-            'category_id'  => $categoryB->category_id,
-        ]);
-        \App\Models\ApplianceDetail::create([
-            'product_id'      => $productB->product_id,
-            'is_serialized'   => true,
-            'capacity_rating' => $value,
-        ]);
-
-        LookupBackfill::run();
-
-        $row = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->first();
-
-        $this->assertNotNull($row);
-        $this->assertNull($row->category_id);
     }
 
     /** @test */
@@ -147,7 +85,6 @@ class BackfillTest extends LookupTestCase
         $row = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->first();
 
         $this->assertNotNull($row);
-        $this->assertNull($row->category_id);
     }
 
     /** @test */
@@ -194,31 +131,18 @@ class BackfillTest extends LookupTestCase
     }
 
     /** @test */
-    public function value_present_in_both_appliance_and_set_sources_yields_one_global_row(): void
+    public function value_present_in_both_appliance_and_set_sources_yields_one_row(): void
     {
-        $category = $this->category();
         $value = $this->uniqueValue();
 
-        $product = \App\Models\Product::create([
-            'product_code' => 'PC-' . uniqid(),
-            'product_name' => 'A',
-            'product_type' => 'appliance',
-            'category_id'  => $category->category_id,
-        ]);
-        \App\Models\ApplianceDetail::create([
-            'product_id'      => $product->product_id,
-            'is_serialized'   => true,
-            'capacity_rating' => $value,
-        ]);
-
-        // Same exact value also named on a set, which carries no category.
+        $this->applianceWith(['capacity_rating' => $value]);
+        // The same exact value also named on a set.
         $this->productSetWith(['capacity_rating' => $value]);
 
         LookupBackfill::run();
 
         $rows = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->get();
 
-        $this->assertCount(1, $rows, 'a value seen in both sources must not produce a category-scoped row plus a global row');
-        $this->assertNull($rows->first()->category_id);
+        $this->assertCount(1, $rows, 'a value seen in both sources must produce exactly one row');
     }
 }

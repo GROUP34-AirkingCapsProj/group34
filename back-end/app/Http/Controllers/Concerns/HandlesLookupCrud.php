@@ -54,8 +54,8 @@ trait HandlesLookupCrud
      * lookupModel()/lookupNameColumn(), so a controller never re-pastes
      * those three literals into its own lookupRules().
      *
-     * Override this (see ScopesLookupsToCategory::lookupUniqueRule()) for a
-     * lookup whose uniqueness is additionally scoped by another column.
+     * Override this for a lookup whose uniqueness is additionally scoped by
+     * another column.
      */
     protected function lookupUniqueRule(Request $request, $id = null): Unique
     {
@@ -285,11 +285,10 @@ trait HandlesLookupCrud
      * one); restore is not, because restoring is what turns an archived
      * name back into an active duplicate.
      *
-     * Reuses lookupUniqueRule() (an empty Request, so category-scoped
-     * lookups like capacity/variant fall through to their own id-lookup
-     * branch and scope this to the row's own category) rather than
-     * re-deriving the scope here, so this can never drift from whatever
-     * scoping create/update actually enforce.
+     * Reuses lookupUniqueRule() (with an empty Request, since there is no
+     * incoming payload to read here) rather than re-deriving the rule, so
+     * this can never drift from whatever uniqueness create/update actually
+     * enforce — including any extra scoping a controller overrides in.
      */
     public function restore($id)
     {
