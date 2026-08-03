@@ -106,4 +106,31 @@ class IncidentSchemaTest extends SetTestCase
         // must not inherit timestamp's 1970-2038 range or auto-init/auto-update.
         $this->assertSame('datetime', $columns['occurred_at']->t ?? null);
     }
+
+    public function test_occurred_at_and_related_issuance_round_trip_through_the_model(): void
+    {
+        $loc     = $this->makeLocation();
+        $product = $this->makeConsumable();
+        $user    = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $incident = IncidentReport::create([
+            'incident_number' => 'INC-TEST-' . uniqid(),
+            'source_type'     => 'standalone',
+            'source_id'       => null,
+            'location_id'     => $loc->location_id,
+            'product_id'      => $product->product_id,
+            'reason'          => IncidentReport::REASON_NOT_FOUND,
+            'quantity'        => 3,
+            'narrative'       => 'Counted short during a walk-through.',
+            'occurred_at'     => now()->subDay(),
+            'reported_by'     => $user->user_id,
+            'status_id'       => IncidentReport::statusId('Open'),
+        ]);
+
+        $fresh = $incident->fresh();
+        $this->assertNull($fresh->source_id);
+        // Cast to a Carbon instance, not left as a string.
+        $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $fresh->occurred_at);
+        $this->assertSame(now()->subDay()->toDateString(), $fresh->occurred_at->toDateString());
+    }
 }

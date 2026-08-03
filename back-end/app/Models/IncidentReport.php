@@ -29,9 +29,9 @@ class IncidentReport extends Model
     protected $primaryKey = 'incident_id';
 
     protected $fillable = [
-        'incident_number', 'source_type', 'source_id', 'location_id',
+        'incident_number', 'source_type', 'source_id', 'related_issuance_id', 'location_id',
         'product_id', 'batch_id', 'serial_id', 'expected_zone', 'actual_zone',
-        'reason', 'quantity', 'narrative', 'photo_path', 'reported_by',
+        'reason', 'quantity', 'narrative', 'occurred_at', 'photo_path', 'reported_by',
         'status_id', 'reviewed_by', 'reviewed_at',
         'adjustment_id', 'correction_id', 'resolution_note',
     ];
@@ -39,6 +39,7 @@ class IncidentReport extends Model
     protected $casts = [
         'quantity'    => 'integer',
         'reviewed_at' => 'datetime',
+        'occurred_at' => 'datetime',
     ];
 
     /** @var array<string,int> */
@@ -100,5 +101,11 @@ class IncidentReport extends Model
     public function correction(): BelongsTo
     {
         return $this->belongsTo(ScanCorrection::class, 'correction_id', 'correction_id');
+    }
+
+    /** The sale a customer_return came from. Null for every other reason. */
+    public function relatedIssuance(): BelongsTo
+    {
+        return $this->belongsTo(Issuance::class, 'related_issuance_id', 'issuance_id');
     }
 }
