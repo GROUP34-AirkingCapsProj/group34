@@ -18,7 +18,7 @@ class WriteOffResolution implements ResolvesIncident
         // Nothing to guard: a write-off is valid with or without a batch.
     }
 
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         $requested = max(0, (int) $incident->quantity);
 
@@ -69,7 +69,7 @@ class WriteOffResolution implements ResolvesIncident
             $inventory->decrement('available_quantity', min($deducted, (int) $inventory->available_quantity));
         }
 
-        return ['adjustment_id' => (int) $adjustment->adjustment_id, 'correction_id' => null];
+        return ResolutionArtifacts::adjustment((int) $adjustment->adjustment_id);
     }
 
     private function adjustmentType(string $reason): string

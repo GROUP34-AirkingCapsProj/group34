@@ -26,15 +26,16 @@ class RetypeResolution implements ResolvesIncident
         }
     }
 
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         $correctedProductId = (int) $options['corrected_product_id'];
 
         // Locked to match WriteOffResolution's discipline — the re-type and the
         // paired inventory move must see and hold a consistent batch row.
-        $batch = $incident->batch_id !== null
-            ? InventoryBatch::lockForUpdate()->find($incident->batch_id)
-            : null;
+        // validate() has already rejected a null batch_id, so this can only come
+        // back null for a dangling id whose batch row was deleted — which is why
+        // the $batch !== null checks below stay.
+        $batch = InventoryBatch::lockForUpdate()->find($incident->batch_id);
 
         $correction = ScanCorrection::create([
             'receiving_id'         => $batch?->receiving_id,
@@ -69,6 +70,6 @@ class RetypeResolution implements ResolvesIncident
             $to->increment('available_quantity', $quantity);
         }
 
-        return ['adjustment_id' => null, 'correction_id' => (int) $correction->correction_id];
+        return ResolutionArtifacts::correction((int) $correction->correction_id);
     }
 }
