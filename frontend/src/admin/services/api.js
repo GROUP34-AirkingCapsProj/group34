@@ -219,7 +219,6 @@ const apiRequest = async (endpoint, options = {}) => {
   const base = getApiBaseUrl();
   const url = endpoint.startsWith('/') ? `${base}${endpoint}` : `${base}/${endpoint}`;
   const method = options.method || 'GET';
-  console.log(`[API] ${method} ${url}`, options.body ? { body: options.body } : '');
   let response;
   try {
     response = await fetch(url, {
@@ -231,6 +230,7 @@ const apiRequest = async (endpoint, options = {}) => {
       networkError.message === 'Failed to fetch'
         ? 'Cannot reach the server. From back-end run: composer run serve-lan (or php artisan serve --host=0.0.0.0) for mobile on the same Wi‑Fi.'
         : networkError.message;
+    console.error(`[API] ${method} ${url} network error:`, msg);
     throw new Error(msg);
   }
 
@@ -249,12 +249,15 @@ const apiRequest = async (endpoint, options = {}) => {
         : response.status >= 500
           ? `Server error (${response.status}). Try again later.`
           : `Server returned ${response.status} with non-JSON response.`;
+    console.error(`[API] ${method} ${url} → ${response.status}:`, msg);
     throw new Error(msg);
   }
 
-  console.log(`[API] ${method} ${url} → ${response.status}`, response.ok ? 'OK' : { message: data.message, errors: data.errors });
-
   if (!response.ok) {
+    console.error(`[API] ${method} ${url} → ${response.status}`, {
+      message: data.message,
+      errors: data.errors,
+    });
     // Token expired or missing — clear storage and bounce to login
     if (response.status === 401) {
       removeToken();
@@ -377,15 +380,40 @@ export const authAPI = {
   forgotPassword: async (email) => {
     return apiRequest('/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: String(email || '').trim() }),
     });
   },
 
   getUser: async () => apiRequest('/user'),
 };
 
-/** Admin-issued code (auth) + public reset completion (no auth). */
+/** Forgot-password email OTP (+ admin-issued RST- code reset). */
 export const passwordResetAPI = {
+  forgot: async ({ email }) =>
+    apiRequest('/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+      }),
+    }),
+  verifyResetOtp: async ({ email, otp }) =>
+    apiRequest('/verify-reset-otp', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+        otp: String(otp || '').trim(),
+      }),
+    }),
+  resetPassword: async ({ email, reset_token, password, password_confirmation }) =>
+    apiRequest('/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+        reset_token: String(reset_token || '').trim(),
+        password,
+        password_confirmation,
+      }),
+    }),
   issue: async (userId) =>
     apiRequest('/password-reset/issue', {
       method: 'POST',
@@ -574,6 +602,12 @@ export const auditAPI = {
   getLog: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/audit-log?${query}` : '/audit-log');
+  },
+  getLoginSessions: async (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    ).toString();
+    return apiRequest(query ? `/login-sessions?${query}` : '/login-sessions');
   },
 };
 

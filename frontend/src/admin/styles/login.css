@@ -516,3 +516,32 @@ input.login-otp-input {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Forgot-password delivery channel toggle */
+.login-channel-toggle {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #f9fafb;
+}
+.login-channel-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.login-channel-btn.is-active {
+  background: var(--primary, #dc2626);
+  color: #fff;
+}
+.login-channel-btn:hover:not(.is-active) {
+  color: #111827;
+  background: rgba(0, 0, 0, 0.04);
+}
