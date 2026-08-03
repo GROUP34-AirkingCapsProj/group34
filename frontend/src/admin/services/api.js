@@ -1448,14 +1448,65 @@ export const incidentReportsAPI = {
   },
   /**
    * File a new incident report (POST /incident-reports). Payload keys the store
-   * endpoint validates: source_type ('issuance'|'transfer'), source_id, location_id,
-   * product_id, batch_id?, serial_id?, expected_zone?, actual_zone?, reason
-   * (not_found|damaged|wrong_type|zone_mismatch), quantity (>=1), narrative.
+   * endpoint validates: source_type ('issuance'|'transfer'|'standalone'),
+   * source_id (required unless standalone), related_issuance_id?, location_id,
+   * product_id + quantity (required unless reason is 'other'), batch_id?,
+   * serial_id?, expected_zone?, actual_zone?, occurred_at?, photo_path?,
+   * reason (not_found|theft|damaged|delivery_damage|wrong_type|zone_mismatch|
+   * customer_return|other), narrative.
    */
   file: async (payload) =>
     apiRequest('/incident-reports', { method: 'POST', body: JSON.stringify(payload) }),
+  /**
+   * Upload an evidence photo first, then submit the returned path as
+   * `photo_path` when filing. Returns { data: { path } }.
+   */
+  uploadPhoto: async (file) => {
+    const form = new FormData();
+    form.append('photo', file);
+    return uploadRequest('/incident-reports/photo', form);
+  },
+  /**
+   * Evidence photo as a Blob. Photos are on a private disk behind
+   * `permission:incident_reports,read`, so a plain <img src> would 401 — the
+   * browser sends no Authorization header. Same approach the GRN PDF downloads
+   * use (see openApiFile): fetch with the Bearer header, hand the caller a blob.
+   */
+  photoBlob: async (id) => {
+    const token = getToken();
+    const res = await fetch(`${getApiBaseUrl()}/incident-reports/${id}/photo`, {
+      headers: {
+        Accept: '*/*',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      let msg = `Failed to load photo (${res.status})`;
+      try {
+        const j = await res.json();
+        if (j?.message) msg = j.message;
+      } catch (_) { /* not JSON */ }
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return res.blob();
+  },
   resolve: async (id, payload) =>
     apiRequest(`/incident-reports/${id}/resolve`, { method: 'POST', body: JSON.stringify(payload) }),
+};
+
+/* ======================
+   INVENTORY BATCHES API
+   GET /inventory-batches returns every batch with remaining stock, already
+   scoped server-side to the caller's location (centralized users see all).
+   Flat array under `data` — not paginated, and query params are ignored.
+====================== */
+export const inventoryBatchesAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/inventory-batches?${query}` : '/inventory-batches');
+  },
 };
 
 /* ======================
