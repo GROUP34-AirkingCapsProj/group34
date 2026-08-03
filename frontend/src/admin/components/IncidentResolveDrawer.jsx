@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
-import { incidentReportsAPI, productsAPI, resolveStorageUrl } from '../services/api';
+import { incidentReportsAPI, productsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import { reasonLabel, reasonMeta } from '../utils/incidentReasons';
@@ -28,6 +28,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
   const [productFilter, setProductFilter] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [submitting, setSubmitting] = useState(null); // 'confirm' | 'dismiss' | null
+  const [photoUrl, setPhotoUrl] = useState(null);
 
   const isOpen = !!incident;
   const reason = incident?.reason;
@@ -41,13 +42,32 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
   }, [isOpen, incident?.incident_id]);
 
   useEffect(() => {
-    if (!isOpen || reason !== 'wrong_type' || !canResolve) return;
+    if (!isOpen || reasonMeta(reason).outcome !== 'retype' || !canResolve) return;
     setLoadingProducts(true);
     productsAPI.getAll({ per_page: 1000 })
       .then((r) => setProducts(Array.isArray(r?.data) ? r.data : []))
       .catch(() => setProducts([]))
       .finally(() => setLoadingProducts(false));
   }, [isOpen, reason, canResolve]);
+
+  useEffect(() => {
+    if (!incident?.photo_url) { setPhotoUrl(null); return undefined; }
+    let revoked = false;
+    let objectUrl = null;
+
+    incidentReportsAPI.photoBlob(incident.incident_id)
+      .then((blob) => {
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPhotoUrl(objectUrl);
+      })
+      .catch(() => setPhotoUrl(null));
+
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [incident?.incident_id, incident?.photo_url]);
 
   const filteredProducts = useMemo(() => {
     const q = productFilter.trim().toLowerCase();
@@ -62,10 +82,10 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
   if (!incident) return null;
 
   const outcome = reasonMeta(reason).outcome;
-  const writesOffStock = outcome === 'writeoff';
   const confirmDisabled =
     submitting !== null ||
-    (reason === 'wrong_type' && !correctedProductId);
+    (outcome === 'retype' && !correctedProductId);
+  const confirmLabel = outcome === 'none' ? 'Acknowledge' : 'Confirm';
 
   const doResolve = async (action) => {
     const payload = { action, resolution_note: note.trim() || null };
@@ -86,12 +106,22 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
   const handleConfirm = async () => {
     if (confirmDisabled) return;
-    if (writesOffStock) {
+    if (outcome === 'writeoff') {
       const ok = await confirmAction({
         title: 'Confirm this incident?',
         text: `This writes stock off — it posts a deduction adjustment for ${incident.quantity} unit(s) of "${incident.product_name}". This cannot be undone from here.`,
         confirmText: 'Confirm & write off',
         tone: 'danger',
+      });
+      if (!ok) return;
+    }
+
+    if (outcome === 'restock') {
+      const where = incident.batch_id ? `batch #${incident.batch_id}` : 'a new batch';
+      const ok = await confirmAction({
+        title: 'Put this stock back?',
+        text: `This returns ${incident.quantity} unit(s) of "${incident.product_name}" to ${where} and makes them available again.`,
+        confirmText: 'Confirm & restock',
       });
       if (!ok) return;
     }
@@ -103,8 +133,6 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
     doResolve('dismiss');
   };
 
-  const photoUrl = incident.photo_path ? resolveStorageUrl(incident.photo_path) : null;
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Incident ${incident.incident_number}`} maxWidth={640}>
       <div className="ak-field" style={{ gap: '1rem', paddingTop: '1rem' }}>
@@ -115,7 +143,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
           </div>
           <div>
             <div className="ak-label">Product</div>
-            <div>{incident.product_name || '—'}</div>
+            <div>{incident.product_name || (incident.product_id ? `#${incident.product_id}` : 'Not product-specific')}</div>
           </div>
           <div>
             <div className="ak-label">Quantity</div>
@@ -123,8 +151,18 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
           </div>
           <div>
             <div className="ak-label">Source</div>
-            <div>{incident.source_type} #{incident.source_id}</div>
+            <div>{incident.source_type === 'standalone' ? 'Reported directly' : `${incident.source_type} #${incident.source_id}`}</div>
           </div>
+          <div>
+            <div className="ak-label">Occurred</div>
+            <div>{incident.occurred_at ? new Date(incident.occurred_at).toLocaleString() : '—'}</div>
+          </div>
+          {incident.related_issuance_id && (
+            <div>
+              <div className="ak-label">Original issuance</div>
+              <div>{incident.related_issuance_number || `#${incident.related_issuance_id}`}</div>
+            </div>
+          )}
           <div>
             <div className="ak-label">Location</div>
             <div>{incident.location_name || '—'}</div>
@@ -174,14 +212,29 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
         {incident.is_open && canResolve && (
           <div style={{ borderTop: '1px solid var(--ak-line)', paddingTop: '0.9rem' }}>
-            {writesOffStock && (
+            {outcome === 'writeoff' && (
               <p style={{ color: '#b91c1c', fontSize: '0.85rem', marginTop: 0 }}>
                 Confirming this incident writes the stock off — it posts a deduction adjustment. This does not
                 affect the batch's FIFO exclusion, which already happened when the incident was filed.
               </p>
             )}
 
-            {reason === 'wrong_type' && (
+            {outcome === 'restock' && (
+              <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
+                Confirming puts <strong>{incident.quantity}</strong> unit(s) back into stock
+                {incident.batch_id ? <> on <strong>batch #{incident.batch_id}</strong></> : ' on a new batch'}, and
+                makes them available for picking again. It does not re-issue the correct item — run a normal
+                issuance for that.
+              </p>
+            )}
+
+            {outcome === 'none' && (
+              <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
+                Acknowledging closes this report. No stock moves and no adjustment is posted.
+              </p>
+            )}
+
+            {outcome === 'retype' && (
               <div className="ak-field" style={{ marginBottom: '0.8rem' }}>
                 <label className="ak-label">What is physically on the shelf? *</label>
                 <input
@@ -207,7 +260,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
               </div>
             )}
 
-            {reason === 'zone_mismatch' && (
+            {outcome === 'relocate' && (
               <p style={{ fontSize: '0.85rem' }}>
                 No quantity changes here — confirming just records the re-shelving from
                 {' '}<strong>{incident.expected_zone || '—'}</strong> to <strong>{incident.actual_zone || '—'}</strong>.
@@ -235,7 +288,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
                 onClick={handleConfirm}
                 disabled={confirmDisabled}
               >
-                {submitting === 'confirm' ? 'Confirming…' : 'Confirm'}
+                {submitting === 'confirm' ? 'Confirming…' : confirmLabel}
               </button>
             </div>
           </div>
