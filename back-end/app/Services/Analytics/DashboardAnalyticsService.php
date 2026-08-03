@@ -389,8 +389,13 @@ class DashboardAnalyticsService
      *
      * Reasons are NOT whitelisted here on purpose. wrong_type resolves to a
      * ScanCorrection (the batch is re-typed) and zone_mismatch to a relocate —
-     * in both cases the goods still exist and nothing was lost. Keying off
-     * adjustment_id means this stays correct when new reasons are added.
+     * in both cases the goods still exist and nothing was lost, and neither
+     * produces an Adjustment to join to.
+     *
+     * But an Adjustment alone no longer implies a loss: customer_return posts
+     * one that ADDS stock. The deduct_quantity filter is what keeps this a loss
+     * query — a new reason that removes stock is picked up automatically, while
+     * one that returns it is excluded without needing to be named here.
      */
     private function confirmedLossQuery(?int $locationId, ?int $categoryId): Builder
     {
@@ -405,6 +410,7 @@ class DashboardAnalyticsService
             ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
             ->leftJoin('category_lookup as c', 'c.category_id', '=', 'p.category_id')
             ->whereNotNull('ir.adjustment_id')
+            ->where('ad.deduct_quantity', '>', 0)
             ->when($locationId, fn (Builder $q) => $q->where('a.location_id', $locationId))
             ->when($categoryId, fn (Builder $q) => $q->where('p.category_id', $categoryId));
     }
