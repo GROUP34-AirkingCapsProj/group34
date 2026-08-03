@@ -18,43 +18,54 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // product_id carries a foreign key, so MySQL needs it dropped before the
-        // column's nullability can change, then re-added afterwards.
-        Schema::table('incident_reports', function (Blueprint $table) {
-            $table->dropForeign(['product_id']);
-        });
-
+        // change() compiles to MODIFY COLUMN, which MariaDB accepts with
+        // product_id's foreign key in place, leaving the constraint intact.
+        // No drop/re-add of the foreign key is needed.
         Schema::table('incident_reports', function (Blueprint $table) {
             $table->unsignedBigInteger('source_id')->nullable()->change();
             $table->unsignedBigInteger('product_id')->nullable()->change();
+        });
 
-            if (! Schema::hasColumn('incident_reports', 'occurred_at')) {
+        // The schema of record here is a SQL dump, so a database rebuilt from a
+        // dump taken after this change has the columns but no migrations row.
+        // Each guard therefore covers the column and everything hung off it, so
+        // a re-run is a clean no-op rather than a duplicate-key error.
+        if (! Schema::hasColumn('incident_reports', 'occurred_at')) {
+            Schema::table('incident_reports', function (Blueprint $table) {
                 // When it actually happened, as opposed to created_at (when it was
                 // filed). A theft noticed the next morning has two different dates.
                 $table->dateTime('occurred_at')->nullable()->after('narrative');
-            }
+            });
+        }
 
-            if (! Schema::hasColumn('incident_reports', 'related_issuance_id')) {
+        if (! Schema::hasColumn('incident_reports', 'related_issuance_id')) {
+            Schema::table('incident_reports', function (Blueprint $table) {
                 // The sale a customer_return came from. Deliberately NOT source_id:
                 // source_type/source_id mean "discovered while picking X", this
                 // means "this incident is about sale Y".
                 $table->unsignedBigInteger('related_issuance_id')->nullable()->after('source_id');
-            }
-        });
-
-        Schema::table('incident_reports', function (Blueprint $table) {
-            $table->foreign('product_id')->references('product_id')->on('products')->restrictOnDelete();
-            $table->foreign('related_issuance_id')->references('issuance_id')->on('issuances')->nullOnDelete();
-            $table->index('related_issuance_id', 'incident_related_issuance_idx');
-        });
+                $table->foreign('related_issuance_id')->references('issuance_id')->on('issuances')->nullOnDelete();
+                $table->index('related_issuance_id', 'incident_related_issuance_idx');
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('incident_reports', function (Blueprint $table) {
-            $table->dropForeign(['related_issuance_id']);
-            $table->dropIndex('incident_related_issuance_idx');
-            $table->dropColumn(['occurred_at', 'related_issuance_id']);
-        });
+        // source_id and product_id are deliberately left nullable: restoring
+        // NOT NULL would fail against any standalone rows filed since this ran.
+        if (Schema::hasColumn('incident_reports', 'related_issuance_id')) {
+            Schema::table('incident_reports', function (Blueprint $table) {
+                $table->dropForeign(['related_issuance_id']);
+                $table->dropIndex('incident_related_issuance_idx');
+                $table->dropColumn('related_issuance_id');
+            });
+        }
+
+        if (Schema::hasColumn('incident_reports', 'occurred_at')) {
+            Schema::table('incident_reports', function (Blueprint $table) {
+                $table->dropColumn('occurred_at');
+            });
+        }
     }
 };

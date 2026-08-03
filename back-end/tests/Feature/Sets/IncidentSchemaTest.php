@@ -41,13 +41,16 @@ class IncidentSchemaTest extends SetTestCase
             'reviewed_by'   => 'users',
             'adjustment_id' => 'adjustments',
             'correction_id' => 'scan_corrections',
+
+            // The sale a customer_return came from, distinct from source_id.
+            'related_issuance_id' => 'issuances',
         ];
 
         foreach ($expected as $column => $refTable) {
             $this->assertSame($refTable, $actual[$column] ?? null, "incident_reports.{$column} must reference {$refTable}");
         }
 
-        // source_id is polymorphic (issuance|transfer) and must NOT have a FK.
+        // source_id is polymorphic (issuance|transfer|standalone) and must NOT have a FK.
         $this->assertArrayNotHasKey('source_id', $actual->all());
     }
 
@@ -76,17 +79,19 @@ class IncidentSchemaTest extends SetTestCase
         $this->assertTrue(IncidentReport::whereKey($incident->incident_id)->open()->exists());
     }
 
-    public function test_standalone_columns_exist_and_are_nullable(): void
+    public function test_standalone_columns_are_nullable_datetimes_and_quantity_stays_required(): void
     {
         foreach (['occurred_at', 'related_issuance_id'] as $col) {
             $this->assertTrue(Schema::hasColumn('incident_reports', $col), "incident_reports missing {$col}");
         }
 
-        $nullable = collect(DB::select(
-            "SELECT COLUMN_NAME AS c, IS_NULLABLE AS n
+        $columns = collect(DB::select(
+            "SELECT COLUMN_NAME AS c, IS_NULLABLE AS n, DATA_TYPE AS t
              FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'incident_reports'"
-        ))->mapWithKeys(fn ($r) => [$r->c => $r->n]);
+        ))->keyBy('c');
+
+        $nullable = $columns->map(fn ($r) => $r->n);
 
         // A standalone report has no source transaction; an `other` incident has no product.
         $this->assertSame('YES', $nullable['source_id'] ?? null, 'source_id must be nullable');
@@ -96,22 +101,9 @@ class IncidentSchemaTest extends SetTestCase
 
         // quantity stays NOT NULL — an `other` incident stores 0, not null.
         $this->assertSame('NO', $nullable['quantity'] ?? null, 'quantity must stay NOT NULL');
-    }
 
-    public function test_related_issuance_has_a_foreign_key_but_source_id_still_does_not(): void
-    {
-        $actual = collect(DB::select(
-            "SELECT COLUMN_NAME AS c, REFERENCED_TABLE_NAME AS rt
-             FROM information_schema.KEY_COLUMN_USAGE
-             WHERE TABLE_SCHEMA = DATABASE()
-               AND TABLE_NAME = 'incident_reports'
-               AND REFERENCED_TABLE_NAME IS NOT NULL"
-        ))->mapWithKeys(fn ($r) => [$r->c => $r->rt]);
-
-        $this->assertSame('issuances', $actual['related_issuance_id'] ?? null);
-        // product_id's FK must survive the drop/re-add dance in the migration.
-        $this->assertSame('products', $actual['product_id'] ?? null);
-        // source_id is polymorphic (issuance|transfer|standalone) and must NOT have a FK.
-        $this->assertArrayNotHasKey('source_id', $actual->all());
+        // datetime, not timestamp: occurred_at holds user-entered past dates, so it
+        // must not inherit timestamp's 1970-2038 range or auto-init/auto-update.
+        $this->assertSame('datetime', $columns['occurred_at']->t ?? null);
     }
 }
