@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\AuditTrail;
 use App\Models\SystemSetting;
 use App\Services\LoginCaptchaService;
+use App\Services\UnauthorizedAccessLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -55,6 +56,12 @@ class AuthController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::warning('login_activity_log_failed', ['error' => $e->getMessage()]);
+        }
+
+        // Only unrecognized emails (no matching user) are flagged unauthorized.
+        // Wrong passwords on existing accounts stay in login_activities only.
+        if (! $success && ! $user) {
+            app(UnauthorizedAccessLogger::class)->logUnrecognizedAccount($request);
         }
     }
 
