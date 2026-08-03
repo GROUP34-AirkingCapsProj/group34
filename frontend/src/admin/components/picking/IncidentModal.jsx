@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Modal from '../Modal';
 import { incidentReportsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
+import { PICKING_REASONS } from '../../utils/incidentReasons';
 
 /**
  * IncidentModal — shared "file an incident" surface for the issuance picker and
@@ -30,18 +31,6 @@ import { toast } from '../../utils/toast';
  * Submits through incidentReportsAPI.file() with exactly the keys the store
  * endpoint validates — no photo key is posted (the photo field is presentational).
  */
-
-const REASONS = [
-  {
-    value: 'not_found',
-    label: "I can't find it on the shelf",
-    help:
-      'Filing this opens an investigation record. The missing count is visible to reviewers — this is a tracked report, not a silent skip.',
-  },
-  { value: 'damaged', label: "It's there but damaged" },
-  { value: 'wrong_type', label: "Wrong item — the label doesn't match what's physically here" },
-  { value: 'zone_mismatch', label: "It's here, just in a different zone" },
-];
 
 export default function IncidentModal({ context, onFiled, onClose }) {
   const isOpen = !!context;
@@ -92,7 +81,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
     }
   };
 
-  const selected = REASONS.find((r) => r.value === reason);
+  const selected = PICKING_REASONS.find((r) => r.value === reason);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="File incident report" maxWidth={560}>
@@ -109,7 +98,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
 
         <fieldset className="ak-field" style={{ border: 'none', margin: 0, padding: 0 }}>
           <legend className="ak-label" style={{ marginBottom: '0.4rem' }}>What's wrong?</legend>
-          {REASONS.map((r) => (
+          {PICKING_REASONS.map((r) => (
             <label
               key={r.value}
               style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', cursor: 'pointer', padding: '0.25rem 0' }}
@@ -122,7 +111,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
                 onChange={() => setReason(r.value)}
                 style={{ marginTop: '0.2rem' }}
               />
-              <span>{r.label}</span>
+              <span>{r.pickerLabel}</span>
             </label>
           ))}
           {selected?.help && (
