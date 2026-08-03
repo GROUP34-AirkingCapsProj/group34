@@ -415,12 +415,28 @@ interface ResolvesIncident
     /**
      * Post the artifact. Runs INSIDE IncidentService's transaction, with the
      * incident row already locked and confirmed Open.
-     *
-     * @return array{adjustment_id: int|null, correction_id: int|null}
      */
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array;
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts;
 }
 ```
+
+**Note (amended after Task 3's code review):** `apply()` returns a `ResolutionArtifacts` value object, not an array. `back-end/app/Services/Incidents/ResolutionArtifacts.php`:
+
+```php
+final class ResolutionArtifacts
+{
+    private function __construct(
+        public readonly ?int $adjustmentId = null,
+        public readonly ?int $correctionId = null,
+    ) {}
+
+    public static function adjustment(int $id): self { return new self(adjustmentId: $id); }
+    public static function correction(int $id): self { return new self(correctionId: $id); }
+    public static function none(): self { return new self(); }
+}
+```
+
+An enforced return type beats a documented one, and `ResolutionArtifacts::none()` says what it means where `['adjustment_id' => null, 'correction_id' => null]` did not. `IncidentService` reads `$posted->adjustmentId` / `$posted->correctionId`.
 
 - [ ] **Step 3: Create WriteOffResolution**
 
@@ -447,7 +463,7 @@ class WriteOffResolution implements ResolvesIncident
         // Nothing to guard: a write-off is valid with or without a batch.
     }
 
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         $requested = max(0, (int) $incident->quantity);
 
@@ -498,7 +514,7 @@ class WriteOffResolution implements ResolvesIncident
             $inventory->decrement('available_quantity', min($deducted, (int) $inventory->available_quantity));
         }
 
-        return ['adjustment_id' => (int) $adjustment->adjustment_id, 'correction_id' => null];
+        return ResolutionArtifacts::adjustment((int) $adjustment->adjustment_id);
     }
 
     private function adjustmentType(string $reason): string
@@ -541,7 +557,7 @@ class RetypeResolution implements ResolvesIncident
         }
     }
 
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         $correctedProductId = (int) $options['corrected_product_id'];
 
@@ -584,7 +600,7 @@ class RetypeResolution implements ResolvesIncident
             $to->increment('available_quantity', $quantity);
         }
 
-        return ['adjustment_id' => null, 'correction_id' => (int) $correction->correction_id];
+        return ResolutionArtifacts::correction((int) $correction->correction_id);
     }
 }
 ```
@@ -610,14 +626,14 @@ class RelocateResolution implements ResolvesIncident
         // preserving the pre-refactor behaviour.
     }
 
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         if ($incident->batch_id !== null && $incident->actual_zone !== null) {
             InventoryBatch::where('batch_id', $incident->batch_id)
                 ->update(['zone_label' => $incident->actual_zone]);
         }
 
-        return ['adjustment_id' => null, 'correction_id' => null];
+        return ResolutionArtifacts::none();
     }
 }
 ```
@@ -683,8 +699,8 @@ Replace everything from the `/** Resolve an open incident...` docblock to the en
                 'status_id'       => IncidentReport::statusId('Resolved'),
                 'reviewed_by'     => $reviewedBy,
                 'reviewed_at'     => now(),
-                'adjustment_id'   => $posted['adjustment_id'],
-                'correction_id'   => $posted['correction_id'],
+                'adjustment_id'   => $posted->adjustmentId,
+                'correction_id'   => $posted->correctionId,
                 'resolution_note' => $options['resolution_note'] ?? null,
             ]);
 
@@ -1057,9 +1073,9 @@ class AcknowledgeResolution implements ResolvesIncident
         // Nothing to guard — there is no artifact to get wrong.
     }
 
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
-        return ['adjustment_id' => null, 'correction_id' => null];
+        return ResolutionArtifacts::none();
     }
 }
 ```
@@ -1364,7 +1380,7 @@ class RestockResolution implements ResolvesIncident
         }
     }
 
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         $quantity = (int) $incident->quantity;
 
@@ -1403,7 +1419,7 @@ class RestockResolution implements ResolvesIncident
                 ->update(['status_id' => ItemSerial::IN_STOCK_STATUS_ID]);
         }
 
-        return ['adjustment_id' => (int) $adjustment->adjustment_id, 'correction_id' => null];
+        return ResolutionArtifacts::adjustment((int) $adjustment->adjustment_id);
     }
 
     private function restoreBatch(IncidentReport $incident, int $quantity): void
@@ -3045,7 +3061,13 @@ EOF
 cd back-end && php artisan test
 ```
 
-Expected: PASS with zero failures. Incident coverage should be 42 tests (6 schema + 6 filing + 12 resolution + 10 standalone + 5 restock + 3 photo).
+Expected: **9 failed, 1 skipped, rest passed.** Incident coverage should be 42 tests (6 schema + 6 filing + 12 resolution + 10 standalone + 5 restock + 3 photo), all green.
+
+⚠️ **Known pre-existing baseline — do not try to fix these.** The 9 failures are all in `Tests\Feature\WarrantyClaimTest` and predate this entire line of work. This was verified during Task 3's review by checking out `53f834a` (the commit before Task 1) into a separate worktree and running the suite there: identical 9 failures, same names. Neither `WarrantyClaimService.php` nor `WarrantyClaimTest.php` is touched by any commit in this plan or by the 22 unrelated working-tree modifications.
+
+All nine funnel through `back-end/app/Services/WarrantyClaimService.php:341`, where `$claim->details()->where('product_id', …)->whereColumn('quantity_issued', '<', 'quantity_requested')` returns null and `addItem()` throws. The `whereColumn` comparison appears never to be satisfiable, which points at `quantity_requested` drift in `airkingV5_test`'s `warranty_claim_details` table rather than a code bug — consistent with this repo's schema-is-a-dump convention. Worth a separate investigation, but it is out of scope here.
+
+**What matters for this task:** the failure count must still be exactly 9, and they must still be the same 9 WarrantyClaim tests. If the number changes, this plan broke something.
 
 - [ ] **Step 2: Confirm the refactor safety net is still untouched**
 
