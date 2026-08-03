@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\IncidentReport;
 use App\Services\Incidents\AcknowledgeResolution;
 use App\Services\Incidents\RelocateResolution;
+use App\Services\Incidents\RestockResolution;
 use App\Services\Incidents\ResolvesIncident;
 use App\Services\Incidents\RetypeResolution;
 use App\Services\Incidents\WriteOffResolution;
@@ -165,6 +166,7 @@ class IncidentService
             IncidentReport::REASON_DELIVERY_DAMAGE => new WriteOffResolution(),
             IncidentReport::REASON_WRONG_TYPE      => new RetypeResolution(),
             IncidentReport::REASON_ZONE_MISMATCH   => new RelocateResolution(),
+            IncidentReport::REASON_CUSTOMER_RETURN => new RestockResolution(),
             IncidentReport::REASON_OTHER           => new AcknowledgeResolution(),
         };
     }

@@ -19,21 +19,14 @@ class IncidentReport extends Model
     public const REASON_ZONE_MISMATCH   = 'zone_mismatch';
     public const REASON_THEFT           = 'theft';
     public const REASON_DELIVERY_DAMAGE = 'delivery_damage';
+    public const REASON_CUSTOMER_RETURN = 'customer_return';
     public const REASON_OTHER           = 'other';
 
-    public const REASONS = [
-        self::REASON_NOT_FOUND,
-        self::REASON_DAMAGED,
-        self::REASON_WRONG_TYPE,
-        self::REASON_ZONE_MISMATCH,
-        self::REASON_THEFT,
-        self::REASON_DELIVERY_DAMAGE,
-        self::REASON_OTHER,
-    ];
-
     /**
-     * Reasons whose resolution moves stock, and which therefore cannot be filed
-     * without a product and a quantity. Everything except `other`.
+     * Reasons whose resolution moves stock — out for a loss, back in for a
+     * return — and which therefore cannot be filed without a product and a
+     * quantity. This is the list that carries meaning; every reason belongs
+     * here except `other`, which only records that something happened.
      */
     public const STOCK_AFFECTING_REASONS = [
         self::REASON_NOT_FOUND,
@@ -42,7 +35,15 @@ class IncidentReport extends Model
         self::REASON_ZONE_MISMATCH,
         self::REASON_THEFT,
         self::REASON_DELIVERY_DAMAGE,
+        self::REASON_CUSTOMER_RETURN,
     ];
+
+    /**
+     * Every reason. Derived rather than hand-written so a new reason added to
+     * the list above cannot be forgotten here — the two lists differ by exactly
+     * one entry, and keeping that literal was an invitation to desync.
+     */
+    public const REASONS = [...self::STOCK_AFFECTING_REASONS, self::REASON_OTHER];
 
     protected $table      = 'incident_reports';
     protected $primaryKey = 'incident_id';
