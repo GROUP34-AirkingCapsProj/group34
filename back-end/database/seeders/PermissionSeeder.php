@@ -79,9 +79,12 @@ class PermissionSeeder extends Seeder
                 'archive' => ['admin'],
             ],
             // Incident Reports (/admin/incidents) — pickers file, IA and admin resolve.
+            // Incident Reports (/admin/incidents) — pickers and anyone who spots a
+            // problem file; IA and admin resolve. `auditor` stays read-only: filing
+            // rows would break the read-only guarantee that role carries elsewhere.
             'incident_reports' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
-                'create'  => ['admin', 'inventory_analyst', 'warehouse_personnel'],
+                'create'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
                 'resolve' => ['admin', 'inventory_analyst'],
             ],
             'location_based_inventory' => [

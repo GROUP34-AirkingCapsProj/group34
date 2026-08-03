@@ -237,4 +237,42 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'narrative'   => 'Filed against an issuance I did not identify.',
         ])->assertStatus(422)->assertJsonValidationErrors(['source_id']);
     }
+
+    public function test_a_branch_manager_can_file_but_not_resolve(): void
+    {
+        $loc = $this->makeLocation();
+        $bm  = $this->makeUserAt($loc, 'branch_manager');
+        $p   = $this->makeConsumable();
+
+        $res = $this->actingAs($bm, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'theft',
+            'quantity'    => 1,
+            'narrative'   => 'Noticed a unit missing during the morning walk.',
+        ]);
+        $res->assertCreated();
+
+        // Maker-checker: filing a write-off and approving it stay different people.
+        $this->actingAs($bm, 'sanctum')
+             ->postJson("/api/incident-reports/{$res->json('data.incident_id')}/resolve", ['action' => 'confirm'])
+             ->assertForbidden();
+    }
+
+    public function test_a_read_only_auditor_cannot_file(): void
+    {
+        $loc = $this->makeLocation();
+        $au  = $this->makeUserAt($loc, 'auditor');
+        $p   = $this->makeConsumable();
+
+        $this->actingAs($au, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'theft',
+            'quantity'    => 1,
+            'narrative'   => 'Writing rows would break the read-only guarantee.',
+        ])->assertForbidden();
+    }
 }

@@ -61,21 +61,32 @@ class IncidentPhotoUploadTest extends SetTestCase
         ])->assertForbidden();
     }
 
-    public function test_a_role_without_the_create_permission_cannot_upload(): void
+    public function test_a_branch_manager_can_upload(): void
     {
         Storage::fake('local');
 
-        // Branch manager currently has incident_reports.create = 0 and is not
-        // read-only by role, so this actually exercises CheckPermission
-        // (unlike the auditor test above, which never reaches it). Task 9
-        // grants BM create, so this test will need updating then — that's
-        // the intended regression signal.
+        // A branch manager who spots a problem files it themselves, evidence
+        // photo included, rather than asking a picker to file on their behalf.
+        //
+        // NOTE ON A DELIBERATE COVERAGE GAP: this test used to assert the
+        // opposite, as the one role-based case that actually reached
+        // CheckPermission for incident_reports.create. Now that BM has create,
+        // the only role still lacking it is `auditor` — and auditors are
+        // stopped by the AuditorReadOnly middleware before CheckPermission ever
+        // runs. So no role-based negative case exercises the create permission
+        // gate any more. That is known and accepted, not an oversight: the gate
+        // itself is covered generically by the permission-middleware tests. If
+        // a future role is added without incident_reports.create, add the
+        // negative case back here.
         $loc = $this->makeLocation();
         $bm  = $this->makeUserAt($loc, 'branch_manager');
 
-        $this->actingAs($bm, 'sanctum')->post('/api/incident-reports/photo', [
+        $res = $this->actingAs($bm, 'sanctum')->post('/api/incident-reports/photo', [
             'photo' => UploadedFile::fake()->image('anything.jpg'),
-        ])->assertForbidden();
+        ]);
+
+        $res->assertCreated();
+        Storage::disk('local')->assertExists($res->json('data.path'));
     }
 
     public function test_an_uploaded_photo_round_trips_through_filing(): void
