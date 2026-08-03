@@ -118,6 +118,30 @@ class IncidentReportController extends Controller
         ], 201);
     }
 
+    /**
+     * Store an evidence photo and hand back its disk path, which the caller
+     * then submits as `photo_path` when filing. Two steps rather than a
+     * multipart file on the file endpoint, so the picking modal can upload
+     * while the user is still typing the narrative.
+     *
+     * Mirrors AccountController's avatar upload: `public` disk, path stored
+     * disk-relative, and the web URL built by prefixing /storage/.
+     */
+    public function uploadPhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'photo' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
+        ]);
+
+        $path = $request->file('photo')->store('incidents', 'public');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Photo uploaded.',
+            'data'    => ['path' => $path, 'url' => '/storage/' . $path],
+        ], 201);
+    }
+
     public function resolve(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
