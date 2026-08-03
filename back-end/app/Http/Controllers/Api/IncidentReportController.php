@@ -14,7 +14,7 @@ class IncidentReportController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = IncidentReport::with(['product', 'batch', 'location', 'reportedBy', 'reviewedBy'])
+        $query = IncidentReport::with(['product', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance'])
             ->forUser(Auth::user());   // location scoping, same trait every other list uses
 
         if ($request->query('status') === 'open') {
@@ -39,10 +39,16 @@ class IncidentReportController extends Controller
                 'incident_id'             => (int) $i->incident_id,
                 'incident_number'         => $i->incident_number,
                 'source_type'             => $i->source_type,
-                'source_id'               => (int) $i->source_id,
+                'source_id'               => $i->source_id !== null ? (int) $i->source_id : null,
+                'related_issuance_id'     => $i->related_issuance_id !== null ? (int) $i->related_issuance_id : null,
+                // Issuances are identified by their delivery-receipt number;
+                // there is no `issuance_number` column on the table.
+                'related_issuance_number' => $i->relatedIssuance?->dr_number,
                 'location_id'             => (int) $i->location_id,
                 'location_name'           => $i->location?->location_name,
-                'product_id'              => (int) $i->product_id,
+                // (int) null is 0 — a real product id. An `other` incident has no
+                // product and must serialize as null, like batch_id does below.
+                'product_id'              => $i->product_id !== null ? (int) $i->product_id : null,
                 'product_name'            => $i->product?->product_name,
                 'batch_id'                => $i->batch_id !== null ? (int) $i->batch_id : null,
                 'expected_zone'           => $i->expected_zone,
@@ -51,7 +57,10 @@ class IncidentReportController extends Controller
                 'quantity'                => (int) $i->quantity,
                 'narrative'               => $i->narrative,
                 'photo_path'              => $i->photo_path,
-                'reported_by'             => (int) $i->reported_by,
+                // Web path, built the same way User::avatar_url is.
+                'photo_url'               => $i->photo_path ? '/storage/' . ltrim($i->photo_path, '/') : null,
+                'occurred_at'             => optional($i->occurred_at)->toDateTimeString(),
+                'reported_by'           => (int) $i->reported_by,
                 'reported_by_name'        => trim(($i->reportedBy?->first_name ?? '') . ' ' . ($i->reportedBy?->last_name ?? '')),
                 'reporter_incident_count' => (int) ($counts[(int) $i->reported_by] ?? 0),
                 'status_id'               => (int) $i->status_id,
@@ -71,18 +80,23 @@ class IncidentReportController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'source_type'   => ['required', Rule::in(['issuance', 'transfer'])],
-            'source_id'     => 'required|integer',
-            'location_id'   => 'required|integer|exists:locations,location_id',
-            'product_id'    => 'required|integer|exists:products,product_id',
-            'batch_id'      => 'nullable|integer|exists:inventory_batches,batch_id',
-            'serial_id'     => 'nullable|integer|exists:item_serial,serial_id',
-            'expected_zone' => 'nullable|string|max:100',
-            'actual_zone'   => 'nullable|string|max:100',
-            'reason'        => ['required', Rule::in(IncidentReport::REASONS)],
-            'quantity'      => 'required|integer|min:1',
-            'narrative'     => 'required|string|max:2000',
-            'photo_path'    => 'nullable|string|max:255',
+            'source_type'         => ['required', Rule::in(['issuance', 'transfer', 'standalone'])],
+            // A standalone report has no source transaction to point at.
+            'source_id'           => 'required_unless:source_type,standalone|nullable|integer',
+            'related_issuance_id' => 'nullable|integer|exists:issuances,issuance_id',
+            'location_id'         => 'required|integer|exists:locations,location_id',
+            // An `other` incident has no product and no meaningful quantity.
+            'product_id'          => 'required_unless:reason,other|nullable|integer|exists:products,product_id',
+            'batch_id'            => 'nullable|integer|exists:inventory_batches,batch_id',
+            'serial_id'           => 'nullable|integer|exists:item_serial,serial_id',
+            'expected_zone'       => 'nullable|string|max:100',
+            'actual_zone'         => 'nullable|string|max:100',
+            'reason'              => ['required', Rule::in(IncidentReport::REASONS)],
+            'quantity'            => 'required_unless:reason,other|nullable|integer|min:1',
+            'narrative'           => 'required|string|max:2000',
+            // You cannot report something that has not happened yet.
+            'occurred_at'         => 'nullable|date|before_or_equal:now',
+            'photo_path'          => 'nullable|string|max:255',
         ]);
 
         $incident = app(IncidentService::class)->file($validated, (int) Auth::id());

@@ -134,4 +134,66 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'narrative'   => 'Something went missing but I did not say what.',
         ], (int) $wp->user_id);
     }
+
+    public function test_the_endpoint_accepts_a_standalone_report_with_no_source_id(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'theft',
+            'quantity'    => 2,
+            'narrative'   => 'Two units gone from the aisle.',
+            'occurred_at' => now()->subDay()->format('Y-m-d H:i:s'),
+        ]);
+
+        $res->assertCreated();
+        $this->assertStringStartsWith('INC-', $res->json('data.incident_number'));
+    }
+
+    public function test_the_endpoint_rejects_an_occurrence_in_the_future(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'theft',
+            'quantity'    => 1,
+            'narrative'   => 'It will be stolen tomorrow.',
+            'occurred_at' => now()->addDays(2)->format('Y-m-d H:i:s'),
+        ])->assertStatus(422);
+    }
+
+    public function test_a_product_less_other_incident_serializes_product_id_as_null(): void
+    {
+        $loc = $this->makeLocation();
+        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'reason'      => 'other',
+            'narrative'   => 'Cold-room door lock is broken.',
+        ])->assertCreated();
+
+        $res = $this->actingAs($ia, 'sanctum')->getJson('/api/incident-reports?status=open');
+        $res->assertOk();
+
+        $row = collect($res->json('data'))->firstWhere('reason', 'other');
+        $this->assertNotNull($row);
+        // (int) null would report product #0 — a real product id — as if it were
+        // the subject of the incident.
+        $this->assertNull($row['product_id'], 'a product-less incident must not report product 0');
+        $this->assertNull($row['source_id']);
+        $this->assertSame(0, $row['quantity']);
+    }
 }
