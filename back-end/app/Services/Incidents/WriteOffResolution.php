@@ -79,8 +79,11 @@ class WriteOffResolution implements ResolvesIncident
      */
     private function adjustmentType(string $reason): string
     {
-        return in_array($reason, [IncidentReport::REASON_DAMAGED, IncidentReport::REASON_DELIVERY_DAMAGE], true)
-            ? 'damage'
-            : 'loss';
+        return match ($reason) {
+            IncidentReport::REASON_DAMAGED,
+            IncidentReport::REASON_DELIVERY_DAMAGE => 'damage',
+            IncidentReport::REASON_NOT_FOUND,
+            IncidentReport::REASON_THEFT           => 'loss',
+        };
     }
 }
