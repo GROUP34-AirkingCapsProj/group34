@@ -81,15 +81,15 @@ class IncidentService
      */
     public function resolve(IncidentReport $incident, string $action, array $options, int $reviewedBy): IncidentReport
     {
-        $strategy = $this->strategyFor($incident->reason);
-
-        // Cheap pre-flight, outside the transaction. Re-checked under the lock
-        // below where it actually matters.
+        // Cheap pre-flight, outside the transaction. Only the confirm path needs
+        // a strategy: dismissing produces no artifact, so a reason whose strategy
+        // has not shipped yet must still be dismissable. Re-checked under the
+        // lock below where it actually matters.
         if ($action === 'confirm') {
-            $strategy->validate($incident, $options);
+            $this->strategyFor($incident->reason)->validate($incident, $options);
         }
 
-        return DB::transaction(function () use ($incident, $action, $options, $reviewedBy, $strategy) {
+        return DB::transaction(function () use ($incident, $action, $options, $reviewedBy) {
             // Lock the incident row and re-check Open UNDER the lock, so two
             // reviewers resolving at once cannot both pass the guard and
             // double-book the write-off. The plain read outside a transaction
@@ -110,6 +110,10 @@ class IncidentService
 
                 return $locked->fresh();
             }
+
+            // Authoritative dispatch off the freshly-read, locked row rather than
+            // the caller's in-memory model.
+            $strategy = $this->strategyFor($locked->reason);
 
             $strategy->validate($locked, $options);
             $posted = $strategy->apply($locked, $options, $reviewedBy);
