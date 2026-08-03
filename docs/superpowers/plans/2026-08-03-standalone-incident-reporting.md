@@ -1253,7 +1253,7 @@ class IncidentRestockTest extends SetTestCase
 
         // The stock returns to the batch it left, so its true received_at — and
         // therefore its place in FIFO order — is preserved.
-        $this->assertSame(6, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+        $this->assertSame(8, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
         $this->assertSame(1, (int) InventoryBatch::where('product_id', $p->product_id)->count());
 
         $inv = Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
@@ -1637,7 +1637,10 @@ with:
 ```php
                 'source_id'               => $i->source_id !== null ? (int) $i->source_id : null,
                 'related_issuance_id'     => $i->related_issuance_id !== null ? (int) $i->related_issuance_id : null,
-                'related_issuance_number' => $i->relatedIssuance?->issuance_number,
+                // `issuances` has NO issuance_number column - dr_number is the
+                // identifier every other serializer uses. JSON key keeps its
+                // planned name so the frontend contract is unchanged.
+                'related_issuance_number' => $i->relatedIssuance?->dr_number,
 ```
 
 and replace:
@@ -2250,10 +2253,27 @@ export const incidentReportsAPI = {
     form.append('photo', file);
     return uploadRequest('/incident-reports/photo', form);
   },
+  /**
+   * Evidence photo for an incident, as a Blob. Photos are on a private disk
+   * behind `permission:incident_reports,read`, so a plain <img src> would 401 —
+   * the browser sends no Authorization header. Same approach the GRN PDF
+   * downloads use: fetch with the Bearer header, hand the caller a blob.
+   */
+  photoBlob: async (id) => {
+    const token = getToken();
+    const base = getApiBaseUrl();
+    const res = await fetch(`${base}/incident-reports/${id}/photo`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) throw new Error(`Failed to load photo (${res.status})`);
+    return res.blob();
+  },
   resolve: async (id, payload) =>
     apiRequest(`/incident-reports/${id}/resolve`, { method: 'POST', body: JSON.stringify(payload) }),
 };
 ```
+
+**Amended after Task 8's security review.** Photos moved to a private disk served by an authenticated route, so `photoBlob` replaces what would have been a direct `/storage/` URL. Check the exact names of `getToken` / `getApiBaseUrl` in `api.js` before using them — `fetchBlob` around line 78 already does this and is the pattern to copy.
 
 - [ ] **Step 2: Build to verify**
 
@@ -2277,6 +2297,10 @@ EOF
 ---
 
 ### Task 12: The standalone file modal
+
+> ⚠️ **Prerequisite bug — fix this first, in the same commit.** `back-end/app/Http/Controllers/Api/IssuanceController.php:41` searches `issuance_number`, **a column that does not exist**. `issuances` has `dr_number` and `external_reference` only. The method's try/catch turns the resulting SQL error into a 500, so `GET /issuances?search=` is broken today — and this modal's issuance picker is the first caller that would hit it. `IssuanceController::archived()` at line 209 already does it correctly; make line 41 match by searching `dr_number`. Pre-existing and unrelated to this feature, but it blocks the picker.
+>
+> Found during Task 7, which also discovered the same non-existent column in the incident serializer.
 
 **Files:**
 - Create: `frontend/src/admin/components/IncidentFileModal.jsx`
@@ -2535,7 +2559,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
                 <option value="">Select the issuance…</option>
                 {issuances.map((i) => (
                   <option key={i.issuance_id} value={String(i.issuance_id)}>
-                    {i.issuance_number}{i.dr_number ? ` · DR ${i.dr_number}` : ''}
+                    {i.dr_number || `Issuance #${i.issuance_id}`}{i.external_reference ? ` · ${i.external_reference}` : ''}
                   </option>
                 ))}
               </select>
@@ -2933,7 +2957,32 @@ Replace the Product cell so a product-less incident reads honestly:
 Replace the photo URL line so it uses the server-built web path:
 
 ```js
-  const photoUrl = incident.photo_url ? resolveStorageUrl(incident.photo_url) : null;
+  // AMENDED after Task 8's security review. Photos live on a PRIVATE disk and
+  // are served by an authenticated route (`GET /incident-reports/{id}/photo`,
+  // gated on incident_reports.read), so a plain <img src> will 401 — the
+  // browser does not send the Bearer token. Fetch it as a blob the way the GRN
+  // downloads do, then hand the object URL to <img>. Revoke it on close or the
+  // drawer leaks a blob per incident viewed.
+  const [photoUrl, setPhotoUrl] = useState(null);
+
+  useEffect(() => {
+    if (!incident?.photo_url) { setPhotoUrl(null); return; }
+    let revoked = false;
+    let objectUrl = null;
+
+    incidentReportsAPI.photoBlob(incident.incident_id)
+      .then((blob) => {
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPhotoUrl(objectUrl);
+      })
+      .catch(() => setPhotoUrl(null));
+
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [incident?.incident_id, incident?.photo_url]);
 ```
 
 - [ ] **Step 5: Build to verify**
