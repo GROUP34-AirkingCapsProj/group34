@@ -122,8 +122,8 @@ class IncidentService
                 'status_id'       => IncidentReport::statusId('Resolved'),
                 'reviewed_by'     => $reviewedBy,
                 'reviewed_at'     => now(),
-                'adjustment_id'   => $posted['adjustment_id'],
-                'correction_id'   => $posted['correction_id'],
+                'adjustment_id'   => $posted->adjustmentId,
+                'correction_id'   => $posted->correctionId,
                 'resolution_note' => $options['resolution_note'] ?? null,
             ]);
 
@@ -132,6 +132,8 @@ class IncidentService
     }
 
     /**
+     * Map a reason to the strategy that posts its artifact.
+     *
      * No default arm: `match` throws UnhandledMatchError if a reason is added
      * without a strategy, which is exactly the failure we want — loud, at the
      * first resolve, rather than an incident silently closing with no artifact.

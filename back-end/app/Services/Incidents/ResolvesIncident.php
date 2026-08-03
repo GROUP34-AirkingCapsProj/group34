@@ -15,8 +15,10 @@ use App\Models\IncidentReport;
 interface ResolvesIncident
 {
     /**
-     * Guards that don't touch the database — cheap to fail fast, before the
-     * transaction opens.
+     * Guards on the incident, called TWICE: once as a cheap pre-flight before the
+     * transaction opens, then again under the row lock as the authority. Must be
+     * side-effect-free and must not depend on database state — that is what makes
+     * running it twice safe.
      *
      * @throws \InvalidArgumentException when the incident cannot be confirmed
      */
@@ -25,8 +27,6 @@ interface ResolvesIncident
     /**
      * Post the artifact. Runs INSIDE IncidentService's transaction, with the
      * incident row already locked and confirmed Open.
-     *
-     * @return array{adjustment_id: int|null, correction_id: int|null}
      */
-    public function apply(IncidentReport $incident, array $options, int $reviewedBy): array;
+    public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts;
 }
