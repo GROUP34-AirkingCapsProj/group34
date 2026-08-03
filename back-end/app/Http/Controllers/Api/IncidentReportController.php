@@ -8,7 +8,9 @@ use App\Services\IncidentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class IncidentReportController extends Controller
 {
@@ -57,8 +59,9 @@ class IncidentReportController extends Controller
                 'quantity'                => (int) $i->quantity,
                 'narrative'               => $i->narrative,
                 'photo_path'              => $i->photo_path,
-                // Web path, built the same way User::avatar_url is.
-                'photo_url'               => $i->photo_path ? '/storage/' . ltrim($i->photo_path, '/') : null,
+                // Evidence photos live on the private `local` disk (not `public`),
+                // so this is an authenticated API route, not a /storage/ URL.
+                'photo_url'               => $i->photo_path ? "/incident-reports/{$i->incident_id}/photo" : null,
                 'occurred_at'             => optional($i->occurred_at)->toDateTimeString(),
                 'reported_by'             => (int) $i->reported_by,
                 'reported_by_name'        => trim(($i->reportedBy?->first_name ?? '') . ' ' . ($i->reportedBy?->last_name ?? '')),
@@ -106,7 +109,12 @@ class IncidentReportController extends Controller
             'narrative'           => 'required|string|max:2000',
             // You cannot report something that has not happened yet.
             'occurred_at'         => 'nullable|date|before_or_equal:now',
-            'photo_path'          => 'nullable|string|max:255',
+            // Constrained to exactly the shape uploadPhoto() can produce
+            // (incidents/YYYY/MM/<40-char hashName>.<ext>), so a filer cannot
+            // submit an arbitrary path (another user's avatar) or an absolute
+            // URL, which the frontend's resolveStorageUrl() would fetch as-is.
+            'photo_path'          => ['nullable', 'string', 'max:255',
+                                       'regex:/^incidents\/\d{4}\/\d{2}\/[A-Za-z0-9]{40}\.(jpg|jpeg|png|webp)$/'],
         ]);
 
         $incident = app(IncidentService::class)->file($validated, (int) Auth::id());
@@ -124,8 +132,14 @@ class IncidentReportController extends Controller
      * multipart file on the file endpoint, so the picking modal can upload
      * while the user is still typing the narrative.
      *
-     * Mirrors AccountController's avatar upload: `public` disk, path stored
-     * disk-relative, and the web URL built by prefixing /storage/.
+     * Evidence photos may show named staff, stock layout, or the subject of a
+     * live loss investigation, and incident_reports is permission-gated
+     * everywhere else — so these live on the private `local` disk, not the
+     * unauthenticated `public` one, and are only ever served back through
+     * showPhoto() behind auth:sanctum. The image/mimes combination mirrors
+     * AccountController's avatar upload for consistency with the rest of the
+     * codebase (image validates via the same mimes list under the hood, so
+     * mimes: alone would do — both are kept for parity with that precedent).
      */
     public function uploadPhoto(Request $request): JsonResponse
     {
@@ -133,13 +147,43 @@ class IncidentReportController extends Controller
             'photo' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
 
-        $path = $request->file('photo')->store('incidents', 'public');
+        // Year/month subdirectory so any future prune of orphaned uploads is a
+        // directory-age scan, not a join against incident_reports.photo_path.
+        $path = $request->file('photo')->store('incidents/' . now()->format('Y/m'), 'local');
 
         return response()->json([
             'success' => true,
             'message' => 'Photo uploaded.',
-            'data'    => ['path' => $path, 'url' => '/storage/' . $path],
+            'data'    => ['path' => $path],
         ], 201);
+    }
+
+    /**
+     * Stream an evidence photo back inline (for an <img> tag), scoped to
+     * incidents the requesting user can see. auth:sanctum + Bearer token
+     * (not a ?token= query param), so the credential never appears in the
+     * URL — same pattern as the Goods Received Note downloads in api.php.
+     */
+    public function showPhoto(int $id): StreamedResponse|JsonResponse
+    {
+        $incident = IncidentReport::forUser(Auth::user())->find($id);
+
+        if (! $incident || ! $incident->photo_path) {
+            return response()->json(['success' => false, 'message' => 'Photo not found.'], 404);
+        }
+
+        // Defensive: the upload path can't produce anything outside
+        // incidents/, but store()'s regex is the only thing actually
+        // guaranteeing that once a path round-trips through the database.
+        if (! str_starts_with($incident->photo_path, 'incidents/')) {
+            return response()->json(['success' => false, 'message' => 'Photo not found.'], 404);
+        }
+
+        if (! Storage::disk('local')->exists($incident->photo_path)) {
+            return response()->json(['success' => false, 'message' => 'Photo not found.'], 404);
+        }
+
+        return Storage::disk('local')->response($incident->photo_path);
     }
 
     public function resolve(Request $request, int $id): JsonResponse

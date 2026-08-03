@@ -567,8 +567,15 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
          ->get('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'index']);
     Route::middleware('permission:incident_reports,create')
          ->post('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'store']);
-    Route::middleware('permission:incident_reports,create')
+    Route::middleware(['permission:incident_reports,create', 'throttle:30,1'])
          ->post('/incident-reports/photo', [\App\Http\Controllers\Api\IncidentReportController::class, 'uploadPhoto']);
+    // Evidence photos live on the private `local` disk; this is the only
+    // route allowed to read them back, gated the same way index() is.
+    // auth:sanctum + Bearer token, not ?token=, so the frontend fetches with
+    // an Authorization header and hands the browser a blob — same pattern as
+    // the Goods Received Note downloads below.
+    Route::middleware(['auth:sanctum', 'permission:incident_reports,read'])
+         ->get('/incident-reports/{id}/photo', [\App\Http\Controllers\Api\IncidentReportController::class, 'showPhoto']);
     Route::middleware('permission:incident_reports,resolve')
          ->post('/incident-reports/{id}/resolve', [\App\Http\Controllers\Api\IncidentReportController::class, 'resolve']);
 
