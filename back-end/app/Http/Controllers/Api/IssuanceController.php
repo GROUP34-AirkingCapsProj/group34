@@ -37,8 +37,15 @@ class IssuanceController extends Controller
             if ($request->has('status_id')) {
                 $query->where('status_id', $request->status_id);
             }
-            if ($request->has('search')) {
-                $query->where('issuance_number', 'like', '%' . $request->search . '%');
+            if ($request->filled('search')) {
+                // NB: there is no `issuance_number` column — dr_number is the
+                // document number. Grouped so the OR does not escape the other
+                // filters' AND semantics.
+                $term = '%' . $request->search . '%';
+                $query->where(function ($q) use ($term) {
+                    $q->where('dr_number', 'like', $term)
+                      ->orWhere('external_reference', 'like', $term);
+                });
             }
 
             $perPage = $request->get('per_page', 20);

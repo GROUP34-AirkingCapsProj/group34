@@ -2,20 +2,25 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import IncidentResolveDrawer from '../components/IncidentResolveDrawer';
+import IncidentFileModal from '../components/IncidentFileModal';
 import { incidentReportsAPI, locationsAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { INCIDENT_REASONS, reasonBadge, reasonLabel } from '../utils/incidentReasons';
 
 /**
- * Triage list + resolve drawer for incident reports (filed from the barcode
- * scanner during picking — see IncidentService on the backend). status_id is
- * an install-specific FK into status_lookup (category 'incident'), so the
- * Open/Resolved/Dismissed name is resolved here from that lookup rather than
- * hardcoded, matching how IncidentReport::statusId() works server-side.
+ * Report + triage surface for incident reports. Incidents arrive two ways: as a
+ * FIFO override filed from the barcode scanner mid-pick, and — via the Report
+ * Incident button here — as a standalone report of something a user simply
+ * noticed (theft, damage, a customer return).
+ *
+ * status_id is an install-specific FK into status_lookup (category 'incident'),
+ * so the Open/Resolved/Dismissed name is resolved here from that lookup rather
+ * than hardcoded, matching how IncidentReport::statusId() works server-side.
  */
 const IncidentReportsPage = () => {
   const { can } = useAuth();
   const canResolve = typeof can === 'function' && can('incident_reports', 'resolve');
+  const canCreate = typeof can === 'function' && can('incident_reports', 'create');
 
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +33,7 @@ const IncidentReportsPage = () => {
   const [statusNameById, setStatusNameById] = useState({});
 
   const [selected, setSelected] = useState(null);
+  const [filing, setFiling] = useState(false);
 
   useEffect(() => {
     locationsAPI.getAll({ per_page: 500 })
@@ -84,11 +90,21 @@ const IncidentReportsPage = () => {
               <p className="ak-eyebrow">Inventory · Exceptions</p>
               <h1 className="ak-title">Incident Reports</h1>
               <p className="ak-sub">
-                Triage batch discrepancies filed from the scanner during picking — missing stock, damage, wrong
-                product on the shelf, or a zone that doesn't match the batch record.
+                Report and triage stock problems — missing or stolen stock, damage in storage or delivery, the
+                wrong product on the shelf, customer returns, or anything else that needs a record and a reviewer.
               </p>
             </div>
             <div className="ak-header-aside">
+              {canCreate && (
+                <button
+                  type="button"
+                  className="ak-btn ak-btn--primary"
+                  onClick={() => setFiling(true)}
+                  style={{ marginRight: '0.6rem' }}
+                >
+                  Report Incident
+                </button>
+              )}
               <span className="ak-badge ak-badge--amber">{openCount} open</span>
               {alertReporterCount > 0 && (
                 <span className="ak-badge ak-badge--red" style={{ marginLeft: '0.4rem' }}>
@@ -130,7 +146,7 @@ const IncidentReportsPage = () => {
               <thead>
                 <tr>
                   <th>Incident #</th>
-                  <th>Date</th>
+                  <th>Occurred</th>
                   <th>Reason</th>
                   <th>Product</th>
                   <th>Qty</th>
@@ -148,7 +164,13 @@ const IncidentReportsPage = () => {
                   return (
                     <tr key={i.incident_id}>
                       <td className="ak-mono">{i.incident_number}</td>
-                      <td>{i.created_at ? new Date(i.created_at).toLocaleString() : '—'}</td>
+                      {/* occurred_at is when it happened; created_at is when it was
+                          filed. Rows predating the column have only the latter. */}
+                      <td>
+                        {(i.occurred_at || i.created_at)
+                          ? new Date(i.occurred_at || i.created_at).toLocaleString()
+                          : '—'}
+                      </td>
                       <td>
                         <span className={`ak-badge ${reasonBadge(i.reason)}`}>
                           {reasonLabel(i.reason)}
@@ -157,7 +179,13 @@ const IncidentReportsPage = () => {
                       <td>{i.product_name || '—'}</td>
                       <td>{i.quantity}</td>
                       <td className="ak-mono">{i.expected_zone || '—'} → {i.actual_zone || '—'}</td>
-                      <td>{i.source_type} #{i.source_id}</td>
+                      {/* A standalone report has no source transaction, so the
+                          old `{type} #{id}` would render "standalone #". */}
+                      <td>
+                        {i.source_type === 'standalone'
+                          ? 'Reported directly'
+                          : `${i.source_type} #${i.source_id}`}
+                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <span>{i.reported_by_name || '—'}</span>
@@ -189,6 +217,12 @@ const IncidentReportsPage = () => {
         onClose={() => setSelected(null)}
         canResolve={canResolve}
         onResolved={() => { setSelected(null); load(); }}
+      />
+
+      <IncidentFileModal
+        isOpen={filing}
+        onClose={() => setFiling(false)}
+        onFiled={() => { setFiling(false); load(); }}
       />
     </AdminLayout>
   );
