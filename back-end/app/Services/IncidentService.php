@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\IncidentReport;
+use App\Services\Incidents\AcknowledgeResolution;
 use App\Services\Incidents\RelocateResolution;
 use App\Services\Incidents\ResolvesIncident;
 use App\Services\Incidents\RetypeResolution;
@@ -22,28 +23,43 @@ class IncidentService
 {
     public function file(array $data, int $reportedBy): IncidentReport
     {
-        if (! in_array($data['reason'] ?? null, IncidentReport::REASONS, true)) {
-            throw new \InvalidArgumentException('Unknown incident reason: ' . ($data['reason'] ?? 'null'));
+        $reason = $data['reason'] ?? null;
+
+        if (! in_array($reason, IncidentReport::REASONS, true)) {
+            throw new \InvalidArgumentException('Unknown incident reason: ' . ($reason ?? 'null'));
+        }
+
+        // Everything except `other` resolves into a stock movement, so it cannot
+        // be filed without knowing which product and how many. An `other`
+        // incident ("the door lock is broken") has neither.
+        if (in_array($reason, IncidentReport::STOCK_AFFECTING_REASONS, true)) {
+            if (empty($data['product_id'])) {
+                throw new \InvalidArgumentException("A product is required for a '{$reason}' incident.");
+            }
+            if ((int) ($data['quantity'] ?? 0) < 1) {
+                throw new \InvalidArgumentException("A quantity of at least 1 is required for a '{$reason}' incident.");
+            }
         }
 
         return DB::transaction(fn () => IncidentReport::create([
-            'incident_number' => $this->nextNumber(),
-            'source_type'     => $data['source_type'],
+            'incident_number'     => $this->nextNumber(),
+            'source_type'         => $data['source_type'],
             // A standalone report has no source transaction to point at.
-            'source_id'       => isset($data['source_id']) ? (int) $data['source_id'] : null,
-            'location_id'     => (int) $data['location_id'],
-            'product_id'      => (int) $data['product_id'],
-            'batch_id'        => $data['batch_id'] ?? null,
-            'serial_id'       => $data['serial_id'] ?? null,
-            'expected_zone'   => $data['expected_zone'] ?? null,
-            'actual_zone'     => $data['actual_zone'] ?? null,
-            'reason'          => $data['reason'],
-            'quantity'        => (int) ($data['quantity'] ?? 0),
-            'narrative'       => $data['narrative'] ?? null,
-            'occurred_at'     => $data['occurred_at'] ?? null,
-            'photo_path'      => $data['photo_path'] ?? null,
-            'reported_by'     => $reportedBy,
-            'status_id'       => IncidentReport::statusId('Open'),
+            'source_id'           => isset($data['source_id']) ? (int) $data['source_id'] : null,
+            'related_issuance_id' => isset($data['related_issuance_id']) ? (int) $data['related_issuance_id'] : null,
+            'location_id'         => (int) $data['location_id'],
+            'product_id'          => isset($data['product_id']) ? (int) $data['product_id'] : null,
+            'batch_id'            => $data['batch_id'] ?? null,
+            'serial_id'           => $data['serial_id'] ?? null,
+            'expected_zone'       => $data['expected_zone'] ?? null,
+            'actual_zone'         => $data['actual_zone'] ?? null,
+            'reason'              => $reason,
+            'quantity'            => (int) ($data['quantity'] ?? 0),
+            'narrative'           => $data['narrative'] ?? null,
+            'occurred_at'         => $data['occurred_at'] ?? null,
+            'photo_path'          => $data['photo_path'] ?? null,
+            'reported_by'         => $reportedBy,
+            'status_id'           => IncidentReport::statusId('Open'),
         ]));
     }
 
@@ -149,6 +165,7 @@ class IncidentService
             IncidentReport::REASON_DELIVERY_DAMAGE => new WriteOffResolution(),
             IncidentReport::REASON_WRONG_TYPE      => new RetypeResolution(),
             IncidentReport::REASON_ZONE_MISMATCH   => new RelocateResolution(),
+            IncidentReport::REASON_OTHER           => new AcknowledgeResolution(),
         };
     }
 }

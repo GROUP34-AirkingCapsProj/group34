@@ -89,4 +89,49 @@ class IncidentStandaloneFilingTest extends SetTestCase
             app(IncidentService::class)->excludedBatchIds($loc->location_id)
         );
     }
+
+    public function test_an_other_incident_needs_no_product_and_posts_no_artifact(): void
+    {
+        $loc = $this->makeLocation();
+        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $incident = app(IncidentService::class)->file([
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'reason'      => IncidentReport::REASON_OTHER,
+            'narrative'   => 'Cold-room door lock is broken, anyone can walk in.',
+        ], (int) $wp->user_id);
+
+        $this->assertNull($incident->product_id);
+        // quantity stays NOT NULL — an `other` incident stores 0, never null.
+        $this->assertSame(0, (int) $incident->quantity);
+
+        // Acknowledge sends the existing 'confirm' action; only the label differs.
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
+                 'action' => 'confirm', 'resolution_note' => 'Maintenance ticket raised.',
+             ])->assertOk();
+
+        $fresh = $incident->fresh();
+        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $fresh->status_id);
+        $this->assertNull($fresh->adjustment_id, 'acknowledging is not a stock movement');
+        $this->assertNull($fresh->correction_id);
+    }
+
+    public function test_a_stock_affecting_reason_still_requires_a_product(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        app(IncidentService::class)->file([
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'reason'      => IncidentReport::REASON_THEFT,
+            'quantity'    => 2,
+            'narrative'   => 'Something went missing but I did not say what.',
+        ], (int) $wp->user_id);
+    }
 }
