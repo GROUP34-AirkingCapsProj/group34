@@ -29,7 +29,8 @@ import { PICKING_REASONS } from '../../utils/incidentReasons';
  *   onClose() → void    close without filing.
  *
  * Submits through incidentReportsAPI.file() with exactly the keys the store
- * endpoint validates — no photo key is posted (the photo field is presentational).
+ * endpoint validates. A chosen photo is uploaded first via uploadPhoto() and
+ * submitted as photo_path.
  */
 
 export default function IncidentModal({ context, onFiled, onClose }) {
@@ -37,7 +38,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
   const [reason, setReason] = useState('not_found');
   const [quantity, setQuantity] = useState(1);
   const [narrative, setNarrative] = useState('');
-  const [photoName, setPhotoName] = useState(''); // presentational only — not posted
+  const [photoFile, setPhotoFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
     setReason('not_found');
     setQuantity(Math.max(1, Number(context?.quantity) || 1));
     setNarrative('');
-    setPhotoName('');
+    setPhotoFile(null);
     setSubmitting(false);
   }, [isOpen, context?.product_id, context?.batch_id, context?.serial_id, context?.quantity]);
 
@@ -56,22 +57,28 @@ export default function IncidentModal({ context, onFiled, onClose }) {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    const payload = {
-      source_type: context.source_type,
-      source_id: Number(context.source_id),
-      location_id: Number(context.location_id),
-      product_id: Number(context.product_id),
-      batch_id: context.batch_id != null ? Number(context.batch_id) : null,
-      serial_id: context.serial_id != null ? Number(context.serial_id) : null,
-      expected_zone: context.expected_zone ?? null,
-      actual_zone: context.actual_zone ?? null,
-      reason,
-      quantity: Number(quantity),
-      narrative: narrative.trim(),
-    };
     setSubmitting(true);
     try {
-      await incidentReportsAPI.file(payload);
+      let photoPath = null;
+      if (photoFile) {
+        const up = await incidentReportsAPI.uploadPhoto(photoFile);
+        photoPath = up?.data?.path ?? null;
+      }
+
+      await incidentReportsAPI.file({
+        source_type: context.source_type,
+        source_id: Number(context.source_id),
+        location_id: Number(context.location_id),
+        product_id: Number(context.product_id),
+        batch_id: context.batch_id != null ? Number(context.batch_id) : null,
+        serial_id: context.serial_id != null ? Number(context.serial_id) : null,
+        expected_zone: context.expected_zone ?? null,
+        actual_zone: context.actual_zone ?? null,
+        reason,
+        quantity: Number(quantity),
+        narrative: narrative.trim(),
+        photo_path: photoPath,
+      });
       toast.success('Incident filed. Picking may continue with the next batch.');
       onFiled?.();
     } catch (err) {
@@ -154,9 +161,9 @@ export default function IncidentModal({ context, onFiled, onClose }) {
             className="ak-input"
             type="file"
             accept="image/*"
-            onChange={(e) => setPhotoName(e.target.files?.[0]?.name || '')}
+            onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
           />
-          {photoName && <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{photoName}</span>}
+          {photoFile && <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{photoFile.name}</span>}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
