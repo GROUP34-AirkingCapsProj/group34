@@ -897,6 +897,23 @@ In `back-end/app/Models/IncidentReport.php`, replace the constants block:
     ];
 ```
 
+- [ ] **Step 3b: Let `file()` accept a standalone report with no source_id**
+
+**Added after plan review.** Task 4's tests file with `source_type: 'standalone'` and no `source_id`, but `file()` still does `(int) $data['source_id']` — a missing key raises an "Undefined array key" warning and stores `0`, not null. The rest of the `file()` relaxation (product and quantity) stays in Task 5; this is only the line the new tests actually need.
+
+In `back-end/app/Services/IncidentService.php`, inside `file()`'s `IncidentReport::create([...])`, replace:
+
+```php
+            'source_id'       => (int) $data['source_id'],
+```
+
+with:
+
+```php
+            // A standalone report has no source transaction to point at.
+            'source_id'       => isset($data['source_id']) ? (int) $data['source_id'] : null,
+```
+
 - [ ] **Step 4: Map the new reasons in WriteOffResolution and the strategy table**
 
 In `back-end/app/Services/Incidents/WriteOffResolution.php`, replace `adjustmentType()`:
@@ -1114,6 +1131,7 @@ Replace the `file()` method:
         return DB::transaction(fn () => IncidentReport::create([
             'incident_number'     => $this->nextNumber(),
             'source_type'         => $data['source_type'],
+            // (source_id's null handling already landed in Task 4, Step 3b.)
             'source_id'           => isset($data['source_id']) ? (int) $data['source_id'] : null,
             'related_issuance_id' => isset($data['related_issuance_id']) ? (int) $data['related_issuance_id'] : null,
             'location_id'         => (int) $data['location_id'],
@@ -3121,6 +3139,23 @@ Log in as each role and confirm at `/admin/incidents`:
 - [ ] **Step 7: Confirm picking still works**
 
 Run one issuance pick that triggers a FIFO violation, file an incident from the scanner with a photo attached, and confirm the batch drops out of the pick plan and the photo appears on the incident in the admin list. This is the path the whole module already depended on — it must be unchanged.
+
+- [ ] **Step 7b: Decide what to do about `airkingv5.sql` — ASK THE USER, do not act unilaterally**
+
+**Found during Task 4's review.** `airkingv5.sql` is this repo's schema of record, and it still declares:
+
+```sql
+`source_id` bigint(20) UNSIGNED NOT NULL,
+`product_id` bigint(20) UNSIGNED NOT NULL,
+```
+
+with no `occurred_at` and no `related_issuance_id`. The Task 1 migration fixes both live databases, so every test and every existing install is correct — but **a database rebuilt from the current dump without running that migration would reject standalone filing outright**, because a standalone report writes `source_id = NULL`.
+
+That `incident_reports` exists in the dump at all proves the convention is to regenerate it after schema changes (the table arrived by migration in July and is in the dump now).
+
+**Do not regenerate it without asking.** `airkingv5.sql` is one of the ~22 files already modified in the working tree by unrelated earlier work, so a `mysqldump` would sweep up whatever else has changed in the dev database since. There is also a known gotcha: **`mysqldump` on Windows PowerShell writes UTF-16 by default**, which silently corrupts the file for later import — redirect through the Bash tool or pass an explicit `--result-file`.
+
+Present the user with the choice: regenerate the dump now, hand-edit just the `incident_reports` block, or leave it and track it separately.
 
 - [ ] **Step 8: Commit any fixes found**
 
