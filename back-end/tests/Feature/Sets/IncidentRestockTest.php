@@ -78,7 +78,7 @@ class IncidentRestockTest extends SetTestCase
         $this->assertSame(0, (int) $adjustment->details->first()->deduct_quantity);
     }
 
-    public function test_a_return_with_no_batch_creates_one(): void
+    public function test_a_return_with_no_batch_lands_in_the_legacy_batch(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
@@ -90,14 +90,23 @@ class IncidentRestockTest extends SetTestCase
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
              ->assertOk();
 
-        $batch = InventoryBatch::where('product_id', $p->product_id)
+        $legacy = InventoryBatch::where('product_id', $p->product_id)
             ->where('location_id', $loc->location_id)
-            ->first();
+            ->whereNull('receiving_id')
+            ->get();
 
-        $this->assertNotNull($batch, 'returned stock with no batch must land in a new one');
-        $this->assertNull($batch->receiving_id, 'a return did not come from a receiving');
-        $this->assertSame(2, (int) $batch->quantity_remaining);
-        $this->assertSame(2, (int) $batch->quantity_received);
+        // receiving_id null is an identity in this codebase, not an absence:
+        // InventoryBatchService::legacyBatch() looks the catch-all up by that
+        // key. A second null-receiving row would make which batch it finds
+        // arbitrary, so the count is the assertion that matters.
+        $this->assertCount(1, $legacy, 'the legacy batch must stay a singleton');
+        $this->assertSame(2, (int) $legacy->first()->quantity_remaining);
+        $this->assertNull($legacy->first()->receiving_id);
+
+        $inv = Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
+        $this->assertNotNull($inv, 'a return into a product with no stock row must create one');
+        $this->assertSame(2, (int) $inv->quantity_on_hand);
+        $this->assertSame(2, (int) $inv->available_quantity);
     }
 
     public function test_a_returned_serial_goes_back_in_stock(): void
@@ -107,8 +116,10 @@ class IncidentRestockTest extends SetTestCase
         $p   = $this->makeAppliance();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
+        // A serial out with a customer has no status — nothing in the codebase
+        // writes a non-26 status — so null is the real pre-state the flip rescues.
         $serial = $this->makeSerial($p, $loc, 'SN-RETURN-001', $b->receiving_id);
-        $serial->update(['status_id' => 27]); // anything other than in-stock
+        $this->assertNull($serial->status_id);
 
         $incident = $this->openReturn($loc, $p, $b, 1, (int) $serial->serial_id);
 
@@ -116,10 +127,12 @@ class IncidentRestockTest extends SetTestCase
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
              ->assertOk();
 
-        $this->assertSame(
-            ItemSerial::IN_STOCK_STATUS_ID,
-            (int) ItemSerial::find($serial->serial_id)->status_id
-        );
+        $returned = ItemSerial::find($serial->serial_id);
+        $this->assertSame(ItemSerial::IN_STOCK_STATUS_ID, (int) $returned->status_id);
+
+        // In Stock without serial_type 'received' is still unpickable —
+        // scopeIssuableAt and FifoPickingService both require it.
+        $this->assertSame('received', $returned->serial_type);
     }
 
     public function test_resolving_a_return_twice_is_rejected(): void
