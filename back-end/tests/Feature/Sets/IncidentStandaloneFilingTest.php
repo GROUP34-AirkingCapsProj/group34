@@ -196,4 +196,45 @@ class IncidentStandaloneFilingTest extends SetTestCase
         $this->assertNull($row['source_id']);
         $this->assertSame(0, $row['quantity']);
     }
+
+    public function test_an_other_incident_accepts_an_explicit_quantity_of_zero(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        // A form holding quantity in state posts 0 rather than omitting the key.
+        // `min:1` must be lifted for `other`, not merely bypassed when absent.
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'reason'      => 'other',
+            'quantity'    => 0,
+            'narrative'   => 'Fire exit is blocked by pallets.',
+        ])->assertCreated();
+    }
+
+    public function test_required_unless_is_not_satisfied_by_an_explicit_null(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        // `nullable` must not disarm `required_unless`. Relaxing either rule to
+        // `sometimes` or `exclude_if` would let a product-less theft through.
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'reason'      => 'theft',
+            'product_id'  => null,
+            'quantity'    => null,
+            'narrative'   => 'Something went missing but I named neither what nor how many.',
+        ])->assertStatus(422)->assertJsonValidationErrors(['product_id', 'quantity']);
+
+        // A sourced report still has to say which transaction it came from.
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'issuance',
+            'location_id' => $loc->location_id,
+            'reason'      => 'other',
+            'narrative'   => 'Filed against an issuance I did not identify.',
+        ])->assertStatus(422)->assertJsonValidationErrors(['source_id']);
+    }
 }

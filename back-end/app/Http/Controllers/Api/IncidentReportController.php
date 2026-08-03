@@ -60,7 +60,7 @@ class IncidentReportController extends Controller
                 // Web path, built the same way User::avatar_url is.
                 'photo_url'               => $i->photo_path ? '/storage/' . ltrim($i->photo_path, '/') : null,
                 'occurred_at'             => optional($i->occurred_at)->toDateTimeString(),
-                'reported_by'           => (int) $i->reported_by,
+                'reported_by'             => (int) $i->reported_by,
                 'reported_by_name'        => trim(($i->reportedBy?->first_name ?? '') . ' ' . ($i->reportedBy?->last_name ?? '')),
                 'reporter_incident_count' => (int) ($counts[(int) $i->reported_by] ?? 0),
                 'status_id'               => (int) $i->status_id,
@@ -86,13 +86,23 @@ class IncidentReportController extends Controller
             'related_issuance_id' => 'nullable|integer|exists:issuances,issuance_id',
             'location_id'         => 'required|integer|exists:locations,location_id',
             // An `other` incident has no product and no meaningful quantity.
-            'product_id'          => 'required_unless:reason,other|nullable|integer|exists:products,product_id',
+            'product_id'          => 'required_unless:reason,' . IncidentReport::REASON_OTHER
+                                     . '|nullable|integer|exists:products,product_id',
             'batch_id'            => 'nullable|integer|exists:inventory_batches,batch_id',
             'serial_id'           => 'nullable|integer|exists:item_serial,serial_id',
             'expected_zone'       => 'nullable|string|max:100',
             'actual_zone'         => 'nullable|string|max:100',
             'reason'              => ['required', Rule::in(IncidentReport::REASONS)],
-            'quantity'            => 'required_unless:reason,other|nullable|integer|min:1',
+            // `min:1` stays armed whenever the key is present, so it must be
+            // lifted for `other` — 0 is that reason's correct quantity, and the
+            // service stores 0 anyway. required_unless only exempts absence.
+            'quantity'            => [
+                'required_unless:reason,' . IncidentReport::REASON_OTHER, 'nullable', 'integer',
+                Rule::when(
+                    fn ($i) => ($i->reason ?? null) !== IncidentReport::REASON_OTHER,
+                    ['min:1']
+                ),
+            ],
             'narrative'           => 'required|string|max:2000',
             // You cannot report something that has not happened yet.
             'occurred_at'         => 'nullable|date|before_or_equal:now',
