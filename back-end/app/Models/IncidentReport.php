@@ -19,8 +19,23 @@ class IncidentReport extends Model
     public const REASON_ZONE_MISMATCH   = 'zone_mismatch';
     public const REASON_THEFT           = 'theft';
     public const REASON_DELIVERY_DAMAGE = 'delivery_damage';
+    public const REASON_OTHER           = 'other';
 
     public const REASONS = [
+        self::REASON_NOT_FOUND,
+        self::REASON_DAMAGED,
+        self::REASON_WRONG_TYPE,
+        self::REASON_ZONE_MISMATCH,
+        self::REASON_THEFT,
+        self::REASON_DELIVERY_DAMAGE,
+        self::REASON_OTHER,
+    ];
+
+    /**
+     * Reasons whose resolution moves stock, and which therefore cannot be filed
+     * without a product and a quantity. Everything except `other`.
+     */
+    public const STOCK_AFFECTING_REASONS = [
         self::REASON_NOT_FOUND,
         self::REASON_DAMAGED,
         self::REASON_WRONG_TYPE,
