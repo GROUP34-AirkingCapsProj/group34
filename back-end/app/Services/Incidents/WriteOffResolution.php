@@ -72,8 +72,15 @@ class WriteOffResolution implements ResolvesIncident
         return ResolutionArtifacts::adjustment((int) $adjustment->adjustment_id);
     }
 
+    /**
+     * "Loss" means the stock is gone; "damage" means it exists but is unsellable.
+     * theft is deliberately its own reason rather than not_found — the
+     * distinction is the point for shrinkage reporting — but both post a loss.
+     */
     private function adjustmentType(string $reason): string
     {
-        return $reason === IncidentReport::REASON_DAMAGED ? 'damage' : 'loss';
+        return in_array($reason, [IncidentReport::REASON_DAMAGED, IncidentReport::REASON_DELIVERY_DAMAGE], true)
+            ? 'damage'
+            : 'loss';
     }
 }

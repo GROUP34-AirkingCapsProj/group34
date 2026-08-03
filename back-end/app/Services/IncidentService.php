@@ -29,7 +29,8 @@ class IncidentService
         return DB::transaction(fn () => IncidentReport::create([
             'incident_number' => $this->nextNumber(),
             'source_type'     => $data['source_type'],
-            'source_id'       => (int) $data['source_id'],
+            // A standalone report has no source transaction to point at.
+            'source_id'       => isset($data['source_id']) ? (int) $data['source_id'] : null,
             'location_id'     => (int) $data['location_id'],
             'product_id'      => (int) $data['product_id'],
             'batch_id'        => $data['batch_id'] ?? null,
@@ -39,6 +40,7 @@ class IncidentService
             'reason'          => $data['reason'],
             'quantity'        => (int) ($data['quantity'] ?? 0),
             'narrative'       => $data['narrative'] ?? null,
+            'occurred_at'     => $data['occurred_at'] ?? null,
             'photo_path'      => $data['photo_path'] ?? null,
             'reported_by'     => $reportedBy,
             'status_id'       => IncidentReport::statusId('Open'),
@@ -142,9 +144,11 @@ class IncidentService
     {
         return match ($reason) {
             IncidentReport::REASON_NOT_FOUND,
-            IncidentReport::REASON_DAMAGED       => new WriteOffResolution(),
-            IncidentReport::REASON_WRONG_TYPE    => new RetypeResolution(),
-            IncidentReport::REASON_ZONE_MISMATCH => new RelocateResolution(),
+            IncidentReport::REASON_THEFT,
+            IncidentReport::REASON_DAMAGED,
+            IncidentReport::REASON_DELIVERY_DAMAGE => new WriteOffResolution(),
+            IncidentReport::REASON_WRONG_TYPE      => new RetypeResolution(),
+            IncidentReport::REASON_ZONE_MISMATCH   => new RelocateResolution(),
         };
     }
 }

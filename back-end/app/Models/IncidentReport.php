@@ -13,16 +13,20 @@ class IncidentReport extends Model
 {
     use Auditable, ScopesToUserLocation;
 
-    public const REASON_NOT_FOUND     = 'not_found';
-    public const REASON_DAMAGED       = 'damaged';
-    public const REASON_WRONG_TYPE    = 'wrong_type';
-    public const REASON_ZONE_MISMATCH = 'zone_mismatch';
+    public const REASON_NOT_FOUND       = 'not_found';
+    public const REASON_DAMAGED         = 'damaged';
+    public const REASON_WRONG_TYPE      = 'wrong_type';
+    public const REASON_ZONE_MISMATCH   = 'zone_mismatch';
+    public const REASON_THEFT           = 'theft';
+    public const REASON_DELIVERY_DAMAGE = 'delivery_damage';
 
     public const REASONS = [
         self::REASON_NOT_FOUND,
         self::REASON_DAMAGED,
         self::REASON_WRONG_TYPE,
         self::REASON_ZONE_MISMATCH,
+        self::REASON_THEFT,
+        self::REASON_DELIVERY_DAMAGE,
     ];
 
     protected $table      = 'incident_reports';
