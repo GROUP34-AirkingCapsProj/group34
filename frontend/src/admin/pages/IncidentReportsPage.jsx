@@ -4,20 +4,7 @@ import Loader from '../components/Loader';
 import IncidentResolveDrawer from '../components/IncidentResolveDrawer';
 import { incidentReportsAPI, locationsAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-
-const REASONS = [
-  { value: 'not_found', label: 'Not found' },
-  { value: 'damaged', label: 'Damaged' },
-  { value: 'wrong_type', label: 'Wrong type' },
-  { value: 'zone_mismatch', label: 'Zone mismatch' },
-];
-
-const REASON_BADGE = {
-  not_found: 'ak-badge--red',
-  damaged: 'ak-badge--amber',
-  wrong_type: 'ak-badge--blue',
-  zone_mismatch: 'ak-badge--gray',
-};
+import { INCIDENT_REASONS, reasonBadge, reasonLabel } from '../utils/incidentReasons';
 
 /**
  * Triage list + resolve drawer for incident reports (filed from the barcode
@@ -119,7 +106,7 @@ const IncidentReportsPage = () => {
           </select>
           <select className="ak-select" value={reasonFilter} onChange={(e) => setReasonFilter(e.target.value)}>
             <option value="">All reasons</option>
-            {REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            {INCIDENT_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
           <select className="ak-select" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
             <option value="">All locations</option>
@@ -163,8 +150,8 @@ const IncidentReportsPage = () => {
                       <td className="ak-mono">{i.incident_number}</td>
                       <td>{i.created_at ? new Date(i.created_at).toLocaleString() : '—'}</td>
                       <td>
-                        <span className={`ak-badge ${REASON_BADGE[i.reason] || 'ak-badge--gray'}`}>
-                          {REASONS.find((r) => r.value === i.reason)?.label || i.reason}
+                        <span className={`ak-badge ${reasonBadge(i.reason)}`}>
+                          {reasonLabel(i.reason)}
                         </span>
                       </td>
                       <td>{i.product_name || '—'}</td>

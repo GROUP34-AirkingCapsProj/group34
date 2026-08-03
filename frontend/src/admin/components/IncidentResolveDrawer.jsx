@@ -3,13 +3,7 @@ import Modal from './Modal';
 import { incidentReportsAPI, productsAPI, resolveStorageUrl } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
-
-const REASON_LABELS = {
-  not_found: 'Not found',
-  damaged: 'Damaged',
-  wrong_type: 'Wrong type on shelf',
-  zone_mismatch: 'Zone mismatch',
-};
+import { reasonLabel, reasonMeta } from '../utils/incidentReasons';
 
 /**
  * Resolve drawer for a single incident report. Renders as a Modal (this
@@ -67,7 +61,8 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
   if (!incident) return null;
 
-  const writesOffStock = reason === 'not_found' || reason === 'damaged';
+  const outcome = reasonMeta(reason).outcome;
+  const writesOffStock = outcome === 'writeoff';
   const confirmDisabled =
     submitting !== null ||
     (reason === 'wrong_type' && !correctedProductId);
@@ -116,7 +111,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.6rem' }}>
           <div>
             <div className="ak-label">Reason</div>
-            <div>{REASON_LABELS[reason] || reason}</div>
+            <div>{reasonLabel(reason)}</div>
           </div>
           <div>
             <div className="ak-label">Product</div>
