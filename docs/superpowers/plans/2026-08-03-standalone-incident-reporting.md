@@ -12,6 +12,38 @@
 
 ---
 
+## ⏸ STATE OF PLAY — read this first (2026-08-04)
+
+**Tasks 1–12 are DONE and committed on `backupV3` (not pushed). Tasks 13, 14, 15 remain.**
+
+Every completed task went through a spec-compliance review and a code-quality review, and several were amended as a result. **The task text below has been edited in place to match what was actually built** — trust the document, not your memory of how it started.
+
+### Where to resume
+- **Task 13** — resolve drawer for the new outcomes. Note it now uses an authenticated blob fetch, not `<img src>`; the task text carries the amendment.
+- **Task 14** — wire the picking modal's photo input (it has been decorative since the module was built).
+- **Task 15** — verification, including a decision to put to the user about `airkingv5.sql`.
+
+### Amendments made mid-flight (all already reflected below)
+1. `ResolvesIncident::apply()` returns a `ResolutionArtifacts` value object, not an array.
+2. Evidence photos live on the **private** `local` disk, served by `GET /incident-reports/{id}/photo` behind `permission:incident_reports,read`. A plain `<img src>` will 401. `incidentReportsAPI.photoBlob(id)` exists for this.
+3. `issuances` has **no `issuance_number` column** — it is `dr_number`. This also broke `IssuanceController::index`'s search, fixed in Task 12's commit.
+4. `store()`'s `photo_path` is regex-constrained to `incidents/YYYY/MM/<40 chars>.<ext>` — it previously accepted any string, including an absolute URL to an attacker's host.
+5. Task 4 absorbed the `source_id` null handling that was originally written into Task 5.
+
+### Environment facts that will bite an unprepared agent
+- Schema is a **SQL dump, not a migration history**. Bare `php artisan migrate` fails. Apply by `--path`, to both the dev DB and `airkingV5_test`.
+- Tests use `DatabaseTransactions`, never `RefreshDatabase`.
+- **The suite has 9 pre-existing `WarrantyClaimTest` failures** that predate all of this work (verified against `53f834a`). Green means "still exactly those 9".
+- **~22 files are dirty in the working tree from unrelated earlier work.** Stage only the files a task names. `airkingv5.sql`, `Sidebar.jsx`, `App.jsx`, `BarcodeScan.jsx` and others are among them, and they are the source of every current build warning.
+- There is **no frontend test suite**. Verification is `npm run build`, warning-clean relative to the baseline above.
+- PowerShell here-strings break `git commit -m`. Use `git commit -F -` with a heredoc.
+- If several agents share this working tree, **only one may touch the git index at a time** — a concurrent `git add`/`commit` will swallow another's staged files.
+
+---
+
+
+---
+
 ## Critical Context For The Implementer
 
 Read this before Task 1. Several things about this repo will bite you otherwise.
