@@ -72,7 +72,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
 
         // The FIFO hold is one rule with no special cases: how the incident was
         // discovered does not change whether the batch is trustworthy.
-        app(IncidentService::class)->file([
+        $incident = app(IncidentService::class)->file([
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
@@ -81,6 +81,8 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'quantity'    => 1,
             'narrative'   => 'One unit missing from the shelf.',
         ], (int) $wp->user_id);
+
+        $this->assertNull($incident->source_id);
 
         $this->assertContains(
             (int) $b->batch_id,
