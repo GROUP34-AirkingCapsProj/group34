@@ -113,6 +113,8 @@ class IncidentSchemaTest extends SetTestCase
         $product = $this->makeConsumable();
         $user    = $this->makeUserAt($loc, 'warehouse_personnel');
 
+        $occurredAt = now()->subDay();
+
         $incident = IncidentReport::create([
             'incident_number' => 'INC-TEST-' . uniqid(),
             'source_type'     => 'standalone',
@@ -122,7 +124,7 @@ class IncidentSchemaTest extends SetTestCase
             'reason'          => IncidentReport::REASON_NOT_FOUND,
             'quantity'        => 3,
             'narrative'       => 'Counted short during a walk-through.',
-            'occurred_at'     => now()->subDay(),
+            'occurred_at'     => $occurredAt,
             'reported_by'     => $user->user_id,
             'status_id'       => IncidentReport::statusId('Open'),
         ]);
@@ -131,6 +133,6 @@ class IncidentSchemaTest extends SetTestCase
         $this->assertNull($fresh->source_id);
         // Cast to a Carbon instance, not left as a string.
         $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $fresh->occurred_at);
-        $this->assertSame(now()->subDay()->toDateString(), $fresh->occurred_at->toDateString());
+        $this->assertSame($occurredAt->copy()->toDateString(), $fresh->occurred_at->toDateString());
     }
 }
