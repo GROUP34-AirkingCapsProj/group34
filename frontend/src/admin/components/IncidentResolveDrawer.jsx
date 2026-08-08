@@ -29,6 +29,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [submitting, setSubmitting] = useState(null); // 'confirm' | 'dismiss' | null
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   const isOpen = !!incident;
   const reason = incident?.reason;
@@ -42,16 +43,30 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
   }, [isOpen, incident?.incident_id]);
 
   useEffect(() => {
-    if (!isOpen || reasonMeta(reason).outcome !== 'retype' || !canResolve) return;
+    // The picker only renders for an OPEN incident (see the action block below),
+    // so skip the 1000-product fetch for one that has already been reviewed.
+    if (!isOpen || !incident?.is_open || reasonMeta(reason).outcome !== 'retype' || !canResolve) return;
     setLoadingProducts(true);
     productsAPI.getAll({ per_page: 1000 })
       .then((r) => setProducts(Array.isArray(r?.data) ? r.data : []))
       .catch(() => setProducts([]))
       .finally(() => setLoadingProducts(false));
-  }, [isOpen, reason, canResolve]);
+  }, [isOpen, incident?.is_open, reason, canResolve]);
 
+  /**
+   * Photos live on a private disk behind an authenticated route, so <img src>
+   * would 401 — fetch a blob and hand <img> an object URL instead.
+   *
+   * `revoked` guards BOTH settle paths: without it on the catch, a slow failing
+   * fetch for incident A could land after B loaded successfully and blank B's
+   * image. Clearing photoUrl up front stops the previous incident's already-
+   * revoked URL rendering as a broken image while the new one is in flight.
+   */
   useEffect(() => {
-    if (!incident?.photo_url) { setPhotoUrl(null); return undefined; }
+    setPhotoUrl(null);
+    setPhotoFailed(false);
+    if (!incident?.photo_url) return undefined;
+
     let revoked = false;
     let objectUrl = null;
 
@@ -61,7 +76,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
         objectUrl = URL.createObjectURL(blob);
         setPhotoUrl(objectUrl);
       })
-      .catch(() => setPhotoUrl(null));
+      .catch(() => { if (!revoked) setPhotoFailed(true); });
 
     return () => {
       revoked = true;
@@ -89,7 +104,10 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
   const doResolve = async (action) => {
     const payload = { action, resolution_note: note.trim() || null };
-    if (action === 'confirm' && reason === 'wrong_type') {
+    // Keyed on outcome, not the reason string: the picker renders and Confirm
+    // gates on `outcome === 'retype'`, so a payload keyed on the reason would
+    // silently omit corrected_product_id for any future retype reason and 422.
+    if (action === 'confirm' && outcome === 'retype') {
       payload.corrected_product_id = Number(correctedProductId);
     }
     setSubmitting(action);
@@ -117,7 +135,12 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
     }
 
     if (outcome === 'restock') {
-      const where = incident.batch_id ? `batch #${incident.batch_id}` : 'a new batch';
+      // Not "a new batch": with no batch named, RestockResolution routes the
+      // units to the location's catch-all/legacy batch, whose null received_at
+      // sorts them FIRST in FIFO. Say so — it changes what gets picked next.
+      const where = incident.batch_id
+        ? `batch #${incident.batch_id}`
+        : "the location's unbatched stock, where it will be picked first";
       const ok = await confirmAction({
         title: 'Put this stock back?',
         text: `This returns ${incident.quantity} unit(s) of "${incident.product_name}" to ${where} and makes them available again.`,
@@ -194,7 +217,12 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
               style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 8, border: '1px solid var(--ak-line)' }}
             />
           ) : incident.photo_path ? (
-            <span className="ak-muted">Photo attached ({incident.photo_path})</span>
+            // The raw path is an internal storage key — meaningless to a
+            // reviewer, and it read identically whether the fetch was still in
+            // flight or had failed.
+            <span className="ak-muted">
+              {photoFailed ? 'Photo attached — it could not be loaded.' : 'Loading photo…'}
+            </span>
           ) : (
             <span className="ak-muted">No photo attached.</span>
           )}
@@ -222,7 +250,9 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
             {outcome === 'restock' && (
               <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
                 Confirming puts <strong>{incident.quantity}</strong> unit(s) back into stock
-                {incident.batch_id ? <> on <strong>batch #{incident.batch_id}</strong></> : ' on a new batch'}, and
+                {incident.batch_id
+                  ? <> on <strong>batch #{incident.batch_id}</strong></>
+                  : <> as <strong>unbatched stock</strong>, which will be picked first</>}, and
                 makes them available for picking again. It does not re-issue the correct item — run a normal
                 issuance for that.
               </p>
@@ -230,7 +260,8 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
             {outcome === 'none' && (
               <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
-                Acknowledging closes this report. No stock moves and no adjustment is posted.
+                Acknowledging closes this report as reviewed and genuine. No stock moves and no adjustment is
+                posted. Dismiss instead if the report was raised in error.
               </p>
             )}
 

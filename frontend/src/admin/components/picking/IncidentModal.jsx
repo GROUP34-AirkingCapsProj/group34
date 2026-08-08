@@ -6,9 +6,10 @@ import { PICKING_REASONS } from '../../utils/incidentReasons';
 
 /**
  * IncidentModal — shared "file an incident" surface for the issuance picker and
- * the transfer dispatch panel. CONTROLLED and presentational: the parent owns
- * the context and refetches the pick plan after a successful file (so the
- * excluded batch drops out and the next step appears).
+ * the transfer dispatch panel. CONTROLLED: the parent owns the context and
+ * refetches the pick plan after a successful file (so the excluded batch drops
+ * out and the next step appears). No longer purely presentational — filing
+ * makes two calls, uploading the photo before submitting its path.
  *
  * ── Props ────────────────────────────────────────────────────────────────────
  *   context {object|null}  null/undefined ⇒ closed. Shape:
@@ -63,6 +64,9 @@ export default function IncidentModal({ context, onFiled, onClose }) {
       if (photoFile) {
         const up = await incidentReportsAPI.uploadPhoto(photoFile);
         photoPath = up?.data?.path ?? null;
+        // Fail loudly rather than filing without the evidence the user attached
+        // and still reporting success.
+        if (!photoPath) throw new Error('The photo upload did not return a path. Nothing was filed.');
       }
 
       await incidentReportsAPI.file({

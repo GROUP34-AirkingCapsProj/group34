@@ -184,6 +184,9 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
       if (photo) {
         const up = await incidentReportsAPI.uploadPhoto(photo);
         photoPath = up?.data?.path || null;
+        // Fail loudly rather than filing without the evidence the user attached
+        // and still reporting success.
+        if (!photoPath) throw new Error('The photo upload did not return a path. Nothing was filed.');
       }
       await incidentReportsAPI.file({
         source_type: 'standalone',
