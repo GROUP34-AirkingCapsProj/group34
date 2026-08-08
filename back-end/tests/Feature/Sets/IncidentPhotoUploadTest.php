@@ -129,7 +129,6 @@ class IncidentPhotoUploadTest extends SetTestCase
 
     public function test_photo_source_persists_and_serializes(): void
     {
-        Storage::fake('public');
         Storage::fake('local');
 
         $loc = $this->makeLocation();
@@ -160,7 +159,6 @@ class IncidentPhotoUploadTest extends SetTestCase
 
     public function test_an_unknown_photo_source_is_rejected(): void
     {
-        Storage::fake('public');
         Storage::fake('local');
 
         $loc = $this->makeLocation();
@@ -201,7 +199,6 @@ class IncidentPhotoUploadTest extends SetTestCase
 
     public function test_a_photo_without_a_source_stores_null(): void
     {
-        Storage::fake('public');
         Storage::fake('local');
 
         $loc = $this->makeLocation();
