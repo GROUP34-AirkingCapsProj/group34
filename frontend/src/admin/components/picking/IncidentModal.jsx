@@ -32,8 +32,9 @@ import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
  *   onClose() → void    close without filing.
  *
  * Submits through incidentReportsAPI.file() with exactly the keys the store
- * endpoint validates. A chosen photo is uploaded first via uploadPhoto() and
- * submitted as photo_path.
+ * endpoint validates. An evidence photo — captured in-app or picked from the
+ * device — is uploaded by useIncidentPhoto and submitted as photo_path +
+ * photo_source.
  */
 
 export default function IncidentModal({ context, onFiled, onClose }) {
@@ -42,6 +43,10 @@ export default function IncidentModal({ context, onFiled, onClose }) {
   const [quantity, setQuantity] = useState(1);
   const [narrative, setNarrative] = useState('');
   const photo = useIncidentPhoto();
+  // Aliased so the dep array below gets a plain identifier the exhaustive-deps
+  // rule can follow — a `photo.clear` member expression makes it demand the
+  // whole (per-render) photo object instead.
+  const { clear: clearPhoto, uploadIfAny: uploadPhotoIfAny } = photo;
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -50,13 +55,10 @@ export default function IncidentModal({ context, onFiled, onClose }) {
     setReason('not_found');
     setQuantity(Math.max(1, Number(context?.quantity) || 1));
     setNarrative('');
-    photo.clear();
+    clearPhoto();
     setCameraOpen(false);
     setSubmitting(false);
-    // photo.clear is stable; the photo object itself is rebuilt every render, so
-    // listing it (as the lint rule asks) would re-run this effect forever.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, context?.product_id, context?.batch_id, context?.serial_id, context?.quantity, photo.clear]);
+  }, [isOpen, context?.product_id, context?.batch_id, context?.serial_id, context?.quantity, clearPhoto]);
 
   if (!context) return null;
 
@@ -67,7 +69,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const { photo_path, photo_source } = await photo.uploadIfAny();
+      const { photo_path, photo_source } = await uploadPhotoIfAny();
 
       await incidentReportsAPI.file({
         source_type: context.source_type,
@@ -159,12 +161,17 @@ export default function IncidentModal({ context, onFiled, onClose }) {
           />
         </div>
 
-        <div className="ak-field">
-          <label className="ak-label">Evidence photo (optional)</label>
+        <fieldset className="ak-field" style={{ border: 'none', margin: 0, padding: 0 }}>
+          <legend className="ak-label" style={{ marginBottom: '0.4rem' }}>Evidence photo (optional)</legend>
 
           {!photo.file && !cameraOpen && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <button type="button" className="ak-btn ak-btn--primary" onClick={() => setCameraOpen(true)}>
+              <button
+                type="button"
+                className="ak-btn ak-btn--primary"
+                onClick={() => setCameraOpen(true)}
+                disabled={submitting}
+              >
                 📷 Take photo
               </button>
               <span className="ak-muted" style={{ fontSize: '0.85rem' }}>or</span>
@@ -174,6 +181,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(e) => photo.setFromFile(e.target.files?.[0] || null)}
+                disabled={submitting}
                 style={{ maxWidth: 240 }}
               />
             </div>
@@ -194,10 +202,17 @@ export default function IncidentModal({ context, onFiled, onClose }) {
               <span className={`ak-badge ${photo.source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
                 {photo.source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
               </span>
-              <button type="button" className="ak-btn ak-btn--sm" onClick={photo.clear}>Remove</button>
+              <button
+                type="button"
+                className="ak-btn ak-btn--sm"
+                onClick={clearPhoto}
+                disabled={submitting}
+              >
+                Remove
+              </button>
             </div>
           )}
-        </div>
+        </fieldset>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
           <button type="button" className="ak-btn" onClick={onClose} disabled={submitting}>
