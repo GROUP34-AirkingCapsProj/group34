@@ -66,7 +66,7 @@ export default function CameraCapture({ isOpen, onCapture, onCancel }) {
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
-        setPhase('live');
+        // Phase flips to 'live' in the video's onLoadedMetadata, not here.
       } catch (err) {
         if (!cancelled) {
           setError(cameraAccessErrorMessage(err) || String(err?.message || err));
@@ -141,6 +141,11 @@ export default function CameraCapture({ isOpen, onCapture, onCancel }) {
           autoPlay
           muted
           playsInline   /* without this iOS Safari forces fullscreen playback */
+          // videoWidth is 0 until metadata loads, so a shutter offered before
+          // this point would silently produce nothing. Driving the phase from
+          // the element's own event also means a 'live' phase with a null ref
+          // is unreachable: no element, no event, no 'live'.
+          onLoadedMetadata={() => setPhase('live')}
           style={{ width: '100%', maxHeight: 320, borderRadius: 8, background: '#000' }}
         />
       )}
