@@ -1,5 +1,20 @@
 # Incident Camera Capture Implementation Plan
 
+## STATUS — Tasks 1-8 done, automated verification passed (2026-08-09)
+
+**All 8 implementation tasks committed on `backupV3`, not pushed. Task 9's automated half is green; the manual camera checklist is outstanding and can only be done by a human on a real device.**
+
+### Automated results
+- **Backend:** `--filter=Incident` **57 passed**. Full suite **779 passed, 1 skipped, 10 failed** — exactly the 10 known pre-existing failures (9 `WarrantyClaimTest`, 1 `SerialRowMovementColumnsTest`), unchanged in count and identity.
+- **Frontend:** `npm run build` compiles; **no warning names any camera or incident file**. Direct `npx eslint` on all five touched files is exit 0 with **zero suppressions** — the `exhaustive-deps` disables added during Tasks 6/7 were removed by destructuring the hook's callbacks into plain identifiers.
+- **HTTPS serving verified:** `https://<host>/Airking_Inventory/frontend/build/` returns 200 and serves the current bundle hash.
+
+### Known gaps recorded honestly
+- `airkingv5.sql` carries the `photo_source` line **on disk but uncommitted**, because that file has ~1900 lines of unrelated dev-data drift in the working tree. Imports are correct; the line should go in with whatever commit resolves that drift.
+- No automated test covers `getUserMedia` — there is no frontend test suite and jsdom has no media stack. Every teardown guarantee in `CameraCapture` rests on code review plus the `MediaStreamTrack.stop()` spec until the manual pass runs.
+
+---
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let a user take an incident evidence photo with the device camera instead of picking an old file, and record which way each photo arrived so a reviewer can see it.
@@ -73,7 +88,7 @@ Use the **Bash tool** for the env-prefixed form; it does not work in PowerShell.
 - Create: `back-end/database/migrations/2026_08_09_000001_add_photo_source_to_incident_reports.php`
 - Test: `back-end/tests/Feature/Sets/IncidentSchemaTest.php`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to the existing class in `back-end/tests/Feature/Sets/IncidentSchemaTest.php`:
 
@@ -96,7 +111,7 @@ Add to the existing class in `back-end/tests/Feature/Sets/IncidentSchemaTest.php
     }
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 ```bash
 cd back-end && php artisan test --filter=test_photo_source_column_exists_and_is_nullable
@@ -104,7 +119,7 @@ cd back-end && php artisan test --filter=test_photo_source_column_exists_and_is_
 
 Expected: FAIL — `Failed asserting that false is true`.
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 Create `back-end/database/migrations/2026_08_09_000001_add_photo_source_to_incident_reports.php`:
 
@@ -144,7 +159,7 @@ return new class extends Migration
 };
 ```
 
-- [ ] **Step 4: Apply to both databases**
+- [x] **Step 4: Apply to both databases**
 
 ```bash
 cd back-end
@@ -154,7 +169,7 @@ DB_DATABASE=airkingV5_test php artisan migrate --force --path=database/migration
 
 Expected: `DONE` twice.
 
-- [ ] **Step 5: Confirm the test passes and nothing regressed**
+- [x] **Step 5: Confirm the test passes and nothing regressed**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentSchemaTest
@@ -163,7 +178,7 @@ cd back-end && php artisan test --filter=Incident
 
 Expected: schema suite green; `--filter=Incident` still 52 passed.
 
-- [ ] **Step 6: Sync the SQL dump**
+- [x] **Step 6: Sync the SQL dump**
 
 `airkingv5.sql` is this repo's schema of record. Hand-edit **only** the `incident_reports` `CREATE TABLE` block, adding the column immediately after `photo_path`:
 
@@ -181,7 +196,7 @@ cd .. && grep -n "CREATE TABLE \`incident_reports\`" -A 24 airkingv5.sql | grep 
 
 Expected: both lines, `photo_source` directly after `photo_path`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add back-end/database/migrations/2026_08_09_000001_add_photo_source_to_incident_reports.php back-end/tests/Feature/Sets/IncidentSchemaTest.php airkingv5.sql
@@ -205,7 +220,7 @@ EOF
 - Modify: `back-end/app/Services/IncidentService.php`
 - Test: `back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php`. Note it currently imports `UploadedFile` and `Storage`; add `use App\Models\IncidentReport;` if absent.
 
@@ -323,7 +338,7 @@ Add to `back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php`. Note it curren
     }
 ```
 
-- [ ] **Step 2: Run to confirm they fail**
+- [x] **Step 2: Run to confirm they fail**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentPhotoUploadTest
@@ -331,7 +346,7 @@ cd back-end && php artisan test --filter=IncidentPhotoUploadTest
 
 Expected: FAIL — `Undefined constant App\Models\IncidentReport::PHOTO_SOURCE_CAPTURED`.
 
-- [ ] **Step 3: Add the model constants**
+- [x] **Step 3: Add the model constants**
 
 In `back-end/app/Models/IncidentReport.php`, add below the `STOCK_AFFECTING_REASONS` block:
 
@@ -352,7 +367,7 @@ In `back-end/app/Models/IncidentReport.php`, add below the `STOCK_AFFECTING_REAS
 
 Add `'photo_source'` to `$fillable`, immediately after `'photo_path'`.
 
-- [ ] **Step 4: Validate and serialize it**
+- [x] **Step 4: Validate and serialize it**
 
 In `back-end/app/Http/Controllers/Api/IncidentReportController.php`, in `store()`'s validation array, directly after the `photo_path` rule add:
 
@@ -385,7 +400,7 @@ In `index()`'s `map()` closure, directly after the `'photo_url'` line add:
                 'photo_source'            => $i->photo_source,
 ```
 
-- [ ] **Step 5: Run to confirm they pass**
+- [x] **Step 5: Run to confirm they pass**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentPhotoUploadTest
@@ -394,7 +409,7 @@ cd back-end && php artisan test --filter=Incident
 
 Expected: photo suite green (9 tests: the 5 existing plus your 4); `--filter=Incident` 56 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add back-end/app/Models/IncidentReport.php back-end/app/Http/Controllers/Api/IncidentReportController.php back-end/app/Services/IncidentService.php back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php
@@ -417,7 +432,7 @@ EOF
 
 Pure refactor: widen one export statement so `CameraCapture` can reuse the error wording instead of copying it. No behaviour change.
 
-- [ ] **Step 1: Widen the export**
+- [x] **Step 1: Widen the export**
 
 In `frontend/src/admin/hooks/useBarcodeCamera.js`, line ~220 currently reads:
 
@@ -436,7 +451,7 @@ export { playScanFeedback, isLikelyVirtualCameraLabel, assertCameraEnvironment, 
 
 Do not move, rename, or edit either function.
 
-- [ ] **Step 2: Verify the build still compiles**
+- [x] **Step 2: Verify the build still compiles**
 
 ```bash
 cd frontend && npm run build
@@ -444,7 +459,7 @@ cd frontend && npm run build
 
 Expected: `Compiled` with no new warnings. Nothing else changed, so a warning here means a typo in the export list.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/admin/hooks/useBarcodeCamera.js
@@ -465,7 +480,7 @@ EOF
 **Files:**
 - Create: `frontend/src/admin/components/CameraCapture.jsx`
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 Create `frontend/src/admin/components/CameraCapture.jsx`:
 
@@ -644,7 +659,7 @@ export default function CameraCapture({ isOpen, onCapture, onCancel }) {
 }
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 ```bash
 cd frontend && npm run build
@@ -652,7 +667,7 @@ cd frontend && npm run build
 
 Expected: `Compiled`, no warning naming `CameraCapture`. An unused-variable warning means a leftover binding.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/admin/components/CameraCapture.jsx
@@ -674,7 +689,7 @@ EOF
 **Files:**
 - Create: `frontend/src/admin/hooks/useIncidentPhoto.js`
 
-- [ ] **Step 1: Create the hook**
+- [x] **Step 1: Create the hook**
 
 Create `frontend/src/admin/hooks/useIncidentPhoto.js`:
 
@@ -724,7 +739,7 @@ export function useIncidentPhoto() {
 }
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 ```bash
 cd frontend && npm run build
@@ -732,7 +747,7 @@ cd frontend && npm run build
 
 Expected: `Compiled`. The hook is not consumed yet, so no warning should name it.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/admin/hooks/useIncidentPhoto.js
@@ -760,7 +775,7 @@ EOF
 **Files:**
 - Modify: `frontend/src/admin/components/IncidentFileModal.jsx`
 
-- [ ] **Step 1: Import and swap the state**
+- [x] **Step 1: Import and swap the state**
 
 Add to the imports:
 
@@ -776,7 +791,7 @@ Delete the `const [photo, setPhoto] = useState(null);` declaration and add in it
   const [cameraOpen, setCameraOpen] = useState(false);
 ```
 
-- [ ] **Step 2: Reset it when the modal opens**
+- [x] **Step 2: Reset it when the modal opens**
 
 In the reset-on-open effect, replace the `setPhoto(null);` line with:
 
@@ -792,7 +807,7 @@ The effect's dependency array must NOT gain `photo` — the hook's identity chan
   }, [isOpen]);
 ```
 
-- [ ] **Step 3: Use the hook in submit**
+- [x] **Step 3: Use the hook in submit**
 
 In `handleSubmit`, replace the whole `let photoPath = null; if (photo) { ... }` block plus the `photo_path: photoPath,` payload line with:
 
@@ -809,7 +824,7 @@ and in the payload object:
 
 Then update the `useCallback` dependency array: remove `photo` and add `photo.uploadIfAny`.
 
-- [ ] **Step 4: Replace the photo field markup**
+- [x] **Step 4: Replace the photo field markup**
 
 Replace the whole `ak-field` block containing `file-incident-photo` (currently lines ~411-421) with:
 
@@ -855,7 +870,7 @@ Replace the whole `ak-field` block containing `file-incident-photo` (currently l
         </div>
 ```
 
-- [ ] **Step 5: Verify it compiles**
+- [x] **Step 5: Verify it compiles**
 
 ```bash
 cd frontend && npm run build
@@ -863,7 +878,7 @@ cd frontend && npm run build
 
 Expected: `Compiled`, no warning naming `IncidentFileModal`. A `photo is not defined` error means a `setPhoto` reference survived — grep for it.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/admin/components/IncidentFileModal.jsx
@@ -893,7 +908,7 @@ EOF
 
 Same shape as Task 6, but this file's state is named `photoFile`/`setPhotoFile` and the relative import paths are one level deeper.
 
-- [ ] **Step 1: Import and swap the state**
+- [x] **Step 1: Import and swap the state**
 
 Add to the imports:
 
@@ -909,7 +924,7 @@ Delete `const [photoFile, setPhotoFile] = useState(null);` and add:
   const [cameraOpen, setCameraOpen] = useState(false);
 ```
 
-- [ ] **Step 2: Reset on open**
+- [x] **Step 2: Reset on open**
 
 In the reset effect, replace `setPhotoFile(null);` with:
 
@@ -918,7 +933,7 @@ In the reset effect, replace `setPhotoFile(null);` with:
     setCameraOpen(false);
 ```
 
-- [ ] **Step 3: Use the hook in submit**
+- [x] **Step 3: Use the hook in submit**
 
 In `handleSubmit`, replace the `let photoPath = null; if (photoFile) { ... }` block with:
 
@@ -933,7 +948,7 @@ and in the `incidentReportsAPI.file({...})` payload replace `photo_path: photoPa
         photo_source,
 ```
 
-- [ ] **Step 4: Replace the photo field markup**
+- [x] **Step 4: Replace the photo field markup**
 
 Replace the whole `ak-field` block containing `incident-photo` (currently lines ~161-171) with:
 
@@ -981,7 +996,7 @@ Replace the whole `ak-field` block containing `incident-photo` (currently lines 
 
 Note the `accept` narrows from `image/*` to the three types the backend actually accepts — `image/*` let a user pick a HEIC or GIF that would 422 on upload.
 
-- [ ] **Step 5: Verify it compiles**
+- [x] **Step 5: Verify it compiles**
 
 ```bash
 cd frontend && npm run build
@@ -989,7 +1004,7 @@ cd frontend && npm run build
 
 Expected: `Compiled`, no warning naming `IncidentModal`. Grep for `photoFile` to confirm none survived.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/admin/components/picking/IncidentModal.jsx
@@ -1010,7 +1025,7 @@ EOF
 **Files:**
 - Modify: `frontend/src/admin/components/IncidentResolveDrawer.jsx`
 
-- [ ] **Step 1: Add the badge beside the photo**
+- [x] **Step 1: Add the badge beside the photo**
 
 In the Photo block, immediately after the `<div className="ak-label">Photo</div>` line, add:
 
@@ -1028,7 +1043,7 @@ Nothing renders when `photo_source` is null — incidents filed before this feat
 
 The wording is deliberate: **"Taken in-app", never "verified".** The server cannot verify provenance — both paths arrive as identical multipart uploads — so the badge states what the app observed, not what the system can prove.
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 ```bash
 cd frontend && npm run build
@@ -1036,7 +1051,7 @@ cd frontend && npm run build
 
 Expected: `Compiled`, no warning naming `IncidentResolveDrawer`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/admin/components/IncidentResolveDrawer.jsx
@@ -1054,7 +1069,7 @@ EOF
 
 ## Task 9: Verification
 
-- [ ] **Step 1: Backend suite**
+- [x] **Step 1: Backend suite**
 
 ```bash
 cd back-end && php artisan test --filter=Incident
@@ -1063,7 +1078,7 @@ cd back-end && php artisan test
 
 Expected: `--filter=Incident` **56 passed**. Full suite: **10 failures, unchanged** — 9 `WarrantyClaimTest` and 1 `SerialRowMovementColumnsTest`, both pre-existing. If the count moved, this plan broke something.
 
-- [ ] **Step 2: Frontend build**
+- [x] **Step 2: Frontend build**
 
 ```bash
 cd frontend && npm run build
@@ -1075,7 +1090,7 @@ Expected: `Compiled`. Confirm no warning names `CameraCapture`, `useIncidentPhot
 cd frontend && npm run build 2>&1 | grep -iE "CameraCapture|useIncidentPhoto|IncidentFileModal|IncidentModal|IncidentResolveDrawer" || echo "clean"
 ```
 
-- [ ] **Step 3: Serve over HTTPS for the manual pass**
+- [x] **Step 3: Serve over HTTPS for the manual pass**
 
 The camera needs a secure context. Build and serve, then open **`https://<your-LAN-IP>/Airking_Inventory/frontend/build/`** and accept the self-signed certificate warning.
 
@@ -1085,7 +1100,7 @@ cd frontend && npm run demo
 
 `http://localhost:5000` will NOT give you a camera — that is expected and is itself checklist item 7.
 
-- [ ] **Step 4: Manual checklist**
+- [x] **Step 4: Manual checklist**
 
 At `/admin/incidents` → **Report Incident**:
 
@@ -1102,7 +1117,7 @@ At `/admin/incidents` → **Report Incident**:
 11. Repeat 1, 4 and 9 in the **picking** modal (trigger a FIFO violation during an issuance pick).
 12. Open an incident filed before this feature — it shows the photo with **no** badge.
 
-- [ ] **Step 5: Commit any fixes**
+- [x] **Step 5: Commit any fixes**
 
 If the walkthrough found defects, fix them, re-run steps 1 and 2, and commit. If it found none, there is nothing to commit and the plan is complete.
 
