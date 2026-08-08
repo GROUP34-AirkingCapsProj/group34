@@ -135,4 +135,21 @@ class IncidentSchemaTest extends SetTestCase
         $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $fresh->occurred_at);
         $this->assertSame($occurredAt->copy()->toDateString(), $fresh->occurred_at->toDateString());
     }
+
+    public function test_photo_source_column_exists_and_is_nullable(): void
+    {
+        $this->assertTrue(Schema::hasColumn('incident_reports', 'photo_source'));
+
+        $col = collect(DB::select(
+            "SELECT COLUMN_NAME AS c, IS_NULLABLE AS n, DATA_TYPE AS t
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'incident_reports'
+               AND COLUMN_NAME = 'photo_source'"
+        ))->first();
+
+        // Nullable and never backfilled: rows predating this feature genuinely
+        // do not know how their photo arrived, and null says exactly that.
+        $this->assertSame('YES', $col->n);
+        $this->assertSame('varchar', $col->t);
+    }
 }
