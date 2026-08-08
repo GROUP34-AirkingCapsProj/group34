@@ -217,7 +217,10 @@ function pickPreferredCameraDeviceId(devices, savedId) {
   return devices[0].deviceId;
 }
 
-export { playScanFeedback, isLikelyVirtualCameraLabel };
+// assertCameraEnvironment / cameraAccessErrorMessage are shared with
+// components/CameraCapture.jsx so the barcode scanner and the incident camera
+// give identical wording for identical failures.
+export { playScanFeedback, isLikelyVirtualCameraLabel, assertCameraEnvironment, cameraAccessErrorMessage };
 
 export function useBarcodeCamera(onDecode, { mountId, storageKey }) {
   const [cameraActive, setCameraActive]         = useState(false);
