@@ -202,6 +202,7 @@ EOF
 **Files:**
 - Modify: `back-end/app/Models/IncidentReport.php`
 - Modify: `back-end/app/Http/Controllers/Api/IncidentReportController.php`
+- Modify: `back-end/app/Services/IncidentService.php`
 - Test: `back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php`
 
 - [ ] **Step 1: Write the failing tests**
@@ -356,16 +357,26 @@ Add `'photo_source'` to `$fillable`, immediately after `'photo_path'`.
 In `back-end/app/Http/Controllers/Api/IncidentReportController.php`, in `store()`'s validation array, directly after the `photo_path` rule add:
 
 ```php
-            // required_with is the important half: a provenance claim with no
-            // photo attached is a claim about nothing.
-            'photo_source'        => ['nullable', 'required_with:photo_path', Rule::in(IncidentReport::PHOTO_SOURCES)],
+            'photo_source'        => ['nullable', Rule::in(IncidentReport::PHOTO_SOURCES)],
 ```
 
-Then change the existing `photo_path` rule so the reverse case is enforced too — a source with no path must fail on `photo_path`:
+And add `required_with:photo_source` to the existing `photo_path` rule:
 
 ```php
             'photo_path'          => ['nullable', 'required_with:photo_source', 'string', 'max:255',
                                        'regex:/^incidents\/\d{4}\/\d{2}\/[A-Za-z0-9]{40}\.(jpg|jpeg|png|webp)$/'],
+```
+
+**The dependency runs ONE way only.** A `photo_source` with no `photo_path` is a claim about nothing, so that fails. The reverse must NOT hold: `photo_path` with no source has to keep working, because every existing client sends exactly that, and the pre-existing `test_an_uploaded_photo_round_trips_through_filing` covers it. Making it bidirectional is a breaking API change and contradicts this task's own `test_a_photo_without_a_source_stores_null`.
+
+### Step 4b: Let the service persist it
+
+`IncidentService::file()` builds an **explicit column array** rather than mass-assigning `$data`, so a fillable model attribute alone is not enough — the value would be silently dropped. Directly after its `'photo_path'` line add:
+
+```php
+            // Client-asserted: both a camera capture and a gallery pick arrive
+            // as identical uploads, so this is recorded, never trusted.
+            'photo_source'        => $data['photo_source'] ?? null,
 ```
 
 In `index()`'s `map()` closure, directly after the `'photo_url'` line add:
@@ -386,7 +397,7 @@ Expected: photo suite green (9 tests: the 5 existing plus your 4); `--filter=Inc
 - [ ] **Step 6: Commit**
 
 ```bash
-git add back-end/app/Models/IncidentReport.php back-end/app/Http/Controllers/Api/IncidentReportController.php back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php
+git add back-end/app/Models/IncidentReport.php back-end/app/Http/Controllers/Api/IncidentReportController.php back-end/app/Services/IncidentService.php back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php
 git commit -F - <<'EOF'
 feat(incidents): accept and serialize photo_source
 
