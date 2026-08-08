@@ -38,6 +38,19 @@ class IncidentReport extends Model
         self::REASON_CUSTOMER_RETURN,
     ];
 
+    public const PHOTO_SOURCE_CAPTURED = 'captured';
+    public const PHOTO_SOURCE_UPLOADED = 'uploaded';
+
+    /**
+     * How the evidence photo reached us. This is a CLIENT-ASSERTED claim — both
+     * paths arrive as identical multipart uploads, so the server cannot verify
+     * it. Reviewer-facing wording must say "taken in-app", never "verified".
+     */
+    public const PHOTO_SOURCES = [
+        self::PHOTO_SOURCE_CAPTURED,
+        self::PHOTO_SOURCE_UPLOADED,
+    ];
+
     /**
      * Every reason. Derived rather than hand-written so a new reason added to
      * the list above cannot be forgotten here — the two lists differ by exactly
@@ -51,7 +64,7 @@ class IncidentReport extends Model
     protected $fillable = [
         'incident_number', 'source_type', 'source_id', 'related_issuance_id', 'location_id',
         'product_id', 'batch_id', 'serial_id', 'expected_zone', 'actual_zone',
-        'reason', 'quantity', 'narrative', 'occurred_at', 'photo_path', 'reported_by',
+        'reason', 'quantity', 'narrative', 'occurred_at', 'photo_path', 'photo_source', 'reported_by',
         'status_id', 'reviewed_by', 'reviewed_at',
         'adjustment_id', 'correction_id', 'resolution_note',
     ];
