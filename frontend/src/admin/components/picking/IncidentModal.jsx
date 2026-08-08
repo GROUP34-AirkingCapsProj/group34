@@ -3,6 +3,8 @@ import Modal from '../Modal';
 import { incidentReportsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { PICKING_REASONS } from '../../utils/incidentReasons';
+import CameraCapture from '../CameraCapture';
+import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 
 /**
  * IncidentModal — shared "file an incident" surface for the issuance picker and
@@ -39,7 +41,8 @@ export default function IncidentModal({ context, onFiled, onClose }) {
   const [reason, setReason] = useState('not_found');
   const [quantity, setQuantity] = useState(1);
   const [narrative, setNarrative] = useState('');
-  const [photoFile, setPhotoFile] = useState(null);
+  const photo = useIncidentPhoto();
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -47,9 +50,13 @@ export default function IncidentModal({ context, onFiled, onClose }) {
     setReason('not_found');
     setQuantity(Math.max(1, Number(context?.quantity) || 1));
     setNarrative('');
-    setPhotoFile(null);
+    photo.clear();
+    setCameraOpen(false);
     setSubmitting(false);
-  }, [isOpen, context?.product_id, context?.batch_id, context?.serial_id, context?.quantity]);
+    // photo.clear is stable; the photo object itself is rebuilt every render, so
+    // listing it (as the lint rule asks) would re-run this effect forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, context?.product_id, context?.batch_id, context?.serial_id, context?.quantity, photo.clear]);
 
   if (!context) return null;
 
@@ -60,14 +67,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      let photoPath = null;
-      if (photoFile) {
-        const up = await incidentReportsAPI.uploadPhoto(photoFile);
-        photoPath = up?.data?.path ?? null;
-        // Fail loudly rather than filing without the evidence the user attached
-        // and still reporting success.
-        if (!photoPath) throw new Error('The photo upload did not return a path. Nothing was filed.');
-      }
+      const { photo_path, photo_source } = await photo.uploadIfAny();
 
       await incidentReportsAPI.file({
         source_type: context.source_type,
@@ -81,7 +81,8 @@ export default function IncidentModal({ context, onFiled, onClose }) {
         reason,
         quantity: Number(quantity),
         narrative: narrative.trim(),
-        photo_path: photoPath,
+        photo_path,
+        photo_source,
       });
       toast.success('Incident filed. Picking may continue with the next batch.');
       onFiled?.();
@@ -159,15 +160,43 @@ export default function IncidentModal({ context, onFiled, onClose }) {
         </div>
 
         <div className="ak-field">
-          <label className="ak-label" htmlFor="incident-photo">Photo (optional)</label>
-          <input
-            id="incident-photo"
-            className="ak-input"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+          <label className="ak-label">Evidence photo (optional)</label>
+
+          {!photo.file && !cameraOpen && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button type="button" className="ak-btn ak-btn--primary" onClick={() => setCameraOpen(true)}>
+                📷 Take photo
+              </button>
+              <span className="ak-muted" style={{ fontSize: '0.85rem' }}>or</span>
+              <input
+                id="incident-photo"
+                className="ak-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => photo.setFromFile(e.target.files?.[0] || null)}
+                style={{ maxWidth: 240 }}
+              />
+            </div>
+          )}
+
+          <CameraCapture
+            isOpen={cameraOpen}
+            onCapture={(f) => { photo.setFromCamera(f); setCameraOpen(false); }}
+            onCancel={() => setCameraOpen(false)}
           />
-          {photoFile && <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{photoFile.name}</span>}
+
+          {photo.file && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              {photo.previewUrl && (
+                <img src={photo.previewUrl} alt="Evidence preview"
+                     style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6 }} />
+              )}
+              <span className={`ak-badge ${photo.source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
+                {photo.source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
+              </span>
+              <button type="button" className="ak-btn ak-btn--sm" onClick={photo.clear}>Remove</button>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
