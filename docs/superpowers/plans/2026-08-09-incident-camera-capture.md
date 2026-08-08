@@ -750,6 +750,11 @@ EOF
 
 ## Task 6: Wire the camera into the standalone modal
 
+> ⚠️ **Hard requirement, found during Task 4's review.** `onCancel` MUST set `cameraOpen` to `false`. Do not merely hide the component behind other state.
+>
+> `CameraCapture` cannot defend against this itself. If the user presses Cancel while the browser's permission prompt is still open and the parent does not unmount it, the component's `cancelled` flag never trips — so when `getUserMedia` resolves a moment later it attaches the stream and **the camera light comes on after the user pressed Cancel.** That is precisely the "the app is watching me" failure this feature must avoid. The `onCancel={() => setCameraOpen(false)}` in the snippets below is load-bearing, not incidental.
+
+
 **Files:**
 - Modify: `frontend/src/admin/components/IncidentFileModal.jsx`
 
@@ -873,6 +878,11 @@ EOF
 ---
 
 ## Task 7: Wire the camera into the picking modal
+
+> ⚠️ **Hard requirement, found during Task 4's review.** `onCancel` MUST set `cameraOpen` to `false`. Do not merely hide the component behind other state.
+>
+> `CameraCapture` cannot defend against this itself. If the user presses Cancel while the browser's permission prompt is still open and the parent does not unmount it, the component's `cancelled` flag never trips — so when `getUserMedia` resolves a moment later it attaches the stream and **the camera light comes on after the user pressed Cancel.** That is precisely the "the app is watching me" failure this feature must avoid. The `onCancel={() => setCameraOpen(false)}` in the snippets below is load-bearing, not incidental.
+
 
 **Files:**
 - Modify: `frontend/src/admin/components/picking/IncidentModal.jsx`
