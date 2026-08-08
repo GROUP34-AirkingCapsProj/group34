@@ -158,7 +158,7 @@ DB_DATABASE=airkingV5_test php artisan db:seed --force --class=RolePermissionsSe
 - Create: `back-end/database/migrations/2026_08_03_000001_extend_incident_reports_for_standalone.php`
 - Test: `back-end/tests/Feature/Sets/IncidentSchemaTest.php` (modify)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add these two methods to `back-end/tests/Feature/Sets/IncidentSchemaTest.php`, inside the existing class:
 
@@ -203,7 +203,7 @@ Add these two methods to `back-end/tests/Feature/Sets/IncidentSchemaTest.php`, i
     }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentSchemaTest
@@ -211,7 +211,7 @@ cd back-end && php artisan test --filter=IncidentSchemaTest
 
 Expected: FAIL — `incident_reports missing occurred_at`.
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 Create `back-end/database/migrations/2026_08_03_000001_extend_incident_reports_for_standalone.php`:
 
@@ -278,7 +278,7 @@ return new class extends Migration
 };
 ```
 
-- [ ] **Step 4: Apply the migration to both databases**
+- [x] **Step 4: Apply the migration to both databases**
 
 ```bash
 cd back-end
@@ -288,7 +288,7 @@ DB_DATABASE=airkingV5_test php artisan migrate --force --path=database/migration
 
 Expected: `DONE` twice. If the second reports "Nothing to migrate", the test database already ran it — check `SELECT * FROM airkingV5_test.migrations ORDER BY id DESC LIMIT 3;`.
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentSchemaTest
@@ -296,7 +296,7 @@ cd back-end && php artisan test --filter=IncidentSchemaTest
 
 Expected: PASS, 5 tests.
 
-- [ ] **Step 6: Run the whole incident suite to confirm nothing regressed**
+- [x] **Step 6: Run the whole incident suite to confirm nothing regressed**
 
 ```bash
 cd back-end && php artisan test --filter=Incident
@@ -304,7 +304,7 @@ cd back-end && php artisan test --filter=Incident
 
 Expected: PASS, 23 tests (5 schema + 6 filing + 12 resolution).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add back-end/database/migrations/2026_08_03_000001_extend_incident_reports_for_standalone.php back-end/tests/Feature/Sets/IncidentSchemaTest.php
@@ -328,7 +328,7 @@ EOF
 
 This task adds only the column plumbing. The four new reason constants arrive later, each alongside the strategy that resolves it — adding a reason with no strategy would let `resolve()` close an incident with no artifact.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `back-end/tests/Feature/Sets/IncidentSchemaTest.php`:
 
@@ -361,7 +361,7 @@ Add to `back-end/tests/Feature/Sets/IncidentSchemaTest.php`:
     }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=test_occurred_at_and_related_issuance_round_trip_through_the_model
@@ -369,7 +369,7 @@ cd back-end && php artisan test --filter=test_occurred_at_and_related_issuance_r
 
 Expected: FAIL — `occurred_at` is not fillable, so it is null and `assertInstanceOf` fails.
 
-- [ ] **Step 3: Add the columns to the model**
+- [x] **Step 3: Add the columns to the model**
 
 In `back-end/app/Models/IncidentReport.php`, replace the `$fillable` and `$casts` blocks:
 
@@ -399,7 +399,7 @@ Then add this relation after the existing `correction()` method, before the clos
     }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentSchemaTest
@@ -407,7 +407,7 @@ cd back-end && php artisan test --filter=IncidentSchemaTest
 
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add back-end/app/Models/IncidentReport.php back-end/tests/Feature/Sets/IncidentSchemaTest.php
@@ -434,7 +434,7 @@ EOF
 
 This is a behaviour-preserving refactor. The existing 12 tests are the specification. Do not add tests here and do not change the existing ones.
 
-- [ ] **Step 1: Confirm the safety net is green before touching anything**
+- [x] **Step 1: Confirm the safety net is green before touching anything**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentResolutionTest
@@ -442,7 +442,7 @@ cd back-end && php artisan test --filter=IncidentResolutionTest
 
 Expected: PASS, 12 tests. If this is not green, stop — the baseline is broken and the refactor cannot be validated.
 
-- [ ] **Step 2: Create the interface**
+- [x] **Step 2: Create the interface**
 
 Create `back-end/app/Services/Incidents/ResolvesIncident.php`:
 
@@ -497,7 +497,7 @@ final class ResolutionArtifacts
 
 An enforced return type beats a documented one, and `ResolutionArtifacts::none()` says what it means where `['adjustment_id' => null, 'correction_id' => null]` did not. `IncidentService` reads `$posted->adjustmentId` / `$posted->correctionId`.
 
-- [ ] **Step 3: Create WriteOffResolution**
+- [x] **Step 3: Create WriteOffResolution**
 
 Create `back-end/app/Services/Incidents/WriteOffResolution.php`. The body is `IncidentService::postDeduction()` moved verbatim, including the clamped `deducted` that code review introduced:
 
@@ -583,7 +583,7 @@ class WriteOffResolution implements ResolvesIncident
 }
 ```
 
-- [ ] **Step 4: Create RetypeResolution**
+- [x] **Step 4: Create RetypeResolution**
 
 Create `back-end/app/Services/Incidents/RetypeResolution.php`. Body is `postCorrection()` plus the two `wrong_type` guards that currently sit at the top of `resolve()`:
 
@@ -664,7 +664,7 @@ class RetypeResolution implements ResolvesIncident
 }
 ```
 
-- [ ] **Step 5: Create RelocateResolution**
+- [x] **Step 5: Create RelocateResolution**
 
 Create `back-end/app/Services/Incidents/RelocateResolution.php`:
 
@@ -697,7 +697,7 @@ class RelocateResolution implements ResolvesIncident
 }
 ```
 
-- [ ] **Step 6: Rewrite IncidentService::resolve() to delegate**
+- [x] **Step 6: Rewrite IncidentService::resolve() to delegate**
 
 In `back-end/app/Services/IncidentService.php`, add these imports below the existing `use` lines:
 
@@ -786,7 +786,7 @@ Replace everything from the `/** Resolve an open incident...` docblock to the en
 
 Make sure you leave `file()`, `excludedBatchIds()`, `incidentCountFor()`, and `nextNumber()` untouched, and that the file ends with exactly one closing brace for the class.
 
-- [ ] **Step 7: Run the safety net — it must pass unmodified**
+- [x] **Step 7: Run the safety net — it must pass unmodified**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentResolutionTest
@@ -794,7 +794,7 @@ cd back-end && php artisan test --filter=IncidentResolutionTest
 
 Expected: PASS, 12 tests. If any fail, the refactor changed behaviour. Compare against `git show HEAD:back-end/app/Services/IncidentService.php` rather than editing the tests.
 
-- [ ] **Step 8: Run the full suite**
+- [x] **Step 8: Run the full suite**
 
 ```bash
 cd back-end && php artisan test
@@ -802,7 +802,7 @@ cd back-end && php artisan test
 
 Expected: PASS. Note the total for later comparison.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add back-end/app/Services/Incidents back-end/app/Services/IncidentService.php
@@ -829,7 +829,7 @@ EOF
 - Modify: `back-end/app/Services/Incidents/WriteOffResolution.php`
 - Create: `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`:
 
@@ -926,7 +926,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
@@ -934,7 +934,7 @@ cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
 
 Expected: FAIL — `Undefined constant App\Models\IncidentReport::REASON_THEFT`.
 
-- [ ] **Step 3: Add the two constants**
+- [x] **Step 3: Add the two constants**
 
 In `back-end/app/Models/IncidentReport.php`, replace the constants block:
 
@@ -956,7 +956,7 @@ In `back-end/app/Models/IncidentReport.php`, replace the constants block:
     ];
 ```
 
-- [ ] **Step 3b: Let `file()` accept a standalone report with no source_id**
+- [x] **Step 3b: Let `file()` accept a standalone report with no source_id**
 
 **Added after plan review.** Task 4's tests file with `source_type: 'standalone'` and no `source_id`, but `file()` still does `(int) $data['source_id']` — a missing key raises an "Undefined array key" warning and stores `0`, not null. The rest of the `file()` relaxation (product and quantity) stays in Task 5; this is only the line the new tests actually need.
 
@@ -973,7 +973,7 @@ with:
             'source_id'       => isset($data['source_id']) ? (int) $data['source_id'] : null,
 ```
 
-- [ ] **Step 4: Map the new reasons in WriteOffResolution and the strategy table**
+- [x] **Step 4: Map the new reasons in WriteOffResolution and the strategy table**
 
 In `back-end/app/Services/Incidents/WriteOffResolution.php`, replace `adjustmentType()`:
 
@@ -1004,7 +1004,7 @@ In `back-end/app/Services/IncidentService.php`, extend `strategyFor()`'s first a
         };
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
@@ -1012,7 +1012,7 @@ cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
 
 Expected: PASS, 3 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add back-end/app/Models/IncidentReport.php back-end/app/Services/Incidents/WriteOffResolution.php back-end/app/Services/IncidentService.php back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php
@@ -1037,7 +1037,7 @@ EOF
 - Create: `back-end/app/Services/Incidents/AcknowledgeResolution.php`
 - Test: `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`:
 
@@ -1088,7 +1088,7 @@ Add to `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`:
     }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
@@ -1096,7 +1096,7 @@ cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
 
 Expected: FAIL — `Undefined constant App\Models\IncidentReport::REASON_OTHER`.
 
-- [ ] **Step 3: Add the constant and the stock-affecting list**
+- [x] **Step 3: Add the constant and the stock-affecting list**
 
 In `back-end/app/Models/IncidentReport.php`, add `REASON_OTHER` to the constants and `REASONS`, then add `STOCK_AFFECTING_REASONS` below `REASONS`:
 
@@ -1127,7 +1127,7 @@ In `back-end/app/Models/IncidentReport.php`, add `REASON_OTHER` to the constants
     ];
 ```
 
-- [ ] **Step 4: Create AcknowledgeResolution**
+- [x] **Step 4: Create AcknowledgeResolution**
 
 Create `back-end/app/Services/Incidents/AcknowledgeResolution.php`:
 
@@ -1156,7 +1156,7 @@ class AcknowledgeResolution implements ResolvesIncident
 }
 ```
 
-- [ ] **Step 5: Relax file() and register the strategy**
+- [x] **Step 5: Relax file() and register the strategy**
 
 In `back-end/app/Services/IncidentService.php`, add the import:
 
@@ -1216,7 +1216,7 @@ Add the `other` arm to `strategyFor()`, after the `REASON_ZONE_MISMATCH` line:
             IncidentReport::REASON_OTHER           => new AcknowledgeResolution(),
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
@@ -1224,7 +1224,7 @@ cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
 
 Expected: PASS, 5 tests.
 
-- [ ] **Step 7: Run the whole incident suite**
+- [x] **Step 7: Run the whole incident suite**
 
 ```bash
 cd back-end && php artisan test --filter=Incident
@@ -1232,7 +1232,7 @@ cd back-end && php artisan test --filter=Incident
 
 Expected: PASS, 29 tests.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add back-end/app/Models/IncidentReport.php back-end/app/Services/IncidentService.php back-end/app/Services/Incidents/AcknowledgeResolution.php back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php
@@ -1256,7 +1256,7 @@ EOF
 - Create: `back-end/app/Services/Incidents/RestockResolution.php`
 - Create: `back-end/tests/Feature/Sets/IncidentRestockTest.php`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `back-end/tests/Feature/Sets/IncidentRestockTest.php`:
 
@@ -1404,7 +1404,7 @@ class IncidentRestockTest extends SetTestCase
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentRestockTest
@@ -1412,7 +1412,7 @@ cd back-end && php artisan test --filter=IncidentRestockTest
 
 Expected: FAIL — `Undefined constant App\Models\IncidentReport::REASON_CUSTOMER_RETURN`.
 
-- [ ] **Step 3: Add the constant**
+- [x] **Step 3: Add the constant**
 
 In `back-end/app/Models/IncidentReport.php`, add the constant and append it to **both** `REASONS` and `STOCK_AFFECTING_REASONS` (a return moves stock, so it needs a product and a quantity):
 
@@ -1422,7 +1422,7 @@ In `back-end/app/Models/IncidentReport.php`, add the constant and append it to *
 
 `REASONS` becomes the eight-value list; `STOCK_AFFECTING_REASONS` becomes the same list minus `REASON_OTHER`.
 
-- [ ] **Step 4: Create RestockResolution**
+- [x] **Step 4: Create RestockResolution**
 
 Create `back-end/app/Services/Incidents/RestockResolution.php`:
 
@@ -1526,7 +1526,7 @@ class RestockResolution implements ResolvesIncident
 }
 ```
 
-- [ ] **Step 5: Register the strategy**
+- [x] **Step 5: Register the strategy**
 
 In `back-end/app/Services/IncidentService.php`, add the import:
 
@@ -1540,7 +1540,7 @@ Add the arm to `strategyFor()`:
             IncidentReport::REASON_CUSTOMER_RETURN  => new RestockResolution(),
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentRestockTest
@@ -1548,7 +1548,7 @@ cd back-end && php artisan test --filter=IncidentRestockTest
 
 Expected: PASS, 5 tests.
 
-- [ ] **Step 7: Run the whole incident suite**
+- [x] **Step 7: Run the whole incident suite**
 
 ```bash
 cd back-end && php artisan test --filter=Incident
@@ -1556,7 +1556,7 @@ cd back-end && php artisan test --filter=Incident
 
 Expected: PASS, 34 tests.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add back-end/app/Models/IncidentReport.php back-end/app/Services/IncidentService.php back-end/app/Services/Incidents/RestockResolution.php back-end/tests/Feature/Sets/IncidentRestockTest.php
@@ -1581,7 +1581,7 @@ EOF
 - Modify: `back-end/app/Http/Controllers/Api/IncidentReportController.php`
 - Test: `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`:
 
@@ -1649,7 +1649,7 @@ Add to `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`:
     }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
@@ -1657,7 +1657,7 @@ cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
 
 Expected: FAIL — the first new test 422s, because `source_type` does not accept `standalone`.
 
-- [ ] **Step 3: Relax the store() validation**
+- [x] **Step 3: Relax the store() validation**
 
 In `back-end/app/Http/Controllers/Api/IncidentReportController.php`, replace the `$validated = $request->validate([...])` block inside `store()`:
 
@@ -1683,7 +1683,7 @@ In `back-end/app/Http/Controllers/Api/IncidentReportController.php`, replace the
         ]);
 ```
 
-- [ ] **Step 4: Fix the serializer and expose the new fields**
+- [x] **Step 4: Fix the serializer and expose the new fields**
 
 Still in `IncidentReportController::index()`, replace these lines inside the `$incidents->map(...)` closure:
 
@@ -1738,7 +1738,7 @@ Finally, add `relatedIssuance` to the eager load at the top of `index()`:
             ->forUser(Auth::user());   // location scoping, same trait every other list uses
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
@@ -1746,7 +1746,7 @@ cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
 
 Expected: PASS, 8 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add back-end/app/Http/Controllers/Api/IncidentReportController.php back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php
@@ -1769,7 +1769,7 @@ EOF
 - Modify: `back-end/routes/api.php`
 - Create: `back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php`:
 
@@ -1826,7 +1826,7 @@ class IncidentPhotoUploadTest extends SetTestCase
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentPhotoUploadTest
@@ -1834,7 +1834,7 @@ cd back-end && php artisan test --filter=IncidentPhotoUploadTest
 
 Expected: FAIL — 404, the route does not exist.
 
-- [ ] **Step 3: Add the controller method**
+- [x] **Step 3: Add the controller method**
 
 In `back-end/app/Http/Controllers/Api/IncidentReportController.php`, add this method after `store()`:
 
@@ -1864,7 +1864,7 @@ In `back-end/app/Http/Controllers/Api/IncidentReportController.php`, add this me
     }
 ```
 
-- [ ] **Step 4: Add the route**
+- [x] **Step 4: Add the route**
 
 In `back-end/routes/api.php`, immediately after the existing `POST /incident-reports` route (around line 569), add:
 
@@ -1875,7 +1875,7 @@ In `back-end/routes/api.php`, immediately after the existing `POST /incident-rep
 
 Note it must come **before** the `/incident-reports/{id}/resolve` route only if a conflict existed — it does not here, since the paths differ in depth. Placing it directly after the store route keeps the block readable.
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentPhotoUploadTest
@@ -1883,7 +1883,7 @@ cd back-end && php artisan test --filter=IncidentPhotoUploadTest
 
 Expected: PASS, 3 tests.
 
-- [ ] **Step 6: Verify the storage symlink exists (dev database only)**
+- [x] **Step 6: Verify the storage symlink exists (dev database only)**
 
 ```bash
 cd back-end && ls -la public/storage
@@ -1891,7 +1891,7 @@ cd back-end && ls -la public/storage
 
 Expected: a symlink to `../storage/app/public`. If it is missing, run `php artisan storage:link`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add back-end/app/Http/Controllers/Api/IncidentReportController.php back-end/routes/api.php back-end/tests/Feature/Sets/IncidentPhotoUploadTest.php
@@ -1913,7 +1913,7 @@ EOF
 - Modify: `back-end/database/seeders/PermissionSeeder.php`
 - Test: `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`:
 
@@ -1957,7 +1957,7 @@ Add to `back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php`:
     }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd back-end && php artisan test --filter=test_a_branch_manager_can_file_but_not_resolve
@@ -1965,7 +1965,7 @@ cd back-end && php artisan test --filter=test_a_branch_manager_can_file_but_not_
 
 Expected: FAIL — 403, because `branch_manager` is not in `incident_reports.create`.
 
-- [ ] **Step 3: Add branch_manager to the create permission**
+- [x] **Step 3: Add branch_manager to the create permission**
 
 In `back-end/database/seeders/PermissionSeeder.php`, replace the `incident_reports` block (around line 82):
 
@@ -1980,7 +1980,7 @@ In `back-end/database/seeders/PermissionSeeder.php`, replace the `incident_repor
             ],
 ```
 
-- [ ] **Step 4: Re-seed both databases**
+- [x] **Step 4: Re-seed both databases**
 
 ```bash
 cd back-end
@@ -1992,7 +1992,7 @@ DB_DATABASE=airkingV5_test php artisan db:seed --force --class=RolePermissionsSe
 
 Expected: each reports the seeder ran without error.
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 ```bash
 cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
@@ -2000,7 +2000,7 @@ cd back-end && php artisan test --filter=IncidentStandaloneFilingTest
 
 Expected: PASS, 10 tests.
 
-- [ ] **Step 6: Run the entire backend suite**
+- [x] **Step 6: Run the entire backend suite**
 
 ```bash
 cd back-end && php artisan test
@@ -2008,7 +2008,7 @@ cd back-end && php artisan test
 
 Expected: PASS. `PermissionCoverageTest` must stay green — `incident_reports` already has a nav bundle, so no `ALLOWED_NON_NAV` change is needed.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add back-end/database/seeders/PermissionSeeder.php back-end/tests/Feature/Sets/IncidentStandaloneFilingTest.php
@@ -2036,7 +2036,7 @@ EOF
 
 Reason metadata currently lives in three independent lists that will drift apart as soon as there are eight reasons. This task creates one source of truth and points all three files at it. No behaviour change beyond the four new reasons becoming visible in the page filter.
 
-- [ ] **Step 1: Create the shared table**
+- [x] **Step 1: Create the shared table**
 
 Create `frontend/src/admin/utils/incidentReasons.js`:
 
@@ -2173,7 +2173,7 @@ export const REASON_GROUPS = INCIDENT_REASONS.reduce((groups, reason) => {
 }, []);
 ```
 
-- [ ] **Step 2: Point IncidentReportsPage at it**
+- [x] **Step 2: Point IncidentReportsPage at it**
 
 In `frontend/src/admin/pages/IncidentReportsPage.jsx`, delete the local `REASONS` and `REASON_BADGE` constants (lines 8–20) and add to the imports:
 
@@ -2197,7 +2197,7 @@ Replace the reason cell in the table body:
                       </td>
 ```
 
-- [ ] **Step 3: Point IncidentResolveDrawer at it**
+- [x] **Step 3: Point IncidentResolveDrawer at it**
 
 In `frontend/src/admin/components/IncidentResolveDrawer.jsx`, delete the local `REASON_LABELS` constant (lines 7–12) and add to the imports:
 
@@ -2218,7 +2218,7 @@ Replace the reason display cell:
             <div>{reasonLabel(reason)}</div>
 ```
 
-- [ ] **Step 4: Point the picking IncidentModal at it**
+- [x] **Step 4: Point the picking IncidentModal at it**
 
 In `frontend/src/admin/components/picking/IncidentModal.jsx`, delete the local `REASONS` constant (lines 34–44) and add to the imports:
 
@@ -2253,7 +2253,7 @@ and the `selected` lookup near the bottom of the component:
   const selected = PICKING_REASONS.find((r) => r.value === reason);
 ```
 
-- [ ] **Step 5: Build to verify**
+- [x] **Step 5: Build to verify**
 
 ```bash
 cd frontend && npm run build
@@ -2261,7 +2261,7 @@ cd frontend && npm run build
 
 Expected: `Compiled successfully.` with no new warnings. If it reports unused variables, you left a deleted constant referenced somewhere.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/admin/utils/incidentReasons.js frontend/src/admin/pages/IncidentReportsPage.jsx frontend/src/admin/components/IncidentResolveDrawer.jsx frontend/src/admin/components/picking/IncidentModal.jsx
@@ -2282,7 +2282,7 @@ EOF
 **Files:**
 - Modify: `frontend/src/admin/services/api.js`
 
-- [ ] **Step 1: Add the photo upload call and refresh the file() contract**
+- [x] **Step 1: Add the photo upload call and refresh the file() contract**
 
 In `frontend/src/admin/services/api.js`, replace the whole `incidentReportsAPI` object (around line 1443):
 
@@ -2334,7 +2334,7 @@ export const incidentReportsAPI = {
 
 **Amended after Task 8's security review.** Photos moved to a private disk served by an authenticated route, so `photoBlob` replaces what would have been a direct `/storage/` URL. Check the exact names of `getToken` / `getApiBaseUrl` in `api.js` before using them — `fetchBlob` around line 78 already does this and is the pattern to copy.
 
-- [ ] **Step 2: Build to verify**
+- [x] **Step 2: Build to verify**
 
 ```bash
 cd frontend && npm run build
@@ -2342,7 +2342,7 @@ cd frontend && npm run build
 
 Expected: `Compiled successfully.`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/admin/services/api.js
@@ -2365,7 +2365,7 @@ EOF
 - Create: `frontend/src/admin/components/IncidentFileModal.jsx`
 - Modify: `frontend/src/admin/pages/IncidentReportsPage.jsx`
 
-- [ ] **Step 1: Create the modal**
+- [x] **Step 1: Create the modal**
 
 Create `frontend/src/admin/components/IncidentFileModal.jsx`:
 
@@ -2727,7 +2727,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
 }
 ```
 
-- [ ] **Step 2: Confirm the API clients the modal imports actually exist**
+- [x] **Step 2: Confirm the API clients the modal imports actually exist**
 
 ```bash
 cd frontend && grep -n "export const inventoryBatchesAPI\|export const issuancesAPI\|export const productsAPI\|export const locationsAPI" src/admin/services/api.js
@@ -2744,7 +2744,7 @@ export const inventoryBatchesAPI = {
 };
 ```
 
-- [ ] **Step 3: Wire the button into the page**
+- [x] **Step 3: Wire the button into the page**
 
 In `frontend/src/admin/pages/IncidentReportsPage.jsx`, add the import:
 
@@ -2789,7 +2789,7 @@ Add the modal next to the existing drawer at the bottom of the JSX:
       />
 ```
 
-- [ ] **Step 4: Update the page's subtitle, which claims incidents only come from the scanner**
+- [x] **Step 4: Update the page's subtitle, which claims incidents only come from the scanner**
 
 Replace the `<p className="ak-sub">` text:
 
@@ -2800,7 +2800,7 @@ Replace the `<p className="ak-sub">` text:
               </p>
 ```
 
-- [ ] **Step 5: Show when the incident happened, not just when it was filed**
+- [x] **Step 5: Show when the incident happened, not just when it was filed**
 
 Still in `IncidentReportsPage.jsx`, rename the Date column header so it says what it now shows:
 
@@ -2820,7 +2820,7 @@ and replace the date cell in the table body:
                       </td>
 ```
 
-- [ ] **Step 6: Render a standalone source honestly**
+- [x] **Step 6: Render a standalone source honestly**
 
 Replace the Source cell, which would otherwise print `standalone #` with nothing after it:
 
@@ -2832,7 +2832,7 @@ Replace the Source cell, which would otherwise print `standalone #` with nothing
                       </td>
 ```
 
-- [ ] **Step 7: Build to verify**
+- [x] **Step 7: Build to verify**
 
 ```bash
 cd frontend && npm run build
@@ -2840,7 +2840,7 @@ cd frontend && npm run build
 
 Expected: `Compiled successfully.` with no new warnings.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add frontend/src/admin/components/IncidentFileModal.jsx frontend/src/admin/pages/IncidentReportsPage.jsx frontend/src/admin/services/api.js
@@ -2863,7 +2863,7 @@ EOF
 **Files:**
 - Modify: `frontend/src/admin/components/IncidentResolveDrawer.jsx`
 
-- [ ] **Step 1: Derive the confirmation copy from `outcome`**
+- [x] **Step 1: Derive the confirmation copy from `outcome`**
 
 In `frontend/src/admin/components/IncidentResolveDrawer.jsx`, replace `confirmDisabled` and `handleConfirm` with outcome-driven versions:
 
@@ -2901,7 +2901,7 @@ In `frontend/src/admin/components/IncidentResolveDrawer.jsx`, replace `confirmDi
   };
 ```
 
-- [ ] **Step 2: Replace the reason-specific body sections**
+- [x] **Step 2: Replace the reason-specific body sections**
 
 Replace the `writesOffStock && (...)`, `reason === 'wrong_type' && (...)`, and `reason === 'zone_mismatch' && (...)` blocks with outcome-driven equivalents. The `wrong_type` product picker keeps its existing markup; only its condition changes:
 
@@ -2968,7 +2968,7 @@ Then change the Confirm button's text to use the new label:
                 {submitting === 'confirm' ? 'Confirming…' : confirmLabel}
 ```
 
-- [ ] **Step 3: Fix the product-loading effect, which still keys off the reason string**
+- [x] **Step 3: Fix the product-loading effect, which still keys off the reason string**
 
 Replace the effect's condition so it loads products for the retype outcome:
 
@@ -2983,7 +2983,7 @@ Replace the effect's condition so it loads products for the retype outcome:
   }, [isOpen, reason, canResolve]);
 ```
 
-- [ ] **Step 4: Show the new fields and use photo_url**
+- [x] **Step 4: Show the new fields and use photo_url**
 
 In the detail grid, replace the Source cell and add two more:
 
@@ -3044,7 +3044,7 @@ Replace the photo URL line so it uses the server-built web path:
   }, [incident?.incident_id, incident?.photo_url]);
 ```
 
-- [ ] **Step 5: Build to verify**
+- [x] **Step 5: Build to verify**
 
 ```bash
 cd frontend && npm run build
@@ -3052,7 +3052,7 @@ cd frontend && npm run build
 
 Expected: `Compiled successfully.` with no new warnings.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/admin/components/IncidentResolveDrawer.jsx
@@ -3074,7 +3074,7 @@ EOF
 **Files:**
 - Modify: `frontend/src/admin/components/picking/IncidentModal.jsx`
 
-- [ ] **Step 1: Replace the presentational file input with a real upload**
+- [x] **Step 1: Replace the presentational file input with a real upload**
 
 In `frontend/src/admin/components/picking/IncidentModal.jsx`, replace the `photoName` state with a file handle:
 
@@ -3141,7 +3141,7 @@ Replace the photo field's markup:
           {photoFile && <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{photoFile.name}</span>}
 ```
 
-- [ ] **Step 2: Update the component's docblock, which still says the photo is not posted**
+- [x] **Step 2: Update the component's docblock, which still says the photo is not posted**
 
 Replace the final paragraph of the top-of-file comment:
 
@@ -3151,7 +3151,7 @@ Replace the final paragraph of the top-of-file comment:
  * submitted as photo_path.
 ```
 
-- [ ] **Step 3: Build to verify**
+- [x] **Step 3: Build to verify**
 
 ```bash
 cd frontend && npm run build
@@ -3159,7 +3159,7 @@ cd frontend && npm run build
 
 Expected: `Compiled successfully.` with no new warnings. A leftover `photoName` reference will show up here.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/admin/components/picking/IncidentModal.jsx
@@ -3181,7 +3181,7 @@ EOF
 
 **Files:** none modified unless a defect is found.
 
-- [ ] **Step 1: Run the entire backend suite**
+- [x] **Step 1: Run the entire backend suite**
 
 ```bash
 cd back-end && php artisan test
@@ -3195,7 +3195,7 @@ All nine funnel through `back-end/app/Services/WarrantyClaimService.php:341`, wh
 
 **What matters for this task:** the failure count must still be exactly 9, and they must still be the same 9 WarrantyClaim tests. If the number changes, this plan broke something.
 
-- [ ] **Step 2: Confirm the refactor safety net is still untouched**
+- [x] **Step 2: Confirm the refactor safety net is still untouched**
 
 ```bash
 git diff HEAD~14 --stat -- back-end/tests/Feature/Sets/IncidentResolutionTest.php
@@ -3203,7 +3203,7 @@ git diff HEAD~14 --stat -- back-end/tests/Feature/Sets/IncidentResolutionTest.ph
 
 Expected: no output. If this file changed, the Task 3 refactor altered behaviour and needs revisiting.
 
-- [ ] **Step 3: Build the frontend**
+- [x] **Step 3: Build the frontend**
 
 ```bash
 cd frontend && npm run build
@@ -3211,7 +3211,7 @@ cd frontend && npm run build
 
 Expected: `Compiled successfully.` with no new warnings.
 
-- [ ] **Step 4: Start the app for the manual pass**
+- [x] **Step 4: Start the app for the manual pass**
 
 ```bash
 cd frontend && npm run demo
@@ -3219,7 +3219,7 @@ cd frontend && npm run demo
 
 Use the production build, not the CRA dev server — the dev server is slow enough to be mistaken for an API problem.
 
-- [ ] **Step 5: Walk through the new flows as an admin**
+- [x] **Step 5: Walk through the new flows as an admin**
 
 At `/admin/incidents`, confirm each of these:
 
@@ -3232,7 +3232,7 @@ At `/admin/incidents`, confirm each of these:
 7. Resolving the `customer_return` shows the restock confirmation naming the batch, and the batch's `quantity_remaining` goes **up** by the reported quantity.
 8. Resolving the `other` report shows an **Acknowledge** button, closes the report, and posts no adjustment.
 
-- [ ] **Step 6: Walk through the role checks**
+- [x] **Step 6: Walk through the role checks**
 
 Log in as each role and confirm at `/admin/incidents`:
 
@@ -3244,11 +3244,11 @@ Log in as each role and confirm at `/admin/incidents`:
 | warehouse_personnel | visible | **hidden** |
 | auditor | **hidden** | **hidden** |
 
-- [ ] **Step 7: Confirm picking still works**
+- [x] **Step 7: Confirm picking still works**
 
 Run one issuance pick that triggers a FIFO violation, file an incident from the scanner with a photo attached, and confirm the batch drops out of the pick plan and the photo appears on the incident in the admin list. This is the path the whole module already depended on — it must be unchanged.
 
-- [ ] **Step 7b: Decide what to do about `airkingv5.sql` — ASK THE USER, do not act unilaterally**
+- [x] **Step 7b: Decide what to do about `airkingv5.sql` — ASK THE USER, do not act unilaterally**
 
 **Found during Task 4's review.** `airkingv5.sql` is this repo's schema of record, and it still declares:
 
@@ -3265,7 +3265,7 @@ That `incident_reports` exists in the dump at all proves the convention is to re
 
 Present the user with the choice: regenerate the dump now, hand-edit just the `incident_reports` block, or leave it and track it separately.
 
-- [ ] **Step 8: Commit any fixes found**
+- [x] **Step 8: Commit any fixes found**
 
 If the walkthrough surfaced defects, fix them, re-run steps 1 and 3, and commit. If it did not, there is nothing to commit and this plan is complete.
 
