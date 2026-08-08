@@ -9,6 +9,17 @@ import { incidentReportsAPI } from '../services/api';
  * field would have tripled that, so it lives here once.
  *
  * Returns { file, source, previewUrl, setFromCamera, setFromFile, clear, uploadIfAny }.
+ *
+ * NOTE: that object is rebuilt every render, so never put the whole return
+ * value in a dependency array — depend on the individual fields. The three
+ * setters are stable (useCallback over stable useState setters), so calling
+ * clear() from an effect is safe; uploadIfAny deliberately changes identity
+ * with file/source, and any handler that calls it must list it in its own deps
+ * rather than closing over a stale photo.
+ *
+ * One accepted limitation: there is no unmount revoke, so a modal that
+ * unmounts without calling clear() leaks one object URL for the rest of the
+ * session. Bounded per abandoned open, and incident filing is infrequent.
  * uploadIfAny() resolves to { photo_path, photo_source }, both null when there
  * is no photo, and THROWS if an upload returns no path — filing an incident
  * without the evidence the user attached, while reporting success, loses it
