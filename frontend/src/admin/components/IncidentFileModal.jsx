@@ -9,6 +9,8 @@ import {
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { REASON_GROUPS, reasonMeta } from '../utils/incidentReasons';
+import CameraCapture from './CameraCapture';
+import { useIncidentPhoto } from '../hooks/useIncidentPhoto';
 
 /**
  * IncidentFileModal — the standalone "Report Incident" front door, opened from
@@ -53,7 +55,8 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
   const [issuanceSearch, setIssuanceSearch] = useState('');
   const [issuanceResults, setIssuanceResults] = useState([]);
   const [narrative, setNarrative] = useState('');
-  const [photo, setPhoto] = useState(null);
+  const photo = useIncidentPhoto();
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [locations, setLocations] = useState([]);
@@ -81,9 +84,13 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     setIssuanceSearch('');
     setIssuanceResults([]);
     setNarrative('');
-    setPhoto(null);
+    photo.clear();
+    setCameraOpen(false);
     setSubmitting(false);
-  }, [isOpen]);
+    // photo.clear is stable; the photo object itself is rebuilt every render, so
+    // listing it (as the lint rule asks) would re-run this effect forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, photo.clear]);
 
   // Lookups small enough to hold in memory; both endpoints are paginated so the
   // rows arrive under `data` with a `pagination` sibling.
@@ -180,14 +187,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      let photoPath = null;
-      if (photo) {
-        const up = await incidentReportsAPI.uploadPhoto(photo);
-        photoPath = up?.data?.path || null;
-        // Fail loudly rather than filing without the evidence the user attached
-        // and still reporting success.
-        if (!photoPath) throw new Error('The photo upload did not return a path. Nothing was filed.');
-      }
+      const { photo_path, photo_source } = await photo.uploadIfAny();
       await incidentReportsAPI.file({
         source_type: 'standalone',
         location_id: Number(locationId),
@@ -198,7 +198,8 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
         reason,
         narrative: narrative.trim(),
         occurred_at: toBackendDateTime(occurredAt),
-        photo_path: photoPath,
+        photo_path,
+        photo_source,
       });
       toast.success('Incident filed. A reviewer will pick it up from the triage list.');
       onFiled?.();
@@ -207,7 +208,11 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, photo, locationId, needsStock, productId, quantity, batchId,
+    // uploadIfAny already changes identity with the file/source it closes over,
+    // so depending on it is exactly as fresh as depending on the whole (per-render)
+    // photo object, without the churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSubmit, photo.uploadIfAny, locationId, needsStock, productId, quantity, batchId,
     isReturn, issuanceId, reason, narrative, occurredAt, onFiled]);
 
   if (!isOpen) return null;
@@ -409,15 +414,43 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
         </div>
 
         <div className="ak-field">
-          <label className="ak-label" htmlFor="file-incident-photo">Photo (optional)</label>
-          <input
-            id="file-incident-photo"
-            className="ak-input"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+          <label className="ak-label">Evidence photo (optional)</label>
+
+          {!photo.file && !cameraOpen && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button type="button" className="ak-btn ak-btn--primary" onClick={() => setCameraOpen(true)}>
+                📷 Take photo
+              </button>
+              <span className="ak-muted" style={{ fontSize: '0.85rem' }}>or</span>
+              <input
+                id="file-incident-photo"
+                className="ak-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => photo.setFromFile(e.target.files?.[0] || null)}
+                style={{ maxWidth: 260 }}
+              />
+            </div>
+          )}
+
+          <CameraCapture
+            isOpen={cameraOpen}
+            onCapture={(f) => { photo.setFromCamera(f); setCameraOpen(false); }}
+            onCancel={() => setCameraOpen(false)}
           />
-          {photo && <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{photo.name}</span>}
+
+          {photo.file && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              {photo.previewUrl && (
+                <img src={photo.previewUrl} alt="Evidence preview"
+                     style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6 }} />
+              )}
+              <span className={`ak-badge ${photo.source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
+                {photo.source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
+              </span>
+              <button type="button" className="ak-btn ak-btn--sm" onClick={photo.clear}>Remove</button>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
