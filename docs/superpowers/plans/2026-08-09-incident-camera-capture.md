@@ -752,7 +752,9 @@ EOF
 
 > ⚠️ **Hard requirement, found during Task 4's review.** `onCancel` MUST set `cameraOpen` to `false`. Do not merely hide the component behind other state.
 >
-> `CameraCapture` cannot defend against this itself. If the user presses Cancel while the browser's permission prompt is still open and the parent does not unmount it, the component's `cancelled` flag never trips — so when `getUserMedia` resolves a moment later it attaches the stream and **the camera light comes on after the user pressed Cancel.** That is precisely the "the app is watching me" failure this feature must avoid. The `onCancel={() => setCameraOpen(false)}` in the snippets below is load-bearing, not incidental.
+> If the user presses Cancel while the browser's permission prompt is still open, `getUserMedia` resolves a moment later and would attach the stream — **the camera light coming on after the user pressed Cancel**, precisely the "the app is watching me" failure this feature exists to avoid.
+>
+> `CameraCapture` now defends against this itself with an `abortRef` set in `cancel()`, so this note is belt-and-braces rather than the only line of defence. Keep it anyway: the ref covers a parent that forgets, and unmounting covers a future refactor that drops the ref. The `onCancel={() => setCameraOpen(false)}` in the snippets below is load-bearing, not incidental.
 
 
 **Files:**
@@ -881,7 +883,9 @@ EOF
 
 > ⚠️ **Hard requirement, found during Task 4's review.** `onCancel` MUST set `cameraOpen` to `false`. Do not merely hide the component behind other state.
 >
-> `CameraCapture` cannot defend against this itself. If the user presses Cancel while the browser's permission prompt is still open and the parent does not unmount it, the component's `cancelled` flag never trips — so when `getUserMedia` resolves a moment later it attaches the stream and **the camera light comes on after the user pressed Cancel.** That is precisely the "the app is watching me" failure this feature must avoid. The `onCancel={() => setCameraOpen(false)}` in the snippets below is load-bearing, not incidental.
+> If the user presses Cancel while the browser's permission prompt is still open, `getUserMedia` resolves a moment later and would attach the stream — **the camera light coming on after the user pressed Cancel**, precisely the "the app is watching me" failure this feature exists to avoid.
+>
+> `CameraCapture` now defends against this itself with an `abortRef` set in `cancel()`, so this note is belt-and-braces rather than the only line of defence. Keep it anyway: the ref covers a parent that forgets, and unmounting covers a future refactor that drops the ref. The `onCancel={() => setCameraOpen(false)}` in the snippets below is load-bearing, not incidental.
 
 
 **Files:**
