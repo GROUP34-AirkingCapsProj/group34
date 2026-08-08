@@ -62,6 +62,7 @@ class IncidentReportController extends Controller
                 // Evidence photos live on the private `local` disk (not `public`),
                 // so this is an authenticated API route, not a /storage/ URL.
                 'photo_url'               => $i->photo_path ? "/incident-reports/{$i->incident_id}/photo" : null,
+                'photo_source'            => $i->photo_source,
                 'occurred_at'             => optional($i->occurred_at)->toDateTimeString(),
                 'reported_by'             => (int) $i->reported_by,
                 'reported_by_name'        => trim(($i->reportedBy?->first_name ?? '') . ' ' . ($i->reportedBy?->last_name ?? '')),
@@ -113,8 +114,14 @@ class IncidentReportController extends Controller
             // (incidents/YYYY/MM/<40-char hashName>.<ext>), so a filer cannot
             // submit an arbitrary path (another user's avatar) or an absolute
             // URL, which the frontend's resolveStorageUrl() would fetch as-is.
-            'photo_path'          => ['nullable', 'string', 'max:255',
+            'photo_path'          => ['nullable', 'required_with:photo_source', 'string', 'max:255',
                                        'regex:/^incidents\/\d{4}\/\d{2}\/[A-Za-z0-9]{40}\.(jpg|jpeg|png|webp)$/'],
+            // Only one direction is required: a provenance claim with no photo
+            // attached is a claim about nothing, so photo_path is
+            // required_with:photo_source above. The reverse must NOT hold — a
+            // photo with no stated source is the pre-camera client's normal
+            // request, and stores a null source rather than being rejected.
+            'photo_source'        => ['nullable', Rule::in(IncidentReport::PHOTO_SOURCES)],
         ]);
 
         $incident = app(IncidentService::class)->file($validated, (int) Auth::id());

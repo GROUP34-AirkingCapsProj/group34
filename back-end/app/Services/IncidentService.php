@@ -59,6 +59,9 @@ class IncidentService
             'narrative'           => $data['narrative'] ?? null,
             'occurred_at'         => $data['occurred_at'] ?? null,
             'photo_path'          => $data['photo_path'] ?? null,
+            // Client-asserted: both a camera capture and a gallery pick arrive
+            // as identical uploads, so this is recorded, never trusted.
+            'photo_source'        => $data['photo_source'] ?? null,
             'reported_by'         => $reportedBy,
             'status_id'           => IncidentReport::statusId('Open'),
         ]));

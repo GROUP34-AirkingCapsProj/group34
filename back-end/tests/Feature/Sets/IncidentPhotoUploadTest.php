@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Sets;
 
+use App\Models\IncidentReport;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -113,5 +114,117 @@ class IncidentPhotoUploadTest extends SetTestCase
 
         $filed->assertCreated();
         $filed->assertJsonPath('data.photo_path', $photoPath);
+    }
+
+    /** Upload a real photo and return the path the endpoint issued. */
+    private function uploadedPath($user): string
+    {
+        $res = $this->actingAs($user, 'sanctum')->post('/api/incident-reports/photo', [
+            'photo' => UploadedFile::fake()->image('evidence.jpg'),
+        ]);
+        $res->assertCreated();
+
+        return $res->json('data.path');
+    }
+
+    public function test_photo_source_persists_and_serializes(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        $loc = $this->makeLocation();
+        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $path = $this->uploadedPath($wp);
+
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'  => 'standalone',
+            'location_id'  => $loc->location_id,
+            'product_id'   => $p->product_id,
+            'reason'       => 'theft',
+            'quantity'     => 1,
+            'narrative'    => 'Shelf empty, photographed on the spot.',
+            'photo_path'   => $path,
+            'photo_source' => IncidentReport::PHOTO_SOURCE_CAPTURED,
+        ])->assertCreated();
+
+        $row = collect(
+            $this->actingAs($ia, 'sanctum')->getJson('/api/incident-reports?status=open')->json('data')
+        )->firstWhere('photo_path', $path);
+
+        $this->assertNotNull($row);
+        $this->assertSame('captured', $row['photo_source']);
+    }
+
+    public function test_an_unknown_photo_source_is_rejected(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $path = $this->uploadedPath($wp);
+
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'  => 'standalone',
+            'location_id'  => $loc->location_id,
+            'product_id'   => $p->product_id,
+            'reason'       => 'theft',
+            'quantity'     => 1,
+            'narrative'    => 'Bogus provenance value.',
+            'photo_path'   => $path,
+            'photo_source' => 'telepathy',
+        ])->assertStatus(422)->assertJsonValidationErrors(['photo_source']);
+    }
+
+    public function test_a_photo_source_without_a_photo_is_rejected(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        // A provenance claim about a photo that does not exist is meaningless.
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'  => 'standalone',
+            'location_id'  => $loc->location_id,
+            'product_id'   => $p->product_id,
+            'reason'       => 'theft',
+            'quantity'     => 1,
+            'narrative'    => 'Claiming a capture with nothing attached.',
+            'photo_source' => 'captured',
+        ])->assertStatus(422)->assertJsonValidationErrors(['photo_path']);
+    }
+
+    public function test_a_photo_without_a_source_stores_null(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        $loc = $this->makeLocation();
+        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $path = $this->uploadedPath($wp);
+
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'theft',
+            'quantity'    => 1,
+            'narrative'   => 'Older client that does not send a source.',
+            'photo_path'  => $path,
+        ])->assertCreated();
+
+        $row = collect(
+            $this->actingAs($ia, 'sanctum')->getJson('/api/incident-reports?status=open')->json('data')
+        )->firstWhere('photo_path', $path);
+
+        $this->assertNull($row['photo_source']);
     }
 }
