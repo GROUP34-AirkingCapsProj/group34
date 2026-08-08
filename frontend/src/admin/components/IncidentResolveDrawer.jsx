@@ -210,6 +210,22 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
         <div>
           <div className="ak-label">Photo</div>
+
+          {/* Nothing renders when photo_source is null: incidents filed before
+              the camera existed genuinely do not know how their photo arrived,
+              and an "Uploaded" badge on them would be an invented claim.
+
+              The wording is deliberately "Taken in-app", never "verified" —
+              the server cannot check provenance, since a capture and a gallery
+              pick arrive as identical uploads. It states what the app observed. */}
+          {incident.photo_source && (
+            <div style={{ marginBottom: '0.4rem' }}>
+              <span className={`ak-badge ${incident.photo_source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
+                {incident.photo_source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
+              </span>
+            </div>
+          )}
+
           {photoUrl ? (
             <img
               src={photoUrl}
