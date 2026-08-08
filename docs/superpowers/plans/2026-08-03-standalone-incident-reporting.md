@@ -12,6 +12,33 @@
 
 ---
 
+## ✅ COMPLETE — all 15 tasks implemented and verified (2026-08-08)
+
+**Tasks 1–15 done and committed on `backupV3`. NOT pushed.** Automated verification below; the manual `npm run demo` walkthrough in Task 15 is still outstanding.
+
+### Verification results
+- **Backend suite:** 775 passed, 1 skipped, **10 failed** — see the baseline note below. All 52 incident tests pass (`--filter=Incident`).
+- **Frontend:** `npm run build` compiles; zero warnings in any incident file. All remaining warnings are in pre-existing dirty files (`App.jsx`, `Sidebar.jsx`, `BarcodeScan.jsx`, `BarcodeAdjustmentPage.jsx`, `AdminLayout.jsx`).
+- **`airkingv5.sql`** was hand-edited (commit `f46d263`, +6/−2) to sync only the `incident_reports` block, so a fresh import supports standalone filing. Deliberately not regenerated with `mysqldump` — that would have swept up unrelated dev-DB drift and risked the UTF-16 encoding gotcha.
+
+### ⚠️ Suite baseline is now 10 failures, not 9
+Nine are the long-standing `WarrantyClaimTest` failures that predate this work (verified against `53f834a`).
+
+**The tenth is `Tests\Feature\Inventory\SerialRowMovementColumnsTest > consumable rows carry per batch in and out`, and it is NOT caused by this feature.** Evidence:
+- No file in that endpoint's path (`InventoryController`, `InventoryBatchService`, `Inventory`/`InventoryBatch`/`ReceivingDetail` models) appears in `git diff --name-only 53f834a..HEAD`.
+- The endpoint contains no reference to incident code.
+
+**Root cause:** `InventoryController.php:356` sorts with `$receivingDetails->sortBy('received_at')`. The test creates two receivings on the *same date*, so that sort is a tie and the source query has no tiebreaker — output order falls back to physical row order. The test's own later assertions use `firstWhere('row_quantity_received', …)` because order isn't guaranteed; only the two `$records[0]` / `$records[1]` lines assume it. It surfaced now because accumulated churn in `airkingV5_test` flipped the tie.
+
+**Fix (separate change, not this feature):** either add a deterministic tiebreaker to the endpoint (`->sortBy([['received_at','asc'],['receiving_id','asc']])`, which also makes the API's output stable for real clients) or drop the two order-dependent assertions from the test. The endpoint fix is the better one.
+
+### Still open for the user
+1. **Manual walkthrough** — `npm run demo`, then file each new reason type, confirm a return puts stock back on its original batch, and check the Report Incident button is absent for `auditor`.
+2. **HEIC photos** — iPhones in "High Efficiency" mode shoot HEIC, which neither the `image` rule nor `mimes:jpeg,jpg,png,webp` accepts. If staff photograph damage on iPhones they will hit a 422 on a phone-first workflow. Needs a device check, not a guess.
+3. **Integration** — still on `backupV3`, unpushed, alongside a large amount of unrelated earlier work.
+
+---
+
 ## ⏸ STATE OF PLAY — read this first (2026-08-04)
 
 **Tasks 1–12 are DONE and committed on `backupV3` (not pushed). Tasks 13, 14, 15 remain.**
