@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import IncidentList from '../components/incident/IncidentList';
-import IncidentFileModal from '../components/IncidentFileModal';
+import IncidentFlow from '../components/incident/IncidentFlow';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -18,7 +18,11 @@ const IncidentReportsPage = () => {
   const canCreate = typeof can === 'function' && can('incident_reports', 'create');
 
   const [filing, setFiling] = useState(false);
-  const listRef = useRef(null);
+  // The flow replaces the list rather than opening over it, so the list is
+  // unmounted while filing and a reload() through a ref would hit null. Bumping
+  // this key remounts the list, and its mount effect refetches — one mechanism
+  // that works whether or not the list happens to be on screen.
+  const [refreshToken, setRefreshToken] = useState(0);
 
   return (
     <AdminLayout>
@@ -34,7 +38,9 @@ const IncidentReportsPage = () => {
               </p>
             </div>
             <div className="ak-header-aside">
-              {canCreate && (
+              {/* Hidden while the flow is open — it carries its own
+                  "← Back to list". */}
+              {canCreate && !filing && (
                 <button
                   type="button"
                   className="ak-btn ak-btn--primary"
@@ -47,14 +53,15 @@ const IncidentReportsPage = () => {
           </div>
         </header>
 
-        <IncidentList ref={listRef} />
+        {filing ? (
+          <IncidentFlow
+            onCancel={() => setFiling(false)}
+            onFiled={() => { setFiling(false); setRefreshToken((n) => n + 1); }}
+          />
+        ) : (
+          <IncidentList key={refreshToken} />
+        )}
       </div>
-
-      <IncidentFileModal
-        isOpen={filing}
-        onClose={() => setFiling(false)}
-        onFiled={() => { setFiling(false); listRef.current?.reload(); }}
-      />
     </AdminLayout>
   );
 };
