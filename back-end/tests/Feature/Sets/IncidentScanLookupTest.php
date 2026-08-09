@@ -180,4 +180,76 @@ class IncidentScanLookupTest extends SetTestCase
         $hit = $this->resolver()->callAnyState('SN-ELSEWHERE', (int) $b->location_id);
         $this->assertNull($hit['serial']);
     }
+
+    public function test_the_endpoint_resolves_a_product_barcode(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable(barcode: 'BC-EP-001');
+        $this->setStock($loc->location_id, $p->product_id, 8);
+        $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
+
+        $res = $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-EP-001&location_id={$loc->location_id}");
+
+        $res->assertOk()
+            ->assertJsonPath('data.matched_by', 'product_barcode')
+            ->assertJsonPath('data.product.product_id', (int) $p->product_id)
+            ->assertJsonPath('data.serial', null)
+            ->assertJsonPath('data.location_quantity', 8);
+
+        $this->assertNotEmpty($res->json('data.batches'));
+    }
+
+    public function test_the_endpoint_reports_a_serials_state(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now()]);
+
+        $serial = $this->makeSerial($p, $loc, 'SN-EP-STATE', $b->receiving_id);
+        $serial->update(['status_id' => 28]);   // Out of Stock
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=SN-EP-STATE&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('data.matched_by', 'serial_any_state')
+            ->assertJsonPath('data.serial.serial_number', 'SN-EP-STATE')
+            ->assertJsonPath('data.serial.status_label', 'Out of Stock')
+            ->assertJsonPath('data.serial.in_stock', false);
+    }
+
+    public function test_an_unknown_barcode_404s_with_a_usable_message(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=NOTHING-HERE&location_id={$loc->location_id}")
+            ->assertStatus(404)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_the_lookup_requires_the_create_permission(): void
+    {
+        $loc = $this->makeLocation();
+        $au  = $this->makeUserAt($loc, 'auditor');   // read-only role
+        $p   = $this->makeConsumable(barcode: 'BC-EP-DENY');
+
+        $this->actingAs($au, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-EP-DENY&location_id={$loc->location_id}")
+            ->assertForbidden();
+    }
+
+    public function test_the_lookup_requires_a_barcode_and_location(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson('/api/incident-reports/lookup')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['barcode', 'location_id']);
+    }
 }

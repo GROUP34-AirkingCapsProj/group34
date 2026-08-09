@@ -4,7 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\IncidentReport;
+use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\ItemSerial;
+use App\Models\StatusLookup;
 use App\Services\IncidentService;
+use App\Traits\NormalizesBarcode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +19,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class IncidentReportController extends Controller
 {
+    use NormalizesBarcode;
+
     public function index(Request $request): JsonResponse
     {
         $query = IncidentReport::with(['product', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance'])
@@ -82,6 +89,89 @@ class IncidentReportController extends Controller
                 'resolution_note'         => $i->resolution_note,
                 'created_at'              => optional($i->created_at)->toDateTimeString(),
             ])->all(),
+        ]);
+    }
+
+    /**
+     * Resolve a scanned or typed barcode to the product (and serial) an incident
+     * is about.
+     *
+     * Uses resolveScanAnyState, NOT resolveScan: a filer reporting theft or
+     * damage is usually reporting a unit that is no longer in stock, and the
+     * strict resolver would report "not found" for exactly those cases.
+     */
+    public function lookup(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'barcode'     => 'required|string|max:255',
+            'location_id' => 'required|integer|exists:locations,location_id',
+        ]);
+
+        $locationId = (int) $validated['location_id'];
+
+        // Location scoping: never resolve a barcode at a location the caller
+        // cannot see. Location does NOT use ScopesToUserLocation (that trait
+        // filters a location_id COLUMN, which the locations table lacks), so
+        // the check goes through the user exactly as the trait does internally:
+        // centralized users are unrestricted; a scoped user is pinned to their
+        // one location; a scoped user with none is refused.
+        $user = Auth::user();
+        if (! $user->isCentralized() && $user->scopedLocationId() !== $locationId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'That location is outside your access.',
+            ], 403);
+        }
+
+        $hit = $this->resolveScanAnyState($validated['barcode'], $locationId);
+
+        if ($hit['product'] === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No product matches that barcode at this location.',
+            ], 404);
+        }
+
+        $product = $hit['product'];
+        $serial  = $hit['serial'];
+
+        $inventory = Inventory::where('location_id', $locationId)
+            ->where('product_id', $product->product_id)
+            ->first();
+
+        $batches = InventoryBatch::where('location_id', $locationId)
+            ->where('product_id', $product->product_id)
+            ->where('quantity_remaining', '>', 0)
+            ->orderBy('received_at')
+            ->get(['batch_id', 'zone_label', 'quantity_remaining', 'received_at']);
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'matched_by' => $hit['matched_by'],
+                'product'    => [
+                    'product_id'   => (int) $product->product_id,
+                    'product_name' => $product->product_name,
+                    'product_code' => $product->product_code,
+                    'barcode'      => $product->barcode,
+                ],
+                'serial' => $serial === null ? null : [
+                    'serial_id'     => (int) $serial->serial_id,
+                    'serial_number' => $serial->serial_number,
+                    // status_id is nullable, so a serial may carry no status.
+                    'status_label'  => $serial->status_id
+                        ? (StatusLookup::find($serial->status_id)?->status_name ?? 'Unknown')
+                        : 'Unknown',
+                    'in_stock'      => (int) $serial->status_id === ItemSerial::IN_STOCK_STATUS_ID,
+                ],
+                'location_quantity' => (int) ($inventory->quantity_on_hand ?? 0),
+                'batches' => $batches->map(fn ($b) => [
+                    'batch_id'           => (int) $b->batch_id,
+                    'zone_label'         => $b->zone_label,
+                    'quantity_remaining' => (int) $b->quantity_remaining,
+                    'received_at'        => optional($b->received_at)->toDateString(),
+                ])->all(),
+            ],
         ]);
     }
 
