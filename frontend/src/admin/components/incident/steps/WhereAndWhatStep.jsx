@@ -160,7 +160,7 @@ export default function WhereAndWhatStep({
 
           {scanHit && !scanHit.serial && (
             <div className="ak-muted" style={{ fontSize: '0.82rem', marginTop: '0.35rem' }}>
-              Matched the product, but not a specific unit — choose a batch below if you know it.
+              Matched the product, but not a specific unit — you can name a batch on the next step if you know it.
             </div>
           )}
 
