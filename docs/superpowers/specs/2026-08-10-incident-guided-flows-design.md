@@ -73,6 +73,8 @@ So: one wizard owning the shared 80%, with a pluggable step 3.
 
 | File | Responsibility |
 |---|---|
+| `utils/incidentFlow.js` | Pure helpers: `stepsFor`, `toBackendInstant`, `totalPiecesFrom` (unit-tested) |
+| `components/incident/IncidentList.jsx` | The list + filters, extracted so both pages render one component |
 | `components/incident/IncidentFlow.jsx` | The step machine — current step, back/next, shared state, submit. Knows nothing about any specific outcome. |
 | `components/incident/steps/WhatHappenedStep.jsx` | Grouped reason picker + `occurred_at` |
 | `components/incident/steps/WhereAndWhatStep.jsx` | Location + the scan / type / pick item field |
@@ -142,7 +144,13 @@ Two behaviours carried forward deliberately, both fixes made earlier:
 
 **Backend: unchanged.** No endpoint, schema or service changes. The 75 incident tests must stay green as a regression check — if any moves, this work touched something it should not have.
 
-**Frontend:** no test suite. Verification is `npm run build` plus `npx eslint` on each new file, warning-clean against the known baseline.
+**Frontend:** `react-scripts test` (Jest) runs, and `@testing-library/react` is installed — `utils/alertTarget.test.js` is the existing precedent. The step machine is worth testing, so the sequencing and the two arithmetic conversions move into a pure module, `utils/incidentFlow.js`, with a unit test:
+
+- `stepsFor(reason)` — four steps for a stock-affecting reason, three for `other`
+- `toBackendInstant(local)` — a local wall-time string becomes a UTC instant, and `''` becomes `null`
+- `totalPiecesFrom({ packs, loosePieces, quantity, piecesPerPackage })` — 1 Box at 10-per-box is 10 pieces; no pack size falls back to the plain quantity
+
+That puts the two fixes most likely to be lost silently under a test rather than under a manual check. The components themselves are verified by `npm run build` plus `npx eslint`, warning-clean against the known baseline.
 
 **Manual pass — all five flows**, since nothing automated covers them:
 
@@ -164,7 +172,7 @@ Plus: Back preserves data on every step; a failed lookup on step 2 leaves the pi
 - **No migration.** Schema is a SQL dump, not a migration history — do not run bare `php artisan migrate`.
 - Tests use `DatabaseTransactions`, never `RefreshDatabase`. `phpunit.xml` points at `airkingV5_test`.
 - The backend suite has **9 known pre-existing `WarrantyClaimTest` failures**, unrelated. A tenth, `SerialRowMovementColumnsTest`, is order-dependent and passes intermittently — treat 9 or 10 as the baseline, but confirm any failure is one of those.
-- No frontend test suite; verification is `npm run build` plus `npx eslint`.
+- Frontend tests run with `npm test -- --watchAll=false`; `utils/alertTarget.test.js` is the existing pattern.
 - **~20 files are dirty in the working tree** from unrelated earlier work, including `airkingv5.sql`. Stage only what each task names.
 - PowerShell here-strings break `git commit -m`; use `git commit -F -`.
 - The camera needs a secure context: `http://localhost:3000` on the laptop, `https://<LAN-IP>/` on a phone. Camera permission is per-origin **including the port**.
