@@ -158,4 +158,48 @@ trait NormalizesBarcode
 
         return ['product' => null, 'serial' => null, 'matched_by' => null];
     }
+
+    /**
+     * Same as resolveScan(), but finds a serial in ANY state.
+     *
+     * resolveScan() matches serials via ItemSerial::issuableAt(), which requires
+     * the unit to be in stock. That strictness is load-bearing for the pickers —
+     * it is what stops FIFO enforcement accepting a unit that is not actually
+     * issuable — so it is NOT relaxed here. This wrapper tries the strict path
+     * first and only then falls back.
+     *
+     * Incidents need the looser match because a filer reporting theft, damage or
+     * a return is usually reporting a unit that is precisely NOT in stock.
+     *
+     * @return array{product: ?\App\Models\Product, serial: ?\App\Models\ItemSerial, matched_by: ?string}
+     */
+    protected function resolveScanAnyState(string $rawBarcode, int $locationId): array
+    {
+        $strict = $this->resolveScan($rawBarcode, $locationId);
+        if ($strict['product'] !== null) {
+            return $strict;
+        }
+
+        foreach ($this->barcodeLookupCandidates($rawBarcode) as $candidate) {
+            $norm = trim($candidate);
+            if ($norm === '') {
+                continue;
+            }
+
+            // Location-scoped, but with no status or serial_type filter.
+            $serial = ItemSerial::where('location_id', $locationId)
+                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($norm)])
+                ->first();
+
+            if ($serial) {
+                return [
+                    'product'    => Product::with('applianceDetail.brand')->find($serial->product_id),
+                    'serial'     => $serial,
+                    'matched_by' => 'serial',
+                ];
+            }
+        }
+
+        return $strict;   // a clean miss, in the shape callers already expect
+    }
 }
