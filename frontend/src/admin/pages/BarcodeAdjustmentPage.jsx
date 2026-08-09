@@ -18,7 +18,8 @@ import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
-import IncidentFileModal from '../components/IncidentFileModal';
+import IncidentFlow from '../components/incident/IncidentFlow';
+import IncidentList from '../components/incident/IncidentList';
 import '../styles/barcode_scan.css';
 import '../styles/po_receiving.css';
 import '../styles/barcode_adjustment.css';
@@ -420,7 +421,15 @@ export default function BarcodeAdjustmentPage() {
   // Inventory adjustments may be created by admin, branch manager, and warehouse personnel.
   const canSubmitCorrection = isAdmin || (typeof can === 'function' && can('inventory_adjustments', 'create'));
   const canFileIncident = typeof can === 'function' && can('incident_reports', 'create');
+  // The page opens on the incident list. Filing an incident and correcting a
+  // receiving scan are both modes entered from there, each gated on its own
+  // permission — an inventory analyst may file but not correct.
   const [incidentOpen, setIncidentOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  // Same refresh mechanism as IncidentReportsPage: the list is unmounted while
+  // a mode is open, so a ref reload() would hit null. Bumping this key remounts
+  // the list and its mount effect refetches.
+  const [incidentRefreshToken, setIncidentRefreshToken] = useState(0);
 
   // Reference data
   const [allPOs, setAllPOs]         = useState([]);
@@ -876,24 +885,19 @@ export default function BarcodeAdjustmentPage() {
           </div>
         </header>
 
-        {canFileIncident && (
-          <div className="ak-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-            <h2 className="ak-label" style={{ marginTop: 0 }}>Something's wrong with stock</h2>
-            <p className="ak-muted" style={{ fontSize: '0.85rem', marginTop: '0.2rem' }}>
-              Missing or stolen stock, damage, a wrong item on the shelf, or a customer return.
-              Scan the item to identify it.
-            </p>
-            <button type="button" className="ak-btn ak-btn--primary" onClick={() => setIncidentOpen(true)}>
-              Report a stock problem
-            </button>
-          </div>
-        )}
-
-        <div className="ak-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-          <h2 className="ak-label" style={{ marginTop: 0 }}>Correct a receiving scan</h2>
-          <p className="ak-muted" style={{ fontSize: '0.85rem', marginTop: '0.2rem' }}>
-            Fix a wrong product, quantity, serial or duplicate scan recorded against a purchase order.
-          </p>
+        {/* Mode 1 — the guided incident flow, replacing everything below the header. */}
+        {incidentOpen ? (
+          <IncidentFlow
+            onCancel={() => setIncidentOpen(false)}
+            onFiled={() => { setIncidentOpen(false); setIncidentRefreshToken((n) => n + 1); }}
+          />
+        ) : adjustOpen ? (
+          /* Mode 2 — the receiving-correction form (the three STEP cards below). */
+          <>
+        <div style={{ marginBottom: '0.8rem' }}>
+          <button type="button" className="ak-btn ak-btn--sm" onClick={() => setAdjustOpen(false)}>
+            ← Back to list
+          </button>
         </div>
 
         {/* STEP 1 — PO + LOCATION */}
@@ -1358,14 +1362,27 @@ export default function BarcodeAdjustmentPage() {
             )}
           </div>
         )}
+          </>
+        ) : (
+          /* Default — the incident list is the page, with both modes as actions. */
+          <>
+            <div className="ak-actions" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+              {canFileIncident && (
+                <button type="button" className="ak-btn ak-btn--primary" onClick={() => setIncidentOpen(true)}>
+                  Report an incident
+                </button>
+              )}
+              {canSubmitCorrection && (
+                <button type="button" className="ak-btn" onClick={() => setAdjustOpen(true)}>
+                  Correct a receiving scan
+                </button>
+              )}
+            </div>
+            <IncidentList key={incidentRefreshToken} />
+          </>
+        )}
 
       </div>
-
-      <IncidentFileModal
-        isOpen={incidentOpen}
-        onClose={() => setIncidentOpen(false)}
-        onFiled={() => setIncidentOpen(false)}
-      />
     </AdminLayout>
   );
 }
