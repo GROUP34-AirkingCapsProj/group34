@@ -1455,6 +1455,24 @@ export const incidentReportsAPI = {
     return apiRequest(query ? `/incident-reports?${query}` : '/incident-reports');
   },
   /**
+   * Resolve a scanned or typed barcode to the product an incident is about.
+   * Returns { data: { matched_by, product, serial, location_quantity, batches } }.
+   *
+   * `matched_by` distinguishes how it was found:
+   *   'serial'            — an in-stock, issuable unit
+   *   'serial_any_state'  — a unit found outside the in-stock path (damaged,
+   *                         issued, written off). `serial.in_stock` is false.
+   *   'product_barcode'   — a product barcode; `serial` is null
+   *   'receiving_barcode' — the label applied at PO receiving; `serial` is null,
+   *                         but this IS a successful product match, not a miss
+   *
+   * Throws on 404 (no match) — the caller keeps the manual picker visible.
+   */
+  lookup: async ({ barcode, locationId }) => {
+    const q = new URLSearchParams({ barcode, location_id: String(locationId) }).toString();
+    return apiRequest(`/incident-reports/lookup?${q}`);
+  },
+  /**
    * File a new incident report (POST /incident-reports). Payload keys the store
    * endpoint validates: source_type ('issuance'|'transfer'|'standalone'),
    * source_id (required unless standalone), related_issuance_id?, location_id,
