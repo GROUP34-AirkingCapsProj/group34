@@ -12,6 +12,7 @@ import { REASON_GROUPS, reasonMeta } from '../utils/incidentReasons';
 import CameraCapture from './CameraCapture';
 import CameraScanner from './CameraScanner';
 import { useIncidentPhoto } from '../hooks/useIncidentPhoto';
+import { piecesToPackages } from '../utils/packageFormat';
 
 /**
  * IncidentFileModal — the standalone "Report Incident" front door, opened from
@@ -58,6 +59,8 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
   const [productId, setProductId] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [packs, setPacks] = useState(0);
+  const [loosePieces, setLoosePieces] = useState(0);
   const [batchId, setBatchId] = useState('');
   const [issuanceId, setIssuanceId] = useState('');
   const [issuanceSearch, setIssuanceSearch] = useState('');
@@ -96,6 +99,8 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     setProductId('');
     setProductFilter('');
     setQuantity(1);
+    setPacks(0);
+    setLoosePieces(0);
     setBatchId('');
     setIssuanceId('');
     setIssuanceSearch('');
@@ -161,6 +166,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
   // A batch belongs to one product at one location — re-pick it if either changes.
   useEffect(() => { setBatchId(''); }, [productId, locationId]);
 
+
   // The lookup is location-scoped, so its verdict expires the moment the
   // location does: "Matched serial SN-4471 — In Stock" was a claim about the
   // OLD location, and leaving it on screen would be misinformation on a
@@ -202,12 +208,58 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
 
   const selectedBatch = availableBatches.find((b) => String(b.batch_id) === String(batchId));
 
+  const selectedProduct = products.find((p) => String(p.product_id) === String(productId));
+
+  // The products list is capped at 1000, so a SCANNED product may not be in it.
+  // The lookup response carries the same two fields, so prefer it when it
+  // describes the product currently selected — otherwise a scan of an item
+  // outside the cap would silently lose its pack size and under-deduct again,
+  // which is the exact bug this change exists to fix.
+  const scannedProduct = scanHit?.product
+    && String(scanHit.product.product_id) === String(productId)
+    ? scanHit.product
+    : null;
+
+  const piecesPerPackage = Number(
+    scannedProduct?.pieces_per_package ?? selectedProduct?.pieces_per_package
+  ) || 0;
+  const packageUnit =
+    scannedProduct?.package_unit
+    || selectedProduct?.consumable_detail?.package_unit
+    || 'pkg';
+  const usesPacks = piecesPerPackage > 1;
+
+  // The ONE value that is sent. Everything above is entry convenience; the
+  // backend stores PIECES, as inventory, transfers and dispatch all do.
+  const totalPieces = usesPacks
+    ? (parseInt(packs, 10) || 0) * piecesPerPackage + (parseInt(loosePieces, 10) || 0)
+    : Math.max(0, parseInt(quantity, 10) || 0);
+  // Changing product can change the pack size, or remove it. Re-express the
+  // current total in the new product's terms rather than silently keeping
+  // numbers that now mean something different.
+  //
+  // totalPieces is deliberately NOT a dependency: it is derived from packs and
+  // loosePieces, so including it would re-run this on every keystroke and fight
+  // the user's typing.
+  useEffect(() => {
+    if (usesPacks) {
+      const { boxes, loose } = piecesToPackages(totalPieces, piecesPerPackage);
+      setPacks(boxes);
+      setLoosePieces(loose);
+    } else {
+      setQuantity(totalPieces > 0 ? totalPieces : 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, piecesPerPackage, usesPacks]);
+
   const canSubmit =
     !submitting
     && !!reason
     && !!locationId
     && narrative.trim().length > 0
-    && (!needsStock || (!!productId && Number(quantity) >= 1));
+    // Guards the value actually sent, not the raw input — with pack entry the
+    // two differ (1 Box on a 10-per-box product is 10 pieces).
+    && (!needsStock || (!!productId && totalPieces >= 1));
 
   /**
    * `rawCode` lets the camera pass its decode straight in. Going through
@@ -230,7 +282,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
       // Scanning SETS the product; it does not lock it. A mislabelled barcode
       // is itself a reportable incident (wrong_type), so the picker stays live.
       setProductId(String(d.product.product_id));
-      setScanHit({ matched_by: d.matched_by, serial: d.serial, batches: d.batches || [] });
+      setScanHit({ matched_by: d.matched_by, serial: d.serial, batches: d.batches || [], product: d.product });
       setScanError(null);
     } catch (err) {
       setScanHit(null);
@@ -249,7 +301,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
         source_type: 'standalone',
         location_id: Number(locationId),
         product_id: needsStock && productId ? Number(productId) : null,
-        quantity: needsStock ? Number(quantity) : null,
+        quantity: needsStock ? totalPieces : null,
         batch_id: needsStock && batchId ? Number(batchId) : null,
         related_issuance_id: isReturn && issuanceId ? Number(issuanceId) : null,
         reason,
@@ -265,7 +317,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, uploadPhotoIfAny, locationId, needsStock, productId, quantity, batchId,
+  }, [canSubmit, uploadPhotoIfAny, locationId, needsStock, productId, totalPieces, batchId,
     isReturn, issuanceId, reason, narrative, occurredAt, onFiled]);
 
   if (!isOpen) return null;
@@ -472,15 +524,55 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
 
             <div className="ak-field">
               <label className="ak-label" htmlFor="file-incident-qty">Quantity affected *</label>
-              <input
-                id="file-incident-qty"
-                className="ak-input"
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                style={{ maxWidth: 160 }}
-              />
+
+              {/* Two inputs when the product is sold in packs, one when it is
+                  not. Reporting "1" for a damaged box used to write off a
+                  single PIECE, because stock is stored in pieces and the field
+                  never said which unit it wanted. */}
+              {usesPacks ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <input
+                    id="file-incident-qty"
+                    className="ak-input"
+                    type="number"
+                    min={0}
+                    value={packs}
+                    onChange={(e) => setPacks(e.target.value)}
+                    style={{ maxWidth: 90 }}
+                    disabled={submitting}
+                  />
+                  <span className="ak-muted">{packageUnit}</span>
+                  <span className="ak-muted">+</span>
+                  <input
+                    className="ak-input"
+                    type="number"
+                    min={0}
+                    value={loosePieces}
+                    onChange={(e) => setLoosePieces(e.target.value)}
+                    style={{ maxWidth: 90 }}
+                    disabled={submitting}
+                  />
+                  <span className="ak-muted">pcs</span>
+                  <strong style={{ marginLeft: '0.4rem' }}>= {totalPieces} pcs</strong>
+                </div>
+              ) : (
+                <input
+                  id="file-incident-qty"
+                  className="ak-input"
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  style={{ maxWidth: 160 }}
+                  disabled={submitting}
+                />
+              )}
+
+              {usesPacks && (
+                <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
+                  1 {packageUnit} = {piecesPerPackage} pcs. Stock is written off in pieces.
+                </span>
+              )}
             </div>
 
             <div className="ak-field">
