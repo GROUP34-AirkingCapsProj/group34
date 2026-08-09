@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { incidentReportsAPI, locationsAPI, productsAPI } from '../../services/api';
+import { incidentReportsAPI, inventoryBatchesAPI, locationsAPI, productsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { reasonMeta } from '../../utils/incidentReasons';
 import { stepsFor, toBackendInstant, totalPiecesFrom, STEP_KEYS } from '../../utils/incidentFlow';
@@ -8,6 +8,8 @@ import { piecesToPackages } from '../../utils/packageFormat';
 import WhatHappenedStep from './steps/WhatHappenedStep';
 import WhereAndWhatStep from './steps/WhereAndWhatStep';
 import DetailsStep from './steps/DetailsStep';
+import WriteOffStep from './steps/WriteOffStep';
+import RestockStep from './steps/RestockStep';
 
 /** `datetime-local` wants LOCAL YYYY-MM-DDTHH:mm — toISOString() is UTC and would be off by the offset. */
 const toLocalInputValue = (date) => {
@@ -58,6 +60,8 @@ export default function IncidentFlow({ onCancel, onFiled }) {
 
   const [locations, setLocations] = useState([]);
   const [products, setProducts] = useState([]);
+  const [batches, setBatches] = useState(null);   // null = not fetched yet
+  const [batchesLoading, setBatchesLoading] = useState(false);
 
   const photo = useIncidentPhoto();
   // Destructured so exhaustive-deps gets a plain identifier — it cannot follow
@@ -82,6 +86,30 @@ export default function IncidentFlow({ onCancel, onFiled }) {
       .then((res) => setProducts(asArray(res)))
       .catch(() => setProducts([]));
   }, []);
+
+  // Batches are NOT loaded on mount. GET /inventory-batches returns every batch
+  // with stock remaining in the caller's location scope in one un-paginated array
+  // (a centralized user sees the whole org), which is the largest list here and
+  // is only needed once a product has been chosen. Fetch it lazily on that first
+  // need, then filter client-side — the endpoint ignores query params, so a
+  // per-product request would fetch the same payload again.
+  useEffect(() => {
+    if (!needsStock || !productId || batches !== null || batchesLoading) return;
+    setBatchesLoading(true);
+    inventoryBatchesAPI.getAll()
+      .then((res) => setBatches(asArray(res)))
+      .catch(() => setBatches([]))
+      .finally(() => setBatchesLoading(false));
+  }, [needsStock, productId, batches, batchesLoading]);
+
+  const availableBatches = useMemo(() => {
+    if (!Array.isArray(batches) || !productId) return [];
+    return batches.filter((b) => {
+      if (String(b.product_id) !== String(productId)) return false;
+      if (locationId && String(b.location_id) !== String(locationId)) return false;
+      return true;
+    });
+  }, [batches, productId, locationId]);
 
   // Switching to a reason that does not move stock must not leave stale product
   // / quantity / batch state behind for the payload to pick up.
@@ -115,6 +143,10 @@ export default function IncidentFlow({ onCancel, onFiled }) {
   const piecesPerPackage = Number(
     scannedProduct?.pieces_per_package ?? selectedProduct?.pieces_per_package
   ) || 0;
+  const packageUnit =
+    scannedProduct?.package_unit
+    || selectedProduct?.consumable_detail?.package_unit
+    || 'pkg';
   const usesPacks = piecesPerPackage > 1;
 
   const totalPieces = totalPiecesFrom({ packs, loosePieces, quantity, piecesPerPackage });
@@ -228,7 +260,33 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             disabled={submitting}
           />
         )}
-        {/* STEP_KEYS.OUTCOME — Tasks 5 and 6 */}
+        {step === STEP_KEYS.OUTCOME && outcome === 'writeoff' && (
+          <WriteOffStep
+            packs={packs} setPacks={setPacks}
+            loosePieces={loosePieces} setLoosePieces={setLoosePieces}
+            quantity={quantity} setQuantity={setQuantity}
+            usesPacks={usesPacks} piecesPerPackage={piecesPerPackage}
+            packageUnit={packageUnit} totalPieces={totalPieces}
+            batchId={batchId} setBatchId={setBatchId}
+            availableBatches={availableBatches} batchesLoading={batchesLoading}
+            productId={productId} disabled={submitting}
+          />
+        )}
+        {step === STEP_KEYS.OUTCOME && outcome === 'restock' && (
+          <RestockStep
+            packs={packs} setPacks={setPacks}
+            loosePieces={loosePieces} setLoosePieces={setLoosePieces}
+            quantity={quantity} setQuantity={setQuantity}
+            usesPacks={usesPacks} piecesPerPackage={piecesPerPackage}
+            packageUnit={packageUnit} totalPieces={totalPieces}
+            batchId={batchId} setBatchId={setBatchId}
+            availableBatches={availableBatches} batchesLoading={batchesLoading}
+            productId={productId} disabled={submitting}
+            issuanceId={issuanceId} setIssuanceId={setIssuanceId}
+            setLocationId={setLocationId}
+          />
+        )}
+        {/* STEP_KEYS.OUTCOME retype / relocate — Task 6 */}
         {step === STEP_KEYS.DETAILS && (
           <DetailsStep
             reason={reason}
