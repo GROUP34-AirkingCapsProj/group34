@@ -30,9 +30,19 @@ Read this before Task 1.
 
 **Git.** PowerShell here-strings break `git commit -m`. Use the Bash tool's heredoc (`git commit -F - <<'EOF'`).
 
+> ### ⚠️ AMENDED after Task 1's review — read before Task 2 or 4
+>
+> `resolveScan()`'s **third** pass matches `receiving_details.scanned_barcode`, and that column collides with serials **by construction**: `InventoryScanTransactionController` writes the same scanned value to `receiving_details.scanned_barcode` (:396) *and* to `item_serial.serial_number` (:433) in one transaction. Verified on the live DB — **4 of 4** serials also exist as receiving barcodes.
+>
+> So the naive "return early if the strict pass found any product" shadowed the any-state serial lookup for every serialised unit, silently producing `serial: null` for the feature's primary case. `resolveScanAnyState()` now short-circuits **only** on `matched_by === 'serial'` or `'product_barcode'`; a `receiving_barcode` hit falls through to the serial attempt first.
+>
+> Note the trap in the obvious alternative: moving the serial pass ahead of everything would break consumables, because `InventoryScanTransactionController:443` also creates an `item_serial` row for consumables with `serial_number` set to the **product barcode**. Product-barcode precedence must stay.
+>
+> **`matched_by` now has a fourth value: `'serial_any_state'`** — returned when the unit was found outside the strict in-stock path. `'serial'` still means in-stock and issuable. Task 2 must serialize both, and Task 4's UI can use the distinction to say "matched, but this unit is not in stock" without re-querying.
+
 **Facts verified while planning, so you don't have to:**
 
-- `resolveScan()` returns `['product' => ?Product, 'serial' => ?ItemSerial, 'matched_by' => ?string]`. `matched_by` is one of `'serial'`, `'product_barcode'`, `'receiving_barcode'`, or `null` on a miss.
+- `resolveScan()` returns `['product' => ?Product, 'serial' => ?ItemSerial, 'matched_by' => ?string]`. `matched_by` is one of `'serial'`, `'product_barcode'`, `'receiving_barcode'`, or `null` on a miss. `resolveScanAnyState()` adds a fifth: `'serial_any_state'`.
 - `IncidentReportController` does **not** currently `use NormalizesBarcode`. It needs the trait added. `resolveScan()` is `protected`, so a controller using the trait can call it.
 - `item_serial.status_id` FKs into `status_lookup` category `inventory`: **26 In Stock**, 27 Low Stock, 28 Out of Stock. `ItemSerial::IN_STOCK_STATUS_ID` is 26. The column is nullable, so a serial may have no status at all.
 - The Adjust tile is `BarcodeScan.jsx`'s mode tile keyed `adjust` (label `Adjust`), which calls `navigate('/admin/barcode-adjustment')` in `selectMode`.
@@ -321,7 +331,7 @@ Append to the class in `back-end/tests/Feature/Sets/IncidentScanLookupTest.php`:
         $this->actingAs($wp, 'sanctum')
             ->getJson("/api/incident-reports/lookup?barcode=SN-EP-STATE&location_id={$loc->location_id}")
             ->assertOk()
-            ->assertJsonPath('data.matched_by', 'serial')
+            ->assertJsonPath('data.matched_by', 'serial_any_state')
             ->assertJsonPath('data.serial.serial_number', 'SN-EP-STATE')
             ->assertJsonPath('data.serial.status_label', 'Out of Stock')
             ->assertJsonPath('data.serial.in_stock', false);
