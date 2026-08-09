@@ -142,7 +142,7 @@ const MODES = [
   },
   {
     key: 'adjust',
-    label: 'Adjust',
+    label: 'Report Incident',
     apiLabel: 'ADJUST',
     color: '#ef4444',
     bg: '#fef2f2',
@@ -163,6 +163,22 @@ const movementColor = (type = '') => {
   if (t.includes('transfer'))                         return '#f59e0b';
   if (t.includes('adjust'))                           return '#ef4444';
   return '#6b7280';
+};
+
+const auditMovementLabel = (type = '') => {
+  const labels = {
+    receiving: 'Received',
+    issuance: 'Issued out',
+    transfer: 'Transferred',
+    audit: 'Audited',
+  };
+  return labels[String(type).toLowerCase()] || String(type || 'Activity');
+};
+
+const formatAuditDate = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 };
 
 /** List Carmen-named showrooms first in the transfer destination dropdown */
@@ -547,6 +563,111 @@ function pickPreferredCameraDeviceId(devices, savedId) {
   const physical = devices.find((d) => !isLikelyVirtualCameraLabel(d.label));
   if (physical) return physical.deviceId;
   return devices[0].deviceId;
+}
+
+function AuditInspectionDetails({ scanResult }) {
+  const audit = scanResult.auditSnapshot || {};
+  const serial = audit.serial;
+  const history = Array.isArray(audit.history) ? audit.history : [];
+  const inventoryRows = Array.isArray(scanResult.inventoryRows) ? scanResult.inventoryRows : [];
+  const totalOnHand = inventoryRows.reduce((sum, row) => sum + Number(row.quantity_on_hand || 0), 0);
+
+  return (
+    <div className="bs-audit-dossier">
+      <div className="bs-audit-summary">
+        <div>
+          <span className="bs-audit-kicker">Audit result</span>
+          <h3>{serial ? 'Individual serialized unit' : 'Product inventory record'}</h3>
+          <p>Matched by {serial ? 'serial number' : 'product barcode'} · read-only verification</p>
+        </div>
+        <span className="bs-audit-verified">Verified</span>
+      </div>
+
+      <div className="bs-audit-metrics">
+        <div><span>Product status</span><strong>{scanResult.item.status?.status_name || 'Active'}</strong></div>
+        <div><span>Selected location</span><strong>{audit.location_name || '—'}</strong></div>
+        <div><span>Stock here</span><strong>{audit.stock_on_hand ?? 0}</strong></div>
+        <div><span>All locations</span><strong>{audit.total_on_hand ?? totalOnHand}</strong></div>
+        <div><span>Available</span><strong>{audit.total_available ?? 0}</strong></div>
+        <div><span>Inventory sites</span><strong>{audit.inventory_locations ?? inventoryRows.length}</strong></div>
+      </div>
+
+      {serial && (
+        <section className="bs-audit-section">
+          <div className="bs-audit-section-head">
+            <h4>Serialized unit information</h4>
+            <span className="bs-status-chip">{serial.status?.status_name || serial.serial_type || 'Recorded'}</span>
+          </div>
+          <div className="bs-audit-info-grid">
+            <div><span>Serial number</span><strong className="bs-mono">{serial.serial_number}</strong></div>
+            <div><span>Unit status</span><strong>{serial.status?.status_name || '—'}</strong></div>
+            <div><span>Current location</span><strong>{serial.location?.location_name || 'Not currently in stock'}</strong></div>
+            <div><span>Lifecycle state</span><strong>{serial.serial_type || '—'}</strong></div>
+            <div><span>Receiving reference</span><strong>{serial.receiving?.receiving_number || (serial.receiving_id ? `#${serial.receiving_id}` : '—')}</strong></div>
+            <div><span>Originally scanned by</span><strong>{serial.scanned_by?.name || serial.scanned_by?.username || '—'}</strong></div>
+            <div><span>Recorded</span><strong>{formatAuditDate(serial.created_at)}</strong></div>
+            <div><span>Last updated</span><strong>{formatAuditDate(serial.updated_at)}</strong></div>
+          </div>
+        </section>
+      )}
+
+      <section className="bs-audit-section">
+        <div className="bs-audit-section-head">
+          <h4>Stock by location</h4>
+          <span>{inventoryRows.length} location{inventoryRows.length === 1 ? '' : 's'}</span>
+        </div>
+        {inventoryRows.length ? (
+          <div className="bs-audit-table-wrap">
+            <table className="bs-audit-table">
+              <thead><tr><th>Location</th><th>Type</th><th>On hand</th><th>Available</th><th>Reserved</th></tr></thead>
+              <tbody>
+                {inventoryRows.map((row, index) => (
+                  <tr key={row.inventory_id || index}>
+                    <td>{row.location?.location_name || '—'}</td>
+                    <td>{row.location?.location_type || '—'}</td>
+                    <td>{row.quantity_on_hand ?? 0}</td>
+                    <td>{row.available_quantity ?? row.quantity_on_hand ?? 0}</td>
+                    <td>{row.reserved_quantity ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="bs-audit-empty">No inventory rows exist for this product.</p>}
+      </section>
+
+      <section className="bs-audit-section">
+        <div className="bs-audit-section-head">
+          <h4>{serial ? 'Unit history' : 'Product movement history'}</h4>
+          <span>Latest {history.length} event{history.length === 1 ? '' : 's'}</span>
+        </div>
+        {history.length ? (
+          <div className="bs-audit-timeline">
+            {history.map((event) => (
+              <div className="bs-audit-event" key={event.id}>
+                <span className="bs-audit-event-dot" style={{ background: movementColor(event.transaction_type) }} />
+                <div>
+                  <div className="bs-audit-event-title">
+                    <strong>{auditMovementLabel(event.transaction_type)}</strong>
+                    <span>{formatAuditDate(event.created_at)}</span>
+                  </div>
+                  <p>
+                    {event.location?.location_name || 'Unknown location'}
+                    {event.to_location?.location_name ? ` → ${event.to_location.location_name}` : ''}
+                    {Number(event.quantity_delta) !== 0 ? ` · Quantity ${Number(event.quantity_delta) > 0 ? '+' : ''}${event.quantity_delta}` : ''}
+                  </p>
+                  <small>
+                    Barcode {event.barcode || '—'} · By {event.user?.name || event.user?.username || 'System'}
+                    {event.purchase_order?.po_number ? ` · PO ${event.purchase_order.po_number}` : ''}
+                  </small>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <p className="bs-audit-empty">No movement history has been recorded for this item yet.</p>}
+      </section>
+    </div>
+  );
 }
 
 const BarcodeScan = () => {
@@ -2373,6 +2494,28 @@ const BarcodeScan = () => {
   }, [scanResult]);
 
   const currentModeKey = (scanMode || MODES[modeIndex])?.key;
+  const operationHeader = {
+    audit: {
+      eyebrow: 'Inventory · Audit',
+      title: 'Inventory Audit Scan',
+      subtitle: 'Scan a product barcode or serial number to review its complete information, current status, stock locations, and movement history.',
+    },
+    'issue-out': {
+      eyebrow: 'Inventory · Issuance',
+      title: 'Issue Out Scan',
+      subtitle: 'Scan items for issuance, confirm the required quantity and condition, then deduct stock from the selected location.',
+    },
+    transfer: {
+      eyebrow: 'Inventory · Transfer',
+      title: 'Inventory Transfer Scan',
+      subtitle: 'Scan items to move inventory between authorized warehouse and showroom locations.',
+    },
+    adjust: {
+      eyebrow: 'Inventory · Adjustment',
+      title: 'Inventory Adjustment Scan',
+      subtitle: 'Scan an item, verify its current stock, and record an authorized inventory correction.',
+    },
+  }[currentModeKey];
 
   /* When FROM LOCATION changes, show stock for that row (or null if no record there) */
   useEffect(() => {
@@ -2865,18 +3008,20 @@ const BarcodeScan = () => {
   if (scanMode?.key === 'receive-po' && !bsrSelectedPo) {
     return (
       <AdminLayout>
-        <div className="bsr-page">
-          <div className="bsr-header-card">
-            <button className="bs-topback-btn" onClick={exitScanMode} style={{ marginRight: 12, flexShrink: 0 }} type="button">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
-              Back
-            </button>
-            <div className="bsr-header-icon"><BsrBarcodeIcon size={26} color="#9810FA" /></div>
-            <div className="bsr-header-text">
-              <h1>BARCODE SCAN RECEIVE</h1>
-              <p>Scan products from approved purchase orders</p>
+        <div className="ak-page bsr-page">
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">Inventory · Receiving</p>
+                <h1 className="ak-title">Barcode Scan Receive</h1>
+                <p className="ak-sub">Select an approved purchase order, then scan its products into the receiving location.</p>
+              </div>
+              <button className="bs-topback-btn" onClick={exitScanMode} type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                Back
+              </button>
             </div>
-          </div>
+          </header>
 
           <div className="bsr-tab-nav">
             <button type="button" className={`bsr-tab-btn${bsrTab === 'select' ? ' bsr-tab-btn--active' : ''}`} onClick={() => setBsrTab('select')}>
@@ -3015,15 +3160,23 @@ const BarcodeScan = () => {
     };
     return (
       <AdminLayout>
-        <div className="bsr-page">
-          <div className="bsr-header-card">
-            <div className="bsr-header-icon"><BsrBarcodeIcon size={26} color="#9810FA" /></div>
-            <div className="bsr-header-text">
-              <h1>BARCODE SCAN RECEIVE</h1>
-              <p>Scan products from approved purchase orders</p>
+        <div className="ak-page bsr-page">
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">Inventory · Receiving</p>
+                <h1 className="ak-title">Barcode Scan Receive</h1>
+                <p className="ak-sub">Scan and verify products from the selected approved purchase order.</p>
+              </div>
+              <div className="ak-actions">
+                <span className="bsr-receiving-badge"><BsrCheckIcon /> Receiving: {bsrSelectedPo?.po_number}</span>
+                <button className="bs-topback-btn" onClick={handleBsrSaveExit} type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                  Back
+                </button>
+              </div>
             </div>
-            <div className="bsr-receiving-badge"><BsrCheckIcon /> Receiving: {bsrSelectedPo?.po_number}</div>
-          </div>
+          </header>
           {/* ── Alert / validation modal (centered, blocks all input) ── */}
           {bsrAlertModal && (
             <div className="bsr-alert-overlay" role="dialog" aria-modal="true">
@@ -3469,16 +3622,32 @@ const BarcodeScan = () => {
   return (
     <AdminLayout>
       <div className="ak-page bs-page">
-        <div className="bs-page-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <button className="bs-topback-btn" onClick={exitScanMode} type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
-            Back
-          </button>
-          <div>
-            <h1>Inventory Operation</h1>
-            <p>Scan barcode or QR code to view item details and perform inventory lookups</p>
+        {operationHeader ? (
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">{operationHeader.eyebrow}</p>
+                <h1 className="ak-title">{operationHeader.title}</h1>
+                <p className="ak-sub">{operationHeader.subtitle}</p>
+              </div>
+              <button className="bs-topback-btn" onClick={exitScanMode} type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                Back
+              </button>
+            </div>
+          </header>
+        ) : (
+          <div className="bs-page-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <button className="bs-topback-btn" onClick={exitScanMode} type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+              Back
+            </button>
+            <div>
+              <h1>Inventory Operation</h1>
+              <p>Scan barcode or QR code to view item details and perform inventory lookups</p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── camera box ── */}
         <div className="bs-camera-box">
@@ -3607,16 +3776,18 @@ const BarcodeScan = () => {
         )}
 
         {currentModeKey === 'audit' && (
-          <div className="bs-action-card" style={{ marginTop: 0, marginBottom: 20, borderColor: '#c7d2fe', background: '#f5f7ff' }}>
+          <div className="bs-action-card bs-issue-out-setup" style={{ marginTop: 0, marginBottom: 20 }}>
             <div className="bs-action-head">
               <span className="bs-action-title">Audit — setup</span>
               <span className="bs-action-sub">
-                Select the location to verify, then scan barcodes. Stock is not changed; each scan is logged for traceability.
+                Select the physical location being audited, then scan a product barcode or appliance serial number.
+                The system will display the item's status, information, stock by location, and movement history.
+                Audit is read-only and will not change inventory.
               </span>
             </div>
             <div className="bs-action-grid">
               <div className="bs-filter-col">
-                <label>LOCATION</label>
+                <label>LOCATION <span className="bs-required-mark">*</span></label>
                 {isStrictLocation ? (
                   <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
                 ) : (
@@ -3624,6 +3795,7 @@ const BarcodeScan = () => {
                     value={txForm.location_id ? Number(txForm.location_id) : null}
                     onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
                     allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+                    error={!txForm.location_id ? 'Select the location before scanning an item.' : ''}
                   />
                 )}
               </div>
@@ -3633,7 +3805,9 @@ const BarcodeScan = () => {
 
         {/* ── barcode input: camera for everyone; manual typing / wedge typing only for System Administrator ── */}
         <div className="bs-input-section">
-          <p className="bs-input-title">Barcode / QR Scanner</p>
+          <p className="bs-input-title">
+            {currentModeKey === 'audit' ? 'Scan barcode or serial number for audit' : 'Barcode / QR Scanner'}
+          </p>
           {cameraBlockedPlainHttp && (
             <p
               className="bs-input-sub"
@@ -3656,12 +3830,19 @@ const BarcodeScan = () => {
             </p>
           )}
           <p className="bs-input-sub">
-            {isAdminRole
+            {currentModeKey === 'audit'
+              ? 'Point the camera at the item. The system will identify it and open its full read-only audit record automatically.'
+              : isAdminRole
               ? 'Camera decodes automatically when the code is in view. Admins may also type or use a USB barcode wedge in the field — short pause or Enter / Tab submits.'
               : 'Camera decodes automatically when the code is in view. Manual typing and USB wedge entry are disabled; use the camera only.'}
           </p>
           <p className="bs-input-sub" style={{ marginTop: -6, fontSize: 12, color: '#64748b' }}>
-            {currentModeKey === 'issue-out' ? (
+            {currentModeKey === 'audit' ? (
+              <>
+                Scan a <strong>product barcode</strong> to inspect all inventory for that product, or an
+                individual <strong>serial number</strong> to inspect that exact appliance and its history.
+              </>
+            ) : currentModeKey === 'issue-out' ? (
               <>
                 In <strong>Issue Out</strong>, use the <strong>setup</strong> above (quantity, condition, location), then scan. After the product appears, tap <strong>Issue stock out</strong> to deduct the quantity you entered. Unit <strong>serials</strong> may post immediately when the code is not a catalog barcode.
               </>
@@ -3684,7 +3865,11 @@ const BarcodeScan = () => {
               ref={inputRef}
               type="text"
               className="bs-barcode-input"
-              placeholder={isAdminRole ? 'Scan with camera, type, or USB wedge scanner…' : 'Decoded value appears here (camera only)'}
+              placeholder={
+                currentModeKey === 'audit'
+                  ? (isAdminRole ? 'Scan a product barcode or unit serial number…' : 'Camera scan appears here…')
+                  : (isAdminRole ? 'Scan with camera, type, or USB wedge scanner…' : 'Decoded value appears here (camera only)')
+              }
               value={barcodeInput}
               readOnly={!isAdminRole}
               onPaste={!isAdminRole ? (e) => e.preventDefault() : undefined}
@@ -3739,7 +3924,7 @@ const BarcodeScan = () => {
         </div>
 
         {/* ── type tabs ── */}
-        <div className="bs-type-row">
+        {currentModeKey !== 'audit' && <div className="bs-type-row">
           <button className={`bs-type-btn${activeType === 'appliance' ? ' active' : ''}`} onClick={() => setActiveType('appliance')} type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
             UNIT / APPLIANCE
@@ -3748,7 +3933,7 @@ const BarcodeScan = () => {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
             PART / MATERIAL
           </button>
-        </div>
+        </div>}
 
         {currentModeKey === 'transfer' && (
           <div style={{ margin: '12px 0', padding: '14px 16px', background: '#fff7ed', borderRadius: 10, border: '1px solid #fed7aa' }}>
@@ -3780,7 +3965,7 @@ const BarcodeScan = () => {
         )}
 
         {/* ── filter dropdowns ── */}
-        <div className="bs-filters">
+        {currentModeKey !== 'audit' && <div className="bs-filters">
           <div className="bs-filter-col">
             <label>CATEGORY</label>
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
@@ -3804,7 +3989,7 @@ const BarcodeScan = () => {
               placeholder="Model code"
             />
           </div>
-        </div>
+        </div>}
 
         {/* ── scan result card ── */}
         {scanResult && (() => {
@@ -3976,6 +4161,8 @@ const BarcodeScan = () => {
                 )}
               </p>
             </div>
+            {scanResult.auditSnapshot && <AuditInspectionDetails scanResult={scanResult} />}
+            {mode.key !== 'audit' && (
             <div className="bs-action-card">
               <div className="bs-action-head">
                 <span className="bs-action-title">Mode Action: {mode.label}</span>
@@ -4165,6 +4352,7 @@ const BarcodeScan = () => {
                 </div>
               )}
             </div>
+            )}
             </div>
           );
         })()}

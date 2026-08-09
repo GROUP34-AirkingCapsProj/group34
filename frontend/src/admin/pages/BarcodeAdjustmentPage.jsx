@@ -18,6 +18,7 @@ import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
+import IncidentFileModal from '../components/IncidentFileModal';
 import '../styles/barcode_scan.css';
 import '../styles/po_receiving.css';
 import '../styles/barcode_adjustment.css';
@@ -418,6 +419,8 @@ export default function BarcodeAdjustmentPage() {
   const isAdmin = roleKey === ROLES.ADMIN;
   // Inventory adjustments may be created by admin, branch manager, and warehouse personnel.
   const canSubmitCorrection = isAdmin || (typeof can === 'function' && can('inventory_adjustments', 'create'));
+  const canFileIncident = typeof can === 'function' && can('incident_reports', 'create');
+  const [incidentOpen, setIncidentOpen] = useState(false);
 
   // Reference data
   const [allPOs, setAllPOs]         = useState([]);
@@ -855,12 +858,12 @@ export default function BarcodeAdjustmentPage() {
               </div>
               <div className="baj-header-text">
                 <p className="ak-eyebrow">Inventory · Barcode</p>
-                <h1 className="ak-title">Barcode Adjustment</h1>
-                <p className="ak-sub">Correct scan mistakes made during PO receiving — full compliance trail included.</p>
+                <h1 className="ak-title">Report Incident</h1>
+                <p className="ak-sub">Report something wrong with stock, or correct a scan made during receiving.</p>
               </div>
             </div>
-            <div className="ak-header-aside ak-actions">
-              <button type="button" className="ak-btn ak-btn--ghost baj-back-btn" onClick={() => navigate('/admin/inventory-operation')}>
+            <div className="ak-header-aside ak-actions baj-header-actions">
+              <button type="button" className="ak-btn ak-btn--ghost ak-btn--sm baj-back-btn" onClick={() => navigate('/admin/inventory-operation')}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
                 Back
               </button>
@@ -872,6 +875,26 @@ export default function BarcodeAdjustmentPage() {
             </div>
           </div>
         </header>
+
+        {canFileIncident && (
+          <div className="ak-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
+            <h2 className="ak-label" style={{ marginTop: 0 }}>Something's wrong with stock</h2>
+            <p className="ak-muted" style={{ fontSize: '0.85rem', marginTop: '0.2rem' }}>
+              Missing or stolen stock, damage, a wrong item on the shelf, or a customer return.
+              Scan the item to identify it.
+            </p>
+            <button type="button" className="ak-btn ak-btn--primary" onClick={() => setIncidentOpen(true)}>
+              Report a stock problem
+            </button>
+          </div>
+        )}
+
+        <div className="ak-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
+          <h2 className="ak-label" style={{ marginTop: 0 }}>Correct a receiving scan</h2>
+          <p className="ak-muted" style={{ fontSize: '0.85rem', marginTop: '0.2rem' }}>
+            Fix a wrong product, quantity, serial or duplicate scan recorded against a purchase order.
+          </p>
+        </div>
 
         {/* STEP 1 — PO + LOCATION */}
         <div className="baj-card">
@@ -1337,6 +1360,12 @@ export default function BarcodeAdjustmentPage() {
         )}
 
       </div>
+
+      <IncidentFileModal
+        isOpen={incidentOpen}
+        onClose={() => setIncidentOpen(false)}
+        onFiled={() => setIncidentOpen(false)}
+      />
     </AdminLayout>
   );
 }
