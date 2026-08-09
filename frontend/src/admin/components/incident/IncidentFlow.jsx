@@ -4,7 +4,9 @@ import { toast } from '../../utils/toast';
 import { reasonMeta } from '../../utils/incidentReasons';
 import { stepsFor, toBackendInstant, totalPiecesFrom, STEP_KEYS } from '../../utils/incidentFlow';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
+import { piecesToPackages } from '../../utils/packageFormat';
 import WhatHappenedStep from './steps/WhatHappenedStep';
+import WhereAndWhatStep from './steps/WhereAndWhatStep';
 import DetailsStep from './steps/DetailsStep';
 
 /** `datetime-local` wants LOCAL YYYY-MM-DDTHH:mm — toISOString() is UTC and would be off by the offset. */
@@ -113,8 +115,34 @@ export default function IncidentFlow({ onCancel, onFiled }) {
   const piecesPerPackage = Number(
     scannedProduct?.pieces_per_package ?? selectedProduct?.pieces_per_package
   ) || 0;
+  const usesPacks = piecesPerPackage > 1;
 
   const totalPieces = totalPiecesFrom({ packs, loosePieces, quantity, piecesPerPackage });
+
+  // Changing product can change the pack size, or remove it. Re-express the
+  // current total in the new product's terms rather than silently keeping numbers
+  // that now mean something different.
+  //
+  // totalPieces is deliberately NOT a dependency: it is derived from packs and
+  // loosePieces, so including it would re-run this on every keystroke and fight
+  // the user's typing.
+  useEffect(() => {
+    if (usesPacks) {
+      const { boxes, loose } = piecesToPackages(totalPieces, piecesPerPackage);
+      setPacks(boxes);
+      setLoosePieces(loose);
+    } else {
+      setQuantity(totalPieces > 0 ? totalPieces : 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, piecesPerPackage, usesPacks]);
+
+  // A batch belongs to one product at one location — re-pick it if either changes.
+  useEffect(() => { setBatchId(''); }, [productId, locationId]);
+
+  // Stable identity: an inline arrow would be new every render and re-fire the
+  // step's location-change effect in a loop.
+  const handleScanHit = useCallback((hit) => setScanHit(hit), []);
 
   const canAdvance = (() => {
     if (step === STEP_KEYS.WHAT) return !!reason && !!occurredAt;
@@ -190,7 +218,16 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             maxOccurredAt={maxOccurredAt} disabled={submitting}
           />
         )}
-        {/* STEP_KEYS.WHERE  — Task 4 */}
+        {step === STEP_KEYS.WHERE && (
+          <WhereAndWhatStep
+            locations={locations} products={products}
+            locationId={locationId} setLocationId={setLocationId}
+            productId={productId} setProductId={setProductId}
+            needsStock={needsStock}
+            scanHit={scanHit} onScanHit={handleScanHit}
+            disabled={submitting}
+          />
+        )}
         {/* STEP_KEYS.OUTCOME — Tasks 5 and 6 */}
         {step === STEP_KEYS.DETAILS && (
           <DetailsStep
