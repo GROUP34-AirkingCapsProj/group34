@@ -10,6 +10,7 @@ import {
 import { toast } from '../utils/toast';
 import { REASON_GROUPS, reasonMeta } from '../utils/incidentReasons';
 import CameraCapture from './CameraCapture';
+import CameraScanner from './CameraScanner';
 import { useIncidentPhoto } from '../hooks/useIncidentPhoto';
 
 /**
@@ -66,6 +67,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [scanHit, setScanHit] = useState(null);   // { matched_by, serial, batches }
+  const [camOpen, setCamOpen] = useState(false);   // barcode camera, not the photo camera
   const photo = useIncidentPhoto();
   // Aliased so the dep arrays below get plain identifiers the exhaustive-deps
   // rule can follow — a `photo.clear` member expression makes it demand the
@@ -103,6 +105,7 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     setScanError(null);
     setScanHit(null);
     setScanning(false);
+    setCamOpen(false);
     clearPhoto();
     setCameraOpen(false);
     setSubmitting(false);
@@ -206,8 +209,14 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     && narrative.trim().length > 0
     && (!needsStock || (!!productId && Number(quantity) >= 1));
 
-  const runLookup = useCallback(async () => {
-    const code = scanInput.trim();
+  /**
+   * `rawCode` lets the camera pass its decode straight in. Going through
+   * setScanInput first would read a stale value from this closure, so the
+   * scanned code is handed over directly. A click passes an event object, hence
+   * the string guard.
+   */
+  const runLookup = useCallback(async (rawCode) => {
+    const code = (typeof rawCode === 'string' ? rawCode : scanInput).trim();
     if (!code) return;
     if (!locationId) { setScanError('Choose a location first.'); return; }
 
@@ -372,8 +381,8 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
                   value={scanInput}
                   onChange={(e) => setScanInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runLookup(); } }}
-                  placeholder="Scan or type a barcode / serial…"
-                  style={{ flex: '1 1 220px' }}
+                  placeholder="Type a barcode / serial, or use a hardware scanner…"
+                  style={{ flex: '1 1 200px' }}
                   disabled={submitting}
                 />
                 <button
@@ -384,7 +393,36 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
                 >
                   {scanning ? 'Finding…' : 'Find'}
                 </button>
+                <button
+                  type="button"
+                  className="ak-btn ak-btn--primary"
+                  onClick={() => { setScanError(null); setCamOpen((v) => !v); }}
+                  disabled={submitting || scanning}
+                >
+                  {camOpen ? 'Close camera' : '📷 Scan'}
+                </button>
               </div>
+
+              {/* The app's existing barcode camera (html5-qrcode), the same one
+                  transfer dispatch and receive use — so a label that scans at
+                  the shelf scans here. Needs a secure context: https:// or
+                  localhost. The decode is handed straight to runLookup rather
+                  than routed through state, which would read a stale value. */}
+              {camOpen && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <CameraScanner
+                    mountId="incident-scan-cam"
+                    storageKey="incidentScanCameraId"
+                    busy={scanning || submitting}
+                    hint="Point at the product barcode or the unit's serial label."
+                    onDecode={(code) => {
+                      setScanInput(code);
+                      setCamOpen(false);
+                      runLookup(code);
+                    }}
+                  />
+                </div>
+              )}
 
               {scanError && (
                 <div className="ak-state ak-state--error" style={{ fontSize: '0.82rem', marginTop: '0.35rem' }}>
