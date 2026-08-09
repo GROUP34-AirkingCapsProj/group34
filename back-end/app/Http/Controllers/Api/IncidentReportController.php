@@ -23,7 +23,7 @@ class IncidentReportController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = IncidentReport::with(['product', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance'])
+        $query = IncidentReport::with(['product.consumableDetail', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance'])
             ->forUser(Auth::user());   // location scoping, same trait every other list uses
 
         if ($request->query('status') === 'open') {
@@ -59,6 +59,11 @@ class IncidentReportController extends Controller
                 // product and must serialize as null, like batch_id does below.
                 'product_id'              => $i->product_id !== null ? (int) $i->product_id : null,
                 'product_name'            => $i->product?->product_name,
+                // Packaging so the list, drawer and confirmation dialogs can show
+                // a pack breakdown. quantity is PIECES; a reviewer approving a
+                // write-off needs to see "25 pcs · 2 Box + 5 pcs", not a bare 25.
+                'pieces_per_package'      => (int) ($i->product?->pieces_per_package ?? 1),
+                'package_unit'            => $i->product?->consumableDetail?->package_unit,
                 'batch_id'                => $i->batch_id !== null ? (int) $i->batch_id : null,
                 'expected_zone'           => $i->expected_zone,
                 'actual_zone'             => $i->actual_zone,

@@ -3,6 +3,7 @@ import Modal from '../Modal';
 import { incidentReportsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { PICKING_REASONS } from '../../utils/incidentReasons';
+import { packageBreakdown } from '../../utils/packageFormat';
 import CameraCapture from '../CameraCapture';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 
@@ -146,6 +147,15 @@ export default function IncidentModal({ context, onFiled, onClose }) {
             onChange={(e) => setQuantity(e.target.value)}
             style={{ maxWidth: 160 }}
           />
+          {/* Display only. This quantity comes from the FIFO pick plan, already
+              in pieces and already correct — letting a picker retype it in packs
+              would add a second chance to get it wrong. Renders nothing when the
+              pick context carries no pack size. */}
+          {packageBreakdown(quantity, context.pieces_per_package, context.package_unit) && (
+            <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
+              = {packageBreakdown(quantity, context.pieces_per_package, context.package_unit)}
+            </span>
+          )}
         </div>
 
         <div className="ak-field">
