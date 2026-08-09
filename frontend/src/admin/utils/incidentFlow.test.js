@@ -24,8 +24,18 @@ describe('toBackendInstant', () => {
   // rejected every filing that carried a timestamp.
   it('turns a bare local wall-time into a UTC instant', () => {
     const out = toBackendInstant('2026-08-09T16:02');
-    expect(out).toBe(new Date('2026-08-09T16:02').toISOString());
+    // Zone-marked, which the bare input was not.
     expect(out).toMatch(/Z$/);
+    // …and it still means the same moment: read back in the device's zone it
+    // is the wall-time that was typed. Asserting against
+    // `new Date(input).toISOString()` would only recompute the implementation
+    // and would pass even if the conversion were wrong.
+    const back = new Date(out);
+    expect(back.getFullYear()).toBe(2026);
+    expect(back.getMonth()).toBe(7);   // August, zero-indexed
+    expect(back.getDate()).toBe(9);
+    expect(back.getHours()).toBe(16);
+    expect(back.getMinutes()).toBe(2);
   });
 
   it('returns null for an empty value rather than an Invalid Date', () => {
