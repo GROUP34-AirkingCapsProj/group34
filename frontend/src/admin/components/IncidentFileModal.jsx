@@ -62,6 +62,10 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
   const [issuanceSearch, setIssuanceSearch] = useState('');
   const [issuanceResults, setIssuanceResults] = useState([]);
   const [narrative, setNarrative] = useState('');
+  const [scanInput, setScanInput] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState(null);
+  const [scanHit, setScanHit] = useState(null);   // { matched_by, serial, batches }
   const photo = useIncidentPhoto();
   // Aliased so the dep arrays below get plain identifiers the exhaustive-deps
   // rule can follow — a `photo.clear` member expression makes it demand the
@@ -95,6 +99,10 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     setIssuanceSearch('');
     setIssuanceResults([]);
     setNarrative('');
+    setScanInput('');
+    setScanError(null);
+    setScanHit(null);
+    setScanning(false);
     clearPhoto();
     setCameraOpen(false);
     setSubmitting(false);
@@ -150,6 +158,13 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
   // A batch belongs to one product at one location — re-pick it if either changes.
   useEffect(() => { setBatchId(''); }, [productId, locationId]);
 
+  // The lookup is location-scoped, so its verdict expires the moment the
+  // location does: "Matched serial SN-4471 — In Stock" was a claim about the
+  // OLD location, and leaving it on screen would be misinformation on a
+  // compliance record. The product itself is kept — switching location to
+  // correct a mis-selection is a normal move and shouldn't wipe the picker.
+  useEffect(() => { setScanHit(null); setScanError(null); }, [locationId]);
+
   // ── issuance search (customer returns only) ────────────────────────────────
   useEffect(() => {
     if (!isOpen || !isReturn) return undefined;
@@ -190,6 +205,31 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
     && !!locationId
     && narrative.trim().length > 0
     && (!needsStock || (!!productId && Number(quantity) >= 1));
+
+  const runLookup = useCallback(async () => {
+    const code = scanInput.trim();
+    if (!code) return;
+    if (!locationId) { setScanError('Choose a location first.'); return; }
+
+    setScanning(true);
+    setScanError(null);
+    try {
+      const res = await incidentReportsAPI.lookup({ barcode: code, locationId });
+      const d = res?.data;
+      if (!d?.product?.product_id) throw new Error('No product matches that barcode at this location.');
+
+      // Scanning SETS the product; it does not lock it. A mislabelled barcode
+      // is itself a reportable incident (wrong_type), so the picker stays live.
+      setProductId(String(d.product.product_id));
+      setScanHit({ matched_by: d.matched_by, serial: d.serial, batches: d.batches || [] });
+      setScanError(null);
+    } catch (err) {
+      setScanHit(null);
+      setScanError(err?.message || 'No product matches that barcode at this location.');
+    } finally {
+      setScanning(false);
+    }
+  }, [scanInput, locationId]);
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -322,14 +362,60 @@ export default function IncidentFileModal({ isOpen, onClose, onFiled }) {
         {needsStock && (
           <>
             <div className="ak-field">
-              <label className="ak-label" htmlFor="file-incident-product">Product *</label>
+              <label className="ak-label" htmlFor="file-incident-scan">Product *</label>
+
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  id="file-incident-scan"
+                  className="ak-input"
+                  type="text"
+                  value={scanInput}
+                  onChange={(e) => setScanInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runLookup(); } }}
+                  placeholder="Scan or type a barcode / serial…"
+                  style={{ flex: '1 1 220px' }}
+                  disabled={submitting}
+                />
+                <button
+                  type="button"
+                  className="ak-btn"
+                  onClick={runLookup}
+                  disabled={submitting || scanning || !scanInput.trim()}
+                >
+                  {scanning ? 'Finding…' : 'Find'}
+                </button>
+              </div>
+
+              {scanError && (
+                <div className="ak-state ak-state--error" style={{ fontSize: '0.82rem', marginTop: '0.35rem' }}>
+                  {scanError} You can still choose the product below.
+                </div>
+              )}
+
+              {scanHit?.serial && (
+                <div className="ak-muted" style={{ fontSize: '0.82rem', marginTop: '0.35rem' }}>
+                  Matched serial <strong>{scanHit.serial.serial_number}</strong>
+                  {' — '}{scanHit.serial.status_label}
+                  {scanHit.serial.in_stock ? '' : ' (not in stock)'}
+                </div>
+              )}
+
+              {scanHit && !scanHit.serial && (
+                <div className="ak-muted" style={{ fontSize: '0.82rem', marginTop: '0.35rem' }}>
+                  Matched the product, but not a specific unit — choose a batch below if you know it.
+                </div>
+              )}
+
+              {/* Always present: theft and damage are often WHY there is no
+                  barcode left to scan, so a report must never be blocked by a
+                  missing label. */}
               <input
-                id="file-incident-product"
                 className="ak-input"
                 type="text"
                 value={productFilter}
                 onChange={(e) => setProductFilter(e.target.value)}
-                placeholder="Filter by name, code or barcode…"
+                placeholder="…or filter the list by name, code or barcode"
+                style={{ marginTop: '0.45rem' }}
               />
               <select
                 className="ak-select"
