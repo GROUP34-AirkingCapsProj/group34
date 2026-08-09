@@ -1,5 +1,6 @@
 import React from 'react';
 import QuantityInPieces from './QuantityInPieces';
+import BatchSelect from './BatchSelect';
 
 /**
  * Outcome step for the four write-off reasons (not found, theft, damaged,
@@ -34,37 +35,13 @@ export default function WriteOffStep({
         disabled={disabled}
       />
 
-      <div className="ak-field">
-        <label className="ak-label" htmlFor="incident-flow-batch">Batch (optional)</label>
-        <select
-          id="incident-flow-batch"
-          className="ak-select"
-          value={batchId}
-          disabled={disabled || !productId || batchesLoading}
-          onChange={(e) => setBatchId(e.target.value)}
-        >
-          <option value="">
-            {!productId
-              ? 'Choose a product first'
-              : batchesLoading
-                ? 'Loading batches…'
-                : 'Not batch-specific'}
-          </option>
-          {availableBatches.map((b) => (
-            <option key={b.batch_id} value={b.batch_id}>
-              #{b.batch_id}
-              {b.zone_label ? ` · ${b.zone_label}` : ''}
-              {b.received_at ? ` · rcvd ${b.received_at}` : ''}
-              {` · ${b.quantity_remaining} left`}
-            </option>
-          ))}
-        </select>
-        {productId && !batchesLoading && availableBatches.length === 0 && (
-          <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
-            No batches with stock remaining for this product at this location.
-          </span>
-        )}
-        {selectedBatch && (
+      <BatchSelect
+        label="Batch (optional)"
+        emptyLabel="Not batch-specific"
+        batchId={batchId} setBatchId={setBatchId}
+        availableBatches={availableBatches} batchesLoading={batchesLoading}
+        productId={productId} disabled={disabled}
+        note={selectedBatch && (
           <div
             className="ak-state ak-state--error"
             style={{ marginTop: '0.4rem', fontSize: '0.82rem', textAlign: 'left' }}
@@ -72,7 +49,7 @@ export default function WriteOffStep({
             {`Naming batch #${selectedBatch.batch_id} holds it out of FIFO picking until this report is reviewed — nobody can pick from it in the meantime. Leave it blank if the incident is not specific to one batch.`}
           </div>
         )}
-      </div>
+      />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { issuancesAPI } from '../../../services/api';
 import QuantityInPieces from './QuantityInPieces';
+import BatchSelect from './BatchSelect';
 
 const asArray = (res) => (Array.isArray(res?.data) ? res.data : []);
 
@@ -93,37 +94,13 @@ export default function RestockStep({
         )}
       </div>
 
-      <div className="ak-field">
-        <label className="ak-label" htmlFor="incident-flow-batch">Batch (optional)</label>
-        <select
-          id="incident-flow-batch"
-          className="ak-select"
-          value={batchId}
-          disabled={disabled || !productId || batchesLoading}
-          onChange={(e) => setBatchId(e.target.value)}
-        >
-          <option value="">
-            {!productId
-              ? 'Choose a product first'
-              : batchesLoading
-                ? 'Loading batches…'
-                : 'Not batch-specific'}
-          </option>
-          {availableBatches.map((b) => (
-            <option key={b.batch_id} value={b.batch_id}>
-              #{b.batch_id}
-              {b.zone_label ? ` · ${b.zone_label}` : ''}
-              {b.received_at ? ` · rcvd ${b.received_at}` : ''}
-              {` · ${b.quantity_remaining} left`}
-            </option>
-          ))}
-        </select>
-        {productId && !batchesLoading && availableBatches.length === 0 && (
-          <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
-            No batches with stock remaining for this product at this location.
-          </span>
-        )}
-        {selectedBatch && (
+      <BatchSelect
+        label="Batch (optional)"
+        emptyLabel="Not batch-specific"
+        batchId={batchId} setBatchId={setBatchId}
+        availableBatches={availableBatches} batchesLoading={batchesLoading}
+        productId={productId} disabled={disabled}
+        note={selectedBatch && (
           <div
             className="ak-state"
             style={{ marginTop: '0.4rem', fontSize: '0.82rem', textAlign: 'left' }}
@@ -131,7 +108,7 @@ export default function RestockStep({
             {`Resolving this report puts the returned stock back ONTO batch #${selectedBatch.batch_id}. Name the batch the item originally shipped from, or leave it blank if you are not sure.`}
           </div>
         )}
-      </div>
+      />
     </>
   );
 }

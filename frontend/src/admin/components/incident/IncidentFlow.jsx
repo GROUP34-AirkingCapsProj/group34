@@ -10,6 +10,8 @@ import WhereAndWhatStep from './steps/WhereAndWhatStep';
 import DetailsStep from './steps/DetailsStep';
 import WriteOffStep from './steps/WriteOffStep';
 import RestockStep from './steps/RestockStep';
+import RetypeStep from './steps/RetypeStep';
+import RelocateStep from './steps/RelocateStep';
 
 /** `datetime-local` wants LOCAL YYYY-MM-DDTHH:mm — toISOString() is UTC and would be off by the offset. */
 const toLocalInputValue = (date) => {
@@ -203,9 +205,12 @@ export default function IncidentFlow({ onCancel, onFiled }) {
         quantity: needsStock ? totalPieces : null,
         batch_id: needsStock && batchId ? Number(batchId) : null,
         // expected_zone is where the record SAYS the batch is; actual_zone is
-        // where it really is. Only a relocate asserts either.
-        expected_zone: outcome === 'relocate' ? (scanHit?.batches
-          ?.find((b) => String(b.batch_id) === String(batchId))?.zone_label ?? null) : null,
+        // where it really is. Only a relocate asserts either. Read from
+        // availableBatches, not scanHit: the latter is populated only when the
+        // user scanned, so a typed-in relocate reported no expected zone at all.
+        expected_zone: outcome === 'relocate'
+          ? (availableBatches.find((b) => String(b.batch_id) === String(batchId))?.zone_label ?? null)
+          : null,
         actual_zone: outcome === 'relocate' && actualZone.trim() ? actualZone.trim() : null,
         related_issuance_id: outcome === 'restock' && issuanceId ? Number(issuanceId) : null,
         reason,
@@ -224,7 +229,7 @@ export default function IncidentFlow({ onCancel, onFiled }) {
       setSubmitting(false);
     }
   }, [uploadPhotoIfAny, locationId, needsStock, productId, totalPieces, batchId, outcome,
-    actualZone, scanHit, issuanceId, reason, narrative, occurredAt, onFiled]);
+    actualZone, availableBatches, issuanceId, reason, narrative, occurredAt, onFiled]);
 
   const isLast = safeIndex === steps.length - 1;
 
@@ -286,7 +291,21 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             setLocationId={setLocationId}
           />
         )}
-        {/* STEP_KEYS.OUTCOME retype / relocate — Task 6 */}
+        {step === STEP_KEYS.OUTCOME && outcome === 'retype' && (
+          <RetypeStep
+            batchId={batchId} setBatchId={setBatchId}
+            availableBatches={availableBatches} batchesLoading={batchesLoading}
+            productId={productId} disabled={submitting}
+          />
+        )}
+        {step === STEP_KEYS.OUTCOME && outcome === 'relocate' && (
+          <RelocateStep
+            batchId={batchId} setBatchId={setBatchId}
+            availableBatches={availableBatches} batchesLoading={batchesLoading}
+            productId={productId} disabled={submitting}
+            actualZone={actualZone} setActualZone={setActualZone}
+          />
+        )}
         {step === STEP_KEYS.DETAILS && (
           <DetailsStep
             reason={reason}
