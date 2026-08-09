@@ -49,7 +49,15 @@ export const getApiBaseUrl = () => {
     if (!envPointsToLoopback) {
       return trimSlash(rawEnvApi);
     }
-    const proto = String(process.env.REACT_APP_API_HTTPS || '').toLowerCase() === 'true' ? 'https:' : 'http:';
+    // Follow the PAGE's protocol rather than hardcoding http:. An https:// page
+    // calling an http:// API is mixed content and the browser blocks it, which
+    // is what happens on a phone using the HTTPS vhost (needed for the camera:
+    // getUserMedia requires a secure context and localhost is exempt, LAN IPs
+    // are not). Following the page means one build serves both ports.
+    // REACT_APP_API_HTTPS still forces https: for an API that is HTTPS-only.
+    const proto = String(process.env.REACT_APP_API_HTTPS || '').toLowerCase() === 'true'
+      ? 'https:'
+      : (window.location.protocol === 'https:' ? 'https:' : 'http:');
     const portSuffix = (apiPort === '80' || apiPort === '') ? '' : `:${apiPort}`;
     return trimSlash(`${proto}//${h}${portSuffix}/api`);
   }
