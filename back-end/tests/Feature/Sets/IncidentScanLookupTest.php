@@ -242,6 +242,58 @@ class IncidentScanLookupTest extends SetTestCase
             ->assertForbidden();
     }
 
+    /**
+     * warehouse_personnel is role_id 4, and isCentralized() is roles [1,2,5], so
+     * this user is genuinely location-scoped — the 403 comes from the scope check
+     * and not from the role being unrestricted for some other reason.
+     */
+    public function test_the_lookup_refuses_a_location_outside_the_users_scope(): void
+    {
+        $a = $this->makeLocation('A');
+        $b = $this->makeLocation('B');
+        $wp = $this->makeUserAt($a, 'warehouse_personnel');   // scoped to A
+        $p  = $this->makeConsumable(barcode: 'BC-SCOPE-01');
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-SCOPE-01&location_id={$b->location_id}")
+            ->assertStatus(403)
+            ->assertJsonPath('success', false);
+    }
+
+    /**
+     * A receiving-label match is a legitimate SUCCESS — a consumable, or a unit
+     * whose serial row was purged. This is the path Task 1's shadowing fix
+     * protects, so a refactor that turned it back into a 404 must fail loudly.
+     */
+    public function test_the_endpoint_returns_a_receiving_barcode_match_as_a_product_hit(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 3, 'received_at' => now()]);
+
+        // Production writes the scanned value to BOTH receiving_details and
+        // item_serial; a receiving-barcode-only case is that row without a serial.
+        DB::table('receiving_details')->insert([
+            'receiving_id'    => $b->receiving_id,
+            'product_id'      => $p->product_id,
+            'quantity_amount' => 1,
+            'prod_price'      => $p->cost_price ?? 0,
+            'condition'       => 'Good',
+            'scanned_barcode' => 'RCV-EP-001',
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=RCV-EP-001&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.matched_by', 'receiving_barcode')
+            ->assertJsonPath('data.product.product_id', (int) $p->product_id)
+            ->assertJsonPath('data.serial', null);
+    }
+
     public function test_the_lookup_requires_a_barcode_and_location(): void
     {
         $loc = $this->makeLocation();
