@@ -304,4 +304,39 @@ class IncidentScanLookupTest extends SetTestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors(['barcode', 'location_id']);
     }
+
+    public function test_the_lookup_returns_pack_size_for_a_consumable(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable(barcode: 'BC-PACK-01');
+
+        // A consumable's pack size lives on installation_material_details;
+        // Product appends pieces_per_package as an accessor over it.
+        \App\Models\ConsumableDetail::updateOrCreate(
+            ['product_id' => $p->product_id],
+            ['pieces_per_package' => 10, 'package_unit' => 'Box']
+        );
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-PACK-01&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('data.product.pieces_per_package', 10)
+            ->assertJsonPath('data.product.package_unit', 'Box');
+    }
+
+    public function test_the_lookup_reports_no_pack_size_for_an_appliance(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeAppliance(barcode: 'BC-PACK-APP');
+
+        // An appliance has no installation_material_details row, so the accessor
+        // falls back to 1 — the client's signal to show a single pieces input.
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-PACK-APP&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('data.product.pieces_per_package', 1)
+            ->assertJsonPath('data.product.package_unit', null);
+    }
 }

@@ -150,10 +150,17 @@ class IncidentReportController extends Controller
             'data'    => [
                 'matched_by' => $hit['matched_by'],
                 'product'    => [
-                    'product_id'   => (int) $product->product_id,
-                    'product_name' => $product->product_name,
-                    'product_code' => $product->product_code,
-                    'barcode'      => $product->barcode,
+                    'product_id'         => (int) $product->product_id,
+                    'product_name'       => $product->product_name,
+                    'product_code'       => $product->product_code,
+                    'barcode'            => $product->barcode,
+                    // Packaging, so the form can offer pack + loose-pieces entry
+                    // instead of one unlabelled box. pieces_per_package is an
+                    // appended accessor on Product (defaults to 1); package_unit
+                    // lives on the consumable detail row and is null for
+                    // appliances, which is the client's "no pack size" signal.
+                    'pieces_per_package' => (int) ($product->pieces_per_package ?? 1),
+                    'package_unit'       => $product->consumableDetail?->package_unit,
                 ],
                 'serial' => $serial === null ? null : [
                     'serial_id'     => (int) $serial->serial_id,
