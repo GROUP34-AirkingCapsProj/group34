@@ -174,8 +174,17 @@ function cameraAccessErrorMessage(err) {
   const name = err?.name || '';
   const msg  = String(err?.message || err || '');
   if (/INSECURE_ORIGIN/i.test(msg)) return msg.replace(/^INSECURE_ORIGIN:\s*/i, '');
+  // getUserMedia reports an OS-level block and a browser-level block as the
+  // same NotAllowedError, so name both. On Windows a machine-wide "Camera
+  // access: off" (or "Let desktop apps access your camera") overrides the
+  // browser entirely, and someone hunting through site settings will not find
+  // it. Say "site permissions" rather than "the lock icon" — there is no lock
+  // on http://localhost, which is a valid secure context for the camera.
   if (name === 'NotAllowedError' || /denied|not allowed|Permission/i.test(msg))
-    return 'Camera permission denied. Click the lock icon in the address bar, set Camera to Allow, then reload.';
+    return 'Camera permission denied. Check this site\'s permissions in your browser '
+         + '(the icon at the left of the address bar → Camera → Allow, then reload), '
+         + 'and your operating system\'s camera privacy settings — on Windows, '
+         + 'Settings → Privacy & security → Camera, including "Let desktop apps access your camera".';
   if (name === 'NotFoundError' || /Could not start video source|DevicesNotFound/i.test(msg))
     return 'No camera found. Plug in a webcam and close other apps (Zoom, Teams, OBS) using it.';
   if (name === 'NotReadableError' || name === 'TrackStartError' || /Could not start|busy|in use/i.test(msg))

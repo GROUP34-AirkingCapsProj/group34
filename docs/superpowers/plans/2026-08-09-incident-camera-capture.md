@@ -7,7 +7,7 @@
 ### Automated results
 - **Backend:** `--filter=Incident` **57 passed**. Full suite **779 passed, 1 skipped, 10 failed** — exactly the 10 known pre-existing failures (9 `WarrantyClaimTest`, 1 `SerialRowMovementColumnsTest`), unchanged in count and identity.
 - **Frontend:** `npm run build` compiles; **no warning names any camera or incident file**. Direct `npx eslint` on all five touched files is exit 0 with **zero suppressions** — the `exhaustive-deps` disables added during Tasks 6/7 were removed by destructuring the hook's callbacks into plain identifiers.
-- **HTTPS serving verified:** `https://<host>/Airking_Inventory/frontend/build/` returns 200 and serves the current bundle hash.
+- **Serving verified:** the CRA dev server at `http://localhost:3000` returns 200, and its configured API (`REACT_APP_API_URL`) returns 401 — reachable and auth-gated.
 
 ### Known gaps recorded honestly
 - `airkingv5.sql` carries the `photo_source` line **on disk but uncommitted**, because that file has ~1900 lines of unrelated dev-data drift in the working tree. Imports are correct; the line should go in with whatever commit resolves that drift.
@@ -51,7 +51,14 @@ Use the **Bash tool** for the env-prefixed form; it does not work in PowerShell.
 
 **Git.** PowerShell here-strings break `git commit -m`. Use the Bash tool's heredoc form (`git commit -F - <<'EOF'`).
 
-**The camera needs a secure context.** `getUserMedia` requires `https://` or `localhost`. Apache serves this app at `http://<host>/` on port 80 and also listens on 443 with a self-signed cert, where the app lives at `https://<host>/Airking_Inventory/frontend/build/`. Manual camera testing must use the HTTPS URL. Over plain HTTP the component is *expected* to show the insecure-origin message — that is correct behaviour, not a bug.
+**The camera needs a secure context — and `http://localhost` IS one.** `getUserMedia` requires `https://` or `localhost`; browsers exempt localhost by design, which is exactly what `assertCameraEnvironment()` encodes. **Test at `http://localhost:3000`** (the CRA dev server). It compiles from source, so no rebuild step, and the API resolves via `.env`'s `REACT_APP_API_URL`.
+
+Two traps that cost real time on the first run:
+
+1. **Camera permission is per-ORIGIN, and the port is part of the origin.** A grant on `localhost:3000` does not apply to `localhost:5000`. A fresh origin with no grant returns `NotAllowedError` — identical to a hard denial — so "the barcode scanner works but the incident camera doesn't" almost always means *different port*, not a broken camera. Use one origin throughout.
+2. **Do not run a second server on another port during testing.** A stale production build on `:5000` alongside the dev server on `:3000` is how the above gets misdiagnosed.
+
+LAN/phone testing is a separate problem — see the "Phone testing is blocked" note in Task 9.
 
 **Existing state you will be replacing.** The two modals hold the photo in differently-named state today: `IncidentFileModal` uses `photo`/`setPhoto`, `picking/IncidentModal` uses `photoFile`/`setPhotoFile`. Both duplicate the same upload-then-guard block. Task 4 unifies them.
 
@@ -1092,13 +1099,17 @@ cd frontend && npm run build 2>&1 | grep -iE "CameraCapture|useIncidentPhoto|Inc
 
 - [x] **Step 3: Serve over HTTPS for the manual pass**
 
-The camera needs a secure context. Build and serve, then open **`https://<your-LAN-IP>/Airking_Inventory/frontend/build/`** and accept the self-signed certificate warning.
+Use the CRA dev server and **one origin only**:
 
 ```bash
-cd frontend && npm run demo
+cd frontend && npm start      # serves http://localhost:3000 from source
 ```
 
-`http://localhost:5000` will NOT give you a camera — that is expected and is itself checklist item 7.
+Open **`http://localhost:3000`**. localhost is a secure context, so the camera works. On the first Take photo the browser prompts for camera permission — grant it. If it was previously dismissed or denied for this origin, clear it at the icon left of the address bar → Camera → Allow → reload.
+
+Do not also run `npm run demo` on `:5000` while testing: two origins means two separate permission grants and two possibly-different builds.
+
+⚠️ **Phone testing is blocked and this checklist cannot cover it.** A phone cannot use localhost, and neither LAN option works today: over `http://<LAN-IP>/` there is no secure context so the camera is refused; over `https://<LAN-IP>/…` the camera works but the bundle resolves its API to `http://…`, which the browser blocks as mixed content — and port 443 currently serves XAMPP's default root rather than the Laravel `/api` rewrite. Enabling phone capture needs an Apache change (443 vhost given the same document root and `/api` routing as port 80) plus a rebuild with `REACT_APP_API_HTTPS=true`. Out of scope here; raise it with the user.
 
 - [x] **Step 4: Manual checklist**
 
@@ -1110,7 +1121,7 @@ At `/admin/incidents` → **Report Incident**:
 4. **Use photo** attaches it, showing a thumbnail and a green **Taken in-app** badge.
 5. **Remove** clears it and the Take photo / file row returns.
 6. Choosing a file instead shows a grey **Uploaded from device** badge.
-7. Over plain HTTP (`http://localhost:5000`), Take photo shows the "requires https:// or http://localhost" message and the file input still works.
+7. Deny/dismiss the browser's camera prompt once, then press Take photo again — the error names both the browser's site permission and the OS camera privacy setting, and the file input still works.
 8. Deny the camera permission → the error message appears and the form is still submittable via file upload.
 9. **The camera light goes off** after: Use photo, Cancel, closing the modal, and navigating away. This is the one people forget.
 10. File the incident, then open it in the resolve drawer — the photo loads and carries the matching badge.
