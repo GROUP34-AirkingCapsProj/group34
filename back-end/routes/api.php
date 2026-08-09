@@ -565,6 +565,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::middleware('permission:incident_reports,read')
          ->get('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'index']);
+    // Declared BEFORE /incident-reports/{id}/photo so `lookup` is never
+    // captured as an {id}.
+    Route::middleware('permission:incident_reports,create')
+         ->get('/incident-reports/lookup', [\App\Http\Controllers\Api\IncidentReportController::class, 'lookup']);
     Route::middleware('permission:incident_reports,create')
          ->post('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'store']);
     Route::middleware(['permission:incident_reports,create', 'throttle:30,1'])
