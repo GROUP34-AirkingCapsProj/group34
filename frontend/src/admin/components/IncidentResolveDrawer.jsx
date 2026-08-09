@@ -4,6 +4,7 @@ import { incidentReportsAPI, productsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import { reasonLabel, reasonMeta } from '../utils/incidentReasons';
+import { formatPieces } from '../utils/packageFormat';
 
 /**
  * Resolve drawer for a single incident report. Renders as a Modal (this
@@ -97,6 +98,9 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
   if (!incident) return null;
 
   const outcome = reasonMeta(reason).outcome;
+  // "25 pcs · 2 Box + 5 pcs", or just "25 pcs" without a pack size. A reviewer
+  // approving a permanent write-off must see which unit they are approving.
+  const qtyLabel = formatPieces(incident.quantity, incident.pieces_per_package, incident.package_unit);
   const confirmDisabled =
     submitting !== null ||
     (outcome === 'retype' && !correctedProductId);
@@ -127,7 +131,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
     if (outcome === 'writeoff') {
       const ok = await confirmAction({
         title: 'Confirm this incident?',
-        text: `This writes stock off — it posts a deduction adjustment for ${incident.quantity} unit(s) of "${incident.product_name}". This cannot be undone from here.`,
+        text: `This writes stock off — it posts a deduction adjustment for ${qtyLabel} of "${incident.product_name}". This cannot be undone from here.`,
         confirmText: 'Confirm & write off',
         tone: 'danger',
       });
@@ -143,7 +147,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
         : "the location's unbatched stock, where it will be picked first";
       const ok = await confirmAction({
         title: 'Put this stock back?',
-        text: `This returns ${incident.quantity} unit(s) of "${incident.product_name}" to ${where} and makes them available again.`,
+        text: `This returns ${qtyLabel} of "${incident.product_name}" to ${where} and makes them available again.`,
         confirmText: 'Confirm & restock',
       });
       if (!ok) return;
@@ -170,7 +174,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
           </div>
           <div>
             <div className="ak-label">Quantity</div>
-            <div>{incident.quantity}</div>
+            <div>{qtyLabel}</div>
           </div>
           <div>
             <div className="ak-label">Source</div>
@@ -265,7 +269,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
             {outcome === 'restock' && (
               <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
-                Confirming puts <strong>{incident.quantity}</strong> unit(s) back into stock
+                Confirming puts <strong>{qtyLabel}</strong> back into stock
                 {incident.batch_id
                   ? <> on <strong>batch #{incident.batch_id}</strong></>
                   : <> as <strong>unbatched stock</strong>, which will be picked first</>}, and

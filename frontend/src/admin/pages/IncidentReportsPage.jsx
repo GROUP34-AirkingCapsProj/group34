@@ -6,6 +6,7 @@ import IncidentFileModal from '../components/IncidentFileModal';
 import { incidentReportsAPI, locationsAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { INCIDENT_REASONS, reasonBadge, reasonLabel } from '../utils/incidentReasons';
+import { packageBreakdown } from '../utils/packageFormat';
 
 /**
  * Report + triage surface for incident reports. Incidents arrive two ways: as a
@@ -177,7 +178,16 @@ const IncidentReportsPage = () => {
                         </span>
                       </td>
                       <td>{i.product_name || '—'}</td>
-                      <td>{i.quantity}</td>
+                      {/* quantity is PIECES. packageBreakdown returns null when
+                          the product has no pack size, so appliances read "3 pcs". */}
+                      <td>
+                        {i.quantity} pcs
+                        {packageBreakdown(i.quantity, i.pieces_per_package, i.package_unit) && (
+                          <span className="ak-muted" style={{ marginLeft: 4, fontSize: '0.8rem' }}>
+                            · {packageBreakdown(i.quantity, i.pieces_per_package, i.package_unit)}
+                          </span>
+                        )}
+                      </td>
                       <td className="ak-mono">{i.expected_zone || '—'} → {i.actual_zone || '—'}</td>
                       {/* A standalone report has no source transaction, so the
                           old `{type} #{id}` would render "standalone #". */}
