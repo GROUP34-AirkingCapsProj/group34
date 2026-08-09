@@ -275,4 +275,48 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'narrative'   => 'Writing rows would break the read-only guarantee.',
         ])->assertForbidden();
     }
+
+    /**
+     * The app runs in UTC but devices do not. A phone in UTC+8 sending its own
+     * wall-clock time as a bare "Y-m-d H:i:s" looked eight hours in the future
+     * and every filing 422'd on before_or_equal:now. The client now sends an
+     * ISO 8601 instant WITH its offset, which compares correctly from any zone.
+     */
+    public function test_an_occurrence_from_a_non_utc_device_is_accepted(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $deviceNow = now()->setTimezone('Asia/Manila')->toIso8601String();
+
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'theft',
+            'quantity'    => 1,
+            'narrative'   => 'Filed from a phone in UTC+8.',
+            'occurred_at' => $deviceNow,
+        ])->assertCreated();
+    }
+
+    public function test_a_genuinely_future_occurrence_is_still_rejected_with_an_offset(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        // Same ISO-with-offset shape, but actually in the future — the guard
+        // must survive the timezone fix rather than being loosened by it.
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'theft',
+            'quantity'    => 1,
+            'narrative'   => 'Tomorrow, allegedly.',
+            'occurred_at' => now()->addDay()->setTimezone('Asia/Manila')->toIso8601String(),
+        ])->assertStatus(422)->assertJsonValidationErrors(['occurred_at']);
+    }
 }
