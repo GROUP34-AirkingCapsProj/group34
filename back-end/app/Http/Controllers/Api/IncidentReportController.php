@@ -63,7 +63,11 @@ class IncidentReportController extends Controller
                 // so this is an authenticated API route, not a /storage/ URL.
                 'photo_url'               => $i->photo_path ? "/incident-reports/{$i->incident_id}/photo" : null,
                 'photo_source'            => $i->photo_source,
-                'occurred_at'             => optional($i->occurred_at)->toDateTimeString(),
+                // ISO 8601 WITH the offset, not toDateTimeString(). The app runs
+                // in UTC; a bare "Y-m-d H:i:s" is parsed by `new Date()` as the
+                // viewer's local time, so a UTC 08:02 would display as 08:02 in
+                // Manila instead of 16:02. The offset makes it unambiguous.
+                'occurred_at'             => optional($i->occurred_at)->toIso8601String(),
                 'reported_by'             => (int) $i->reported_by,
                 'reported_by_name'        => trim(($i->reportedBy?->first_name ?? '') . ' ' . ($i->reportedBy?->last_name ?? '')),
                 'reporter_incident_count' => (int) ($counts[(int) $i->reported_by] ?? 0),

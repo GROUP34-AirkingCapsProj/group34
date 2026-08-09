@@ -36,9 +36,16 @@ const toLocalInputValue = (date) => {
     + `T${p(date.getHours())}:${p(date.getMinutes())}`;
 };
 
-/** The backend validates `before_or_equal:now` at second precision, so send "Y-m-d H:i:s". */
+/**
+ * `datetime-local` yields bare local wall-time ("2026-08-09T16:02") with no zone.
+ * Sending that verbatim made the server — which runs in UTC — read a Manila
+ * "now" as eight hours in the future, so `before_or_equal:now` rejected every
+ * filing with a timestamp. `new Date(...)` interprets the bare string in the
+ * device's zone, and toISOString() turns it into an unambiguous UTC instant the
+ * server can compare correctly from any timezone.
+ */
 const toBackendDateTime = (localValue) =>
-  (localValue ? `${localValue.replace('T', ' ')}:00` : null);
+  (localValue ? new Date(localValue).toISOString() : null);
 
 const asArray = (res) => (Array.isArray(res?.data) ? res.data : []);
 
