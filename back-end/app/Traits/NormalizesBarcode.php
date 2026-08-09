@@ -110,6 +110,12 @@ trait NormalizesBarcode
      *   3. receiving_details.scanned_barcode — the label applied at PO receiving,
      *      which is not stored on the product row
      *
+     * Do NOT relax the in-stock filter in pass 1: IssuanceScanController and
+     * FifoPickingService depend on it, and it is what stops FIFO enforcement
+     * accepting a unit that is not actually issuable. Callers that must match a
+     * unit in any state (incident reports) use resolveScanAnyState() instead,
+     * which wraps this method rather than loosening it.
+     *
      * @return array{product: ?\App\Models\Product, serial: ?\App\Models\ItemSerial, matched_by: ?string}
      */
     protected function resolveScan(string $rawBarcode, int $locationId): array
@@ -171,12 +177,28 @@ trait NormalizesBarcode
      * Incidents need the looser match because a filer reporting theft, damage or
      * a return is usually reporting a unit that is precisely NOT in stock.
      *
+     * A fallback hit reports matched_by 'serial_any_state', never 'serial', so a
+     * caller can distinguish "in stock and issuable" from "found in some unknown
+     * state" without re-querying status_id.
+     *
      * @return array{product: ?\App\Models\Product, serial: ?\App\Models\ItemSerial, matched_by: ?string}
      */
     protected function resolveScanAnyState(string $rawBarcode, int $locationId): array
     {
         $strict = $this->resolveScan($rawBarcode, $locationId);
-        if ($strict['product'] !== null) {
+
+        // Only these two strict outcomes are trustworthy enough to skip the
+        // any-state pass. receiving_barcode is NOT: InventoryScanTransactionController
+        // writes the same scanned value to receiving_details.scanned_barcode AND to
+        // item_serial.serial_number, so every serialised unit's serial is also a
+        // receiving barcode — letting that pass win would shadow the serial lookup
+        // for precisely the not-in-stock units incidents are about.
+        //
+        // The product_barcode pass must keep its precedence: the same controller
+        // creates an item_serial row for consumables with serial_number set to the
+        // product barcode, so trying serials first would turn every consumable
+        // barcode scan into a bogus "specific unit" match.
+        if ($strict['matched_by'] === 'serial' || $strict['matched_by'] === 'product_barcode') {
             return $strict;
         }
 
@@ -186,20 +208,24 @@ trait NormalizesBarcode
                 continue;
             }
 
-            // Location-scoped, but with no status or serial_type filter.
+            // Location-scoped, but with no status or serial_type filter. Ordered
+            // so the newest row wins: there is no unique key on
+            // (location_id, serial_number), and with serial_type unfiltered a
+            // location can hold both a 'received' and a 'transferred' row.
             $serial = ItemSerial::where('location_id', $locationId)
                 ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($norm)])
+                ->orderByDesc('serial_id')
                 ->first();
 
             if ($serial) {
                 return [
                     'product'    => Product::with('applianceDetail.brand')->find($serial->product_id),
                     'serial'     => $serial,
-                    'matched_by' => 'serial',
+                    'matched_by' => 'serial_any_state',
                 ];
             }
         }
 
-        return $strict;   // a clean miss, in the shape callers already expect
+        return $strict;   // the receiving_barcode product match, or a clean miss
     }
 }
