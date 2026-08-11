@@ -10,48 +10,26 @@
 
 export const INCIDENT_REASONS = [
   {
-    value: 'not_found',
-    label: 'Not found',
+    value: 'missing',
+    label: 'Missing',
     pickerLabel: "I can't find it on the shelf",
-    help: 'Filing this opens an investigation record. The missing count is visible to reviewers — this is a tracked report, not a silent skip.',
+    help: 'Filing this opens an investigation record. Approving it moves the stock out of active inventory and into a Missing hold — it stays countable for shrinkage reporting.',
     group: 'Missing stock',
     badge: 'ak-badge--red',
     affectsStock: true,
-    outcome: 'writeoff',
+    outcome: 'missing',
     duringPick: true,
   },
   {
-    value: 'theft',
-    label: 'Theft',
-    pickerLabel: 'It was taken',
-    help: 'Recorded separately from "not found" — this is the number shrinkage reporting works from.',
-    group: 'Missing stock',
-    badge: 'ak-badge--red',
-    affectsStock: true,
-    outcome: 'writeoff',
-    duringPick: false,
-  },
-  {
-    value: 'damaged',
-    label: 'Damaged',
-    pickerLabel: "It's there but damaged",
-    help: 'The stock exists but cannot be sold.',
+    value: 'defective',
+    label: 'Defective',
+    pickerLabel: "It's there but it's damaged or faulty",
+    help: 'The stock exists but cannot be sold. Approving it moves the stock into a Defective hold, awaiting a decision to return it to the supplier or scrap it.',
     group: 'Damage',
     badge: 'ak-badge--amber',
     affectsStock: true,
-    outcome: 'writeoff',
+    outcome: 'defective',
     duringPick: true,
-  },
-  {
-    value: 'delivery_damage',
-    label: 'Damaged in delivery',
-    pickerLabel: 'Damaged on the way to the customer',
-    help: 'Damaged in handling or in transit rather than in storage.',
-    group: 'Damage',
-    badge: 'ak-badge--amber',
-    affectsStock: true,
-    outcome: 'writeoff',
-    duringPick: false,
   },
   {
     value: 'wrong_type',
@@ -68,7 +46,7 @@ export const INCIDENT_REASONS = [
     value: 'zone_mismatch',
     label: 'Zone mismatch',
     pickerLabel: "It's here, just in a different zone",
-    help: 'Nothing is missing — the batch record points at the wrong zone.',
+    help: 'Nothing is missing and nothing moves in the system — the record is right and the item is physically in the wrong place. Reporting it tells someone to go move it back.',
     group: 'Wrong item',
     badge: 'ak-badge--gray',
     affectsStock: true,
@@ -76,14 +54,14 @@ export const INCIDENT_REASONS = [
     duringPick: true,
   },
   {
-    value: 'customer_return',
-    label: 'Customer return',
-    pickerLabel: 'Customer returned it',
-    help: 'The wrong item was delivered and came back. Resolving puts the stock back on its original batch.',
+    value: 'return',
+    label: 'Return',
+    pickerLabel: 'Something is being returned',
+    help: 'Stock coming back from a customer, or going back to a supplier. It is held for inspection first — nothing becomes sellable again until someone confirms it.',
     group: 'Return',
     badge: 'ak-badge--green',
     affectsStock: true,
-    outcome: 'restock',
+    outcome: 'return',
     duringPick: false,
   },
   {
@@ -97,6 +75,27 @@ export const INCIDENT_REASONS = [
     outcome: 'none',
     duringPick: false,
   },
+];
+
+/** Missing: why the reporter thinks it is gone. Mirrors IncidentReport::SUSPECTED_CAUSES. */
+export const SUSPECTED_CAUSES = [
+  { value: 'theft', label: 'Taken — suspected theft' },
+  { value: 'misplaced', label: 'Misplaced somewhere in the building' },
+  { value: 'unknown', label: "Don't know" },
+];
+
+/** Defective: where the fault came from. Mirrors IncidentReport::ROOT_CAUSES. */
+export const ROOT_CAUSES = [
+  { value: 'supplier', label: 'Arrived faulty from the supplier' },
+  { value: 'internal', label: 'Damaged here — handling or storage' },
+  { value: 'delivery', label: 'Damaged on the way to the customer' },
+  { value: 'other', label: 'Something else' },
+];
+
+/** The two directions a return can travel. Mirrors IncidentReport::RETURN_DIRECTIONS. */
+export const RETURN_DIRECTIONS = [
+  { value: 'from_customer', label: 'Coming back from a customer' },
+  { value: 'to_supplier', label: 'Going back to the supplier' },
 ];
 
 const BY_VALUE = INCIDENT_REASONS.reduce((acc, r) => { acc[r.value] = r; return acc; }, {});

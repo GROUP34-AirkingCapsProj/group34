@@ -40,7 +40,7 @@ import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 
 export default function IncidentModal({ context, onFiled, onClose }) {
   const isOpen = !!context;
-  const [reason, setReason] = useState('not_found');
+  const [reason, setReason] = useState('missing');
   const [quantity, setQuantity] = useState(1);
   const [narrative, setNarrative] = useState('');
   const photo = useIncidentPhoto();
@@ -53,7 +53,7 @@ export default function IncidentModal({ context, onFiled, onClose }) {
 
   useEffect(() => {
     if (!isOpen) return;
-    setReason('not_found');
+    setReason('missing');
     setQuantity(Math.max(1, Number(context?.quantity) || 1));
     setNarrative('');
     clearPhoto();
