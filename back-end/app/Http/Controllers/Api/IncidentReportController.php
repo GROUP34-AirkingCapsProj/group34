@@ -318,31 +318,8 @@ class IncidentReportController extends Controller
         return Storage::disk('local')->response($incident->photo_path);
     }
 
-    public function resolve(Request $request, int $id): JsonResponse
-    {
-        $validated = $request->validate([
-            'action'               => ['required', Rule::in(['confirm', 'dismiss'])],
-            'corrected_product_id' => 'nullable|integer|exists:products,product_id',
-            'resolution_note'      => 'nullable|string|max:2000',
-        ]);
-
-        $incident = IncidentReport::findOrFail($id);
-
-        try {
-            $resolved = app(IncidentService::class)->resolve(
-                $incident,
-                $validated['action'],
-                $validated,
-                (int) Auth::id()
-            );
-        } catch (\RuntimeException | \InvalidArgumentException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Incident reviewed.',
-            'data'    => $resolved,
-        ]);
-    }
+    // resolve() is gone. A report is no longer approved and then inspected: the
+    // inspector submits findings first and the admin's decision comes last, so
+    // both halves live on IncidentInspectionController — POST /inspection and
+    // POST /decide.
 }

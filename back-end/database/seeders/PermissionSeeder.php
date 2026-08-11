@@ -85,11 +85,16 @@ class PermissionSeeder extends Seeder
             'incident_reports' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
                 'create'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
+                // Examining the goods, attaching the evidence and recording an
+                // outcome per item. Separate from `resolve` on purpose: the
+                // client's form carries two signature lines precisely so one
+                // person cannot both examine the goods and approve their
+                // write-off. `auditor` stays read-only.
+                'inspect' => ['admin', 'inventory_analyst', 'branch_manager'],
+                // Confirming or rejecting a submitted inspection — the moment
+                // stock actually moves. Retired with the stock-holds work:
+                // `dispose`, which the inspection replaces.
                 'resolve' => ['admin', 'inventory_analyst'],
-                // Deciding where held stock goes — restock it, send it back to
-                // the supplier, scrap it — is the same authority as approving
-                // the incident that held it. `auditor` stays read-only.
-                'dispose' => ['admin', 'inventory_analyst'],
             ],
             'location_based_inventory' => [
                 'read'    => ['admin'],
