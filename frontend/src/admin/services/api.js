@@ -1449,6 +1449,26 @@ export const productSetsAPI = {
 /* ======================
    INCIDENT REPORTS API
 ====================== */
+/**
+ * Stock held out of active inventory by a resolved incident — missing,
+ * defective or returned — and the inspection that decides where it goes.
+ *
+ * Each row carries `allowed_dispositions`, which the server derives from the
+ * hold's condition. Drive the UI from that rather than re-encoding the rule
+ * (a defective hold can never be restocked; a missing one is terminal).
+ */
+export const stockHoldsAPI = {
+  list: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/stock-holds?${query}` : '/stock-holds');
+  },
+  dispose: async (holdId, body) =>
+    apiRequest(`/stock-holds/${holdId}/dispose`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+};
+
 export const incidentReportsAPI = {
   list: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
