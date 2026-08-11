@@ -41,6 +41,7 @@ class NavBundleSeeder extends Seeder
             ['Stock Transfers',      '/admin/transfers',            'INVENTORY INTELLIGENCE',  'transfer',           'stock_transfers',         'read'],
             ['Interbranch Transfers','/admin/ist',                  'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
             ['Incident Reports',     '/admin/incidents',            'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
+            ['Held Stock',           '/admin/held-stock',           'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
 
             // SALES & LOGISTICS
             ['Transactions',         '/admin/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'sales_recording',     'read'],
