@@ -72,7 +72,7 @@ class DispatchFifoEnforcementTest extends TransferTestCase
         app(IncidentService::class)->file([
             'source_type' => 'transfer', 'source_id' => (int) $transfer->transfer_id,
             'location_id' => $src->location_id, 'product_id' => $p->product_id,
-            'batch_id'    => $old->batch_id, 'reason' => IncidentReport::REASON_NOT_FOUND,
+            'batch_id'    => $old->batch_id, 'reason' => IncidentReport::REASON_MISSING,
             'quantity'    => 5, 'narrative' => 'Zone 1 bin is empty.',
         ], (int) $user->user_id);
 

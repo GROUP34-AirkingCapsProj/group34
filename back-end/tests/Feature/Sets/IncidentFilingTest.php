@@ -24,7 +24,7 @@ class IncidentFilingTest extends SetTestCase
             'batch_id'      => $b->batch_id,
             'expected_zone' => 'Zone 1',
             'actual_zone'   => 'Zone 2',
-            'reason'        => IncidentReport::REASON_NOT_FOUND,
+            'reason'        => IncidentReport::REASON_MISSING,
             'quantity'      => 5,
             'narrative'     => 'Bin empty, nothing on the shelf.',
         ], (int) $user->user_id);
@@ -55,7 +55,7 @@ class IncidentFilingTest extends SetTestCase
         $svc->file([
             'source_type' => 'issuance', 'source_id' => 1,
             'location_id' => $loc->location_id, 'product_id' => $p->product_id,
-            'batch_id'    => $old->batch_id, 'reason' => IncidentReport::REASON_NOT_FOUND,
+            'batch_id'    => $old->batch_id, 'reason' => IncidentReport::REASON_MISSING,
             'quantity'    => 5, 'narrative' => 'Not on the shelf.',
         ], (int) $user->user_id);
 
@@ -77,7 +77,7 @@ class IncidentFilingTest extends SetTestCase
         app(IncidentService::class)->file([
             'source_type' => 'issuance', 'source_id' => 1,
             'location_id' => $a->location_id, 'product_id' => $p->product_id,
-            'batch_id'    => $batch->batch_id, 'reason' => IncidentReport::REASON_DAMAGED,
+            'batch_id'    => $batch->batch_id, 'reason' => IncidentReport::REASON_DEFECTIVE,
             'quantity'    => 1, 'narrative' => 'Crushed.',
         ], (int) $user->user_id);
 
@@ -111,7 +111,7 @@ class IncidentFilingTest extends SetTestCase
         app(IncidentService::class)->file([
             'source_type' => 'issuance', 'source_id' => 1,
             'location_id' => $loc->location_id, 'product_id' => $p->product_id,
-            'reason'      => IncidentReport::REASON_NOT_FOUND, 'quantity' => 1,
+            'reason'      => IncidentReport::REASON_MISSING, 'quantity' => 1,
             'narrative'   => 'Whole product missing.',
         ], (int) $user->user_id);
 
@@ -128,7 +128,7 @@ class IncidentFilingTest extends SetTestCase
         $incident = app(IncidentService::class)->file([
             'source_type' => 'issuance', 'source_id' => 1,
             'location_id' => $loc->location_id, 'product_id' => $p->product_id,
-            'batch_id'    => $b->batch_id, 'reason' => IncidentReport::REASON_DAMAGED,
+            'batch_id'    => $b->batch_id, 'reason' => IncidentReport::REASON_DEFECTIVE,
             'quantity'    => 1, 'narrative' => 'Crushed.',
         ], (int) $user->user_id);
 
