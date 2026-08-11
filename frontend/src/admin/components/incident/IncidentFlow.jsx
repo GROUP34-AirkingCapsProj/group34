@@ -8,8 +8,9 @@ import { piecesToPackages } from '../../utils/packageFormat';
 import WhatHappenedStep from './steps/WhatHappenedStep';
 import WhereAndWhatStep from './steps/WhereAndWhatStep';
 import DetailsStep from './steps/DetailsStep';
-import WriteOffStep from './steps/WriteOffStep';
-import RestockStep from './steps/RestockStep';
+import MissingStep from './steps/MissingStep';
+import DefectiveStep from './steps/DefectiveStep';
+import ReturnStep from './steps/ReturnStep';
 import RetypeStep from './steps/RetypeStep';
 import RelocateStep from './steps/RelocateStep';
 
@@ -43,7 +44,7 @@ const STEP_TITLES = {
  */
 export default function IncidentFlow({ onCancel, onFiled }) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [reason, setReason] = useState('not_found');
+  const [reason, setReason] = useState('missing');
   const [occurredAt, setOccurredAt] = useState(() => toLocalInputValue(new Date()));
   const [maxOccurredAt] = useState(() => toLocalInputValue(new Date()));
   const [locationId, setLocationId] = useState('');
@@ -54,6 +55,13 @@ export default function IncidentFlow({ onCancel, onFiled }) {
   const [batchId, setBatchId] = useState('');
   const [actualZone, setActualZone] = useState('');
   const [issuanceId, setIssuanceId] = useState('');
+  // Cause fields. Each belongs to exactly one outcome and is nulled for the
+  // others when the payload is assembled.
+  const [lastKnownLocation, setLastKnownLocation] = useState('');
+  const [suspectedCause, setSuspectedCause] = useState('');
+  const [rootCause, setRootCause] = useState('');
+  const [returnDirection, setReturnDirection] = useState('');
+  const [returnReason, setReturnReason] = useState('');
   const [narrative, setNarrative] = useState('');
   const [scanHit, setScanHit] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -124,12 +132,19 @@ export default function IncidentFlow({ onCancel, onFiled }) {
       setBatchId('');
       setActualZone('');
       setScanHit(null);
+      // The cause fields go with them: a suspected cause left over from a
+      // half-filled `missing` would otherwise ride along on an `other` payload.
+      setLastKnownLocation('');
+      setSuspectedCause('');
+      setRootCause('');
+      setReturnDirection('');
+      setReturnReason('');
     }
   }, [needsStock]);
 
-  // The issuance link only means anything on a restock.
+  // The issuance link only means anything on a return.
   useEffect(() => {
-    if (outcome !== 'restock') setIssuanceId('');
+    if (outcome !== 'return') setIssuanceId('');
   }, [outcome]);
 
   const selectedProduct = products.find((p) => String(p.product_id) === String(productId));
@@ -182,7 +197,9 @@ export default function IncidentFlow({ onCancel, onFiled }) {
     if (step === STEP_KEYS.WHAT) return !!reason && !!occurredAt;
     if (step === STEP_KEYS.WHERE) return !!locationId && (!needsStock || !!productId);
     if (step === STEP_KEYS.OUTCOME) {
-      if (outcome === 'writeoff' || outcome === 'restock') return totalPieces >= 1;
+      if (outcome === 'missing')   return totalPieces >= 1 && !!suspectedCause;
+      if (outcome === 'defective') return totalPieces >= 1 && !!rootCause;
+      if (outcome === 'return')    return totalPieces >= 1 && !!returnDirection;
       // RetypeResolution refuses to resolve an incident with no batch, so a
       // wrong-type report without one could never be actioned.
       if (outcome === 'retype') return !!batchId;
@@ -212,7 +229,15 @@ export default function IncidentFlow({ onCancel, onFiled }) {
           ? (availableBatches.find((b) => String(b.batch_id) === String(batchId))?.zone_label ?? null)
           : null,
         actual_zone: outcome === 'relocate' && actualZone.trim() ? actualZone.trim() : null,
-        related_issuance_id: outcome === 'restock' && issuanceId ? Number(issuanceId) : null,
+        related_issuance_id: outcome === 'return' && issuanceId ? Number(issuanceId) : null,
+        // Each cause field belongs to exactly one outcome. Nulling the others
+        // here — rather than relying on the reset effects — is what guarantees a
+        // half-filled step the user backed out of cannot reach the API.
+        last_known_location: outcome === 'missing' ? (lastKnownLocation.trim() || null) : null,
+        suspected_cause: outcome === 'missing' ? suspectedCause : null,
+        root_cause: outcome === 'defective' ? rootCause : null,
+        return_direction: outcome === 'return' ? returnDirection : null,
+        return_reason: outcome === 'return' ? (returnReason.trim() || null) : null,
         reason,
         narrative: narrative.trim(),
         occurred_at: toBackendInstant(occurredAt),
@@ -229,7 +254,8 @@ export default function IncidentFlow({ onCancel, onFiled }) {
       setSubmitting(false);
     }
   }, [uploadPhotoIfAny, locationId, needsStock, productId, totalPieces, batchId, outcome,
-    actualZone, availableBatches, issuanceId, reason, narrative, occurredAt, onFiled]);
+    actualZone, availableBatches, issuanceId, reason, narrative, occurredAt, onFiled,
+    lastKnownLocation, suspectedCause, rootCause, returnDirection, returnReason]);
 
   const isLast = safeIndex === steps.length - 1;
 
@@ -265,8 +291,8 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             disabled={submitting}
           />
         )}
-        {step === STEP_KEYS.OUTCOME && outcome === 'writeoff' && (
-          <WriteOffStep
+        {step === STEP_KEYS.OUTCOME && outcome === 'missing' && (
+          <MissingStep
             packs={packs} setPacks={setPacks}
             loosePieces={loosePieces} setLoosePieces={setLoosePieces}
             quantity={quantity} setQuantity={setQuantity}
@@ -275,10 +301,25 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             batchId={batchId} setBatchId={setBatchId}
             availableBatches={availableBatches} batchesLoading={batchesLoading}
             productId={productId} disabled={submitting}
+            lastKnownLocation={lastKnownLocation} setLastKnownLocation={setLastKnownLocation}
+            suspectedCause={suspectedCause} setSuspectedCause={setSuspectedCause}
           />
         )}
-        {step === STEP_KEYS.OUTCOME && outcome === 'restock' && (
-          <RestockStep
+        {step === STEP_KEYS.OUTCOME && outcome === 'defective' && (
+          <DefectiveStep
+            packs={packs} setPacks={setPacks}
+            loosePieces={loosePieces} setLoosePieces={setLoosePieces}
+            quantity={quantity} setQuantity={setQuantity}
+            usesPacks={usesPacks} piecesPerPackage={piecesPerPackage}
+            packageUnit={packageUnit} totalPieces={totalPieces}
+            batchId={batchId} setBatchId={setBatchId}
+            availableBatches={availableBatches} batchesLoading={batchesLoading}
+            productId={productId} disabled={submitting}
+            rootCause={rootCause} setRootCause={setRootCause}
+          />
+        )}
+        {step === STEP_KEYS.OUTCOME && outcome === 'return' && (
+          <ReturnStep
             packs={packs} setPacks={setPacks}
             loosePieces={loosePieces} setLoosePieces={setLoosePieces}
             quantity={quantity} setQuantity={setQuantity}
@@ -288,6 +329,8 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             availableBatches={availableBatches} batchesLoading={batchesLoading}
             productId={productId} disabled={submitting}
             issuanceId={issuanceId} setIssuanceId={setIssuanceId}
+            returnDirection={returnDirection} setReturnDirection={setReturnDirection}
+            returnReason={returnReason} setReturnReason={setReturnReason}
             setLocationId={setLocationId}
           />
         )}
@@ -313,7 +356,7 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             locationName={locations.find((l) => String(l.location_id ?? l.id) === String(locationId))?.location_name}
             productName={scannedProduct?.product_name || selectedProduct?.product_name}
             totalPieces={totalPieces}
-            showQuantity={outcome === 'writeoff' || outcome === 'restock'}
+            showQuantity={outcome === 'missing' || outcome === 'defective' || outcome === 'return'}
             narrative={narrative} setNarrative={setNarrative}
             photo={photo} cameraOpen={cameraOpen} setCameraOpen={setCameraOpen}
             disabled={submitting}

@@ -29,16 +29,12 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
             'batch_id'    => $b->batch_id,
-            'reason'      => IncidentReport::REASON_MISSING,
-            'quantity'    => 4,
-            'narrative'   => 'Four units gone overnight, side door was unlatched.',
-            'occurred_at' => now()->subDay(),
+            'reason'          => IncidentReport::REASON_MISSING,
+            'suspected_cause' => 'theft',
+            'quantity'        => 4,
+            'narrative'       => 'Four units gone overnight, side door was unlatched.',
+            'occurred_at'     => now()->subDay(),
         ], (int) $wp->user_id);
-
-        // IncidentService::file() does not yet carry the cause fields through
-        // from its payload, so the column is set directly here to model what a
-        // real suspected-theft row looks like when resolving it.
-        $incident->update(['suspected_cause' => 'theft']);
 
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
@@ -78,12 +74,10 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'product_id'  => $p->product_id,
             'batch_id'    => $b->batch_id,
             'reason'      => IncidentReport::REASON_DEFECTIVE,
+            'root_cause'  => 'delivery',
             'quantity'    => 2,
             'narrative'   => 'Crushed in the van, customer refused it.',
         ], (int) $wp->user_id);
-
-        // See the note above: file() does not persist the cause fields yet.
-        $incident->update(['root_cause' => 'delivery']);
 
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
@@ -193,6 +187,117 @@ class IncidentStandaloneFilingTest extends SetTestCase
 
         $res->assertCreated();
         $this->assertStringStartsWith('INC-', $res->json('data.incident_number'));
+    }
+
+    /**
+     * The whole point of collapsing eight reasons into six is that the nuance
+     * moved into columns. That only works if the columns survive the trip:
+     * IncidentService::file() builds an EXPLICIT column list, so a field added
+     * to $fillable and to the validator alone is accepted with a 201 and then
+     * silently dropped — which looks exactly like success from the client.
+     */
+    public function test_a_suspected_cause_survives_the_round_trip_through_the_endpoint(): void
+    {
+        $loc = $this->makeLocation();
+        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'         => 'standalone',
+            'location_id'         => $loc->location_id,
+            'product_id'          => $p->product_id,
+            'reason'              => 'missing',
+            'quantity'            => 2,
+            'narrative'           => 'Two units gone from the aisle, side door was unlatched.',
+            'last_known_location' => 'Zone A-12',
+            'suspected_cause'     => 'theft',
+        ]);
+        $res->assertCreated();
+
+        $incidentId = (int) $res->json('data.incident_id');
+
+        // The stored row, not the response echo — the response is built from the
+        // model instance and would report the value even if the column did not
+        // take it.
+        $this->assertDatabaseHas('incident_reports', [
+            'incident_id'         => $incidentId,
+            'reason'              => 'missing',
+            'suspected_cause'     => 'theft',
+            'last_known_location' => 'Zone A-12',
+        ]);
+
+        // …and it is readable again, so the list and the resolve drawer can say
+        // "Missing — suspected theft" rather than a bare "Missing".
+        $row = collect($this->actingAs($ia, 'sanctum')->getJson('/api/incident-reports?status=open')->assertOk()->json('data'))
+            ->firstWhere('incident_id', $incidentId);
+
+        $this->assertNotNull($row);
+        $this->assertSame('theft', $row['suspected_cause']);
+        $this->assertSame('Zone A-12', $row['last_known_location']);
+        $this->assertNull($row['root_cause'], 'a missing report carries no root cause');
+    }
+
+    public function test_a_return_carries_its_direction_and_a_defective_its_root_cause(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $defective = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type' => 'standalone',
+            'location_id' => $loc->location_id,
+            'product_id'  => $p->product_id,
+            'reason'      => 'defective',
+            'quantity'    => 1,
+            'narrative'   => 'Compressor housing cracked in the rack.',
+            'root_cause'  => 'internal',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('incident_reports', [
+            'incident_id' => (int) $defective->json('data.incident_id'),
+            'root_cause'  => 'internal',
+        ]);
+
+        $return = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'      => 'standalone',
+            'location_id'      => $loc->location_id,
+            'product_id'       => $p->product_id,
+            'reason'           => 'return',
+            'quantity'         => 3,
+            'narrative'        => 'Customer sent three back, wrong model on the delivery.',
+            'return_direction' => 'from_customer',
+            'return_reason'    => 'wrong model delivered',
+        ])->assertCreated();
+
+        // to_supplier vs from_customer are opposite movements; storing the wrong
+        // one (or none) is what the single `customer_return` reason used to do.
+        $this->assertDatabaseHas('incident_reports', [
+            'incident_id'      => (int) $return->json('data.incident_id'),
+            'return_direction' => 'from_customer',
+            'return_reason'    => 'wrong model delivered',
+        ]);
+    }
+
+    public function test_a_cause_outside_the_allowed_set_is_rejected(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        // The columns are plain strings, so the validator is the only thing
+        // keeping a typo out of shrinkage reporting.
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'      => 'standalone',
+            'location_id'      => $loc->location_id,
+            'product_id'       => $p->product_id,
+            'reason'           => 'missing',
+            'quantity'         => 1,
+            'narrative'        => 'Filed with a cause nobody defined.',
+            'suspected_cause'  => 'stolen',            // not one of SUSPECTED_CAUSES
+            'return_direction' => 'sideways',
+        ])->assertStatus(422)
+          ->assertJsonValidationErrors(['suspected_cause', 'return_direction']);
     }
 
     public function test_the_endpoint_rejects_an_occurrence_in_the_future(): void

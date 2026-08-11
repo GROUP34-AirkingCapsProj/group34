@@ -63,6 +63,16 @@ class IncidentService
             // Client-asserted: both a camera capture and a gallery pick arrive
             // as identical uploads, so this is recorded, never trusted.
             'photo_source'        => $data['photo_source'] ?? null,
+            // The cause fields: the nuance that used to be encoded in the reason
+            // itself back when there were eight of them. Listed explicitly
+            // because this array — not $fillable — is what decides which columns
+            // a filing writes; adding them to $fillable alone drops them.
+            'last_known_location' => $data['last_known_location'] ?? null,
+            'suspected_cause'     => $data['suspected_cause'] ?? null,
+            'root_cause'          => $data['root_cause'] ?? null,
+            'return_direction'    => $data['return_direction'] ?? null,
+            'return_reason'       => $data['return_reason'] ?? null,
+            'related_transfer_id' => isset($data['related_transfer_id']) ? (int) $data['related_transfer_id'] : null,
             'reported_by'         => $reportedBy,
             'status_id'           => IncidentReport::statusId('Open'),
         ]));

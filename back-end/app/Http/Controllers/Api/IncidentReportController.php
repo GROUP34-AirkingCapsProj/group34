@@ -68,6 +68,15 @@ class IncidentReportController extends Controller
                 'expected_zone'           => $i->expected_zone,
                 'actual_zone'             => $i->actual_zone,
                 'reason'                  => $i->reason,
+                // The cause fields carry what the collapsed reasons used to say.
+                // Without these the list and the resolve drawer can only show
+                // "Missing", not "Missing — suspected theft".
+                'last_known_location'     => $i->last_known_location,
+                'suspected_cause'         => $i->suspected_cause,
+                'root_cause'              => $i->root_cause,
+                'return_direction'        => $i->return_direction,
+                'return_reason'           => $i->return_reason,
+                'related_transfer_id'     => $i->related_transfer_id !== null ? (int) $i->related_transfer_id : null,
                 'quantity'                => (int) $i->quantity,
                 'narrative'               => $i->narrative,
                 'photo_path'              => $i->photo_path,
@@ -228,6 +237,16 @@ class IncidentReportController extends Controller
             // photo with no stated source is the pre-camera client's normal
             // request, and stores a null source rather than being rejected.
             'photo_source'        => ['nullable', Rule::in(IncidentReport::PHOTO_SOURCES)],
+            // Cause fields. Each belongs to one reason, but none is required
+            // here: the guided flow enforces "a missing report needs a suspected
+            // cause" at the step it is asked on, and a picking-modal filing has
+            // no step to ask it in at all.
+            'last_known_location' => 'nullable|string|max:150',
+            'suspected_cause'     => ['nullable', Rule::in(IncidentReport::SUSPECTED_CAUSES)],
+            'root_cause'          => ['nullable', Rule::in(IncidentReport::ROOT_CAUSES)],
+            'return_direction'    => ['nullable', Rule::in(IncidentReport::RETURN_DIRECTIONS)],
+            'return_reason'       => 'nullable|string|max:150',
+            'related_transfer_id' => 'nullable|integer',
         ]);
 
         $incident = app(IncidentService::class)->file($validated, (int) Auth::id());

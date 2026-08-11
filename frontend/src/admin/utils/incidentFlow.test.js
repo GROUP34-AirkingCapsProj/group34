@@ -2,9 +2,14 @@ import { stepsFor, toBackendInstant, totalPiecesFrom, STEP_KEYS } from './incide
 
 describe('stepsFor', () => {
   it('gives a stock-affecting reason four steps, outcome step third', () => {
-    expect(stepsFor('theft')).toEqual([
+    expect(stepsFor('missing')).toEqual([
       STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.DETAILS,
     ]);
+  });
+
+  it('gives each of the five stock-affecting types an outcome step', () => {
+    ['missing', 'defective', 'return', 'wrong_type', 'zone_mismatch']
+      .forEach((r) => expect(stepsFor(r)).toHaveLength(4));
   });
 
   it('skips the outcome step for `other`, which moves no stock', () => {
