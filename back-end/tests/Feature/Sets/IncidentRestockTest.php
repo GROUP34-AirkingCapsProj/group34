@@ -75,7 +75,11 @@ class IncidentRestockTest extends SetTestCase
              ])->assertOk();
 
         $fresh = $incident->fresh();
-        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $fresh->status_id);
+        // Approving a return does not finish it: the stock is held and nobody
+        // has inspected it yet, so "Resolved" would claim a decision that has
+        // not been made. It becomes Resolved when the hold is disposed, which
+        // is asserted at the end of this test.
+        $this->assertSame(IncidentReport::statusId('Awaiting Inspection'), (int) $fresh->status_id);
         // Reversal: a return posts no Adjustment — nothing was lost or damaged,
         // so the hold row, not an adjustment, is the record.
         $this->assertNull($fresh->adjustment_id);
@@ -102,6 +106,10 @@ class IncidentRestockTest extends SetTestCase
 
         $this->assertSame(StockHold::STATUS_RELEASED, $hold->fresh()->status);
         $this->assertSame(StockHold::DISPOSITION_RESTOCKED, $hold->fresh()->disposition);
+
+        // …and only NOW is the incident finished. Disposing the last hold is
+        // what carries it from Awaiting Inspection to Resolved.
+        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $incident->fresh()->status_id);
     }
 
     /**

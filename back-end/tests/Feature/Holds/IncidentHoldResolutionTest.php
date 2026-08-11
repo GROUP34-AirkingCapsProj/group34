@@ -129,4 +129,62 @@ class IncidentHoldResolutionTest extends TestCase
         $this->assertSame(0, StockHold::where('incident_id', $incident->incident_id)->count());
         $this->assertSame(IncidentReport::statusId('Resolved'), (int) $incident->refresh()->status_id);
     }
+/**
+     * Approving is not the end of the story for stock that still needs looking
+     * at. Reading "Resolved" while the units sit un-inspected claims a decision
+     * nobody has made.
+     */
+    public function test_a_defective_incident_awaits_inspection_rather_than_resolving(): void
+    {
+        ["incident" => $incident] = $this->fileIncident("defective");
+
+        app(IncidentService::class)->resolve($incident, "confirm", [], $this->reviewerId());
+
+        $this->assertSame(
+            IncidentReport::statusId("Awaiting Inspection"),
+            (int) $incident->refresh()->status_id
+        );
+    }
+
+    /** A loss has nothing to inspect, so it finishes on approval. */
+    public function test_a_missing_incident_resolves_immediately(): void
+    {
+        ["incident" => $incident] = $this->fileIncident("missing");
+
+        app(IncidentService::class)->resolve($incident, "confirm", [], $this->reviewerId());
+
+        $this->assertSame(
+            IncidentReport::statusId("Resolved"),
+            (int) $incident->refresh()->status_id
+        );
+    }
+
+    /** Disposing the last hold is what finally completes the incident. */
+    public function test_disposing_the_last_hold_resolves_the_incident(): void
+    {
+        ["incident" => $incident] = $this->fileIncident("return");
+        app(IncidentService::class)->resolve($incident, "confirm", [], $this->reviewerId());
+
+        $hold = StockHold::where("incident_id", $incident->incident_id)->firstOrFail();
+        app(\App\Services\StockHoldService::class)
+            ->dispose($hold, StockHold::DISPOSITION_SCRAPPED, null, $this->reviewerId());
+
+        $this->assertSame(
+            IncidentReport::statusId("Resolved"),
+            (int) $incident->refresh()->status_id
+        );
+    }
+
+    /** Zone mismatch creates no hold, so it resolves on the spot. */
+    public function test_zone_mismatch_resolves_immediately(): void
+    {
+        ["incident" => $incident] = $this->fileIncident("zone_mismatch");
+
+        app(IncidentService::class)->resolve($incident, "confirm", [], $this->reviewerId());
+
+        $this->assertSame(
+            IncidentReport::statusId("Resolved"),
+            (int) $incident->refresh()->status_id
+        );
+    }
 }

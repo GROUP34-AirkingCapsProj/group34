@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\IncidentReport;
+use App\Models\StockHold;
 use App\Services\Incidents\AcknowledgeResolution;
 use App\Services\Incidents\DefectiveResolution;
 use App\Services\Incidents\MissingResolution;
@@ -152,7 +153,7 @@ class IncidentService
             $posted = $strategy->apply($locked, $options, $reviewedBy);
 
             $locked->update([
-                'status_id'       => IncidentReport::statusId('Resolved'),
+                'status_id'       => $this->statusAfterApply($locked),
                 'reviewed_by'     => $reviewedBy,
                 'reviewed_at'     => now(),
                 'adjustment_id'   => $posted->adjustmentId,
@@ -162,6 +163,29 @@ class IncidentService
 
             return $locked->fresh();
         });
+    }
+
+    /**
+     * Approving is not always the end of the story.
+     *
+     * A defective or returned quantity lands in a hold that still needs an
+     * inspection before anyone knows where it goes — so the incident is
+     * "Awaiting Inspection", not "Resolved". Reading Resolved while the units
+     * sit un-inspected in a corner claims a decision nobody has made.
+     *
+     * Derived from the holds themselves rather than a second reason map: if the
+     * approval left behind a hold that CAN be disposed, an inspection is owed.
+     * A missing hold is terminal, so a loss still resolves immediately, and so
+     * does anything that created no hold at all (re-type, zone mismatch, other).
+     */
+    private function statusAfterApply(IncidentReport $incident): int
+    {
+        $awaiting = StockHold::where('incident_id', $incident->incident_id)
+            ->held()
+            ->get()
+            ->contains(fn (StockHold $h) => ! empty(StockHold::ALLOWED_DISPOSITIONS[$h->condition] ?? []));
+
+        return IncidentReport::statusId($awaiting ? 'Awaiting Inspection' : 'Resolved');
     }
 
     /**

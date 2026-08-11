@@ -24,5 +24,14 @@ class StockHoldStatusSeeder extends Seeder
                 ['is_active' => 1, 'updated_at' => now(), 'created_at' => now()],
             );
         }
+
+        // An incident whose stock is held pending an inspection is NOT resolved
+        // — nobody has decided anything yet. Reading "Resolved" on the triage
+        // list while the units sit un-inspected in a corner overstates what
+        // approval actually did.
+        DB::table('status_lookup')->updateOrInsert(
+            ['status_category' => 'incident', 'status_name' => 'Awaiting Inspection'],
+            ['is_active' => 1, 'updated_at' => now(), 'created_at' => now()],
+        );
     }
 }
