@@ -212,6 +212,35 @@ From `2026-08-11-incident-stock-holds-design.md`, now built and on the branch:
 
 This is a reshape, not a teardown. The service, the statuses, the type rework and the guided flow all survive.
 
+## Implementation constraints
+
+Three rules that are not negotiable during build, each because it has already gone wrong here.
+
+### 1. Confirmation is one transaction
+
+The admin's confirm touches `incident_reports.status_id`, every `incident_items.status`, `inventory.quantity_on_hand`, `inventory_batches.quantity_remaining` and `item_serial.status_id`. All of it goes inside a single `DB::transaction`, with the incident row locked (`lockForUpdate`) and its status re-checked **under the lock** — the pattern `IncidentService::resolve` already uses, which exists because two reviewers confirming at once would otherwise both pass the guard and double-book the movement.
+
+A partial confirm is the worst outcome available: stock deducted with the report still unconfirmed, or a report marked Complete with stock untouched. Neither is detectable without a physical count.
+
+### 2. Statuses by string code, never by id
+
+Install-specific ids differ between databases — Missing/Defective/Returned are **50/51/52** in `airkingv5` but **1779/1780/1781** in `airkingV5_test`. A hardcoded literal passes locally and fails under PHPUnit, or worse, silently writes the wrong status.
+
+- `incident_items.status`, `incident_items.outcome` and `incident_evidence.requirement` are **plain string columns** with class constants — no lookup table, no FK, no id resolution. This is the preferred shape for anything new.
+- `incident_reports.status_id` stays an FK into `status_lookup`, for consistency with every other module, and is resolved **by name** through `IncidentReport::statusId('…')`. Never by literal.
+- The same applies to `item_serial.status_id` via `StockHold::inventoryStatusId('…')`. Note `ItemSerial::IN_STOCK_STATUS_ID = 26` is an existing hardcoded literal in the codebase — it happens to match in both databases today, but do not copy the pattern, and do not rely on it in new code.
+
+### 3. Navigation takes two edits
+
+The sidebar is registered in two unrelated places, and doing only one leaves the page reachable by URL but invisible:
+
+| File | Supplies |
+|---|---|
+| `NavBundleSeeder.php` + `frontend/src/admin/utils/navBundles.js` | the permission **gate** — `buildSidebar` looks a bundle up by `routePath` to decide whether an item is allowed |
+| `adminMenuSections` in `frontend/src/admin/components/Sidebar.jsx` | the menu **item** itself, as a hardcoded list |
+
+This already cost a round trip on the Held Stock page. Verify by loading the app, not by checking the database.
+
 ## Testing
 
 | Test | Why |
