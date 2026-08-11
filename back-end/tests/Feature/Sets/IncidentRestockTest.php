@@ -136,13 +136,15 @@ class IncidentRestockTest extends SetTestCase
     /**
      * Was `test_a_return_with_no_batch_lands_in_the_legacy_batch`.
      *
-     * The legacy-batch landing is gone: StockHoldService::returnToStock only
-     * touches a batch when the hold carries one, so a batchless return restocks
-     * the location and nothing else. The batch-count assertion below is what
-     * makes that visible — if a legacy batch is reinstated later, this test
-     * fails loudly rather than silently passing either way.
+     * The legacy-batch landing is preserved: a return filed without a batch
+     * lands in the location's catch-all batch (receiving_id IS NULL), whose
+     * null received_at sorts it first in FIFO — goods of unknown provenance get
+     * picked before traceable stock, which is what you want for a return.
+     *
+     * Restocking the location total alone would leave stock that the location
+     * can see and picking can never reach.
      */
-    public function test_a_batchless_return_restocks_the_location_only(): void
+    public function test_a_batchless_return_lands_in_the_legacy_batch(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
@@ -167,14 +169,15 @@ class IncidentRestockTest extends SetTestCase
         $this->assertSame(2, (int) $inv->quantity_on_hand);
         $this->assertSame(2, (int) $inv->available_quantity);
 
-        // KNOWN GAP, pinned deliberately: the quantity is on the location but on
-        // no batch, so FIFO picking cannot reach it. The old code parked it in
-        // the legacy (null-receiving_id) catch-all batch; returnToStock does not.
-        $this->assertSame(
-            0,
-            (int) InventoryBatch::where('product_id', $p->product_id)->where('location_id', $loc->location_id)->count(),
-            'no batch is created for a batchless restock — see the note above'
-        );
+        // The units are reachable by FIFO, not stranded on the location total.
+        $legacy = InventoryBatch::where('product_id', $p->product_id)
+            ->where('location_id', $loc->location_id)
+            ->whereNull('receiving_id')
+            ->first();
+
+        $this->assertNotNull($legacy, 'a batchless restock must land in the legacy catch-all batch');
+        $this->assertSame(2, (int) $legacy->quantity_remaining);
+        $this->assertNull($legacy->received_at, 'a null received_at is what sorts it first in FIFO');
     }
 
     public function test_a_returned_serial_is_held_before_it_goes_back_in_stock(): void
