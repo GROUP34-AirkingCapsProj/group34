@@ -33,6 +33,8 @@ Every item below has already gone wrong in this module.
 - Frontend baseline: **3 failing suites** — `App.test.jsx`, `navConfigureMap`, `InventoryManagement`.
 - Verify frontend with `npm run build` **and** `npx eslint` on each changed file.
 - **~20 files are dirty** in the working tree, including `airkingv5.sql`. Stage only what each task names. Never `git add -A`.
+- **Never name a test helper `seed()`.** It collides with `Illuminate\Foundation\Testing\TestCase::seed()` and is a hard PHP fatal that aborts the *entire* suite before one test runs.
+- **`incident_items` has no `location_id`** — location lives on the parent report. `ScopesToUserLocation` filters a `location_id` column and therefore cannot be used on it. Anything needing location scoping joins `incident_reports` and filters `ir.location_id`, as `IncidentItem::quarantinedBatchIds()` does. This matters in Task 8, where the old `StockHoldController` relied on `StockHold::forUser()`.
 - PowerShell here-strings break `git commit -m`; use Bash `git commit -F - <<'EOF' … EOF`.
 - Do **not** push.
 
@@ -734,7 +736,12 @@ class IncidentItemServiceTest extends TestCase
         return (int) \App\Models\User::query()->firstOrFail()->getKey();
     }
 
-    private function seed(int $onHand = 100): array
+    /**
+     * NOT named seed(): that collides with Illuminate's TestCase::seed() and is
+     * a hard PHP fatal ("Access level must be public") which aborts the ENTIRE
+     * suite before a single test runs — not just this file.
+     */
+    private function makeScenario(int $onHand = 100): array
     {
         $location = \App\Models\Location::query()->firstOrFail();
         $product  = \App\Models\Product::query()->firstOrFail();
@@ -766,7 +773,7 @@ class IncidentItemServiceTest extends TestCase
     /** THE core guarantee: filing quarantines but does not deduct. */
     public function test_quarantine_does_not_change_the_stock_count(): void
     {
-        ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->seed(100);
+        ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario(100);
 
         app(IncidentItemService::class)->quarantine($incident, [[
             'product_id' => $p->product_id, 'batch_id' => $batch->batch_id, 'quantity' => 10,
@@ -781,7 +788,7 @@ class IncidentItemServiceTest extends TestCase
     /** …but it IS unpickable. */
     public function test_a_quarantined_batch_is_excluded_from_picking(): void
     {
-        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->seed(100);
+        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario(100);
 
         app(IncidentItemService::class)->quarantine($incident, [[
             'product_id' => $p->product_id, 'batch_id' => $batch->batch_id, 'quantity' => 10,
@@ -796,7 +803,7 @@ class IncidentItemServiceTest extends TestCase
     /** One report, two units, two different endings. */
     public function test_each_item_gets_its_own_outcome(): void
     {
-        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->seed(100);
+        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario(100);
         $svc = app(IncidentItemService::class);
 
         $svc->quarantine($incident, [
@@ -817,7 +824,7 @@ class IncidentItemServiceTest extends TestCase
     /** Confirmation is where stock finally moves — one restock, one scrap. */
     public function test_applying_outcomes_moves_stock_exactly_once(): void
     {
-        ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->seed(100);
+        ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario(100);
         $svc = app(IncidentItemService::class);
 
         $svc->quarantine($incident, [[
@@ -835,7 +842,7 @@ class IncidentItemServiceTest extends TestCase
 
     public function test_a_restock_outcome_leaves_the_count_untouched(): void
     {
-        ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->seed(100);
+        ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario(100);
         $svc = app(IncidentItemService::class);
 
         $svc->quarantine($incident, [[
@@ -858,7 +865,7 @@ class IncidentItemServiceTest extends TestCase
 
     public function test_outcomes_cannot_be_applied_twice(): void
     {
-        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->seed(100);
+        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario(100);
         $svc = app(IncidentItemService::class);
 
         $svc->quarantine($incident, [[
@@ -874,7 +881,7 @@ class IncidentItemServiceTest extends TestCase
 
     public function test_an_item_without_an_outcome_blocks_confirmation(): void
     {
-        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->seed(100);
+        ['batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario(100);
         $svc = app(IncidentItemService::class);
 
         $svc->quarantine($incident, [[

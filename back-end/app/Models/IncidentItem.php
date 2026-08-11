@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\ScopesToUserLocation;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +19,14 @@ use Illuminate\Support\Facades\DB;
 class IncidentItem extends Model
 {
     use Auditable;
+
+    /**
+     * NOTE: no ScopesToUserLocation. That trait filters a `location_id` COLUMN,
+     * and an item has none — location lives on the parent report, because an
+     * item cannot be somewhere its incident isn't. Anything needing location
+     * scoping joins `incident_reports` and filters `ir.location_id`, the way
+     * quarantinedBatchIds() below does.
+     */
 
     public const STATUS_QUARANTINED = 'quarantined';
     public const STATUS_AVAILABLE   = 'available';
