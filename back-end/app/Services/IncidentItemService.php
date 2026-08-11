@@ -146,6 +146,36 @@ class IncidentItemService
         });
     }
 
+    /**
+     * Let the goods go back to the picking pool with no stock movement at all.
+     *
+     * This is a DISMISSAL — the report was raised in error, so there is nothing
+     * to apply. Nothing was ever deducted, so releasing is purely a status
+     * change; it deliberately ignores whatever outcome an inspector may have
+     * recorded, because dismissing says that inspection described nothing real.
+     * It lives here rather than in IncidentService so incident_items still has
+     * exactly one writer.
+     */
+    public function release(IncidentReport $incident): void
+    {
+        DB::transaction(function () use ($incident) {
+            $items = IncidentItem::where('incident_id', $incident->incident_id)
+                ->where('status', IncidentItem::STATUS_QUARANTINED)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($items as $item) {
+                $item->update(['status' => IncidentItem::STATUS_AVAILABLE]);
+
+                $this->stampSerial(
+                    $item->serial_id,
+                    self::SERIAL_STATUS_NAME[IncidentItem::STATUS_AVAILABLE],
+                    makeReceivable: true,
+                );
+            }
+        });
+    }
+
     private function deduct(IncidentItem $item): void
     {
         $quantity = (int) $item->quantity;
