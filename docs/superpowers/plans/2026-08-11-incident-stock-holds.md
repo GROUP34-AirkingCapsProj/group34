@@ -1862,11 +1862,21 @@ php artisan db:seed --class=PermissionSeeder
 php artisan db:seed --class=PermissionSeeder --env=testing
 ```
 
-If the app caches permissions (check for a `permissionCache` or `config:cache` step in the README), clear it:
+**`PermissionSeeder` alone is NOT enough — verified in Task 9.** It only inserts rows into `permissions`; the per-role grants live in `role_permissions` and are written by a separate `RolePermissionsSeeder`, which rebuilds every grant from the same matrix. Run both, on both databases, then clear caches:
 
 ```bash
+php artisan db:seed --class=PermissionSeeder --force
+php artisan db:seed --class=RolePermissionsSeeder --force
+DB_DATABASE=airkingV5_test php artisan db:seed --class=PermissionSeeder --force
+DB_DATABASE=airkingV5_test php artisan db:seed --class=RolePermissionsSeeder --force
 php artisan cache:clear && php artisan config:clear
 ```
+
+`RolePermissionsSeeder` rebuilds *all* grants from the matrix, so before running it, confirm nobody has tuned grants away from the matrix via the RBAC console — otherwise those edits are silently reverted. Task 9 diffed both databases and found 0 divergent rows, but that may not hold on another machine.
+
+**This failure mode hides from an admin.** `PermissionResolver::isAdmin()` passes structurally, so an admin sees the disposition buttons work while every other role gets a 403. Test the frontend as an `inventory_analyst`, not as an admin.
+
+**`Sanctum::actingAs()` 500s in this app** — it installs a Mockery mock of `PersonalAccessToken` that passes the `instanceof` guard in `App\Http\Middleware\ExtendSanctumTokenExpiration` and then dies calling `save()` on it. The house convention is `$this->actingAs($user, 'sanctum')`. Use that.
 
 - [ ] **Step 6: Run the endpoint tests**
 
