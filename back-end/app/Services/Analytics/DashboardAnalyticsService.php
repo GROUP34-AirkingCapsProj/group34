@@ -447,8 +447,8 @@ class DashboardAnalyticsService
         $pendingCount = (int) DB::table('incident_reports as ir')
             ->where('ir.status_id', \App\Models\IncidentReport::statusId('Open'))
             ->whereIn('ir.reason', [
-                \App\Models\IncidentReport::REASON_DAMAGED,
-                \App\Models\IncidentReport::REASON_NOT_FOUND,
+                \App\Models\IncidentReport::REASON_DEFECTIVE,
+                \App\Models\IncidentReport::REASON_MISSING,
             ])
             ->when($locationId, fn (Builder $q) => $q->where('ir.location_id', $locationId))
             ->count();
@@ -474,7 +474,7 @@ class DashboardAnalyticsService
     }
 
     /**
-     * Confirmed write-offs plus still-open damaged/not_found reports.
+     * Confirmed write-offs plus still-open defective/missing reports.
      *
      * Open rows show the quantity and value that WOULD be lost if confirmed, so
      * reviewers can see what is at stake, but they are excluded from the header
@@ -495,8 +495,8 @@ class DashboardAnalyticsService
             ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
             ->leftJoin('category_lookup as c', 'c.category_id', '=', 'p.category_id')
             ->whereIn('ir.reason', [
-                \App\Models\IncidentReport::REASON_DAMAGED,
-                \App\Models\IncidentReport::REASON_NOT_FOUND,
+                \App\Models\IncidentReport::REASON_DEFECTIVE,
+                \App\Models\IncidentReport::REASON_MISSING,
             ])
             ->where(function ($q) {
                 $q->whereNotNull('ir.adjustment_id')
@@ -518,7 +518,7 @@ class DashboardAnalyticsService
                 'itemName'     => $r->product_name,
                 'branchName'   => $r->location_name,
                 'itemCategory' => $r->category_name,
-                'lossType'     => $r->reason === \App\Models\IncidentReport::REASON_DAMAGED ? 'damaged' : 'stolen',
+                'lossType'     => $r->reason === \App\Models\IncidentReport::REASON_DEFECTIVE ? 'damaged' : 'stolen',
                 'qty'          => (int) $r->qty,
                 'lossValue'    => round((float) $r->loss_value, 2),
                 'reason'       => $r->narrative ?? 'Incident report',
