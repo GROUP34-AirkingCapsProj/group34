@@ -25,8 +25,13 @@ class StockHoldService
      * Clamped to what the batch (or the location, with no batch) actually
      * holds — holding more than exists would manufacture units that no batch
      * ever lost, which is the bug the write-off path had to fix twice.
+     *
+     * No actor argument: a hold is only ever created by resolving an incident,
+     * so who put the stock here is `incident.reviewed_by` and who reported it
+     * is `incident.reported_by`. A `held_by` column would duplicate one of
+     * them and could disagree with it.
      */
-    public function hold(IncidentReport $incident, string $condition, int $quantity, int $actorId): StockHold
+    public function hold(IncidentReport $incident, string $condition, int $quantity): StockHold
     {
         if (! in_array($condition, StockHold::CONDITIONS, true)) {
             throw new \InvalidArgumentException("Unknown hold condition: {$condition}");
