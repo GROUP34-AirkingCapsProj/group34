@@ -79,10 +79,17 @@ class IncidentService
         ]));
     }
 
-    /** Batch ids at a location currently held out of FIFO by an open incident. */
+    /**
+     * Batch ids at a location currently held out of FIFO by an unfinished
+     * incident — Open, or approved and still awaiting its inspection.
+     *
+     * Deliberately `unsettled()` rather than `open()`: stock under
+     * investigation must stay unpickable until somebody has actually decided
+     * what happened to it.
+     */
     public function excludedBatchIds(int $locationId): array
     {
-        return IncidentReport::open()
+        return IncidentReport::unsettled()
             ->where('location_id', $locationId)
             ->whereNotNull('batch_id')
             ->pluck('batch_id')

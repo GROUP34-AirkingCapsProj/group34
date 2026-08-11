@@ -114,6 +114,22 @@ class IncidentReport extends Model
         return $query->where('status_id', self::statusId('Open'));
     }
 
+    /**
+     * Filed but not finished — still Open, or approved and awaiting an
+     * inspection that has not happened yet.
+     *
+     * This, not scopeOpen, is what FIFO exclusion must use. `Open` alone stopped
+     * matching the moment Awaiting Inspection existed, which quietly returned
+     * stock under investigation to the picking pool.
+     */
+    public function scopeUnsettled(Builder $query): Builder
+    {
+        return $query->whereIn('status_id', [
+            self::statusId('Open'),
+            self::statusId('Awaiting Inspection'),
+        ]);
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
