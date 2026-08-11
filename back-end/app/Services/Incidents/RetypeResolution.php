@@ -30,7 +30,7 @@ class RetypeResolution implements ResolvesIncident
     {
         $correctedProductId = (int) $options['corrected_product_id'];
 
-        // Locked to match WriteOffResolution's discipline — the re-type and the
+        // Locked to match StockHoldService's discipline — the re-type and the
         // paired inventory move must see and hold a consistent batch row.
         // validate() has already rejected a null batch_id, so this can only come
         // back null for a dangling id whose batch row was deleted — which is why
