@@ -16,12 +16,19 @@
 
 Several of these have already cost a full debugging cycle on this feature.
 
-- **The schema is a SQL dump, not a migration history.** A bare `php artisan migrate` fails. Apply a single migration with `--path`, and apply it to **both** databases:
+- **The schema is a SQL dump, not a migration history.** A bare `php artisan migrate` fails. Apply a single migration with `--path`, and apply it to **both** databases.
+
+  **Verified during Task 1 — use exactly this.** There is no `.env.testing`, so `--env=testing` silently falls back to `.env` and migrates the **dev** database while appearing to succeed. `--database=` does not help either: there is one `mysql` connection and its name comes from `env()`. The test database is configured only by `<env>` entries in `phpunit.xml`, which artisan never reads. An OS environment variable overrides phpdotenv's non-overriding load, so from `back-end/` in the **Bash** tool:
   ```bash
-  php artisan migrate --path=database/migrations/<file>.php
-  php artisan migrate --path=database/migrations/<file>.php --database=mysql_test
+  # dev
+  php artisan migrate --path=database/migrations/<file>.php --force
+  # test
+  DB_DATABASE=airkingV5_test php artisan migrate --path=database/migrations/<file>.php --force
+  DB_DATABASE=airkingV5_test php artisan db:seed --class=<Seeder> --force
   ```
-  If `mysql_test` is not a configured connection, apply to the test DB with `--env=testing` instead. Check `config/database.php` before guessing.
+  Always confirm with a `SHOW TABLES` / `SHOW COLUMNS` check against **both** database names before moving on.
+
+- **Install-specific ids differ between the two databases.** The statuses seeded in Task 3 came out as Missing/Defective/Returned = **50/51/52** in `airkingv5` but **1779/1780/1781** in `airkingV5_test`, because the test database's auto-increment has been pushed up by factory churn. Resolve every status by name through `StockHold::inventoryStatusId()` — a hardcoded literal will pass locally and fail under PHPUnit.
 - Tests use `DatabaseTransactions`, **never** `RefreshDatabase`. `phpunit.xml` points at `airkingV5_test`.
 - **Known pre-existing backend failures:** 9 `WarrantyClaimTest`, plus the order-dependent `SerialRowMovementColumnsTest`. Treat 9 or 10 as the baseline and confirm any failure is one of those.
 - **Known pre-existing frontend failures:** 3 suites — `App.test.jsx` (CRA boilerplate), `navConfigureMap` (`stock_transfers` nav reachability), `InventoryManagement` (Warehouse Map tab). Baseline is **111 passing / 5 failing**.
