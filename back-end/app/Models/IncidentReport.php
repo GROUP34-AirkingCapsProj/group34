@@ -13,29 +13,40 @@ class IncidentReport extends Model
 {
     use Auditable, ScopesToUserLocation;
 
-    public const REASON_NOT_FOUND       = 'not_found';
-    public const REASON_DAMAGED         = 'damaged';
-    public const REASON_WRONG_TYPE      = 'wrong_type';
-    public const REASON_ZONE_MISMATCH   = 'zone_mismatch';
-    public const REASON_THEFT           = 'theft';
-    public const REASON_DELIVERY_DAMAGE = 'delivery_damage';
-    public const REASON_CUSTOMER_RETURN = 'customer_return';
-    public const REASON_OTHER           = 'other';
+    public const REASON_MISSING       = 'missing';
+    public const REASON_DEFECTIVE     = 'defective';
+    public const REASON_RETURN        = 'return';
+    public const REASON_WRONG_TYPE    = 'wrong_type';
+    public const REASON_ZONE_MISMATCH = 'zone_mismatch';
+    public const REASON_OTHER         = 'other';
+
+    /** Missing: why the reporter thinks it is gone. */
+    public const SUSPECTED_CAUSES = ['theft', 'misplaced', 'unknown'];
+
+    /** Defective: where the fault came from. */
+    public const ROOT_CAUSES = ['supplier', 'internal', 'delivery', 'other'];
 
     /**
-     * Reasons whose resolution moves stock — out for a loss, back in for a
-     * return — and which therefore cannot be filed without a product and a
-     * quantity. This is the list that carries meaning; every reason belongs
-     * here except `other`, which only records that something happened.
+     * The second meaning of "return" the system never had: stock coming back
+     * FROM a customer, versus stock going back TO a supplier.
+     */
+    public const RETURN_DIRECTIONS = ['from_customer', 'to_supplier'];
+
+    /**
+     * Reasons whose resolution moves stock, and which therefore cannot be
+     * filed without a product and a quantity.
+     *
+     * zone_mismatch is deliberately still here: it needs a product to name
+     * WHICH item is in the wrong place, even though resolving it moves
+     * nothing. wrong_type re-types a batch, which is a movement between
+     * products.
      */
     public const STOCK_AFFECTING_REASONS = [
-        self::REASON_NOT_FOUND,
-        self::REASON_DAMAGED,
+        self::REASON_MISSING,
+        self::REASON_DEFECTIVE,
+        self::REASON_RETURN,
         self::REASON_WRONG_TYPE,
         self::REASON_ZONE_MISMATCH,
-        self::REASON_THEFT,
-        self::REASON_DELIVERY_DAMAGE,
-        self::REASON_CUSTOMER_RETURN,
     ];
 
     public const PHOTO_SOURCE_CAPTURED = 'captured';
@@ -67,6 +78,8 @@ class IncidentReport extends Model
         'reason', 'quantity', 'narrative', 'occurred_at', 'photo_path', 'photo_source', 'reported_by',
         'status_id', 'reviewed_by', 'reviewed_at',
         'adjustment_id', 'correction_id', 'resolution_note',
+        'last_known_location', 'suspected_cause', 'root_cause',
+        'return_direction', 'return_reason', 'related_transfer_id',
     ];
 
     protected $casts = [
@@ -136,7 +149,7 @@ class IncidentReport extends Model
         return $this->belongsTo(ScanCorrection::class, 'correction_id', 'correction_id');
     }
 
-    /** The sale a customer_return came from. Null for every other reason. */
+    /** The sale a `return` came from. Null for every other reason. */
     public function relatedIssuance(): BelongsTo
     {
         return $this->belongsTo(Issuance::class, 'related_issuance_id', 'issuance_id');
