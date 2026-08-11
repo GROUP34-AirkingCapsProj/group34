@@ -1,0 +1,424 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\IncidentEvidence;
+use App\Models\IncidentItem;
+use App\Models\IncidentReport;
+use App\Models\User;
+use App\Services\IncidentItemService;
+use App\Services\IncidentService;
+use App\Support\PermissionResolver;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+/**
+ * The inspection half of an incident: evidence, per-item outcomes, the
+ * inspector's submission, and the admin's decision.
+ *
+ * Everything that mutates goes through IncidentService or IncidentItemService —
+ * this controller validates, authorizes and serializes, and owns none of the
+ * stock arithmetic.
+ */
+class IncidentInspectionController extends Controller
+{
+    /**
+     * Exactly the shape IncidentReportController::uploadPhoto() can produce.
+     *
+     * An unconstrained path let a filer submit another user's avatar, or an
+     * absolute URL that the frontend's resolveStorageUrl() would then fetch
+     * as-is. It applies per evidence row for the same reason.
+     */
+    private const PHOTO_PATH_REGEX = '/^incidents\/\d{4}\/\d{2}\/[A-Za-z0-9]{40}\.(jpg|jpeg|png|webp)$/';
+
+    /**
+     * The register of non-sellable stock — what is quarantined, scrapped,
+     * returned or missing. Read-only; it replaces the held-stock worklist,
+     * whose Dispose button the inspection took over.
+     *
+     * incident_items has NO location_id: location lives on the parent report,
+     * so ScopesToUserLocation (which filters a location_id COLUMN) cannot be
+     * used here. Scoping joins incident_reports and filters ir.location_id, the
+     * same way IncidentItem::quarantinedBatchIds() does.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+
+        $query = IncidentItem::query()
+            ->with(['product.consumableDetail', 'incident.location'])
+            ->join('incident_reports as ir', 'ir.incident_id', '=', 'incident_items.incident_id')
+            ->select('incident_items.*');
+
+        if (! $user->isCentralized()) {
+            $scoped = $user->scopedLocationId();
+
+            // A scoped user with no location assigned sees nothing, rather than
+            // everything — the same choice ScopesToUserLocation makes.
+            if ($scoped === null) {
+                return response()->json(['success' => true, 'data' => []]);
+            }
+
+            $query->where('ir.location_id', $scoped);
+        }
+
+        // Default to the live half of the register: what is still held out of
+        // stock. `all` is what the filters ask for when someone wants history.
+        $status = $request->query('status', IncidentItem::STATUS_QUARANTINED);
+        if ($status !== 'all') {
+            $query->where('incident_items.status', $status);
+        }
+
+        if ($locationId = $request->query('location_id')) {
+            $query->where('ir.location_id', (int) $locationId);
+        }
+
+        if ($incidentId = $request->query('incident_id')) {
+            $query->where('incident_items.incident_id', (int) $incidentId);
+        }
+
+        $items = $query->orderByDesc('incident_items.created_at')->limit(500)->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $items->map(fn (IncidentItem $i) => $this->itemPayload($i, withLocation: true))->all(),
+        ]);
+    }
+
+    /** One attachment against the checklist — a photo, or an explicit skip with a reason. */
+    public function storeEvidence(Request $request, int $id): JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+
+        if ($incident === null) {
+            return response()->json(['success' => false, 'message' => 'Incident not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'requirement'    => ['required', Rule::in(IncidentEvidence::REQUIREMENTS)],
+            // One or the other, never neither: a row with no photo and no stated
+            // reason records nothing at all, and would read on the admin's
+            // screen as a satisfied requirement.
+            'photo_path'     => ['nullable', 'required_without:skipped_reason', 'string', 'max:255',
+                                 'regex:' . self::PHOTO_PATH_REGEX],
+            'photo_source'   => ['nullable', Rule::in(IncidentReport::PHOTO_SOURCES)],
+            'skipped_reason' => ['nullable', 'required_without:photo_path', 'string', 'max:500'],
+        ]);
+
+        $evidence = IncidentEvidence::create([
+            'incident_id'    => (int) $incident->incident_id,
+            'requirement'    => $validated['requirement'],
+            'photo_path'     => $validated['photo_path'] ?? null,
+            'photo_source'   => $validated['photo_source'] ?? null,
+            // A skip and a photo are mutually exclusive: keeping a stale reason
+            // beside a photo would show the admin a requirement that is both
+            // satisfied and excused.
+            'skipped_reason' => isset($validated['photo_path']) ? null : ($validated['skipped_reason'] ?? null),
+            'uploaded_by'    => (int) Auth::id(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Evidence recorded.',
+            'data'    => $this->evidencePayload($evidence),
+        ], 201);
+    }
+
+    /** Remove an attachment before the inspection is submitted. */
+    public function destroyEvidence(int $id, int $evidenceId): JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+
+        if ($incident === null) {
+            return response()->json(['success' => false, 'message' => 'Incident not found.'], 404);
+        }
+
+        $evidence = IncidentEvidence::where('incident_id', $incident->incident_id)
+            ->where('evidence_id', $evidenceId)
+            ->first();
+
+        if ($evidence === null) {
+            return response()->json(['success' => false, 'message' => 'Evidence not found.'], 404);
+        }
+
+        $evidence->delete();
+
+        return response()->json(['success' => true, 'message' => 'Evidence removed.']);
+    }
+
+    /**
+     * Stream one evidence photo back inline, scoped to incidents the caller can
+     * see. Same shape as IncidentReportController::showPhoto(): these images may
+     * show named staff, stock layout, or the subject of a live loss
+     * investigation, so they sit on the private `local` disk behind
+     * auth:sanctum rather than under /storage/.
+     */
+    public function showEvidencePhoto(int $id, int $evidenceId): StreamedResponse|JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+
+        $evidence = $incident === null ? null : IncidentEvidence::where('incident_id', $incident->incident_id)
+            ->where('evidence_id', $evidenceId)
+            ->first();
+
+        // Defensive: storeEvidence's regex is the only thing guaranteeing the
+        // path stays inside incidents/ once it has round-tripped the database.
+        if ($evidence === null
+            || $evidence->photo_path === null
+            || ! str_starts_with($evidence->photo_path, 'incidents/')
+            || ! Storage::disk('local')->exists($evidence->photo_path)) {
+            return response()->json(['success' => false, 'message' => 'Photo not found.'], 404);
+        }
+
+        return Storage::disk('local')->response($evidence->photo_path);
+    }
+
+    /** The inspector's decision on one physical item. Applied only on confirmation. */
+    public function setOutcome(Request $request, int $id, int $itemId): JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+
+        if ($incident === null) {
+            return response()->json(['success' => false, 'message' => 'Incident not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'outcome' => ['required', Rule::in(IncidentItem::OUTCOMES)],
+            'note'    => 'nullable|string|max:2000',
+        ]);
+
+        $item = IncidentItem::where('incident_id', $incident->incident_id)
+            ->where('item_id', $itemId)
+            ->first();
+
+        if ($item === null) {
+            return response()->json(['success' => false, 'message' => 'Item not found on this incident.'], 404);
+        }
+
+        try {
+            $updated = app(IncidentItemService::class)
+                ->setOutcome($item, $validated['outcome'], $validated['note'] ?? null);
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            // 422, not 500: "already settled" and "unknown outcome" are both the
+            // caller asking for something invalid.
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Outcome recorded.',
+            'data'    => $this->itemPayload($updated),
+        ]);
+    }
+
+    /** Submit the findings: Open -> Awaiting Inspection. Moves no stock. */
+    public function submit(Request $request, int $id): JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+
+        if ($incident === null) {
+            return response()->json(['success' => false, 'message' => 'Incident not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'inspection_findings'      => 'nullable|string|max:5000',
+            'checked_by_asc'           => 'nullable|boolean',
+            // Names as printed on the hardcopy that is signed by hand and
+            // carried to the admin — a record that signing happened, not a
+            // digital signature.
+            'signed_by_representative' => 'nullable|string|max:150',
+            'signed_by_branch_manager' => 'nullable|string|max:150',
+            'signed_at'                => 'nullable|date',
+        ]);
+
+        try {
+            $submitted = app(IncidentService::class)
+                ->submitInspection($incident, $validated, (int) Auth::id());
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Inspection submitted for approval.',
+            'data'    => $this->reportPayload($submitted),
+        ]);
+    }
+
+    /** The admin's decision: confirm (stock moves here), reject, or dismiss. */
+    public function decide(Request $request, int $id): JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+
+        if ($incident === null) {
+            return response()->json(['success' => false, 'message' => 'Incident not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'action'          => ['required', Rule::in(['confirm', 'reject', 'dismiss'])],
+            'rejection_note'  => 'required_if:action,reject|nullable|string|max:2000',
+            'resolution_note' => 'nullable|string|max:2000',
+        ]);
+
+        $actorId = (int) Auth::id();
+
+        if ($validated['action'] === 'confirm' && $this->wouldSelfApprove($incident, $actorId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You inspected this report, so someone else must confirm it.',
+            ], 403);
+        }
+
+        try {
+            $decided = app(IncidentService::class)
+                ->decide($incident, $validated['action'], $validated, $actorId);
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => match ($validated['action']) {
+                'confirm' => 'Incident confirmed. The inspected outcomes have been applied to stock.',
+                'reject'  => 'Returned to the inspector.',
+                'dismiss' => 'Incident dismissed. The quarantine has been released.',
+            },
+            'data'    => $this->reportPayload($decided),
+        ]);
+    }
+
+    /**
+     * The two signature lines on the client's form exist so that one person
+     * cannot both examine the goods and approve their write-off.
+     *
+     * Enforced only where somebody ELSE could actually do the confirming: on a
+     * single-admin install the rule would otherwise make every report
+     * permanently unclosable, which is a worse failure than self-approval.
+     * "Somebody else" means an active user who both holds
+     * incident_reports.resolve and can see this location.
+     */
+    private function wouldSelfApprove(IncidentReport $incident, int $actorId): bool
+    {
+        if ($incident->inspected_by === null || (int) $incident->inspected_by !== $actorId) {
+            return false;
+        }
+
+        return $this->hasAnotherResolver($incident, $actorId);
+    }
+
+    private function hasAnotherResolver(IncidentReport $incident, int $actorId): bool
+    {
+        $activeUserStatusId = DB::table('status_lookup')
+            ->where('status_category', 'user')
+            ->where('status_name', 'Active')
+            ->value('status_id');
+
+        $candidates = User::query()
+            ->where('user_id', '!=', $actorId)
+            ->when($activeUserStatusId !== null, fn ($q) => $q->where('status_id', $activeUserStatusId))
+            ->get();
+
+        $resolver = app(PermissionResolver::class);
+
+        foreach ($candidates as $candidate) {
+            // A centralized role sees every location; a scoped one only reaches
+            // reports at its own.
+            $reachesLocation = $candidate->isCentralized()
+                || (int) $candidate->location_id === (int) $incident->location_id;
+
+            if ($reachesLocation
+                && $resolver->canUser((int) $candidate->getKey(), 'incident_reports', 'resolve')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** The incident, or null when it is outside the caller's locations. */
+    private function visibleIncident(int $id): ?IncidentReport
+    {
+        return IncidentReport::forUser(Auth::user())->find($id);
+    }
+
+    private function reportPayload(IncidentReport $incident): array
+    {
+        $incident->load(['items.product', 'evidence']);
+
+        return [
+            'incident_id'              => (int) $incident->incident_id,
+            'incident_number'          => $incident->incident_number,
+            'reason'                   => $incident->reason,
+            'status_id'                => (int) $incident->status_id,
+            'inspected_by'             => $incident->inspected_by !== null ? (int) $incident->inspected_by : null,
+            'inspected_at'             => optional($incident->inspected_at)->toIso8601String(),
+            'inspection_findings'      => $incident->inspection_findings,
+            'checked_by_asc'           => (bool) $incident->checked_by_asc,
+            'signed_by_representative' => $incident->signed_by_representative,
+            'signed_by_branch_manager' => $incident->signed_by_branch_manager,
+            'signed_at'                => optional($incident->signed_at)->toDateString(),
+            'rejection_note'           => $incident->rejection_note,
+            'resolution_note'          => $incident->resolution_note,
+            'items'                    => $incident->items->map(fn (IncidentItem $i) => $this->itemPayload($i))->all(),
+            'evidence'                 => $incident->evidence
+                ->map(fn (IncidentEvidence $e) => $this->evidencePayload($e))->all(),
+        ];
+    }
+
+    private function itemPayload(IncidentItem $item, bool $withLocation = false): array
+    {
+        $payload = [
+            'item_id'            => (int) $item->item_id,
+            'incident_id'        => (int) $item->incident_id,
+            'product_id'         => (int) $item->product_id,
+            'product_name'       => $item->product?->product_name,
+            // Packaging, so the register can show "25 pcs · 2 Box + 5 pcs"
+            // exactly as the incident list does. quantity is PIECES.
+            'pieces_per_package' => (int) ($item->product?->pieces_per_package ?? 1),
+            'package_unit'       => $item->product?->consumableDetail?->package_unit,
+            'batch_id'           => $item->batch_id !== null ? (int) $item->batch_id : null,
+            'serial_id'          => $item->serial_id !== null ? (int) $item->serial_id : null,
+            'unit_role'          => $item->unit_role,
+            'model_code'         => $item->model_code,
+            'serial_number'      => $item->serial_number,
+            'quantity'           => (int) $item->quantity,
+            'status'             => $item->status,
+            'outcome'            => $item->outcome,
+            'outcome_note'       => $item->outcome_note,
+            'created_at'         => optional($item->created_at)->toIso8601String(),
+        ];
+
+        if ($withLocation) {
+            $payload['incident_number'] = $item->incident?->incident_number;
+            $payload['location_id']     = (int) ($item->incident?->location_id ?? 0);
+            $payload['location_name']   = $item->incident?->location?->location_name;
+        }
+
+        return $payload;
+    }
+
+    private function evidencePayload(IncidentEvidence $evidence): array
+    {
+        return [
+            'evidence_id'    => (int) $evidence->evidence_id,
+            'incident_id'    => (int) $evidence->incident_id,
+            'requirement'    => $evidence->requirement,
+            'photo_path'     => $evidence->photo_path,
+            // Evidence photos live on the private `local` disk, so this is an
+            // authenticated API route, not a /storage/ URL.
+            'photo_url'      => $evidence->photo_path
+                ? "/incident-reports/{$evidence->incident_id}/evidence/{$evidence->evidence_id}/photo"
+                : null,
+            'photo_source'   => $evidence->photo_source,
+            'skipped_reason' => $evidence->skipped_reason,
+            'uploaded_by'    => (int) $evidence->uploaded_by,
+            'created_at'     => optional($evidence->created_at)->toIso8601String(),
+        ];
+    }
+}

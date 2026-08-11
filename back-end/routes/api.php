@@ -580,21 +580,42 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // the Goods Received Note downloads below.
     Route::middleware(['auth:sanctum', 'permission:incident_reports,read'])
          ->get('/incident-reports/{id}/photo', [\App\Http\Controllers\Api\IncidentReportController::class, 'showPhoto']);
+    /*
+    |--------------------------------------------------------------------------
+    | Inspection (before the admin decides) and the decision itself
+    |--------------------------------------------------------------------------
+    | The inspector attaches evidence and records an outcome for each physical
+    | item, then submits; the admin confirms, rejects, or dismisses. `inspect`
+    | and `resolve` are deliberately different permissions — the client's form
+    | carries two signature lines so that one person cannot both examine the
+    | goods and approve their write-off.
+    */
+    Route::middleware('permission:incident_reports,inspect')
+         ->post('/incident-reports/{id}/evidence', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'storeEvidence']);
+    Route::middleware('permission:incident_reports,inspect')
+         ->delete('/incident-reports/{id}/evidence/{evidenceId}', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'destroyEvidence']);
+    // Read-side: the admin reviewing a submission needs to see the photos, and
+    // holds `read`, not `inspect`. Private `local` disk behind auth:sanctum,
+    // exactly like the filing photo above.
+    Route::middleware(['auth:sanctum', 'permission:incident_reports,read'])
+         ->get('/incident-reports/{id}/evidence/{evidenceId}/photo', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'showEvidencePhoto']);
+    Route::middleware('permission:incident_reports,inspect')
+         ->post('/incident-reports/{id}/items/{itemId}/outcome', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'setOutcome']);
+    Route::middleware('permission:incident_reports,inspect')
+         ->post('/incident-reports/{id}/inspection', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'submit']);
     Route::middleware('permission:incident_reports,resolve')
-         ->post('/incident-reports/{id}/resolve', [\App\Http\Controllers\Api\IncidentReportController::class, 'resolve']);
+         ->post('/incident-reports/{id}/decide', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'decide']);
 
     /*
     |--------------------------------------------------------------------------
-    | Stock Holds (held stock worklist + disposition)
+    | The incident-items register (replaces /stock-holds)
     |--------------------------------------------------------------------------
-    | Resolving an incident moves stock into a hold rather than deleting it;
-    | these two routes are the worklist that shows what is held and the
-    | explicit decision about where it goes.
+    | Read-only: what is quarantined, scrapped, returned or missing. The old
+    | worklist's Dispose action is gone — the inspection replaced it, and
+    | `incident_reports.dispose` with it.
     */
     Route::middleware('permission:incident_reports,read')
-         ->get('/stock-holds', [\App\Http\Controllers\Api\StockHoldController::class, 'index']);
-    Route::middleware('permission:incident_reports,dispose')
-         ->post('/stock-holds/{id}/dispose', [\App\Http\Controllers\Api\StockHoldController::class, 'dispose']);
+         ->get('/incident-items', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'index']);
 
     /*
     |--------------------------------------------------------------------------
