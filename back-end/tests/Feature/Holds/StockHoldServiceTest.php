@@ -13,6 +13,15 @@ class StockHoldServiceTest extends TestCase
 {
     use DatabaseTransactions;
 
+    /**
+     * A real user id. `disposed_by` carries no FK today, but user_id 1 does not
+     * exist in airkingV5_test, so a literal would break the moment one is added.
+     */
+    private function actorId(): int
+    {
+        return (int) \App\Models\User::query()->firstOrFail()->getKey();
+    }
+
     private function seedStock(int $onHand = 100): array
     {
         $location = \App\Models\Location::query()->firstOrFail();
@@ -218,5 +227,66 @@ class StockHoldServiceTest extends TestCase
 
         $this->assertNull($hold->serial_id);
         $this->assertSame(7, (int) $hold->quantity);
+    }
+
+    /**
+     * A restocked serial must be pickable, not merely "In Stock".
+     *
+     * scopeIssuableAt and FifoPickingService::serialSteps both require
+     * serial_type 'received', so a serial flipped back to In Stock while still
+     * typed 'issued' reads as in stock everywhere and is pickable nowhere.
+     */
+    public function test_a_restocked_serial_is_typed_received_again(): void
+    {
+        ['incident' => $incident] = $this->seedStock(100);
+
+        $serial = \App\Models\ItemSerial::create([
+            'product_id'    => $incident->product_id,
+            'location_id'   => $incident->location_id,
+            'serial_number' => 'SN-TEST-' . uniqid(),
+            'serial_type'   => 'issued',
+            'status_id'     => StockHold::inventoryStatusId('In Stock'),
+        ]);
+        $incident->update(['serial_id' => $serial->serial_id, 'quantity' => 1]);
+
+        $svc  = app(StockHoldService::class);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 1);
+        $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, $this->actorId());
+
+        $this->assertSame('received', $serial->refresh()->serial_type);
+    }
+
+    /**
+     * A return filed without a batch must still land in a batch.
+     *
+     * Raising quantity_on_hand with no batch row leaves stock the location
+     * total can see but FIFO picking can never reach — the same batch/location
+     * divergence the deduction path has its own test guarding against. The
+     * units go to the location's legacy batch (receiving_id IS NULL).
+     */
+    public function test_a_batchless_restock_lands_in_the_legacy_batch(): void
+    {
+        ['inventory' => $inv, 'incident' => $incident] = $this->seedStock(100);
+        $incident->update(['batch_id' => null]);
+
+        $legacyQuantity = fn () => (int) \App\Models\InventoryBatch::query()
+            ->where('product_id', $incident->product_id)
+            ->where('location_id', $incident->location_id)
+            ->whereNull('receiving_id')
+            ->sum('quantity_remaining');
+
+        $before = $legacyQuantity();
+
+        $svc  = app(StockHoldService::class);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10);
+        $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, $this->actorId());
+
+        // The restocked units reached a batch, not just the location total.
+        // Asserted as a delta because the deduction side has a separate,
+        // pre-existing asymmetry: holding a batchless incident lowers
+        // quantity_on_hand without lowering any batch, exactly as the old
+        // write-off did. That is not this method's to fix.
+        $this->assertSame($before + 10, $legacyQuantity());
+        $this->assertSame(100, (int) $inv->refresh()->quantity_on_hand);
     }
 }
