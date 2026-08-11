@@ -76,6 +76,9 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
     if (incident.is_open) return { text: 'Open', cls: 'ak-badge--amber' };
     const name = statusNameById[incident.status_id];
     if (name === 'Dismissed') return { text: 'Dismissed', cls: 'ak-badge--gray' };
+    // Approved, but its stock is still sitting in Held Stock waiting for
+    // someone to inspect it. Deliberately NOT green — nothing is finished.
+    if (name === 'Awaiting Inspection') return { text: 'Awaiting inspection', cls: 'ak-badge--blue' };
     // Default to Resolved once reviewed — covers the brief window before the
     // status lookup has loaded, and any status other than Open/Dismissed.
     return { text: name || 'Resolved', cls: 'ak-badge--green' };

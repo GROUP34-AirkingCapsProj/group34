@@ -134,8 +134,38 @@ class StockHoldService
                 ]);
             }
 
+            $this->completeIncidentIfSettled($locked);
+
             return $locked->fresh();
         });
+    }
+
+    /**
+     * An incident is only finished when nothing it created is still waiting on
+     * a decision.
+     *
+     * Approval marks a defective or returned incident "Awaiting Inspection";
+     * this is what finally moves it to Resolved. Written here rather than in
+     * IncidentService because this is the moment the last hold closes, and
+     * calling back into that service would make the two mutually dependent.
+     *
+     * A dismissed incident is left alone — dismissing is its own terminal
+     * state and must not be silently rewritten to Resolved.
+     */
+    private function completeIncidentIfSettled(StockHold $hold): void
+    {
+        $stillWaiting = StockHold::where('incident_id', $hold->incident_id)
+            ->held()
+            ->get()
+            ->contains(fn (StockHold $h) => ! empty(StockHold::ALLOWED_DISPOSITIONS[$h->condition] ?? []));
+
+        if ($stillWaiting) {
+            return;
+        }
+
+        IncidentReport::where('incident_id', $hold->incident_id)
+            ->where('status_id', IncidentReport::statusId('Awaiting Inspection'))
+            ->update(['status_id' => IncidentReport::statusId('Resolved')]);
     }
 
     /**
