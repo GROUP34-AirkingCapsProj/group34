@@ -4,11 +4,12 @@ namespace App\Services;
 
 use App\Models\IncidentReport;
 use App\Services\Incidents\AcknowledgeResolution;
+use App\Services\Incidents\DefectiveResolution;
+use App\Services\Incidents\MissingResolution;
 use App\Services\Incidents\RelocateResolution;
-use App\Services\Incidents\RestockResolution;
 use App\Services\Incidents\ResolvesIncident;
 use App\Services\Incidents\RetypeResolution;
-use App\Services\Incidents\WriteOffResolution;
+use App\Services\Incidents\ReturnResolution;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -163,14 +164,12 @@ class IncidentService
     private function strategyFor(string $reason): ResolvesIncident
     {
         return match ($reason) {
-            IncidentReport::REASON_NOT_FOUND,
-            IncidentReport::REASON_THEFT,
-            IncidentReport::REASON_DAMAGED,
-            IncidentReport::REASON_DELIVERY_DAMAGE => new WriteOffResolution(),
-            IncidentReport::REASON_WRONG_TYPE      => new RetypeResolution(),
-            IncidentReport::REASON_ZONE_MISMATCH   => new RelocateResolution(),
-            IncidentReport::REASON_CUSTOMER_RETURN => new RestockResolution(),
-            IncidentReport::REASON_OTHER           => new AcknowledgeResolution(),
+            IncidentReport::REASON_MISSING       => new MissingResolution(),
+            IncidentReport::REASON_DEFECTIVE     => new DefectiveResolution(),
+            IncidentReport::REASON_RETURN        => new ReturnResolution(),
+            IncidentReport::REASON_WRONG_TYPE    => new RetypeResolution(),
+            IncidentReport::REASON_ZONE_MISMATCH => new RelocateResolution(),
+            IncidentReport::REASON_OTHER         => new AcknowledgeResolution(),
         };
     }
 }
