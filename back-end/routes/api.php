@@ -585,6 +585,19 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | Stock Holds (held stock worklist + disposition)
+    |--------------------------------------------------------------------------
+    | Resolving an incident moves stock into a hold rather than deleting it;
+    | these two routes are the worklist that shows what is held and the
+    | explicit decision about where it goes.
+    */
+    Route::middleware('permission:incident_reports,read')
+         ->get('/stock-holds', [\App\Http\Controllers\Api\StockHoldController::class, 'index']);
+    Route::middleware('permission:incident_reports,dispose')
+         ->post('/stock-holds/{id}/dispose', [\App\Http\Controllers\Api\StockHoldController::class, 'dispose']);
+
+    /*
+    |--------------------------------------------------------------------------
     | ERD: PURCHASE_ORDER (purchase_order)
     |--------------------------------------------------------------------------
     */

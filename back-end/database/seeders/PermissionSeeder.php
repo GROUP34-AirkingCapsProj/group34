@@ -86,6 +86,10 @@ class PermissionSeeder extends Seeder
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
                 'create'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
                 'resolve' => ['admin', 'inventory_analyst'],
+                // Deciding where held stock goes — restock it, send it back to
+                // the supplier, scrap it — is the same authority as approving
+                // the incident that held it. `auditor` stays read-only.
+                'dispose' => ['admin', 'inventory_analyst'],
             ],
             'location_based_inventory' => [
                 'read'    => ['admin'],
