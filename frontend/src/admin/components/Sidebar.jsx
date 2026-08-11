@@ -82,6 +82,7 @@ const adminMenuSections = [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
       { name: 'Incident Reports', path: '/admin/incidents', icon: 'incident' },
+      { name: 'Held Stock', path: '/admin/held-stock', icon: 'incident' },
     ],
   },
   {
@@ -434,7 +435,7 @@ const Sidebar = ({
   onToggleSection,
   navMenuRef,
   onLogout,
-  pendingApprovalCount = 0,
+  pendingPrCount = 0,
   awaitingIstCount = 0,
   navLoading = false,
 }) => {
@@ -479,9 +480,9 @@ const Sidebar = ({
             >
               <span className="nav-icon">{renderIcon(item.icon)}</span>
               <span className="nav-text">{item.name}</span>
-              {item.path === '/admin/draft-po-creator' && pendingApprovalCount > 0 && (
+              {item.path === '/admin/purchase-requests' && pendingPrCount > 0 && (
                 <span className="nav-item-badge">
-                  {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                  {pendingPrCount > 99 ? '99+' : pendingPrCount}
                 </span>
               )}
               {item.path === '/admin/transfers' && awaitingIstCount > 0 && (
