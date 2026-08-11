@@ -612,7 +612,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident] = $this->seedStock(100);
 
-        app(StockHoldService::class)->hold($incident, StockHold::CONDITION_DEFECTIVE, 10, 1);
+        app(StockHoldService::class)->hold($incident, StockHold::CONDITION_DEFECTIVE, 10);
 
         $inv->refresh();
         $batch->refresh();
@@ -629,7 +629,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['batch' => $batch, 'incident' => $incident] = $this->seedStock(50);
 
-        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_RETURNED, 5, 1);
+        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_RETURNED, 5);
 
         $this->assertSame(StockHold::CONDITION_RETURNED, $hold->condition);
         $this->assertSame(StockHold::STATUS_HELD, $hold->status);
@@ -643,7 +643,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['batch' => $batch, 'incident' => $incident] = $this->seedStock(3);
 
-        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_MISSING, 999, 1);
+        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_MISSING, 999);
 
         $this->assertSame(3, (int) $hold->quantity);
         $this->assertSame(0, (int) $batch->refresh()->quantity_remaining);
@@ -653,7 +653,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10);
 
         $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, 1);
 
@@ -666,7 +666,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['inventory' => $inv, 'incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10);
 
         $svc->dispose($hold, StockHold::DISPOSITION_SCRAPPED, null, 1);
 
@@ -679,7 +679,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10);
 
         $svc->dispose($hold, StockHold::DISPOSITION_DEFECTIVE, null, 1);
 
@@ -696,7 +696,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10);
         $svc->dispose($hold, StockHold::DISPOSITION_SCRAPPED, null, 1);
 
         $this->expectException(\RuntimeException::class);
@@ -708,7 +708,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10);
 
         $this->expectException(\InvalidArgumentException::class);
         $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, 1);
@@ -718,7 +718,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_MISSING, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_MISSING, 10);
 
         $this->expectException(\InvalidArgumentException::class);
         $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, 1);
@@ -741,7 +741,7 @@ class StockHoldServiceTest extends TestCase
         $incident->update(['serial_id' => $serial->serial_id, 'quantity' => 1]);
 
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 1, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 1);
 
         $this->assertSame(
             StockHold::inventoryStatusId('Returned'),
@@ -768,7 +768,7 @@ class StockHoldServiceTest extends TestCase
         $incident->update(['serial_id' => null]);
 
         $hold = app(StockHoldService::class)
-            ->hold($incident, StockHold::CONDITION_DEFECTIVE, 7, 1);
+            ->hold($incident, StockHold::CONDITION_DEFECTIVE, 7);
 
         $this->assertNull($hold->serial_id);
         $this->assertSame(7, (int) $hold->quantity);
@@ -817,7 +817,7 @@ class StockHoldService
      * holds — holding more than exists would manufacture units that no batch
      * ever lost, which is the bug the write-off path had to fix twice.
      */
-    public function hold(IncidentReport $incident, string $condition, int $quantity, int $actorId): StockHold
+    public function hold(IncidentReport $incident, string $condition, int $quantity): StockHold
     {
         if (! in_array($condition, StockHold::CONDITIONS, true)) {
             throw new \InvalidArgumentException("Unknown hold condition: {$condition}");
@@ -1306,7 +1306,7 @@ class MissingResolution implements ResolvesIncident
     public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         $hold = app(StockHoldService::class)
-            ->hold($incident, StockHold::CONDITION_MISSING, (int) $incident->quantity, $reviewedBy);
+            ->hold($incident, StockHold::CONDITION_MISSING, (int) $incident->quantity);
 
         $adjustment = Adjustment::create([
             'location_id'             => (int) $incident->location_id,
@@ -1365,7 +1365,7 @@ class DefectiveResolution implements ResolvesIncident
     public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         $hold = app(StockHoldService::class)
-            ->hold($incident, StockHold::CONDITION_DEFECTIVE, (int) $incident->quantity, $reviewedBy);
+            ->hold($incident, StockHold::CONDITION_DEFECTIVE, (int) $incident->quantity);
 
         $adjustment = Adjustment::create([
             'location_id'             => (int) $incident->location_id,
@@ -1425,7 +1425,7 @@ class ReturnResolution implements ResolvesIncident
     public function apply(IncidentReport $incident, array $options, int $reviewedBy): ResolutionArtifacts
     {
         app(StockHoldService::class)
-            ->hold($incident, StockHold::CONDITION_RETURNED, (int) $incident->quantity, $reviewedBy);
+            ->hold($incident, StockHold::CONDITION_RETURNED, (int) $incident->quantity);
 
         return ResolutionArtifacts::none();
     }
@@ -1643,7 +1643,7 @@ class StockHoldEndpointTest extends TestCase
         ]);
 
         return app(StockHoldService::class)
-            ->hold($incident, StockHold::CONDITION_RETURNED, 10, 1);
+            ->hold($incident, StockHold::CONDITION_RETURNED, 10);
     }
 
     public function test_it_lists_open_holds(): void

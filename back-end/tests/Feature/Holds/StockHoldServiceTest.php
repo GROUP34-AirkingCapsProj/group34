@@ -59,7 +59,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident] = $this->seedStock(100);
 
-        app(StockHoldService::class)->hold($incident, StockHold::CONDITION_DEFECTIVE, 10, 1);
+        app(StockHoldService::class)->hold($incident, StockHold::CONDITION_DEFECTIVE, 10);
 
         $inv->refresh();
         $batch->refresh();
@@ -75,7 +75,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['batch' => $batch, 'incident' => $incident] = $this->seedStock(50);
 
-        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_RETURNED, 5, 1);
+        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_RETURNED, 5);
 
         $this->assertSame(StockHold::CONDITION_RETURNED, $hold->condition);
         $this->assertSame(StockHold::STATUS_HELD, $hold->status);
@@ -89,7 +89,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['batch' => $batch, 'incident' => $incident] = $this->seedStock(3);
 
-        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_MISSING, 999, 1);
+        $hold = app(StockHoldService::class)->hold($incident, StockHold::CONDITION_MISSING, 999);
 
         $this->assertSame(3, (int) $hold->quantity);
         $this->assertSame(0, (int) $batch->refresh()->quantity_remaining);
@@ -99,7 +99,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10);
 
         $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, 1);
 
@@ -112,7 +112,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['inventory' => $inv, 'incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10);
 
         $svc->dispose($hold, StockHold::DISPOSITION_SCRAPPED, null, 1);
 
@@ -125,7 +125,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10);
 
         $svc->dispose($hold, StockHold::DISPOSITION_DEFECTIVE, null, 1);
 
@@ -142,7 +142,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 10);
         $svc->dispose($hold, StockHold::DISPOSITION_SCRAPPED, null, 1);
 
         $this->expectException(\RuntimeException::class);
@@ -154,7 +154,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_DEFECTIVE, 10);
 
         $this->expectException(\InvalidArgumentException::class);
         $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, 1);
@@ -164,7 +164,7 @@ class StockHoldServiceTest extends TestCase
     {
         ['incident' => $incident] = $this->seedStock(100);
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_MISSING, 10, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_MISSING, 10);
 
         $this->expectException(\InvalidArgumentException::class);
         $svc->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, 1);
@@ -187,7 +187,7 @@ class StockHoldServiceTest extends TestCase
         $incident->update(['serial_id' => $serial->serial_id, 'quantity' => 1]);
 
         $svc  = app(StockHoldService::class);
-        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 1, 1);
+        $hold = $svc->hold($incident, StockHold::CONDITION_RETURNED, 1);
 
         $this->assertSame(
             StockHold::inventoryStatusId('Returned'),
@@ -214,7 +214,7 @@ class StockHoldServiceTest extends TestCase
         $incident->update(['serial_id' => null]);
 
         $hold = app(StockHoldService::class)
-            ->hold($incident, StockHold::CONDITION_DEFECTIVE, 7, 1);
+            ->hold($incident, StockHold::CONDITION_DEFECTIVE, 7);
 
         $this->assertNull($hold->serial_id);
         $this->assertSame(7, (int) $hold->quantity);
