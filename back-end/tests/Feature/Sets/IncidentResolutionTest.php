@@ -6,6 +6,7 @@ use App\Models\Adjustment;
 use App\Models\IncidentReport;
 use App\Models\InventoryBatch;
 use App\Models\ScanCorrection;
+use App\Models\StockHold;
 use App\Services\IncidentService;
 
 class IncidentResolutionTest extends SetTestCase
@@ -38,7 +39,7 @@ class IncidentResolutionTest extends SetTestCase
         $res = $this->actingAs($user, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'issuance', 'source_id' => 1,
             'location_id' => $loc->location_id, 'product_id' => $p->product_id,
-            'batch_id'    => $b->batch_id, 'reason' => 'not_found',
+            'batch_id'    => $b->batch_id, 'reason' => 'missing',
             'quantity'    => 2, 'narrative' => 'Shelf is empty.',
         ]);
 
@@ -53,21 +54,21 @@ class IncidentResolutionTest extends SetTestCase
         $p    = $this->makeConsumable();
         $b    = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
-        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DAMAGED);
+        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE);
 
         $this->actingAs($user, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
              ->assertForbidden();
     }
 
-    public function test_resolving_not_found_posts_a_deduction_adjustment(): void
+    public function test_resolving_missing_posts_a_deduction_adjustment_and_a_hold(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
-        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_NOT_FOUND, 3);
+        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 3);
 
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
@@ -81,16 +82,25 @@ class IncidentResolutionTest extends SetTestCase
         $adjustment = Adjustment::with('details')->find($fresh->adjustment_id);
         $this->assertSame(3, (int) $adjustment->details->first()->deduct_quantity);
         $this->assertSame(2, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+
+        // New: the deduction is mirrored by a `missing` hold for the same
+        // quantity, so physical = active + held survives the write-off.
+        $this->assertDatabaseHas('stock_holds', [
+            'incident_id' => $incident->incident_id,
+            'condition'   => StockHold::CONDITION_MISSING,
+            'quantity'    => 3,
+            'status'      => StockHold::STATUS_HELD,
+        ]);
     }
 
-    public function test_dismissing_not_found_returns_the_stock_to_fifo(): void
+    public function test_dismissing_missing_returns_the_stock_to_fifo(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
-        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_NOT_FOUND, 3);
+        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 3);
         $this->assertContains((int) $b->batch_id, app(IncidentService::class)->excludedBatchIds($loc->location_id));
 
         $this->actingAs($ia, 'sanctum')
@@ -102,16 +112,18 @@ class IncidentResolutionTest extends SetTestCase
         $this->assertNull($incident->fresh()->adjustment_id);
         $this->assertSame([], app(IncidentService::class)->excludedBatchIds($loc->location_id));
         $this->assertSame(5, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+        // Dismissing posts nothing, and that now includes opening no hold.
+        $this->assertSame(0, StockHold::where('incident_id', $incident->incident_id)->count());
     }
 
-    public function test_resolving_damaged_posts_a_deduction_adjustment(): void
+    public function test_resolving_defective_posts_a_deduction_adjustment_and_a_hold(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 8, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
-        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DAMAGED, 2);
+        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE, 2);
 
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
@@ -119,6 +131,15 @@ class IncidentResolutionTest extends SetTestCase
 
         $this->assertNotNull($incident->fresh()->adjustment_id);
         $this->assertSame(6, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+
+        // New: damaged stock is still in the building, so the deduction leaves a
+        // `defective` hold that a later inspection returns to the supplier or scraps.
+        $this->assertDatabaseHas('stock_holds', [
+            'incident_id' => $incident->incident_id,
+            'condition'   => StockHold::CONDITION_DEFECTIVE,
+            'quantity'    => 2,
+            'status'      => StockHold::STATUS_HELD,
+        ]);
     }
 
     public function test_resolving_wrong_type_creates_a_scan_correction(): void
@@ -161,7 +182,17 @@ class IncidentResolutionTest extends SetTestCase
              ->assertStatus(422);
     }
 
-    public function test_resolving_zone_mismatch_only_moves_the_zone_label(): void
+    /**
+     * REVERSAL: this test used to assert that resolving rewrote the batch's
+     * zone_label from actual_zone ('Zone 1' -> 'Zone 2').
+     *
+     * That was backwards. The reporter sees the stock physically in Zone 2
+     * while the system says Zone 1, and the SYSTEM is right — someone misplaced
+     * the box. Rewriting zone_label overwrote a correct record with the wrong
+     * physical location; the fix is to walk over and move the box back. The
+     * incident's expected_zone/actual_zone pair is the whole artifact.
+     */
+    public function test_resolving_zone_mismatch_changes_nothing_at_all(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
@@ -175,12 +206,21 @@ class IncidentResolutionTest extends SetTestCase
              ->assertOk();
 
         $fresh = $incident->fresh();
-        $this->assertNull($fresh->adjustment_id, 'a relocation is bookkeeping, not a loss');
+        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $fresh->status_id);
+        $this->assertNull($fresh->adjustment_id, 'a zone mismatch is an observation, not a loss');
         $this->assertNull($fresh->correction_id);
+        // The observation itself is preserved on the incident, which is what a
+        // reviewer acts on when they send someone to move the box.
+        $this->assertSame('Zone 1', $fresh->expected_zone);
+        $this->assertSame('Zone 2', $fresh->actual_zone);
 
         $batch = InventoryBatch::find($b->batch_id);
-        $this->assertSame('Zone 2', $batch->zone_label);
+        // Reversal: was assertSame('Zone 2', ...). The system's zone is correct
+        // and must NOT be overwritten with where the box was wrongly found.
+        $this->assertSame('Zone 1', $batch->zone_label, 'the system zone must survive the review untouched');
         $this->assertSame(7, (int) $batch->quantity_remaining);
+        // Nothing left active stock either, so no hold is opened.
+        $this->assertSame(0, StockHold::where('incident_id', $incident->incident_id)->count());
     }
 
     public function test_resolving_twice_is_rejected(): void
@@ -190,7 +230,7 @@ class IncidentResolutionTest extends SetTestCase
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
-        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DAMAGED, 1);
+        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE, 1);
         $url = "/api/incident-reports/{$incident->incident_id}/resolve";
 
         $this->actingAs($ia, 'sanctum')->postJson($url, ['action' => 'confirm'])->assertOk();
@@ -207,8 +247,8 @@ class IncidentResolutionTest extends SetTestCase
         $p      = $this->makeConsumable();
         $b      = $this->makeBatch($p, $loc, ['quantity_remaining' => 9, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
-        $this->openIncident($loc, $p, $b, IncidentReport::REASON_NOT_FOUND, 1, (int) $picker->user_id);
-        $this->openIncident($loc, $p, $b, IncidentReport::REASON_NOT_FOUND, 1, (int) $picker->user_id);
+        $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 1, (int) $picker->user_id);
+        $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 1, (int) $picker->user_id);
 
         $res = $this->actingAs($ia, 'sanctum')->getJson('/api/incident-reports?status=open');
 
@@ -234,7 +274,7 @@ class IncidentResolutionTest extends SetTestCase
         $this->setStock($loc->location_id, $p->product_id, 50);
         $b = $this->makeBatch($p, $loc, ['quantity_remaining' => 3, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
-        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_NOT_FOUND, 10);
+        $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 10);
 
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
@@ -250,6 +290,13 @@ class IncidentResolutionTest extends SetTestCase
         $this->assertSame(0, (int) \App\Models\InventoryBatch::find($b->batch_id)->quantity_remaining);
         $inv = \App\Models\Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
         $this->assertSame(47, (int) $inv->quantity_on_hand);
+
+        // ...and the hold is clamped to the same 3, so physical = active + held
+        // (47 + 3 = 50). A hold of 10 would manufacture 7 units no batch lost —
+        // the same divergence in the other direction.
+        $hold = StockHold::where('incident_id', $incident->incident_id)->firstOrFail();
+        $this->assertSame(3, (int) $hold->quantity);
+        $this->assertSame(50, (int) $inv->quantity_on_hand + (int) $hold->quantity);
     }
 
     public function test_wrong_type_without_a_batch_is_rejected(): void

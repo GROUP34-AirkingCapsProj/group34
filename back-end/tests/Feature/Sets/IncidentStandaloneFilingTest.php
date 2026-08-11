@@ -5,11 +5,18 @@ namespace Tests\Feature\Sets;
 use App\Models\Adjustment;
 use App\Models\IncidentReport;
 use App\Models\InventoryBatch;
+use App\Models\StockHold;
 use App\Services\IncidentService;
 
 class IncidentStandaloneFilingTest extends SetTestCase
 {
-    public function test_theft_writes_off_as_a_loss(): void
+    /**
+     * `theft` stopped being a reason of its own: the type is now `missing` and
+     * the theft nuance rides along as `suspected_cause`. The write-off itself
+     * is unchanged — an Adjustment of type `loss` — but it now also leaves a
+     * `missing` hold behind, because physical = active + held.
+     */
+    public function test_missing_with_suspected_theft_writes_off_as_a_loss_and_holds_the_stock(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
@@ -22,22 +29,42 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
             'batch_id'    => $b->batch_id,
-            'reason'      => IncidentReport::REASON_THEFT,
+            'reason'      => IncidentReport::REASON_MISSING,
             'quantity'    => 4,
             'narrative'   => 'Four units gone overnight, side door was unlatched.',
             'occurred_at' => now()->subDay(),
         ], (int) $wp->user_id);
 
+        // IncidentService::file() does not yet carry the cause fields through
+        // from its payload, so the column is set directly here to model what a
+        // real suspected-theft row looks like when resolving it.
+        $incident->update(['suspected_cause' => 'theft']);
+
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
              ->assertOk();
 
+        // Unchanged: the suspected cause does not change the adjustment type.
         $adjustment = Adjustment::find($incident->fresh()->adjustment_id);
         $this->assertSame('loss', $adjustment->adjustment_type);
         $this->assertSame(6, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+
+        // New: the deducted stock is accounted for as a hold rather than simply
+        // vanishing, so physical = active + held still holds after a write-off.
+        $this->assertDatabaseHas('stock_holds', [
+            'incident_id' => $incident->incident_id,
+            'condition'   => StockHold::CONDITION_MISSING,
+            'quantity'    => 4,
+            'status'      => StockHold::STATUS_HELD,
+        ]);
     }
 
-    public function test_delivery_damage_writes_off_as_damage(): void
+    /**
+     * `delivery_damage` collapsed into `defective` with `root_cause: delivery`.
+     * The adjustment type is still `damage`; the new part is the `defective`
+     * hold, which is what a later inspection disposes of.
+     */
+    public function test_defective_from_delivery_writes_off_as_damage_and_holds_the_stock(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
@@ -50,17 +77,30 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
             'batch_id'    => $b->batch_id,
-            'reason'      => IncidentReport::REASON_DELIVERY_DAMAGE,
+            'reason'      => IncidentReport::REASON_DEFECTIVE,
             'quantity'    => 2,
             'narrative'   => 'Crushed in the van, customer refused it.',
         ], (int) $wp->user_id);
+
+        // See the note above: file() does not persist the cause fields yet.
+        $incident->update(['root_cause' => 'delivery']);
 
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
              ->assertOk();
 
+        // Unchanged: the root cause does not change the adjustment type.
         $this->assertSame('damage', Adjustment::find($incident->fresh()->adjustment_id)->adjustment_type);
         $this->assertSame(8, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+
+        // New: the damaged units are held for inspection, not written out of
+        // existence — a `defective` hold can still go back to the supplier.
+        $this->assertDatabaseHas('stock_holds', [
+            'incident_id' => $incident->incident_id,
+            'condition'   => StockHold::CONDITION_DEFECTIVE,
+            'quantity'    => 2,
+            'status'      => StockHold::STATUS_HELD,
+        ]);
     }
 
     public function test_a_standalone_report_still_holds_its_batch_out_of_fifo(): void
@@ -77,7 +117,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
             'batch_id'    => $b->batch_id,
-            'reason'      => IncidentReport::REASON_THEFT,
+            'reason'      => IncidentReport::REASON_MISSING,
             'quantity'    => 1,
             'narrative'   => 'One unit missing from the shelf.',
         ], (int) $wp->user_id);
@@ -129,7 +169,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
         app(IncidentService::class)->file([
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
-            'reason'      => IncidentReport::REASON_THEFT,
+            'reason'      => IncidentReport::REASON_MISSING,
             'quantity'    => 2,
             'narrative'   => 'Something went missing but I did not say what.',
         ], (int) $wp->user_id);
@@ -145,7 +185,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
-            'reason'      => 'theft',
+            'reason'      => 'missing',
             'quantity'    => 2,
             'narrative'   => 'Two units gone from the aisle.',
             'occurred_at' => now()->subDay()->format('Y-m-d H:i:s'),
@@ -165,7 +205,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
-            'reason'      => 'theft',
+            'reason'      => 'missing',
             'quantity'    => 1,
             'narrative'   => 'It will be stolen tomorrow.',
             'occurred_at' => now()->addDays(2)->format('Y-m-d H:i:s'),
@@ -223,7 +263,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
         $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
-            'reason'      => 'theft',
+            'reason'      => 'missing',
             'product_id'  => null,
             'quantity'    => null,
             'narrative'   => 'Something went missing but I named neither what nor how many.',
@@ -248,7 +288,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
-            'reason'      => 'theft',
+            'reason'      => 'missing',
             'quantity'    => 1,
             'narrative'   => 'Noticed a unit missing during the morning walk.',
         ]);
@@ -270,7 +310,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
-            'reason'      => 'theft',
+            'reason'      => 'missing',
             'quantity'    => 1,
             'narrative'   => 'Writing rows would break the read-only guarantee.',
         ])->assertForbidden();
@@ -294,7 +334,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
-            'reason'      => 'theft',
+            'reason'      => 'missing',
             'quantity'    => 1,
             'narrative'   => 'Filed from a phone in UTC+8.',
             'occurred_at' => $deviceNow,
@@ -313,7 +353,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
-            'reason'      => 'theft',
+            'reason'      => 'missing',
             'quantity'    => 1,
             'narrative'   => 'Tomorrow, allegedly.',
             'occurred_at' => now()->addDay()->setTimezone('Asia/Manila')->toIso8601String(),

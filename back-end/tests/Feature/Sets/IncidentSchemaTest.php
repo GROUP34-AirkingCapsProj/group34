@@ -42,7 +42,7 @@ class IncidentSchemaTest extends SetTestCase
             'adjustment_id' => 'adjustments',
             'correction_id' => 'scan_corrections',
 
-            // The sale a customer_return came from, distinct from source_id.
+            // The sale a `return` came from, distinct from source_id.
             'related_issuance_id' => 'issuances',
         ];
 
@@ -68,7 +68,10 @@ class IncidentSchemaTest extends SetTestCase
             'source_id'       => 1,
             'location_id'     => $loc->location_id,
             'product_id'      => $product->product_id,
-            'reason'          => IncidentReport::REASON_NOT_FOUND,
+            // Six types replaced eight: not_found is now `missing` carrying the
+            // cause as a field rather than baking it into the type.
+            'reason'          => IncidentReport::REASON_MISSING,
+            'suspected_cause' => 'unknown',
             'quantity'        => 3,
             'narrative'       => 'Shelf empty.',
             'reported_by'     => $user->user_id,
@@ -77,6 +80,9 @@ class IncidentSchemaTest extends SetTestCase
 
         $this->assertNotNull($incident->incident_id);
         $this->assertTrue(IncidentReport::whereKey($incident->incident_id)->open()->exists());
+        // The cause that used to be encoded in the reason string must survive
+        // the round trip, or collapsing eight reasons to six loses information.
+        $this->assertSame('unknown', $incident->fresh()->suspected_cause);
     }
 
     public function test_standalone_columns_are_nullable_datetimes_and_quantity_stays_required(): void
@@ -121,7 +127,8 @@ class IncidentSchemaTest extends SetTestCase
             'source_id'       => null,
             'location_id'     => $loc->location_id,
             'product_id'      => $product->product_id,
-            'reason'          => IncidentReport::REASON_NOT_FOUND,
+            'reason'          => IncidentReport::REASON_MISSING,
+            'suspected_cause' => 'unknown',
             'quantity'        => 3,
             'narrative'       => 'Counted short during a walk-through.',
             'occurred_at'     => $occurredAt,

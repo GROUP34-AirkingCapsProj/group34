@@ -57,7 +57,11 @@ class ProfitLossAnalyticsTest extends TestCase
         ], 'product_id');
     }
 
-    /** Mirrors what IncidentService::postDeduction() writes on confirm. */
+    /**
+     * Mirrors what MissingResolution / DefectiveResolution write on confirm.
+     * Since the eight reasons collapsed to six, the detail row's `reason` is
+     * the incident's `missing` / `defective` rather than `not_found` / `damaged`.
+     */
     private function makeAdjustment(int $productId, int $deducted, string $type): int
     {
         $adjustmentId = (int) DB::table('adjustments')->insertGetId([
@@ -79,7 +83,7 @@ class ProfitLossAnalyticsTest extends TestCase
             'product_id'      => $productId,
             'add_quantity'    => 0,
             'deduct_quantity' => $deducted,
-            'reason'          => $type === 'damage' ? 'damaged' : 'not_found',
+            'reason'          => $type === 'damage' ? 'defective' : 'missing',
             'created_at'      => now(),
             'updated_at'      => now(),
         ]);
@@ -135,21 +139,21 @@ class ProfitLossAnalyticsTest extends TestCase
         $this->assertEqualsWithDelta(0.0, $result['profitLossStats']['totalProfitLoss'], 0.01);
     }
 
-    public function test_dismissed_damaged_incident_contributes_zero_loss(): void
+    public function test_dismissed_defective_incident_contributes_zero_loss(): void
     {
         $productId = $this->makeProduct();
-        $this->makeIncident($productId, 'damaged', 10, $this->statusDismissed);
+        $this->makeIncident($productId, 'defective', 10, $this->statusDismissed);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
         $this->assertEqualsWithDelta(0.0, $result['profitLossStats']['totalProfitLoss'], 0.01);
     }
 
-    public function test_confirmed_damaged_incident_is_valued_at_cost(): void
+    public function test_confirmed_defective_incident_is_valued_at_cost(): void
     {
         $productId    = $this->makeProduct(80);
         $adjustmentId = $this->makeAdjustment($productId, 3, 'damage');
-        $this->makeIncident($productId, 'damaged', 3, $this->statusResolved, $adjustmentId);
+        $this->makeIncident($productId, 'defective', 3, $this->statusResolved, $adjustmentId);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
@@ -158,11 +162,11 @@ class ProfitLossAnalyticsTest extends TestCase
         $this->assertSame(0, $result['profitLossStats']['stolenUnits']);
     }
 
-    public function test_not_found_incident_counts_as_stolen_units(): void
+    public function test_missing_incident_counts_as_stolen_units(): void
     {
         $productId    = $this->makeProduct(50);
         $adjustmentId = $this->makeAdjustment($productId, 4, 'loss');
-        $this->makeIncident($productId, 'not_found', 4, $this->statusResolved, $adjustmentId);
+        $this->makeIncident($productId, 'missing', 4, $this->statusResolved, $adjustmentId);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
@@ -174,7 +178,7 @@ class ProfitLossAnalyticsTest extends TestCase
     {
         $productId = $this->makeProduct(80);
         $adjustmentId = $this->makeAdjustment($productId, 6, 'loss');
-        $this->makeIncident($productId, 'not_found', 100, $this->statusResolved, $adjustmentId);
+        $this->makeIncident($productId, 'missing', 100, $this->statusResolved, $adjustmentId);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
@@ -186,7 +190,7 @@ class ProfitLossAnalyticsTest extends TestCase
     public function test_open_incident_is_pending_and_excluded_from_the_total(): void
     {
         $productId = $this->makeProduct();
-        $this->makeIncident($productId, 'damaged', 9, $this->statusOpen);
+        $this->makeIncident($productId, 'defective', 9, $this->statusOpen);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
@@ -220,7 +224,7 @@ class ProfitLossAnalyticsTest extends TestCase
         ], 'product_id');
 
         $adjustmentId = $this->makeAdjustment($productId, 8, 'damage');
-        $this->makeIncident($productId, 'damaged', 8, $this->statusResolved, $adjustmentId);
+        $this->makeIncident($productId, 'defective', 8, $this->statusResolved, $adjustmentId);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
@@ -258,7 +262,7 @@ class ProfitLossAnalyticsTest extends TestCase
         ]);
 
         $adjustmentId = $this->makeAdjustment($productId, 10, 'damage');
-        $this->makeIncident($productId, 'damaged', 10, $this->statusResolved, $adjustmentId);
+        $this->makeIncident($productId, 'defective', 10, $this->statusResolved, $adjustmentId);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
@@ -279,7 +283,7 @@ class ProfitLossAnalyticsTest extends TestCase
 
         $productA = $this->makeProduct(80);
         $adjustmentA = $this->makeAdjustment($productA, 3, 'damage');
-        $this->makeIncident($productA, 'damaged', 3, $this->statusResolved, $adjustmentA);
+        $this->makeIncident($productA, 'defective', 3, $this->statusResolved, $adjustmentA);
 
         // Second adjustment/incident at the second location.
         $productB = $this->makeProduct(50);
@@ -302,7 +306,7 @@ class ProfitLossAnalyticsTest extends TestCase
             'product_id'      => $productB,
             'add_quantity'    => 0,
             'deduct_quantity' => 4,
-            'reason'          => 'not_found',
+            'reason'          => 'missing',
             'created_at'      => now(),
             'updated_at'      => now(),
         ]);
@@ -313,7 +317,7 @@ class ProfitLossAnalyticsTest extends TestCase
             'source_id'       => 1,
             'location_id'     => $otherLocationId,
             'product_id'      => $productB,
-            'reason'          => 'not_found',
+            'reason'          => 'missing',
             'quantity'        => 4,
             'narrative'       => 'Test incident',
             'reported_by'     => $this->userId,
@@ -361,12 +365,12 @@ class ProfitLossAnalyticsTest extends TestCase
             'product_id'      => $unrelatedProductId,
             'add_quantity'    => 0,
             'deduct_quantity' => 5,
-            'reason'          => 'damaged',
+            'reason'          => 'defective',
             'created_at'      => now(),
             'updated_at'      => now(),
         ]);
 
-        $this->makeIncident($incidentProductId, 'damaged', 5, $this->statusResolved, $adjustmentId);
+        $this->makeIncident($incidentProductId, 'defective', 5, $this->statusResolved, $adjustmentId);
 
         $result = $this->service->profitLoss($this->locationId, null);
 
