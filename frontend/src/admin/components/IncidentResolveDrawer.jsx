@@ -3,8 +3,19 @@ import Modal from './Modal';
 import { incidentReportsAPI, productsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
-import { reasonLabel, reasonMeta } from '../utils/incidentReasons';
+import {
+  reasonLabel, reasonMeta,
+  SUSPECTED_CAUSES, ROOT_CAUSES, RETURN_DIRECTIONS,
+} from '../utils/incidentReasons';
 import { formatPieces } from '../utils/packageFormat';
+
+/**
+ * Human label for a stored cause value, falling back to the raw value so an
+ * option added server-side without a client mirror still reads as something
+ * rather than vanishing from the reviewer's screen.
+ */
+const causeLabel = (options, value) =>
+  options.find((o) => o.value === value)?.label || value;
 
 /**
  * Resolve drawer for a single incident report. Renders as a Modal (this
@@ -128,27 +139,48 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
   const handleConfirm = async () => {
     if (confirmDisabled) return;
-    if (outcome === 'writeoff') {
+    // Approving no longer deletes stock — it moves it into a hold. Missing is
+    // terminal; Defective and Returned go to Held Stock for a second decision.
+    if (outcome === 'missing') {
       const ok = await confirmAction({
         title: 'Confirm this incident?',
-        text: `This writes stock off — it posts a deduction adjustment for ${qtyLabel} of "${incident.product_name}". This cannot be undone from here.`,
-        confirmText: 'Confirm & write off',
+        text: `This moves ${qtyLabel} of "${incident.product_name}" out of stock and records them as Missing. It posts a loss adjustment and cannot be undone from here.`,
+        confirmText: 'Confirm & record the loss',
         tone: 'danger',
       });
       if (!ok) return;
     }
 
-    if (outcome === 'restock') {
-      // Not "a new batch": with no batch named, RestockResolution routes the
-      // units to the location's catch-all/legacy batch, whose null received_at
-      // sorts them FIRST in FIFO. Say so — it changes what gets picked next.
+    if (outcome === 'defective') {
+      const ok = await confirmAction({
+        title: 'Confirm this incident?',
+        text: `This moves ${qtyLabel} of "${incident.product_name}" into Defective. The stock leaves active inventory and appears in Held Stock, where someone decides whether it goes back to the supplier or is scrapped.`,
+        confirmText: 'Confirm & hold as defective',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
+
+    if (outcome === 'return') {
+      // Deliberately does NOT say the stock is available again — that was true
+      // of the old restock-on-approval behaviour and is now the single most
+      // misleading thing this dialog could claim.
       const where = incident.batch_id
         ? `batch #${incident.batch_id}`
         : "the location's unbatched stock, where it will be picked first";
       const ok = await confirmAction({
-        title: 'Put this stock back?',
-        text: `This returns ${qtyLabel} of "${incident.product_name}" to ${where} and makes them available again.`,
-        confirmText: 'Confirm & restock',
+        title: 'Hold this stock for inspection?',
+        text: `This holds ${qtyLabel} of "${incident.product_name}" as Returned. It does NOT become sellable — someone must inspect it in Held Stock first. If it is found sellable it goes back to ${where}.`,
+        confirmText: 'Confirm & hold',
+      });
+      if (!ok) return;
+    }
+
+    if (outcome === 'relocate') {
+      const ok = await confirmAction({
+        title: 'Record this mismatch?',
+        text: `Nothing in the system changes. The record is correct — someone needs to physically move the item back to ${incident.expected_zone || 'its recorded zone'}.`,
+        confirmText: 'Record it',
       });
       if (!ok) return;
     }
@@ -198,6 +230,39 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
             <div className="ak-label">Reported by</div>
             <div>{incident.reported_by_name || '—'}</div>
           </div>
+          {/* What the reporter said caused it. Only one of these is ever set —
+              the flow nulls the others by outcome — so they render as they
+              come rather than being branched on the reason a second time. */}
+          {incident.suspected_cause && (
+            <div>
+              <div className="ak-label">Suspected cause</div>
+              <div>{causeLabel(SUSPECTED_CAUSES, incident.suspected_cause)}</div>
+            </div>
+          )}
+          {incident.last_known_location && (
+            <div>
+              <div className="ak-label">Last seen</div>
+              <div>{incident.last_known_location}</div>
+            </div>
+          )}
+          {incident.root_cause && (
+            <div>
+              <div className="ak-label">Root cause</div>
+              <div>{causeLabel(ROOT_CAUSES, incident.root_cause)}</div>
+            </div>
+          )}
+          {incident.return_direction && (
+            <div>
+              <div className="ak-label">Direction</div>
+              <div>{causeLabel(RETURN_DIRECTIONS, incident.return_direction)}</div>
+            </div>
+          )}
+          {incident.return_reason && (
+            <div>
+              <div className="ak-label">Return reason</div>
+              <div>{incident.return_reason}</div>
+            </div>
+          )}
         </div>
 
         {(incident.expected_zone || incident.actual_zone) && (
@@ -260,21 +325,31 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
         {incident.is_open && canResolve && (
           <div style={{ borderTop: '1px solid var(--ak-line)', paddingTop: '0.9rem' }}>
-            {outcome === 'writeoff' && (
+            {outcome === 'missing' && (
               <p style={{ color: '#b91c1c', fontSize: '0.85rem', marginTop: 0 }}>
-                Confirming this incident writes the stock off — it posts a deduction adjustment. This does not
-                affect the batch's FIFO exclusion, which already happened when the incident was filed.
+                Confirming moves <strong>{qtyLabel}</strong> out of active stock and records it as
+                <strong> Missing</strong>, posting a loss adjustment. The stock stays countable for shrinkage
+                reporting but has no way back — an item that turns up later needs a fresh report.
               </p>
             )}
 
-            {outcome === 'restock' && (
+            {outcome === 'defective' && (
+              <p style={{ color: '#b45309', fontSize: '0.85rem', marginTop: 0 }}>
+                Confirming moves <strong>{qtyLabel}</strong> into <strong>Defective</strong> and posts a damage
+                adjustment. It will appear in Held Stock, where someone decides whether it goes back to the
+                supplier or is scrapped. It cannot be put straight back into picking.
+              </p>
+            )}
+
+            {outcome === 'return' && (
               <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
-                Confirming puts <strong>{qtyLabel}</strong> back into stock
+                Confirming holds <strong>{qtyLabel}</strong> as <strong>Returned</strong>. It does
+                <strong> not</strong> become sellable — it appears in Held Stock for inspection first. If it is
+                found sellable it goes back
                 {incident.batch_id
-                  ? <> on <strong>batch #{incident.batch_id}</strong></>
-                  : <> as <strong>unbatched stock</strong>, which will be picked first</>}, and
-                makes them available for picking again. It does not re-issue the correct item — run a normal
-                issuance for that.
+                  ? <> onto <strong>batch #{incident.batch_id}</strong></>
+                  : <> as <strong>unbatched stock</strong>, which will be picked first</>}.
+                It does not re-issue the correct item — run a normal issuance for that.
               </p>
             )}
 
@@ -313,8 +388,10 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
             {outcome === 'relocate' && (
               <p style={{ fontSize: '0.85rem' }}>
-                No quantity changes here — confirming just records the re-shelving from
-                {' '}<strong>{incident.expected_zone || '—'}</strong> to <strong>{incident.actual_zone || '—'}</strong>.
+                <strong>Nothing in the system changes.</strong> The record says
+                {' '}<strong>{incident.expected_zone || '—'}</strong> and that is correct — the item was
+                physically put in <strong>{incident.actual_zone || '—'}</strong> by mistake. Confirming records
+                the observation so someone can go and move it back.
               </p>
             )}
 
