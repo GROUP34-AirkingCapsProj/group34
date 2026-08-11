@@ -183,7 +183,13 @@ class IncidentItemService
         if ($item->batch_id !== null) {
             $batch = InventoryBatch::lockForUpdate()->find($item->batch_id);
             if ($batch !== null) {
-                $batch->decrement('quantity_remaining', min($quantity, (int) $batch->quantity_remaining));
+                // Clamp to what the batch can actually give up, and carry that
+                // clamped figure into the location deduction below. Clamping the
+                // two independently makes them diverge: a report of 10 against a
+                // batch holding 3 emptied the batch by 3 but the location by 10,
+                // vanishing 7 units no batch ever lost.
+                $quantity = min($quantity, (int) $batch->quantity_remaining);
+                $batch->decrement('quantity_remaining', $quantity);
             }
         }
 
