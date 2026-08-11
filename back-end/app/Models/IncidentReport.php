@@ -7,6 +7,7 @@ use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
 class IncidentReport extends Model
@@ -80,12 +81,27 @@ class IncidentReport extends Model
         'adjustment_id', 'correction_id', 'resolution_note',
         'last_known_location', 'suspected_cause', 'root_cause',
         'return_direction', 'return_reason', 'related_transfer_id',
+        // The client's document block, filled by the reporter.
+        'dealer_name', 'dealer_phone', 'dealer_mobile', 'dealer_email', 'branch_address',
+        'customer_name', 'customer_contact', 'site_address', 'purchased_at', 'received_at_dor',
+        // The inspection record, filled by the inspector. The signature columns
+        // hold the names printed on the hardcopy that is signed by hand and
+        // carried to the admin — a record that signing happened, not a
+        // digital signature.
+        'inspected_by', 'inspected_at', 'inspection_findings', 'checked_by_asc',
+        'signed_by_representative', 'signed_by_branch_manager', 'signed_at',
+        'rejection_note',
     ];
 
     protected $casts = [
-        'quantity'    => 'integer',
-        'reviewed_at' => 'datetime',
-        'occurred_at' => 'datetime',
+        'quantity'        => 'integer',
+        'reviewed_at'     => 'datetime',
+        'occurred_at'     => 'datetime',
+        'inspected_at'    => 'datetime',
+        'checked_by_asc'  => 'boolean',
+        'purchased_at'    => 'date',
+        'received_at_dor' => 'date',
+        'signed_at'       => 'date',
     ];
 
     /** @var array<string,int> */
@@ -114,20 +130,21 @@ class IncidentReport extends Model
         return $query->where('status_id', self::statusId('Open'));
     }
 
-    /**
-     * Filed but not finished — still Open, or approved and awaiting an
-     * inspection that has not happened yet.
-     *
-     * This, not scopeOpen, is what FIFO exclusion must use. `Open` alone stopped
-     * matching the moment Awaiting Inspection existed, which quietly returned
-     * stock under investigation to the picking pool.
-     */
-    public function scopeUnsettled(Builder $query): Builder
+    /** The physical things this report is about — one row per unit. */
+    public function items(): HasMany
     {
-        return $query->whereIn('status_id', [
-            self::statusId('Open'),
-            self::statusId('Awaiting Inspection'),
-        ]);
+        return $this->hasMany(IncidentItem::class, 'incident_id', 'incident_id');
+    }
+
+    /** The inspector's attachments against the client's checklist. */
+    public function evidence(): HasMany
+    {
+        return $this->hasMany(IncidentEvidence::class, 'incident_id', 'incident_id');
+    }
+
+    public function inspectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'inspected_by', 'user_id');
     }
 
     public function product(): BelongsTo

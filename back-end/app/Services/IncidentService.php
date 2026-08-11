@@ -2,28 +2,42 @@
 
 namespace App\Services;
 
+use App\Models\IncidentItem;
 use App\Models\IncidentReport;
-use App\Models\StockHold;
-use App\Services\Incidents\AcknowledgeResolution;
-use App\Services\Incidents\DefectiveResolution;
-use App\Services\Incidents\MissingResolution;
-use App\Services\Incidents\RelocateResolution;
-use App\Services\Incidents\ResolvesIncident;
-use App\Services\Incidents\RetypeResolution;
-use App\Services\Incidents\ReturnResolution;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Incident reports are the only legal way to break FIFO order. Filing one
- * excludes the affected batch immediately so picking can continue; the
- * downstream adjustment or correction is posted later, on review.
+ * quarantines the affected items immediately so picking can continue past them;
+ * nothing is deducted until an inspector has examined the goods and an admin has
+ * confirmed what they found.
  *
- * Exclusion is derived from open incidents rather than a flag column on
- * inventory_batches, so resolving or dismissing an incident returns the stock
- * to rotation with no cleanup step.
+ * Exclusion is derived from the ITEMS' own status rather than a flag column on
+ * inventory_batches, so confirming or dismissing a report returns the stock to
+ * rotation with no cleanup step.
+ *
+ * There is no per-reason resolution strategy any more: the inspector records an
+ * outcome on each physical item, and IncidentItemService::applyOutcomes applies
+ * every type uniformly.
  */
 class IncidentService
 {
+    /**
+     * Reasons that move no stock and therefore create no items.
+     *
+     * Both are confirmable straight from Open. Demanding five photographs and
+     * two signatures to record that a box is on the wrong shelf is how a process
+     * teaches people not to report things.
+     */
+    public const INSPECTION_EXEMPT_REASONS = [
+        IncidentReport::REASON_ZONE_MISMATCH,
+        IncidentReport::REASON_OTHER,
+    ];
+
+    public function __construct(private IncidentItemService $items)
+    {
+    }
+
     public function file(array $data, int $reportedBy): IncidentReport
     {
         $reason = $data['reason'] ?? null;
@@ -44,59 +58,104 @@ class IncidentService
             }
         }
 
-        return DB::transaction(fn () => IncidentReport::create([
-            'incident_number'     => $this->nextNumber(),
-            'source_type'         => $data['source_type'],
-            // A standalone report has no source transaction to point at.
-            'source_id'           => isset($data['source_id']) ? (int) $data['source_id'] : null,
-            'related_issuance_id' => isset($data['related_issuance_id']) ? (int) $data['related_issuance_id'] : null,
-            'location_id'         => (int) $data['location_id'],
-            'product_id'          => isset($data['product_id']) ? (int) $data['product_id'] : null,
-            'batch_id'            => $data['batch_id'] ?? null,
-            'serial_id'           => $data['serial_id'] ?? null,
-            'expected_zone'       => $data['expected_zone'] ?? null,
-            'actual_zone'         => $data['actual_zone'] ?? null,
-            'reason'              => $reason,
-            'quantity'            => (int) ($data['quantity'] ?? 0),
-            'narrative'           => $data['narrative'] ?? null,
-            'occurred_at'         => $data['occurred_at'] ?? null,
-            'photo_path'          => $data['photo_path'] ?? null,
-            // Client-asserted: both a camera capture and a gallery pick arrive
-            // as identical uploads, so this is recorded, never trusted.
-            'photo_source'        => $data['photo_source'] ?? null,
-            // The cause fields: the nuance that used to be encoded in the reason
-            // itself back when there were eight of them. Listed explicitly
-            // because this array — not $fillable — is what decides which columns
-            // a filing writes; adding them to $fillable alone drops them.
-            'last_known_location' => $data['last_known_location'] ?? null,
-            'suspected_cause'     => $data['suspected_cause'] ?? null,
-            'root_cause'          => $data['root_cause'] ?? null,
-            'return_direction'    => $data['return_direction'] ?? null,
-            'return_reason'       => $data['return_reason'] ?? null,
-            'related_transfer_id' => isset($data['related_transfer_id']) ? (int) $data['related_transfer_id'] : null,
-            'reported_by'         => $reportedBy,
-            'status_id'           => IncidentReport::statusId('Open'),
-        ]));
+        return DB::transaction(function () use ($data, $reason, $reportedBy) {
+            $incident = IncidentReport::create([
+                'incident_number'     => $this->nextNumber(),
+                'source_type'         => $data['source_type'],
+                // A standalone report has no source transaction to point at.
+                'source_id'           => isset($data['source_id']) ? (int) $data['source_id'] : null,
+                'related_issuance_id' => isset($data['related_issuance_id']) ? (int) $data['related_issuance_id'] : null,
+                'location_id'         => (int) $data['location_id'],
+                'product_id'          => isset($data['product_id']) ? (int) $data['product_id'] : null,
+                'batch_id'            => $data['batch_id'] ?? null,
+                'serial_id'           => $data['serial_id'] ?? null,
+                'expected_zone'       => $data['expected_zone'] ?? null,
+                'actual_zone'         => $data['actual_zone'] ?? null,
+                'reason'              => $reason,
+                'quantity'            => (int) ($data['quantity'] ?? 0),
+                'narrative'           => $data['narrative'] ?? null,
+                'occurred_at'         => $data['occurred_at'] ?? null,
+                'photo_path'          => $data['photo_path'] ?? null,
+                // Client-asserted: both a camera capture and a gallery pick arrive
+                // as identical uploads, so this is recorded, never trusted.
+                'photo_source'        => $data['photo_source'] ?? null,
+                // The cause fields: the nuance that used to be encoded in the reason
+                // itself back when there were eight of them. Listed explicitly
+                // because this array — not $fillable — is what decides which columns
+                // a filing writes; adding them to $fillable alone drops them.
+                'last_known_location' => $data['last_known_location'] ?? null,
+                'suspected_cause'     => $data['suspected_cause'] ?? null,
+                'root_cause'          => $data['root_cause'] ?? null,
+                'return_direction'    => $data['return_direction'] ?? null,
+                'return_reason'       => $data['return_reason'] ?? null,
+                'related_transfer_id' => isset($data['related_transfer_id']) ? (int) $data['related_transfer_id'] : null,
+                // The client's document block, filled by the reporter — they are
+                // the ones who know which dealer and customer the unit went to.
+                'dealer_name'         => $data['dealer_name'] ?? null,
+                'dealer_phone'        => $data['dealer_phone'] ?? null,
+                'dealer_mobile'       => $data['dealer_mobile'] ?? null,
+                'dealer_email'        => $data['dealer_email'] ?? null,
+                'branch_address'      => $data['branch_address'] ?? null,
+                'customer_name'       => $data['customer_name'] ?? null,
+                'customer_contact'    => $data['customer_contact'] ?? null,
+                'site_address'        => $data['site_address'] ?? null,
+                'purchased_at'        => $data['purchased_at'] ?? null,
+                'received_at_dor'     => $data['received_at_dor'] ?? null,
+                'reported_by'         => $reportedBy,
+                'status_id'           => IncidentReport::statusId('Open'),
+            ]);
+
+            if (! in_array($reason, self::INSPECTION_EXEMPT_REASONS, true)) {
+                $this->items->quarantine($incident, $this->itemRowsFrom($data));
+            }
+
+            return $incident;
+        });
     }
 
     /**
-     * Batch ids at a location currently held out of FIFO by an unfinished
-     * incident — Open, or approved and still awaiting its inspection.
+     * The physical things the report is about.
      *
-     * Deliberately `unsettled()` rather than `open()`: stock under
-     * investigation must stay unpickable until somebody has actually decided
-     * what happened to it.
+     * A guided filing sends `items` — one row per unit, so a split-system's
+     * indoor and outdoor halves arrive as two. The picking modal has no such
+     * step and sends only the flat product/batch/serial/quantity, so that shape
+     * is folded into a single item rather than being rejected; dropping it would
+     * silently stop quarantining everything filed from a pick.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function itemRowsFrom(array $data): array
+    {
+        $rows = $data['items'] ?? null;
+
+        if (is_array($rows) && $rows !== []) {
+            return $rows;
+        }
+
+        return [[
+            'product_id'    => (int) $data['product_id'],
+            'batch_id'      => $data['batch_id'] ?? null,
+            'serial_id'     => $data['serial_id'] ?? null,
+            'quantity'      => (int) ($data['quantity'] ?? 1),
+            'unit_role'     => IncidentItem::ROLE_SINGLE,
+            'serial_number' => $data['serial_number'] ?? null,
+            'model_code'    => $data['model_code'] ?? null,
+        ]];
+    }
+
+    /**
+     * Batch ids at a location currently unpickable because an item on an
+     * unfinished report names them.
+     *
+     * Read off ITEM status, not the incident's. Deriving it from the incident
+     * broke once already: adding "Awaiting Inspection" silently returned stock
+     * under investigation to the picking pool, because the query filtered on
+     * "Open". An item is quarantined until somebody has actually decided what
+     * happened to it, whatever the paperwork says.
      */
     public function excludedBatchIds(int $locationId): array
     {
-        return IncidentReport::unsettled()
-            ->where('location_id', $locationId)
-            ->whereNotNull('batch_id')
-            ->pluck('batch_id')
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        return IncidentItem::quarantinedBatchIds($locationId);
     }
 
     /** How many incidents a picker has filed in the trailing window — the theft signal. */
@@ -113,59 +172,48 @@ class IncidentService
     }
 
     /**
-     * Resolve an open incident. The artifact depends on the reason and is
-     * produced by a strategy; this method owns only what must never be
-     * duplicated — the transaction, the row lock, the still-Open re-check, and
-     * the status stamping.
+     * The inspector submits their findings: Open -> Awaiting Inspection.
      *
-     * Dismissing produces nothing and returns the stock to FIFO rotation.
+     * Touches NO stock. Everything recorded here — the findings, the ASC tick,
+     * the names on the hardcopy that gets signed by hand — is evidence for the
+     * admin's decision, and the per-item outcomes it points at are applied only
+     * when that decision is `confirm`.
      */
-    public function resolve(IncidentReport $incident, string $action, array $options, int $reviewedBy): IncidentReport
+    public function submitInspection(IncidentReport $incident, array $data, int $inspectorId): IncidentReport
     {
-        // Cheap pre-flight, outside the transaction. Only the confirm path needs
-        // a strategy: dismissing produces no artifact, so a reason whose strategy
-        // has not shipped yet must still be dismissable. Re-checked under the
-        // lock below where it actually matters.
-        if ($action === 'confirm') {
-            $this->strategyFor($incident->reason)->validate($incident, $options);
-        }
-
-        return DB::transaction(function () use ($incident, $action, $options, $reviewedBy) {
-            // Lock the incident row and re-check Open UNDER the lock, so two
-            // reviewers resolving at once cannot both pass the guard and
-            // double-book the write-off. The plain read outside a transaction
-            // would let both through.
+        return DB::transaction(function () use ($incident, $data, $inspectorId) {
             $locked = IncidentReport::whereKey($incident->getKey())->lockForUpdate()->first();
 
-            if ($locked === null || (int) $locked->status_id !== IncidentReport::statusId('Open')) {
-                throw new \RuntimeException('This incident has already been reviewed.');
+            if ($locked === null) {
+                throw new \RuntimeException('This incident no longer exists.');
             }
 
-            if ($action === 'dismiss') {
-                $locked->update([
-                    'status_id'       => IncidentReport::statusId('Dismissed'),
-                    'reviewed_by'     => $reviewedBy,
-                    'reviewed_at'     => now(),
-                    'resolution_note' => $options['resolution_note'] ?? null,
-                ]);
+            // Awaiting Inspection is accepted as well as Open because a rejected
+            // report sits at Awaiting Inspection: the admin sends it back to the
+            // inspector, who fixes what the note asked for and submits again. A
+            // Resolved or Dismissed report is finished and takes no more.
+            $allowed = [
+                IncidentReport::statusId('Open'),
+                IncidentReport::statusId('Awaiting Inspection'),
+            ];
 
-                return $locked->fresh();
+            if (! in_array((int) $locked->status_id, $allowed, true)) {
+                throw new \RuntimeException('This incident has already been decided.');
             }
-
-            // Authoritative dispatch off the freshly-read, locked row rather than
-            // the caller's in-memory model.
-            $strategy = $this->strategyFor($locked->reason);
-
-            $strategy->validate($locked, $options);
-            $posted = $strategy->apply($locked, $options, $reviewedBy);
 
             $locked->update([
-                'status_id'       => $this->statusAfterApply($locked),
-                'reviewed_by'     => $reviewedBy,
-                'reviewed_at'     => now(),
-                'adjustment_id'   => $posted->adjustmentId,
-                'correction_id'   => $posted->correctionId,
-                'resolution_note' => $options['resolution_note'] ?? null,
+                'status_id'                => IncidentReport::statusId('Awaiting Inspection'),
+                'inspected_by'             => $inspectorId,
+                'inspected_at'             => now(),
+                'inspection_findings'      => $data['inspection_findings'] ?? null,
+                'checked_by_asc'           => (bool) ($data['checked_by_asc'] ?? false),
+                'signed_by_representative' => $data['signed_by_representative'] ?? null,
+                'signed_by_branch_manager' => $data['signed_by_branch_manager'] ?? null,
+                'signed_at'                => $data['signed_at'] ?? null,
+                // A resubmission answers the rejection, so the note stops being
+                // the current state of the report and would otherwise sit on the
+                // admin's screen describing a round that is already over.
+                'rejection_note'           => null,
             ]);
 
             return $locked->fresh();
@@ -173,44 +221,113 @@ class IncidentService
     }
 
     /**
-     * Approving is not always the end of the story.
+     * The admin's decision on a submitted inspection.
      *
-     * A defective or returned quantity lands in a hold that still needs an
-     * inspection before anyone knows where it goes — so the incident is
-     * "Awaiting Inspection", not "Resolved". Reading Resolved while the units
-     * sit un-inspected in a corner claims a decision nobody has made.
-     *
-     * Derived from the holds themselves rather than a second reason map: if the
-     * approval left behind a hold that CAN be disposed, an inspection is owed.
-     * A missing hold is terminal, so a loss still resolves immediately, and so
-     * does anything that created no hold at all (re-type, zone mismatch, other).
+     * 'confirm' applies every item outcome and closes the report — this is the
+     * one and only moment stock moves; 'reject' returns it to the inspector with
+     * a note, leaving the evidence and the outcomes intact; 'dismiss' closes it
+     * as raised in error, releasing the quarantine without moving anything.
      */
-    private function statusAfterApply(IncidentReport $incident): int
+    public function decide(IncidentReport $incident, string $action, array $options, int $adminId): IncidentReport
     {
-        $awaiting = StockHold::where('incident_id', $incident->incident_id)
-            ->held()
-            ->get()
-            ->contains(fn (StockHold $h) => ! empty(StockHold::ALLOWED_DISPOSITIONS[$h->condition] ?? []));
+        if (! in_array($action, ['confirm', 'reject', 'dismiss'], true)) {
+            throw new \InvalidArgumentException("Unknown decision: {$action}");
+        }
 
-        return IncidentReport::statusId($awaiting ? 'Awaiting Inspection' : 'Resolved');
+        return DB::transaction(function () use ($incident, $action, $options, $adminId) {
+            // Lock the row and re-check the status UNDER the lock, so two
+            // reviewers deciding at once cannot both pass the guard and
+            // double-book the movement. A plain read outside the transaction
+            // would let both through.
+            $locked = IncidentReport::whereKey($incident->getKey())->lockForUpdate()->first();
+
+            if ($locked === null) {
+                throw new \RuntimeException('This incident no longer exists.');
+            }
+
+            $status = (int) $locked->status_id;
+
+            if (in_array($status, [
+                IncidentReport::statusId('Resolved'),
+                IncidentReport::statusId('Dismissed'),
+            ], true)) {
+                throw new \RuntimeException('This incident has already been decided.');
+            }
+
+            return match ($action) {
+                'confirm' => $this->confirm($locked, $options, $adminId),
+                'reject'  => $this->reject($locked, $options),
+                'dismiss' => $this->dismiss($locked, $options, $adminId),
+            };
+        });
+    }
+
+    private function confirm(IncidentReport $locked, array $options, int $adminId): IncidentReport
+    {
+        $exempt = in_array($locked->reason, self::INSPECTION_EXEMPT_REASONS, true);
+
+        if (! $exempt && (int) $locked->status_id !== IncidentReport::statusId('Awaiting Inspection')) {
+            throw new \RuntimeException(
+                'This incident has not been inspected yet. An inspection must be submitted before it can be confirmed.'
+            );
+        }
+
+        // A zone mismatch or an `other` report has no items, and applyOutcomes
+        // rightly refuses an empty settlement — so the call is skipped rather
+        // than the guard weakened.
+        if (IncidentItem::where('incident_id', $locked->incident_id)->exists()) {
+            $this->items->applyOutcomes($locked, $adminId);
+        }
+
+        $locked->update([
+            'status_id'       => IncidentReport::statusId('Resolved'),
+            'reviewed_by'     => $adminId,
+            'reviewed_at'     => now(),
+            'resolution_note' => $options['resolution_note'] ?? null,
+        ]);
+
+        return $locked->fresh();
     }
 
     /**
-     * Map a reason to the strategy that posts its artifact.
+     * Send it back to the inspector.
      *
-     * No default arm: `match` throws UnhandledMatchError if a reason is added
-     * without a strategy, which is exactly the failure we want — loud, at the
-     * first resolve, rather than an incident silently closing with no artifact.
+     * The status does not move: the report is already Awaiting Inspection and
+     * stays there, because rejection returns it to the inspector's queue, not to
+     * filing. Only the note changes, and the evidence and the per-item outcomes
+     * are left alone so the inspector edits rather than re-enters them.
      */
-    private function strategyFor(string $reason): ResolvesIncident
+    private function reject(IncidentReport $locked, array $options): IncidentReport
     {
-        return match ($reason) {
-            IncidentReport::REASON_MISSING       => new MissingResolution(),
-            IncidentReport::REASON_DEFECTIVE     => new DefectiveResolution(),
-            IncidentReport::REASON_RETURN        => new ReturnResolution(),
-            IncidentReport::REASON_WRONG_TYPE    => new RetypeResolution(),
-            IncidentReport::REASON_ZONE_MISMATCH => new RelocateResolution(),
-            IncidentReport::REASON_OTHER         => new AcknowledgeResolution(),
-        };
+        if ((int) $locked->status_id !== IncidentReport::statusId('Awaiting Inspection')) {
+            throw new \RuntimeException('There is no submitted inspection to reject.');
+        }
+
+        $locked->update([
+            'status_id'      => IncidentReport::statusId('Awaiting Inspection'),
+            'rejection_note' => $options['rejection_note'] ?? $options['resolution_note'] ?? null,
+        ]);
+
+        return $locked->fresh();
+    }
+
+    /**
+     * Raised in error: release the quarantine and close it.
+     *
+     * Nothing was ever deducted, so nothing is given back — the items simply
+     * become available again and their batches return to FIFO rotation.
+     */
+    private function dismiss(IncidentReport $locked, array $options, int $adminId): IncidentReport
+    {
+        $this->items->release($locked);
+
+        $locked->update([
+            'status_id'       => IncidentReport::statusId('Dismissed'),
+            'reviewed_by'     => $adminId,
+            'reviewed_at'     => now(),
+            'resolution_note' => $options['resolution_note'] ?? null,
+        ]);
+
+        return $locked->fresh();
     }
 }
