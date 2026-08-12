@@ -126,10 +126,20 @@ class IncidentService
      */
     private function itemRowsFrom(array $data): array
     {
+        // Derived from the counterparty and STORED, so a later edit to the
+        // report cannot retroactively flip arithmetic that has already run.
+        $inbound = ($data['reason'] ?? null) === IncidentReport::REASON_RETURN
+            && in_array($data['return_counterparty'] ?? null, IncidentReport::INBOUND_COUNTERPARTIES, true);
+
         $rows = $data['items'] ?? null;
 
         if (is_array($rows) && $rows !== []) {
-            return $rows;
+            // Stamped onto every row rather than left to the caller: direction
+            // is a property of the report's counterparty, not of the individual
+            // unit, so a client cannot send half a return inbound.
+            // array_merge, not `+`: `+` keeps a key the row already has, which
+            // would let a client's own is_inbound override the derived value.
+            return array_map(fn (array $row) => array_merge($row, ['is_inbound' => $inbound]), $rows);
         }
 
         return [[
@@ -140,6 +150,7 @@ class IncidentService
             'unit_role'     => IncidentItem::ROLE_SINGLE,
             'serial_number' => $data['serial_number'] ?? null,
             'model_code'    => $data['model_code'] ?? null,
+            'is_inbound'    => $inbound,
         ]];
     }
 
