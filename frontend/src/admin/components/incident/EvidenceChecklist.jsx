@@ -3,7 +3,7 @@ import CameraCapture from '../CameraCapture';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 import { incidentReportsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
-import { evidenceRequirementsFor } from '../../utils/incidentDocument';
+import { requirementsFor } from '../../utils/incidentDocument';
 
 /**
  * The client's photographic evidence checklist.
@@ -65,38 +65,15 @@ export const requirementMeta = (value) =>
   || { value, label: String(value || '').replace(/_/g, ' '), help: '' };
 
 /**
- * The requirements a report must answer.
- *
- * The matrix itself lives in `utils/incidentDocument` so the document can show
- * a reporter, in `file` mode, what the inspector will be asked for — one list,
- * not two that can disagree. It mirrors
- * App\Models\IncidentEvidence::requiredFor(), which is the authority; this
- * exists so an inspector is told what is outstanding before they submit rather
- * than after a 422.
- *
- * It is REASON-driven, not type-driven: a wrong-delivery return is asked for
- * the wrong/correct pair plus the receipt, an unwanted one for the goods, the
- * box and the accessories. Passing a return without its reason code therefore
- * yields the sellability list, which is the safe default — it over-asks rather
- * than letting a wrong-delivery report through with nothing.
- *
- * `asc_service_report` is conditional on a FACT, not on the type: it is added
- * the moment the inspector ticks "checked by an ASC". A reason that asks for
- * nothing stays empty — a missing unit has no service report either.
+ * The matrix and both derived lists live in `utils/incidentDocument`, so the
+ * document can show a reporter in `file` mode what the inspector will be asked
+ * for and block submission on the same list the checklist renders — one list,
+ * not three that can disagree. They mirror
+ * App\Models\IncidentEvidence::requiredFor(), which is the authority; the
+ * client copy exists so an inspector is told what is outstanding before they
+ * submit rather than after a 422.
  */
-export function requirementsFor(reason, checkedByAsc, returnReasonCode) {
-  const base = evidenceRequirementsFor(reason, returnReasonCode);
-  if (!checkedByAsc || base.length === 0) return base;
-  return [...base, 'asc_service_report'];
-}
-
-/** Every requirement either has a photo or has a written skip reason. */
-export function outstandingRequirements(reason, checkedByAsc, evidence, returnReasonCode) {
-  const rows = Array.isArray(evidence) ? evidence : [];
-  return requirementsFor(reason, checkedByAsc, returnReasonCode).filter(
-    (req) => !rows.some((e) => e.requirement === req),
-  );
-}
+export { requirementsFor, outstandingRequirements } from '../../utils/incidentDocument';
 
 /**
  * Props:

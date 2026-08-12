@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import IncidentDocument from './IncidentDocument';
 import { inventoryBatchesAPI, locationsAPI, productsAPI } from '../../services/api';
 
@@ -14,7 +14,11 @@ import { inventoryBatchesAPI, locationsAPI, productsAPI } from '../../services/a
  */
 
 jest.mock('../../services/api', () => ({
-  incidentReportsAPI: { file: jest.fn(), lookup: jest.fn() },
+  incidentReportsAPI: {
+    file: jest.fn(), lookup: jest.fn(), setItemOutcome: jest.fn(),
+    submitInspection: jest.fn(), addEvidence: jest.fn(), removeEvidence: jest.fn(),
+    evidencePhotoBlob: jest.fn(), photoBlob: jest.fn(),
+  },
   inventoryBatchesAPI: { getAll: jest.fn() },
   locationsAPI: { getAll: jest.fn() },
   productsAPI: { getAll: jest.fn() },
@@ -76,4 +80,97 @@ test('the document changes hands at a visible rule', async () => {
   await renderDoc();
 
   expect(screen.getByText(/everything below is the inspector/i)).toBeInTheDocument();
+});
+
+/**
+ * A report mid-flight: filed, quarantined, waiting for someone to decide what
+ * happens to the unit.
+ */
+const filedReport = (over = {}) => ({
+  incident_id: 5,
+  incident_number: 'INC-0005',
+  reason: 'defective',
+  status_name: 'Open',
+  location_id: 1,
+  narrative: 'the panel is cracked',
+  dealer_name: 'Northgate Aircon',
+  evidence: [],
+  items: [{
+    item_id: 11,
+    product_id: 7,
+    product_name: 'Split Type 1.5HP',
+    status: 'quarantined',
+    outcome: null,
+    quantity: 1,
+    unit_role: 'indoor',
+    serial_number: 'SN-1',
+    warranty_state: 'expired',
+    allowed_outcomes: ['restock', 'return_to_supplier', 'repair', 'scrap', 'write_off'],
+  }],
+  ...over,
+});
+
+test('inspect mode shows the reporter’s answers, locked, in their own fields', async () => {
+  await renderDoc({ mode: 'inspect', report: filedReport() });
+
+  // Not summarised elsewhere — the same field, filled in and disabled.
+  const dealer = screen.getByLabelText(/dealer name/i);
+  expect(dealer).toHaveValue('Northgate Aircon');
+  expect(dealer).toBeDisabled();
+});
+
+/**
+ * The gate. The server serves `allowed_outcomes` per item, filtered by that
+ * unit's warranty state and enforced with a 422 — a client that re-derived it
+ * could only ever offer something the endpoint refuses.
+ */
+test('the outcome selector offers exactly what the server allowed', async () => {
+  await renderDoc({ mode: 'inspect', report: filedReport() });
+
+  const select = screen.getByLabelText(/what happens to this unit/i);
+  const offered = Array.from(select.options).map((o) => o.value).filter(Boolean);
+  expect(offered).toEqual(['restock', 'return_to_supplier', 'repair', 'scrap', 'write_off']);
+  expect(offered).not.toContain('claim_warranty');
+});
+
+test('a warranty claim appears when the server says the unit is covered', async () => {
+  await renderDoc({
+    mode: 'inspect',
+    report: filedReport({
+      items: [{
+        ...filedReport().items[0],
+        warranty_state: 'in_warranty',
+        allowed_outcomes: ['restock', 'return_to_supplier', 'claim_warranty', 'repair', 'scrap', 'write_off'],
+      }],
+    }),
+  });
+
+  const select = screen.getByLabelText(/what happens to this unit/i);
+  expect(Array.from(select.options).map((o) => o.value)).toContain('claim_warranty');
+});
+
+// `expired` and `none` offer the same choices but are not the same fact: one
+// unit was sold and its cover ran out, the other was never registered at all.
+test('expired and no-record are told apart on screen', async () => {
+  const { unmount } = await renderDoc({ mode: 'inspect', report: filedReport() });
+  expect(screen.getByText('Warranty expired')).toBeInTheDocument();
+  unmount();
+
+  await renderDoc({
+    mode: 'inspect',
+    report: filedReport({ items: [{ ...filedReport().items[0], warranty_state: 'none' }] }),
+  });
+  expect(screen.getByText('No warranty record')).toBeInTheDocument();
+});
+
+// A disabled button with no explanation is a dead end: the inspector cannot
+// see which requirement is outstanding, so they cannot clear it.
+test('submitting an unfinished inspection says what is outstanding', async () => {
+  await renderDoc({ mode: 'inspect', report: filedReport() });
+
+  fireEvent.click(screen.getByRole('button', { name: /submit inspection/i }));
+
+  expect(await screen.findByText(/still outstanding/i)).toBeInTheDocument();
+  expect(screen.getByText('an outcome on 1 unit')).toBeInTheDocument();
+  expect(screen.getByText(/picture of the defect —/i)).toBeInTheDocument();
 });
