@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\IncidentItem;
 use App\Models\IncidentReport;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
@@ -247,6 +248,40 @@ class IncidentReportController extends Controller
             'return_direction'    => ['nullable', Rule::in(IncidentReport::RETURN_DIRECTIONS)],
             'return_reason'       => 'nullable|string|max:150',
             'related_transfer_id' => 'nullable|integer',
+
+            // The physical things the report is about — one row per unit, so a
+            // split-system's indoor and outdoor halves arrive as two.
+            //
+            // These MUST be listed. validate() returns only the keys it
+            // validated, and that return value is what reaches
+            // IncidentService::file() below — an unlisted key is not rejected,
+            // it is silently dropped, and a guided filing would quietly fall
+            // back to a single flat item.
+            'items'                 => 'nullable|array|max:20',
+            'items.*.product_id'    => 'required_with:items|integer|exists:products,product_id',
+            'items.*.batch_id'      => 'nullable|integer|exists:inventory_batches,batch_id',
+            'items.*.serial_id'     => 'nullable|integer|exists:item_serial,serial_id',
+            'items.*.quantity'      => 'required_with:items|integer|min:1',
+            'items.*.unit_role'     => ['nullable', Rule::in(IncidentItem::ROLES)],
+            // Kept verbatim from the sticker and deliberately NOT checked
+            // against the catalogue: a unit whose label matches nothing is
+            // exactly the case a wrong-type report exists to record.
+            'items.*.model_code'    => 'nullable|string|max:100',
+            'items.*.serial_number' => 'nullable|string|max:100',
+
+            // The client's document block, filled by the reporter. All optional:
+            // the person who spots a fault often will not know the dealer's
+            // email, and blocking on it would teach people to type junk.
+            'dealer_name'         => 'nullable|string|max:150',
+            'dealer_phone'        => 'nullable|string|max:40',
+            'dealer_mobile'       => 'nullable|string|max:40',
+            'dealer_email'        => 'nullable|email|max:150',
+            'branch_address'      => 'nullable|string|max:255',
+            'customer_name'       => 'nullable|string|max:150',
+            'customer_contact'    => 'nullable|string|max:40',
+            'site_address'        => 'nullable|string|max:255',
+            'purchased_at'        => 'nullable|date',
+            'received_at_dor'     => 'nullable|date',
         ]);
 
         $incident = app(IncidentService::class)->file($validated, (int) Auth::id());
