@@ -53,7 +53,7 @@ class IncidentInspectionController extends Controller
         $user = Auth::user();
 
         $query = IncidentItem::query()
-            ->with(['product.consumableDetail', 'serial', 'incident.location'])
+            ->with(['product.consumableDetail', 'expectedProduct', 'serial', 'incident.location'])
             ->join('incident_reports as ir', 'ir.incident_id', '=', 'incident_items.incident_id')
             ->select('incident_items.*');
 
@@ -401,7 +401,10 @@ class IncidentInspectionController extends Controller
      */
     private function reportPayload(IncidentReport $incident, bool $full = false): array
     {
-        $incident->load(['items.product.consumableDetail', 'items.serial', 'evidence', 'status', 'inspectedBy']);
+        $incident->load([
+            'items.product.consumableDetail', 'items.expectedProduct', 'items.serial',
+            'evidence', 'status', 'inspectedBy',
+        ]);
 
         $payload = [
             'incident_id'              => (int) $incident->incident_id,
@@ -456,6 +459,10 @@ class IncidentInspectionController extends Controller
             'suspected_cause'     => $incident->suspected_cause,
             'root_cause'          => $incident->root_cause,
             'return_direction'    => $incident->return_direction,
+            // The document and the printed form state who the goods came from
+            // or go to, and why — return_direction could say neither.
+            'return_counterparty' => $incident->return_counterparty,
+            'return_reason_code'  => $incident->return_reason_code,
             'return_reason'       => $incident->return_reason,
             'photo_path'          => $incident->photo_path,
             'photo_url'           => $incident->photo_path
@@ -505,6 +512,16 @@ class IncidentInspectionController extends Controller
             // what is physically on the box is the evidence.
             'serial_number'      => $item->serial_number ?: $item->serial?->serial_number,
             'quantity'           => (int) $item->quantity,
+            // What SHOULD have been delivered, and what was ORDERED. Both are
+            // recorded rather than implied: `quantity` above is what actually
+            // arrived, so without expected_quantity the reader has one number
+            // and no way to know it is the wrong one. Named as well as
+            // identified, because a printed form showing "expected: 41" tells
+            // the person holding it nothing.
+            'expected_product_id'   => $item->expected_product_id !== null ? (int) $item->expected_product_id : null,
+            'expected_product_name' => $item->expectedProduct?->product_name,
+            'expected_quantity'     => $item->expected_quantity !== null ? (int) $item->expected_quantity : null,
+            'is_inbound'         => (bool) $item->is_inbound,
             'status'             => $item->status,
             'outcome'            => $item->outcome,
             'outcome_note'       => $item->outcome_note,

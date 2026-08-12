@@ -76,6 +76,8 @@ class IncidentReportController extends Controller
                 'suspected_cause'         => $i->suspected_cause,
                 'root_cause'              => $i->root_cause,
                 'return_direction'        => $i->return_direction,
+                'return_counterparty'     => $i->return_counterparty,
+                'return_reason_code'      => $i->return_reason_code,
                 'return_reason'           => $i->return_reason,
                 'related_transfer_id'     => $i->related_transfer_id !== null ? (int) $i->related_transfer_id : null,
                 'quantity'                => (int) $i->quantity,
@@ -252,7 +254,17 @@ class IncidentReportController extends Controller
             'suspected_cause'     => ['nullable', Rule::in(IncidentReport::SUSPECTED_CAUSES)],
             'root_cause'          => ['nullable', Rule::in(IncidentReport::ROOT_CAUSES)],
             'return_direction'    => ['nullable', Rule::in(IncidentReport::RETURN_DIRECTIONS)],
+            // WHO the goods came from or go to, and WHY — the two independent
+            // facts return_direction conflated into one. Direction is derived
+            // from the counterparty (IncidentReport::INBOUND_COUNTERPARTIES) and
+            // never asked, so a reporter cannot contradict themselves.
+            'return_counterparty' => ['nullable', Rule::in(IncidentReport::RETURN_COUNTERPARTIES)],
+            'return_reason_code'  => ['nullable', Rule::in(IncidentReport::RETURN_REASON_CODES)],
             'return_reason'       => 'nullable|string|max:150',
+            // The wrong/correct pair, on the flat (picking-modal) shape. Same
+            // meaning as the items.* rules below.
+            'expected_product_id' => 'nullable|integer|exists:products,product_id',
+            'expected_quantity'   => 'nullable|integer|min:0',
             'related_transfer_id' => 'nullable|integer',
 
             // The physical things the report is about — one row per unit, so a
@@ -274,6 +286,13 @@ class IncidentReportController extends Controller
             // exactly the case a wrong-type report exists to record.
             'items.*.model_code'    => 'nullable|string|max:100',
             'items.*.serial_number' => 'nullable|string|max:100',
+            // What SHOULD have been delivered, on a wrong-product return, and
+            // what was ORDERED, on a wrong-quantity one — the delivered figure
+            // is `quantity` above, so the discrepancy is recorded rather than
+            // implied. Both MUST be listed here: an unlisted key is dropped by
+            // validate() and the field silently persists as null.
+            'items.*.expected_product_id' => 'nullable|integer|exists:products,product_id',
+            'items.*.expected_quantity'   => 'nullable|integer|min:0',
 
             // The client's document block, filled by the reporter. All optional:
             // the person who spots a fault often will not know the dealer's
