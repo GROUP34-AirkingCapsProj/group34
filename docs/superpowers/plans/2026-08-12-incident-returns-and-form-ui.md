@@ -683,6 +683,11 @@ class WarrantyStateService
             IncidentItem::OUTCOME_RETURN_TO_SUPPLIER,
             IncidentItem::OUTCOME_REPAIR,
             IncidentItem::OUTCOME_SCRAP,
+            // write_off is the ONLY outcome mapping to STATUS_MISSING, so
+            // omitting it here would make every theft or missing report
+            // permanently unsettleable — the inspector could never choose the
+            // one ending that fits. Only claim_warranty is gated.
+            IncidentItem::OUTCOME_WRITE_OFF,
         ];
 
         if ($this->stateFor($item) === self::IN_WARRANTY) {
