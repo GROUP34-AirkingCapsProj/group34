@@ -21,13 +21,16 @@ export default function BatchSelect({
   availableBatches, batchesLoading,
   productId,
   note = null,
+  // The items step renders one of these per unit, and repeating a fixed id
+  // would point every label at the first row's select.
+  fieldId = 'incident-flow-batch',
   disabled,
 }) {
   return (
     <div className="ak-field">
-      <label className="ak-label" htmlFor="incident-flow-batch">{label}</label>
+      <label className="ak-label" htmlFor={fieldId}>{label}</label>
       <select
-        id="incident-flow-batch"
+        id={fieldId}
         className="ak-select"
         value={batchId}
         disabled={disabled || !productId || batchesLoading}

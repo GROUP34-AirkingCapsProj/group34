@@ -1,15 +1,24 @@
 import { stepsFor, toBackendInstant, totalPiecesFrom, STEP_KEYS } from './incidentFlow';
 
 describe('stepsFor', () => {
-  it('gives a stock-affecting reason four steps, outcome step third', () => {
+  it('gives a quarantining reason five steps, items after the outcome', () => {
     expect(stepsFor('missing')).toEqual([
-      STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.DETAILS,
+      STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.ITEMS, STEP_KEYS.DETAILS,
     ]);
   });
 
   it('gives each of the five stock-affecting types an outcome step', () => {
     ['missing', 'defective', 'return', 'wrong_type', 'zone_mismatch']
-      .forEach((r) => expect(stepsFor(r)).toHaveLength(4));
+      .forEach((r) => expect(stepsFor(r)).toContain(STEP_KEYS.OUTCOME));
+  });
+
+  // Mirrors IncidentService::INSPECTION_EXEMPT_REASONS: a zone mismatch
+  // quarantines nothing, so there are no physical units to enumerate and
+  // asking for them would be four screens of nothing.
+  it('skips the items step for a zone mismatch, which creates no items', () => {
+    expect(stepsFor('zone_mismatch')).toEqual([
+      STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.DETAILS,
+    ]);
   });
 
   it('skips the outcome step for `other`, which moves no stock', () => {

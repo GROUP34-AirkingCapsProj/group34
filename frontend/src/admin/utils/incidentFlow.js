@@ -14,19 +14,32 @@ export const STEP_KEYS = {
   WHAT: 'what',
   WHERE: 'where',
   OUTCOME: 'outcome',
+  ITEMS: 'items',
   DETAILS: 'details',
 };
 
 /**
- * The step sequence for a reason. Every flow shares three steps; only the
- * outcome-specific one differs, and `none` (the `other` reason) has none at
- * all because nothing about stock is being asserted.
+ * The two outcomes that create no `incident_items` on the backend, and so have
+ * no items step to fill in.
+ *
+ * Mirrors IncidentService::INSPECTION_EXEMPT_REASONS. A zone mismatch says the
+ * record is right and the item is merely in the wrong aisle, and `other` moves
+ * no stock at all — neither quarantines anything, so neither has physical units
+ * to enumerate.
+ */
+const OUTCOMES_WITHOUT_ITEMS = ['none', 'relocate'];
+
+/**
+ * The step sequence for a reason. Every flow shares three steps; the
+ * outcome-specific one and the items one are what differ.
  */
 export function stepsFor(reason) {
   const { outcome } = reasonMeta(reason);
-  return outcome === 'none'
-    ? [STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.DETAILS]
-    : [STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.DETAILS];
+  if (outcome === 'none') return [STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.DETAILS];
+  if (OUTCOMES_WITHOUT_ITEMS.includes(outcome)) {
+    return [STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.DETAILS];
+  }
+  return [STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.ITEMS, STEP_KEYS.DETAILS];
 }
 
 /**

@@ -5,6 +5,9 @@ import { reasonMeta } from '../../utils/incidentReasons';
 import { stepsFor, toBackendInstant, totalPiecesFrom, STEP_KEYS } from '../../utils/incidentFlow';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 import { piecesToPackages } from '../../utils/packageFormat';
+import { toClientPayload, toItemPayload } from '../../utils/incidentItems';
+import IncidentItemsStep from './IncidentItemsStep';
+import ClientFormBlock from './ClientFormBlock';
 import WhatHappenedStep from './steps/WhatHappenedStep';
 import WhereAndWhatStep from './steps/WhereAndWhatStep';
 import DetailsStep from './steps/DetailsStep';
@@ -27,8 +30,12 @@ const STEP_TITLES = {
   [STEP_KEYS.WHAT]: 'What happened',
   [STEP_KEYS.WHERE]: 'Where and what',
   [STEP_KEYS.OUTCOME]: 'Details of the stock',
+  [STEP_KEYS.ITEMS]: 'The units involved',
   [STEP_KEYS.DETAILS]: 'Describe and file',
 };
+
+/** The two outcomes whose reports carry a customer, and so a client form. */
+const CLIENT_FORM_OUTCOMES = ['defective', 'return'];
 
 /**
  * The guided incident flow — one wizard whose third step is chosen by what is
@@ -63,6 +70,28 @@ export default function IncidentFlow({ onCancel, onFiled }) {
   const [returnDirection, setReturnDirection] = useState('');
   const [returnReason, setReturnReason] = useState('');
   const [narrative, setNarrative] = useState('');
+  // The physical units. Unit 1 IS the product/quantity/batch chosen on the two
+  // steps above — it is not repeated here, because those same three values are
+  // also the flat payload fields the picking modal sends and IncidentService
+  // falls back to, and a second editable copy of one value is a divergence
+  // waiting to happen. Only the sticker fields, which no earlier step asks for,
+  // are held for it.
+  const [primaryUnitRole, setPrimaryUnitRole] = useState('single');
+  const [primaryModelCode, setPrimaryModelCode] = useState('');
+  const [primarySerialNumber, setPrimarySerialNumber] = useState('');
+  const [extraItems, setExtraItems] = useState([]);
+  // The client's document block — dealer, customer, site, dates. Filled by the
+  // reporter, printed on the client's copy. Every field is optional.
+  const [dealerName, setDealerName] = useState('');
+  const [dealerPhone, setDealerPhone] = useState('');
+  const [dealerMobile, setDealerMobile] = useState('');
+  const [dealerEmail, setDealerEmail] = useState('');
+  const [branchAddress, setBranchAddress] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerContact, setCustomerContact] = useState('');
+  const [siteAddress, setSiteAddress] = useState('');
+  const [purchasedAt, setPurchasedAt] = useState('');
+  const [receivedAtDor, setReceivedAtDor] = useState('');
   const [scanHit, setScanHit] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -132,6 +161,13 @@ export default function IncidentFlow({ onCancel, onFiled }) {
       setBatchId('');
       setActualZone('');
       setScanHit(null);
+      // …and the units with them: an `other` report describes no physical thing,
+      // so a half-filled second unit left over from a defective must not ride
+      // along and be quarantined.
+      setExtraItems([]);
+      setPrimaryUnitRole('single');
+      setPrimaryModelCode('');
+      setPrimarySerialNumber('');
       // The cause fields go with them: a suspected cause left over from a
       // half-filled `missing` would otherwise ride along on an `other` payload.
       setLastKnownLocation('');
@@ -193,6 +229,44 @@ export default function IncidentFlow({ onCancel, onFiled }) {
   // step's location-change effect in a loop.
   const handleScanHit = useCallback((hit) => setScanHit(hit), []);
 
+  const showClientForm = CLIENT_FORM_OUTCOMES.includes(outcome);
+  const hasItemsStep = steps.includes(STEP_KEYS.ITEMS);
+
+  // Units 2..n as API rows. Each carries its OWN pack size — a second unit is
+  // very often a different product from the first, and reusing the primary's
+  // pieces_per_package here is exactly how a pack quantity turns into a single
+  // piece.
+  const extraItemRows = useMemo(() => extraItems.map((row) => {
+    const p = products.find((x) => String(x.product_id) === String(row.product_id));
+    return toItemPayload({
+      productId: row.product_id,
+      batchId: row.batch_id,
+      serialId: null,
+      quantity: totalPiecesFrom({
+        packs: row.packs,
+        loosePieces: row.loose_pieces,
+        quantity: row.quantity,
+        piecesPerPackage: Number(p?.pieces_per_package) || 0,
+      }),
+      unitRole: row.unit_role,
+      modelCode: row.model_code,
+      serialNumber: row.serial_number,
+    });
+  }), [extraItems, products]);
+
+  // toItemPayload floors the quantity at 1, so the quantity is re-derived here
+  // rather than read back off the row — otherwise an empty box would validate.
+  const extraItemsComplete = useMemo(() => extraItems.every((row) => {
+    const p = products.find((x) => String(x.product_id) === String(row.product_id));
+    const pieces = totalPiecesFrom({
+      packs: row.packs,
+      loosePieces: row.loose_pieces,
+      quantity: row.quantity,
+      piecesPerPackage: Number(p?.pieces_per_package) || 0,
+    });
+    return !!row.product_id && pieces >= 1;
+  }), [extraItems, products]);
+
   const canAdvance = (() => {
     if (step === STEP_KEYS.WHAT) return !!reason && !!occurredAt;
     if (step === STEP_KEYS.WHERE) return !!locationId && (!needsStock || !!productId);
@@ -206,6 +280,12 @@ export default function IncidentFlow({ onCancel, onFiled }) {
       if (outcome === 'relocate') return !!batchId && !!actualZone.trim();
       return true;
     }
+    // One complete unit is the floor: unit 1 is the product and quantity from
+    // the two steps above, and every unit added after it has to be filled in or
+    // removed — a blank row would file a quarantine against no product.
+    if (step === STEP_KEYS.ITEMS) {
+      return !!productId && totalPieces >= 1 && extraItemsComplete;
+    }
     if (step === STEP_KEYS.DETAILS) return narrative.trim().length > 0 && !submitting;
     return false;
   })();
@@ -215,12 +295,41 @@ export default function IncidentFlow({ onCancel, onFiled }) {
     setSubmitError(null);
     try {
       const { photo_path, photo_source } = await uploadPhotoIfAny();
+      // Unit 1, then the units added on the items step. The flat fields below
+      // are this same first unit: IncidentService prefers `items` when it is
+      // present and folds the flat shape into one row when it is not, which is
+      // what keeps the picking modal — which has no items step — working.
+      const items = hasItemsStep && needsStock && productId
+        ? [
+          toItemPayload({
+            productId,
+            batchId,
+            serialId: null,
+            quantity: totalPieces,
+            unitRole: primaryUnitRole,
+            modelCode: primaryModelCode,
+            serialNumber: primarySerialNumber,
+          }),
+          ...extraItemRows,
+        ]
+        : undefined;
+
       await incidentReportsAPI.file({
         source_type: 'standalone',
         location_id: Number(locationId),
         product_id: needsStock && productId ? Number(productId) : null,
         quantity: needsStock ? totalPieces : null,
         batch_id: needsStock && batchId ? Number(batchId) : null,
+        ...(items ? { items } : {}),
+        // Nulled wholesale for every other outcome, the same way the cause
+        // fields are: a dealer typed into a half-filled `defective` the user
+        // then switched away from must not print on a theft report.
+        ...(showClientForm
+          ? toClientPayload({
+            dealerName, dealerPhone, dealerMobile, dealerEmail, branchAddress,
+            customerName, customerContact, siteAddress, purchasedAt, receivedAtDor,
+          })
+          : toClientPayload({})),
         // expected_zone is where the record SAYS the batch is; actual_zone is
         // where it really is. Only a relocate asserts either. Read from
         // availableBatches, not scanHit: the latter is populated only when the
@@ -255,7 +364,10 @@ export default function IncidentFlow({ onCancel, onFiled }) {
     }
   }, [uploadPhotoIfAny, locationId, needsStock, productId, totalPieces, batchId, outcome,
     actualZone, availableBatches, issuanceId, reason, narrative, occurredAt, onFiled,
-    lastKnownLocation, suspectedCause, rootCause, returnDirection, returnReason]);
+    lastKnownLocation, suspectedCause, rootCause, returnDirection, returnReason,
+    hasItemsStep, extraItemRows, primaryUnitRole, primaryModelCode, primarySerialNumber,
+    showClientForm, dealerName, dealerPhone, dealerMobile, dealerEmail, branchAddress,
+    customerName, customerContact, siteAddress, purchasedAt, receivedAtDor]);
 
   const isLast = safeIndex === steps.length - 1;
 
@@ -349,6 +461,19 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             actualZone={actualZone} setActualZone={setActualZone}
           />
         )}
+        {step === STEP_KEYS.ITEMS && (
+          <IncidentItemsStep
+            primaryProductName={scannedProduct?.product_name || selectedProduct?.product_name}
+            primaryTotalPieces={totalPieces}
+            primaryBatchId={batchId}
+            primaryUnitRole={primaryUnitRole} setPrimaryUnitRole={setPrimaryUnitRole}
+            primaryModelCode={primaryModelCode} setPrimaryModelCode={setPrimaryModelCode}
+            primarySerialNumber={primarySerialNumber} setPrimarySerialNumber={setPrimarySerialNumber}
+            extraItems={extraItems} setExtraItems={setExtraItems}
+            products={products} batches={batches} batchesLoading={batchesLoading}
+            locationId={locationId} disabled={submitting}
+          />
+        )}
         {step === STEP_KEYS.DETAILS && (
           <DetailsStep
             reason={reason}
@@ -359,6 +484,24 @@ export default function IncidentFlow({ onCancel, onFiled }) {
             showQuantity={outcome === 'missing' || outcome === 'defective' || outcome === 'return'}
             narrative={narrative} setNarrative={setNarrative}
             photo={photo} cameraOpen={cameraOpen} setCameraOpen={setCameraOpen}
+            disabled={submitting}
+          />
+        )}
+        {/* Sits on the last step rather than in DetailsStep: it belongs to the
+            two outcomes that have a customer, not to the narrative, and every
+            field in it is optional, so it adds nothing to what Next checks. */}
+        {step === STEP_KEYS.DETAILS && showClientForm && (
+          <ClientFormBlock
+            dealerName={dealerName} setDealerName={setDealerName}
+            dealerPhone={dealerPhone} setDealerPhone={setDealerPhone}
+            dealerMobile={dealerMobile} setDealerMobile={setDealerMobile}
+            dealerEmail={dealerEmail} setDealerEmail={setDealerEmail}
+            branchAddress={branchAddress} setBranchAddress={setBranchAddress}
+            customerName={customerName} setCustomerName={setCustomerName}
+            customerContact={customerContact} setCustomerContact={setCustomerContact}
+            siteAddress={siteAddress} setSiteAddress={setSiteAddress}
+            purchasedAt={purchasedAt} setPurchasedAt={setPurchasedAt}
+            receivedAtDor={receivedAtDor} setReceivedAtDor={setReceivedAtDor}
             disabled={submitting}
           />
         )}
