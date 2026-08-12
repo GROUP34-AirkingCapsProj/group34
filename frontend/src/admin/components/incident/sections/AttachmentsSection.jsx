@@ -1,0 +1,47 @@
+import React from 'react';
+import DocumentSection from './DocumentSection';
+import { evidenceRequirementsFor } from '../../../utils/incidentDocument';
+import { requirementMeta } from '../EvidenceChecklist';
+
+/**
+ * The photographic evidence checklist — the inspector's, not the reporter's.
+ *
+ * In `file` mode it is rendered as a greyed list of what WILL be asked for
+ * rather than being absent, so a reporter can see what the inspection needs and
+ * bring the box or the warranty card to the bench instead of throwing it away.
+ * Hiding it would be a small tidiness win paid for with discarded evidence.
+ *
+ * The list is reason-driven, not type-driven: a wrong-delivery return proves
+ * the delivery was wrong — the wrong/correct pair plus the receipt — while a
+ * wrong-quantity or unwanted return proves whether the goods are still
+ * sellable. Mirrors App\Models\IncidentEvidence::requiredFor(); the server is
+ * the authority and this list exists so nobody is told after a 422.
+ *
+ * Task 9 makes this editable in `inspect` mode by rendering EvidenceChecklist
+ * in place of the preview below.
+ */
+export default function AttachmentsSection({ state, reason, returnReasonCode, children }) {
+  const required = evidenceRequirementsFor(reason, returnReasonCode);
+
+  return (
+    <DocumentSection
+      id="incdoc-attachments"
+      title="Attachments"
+      state={state}
+      hint={state === 'awaiting'
+        ? 'The inspector attaches these. Nothing here is yours to fill in — but if any of it is about to be thrown away, keep it.'
+        : undefined}
+    >
+      {children ?? (
+        <ul className="incdoc__checklist">
+          {required.map((req) => (
+            <li key={req}>{requirementMeta(req).label}</li>
+          ))}
+          {required.length === 0 && (
+            <li>Nothing — this type of report asks for no photographs.</li>
+          )}
+        </ul>
+      )}
+    </DocumentSection>
+  );
+}

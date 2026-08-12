@@ -89,6 +89,13 @@ const orNull = (v) => {
 /** An id the API can use, or null — '' and 0 are both "not chosen" here. */
 const idOrNull = (v) => (v === '' || v === null || v === undefined ? null : Number(v) || null);
 
+/** A count, or null. Unlike an id, ZERO is a real answer and must survive. */
+const piecesOrNull = (v) => {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = parseInt(v, 10);
+  return Number.isNaN(n) ? null : n;
+};
+
 /**
  * Build one `items` row. Kept out of the components so the shape the API is
  * sent is stated in exactly one place, and so it can be unit-tested without a
@@ -96,6 +103,7 @@ const idOrNull = (v) => (v === '' || v === null || v === undefined ? null : Numb
  */
 export const toItemPayload = ({
   productId, batchId, serialId, quantity, unitRole, modelCode, serialNumber,
+  expectedProductId, expectedQuantity,
 }) => ({
   product_id: idOrNull(productId),
   batch_id: idOrNull(batchId),
@@ -104,6 +112,14 @@ export const toItemPayload = ({
   unit_role: unitRole || 'single',
   model_code: orNull(modelCode),
   serial_number: orNull(serialNumber),
+  // The wrong/correct pair, on a return. Recorded and printed; nothing is
+  // raised from either — getting the right unit to the customer is a normal
+  // issuance someone raises separately, and a report that silently created one
+  // would move stock nobody agreed to.
+  expected_product_id: idOrNull(expectedProductId),
+  // NOT idOrNull: zero is a legitimate ordered quantity — nothing was ordered
+  // and something arrived — and idOrNull would turn it into "not answered".
+  expected_quantity: piecesOrNull(expectedQuantity),
 });
 
 /** The client's document block, or nulls. Optional in full: see ClientFormBlock. */

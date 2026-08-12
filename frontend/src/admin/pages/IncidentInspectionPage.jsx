@@ -185,7 +185,11 @@ function InspectionForm({ report, canInspect, onChanged, onSubmitted }) {
   const items = useMemo(() => (Array.isArray(report.items) ? report.items : []), [report.items]);
   const evidence = useMemo(() => (Array.isArray(report.evidence) ? report.evidence : []), [report.evidence]);
 
-  const outstanding = outstandingRequirements(report.reason, checkedByAsc, evidence);
+  // The checklist is reason-driven, not type-driven: a wrong-delivery return
+  // is asked for the wrong/correct pair plus the receipt, not the box.
+  const outstanding = outstandingRequirements(
+    report.reason, checkedByAsc, evidence, report.return_reason_code,
+  );
   const undecided = items.filter((i) => i.status === 'quarantined' && !i.outcome);
   const blocked = outstanding.length > 0 || undecided.length > 0;
 
@@ -297,6 +301,7 @@ function InspectionForm({ report, canInspect, onChanged, onSubmitted }) {
         incidentId={incidentId}
         reason={report.reason}
         checkedByAsc={checkedByAsc}
+        returnReasonCode={report.return_reason_code}
         evidence={evidence}
         onAdded={handleEvidenceAdded}
         onRemoved={handleEvidenceRemoved}

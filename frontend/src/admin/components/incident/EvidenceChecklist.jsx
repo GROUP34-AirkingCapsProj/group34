@@ -3,6 +3,7 @@ import CameraCapture from '../CameraCapture';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 import { incidentReportsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
+import { evidenceRequirementsFor } from '../../utils/incidentDocument';
 
 /**
  * The client's photographic evidence checklist.
@@ -37,6 +38,26 @@ export const EVIDENCE_REQUIREMENTS = [
     label: 'ASC service report',
     help: 'The service centre’s written report.',
   },
+  {
+    value: 'wrong_product_photo',
+    label: 'The product that actually arrived',
+    help: 'What was delivered, with its label readable — half of what proves the delivery was wrong.',
+  },
+  {
+    value: 'correct_product_photo',
+    label: 'The product that should have arrived',
+    help: 'What was ordered — the order line, the catalogue page, or the correct unit. The other half of the pair.',
+  },
+  {
+    value: 'returned_goods_photo',
+    label: 'The returned goods',
+    help: 'The goods as they came back, so it is on record whether they are still sellable.',
+  },
+  {
+    value: 'receipt_or_dor',
+    label: 'Receipt or delivery receipt (DOR)',
+    help: 'The document proving the delivery happened. Asked for on every return.',
+  },
 ];
 
 export const requirementMeta = (value) =>
@@ -44,40 +65,35 @@ export const requirementMeta = (value) =>
   || { value, label: String(value || '').replace(/_/g, ' '), help: '' };
 
 /**
- * What each reason is asked for. Mirrors
- * App\Models\IncidentEvidence::REQUIRED_BY_REASON.
- *
- * `missing`, `zone_mismatch` and `other` ask for NOTHING. The item is gone or
- * nothing moved — demanding a photograph of an absent unit is how a checklist
- * teaches people to fake evidence.
- */
-const REQUIRED_BY_REASON = {
-  defective:     ['defect_photo', 'model_serial_sticker', 'box_two_sides', 'accessories_warranty'],
-  return:        ['defect_photo', 'model_serial_sticker', 'box_two_sides', 'accessories_warranty'],
-  wrong_type:    ['model_serial_sticker'],
-  missing:       [],
-  zone_mismatch: [],
-  other:         [],
-};
-
-/**
  * The requirements a report must answer.
  *
+ * The matrix itself lives in `utils/incidentDocument` so the document can show
+ * a reporter, in `file` mode, what the inspector will be asked for — one list,
+ * not two that can disagree. It mirrors
+ * App\Models\IncidentEvidence::requiredFor(), which is the authority; this
+ * exists so an inspector is told what is outstanding before they submit rather
+ * than after a 422.
+ *
+ * It is REASON-driven, not type-driven: a wrong-delivery return is asked for
+ * the wrong/correct pair plus the receipt, an unwanted one for the goods, the
+ * box and the accessories. Passing a return without its reason code therefore
+ * yields the sellability list, which is the safe default — it over-asks rather
+ * than letting a wrong-delivery report through with nothing.
+ *
  * `asc_service_report` is conditional on a FACT, not on the type: it is added
- * the moment the inspector ticks "checked by an ASC", for every reason that
- * asks for anything at all. A reason that asks for nothing stays empty — a
- * missing unit has no service report either.
+ * the moment the inspector ticks "checked by an ASC". A reason that asks for
+ * nothing stays empty — a missing unit has no service report either.
  */
-export function requirementsFor(reason, checkedByAsc) {
-  const base = REQUIRED_BY_REASON[reason] || [];
+export function requirementsFor(reason, checkedByAsc, returnReasonCode) {
+  const base = evidenceRequirementsFor(reason, returnReasonCode);
   if (!checkedByAsc || base.length === 0) return base;
   return [...base, 'asc_service_report'];
 }
 
 /** Every requirement either has a photo or has a written skip reason. */
-export function outstandingRequirements(reason, checkedByAsc, evidence) {
+export function outstandingRequirements(reason, checkedByAsc, evidence, returnReasonCode) {
   const rows = Array.isArray(evidence) ? evidence : [];
-  return requirementsFor(reason, checkedByAsc).filter(
+  return requirementsFor(reason, checkedByAsc, returnReasonCode).filter(
     (req) => !rows.some((e) => e.requirement === req),
   );
 }
@@ -87,15 +103,18 @@ export function outstandingRequirements(reason, checkedByAsc, evidence) {
  *   incidentId  {number}
  *   reason      {string}
  *   checkedByAsc {boolean}
+ *   returnReasonCode {string} the checklist is reason-driven; a return without
+ *                             it falls back to the sellability list
+
  *   evidence    {array}    rows already attached, from GET /incident-reports/{id}
  *   onAdded     {(row) => void}
  *   onRemoved   {(evidenceId) => void}
  *   disabled    {boolean}
  */
 export default function EvidenceChecklist({
-  incidentId, reason, checkedByAsc, evidence, onAdded, onRemoved, disabled,
+  incidentId, reason, checkedByAsc, returnReasonCode, evidence, onAdded, onRemoved, disabled,
 }) {
-  const required = requirementsFor(reason, checkedByAsc);
+  const required = requirementsFor(reason, checkedByAsc, returnReasonCode);
   const rows = Array.isArray(evidence) ? evidence : [];
 
   if (required.length === 0) {

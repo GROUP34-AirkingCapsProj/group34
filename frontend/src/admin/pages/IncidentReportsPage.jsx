@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import IncidentList from '../components/incident/IncidentList';
-import IncidentFlow from '../components/incident/IncidentFlow';
+import IncidentDocument from '../components/incident/IncidentDocument';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -38,7 +38,7 @@ const IncidentReportsPage = () => {
               </p>
             </div>
             <div className="ak-header-aside">
-              {/* Hidden while the flow is open — it carries its own
+              {/* Hidden while the form is open — it carries its own
                   "← Back to list". */}
               {canCreate && !filing && (
                 <button
@@ -54,7 +54,7 @@ const IncidentReportsPage = () => {
         </header>
 
         {filing ? (
-          <IncidentFlow
+          <IncidentDocument
             onCancel={() => setFiling(false)}
             onFiled={() => { setFiling(false); setRefreshToken((n) => n + 1); }}
           />
