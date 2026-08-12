@@ -82,6 +82,7 @@ const adminMenuSections = [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
       { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
       { name: 'Incident Reports', path: '/admin/incidents', icon: 'incident' },
+      { name: 'Inspections', path: '/admin/inspections', icon: 'incident' },
       { name: 'Held Stock', path: '/admin/held-stock', icon: 'incident' },
     ],
   },

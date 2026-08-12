@@ -1469,6 +1469,35 @@ export const stockHoldsAPI = {
     }),
 };
 
+/**
+ * A private-disk image as a Blob.
+ *
+ * Incident photos sit behind `permission:incident_reports,read` on the `local`
+ * disk, so a plain <img src> would 401 — the browser sends no Authorization
+ * header. Same approach the GRN PDF downloads use (see openApiFile): fetch with
+ * the Bearer header, hand the caller a blob to turn into an object URL.
+ */
+const fetchBlobWithAuth = async (path) => {
+  const token = getToken();
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    headers: {
+      Accept: '*/*',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    let msg = `Failed to load photo (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j?.message) msg = j.message;
+    } catch (_) { /* not JSON */ }
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return res.blob();
+};
+
 export const incidentReportsAPI = {
   list: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
@@ -1518,28 +1547,66 @@ export const incidentReportsAPI = {
    * browser sends no Authorization header. Same approach the GRN PDF downloads
    * use (see openApiFile): fetch with the Bearer header, hand the caller a blob.
    */
-  photoBlob: async (id) => {
-    const token = getToken();
-    const res = await fetch(`${getApiBaseUrl()}/incident-reports/${id}/photo`, {
-      headers: {
-        Accept: '*/*',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-    if (!res.ok) {
-      let msg = `Failed to load photo (${res.status})`;
-      try {
-        const j = await res.json();
-        if (j?.message) msg = j.message;
-      } catch (_) { /* not JSON */ }
-      const err = new Error(msg);
-      err.status = res.status;
-      throw err;
-    }
-    return res.blob();
+  photoBlob: async (id) => fetchBlobWithAuth(`/incident-reports/${id}/photo`),
+  /**
+   * One report in full: header, `items` (each with the inspector's outcome) and
+   * `evidence` (each either a photo or a skip with its written reason).
+   *
+   * Prefer `status_name` over `status_id` for every decision this client makes.
+   * The ids are install-specific — Awaiting Inspection is 53 on one database and
+   * 1862 on another — so branching on the number works here and is wrong on the
+   * next install.
+   */
+  get: async (id) => apiRequest(`/incident-reports/${id}`),
+
+  /**
+   * Attach one checklist requirement: `{ requirement, photo_path, photo_source }`
+   * for a photo, or `{ requirement, skipped_reason }` for a skip. One or the
+   * other — the server rejects neither.
+   *
+   * Photos go up through uploadPhoto() first; `photo_path` is what it returns.
+   */
+  addEvidence: async (id, payload) =>
+    apiRequest(`/incident-reports/${id}/evidence`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  removeEvidence: async (id, evidenceId) =>
+    apiRequest(`/incident-reports/${id}/evidence/${evidenceId}`, { method: 'DELETE' }),
+
+  /** An evidence photo as a Blob — same private-disk reasoning as photoBlob(). */
+  evidencePhotoBlob: async (id, evidenceId) =>
+    fetchBlobWithAuth(`/incident-reports/${id}/evidence/${evidenceId}/photo`),
+
+  /** The inspector's decision on ONE physical item: { outcome, note? }. */
+  setItemOutcome: async (id, itemId, payload) =>
+    apiRequest(`/incident-reports/${id}/items/${itemId}/outcome`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  /** Submit the inspection: Open → Awaiting Inspection. Moves no stock. */
+  submitInspection: async (id, payload) =>
+    apiRequest(`/incident-reports/${id}/inspection`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  /**
+   * The admin's decision: `{ action: 'confirm' | 'reject' | 'dismiss' }`.
+   * `reject` requires `rejection_note`. **`confirm` is what moves the stock** —
+   * nothing before it has changed a quantity.
+   */
+  decide: async (id, payload) =>
+    apiRequest(`/incident-reports/${id}/decide`, { method: 'POST', body: JSON.stringify(payload) }),
+};
+
+/**
+ * The register of stock held out of inventory by an incident — quarantined,
+ * scrapped, returned or missing. Read-only: the old Dispose action is gone,
+ * because the inspection replaced it.
+ *
+ * `status` defaults to `quarantined` server-side; pass `all` for history.
+ */
+export const incidentItemsAPI = {
+  list: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/incident-items?${query}` : '/incident-items');
   },
-  resolve: async (id, payload) =>
-    apiRequest(`/incident-reports/${id}/resolve`, { method: 'POST', body: JSON.stringify(payload) }),
 };
 
 /* ======================

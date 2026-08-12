@@ -16,6 +16,66 @@ export const unitRoleLabel = (value) =>
   UNIT_ROLES.find((r) => r.value === value)?.label || value;
 
 /**
+ * What the inspector can decide about one unit. Mirrors
+ * App\Models\IncidentItem::OUTCOMES.
+ *
+ * `restock` is the only one that keeps the goods: everything else means they
+ * left the building or were destroyed, so confirming it reduces the stock
+ * count. The `keepsStock` flag is stated here once so no screen has to
+ * re-derive which outcomes are destructive — getting that backwards would
+ * mislabel a write-off as harmless.
+ */
+export const ITEM_OUTCOMES = [
+  {
+    value: 'restock',
+    label: 'Put back into stock',
+    keepsStock: true,
+    help: 'The unit is fine. It becomes pickable again; the count does not change, because filing never deducted it.',
+  },
+  {
+    value: 'scrap',
+    label: 'Scrap',
+    keepsStock: false,
+    help: 'Destroyed or unsellable. Confirming deducts it from the stock count.',
+  },
+  {
+    value: 'return_to_supplier',
+    label: 'Return to supplier',
+    keepsStock: false,
+    help: 'Goes back to the supplier. Confirming deducts it from the stock count.',
+  },
+  {
+    value: 'write_off',
+    label: 'Write off as lost',
+    keepsStock: false,
+    help: 'Gone and not coming back. Confirming deducts it and records the loss.',
+  },
+];
+
+export const outcomeMeta = (value) => ITEM_OUTCOMES.find((o) => o.value === value) || null;
+
+export const outcomeLabel = (value) =>
+  outcomeMeta(value)?.label || (value ? String(value).replace(/_/g, ' ') : '—');
+
+/**
+ * Where a unit currently stands. Mirrors App\Models\IncidentItem::STATUSES.
+ *
+ * `quarantined` is the one that surprises people: the goods are physically
+ * present and still counted in quantity_on_hand — they are simply unpickable
+ * until someone decides. Nothing has been deducted.
+ */
+export const ITEM_STATUSES = [
+  { value: 'quarantined', label: 'Quarantined', badge: 'ak-badge--amber' },
+  { value: 'available',   label: 'Back in stock', badge: 'ak-badge--green' },
+  { value: 'scrapped',    label: 'Scrapped',    badge: 'ak-badge--red' },
+  { value: 'returned',    label: 'Returned',    badge: 'ak-badge--blue' },
+  { value: 'missing',     label: 'Missing',     badge: 'ak-badge--red' },
+];
+
+export const itemStatusMeta = (value) =>
+  ITEM_STATUSES.find((s) => s.value === value) || { value, label: value || '—', badge: 'ak-badge--gray' };
+
+/**
  * Trimmed text, or null. The sticker fields are stored ALONGSIDE the product
  * and serial foreign keys because a defective unit's label may match nothing in
  * the catalogue — but an empty string is not a mismatch, it is no answer, and
