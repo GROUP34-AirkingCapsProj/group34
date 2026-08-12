@@ -28,40 +28,55 @@ class IncidentItem extends Model
      * quarantinedBatchIds() below does.
      */
 
-    public const STATUS_QUARANTINED = 'quarantined';
-    public const STATUS_AVAILABLE   = 'available';
-    public const STATUS_SCRAPPED    = 'scrapped';
-    public const STATUS_RETURNED    = 'returned';
-    public const STATUS_MISSING     = 'missing';
+    public const STATUS_QUARANTINED             = 'quarantined';
+    public const STATUS_AVAILABLE               = 'available';
+    public const STATUS_SCRAPPED                = 'scrapped';
+    public const STATUS_RETURNED                = 'returned';
+    public const STATUS_MISSING                 = 'missing';
+    public const STATUS_UNDER_REPAIR            = 'under_repair';
+    public const STATUS_AWAITING_WARRANTY_CLAIM = 'awaiting_warranty_claim';
 
     public const STATUSES = [
-        self::STATUS_QUARANTINED, self::STATUS_AVAILABLE,
-        self::STATUS_SCRAPPED, self::STATUS_RETURNED, self::STATUS_MISSING,
+        self::STATUS_QUARANTINED, self::STATUS_AVAILABLE, self::STATUS_SCRAPPED,
+        self::STATUS_RETURNED, self::STATUS_MISSING,
+        self::STATUS_UNDER_REPAIR, self::STATUS_AWAITING_WARRANTY_CLAIM,
     ];
 
     public const OUTCOME_RESTOCK            = 'restock';
     public const OUTCOME_SCRAP              = 'scrap';
     public const OUTCOME_RETURN_TO_SUPPLIER = 'return_to_supplier';
     public const OUTCOME_WRITE_OFF          = 'write_off';
+    public const OUTCOME_CLAIM_WARRANTY     = 'claim_warranty';
+    public const OUTCOME_REPAIR             = 'repair';
 
     public const OUTCOMES = [
-        self::OUTCOME_RESTOCK, self::OUTCOME_SCRAP,
-        self::OUTCOME_RETURN_TO_SUPPLIER, self::OUTCOME_WRITE_OFF,
+        self::OUTCOME_RESTOCK, self::OUTCOME_RETURN_TO_SUPPLIER, self::OUTCOME_CLAIM_WARRANTY,
+        self::OUTCOME_REPAIR, self::OUTCOME_SCRAP, self::OUTCOME_WRITE_OFF,
     ];
 
     /** What each outcome leaves the item as, once the admin confirms. */
     public const OUTCOME_STATUS = [
         self::OUTCOME_RESTOCK            => self::STATUS_AVAILABLE,
-        self::OUTCOME_SCRAP              => self::STATUS_SCRAPPED,
         self::OUTCOME_RETURN_TO_SUPPLIER => self::STATUS_RETURNED,
+        self::OUTCOME_CLAIM_WARRANTY     => self::STATUS_AWAITING_WARRANTY_CLAIM,
+        self::OUTCOME_REPAIR             => self::STATUS_UNDER_REPAIR,
+        self::OUTCOME_SCRAP              => self::STATUS_SCRAPPED,
         self::OUTCOME_WRITE_OFF          => self::STATUS_MISSING,
     ];
 
     /**
-     * The only outcome that returns quantity to pickable stock. Everything else
-     * deducts it — the goods left the building or were destroyed.
+     * Outcomes where the goods physically leave and the count must drop.
+     *
+     * claim_warranty and repair are deliberately ABSENT: the unit stays in the
+     * building. A warranty claim holds it here while a claim is raised against
+     * it; a repair holds it here while it is fixed. Treating either as a
+     * departure would delete stock that is sitting on the bench.
      */
-    public const OUTCOME_RESTOCKS = [self::OUTCOME_RESTOCK];
+    public const OUTCOMES_THAT_REMOVE_STOCK = [
+        self::OUTCOME_RETURN_TO_SUPPLIER,
+        self::OUTCOME_SCRAP,
+        self::OUTCOME_WRITE_OFF,
+    ];
 
     public const ROLE_SINGLE  = 'single';
     public const ROLE_INDOOR  = 'indoor';
@@ -72,11 +87,16 @@ class IncidentItem extends Model
     protected $primaryKey = 'item_id';
 
     protected $fillable = [
-        'incident_id', 'product_id', 'serial_id', 'batch_id', 'unit_role',
-        'model_code', 'serial_number', 'quantity', 'status', 'outcome', 'outcome_note',
+        'incident_id', 'product_id', 'expected_product_id', 'serial_id', 'batch_id', 'unit_role',
+        'is_inbound', 'model_code', 'serial_number', 'quantity', 'expected_quantity',
+        'status', 'outcome', 'outcome_note',
     ];
 
-    protected $casts = ['quantity' => 'integer'];
+    protected $casts = [
+        'quantity'          => 'integer',
+        'expected_quantity' => 'integer',
+        'is_inbound'        => 'boolean',
+    ];
 
     public function scopeQuarantined(Builder $q): Builder
     {
@@ -113,6 +133,12 @@ class IncidentItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    /** What SHOULD have been delivered, on a wrong-product return. */
+    public function expectedProduct(): BelongsTo
+    {
+        return $this->belongsTo(Product::class, 'expected_product_id', 'product_id');
     }
 
     /**
