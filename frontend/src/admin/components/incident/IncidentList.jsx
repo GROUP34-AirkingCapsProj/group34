@@ -198,8 +198,22 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
                     </td>
                     <td><span className={`ak-badge ${st.cls}`}>{st.text}</span></td>
                     <td>
-                      <button type="button" className="ak-btn ak-btn--sm" onClick={() => setSelected(i)}>
-                        {canResolve && i.is_open ? 'Review' : 'View'}
+                      {/* A report at Awaiting Inspection is waiting on the ADMIN,
+                          not the inspector — its inspection is already submitted.
+                          Labelling it "View" like a closed report gave the person
+                          who has to act on it no signal that it needs them. */}
+                      <button
+                        type="button"
+                        className={`ak-btn ak-btn--sm${
+                          canResolve && st.text === 'Awaiting inspection' ? ' ak-btn--primary' : ''
+                        }`}
+                        onClick={() => setSelected(i)}
+                      >
+                        {!canResolve
+                          ? 'View'
+                          : st.text === 'Awaiting inspection'
+                            ? 'Decide'
+                            : i.is_open ? 'Review' : 'View'}
                       </button>
                     </td>
                   </tr>
