@@ -2,24 +2,29 @@
 
 namespace Tests\Feature\Sets;
 
+use App\Models\IncidentItem;
 use App\Models\IncidentReport;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
-use App\Models\StockHold;
 use App\Services\IncidentService;
-use App\Services\StockHoldService;
+use Illuminate\Support\Facades\DB;
 
 /**
- * REVERSAL (2026-08-11): resolving a customer return used to increment the
- * batch and the location on the spot, which made an uninspected unit
- * immediately pickable. Approval now opens a `returned` hold; the increment
- * moved to the `restocked` disposition, where a person confirms the unit is
- * sellable.
+ * REVERSAL, second pass (2026-08-12).
  *
- * These tests were NOT deleted when that reversal landed — they were moved one
- * step later in the flow (file -> resolve -> dispose as restocked), so the
- * restock behaviour they guard is still guarded, just at its new home.
+ * First pass: resolving a customer return incremented the batch and the
+ * location on the spot, which made an uninspected unit immediately pickable.
+ * That was moved to a `restocked` disposition on a `stock_holds` row.
+ *
+ * This pass removes the arithmetic entirely. A return's goods are physically
+ * present the moment the report is filed, so filing QUARANTINES them — the
+ * count never changes, and `quantity_on_hand = pickable + quarantined` holds
+ * from filing to confirmation. Confirming a `restock` outcome therefore moves
+ * no numbers at all; it only makes the units pickable again.
+ *
+ * These tests were not deleted when that landed — each one was re-aimed at the
+ * step that now carries the behaviour it used to guard.
  */
 class IncidentRestockTest extends SetTestCase
 {
@@ -41,27 +46,56 @@ class IncidentRestockTest extends SetTestCase
         ], (int) $wp->user_id);
     }
 
-    /** The hold a resolved return opened. */
-    private function heldFor(IncidentReport $incident): StockHold
+    /** The quarantined item a filed return created — the row that replaced the hold. */
+    private function itemFor(IncidentReport $incident): IncidentItem
     {
-        return StockHold::where('incident_id', $incident->incident_id)
-            ->where('status', StockHold::STATUS_HELD)
-            ->firstOrFail();
+        return IncidentItem::where('incident_id', $incident->incident_id)->firstOrFail();
+    }
+
+    /** Resolved by NAME — inventory status ids differ between the two databases. */
+    private function inventoryStatusId(string $name): int
+    {
+        return (int) DB::table('status_lookup')
+            ->where('status_category', 'inventory')
+            ->where('status_name', $name)
+            ->value('status_id');
     }
 
     /**
-     * A real user id: disposed_by is a foreign key to users and the seeded ids
-     * differ between the dev and test databases, so this cannot be a literal.
+     * Record the outcome, submit the inspection, then confirm as a second
+     * person — the client's two signature lines are enforced, so the inspector
+     * cannot confirm their own report while another resolver can reach the
+     * location. branch_manager holds `inspect`, inventory_analyst `resolve`.
      */
-    private function inspectorId($loc): int
+    private function inspectAndConfirm(IncidentReport $incident, $loc, string $outcome): void
     {
-        return (int) $this->makeUserAt($loc, 'inventory_analyst')->user_id;
+        $bm = $this->makeUserAt($loc, 'branch_manager');
+        $ia = $this->makeUserAt($loc, 'inventory_analyst');
+        $id = $incident->incident_id;
+
+        $this->actingAs($bm, 'sanctum')
+             ->postJson("/api/incident-reports/{$id}/items/{$this->itemFor($incident)->item_id}/outcome",
+                 ['outcome' => $outcome])
+             ->assertOk();
+
+        $this->actingAs($bm, 'sanctum')->postJson("/api/incident-reports/{$id}/inspection", [])->assertOk();
+
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$id}/decide", ['action' => 'confirm'])
+             ->assertOk();
     }
 
-    public function test_a_restocked_return_puts_stock_back_on_its_original_batch(): void
+    /**
+     * Was `test_a_restocked_return_puts_stock_back_on_its_original_batch`.
+     *
+     * The guarantee it protected — a restocked return must not be conjured onto
+     * a NEW batch, which would give it a fresh received_at and jump it to the
+     * back of FIFO — survives, and is now structural: the units never left the
+     * batch, so there is nothing to put back and no second batch can appear.
+     */
+    public function test_a_restocked_return_stays_on_its_original_batch(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
 
         $this->setStock($loc->location_id, $p->product_id, 20);
@@ -69,129 +103,116 @@ class IncidentRestockTest extends SetTestCase
 
         $incident = $this->openReturn($loc, $p, $b, 3);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
-                 'action' => 'confirm', 'resolution_note' => 'Sent to inspection.',
-             ])->assertOk();
-
-        $fresh = $incident->fresh();
-        // Approving a return does not finish it: the stock is held and nobody
-        // has inspected it yet, so "Resolved" would claim a decision that has
-        // not been made. It becomes Resolved when the hold is disposed, which
-        // is asserted at the end of this test.
-        $this->assertSame(IncidentReport::statusId('Awaiting Inspection'), (int) $fresh->status_id);
-        // Reversal: a return posts no Adjustment — nothing was lost or damaged,
-        // so the hold row, not an adjustment, is the record.
-        $this->assertNull($fresh->adjustment_id);
-
-        // Reversal: approval holds rather than restocks, so the quantity leaves
-        // active stock and sits in the hold instead of arriving on the shelf.
-        $hold = $this->heldFor($incident);
-        $this->assertSame(StockHold::CONDITION_RETURNED, $hold->condition);
-        $this->assertSame(3, (int) $hold->quantity);
-        $this->assertSame(2, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
-
-        app(StockHoldService::class)->dispose(
-            $hold, StockHold::DISPOSITION_RESTOCKED, 'Inspected, back on the shelf.', $this->inspectorId($loc)
+        // Inverted: filing used to deduct 3 into a hold (5 -> 2). It now
+        // quarantines in place, so the batch is untouched...
+        $this->assertSame(5, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+        $this->assertSame(IncidentItem::STATUS_QUARANTINED, $this->itemFor($incident)->status);
+        // ...but unpickable, which is the part that actually mattered: an
+        // uninspected return must not be sellable.
+        $this->assertContains(
+            (int) $b->batch_id,
+            app(IncidentService::class)->excludedBatchIds($loc->location_id)
         );
 
-        // The increment moved here, and still lands on the batch the stock left,
-        // so its true received_at — and its place in FIFO order — is preserved.
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_RESTOCK);
+
+        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $incident->fresh()->status_id);
+        // Inverted: was an increment back to 5 from 2. Restocking is now a no-op
+        // on the numbers, because nothing was ever deducted.
         $this->assertSame(5, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+        // Unchanged and still load-bearing: no second batch was invented, so the
+        // stock keeps its true received_at and its place in FIFO order.
         $this->assertSame(1, (int) InventoryBatch::where('product_id', $p->product_id)->count());
 
         $inv = Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
         $this->assertSame(20, (int) $inv->quantity_on_hand);
         $this->assertSame(20, (int) $inv->available_quantity);
 
-        $this->assertSame(StockHold::STATUS_RELEASED, $hold->fresh()->status);
-        $this->assertSame(StockHold::DISPOSITION_RESTOCKED, $hold->fresh()->disposition);
-
-        // …and only NOW is the incident finished. Disposing the last hold is
-        // what carries it from Awaiting Inspection to Resolved.
-        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $incident->fresh()->status_id);
+        // Inverted: was STATUS_RELEASED / DISPOSITION_RESTOCKED on the hold.
+        $this->assertSame(IncidentItem::STATUS_AVAILABLE, $this->itemFor($incident)->status);
+        $this->assertSame(IncidentItem::OUTCOME_RESTOCK, $this->itemFor($incident)->outcome);
+        // …and the batch is back in FIFO rotation with no cleanup step.
+        $this->assertNotContains(
+            (int) $b->batch_id,
+            app(IncidentService::class)->excludedBatchIds($loc->location_id)
+        );
     }
 
     /**
-     * Was `test_the_adjustment_records_an_addition`. Reversal: a return no
-     * longer posts an Adjustment at all, so the assertion that used to pin the
-     * adjustment's shape now pins that there is none — and pins the hold that
-     * replaced it, at the same quantity the adjustment used to carry.
+     * Was `test_a_return_posts_no_adjustment_and_records_the_quantity_on_the_hold`,
+     * itself once `test_the_adjustment_records_an_addition`.
+     *
+     * Same job, third home: the assertion that used to pin the Adjustment's
+     * shape, then the hold's, now pins the incident_item's — at the same
+     * quantity, batch, product and location the earlier rows carried.
      */
-    public function test_a_return_posts_no_adjustment_and_records_the_quantity_on_the_hold(): void
+    public function test_a_return_posts_no_adjustment_and_records_the_quantity_on_the_item(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openReturn($loc, $p, $b, 4);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
-
         $this->assertNull($incident->fresh()->adjustment_id, 'a return is not a stock loss or gain to adjust');
         $this->assertNull($incident->fresh()->correction_id);
 
-        $hold = $this->heldFor($incident);
-        $this->assertSame(4, (int) $hold->quantity);
-        $this->assertSame((int) $b->batch_id, (int) $hold->batch_id);
-        $this->assertSame((int) $p->product_id, (int) $hold->product_id);
-        $this->assertSame((int) $loc->location_id, (int) $hold->location_id);
+        $item = $this->itemFor($incident);
+        $this->assertSame(4, (int) $item->quantity);
+        $this->assertSame((int) $b->batch_id, (int) $item->batch_id);
+        $this->assertSame((int) $p->product_id, (int) $item->product_id);
+        // An item has no location_id column — location lives on the parent
+        // report, because an item cannot be somewhere its incident isn't.
+        $this->assertSame((int) $loc->location_id, (int) $item->incident->location_id);
     }
 
     /**
-     * Was `test_a_return_with_no_batch_lands_in_the_legacy_batch`.
+     * Was `test_a_batchless_return_lands_in_the_legacy_batch`.
      *
-     * The legacy-batch landing is preserved: a return filed without a batch
-     * lands in the location's catch-all batch (receiving_id IS NULL), whose
-     * null received_at sorts it first in FIFO — goods of unknown provenance get
-     * picked before traceable stock, which is what you want for a return.
-     *
-     * Restocking the location total alone would leave stock that the location
-     * can see and picking can never reach.
+     * INVERTED, and the substantive change on this file. A restock no longer
+     * creates stock anywhere: filing quarantines goods that are already on the
+     * shelf, so a return filed without a batch has no batch to quarantine and
+     * confirming it invents neither a legacy batch nor a location row. The old
+     * legacy-batch landing existed only because approval used to INCREMENT.
      */
-    public function test_a_batchless_return_lands_in_the_legacy_batch(): void
+    public function test_a_batchless_return_quarantines_nothing_and_creates_no_batch(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
 
         $incident = $this->openReturn($loc, $p, null, 2);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
+        $item = $this->itemFor($incident);
+        $this->assertNull($item->batch_id);
+        $this->assertSame(2, (int) $item->quantity);
+        // A batchless report pulls no batch out of rotation — there is nothing
+        // to name — so picking at this location is unaffected.
+        $this->assertSame([], app(IncidentService::class)->excludedBatchIds($loc->location_id));
 
-        $hold = $this->heldFor($incident);
-        $this->assertNull($hold->batch_id);
-        $this->assertSame(2, (int) $hold->quantity);
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_RESTOCK);
 
-        app(StockHoldService::class)->dispose(
-            $hold, StockHold::DISPOSITION_RESTOCKED, null, $this->inspectorId($loc)
+        $this->assertSame(IncidentItem::STATUS_AVAILABLE, $this->itemFor($incident)->status);
+
+        // Inverted: was a legacy catch-all batch holding 2, and a location row
+        // created at 2. Confirming a restock adds nothing, so neither appears.
+        $this->assertSame(0, (int) InventoryBatch::where('product_id', $p->product_id)
+            ->where('location_id', $loc->location_id)->count());
+        $this->assertNull(
+            Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first(),
+            'confirming a restock must not conjure a stock row for goods nothing counted in'
         );
-
-        $inv = Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
-        $this->assertNotNull($inv, 'a restock into a product with no stock row must create one');
-        $this->assertSame(2, (int) $inv->quantity_on_hand);
-        $this->assertSame(2, (int) $inv->available_quantity);
-
-        // The units are reachable by FIFO, not stranded on the location total.
-        $legacy = InventoryBatch::where('product_id', $p->product_id)
-            ->where('location_id', $loc->location_id)
-            ->whereNull('receiving_id')
-            ->first();
-
-        $this->assertNotNull($legacy, 'a batchless restock must land in the legacy catch-all batch');
-        $this->assertSame(2, (int) $legacy->quantity_remaining);
-        $this->assertNull($legacy->received_at, 'a null received_at is what sorts it first in FIFO');
     }
 
-    public function test_a_returned_serial_is_held_before_it_goes_back_in_stock(): void
+    /**
+     * Was `test_a_returned_serial_is_held_before_it_goes_back_in_stock`.
+     *
+     * Same guarantee, one step earlier: the serial must not read as sellable
+     * while nobody has looked at it. The Quarantined stamp moved from approval
+     * to filing, which is the point the unit actually stops being pickable.
+     */
+    public function test_a_returned_serial_is_quarantined_before_it_goes_back_in_stock(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeAppliance();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
@@ -202,22 +223,18 @@ class IncidentRestockTest extends SetTestCase
 
         $incident = $this->openReturn($loc, $p, $b, 1, (int) $serial->serial_id);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
-
-        // Reversal: approval no longer flips the serial to In Stock. It carries
-        // the Returned status, so a scan tells the truth about a held unit.
+        // Inverted: was `Returned` set at approval. Filing is now what stamps
+        // it, and the stamp is `Quarantined` — a scan tells the truth about a
+        // unit under investigation from the moment it is reported.
         $this->assertSame(
-            StockHold::inventoryStatusId('Returned'),
+            $this->inventoryStatusId('Quarantined'),
             (int) ItemSerial::find($serial->serial_id)->status_id
         );
 
-        app(StockHoldService::class)->dispose(
-            $this->heldFor($incident), StockHold::DISPOSITION_RESTOCKED, null, $this->inspectorId($loc)
-        );
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_RESTOCK);
 
-        // The In Stock flip moved here, to the point a person says it is sellable.
+        // Unchanged: the In Stock flip still happens at the point a person says
+        // the unit is sellable — that point is now the admin's confirmation.
         $returned = ItemSerial::find($serial->serial_id);
         $this->assertSame(ItemSerial::IN_STOCK_STATUS_ID, (int) $returned->status_id);
 
@@ -226,47 +243,61 @@ class IncidentRestockTest extends SetTestCase
         $this->assertSame('received', $returned->serial_type);
     }
 
-    public function test_resolving_a_return_twice_is_rejected(): void
+    /**
+     * Was `test_resolving_a_return_twice_is_rejected`, hitting POST /resolve.
+     * Same double-booking guard at the endpoint that replaced it.
+     */
+    public function test_confirming_a_return_twice_is_rejected(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openReturn($loc, $p, $b, 3);
-        $url = "/api/incident-reports/{$incident->incident_id}/resolve";
 
-        $this->actingAs($ia, 'sanctum')->postJson($url, ['action' => 'confirm'])->assertOk();
-        $this->actingAs($ia, 'sanctum')->postJson($url, ['action' => 'confirm'])->assertStatus(422);
+        // Scrap, not restock: an outcome that MOVES stock is what a second
+        // confirmation would double-book, so it is the one worth guarding.
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
 
-        // The hold was opened exactly once, and the batch moved exactly once
-        // (5 - 3). Under the old behaviour this pinned the increment; it now
-        // pins the deduction, which is the same double-booking guard.
-        $this->assertSame(1, StockHold::where('incident_id', $incident->incident_id)->count());
+        $ia = $this->makeUserAt($loc, 'inventory_analyst');
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
+             ->assertStatus(422);
+
+        // The batch moved exactly once (5 - 3), and the item is settled once.
         $this->assertSame(2, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+        $this->assertSame(1, IncidentItem::where('incident_id', $incident->incident_id)->count());
+        $this->assertSame(IncidentItem::STATUS_SCRAPPED, $this->itemFor($incident)->status);
     }
 
-    /** A hold cannot be disposed twice, so the stock cannot come back twice either. */
-    public function test_disposing_a_hold_twice_is_rejected(): void
+    /**
+     * Was `test_disposing_a_hold_twice_is_rejected` — "a hold cannot be disposed
+     * twice, so the stock cannot come back twice either".
+     *
+     * The disposal step is gone; its guard moved onto the outcome. A settled
+     * item refuses a new outcome, so nobody can re-decide a unit that has
+     * already been scrapped and have it applied a second time.
+     */
+    public function test_a_settled_item_refuses_a_new_outcome(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openReturn($loc, $p, $b, 3);
+        $itemId   = $this->itemFor($incident)->item_id;
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
 
-        $hold      = $this->heldFor($incident);
-        $inspector = $this->inspectorId($loc);
-        $service   = app(StockHoldService::class);
+        $bm = $this->makeUserAt($loc, 'branch_manager');
+        $this->actingAs($bm, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/items/{$itemId}/outcome",
+                 ['outcome' => IncidentItem::OUTCOME_RESTOCK])
+             ->assertStatus(422);
 
-        $service->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, $inspector);
-
-        $this->expectException(\RuntimeException::class);
-        $service->dispose($hold, StockHold::DISPOSITION_RESTOCKED, null, $inspector);
+        // The recorded ending stands, and the stock did not come back.
+        $this->assertSame(IncidentItem::STATUS_SCRAPPED, $this->itemFor($incident)->status);
+        $this->assertSame(IncidentItem::OUTCOME_SCRAP, $this->itemFor($incident)->outcome);
+        $this->assertSame(2, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
     }
 }

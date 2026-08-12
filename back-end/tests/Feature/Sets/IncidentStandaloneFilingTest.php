@@ -2,24 +2,58 @@
 
 namespace Tests\Feature\Sets;
 
-use App\Models\Adjustment;
+use App\Models\IncidentItem;
 use App\Models\IncidentReport;
 use App\Models\InventoryBatch;
-use App\Models\StockHold;
 use App\Services\IncidentService;
 
 class IncidentStandaloneFilingTest extends SetTestCase
 {
     /**
-     * `theft` stopped being a reason of its own: the type is now `missing` and
-     * the theft nuance rides along as `suspected_cause`. The write-off itself
-     * is unchanged — an Adjustment of type `loss` — but it now also leaves a
-     * `missing` hold behind, because physical = active + held.
+     * Walk a filed report through the new order: the inspector records an
+     * outcome per item and submits, then a second person confirms.
+     *
+     * Two users, because the client's two signature lines are enforced — the
+     * inspector cannot confirm their own report while another resolver exists
+     * at that location. The inspector is a branch_manager (inspect, no resolve)
+     * and the approver an inventory_analyst (resolve).
      */
-    public function test_missing_with_suspected_theft_writes_off_as_a_loss_and_holds_the_stock(): void
+    private function inspectAndConfirm(IncidentReport $incident, $loc, string $outcome): void
+    {
+        $bm = $this->makeUserAt($loc, 'branch_manager');
+        $ia = $this->makeUserAt($loc, 'inventory_analyst');
+
+        foreach (IncidentItem::where('incident_id', $incident->incident_id)->get() as $item) {
+            $this->actingAs($bm, 'sanctum')
+                 ->postJson("/api/incident-reports/{$incident->incident_id}/items/{$item->item_id}/outcome",
+                     ['outcome' => $outcome])
+                 ->assertOk();
+        }
+
+        $this->actingAs($bm, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/inspection", [])
+             ->assertOk();
+
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
+             ->assertOk();
+    }
+
+    /**
+     * `theft` stopped being a reason of its own: the type is now `missing` and
+     * the theft nuance rides along as `suspected_cause`.
+     *
+     * Rewritten for the new order. Was
+     * `test_missing_with_suspected_theft_writes_off_as_a_loss_and_holds_the_stock`,
+     * which asserted an Adjustment of type `loss` plus a `missing` stock_holds
+     * row. Both artifacts are gone: the per-reason resolution strategies that
+     * posted the Adjustment were deleted, and the hold became an incident_item.
+     * What the test still guards is the thing it was really about — the
+     * suspected cause is recorded and does not change what happens to the stock.
+     */
+    public function test_missing_with_suspected_theft_deducts_only_once_it_is_confirmed(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 10, 'received_at' => now(), 'zone_label' => 'Zone 1']);
@@ -36,34 +70,35 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'occurred_at'     => now()->subDay(),
         ], (int) $wp->user_id);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
+        // Inverted: filing quarantines, it does not deduct. The batch is intact
+        // until somebody has confirmed the write-off.
+        $this->assertSame(10, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
 
-        // Unchanged: the suspected cause does not change the adjustment type.
-        $adjustment = Adjustment::find($incident->fresh()->adjustment_id);
-        $this->assertSame('loss', $adjustment->adjustment_type);
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_WRITE_OFF);
+
         $this->assertSame(6, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
-
-        // New: the deducted stock is accounted for as a hold rather than simply
-        // vanishing, so physical = active + held still holds after a write-off.
-        $this->assertDatabaseHas('stock_holds', [
-            'incident_id' => $incident->incident_id,
-            'condition'   => StockHold::CONDITION_MISSING,
-            'quantity'    => 4,
-            'status'      => StockHold::STATUS_HELD,
-        ]);
+        // Inverted: was `stock_holds` with CONDITION_MISSING. The ending is now
+        // an item status, and it is reached through the inspector's outcome.
+        $this->assertSame(IncidentItem::STATUS_MISSING,
+            IncidentItem::where('incident_id', $incident->incident_id)->firstOrFail()->status);
+        // Inverted: was an Adjustment of type `loss`. The strategy classes that
+        // posted it are gone, so the deduction has no ledger row of its own —
+        // pinned explicitly so its later return is a deliberate change.
+        $this->assertNull($incident->fresh()->adjustment_id);
+        // Unchanged, and the point of the test: the cause is recorded verbatim.
+        $this->assertSame('theft', $incident->fresh()->suspected_cause);
     }
 
     /**
      * `delivery_damage` collapsed into `defective` with `root_cause: delivery`.
-     * The adjustment type is still `damage`; the new part is the `defective`
-     * hold, which is what a later inspection disposes of.
+     *
+     * Rewritten for the new order, same way as the theft case above: was
+     * `test_defective_from_delivery_writes_off_as_damage_and_holds_the_stock`,
+     * asserting an Adjustment of type `damage` plus a `defective` hold.
      */
-    public function test_defective_from_delivery_writes_off_as_damage_and_holds_the_stock(): void
+    public function test_defective_from_delivery_is_scrapped_only_once_it_is_confirmed(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 10, 'received_at' => now(), 'zone_label' => 'Zone 1']);
@@ -79,22 +114,20 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'narrative'   => 'Crushed in the van, customer refused it.',
         ], (int) $wp->user_id);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
+        // Inverted: the damaged units stay on the count while they are examined.
+        $this->assertSame(10, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
 
-        // Unchanged: the root cause does not change the adjustment type.
-        $this->assertSame('damage', Adjustment::find($incident->fresh()->adjustment_id)->adjustment_type);
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
+
         $this->assertSame(8, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
-
-        // New: the damaged units are held for inspection, not written out of
-        // existence — a `defective` hold can still go back to the supplier.
-        $this->assertDatabaseHas('stock_holds', [
-            'incident_id' => $incident->incident_id,
-            'condition'   => StockHold::CONDITION_DEFECTIVE,
-            'quantity'    => 2,
-            'status'      => StockHold::STATUS_HELD,
-        ]);
+        // Inverted: was `stock_holds` with CONDITION_DEFECTIVE. `quarantined`
+        // is now the state the goods sit in while a person decides, and `scrap`
+        // vs `return_to_supplier` is that decision.
+        $this->assertSame(IncidentItem::STATUS_SCRAPPED,
+            IncidentItem::where('incident_id', $incident->incident_id)->firstOrFail()->status);
+        // Inverted: was an Adjustment of type `damage`.
+        $this->assertNull($incident->fresh()->adjustment_id);
+        $this->assertSame('delivery', $incident->fresh()->root_cause);
     }
 
     public function test_a_standalone_report_still_holds_its_batch_out_of_fifo(): void
@@ -142,8 +175,11 @@ class IncidentStandaloneFilingTest extends SetTestCase
         $this->assertSame(0, (int) $incident->quantity);
 
         // Acknowledge sends the existing 'confirm' action; only the label differs.
+        // Moved from /resolve to /decide, and it still lands directly on
+        // Resolved: `other` is inspection-exempt, so there is no intervening
+        // Awaiting Inspection to walk through.
         $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", [
                  'action' => 'confirm', 'resolution_note' => 'Maintenance ticket raised.',
              ])->assertOk();
 
@@ -151,6 +187,8 @@ class IncidentStandaloneFilingTest extends SetTestCase
         $this->assertSame(IncidentReport::statusId('Resolved'), (int) $fresh->status_id);
         $this->assertNull($fresh->adjustment_id, 'acknowledging is not a stock movement');
         $this->assertNull($fresh->correction_id);
+        // …and it quarantines nothing, because there is nothing physical to hold.
+        $this->assertSame(0, IncidentItem::where('incident_id', $fresh->incident_id)->count());
     }
 
     public function test_a_stock_affecting_reason_still_requires_a_product(): void
@@ -400,8 +438,11 @@ class IncidentStandaloneFilingTest extends SetTestCase
         $res->assertCreated();
 
         // Maker-checker: filing a write-off and approving it stay different people.
+        // Moved from /resolve to /decide, and the separation is now sharper —
+        // a branch_manager holds `inspect` but not `resolve`, so they can
+        // examine the goods and still cannot confirm the write-off.
         $this->actingAs($bm, 'sanctum')
-             ->postJson("/api/incident-reports/{$res->json('data.incident_id')}/resolve", ['action' => 'confirm'])
+             ->postJson("/api/incident-reports/{$res->json('data.incident_id')}/decide", ['action' => 'confirm'])
              ->assertForbidden();
     }
 
