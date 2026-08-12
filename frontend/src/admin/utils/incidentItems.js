@@ -16,38 +16,58 @@ export const unitRoleLabel = (value) =>
   UNIT_ROLES.find((r) => r.value === value)?.label || value;
 
 /**
- * What the inspector can decide about one unit. Mirrors
- * App\Models\IncidentItem::OUTCOMES.
+ * LABELS ONLY. Mirrors App\Models\IncidentItem::OUTCOMES for wording; it is
+ * NEVER the list a screen offers.
  *
- * `restock` is the only one that keeps the goods: everything else means they
- * left the building or were destroyed, so confirming it reduces the stock
- * count. The `keepsStock` flag is stated here once so no screen has to
- * re-derive which outcomes are destructive — getting that backwards would
- * mislabel a write-off as harmless.
+ * Which outcomes are available for a given unit is served per item as
+ * `allowed_outcomes`, filtered by that unit's warranty state and enforced with
+ * a 422 in setOutcome(). A client that re-derived the rule would offer a
+ * warranty claim on an out-of-warranty unit — which wastes a warranty officer's
+ * time and stays invisible until they open the claim and find nothing to claim
+ * against.
+ *
+ * `removesStock` mirrors IncidentItem::OUTCOMES_THAT_REMOVE_STOCK exactly. The
+ * flag it replaced said restock was the only outcome that keeps the goods,
+ * which is no longer true and never was safe to assert here: `claim_warranty`
+ * holds the unit in the building while a claim is raised against it, and
+ * `repair` holds it while it is fixed. Treating either as a departure would
+ * delete stock that is sitting on the bench.
  */
 export const ITEM_OUTCOMES = [
   {
     value: 'restock',
     label: 'Put back into stock',
-    keepsStock: true,
+    removesStock: false,
     help: 'The unit is fine. It becomes pickable again; the count does not change, because filing never deducted it.',
-  },
-  {
-    value: 'scrap',
-    label: 'Scrap',
-    keepsStock: false,
-    help: 'Destroyed or unsellable. Confirming deducts it from the stock count.',
   },
   {
     value: 'return_to_supplier',
     label: 'Return to supplier',
-    keepsStock: false,
+    removesStock: true,
     help: 'Goes back to the supplier. Confirming deducts it from the stock count.',
+  },
+  {
+    value: 'claim_warranty',
+    label: 'Claim on the warranty',
+    removesStock: false,
+    help: 'The unit stays here while a warranty claim is raised against it. Nothing is deducted, and no claim record is created from this report — a warranty officer raises that separately.',
+  },
+  {
+    value: 'repair',
+    label: 'Send for repair',
+    removesStock: false,
+    help: 'The unit stays here while it is fixed. Nothing is deducted — it is on the bench, not gone.',
+  },
+  {
+    value: 'scrap',
+    label: 'Scrap',
+    removesStock: true,
+    help: 'Destroyed or unsellable. Confirming deducts it from the stock count.',
   },
   {
     value: 'write_off',
     label: 'Write off as lost',
-    keepsStock: false,
+    removesStock: true,
     help: 'Gone and not coming back. Confirming deducts it and records the loss.',
   },
 ];
@@ -58,15 +78,64 @@ export const outcomeLabel = (value) =>
   outcomeMeta(value)?.label || (value ? String(value).replace(/_/g, ' ') : '—');
 
 /**
+ * Does confirming this outcome deduct the unit?
+ *
+ * Defaults to FALSE for an outcome this mirror has not heard of. An unknown
+ * value is far more likely to be a new non-destructive ending than a new
+ * deduction, and the alternative — captioning "deducted on confirmation" under
+ * something that is not — tells an admin a write-off is happening when it is
+ * not.
+ */
+export const outcomeRemovesStock = (value) => outcomeMeta(value)?.removesStock === true;
+
+/**
+ * Whether a unit is still covered. Served per item as `warranty_state`.
+ *
+ * `expired` and `none` offer the same choices but are not the same fact: one
+ * unit was sold and its cover ran out, the other was never registered at all.
+ * They are shown differently so an inspector can tell which one they are
+ * looking at.
+ */
+export const WARRANTY_STATES = [
+  {
+    value: 'in_warranty',
+    label: 'Under warranty',
+    badge: 'ak-badge--green',
+    help: 'An unexpired warranty record covers this serial, so a warranty claim is available.',
+  },
+  {
+    value: 'expired',
+    label: 'Warranty expired',
+    badge: 'ak-badge--amber',
+    help: 'This unit was sold and registered, but its cover has run out. A warranty claim is not available.',
+  },
+  {
+    value: 'none',
+    label: 'No warranty record',
+    badge: 'ak-badge--gray',
+    help: 'No warranty record exists for this serial — it was never registered, or the unit carries no serial at all.',
+  },
+];
+
+export const warrantyStateMeta = (value) =>
+  WARRANTY_STATES.find((s) => s.value === value) || null;
+
+/**
  * Where a unit currently stands. Mirrors App\Models\IncidentItem::STATUSES.
  *
  * `quarantined` is the one that surprises people: the goods are physically
  * present and still counted in quantity_on_hand — they are simply unpickable
  * until someone decides. Nothing has been deducted.
+ *
+ * `under_repair` and `awaiting_warranty_claim` are the two settled statuses
+ * where the goods are STILL HERE. They are the resting places of `repair` and
+ * `claim_warranty`, and they deduct nothing.
  */
 export const ITEM_STATUSES = [
   { value: 'quarantined', label: 'Quarantined', badge: 'ak-badge--amber' },
   { value: 'available',   label: 'Back in stock', badge: 'ak-badge--green' },
+  { value: 'under_repair', label: 'Under repair', badge: 'ak-badge--blue' },
+  { value: 'awaiting_warranty_claim', label: 'Awaiting warranty claim', badge: 'ak-badge--blue' },
   { value: 'scrapped',    label: 'Scrapped',    badge: 'ak-badge--red' },
   { value: 'returned',    label: 'Returned',    badge: 'ak-badge--blue' },
   { value: 'missing',     label: 'Missing',     badge: 'ak-badge--red' },

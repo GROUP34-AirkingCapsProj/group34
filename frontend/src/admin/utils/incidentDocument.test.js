@@ -1,5 +1,7 @@
 import {
-  DOC_MODES, SECTION, sectionsFor, sectionState, evidenceRequirementsFor, whatIsMissing,
+  DOC_MODES, SECTION, sectionsFor, sectionState, evidenceRequirementsFor,
+  formFromReport, outstandingRequirements, requirementsFor,
+  whatInspectionIsMissing, whatIsMissing,
 } from './incidentDocument';
 
 const unit = (over = {}) => ({ product_id: '7', pieces: 1, batch_id: '', ...over });
@@ -155,5 +157,147 @@ describe('whatIsMissing', () => {
 
   it('asks `other` for nothing beyond a location and a description', () => {
     expect(whatIsMissing(form({ reason: 'other' }), [])).toEqual([]);
+  });
+});
+
+describe('requirementsFor / outstandingRequirements', () => {
+  // The ASC report is conditional on a FACT the inspector states, not on the
+  // type — it appears the moment they tick the box, and the checklist has to
+  // grow with it or an inspector submits without the report they just said
+  // exists.
+  it('adds the ASC report only once the ASC box is ticked', () => {
+    expect(requirementsFor('defective', false)).not.toContain('asc_service_report');
+    expect(requirementsFor('defective', true)).toContain('asc_service_report');
+  });
+
+  it('leaves a reason that asks for nothing empty, ASC or not', () => {
+    expect(requirementsFor('missing', true)).toEqual([]);
+  });
+
+  // A skip is data, not an absence: it is what lets the admin see that the box
+  // photo is missing BECAUSE the box was discarded, rather than seeing a thin
+  // report and guessing.
+  it('treats a written skip as satisfying the requirement', () => {
+    const evidence = [{ requirement: 'defect_photo', skipped_reason: 'the unit was collected' }];
+    expect(outstandingRequirements('defective', false, evidence)).not.toContain('defect_photo');
+  });
+
+  it('counts a requirement with neither a photo nor a reason as outstanding', () => {
+    expect(outstandingRequirements('defective', false, [])).toContain('defect_photo');
+  });
+});
+
+describe('whatInspectionIsMissing', () => {
+  const args = (over = {}) => ({
+    reason: 'defective',
+    checkedByAsc: false,
+    evidence: [
+      { requirement: 'defect_photo', photo_path: 'incidents/a.jpg' },
+      { requirement: 'model_serial_sticker', photo_path: 'incidents/b.jpg' },
+      { requirement: 'box_two_sides', skipped_reason: 'discarded' },
+      { requirement: 'accessories_warranty', photo_path: 'incidents/c.jpg' },
+    ],
+    items: [{ item_id: 1, status: 'quarantined', outcome: 'restock' }],
+    ...over,
+  });
+
+  it('is satisfied when every requirement is answered and every unit decided', () => {
+    expect(whatInspectionIsMissing(args())).toEqual([]);
+  });
+
+  it('names the units still without an outcome', () => {
+    const out = whatInspectionIsMissing(args({
+      items: [
+        { item_id: 1, status: 'quarantined', outcome: null },
+        { item_id: 2, status: 'quarantined', outcome: null },
+      ],
+    }));
+    expect(out).toContain('an outcome on 2 units');
+  });
+
+  // Already applied by a confirmation. IncidentItemService refuses to change a
+  // settled item, so counting one as outstanding would make the report
+  // permanently unsubmittable.
+  it('does not ask for an outcome on a unit that is already settled', () => {
+    expect(whatInspectionIsMissing(args({
+      items: [{ item_id: 1, status: 'scrapped', outcome: null }],
+    }))).toEqual([]);
+  });
+
+  it('names an outstanding requirement through the label it is given', () => {
+    const out = whatInspectionIsMissing(args({
+      evidence: [],
+      requirementLabel: (req) => (req === 'defect_photo' ? 'Picture of the defect' : req),
+    }));
+    expect(out[0]).toMatch(/^Picture of the defect —/);
+  });
+
+  // Ticking the ASC box mid-inspection re-opens the checklist. A screen that
+  // let the submit through here would file a report claiming a service centre
+  // saw the unit with no service report behind it.
+  it('re-opens the checklist when the ASC box is ticked', () => {
+    expect(whatInspectionIsMissing(args({ checkedByAsc: true })))
+      .toHaveLength(1);
+  });
+});
+
+describe('formFromReport', () => {
+  const report = {
+    incident_id: 5,
+    reason: 'return',
+    location_id: 3,
+    narrative: 'came back on the truck',
+    return_counterparty: 'customer',
+    return_reason_code: 'wrong_product',
+    dealer_name: 'Northgate Aircon',
+    customer_name: null,
+    items: [{
+      item_id: 11, product_id: 7, batch_id: 4, unit_role: 'indoor',
+      model_code: 'AK-9', serial_number: 'SN-1', quantity: 25, pieces_per_package: 10,
+      expected_product_id: 9, expected_quantity: 0,
+    }],
+  };
+
+  it('reads the reporter’s answers back into the fields they were typed into', () => {
+    const f = formFromReport(report);
+    expect(f.reason).toBe('return');
+    expect(f.locationId).toBe('3');
+    expect(f.returnCounterparty).toBe('customer');
+    expect(f.dealerName).toBe('Northgate Aircon');
+  });
+
+  // A controlled input handed null goes uncontrolled and React warns; every
+  // unanswered field has to arrive as ''.
+  it('turns an unanswered field into an empty string, never null', () => {
+    expect(formFromReport(report).customerName).toBe('');
+    expect(formFromReport({}).narrative).toBe('');
+  });
+
+  it('gives one row per saved unit, keyed on its item id', () => {
+    const [row] = formFromReport(report).units;
+    expect(row.uid).toBe('item-11');
+    expect(row.model_code).toBe('AK-9');
+    expect(row.unit_role).toBe('indoor');
+  });
+
+  // Quantities are stored in PIECES. Re-splitting them by the pack size is what
+  // makes the locked row read the way it was entered — "2 Box + 5 pcs", not 25.
+  it('re-splits a piece count across packs and loose pieces', () => {
+    const [row] = formFromReport(report).units;
+    expect(row.quantity).toBe(25);
+    expect(row.packs).toBe(2);
+    expect(row.loose_pieces).toBe(5);
+  });
+
+  // Zero is a real ordered quantity — nothing was ordered and something
+  // arrived — and it must not read back as "not answered".
+  it('keeps an ordered quantity of zero', () => {
+    expect(formFromReport(report).units[0].expected_quantity).toBe('0');
+  });
+
+  // A report with no items still renders the Units section, and a units list
+  // of length zero is indistinguishable from a report about nothing.
+  it('falls back to one blank row when the report has no items', () => {
+    expect(formFromReport({ reason: 'other' }).units).toHaveLength(1);
   });
 });

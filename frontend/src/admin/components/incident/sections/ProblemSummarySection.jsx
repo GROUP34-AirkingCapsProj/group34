@@ -1,6 +1,7 @@
 import React from 'react';
 import DocumentSection, { DocField } from './DocumentSection';
 import CameraCapture from '../../CameraCapture';
+import ReportPhoto from '../ReportPhoto';
 
 /**
  * The client's "Problem summary": whose unit it is, where it is sitting, and
@@ -20,7 +21,7 @@ import CameraCapture from '../../CameraCapture';
  * cannot follow is not a problem.
  */
 export default function ProblemSummarySection({
-  state, form, patch, showCustomer, photo, cameraOpen, setCameraOpen, disabled,
+  state, form, patch, showCustomer, photo, cameraOpen, setCameraOpen, disabled, report,
 }) {
   const readOnly = state !== 'editable';
   const locked = disabled || readOnly;
@@ -55,6 +56,16 @@ export default function ProblemSummarySection({
         disabled={locked}
         hint={`${String(form.narrative || '').length}/2000`}
       />
+
+      {/* Locked, not dropped. The reporter's photo is part of the claim the
+          inspector is checking and the admin is approving. */}
+      {readOnly && report && (
+        <ReportPhoto
+          incidentId={report.incident_id}
+          photoPath={report.photo_path}
+          photoSource={report.photo_source}
+        />
+      )}
 
       {!readOnly && (
         <fieldset className="ak-field" style={{ border: 'none', margin: 0, padding: 0 }}>

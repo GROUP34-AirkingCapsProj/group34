@@ -9,7 +9,7 @@ import {
   reasonLabel,
   SUSPECTED_CAUSES, ROOT_CAUSES, RETURN_DIRECTIONS,
 } from '../utils/incidentReasons';
-import { itemStatusMeta, outcomeLabel, outcomeMeta, unitRoleLabel } from '../utils/incidentItems';
+import { itemStatusMeta, outcomeLabel, outcomeRemovesStock, unitRoleLabel } from '../utils/incidentItems';
 import { formatPieces } from '../utils/packageFormat';
 
 /**
@@ -138,7 +138,8 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
 
   const items = Array.isArray(detail?.items) ? detail.items : [];
   const evidence = Array.isArray(detail?.evidence) ? detail.evidence : [];
-  const deducting = items.filter((i) => i.outcome && outcomeMeta(i.outcome)?.keepsStock === false);
+  // claim_warranty and repair are NOT here: both keep the unit in the building.
+  const deducting = items.filter((i) => outcomeRemovesStock(i.outcome));
 
   // "25 pcs · 2 Box + 5 pcs", or just "25 pcs" without a pack size. A reviewer
   // approving a permanent write-off must see which unit they are approving.
@@ -387,7 +388,6 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                   {items.map((item) => {
                     const status = itemStatusMeta(item.status);
-                    const meta = outcomeMeta(item.outcome);
                     return (
                       <li key={item.item_id} style={{ padding: '0.4rem 0', borderBottom: '1px solid var(--ak-line)' }}>
                         <div>
@@ -402,7 +402,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
                           {item.outcome ? (
                             <>
                               Outcome: <strong>{outcomeLabel(item.outcome)}</strong>
-                              {meta?.keepsStock === false && (
+                              {outcomeRemovesStock(item.outcome) && (
                                 <span className="ak-muted"> · deducted on confirmation</span>
                               )}
                               {item.outcome_note ? ` — ${item.outcome_note}` : ''}

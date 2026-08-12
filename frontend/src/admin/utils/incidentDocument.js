@@ -1,4 +1,5 @@
 import { reasonMeta } from './incidentReasons';
+import { newUnit } from './incidentUnits';
 
 /**
  * The pure parts of the unified incident document: which sections a type shows,
@@ -58,6 +59,34 @@ const OUTCOMES_WITHOUT_UNITS = ['relocate', 'none'];
  * asked for. `missing` asks for nothing: the unit is gone, and demanding a
  * photograph of an absent item teaches people to fake evidence.
  */
+/**
+ * The requirements this report must answer, including the one that depends on a
+ * FACT rather than the type: `asc_service_report` appears the moment the
+ * inspector ticks "checked by an ASC".
+ *
+ * A reason that asks for nothing stays empty — a missing unit has no service
+ * report either.
+ */
+export function requirementsFor(reason, checkedByAsc, returnReasonCode) {
+  const base = evidenceRequirementsFor(reason, returnReasonCode);
+  if (!checkedByAsc || base.length === 0) return base;
+  return [...base, 'asc_service_report'];
+}
+
+/**
+ * Requirements with neither a photo nor a written skip reason against them.
+ *
+ * A SKIP SATISFIES A REQUIREMENT. That is the whole point of recording one: the
+ * admin sees that the box photo is missing because the box was already
+ * discarded, rather than seeing a thin report and guessing.
+ */
+export function outstandingRequirements(reason, checkedByAsc, evidence, returnReasonCode) {
+  const rows = Array.isArray(evidence) ? evidence : [];
+  return requirementsFor(reason, checkedByAsc, returnReasonCode).filter(
+    (req) => !rows.some((e) => e.requirement === req),
+  );
+}
+
 export function evidenceRequirementsFor(reason, returnReasonCode) {
   if (reason === 'defective') {
     return ['defect_photo', 'model_serial_sticker', 'box_two_sides', 'accessories_warranty'];
@@ -210,4 +239,134 @@ export function whatIsMissing(form, units) {
   }
 
   return out;
+}
+
+/**
+ * What the INSPECTION still has to answer, in the same voice.
+ *
+ * The sibling of whatIsMissing(), for the half below the rule. Two conditions,
+ * both of them the server's: every requirement satisfied by a photo or skipped
+ * with a written reason, and every quarantined unit given an outcome.
+ *
+ * Sentences rather than a boolean, and rendered rather than baked into a
+ * disabled button, for the reason Task 8 established — a greyed control with no
+ * explanation is a dead end. An inspector who cannot see WHICH requirement is
+ * outstanding cannot clear it.
+ *
+ * `requirementLabel` is injected so this stays free of the component that owns
+ * the wording. It defaults to the raw code, which reads badly but never lies.
+ */
+export function whatInspectionIsMissing({
+  reason, returnReasonCode, checkedByAsc, evidence, items,
+  requirementLabel = (req) => String(req || '').replace(/_/g, ' '),
+}) {
+  const out = [];
+  const rows = Array.isArray(items) ? items : [];
+
+  // Only the units still awaiting a decision. A settled one has already been
+  // applied by a confirmation and the service refuses to change it, so counting
+  // it as outstanding would make the report permanently unsubmittable.
+  const undecided = rows.filter((i) => i.status === 'quarantined' && !i.outcome);
+  if (undecided.length > 0) {
+    out.push(`an outcome on ${undecided.length} unit${undecided.length === 1 ? '' : 's'}`);
+  }
+
+  outstandingRequirements(reason, checkedByAsc, evidence, returnReasonCode).forEach((req) => {
+    out.push(`${requirementLabel(req)} — attach a photo, or say why you can’t`);
+  });
+
+  return out;
+}
+
+/** `datetime-local` wants LOCAL YYYY-MM-DDTHH:mm; toISOString() is UTC and would be off by the offset. */
+export function toLocalInputValue(date) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`
+    + `T${p(date.getHours())}:${p(date.getMinutes())}`;
+}
+
+/** '' rather than null/undefined — a controlled input given null goes uncontrolled. */
+const str = (v) => (v === null || v === undefined ? '' : String(v));
+
+/**
+ * The saved report, read back into the shape the reporter's half renders from.
+ *
+ * The document is ONE file that travels, so the inspector and the admin see the
+ * reporter's answers in the very fields the reporter typed them into — locked,
+ * not summarised somewhere else in a different order. A separate read-only
+ * rendering would be a second layout free to drift from the one that was filled
+ * in, and drift here means an inspector checking a claim that is not the claim
+ * that was made.
+ */
+export function formFromReport(report) {
+  const items = Array.isArray(report?.items) ? report.items : [];
+
+  return {
+    reason: report?.reason || 'defective',
+    occurredAt: report?.occurred_at ? toLocalInputValue(new Date(report.occurred_at)) : '',
+    locationId: str(report?.location_id),
+
+    returnCounterparty: str(report?.return_counterparty),
+    returnReasonCode: str(report?.return_reason_code),
+    returnReason: str(report?.return_reason),
+    issuanceId: str(report?.related_issuance_id),
+
+    dealerName: str(report?.dealer_name),
+    dealerPhone: str(report?.dealer_phone),
+    dealerMobile: str(report?.dealer_mobile),
+    dealerEmail: str(report?.dealer_email),
+    branchAddress: str(report?.branch_address),
+
+    // One row per saved unit, keyed on the item id so a re-fetch does not
+    // remount every row and lose the note being typed into one of them.
+    units: items.length > 0
+      ? items.map((i) => unitFromItem(i))
+      : [newUnit('single')],
+    receivedAtDor: str(report?.received_at_dor),
+
+    productId: str(report?.product_id),
+    batchId: str(report?.batch_id),
+    actualZone: str(report?.actual_zone),
+
+    rootCause: str(report?.root_cause),
+    suspectedCause: str(report?.suspected_cause),
+    lastKnownLocation: str(report?.last_known_location),
+
+    customerName: str(report?.customer_name),
+    customerContact: str(report?.customer_contact),
+    siteAddress: str(report?.site_address),
+    purchasedAt: str(report?.purchased_at),
+    narrative: str(report?.narrative),
+  };
+}
+
+/**
+ * One saved item as a unit row.
+ *
+ * `quantity` is stored in PIECES. The pack fields are re-derived from the
+ * product's pack size purely so the locked row reads the way the reporter
+ * entered it — "2 Box + 5 pcs" rather than a bare 25 — and nothing is sent back
+ * from a locked row, so the split can only ever be cosmetic.
+ */
+function unitFromItem(item) {
+  const per = Number(item?.pieces_per_package) || 0;
+  const pieces = Number(item?.quantity) || 0;
+
+  return {
+    uid: `item-${item.item_id}`,
+    item_id: item.item_id,
+    product_id: str(item.product_id),
+    batch_id: str(item.batch_id),
+    serial_id: item.serial_id ?? null,
+    unit_role: item.unit_role || 'single',
+    model_code: str(item.model_code),
+    serial_number: str(item.serial_number),
+    packs: per > 1 ? Math.floor(pieces / per) : 0,
+    loose_pieces: per > 1 ? pieces % per : 0,
+    quantity: pieces,
+    expected_product_id: str(item.expected_product_id),
+    expected_quantity: item.expected_quantity === null || item.expected_quantity === undefined
+      ? ''
+      : String(item.expected_quantity),
+  };
 }
