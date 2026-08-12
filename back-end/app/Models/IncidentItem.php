@@ -114,4 +114,16 @@ class IncidentItem extends Model
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
     }
+
+    /**
+     * The catalogued unit, when the report named one.
+     *
+     * Distinct from this row's own `serial_number`, which is whatever is
+     * physically printed on the sticker — those two disagreeing is often the
+     * incident itself, so neither can stand in for the other silently.
+     */
+    public function serial(): BelongsTo
+    {
+        return $this->belongsTo(ItemSerial::class, 'serial_id', 'serial_id');
+    }
 }

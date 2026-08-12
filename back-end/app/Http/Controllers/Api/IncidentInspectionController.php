@@ -52,7 +52,7 @@ class IncidentInspectionController extends Controller
         $user = Auth::user();
 
         $query = IncidentItem::query()
-            ->with(['product.consumableDetail', 'incident.location'])
+            ->with(['product.consumableDetail', 'serial', 'incident.location'])
             ->join('incident_reports as ir', 'ir.incident_id', '=', 'incident_items.incident_id')
             ->select('incident_items.*');
 
@@ -382,7 +382,7 @@ class IncidentInspectionController extends Controller
      */
     private function reportPayload(IncidentReport $incident, bool $full = false): array
     {
-        $incident->load(['items.product.consumableDetail', 'evidence', 'status', 'inspectedBy']);
+        $incident->load(['items.product.consumableDetail', 'items.serial', 'evidence', 'status', 'inspectedBy']);
 
         $payload = [
             'incident_id'              => (int) $incident->incident_id,
@@ -477,7 +477,11 @@ class IncidentInspectionController extends Controller
             'serial_id'          => $item->serial_id !== null ? (int) $item->serial_id : null,
             'unit_role'          => $item->unit_role,
             'model_code'         => $item->model_code,
-            'serial_number'      => $item->serial_number,
+            // Falls back to the catalogued unit's serial so the client's printed
+            // form shows a real number rather than a blank rule. The verbatim
+            // sticker value still wins when present — when the two disagree,
+            // what is physically on the box is the evidence.
+            'serial_number'      => $item->serial_number ?: $item->serial?->serial_number,
             'quantity'           => (int) $item->quantity,
             'status'             => $item->status,
             'outcome'            => $item->outcome,
