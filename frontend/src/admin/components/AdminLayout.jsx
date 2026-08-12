@@ -32,7 +32,7 @@ const AdminLayout = ({ children }) => {
   const profileRef = useRef(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const prevBadgeRef = useRef(0);
-  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [pendingPrCount, setPendingPrCount] = useState(0);
   const [awaitingIstCount, setAwaitingIstCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState(() => new Set());
@@ -82,7 +82,7 @@ const AdminLayout = ({ children }) => {
         if (!mounted) return;
         setUnreadNotifications(Number(d.badge_count ?? 0));
         prevBadgeRef.current = Number(d.badge_count ?? 0);
-        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        setPendingPrCount(Number(d.pending_pr_count ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
       } catch (_) {
         // leave existing counts on transient failure
@@ -119,7 +119,7 @@ const AdminLayout = ({ children }) => {
         if (cancelled) return;
         setUnreadNotifications(Number(d.badge_count ?? 0));
         prevBadgeRef.current = Number(d.badge_count ?? 0);
-        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        setPendingPrCount(Number(d.pending_pr_count ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
         // Chime on every notification (Messenger-style), not only when a count grew.
         playNotifySound();
@@ -307,7 +307,7 @@ const AdminLayout = ({ children }) => {
         roleKey={roleKey}
         roleMeta={roleMeta}
         onLogout={handleLogout}
-        pendingApprovalCount={pendingApprovalCount}
+        pendingPrCount={pendingPrCount}
         awaitingIstCount={awaitingIstCount}
         navLoading={permissionsLoading}
       />

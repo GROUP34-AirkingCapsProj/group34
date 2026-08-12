@@ -64,6 +64,7 @@ class DashboardController extends Controller
                 'badge_count'          => $alert['badge_count']   ?? 0,
                 'unread_count'         => $alert['unread_count']  ?? 0,
                 'total_pending'        => $alert['total_pending'] ?? 0,
+                'pending_pr_count'     => $alert['pending_pr_count'] ?? 0,
                 'awaiting_fulfillment' => $awaiting['fulfillment'],
                 'awaiting_receipt'     => $awaiting['receipt'],
             ],

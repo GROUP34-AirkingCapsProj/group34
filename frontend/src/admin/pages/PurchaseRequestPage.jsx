@@ -176,7 +176,10 @@ const PurchaseRequestPage = () => {
   const canRecalcReco = isAdmin || (typeof can === 'function' && can('po_recommendations', 'create'));
   const canApplyReco  = isAdmin || (typeof can === 'function' && can('po_recommendations', 'update'));
 
-  const initialTab = location.state?.tab ?? (canApprovePR ? 'approvals' : 'create');
+  const queryTab = new URLSearchParams(location.search).get('tab');
+  const initialTab = queryTab === 'create'
+    ? 'create'
+    : (location.state?.tab ?? (canApprovePR ? 'approvals' : 'create'));
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // ── History tab + details modal ───────────────────────────────────────────

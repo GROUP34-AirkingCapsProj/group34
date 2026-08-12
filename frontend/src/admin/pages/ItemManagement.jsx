@@ -1361,7 +1361,7 @@ const ItemManagement = () => {
                   </div>
                 </div>
                 <div className="im-form-field">
-                  <label>SUPPLY NAME *</label>
+                  <label>PRODUCT NAME *</label>
                   <input
                     type="text"
                     value={formData.name}

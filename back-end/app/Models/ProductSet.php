@@ -45,7 +45,7 @@ class ProductSet extends Model
     }
 
     /**
-     * Sum of line quantity x product unit_price.
+     * Sum of line quantity (stored in pieces) x product price per piece.
      *
      * Callers listing many sets should eager-load `lines.product` on the whole
      * collection first; the loadMissing() here is a safety net for a single
@@ -56,7 +56,8 @@ class ProductSet extends Model
         $this->loadMissing('lines.product');
 
         return round($this->lines->sum(
-            fn (ProductSetLine $line) => (float) $line->quantity * (float) ($line->product?->unit_price ?? 0)
+            fn (ProductSetLine $line) => (float) $line->quantity
+                * ($line->product?->getPricePerPiece() ?? 0)
         ), 2);
     }
 }

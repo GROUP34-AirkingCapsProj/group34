@@ -201,7 +201,10 @@ class ProductSetController extends Controller
                 'spec_note'          => $line->spec_note,
                 'sort_order'         => (int) $line->sort_order,
                 'unit_price'         => (float) ($line->product?->unit_price ?? 0),
-                'line_total'         => round((float) $line->quantity * (float) ($line->product?->unit_price ?? 0), 2),
+                'line_total'         => round(
+                    (float) $line->quantity * ($line->product?->getPricePerPiece() ?? 0),
+                    2
+                ),
             ])->values()->all(),
         ];
     }

@@ -29,12 +29,12 @@ describe('alertTarget', () => {
     expect(pendingRegistrationTarget({ id: 3 })).toBeNull();
   });
 
-  it('maps low stock to inventory by inventory_id, falling back to product', () => {
+  it('maps low stock to purchase requests', () => {
     expect(lowStockTarget({ inventory_id: 8, product_id: 2 })).toEqual({
-      path: '/admin/inventory', focusKey: 'inv:8',
+      path: '/admin/purchase-requests', query: 'tab=create',
     });
-    expect(lowStockTarget({ product_id: 2 })).toEqual({
-      path: '/admin/items', focusKey: 'product:2',
+    expect(lowStockTarget({ inventory_id: 8 })).toEqual({
+      path: '/admin/purchase-requests', query: 'tab=create',
     });
     expect(lowStockTarget({})).toBeNull();
   });
@@ -61,5 +61,7 @@ describe('alertTarget', () => {
   it('builds an href from a target', () => {
     expect(targetHref({ path: '/admin/inventory', focusKey: 'inv:8' }))
       .toBe('/admin/inventory?focus=inv%3A8');
+    expect(targetHref({ path: '/admin/purchase-requests', query: 'tab=create' }))
+      .toBe('/admin/purchase-requests?tab=create');
   });
 });

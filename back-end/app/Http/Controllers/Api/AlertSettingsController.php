@@ -125,7 +125,7 @@ class AlertSettingsController extends Controller
             $pendingPrCount > 0 ? [
                 'type'     => 'pending_pr',
                 'label'    => $pendingPrCount . ' purchase request(s) awaiting approval',
-                'link'     => '/admin/purchase-requests',
+                'link'     => '/admin/purchase-requests?tab=create',
                 'count'    => $pendingPrCount,
                 'severity' => 'warning',
             ] : null,
@@ -160,7 +160,7 @@ class AlertSettingsController extends Controller
             $lowStockCount > 0 ? [
                 'type'     => 'low_stock',
                 'label'    => $lowStockCount . ' product(s) at or below safety stock level',
-                'link'     => '/admin/inventory',
+                'link'     => '/admin/purchase-requests',
                 'count'    => $lowStockCount,
                 'severity' => 'warning',
             ] : null,
