@@ -6,7 +6,7 @@ import React from 'react';
  * two copies that could drift apart — the pack arithmetic is exactly the thing
  * that was wrong before.
  *
- * Purely presentational: every value and setter belongs to IncidentFlow, which
+ * Purely presentational: every value and setter belongs to IncidentDocument, which
  * is the only place the payload is assembled.
  */
 export default function QuantityInPieces({

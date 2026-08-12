@@ -11,7 +11,7 @@ import React from 'react';
  * `selectedBatch` for its own purposes, so passing the finished element is
  * simpler than handing one back through a callback.
  *
- * Purely presentational: `batchId` and its setter belong to IncidentFlow, which
+ * Purely presentational: `batchId` and its setter belong to IncidentDocument, which
  * is the only place the payload is assembled.
  */
 export default function BatchSelect({
