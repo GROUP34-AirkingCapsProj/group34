@@ -1,13 +1,43 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Modal from './Modal';
-import { incidentReportsAPI, productsAPI } from '../services/api';
+import { EvidenceThumbnail, requirementMeta } from './incident/EvidenceChecklist';
+import { incidentReportsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import {
-  reasonLabel, reasonMeta,
+  reasonLabel,
   SUSPECTED_CAUSES, ROOT_CAUSES, RETURN_DIRECTIONS,
 } from '../utils/incidentReasons';
+import { itemStatusMeta, outcomeLabel, outcomeMeta, unitRoleLabel } from '../utils/incidentItems';
 import { formatPieces } from '../utils/packageFormat';
+
+/**
+ * The admin's decision screen — the digital counterpart of the signed hardcopy.
+ *
+ * This is now the LAST step, not the first. Filing quarantines the goods
+ * without deducting them; the inspector examines each unit, records an outcome
+ * and attaches the evidence; and only Confirm here moves stock, once, in one
+ * transaction. So the screen's job is to show what is being approved: the
+ * findings, who inspected and when, every unit with its chosen outcome, every
+ * photograph, and every skipped requirement with the reason given for it.
+ *
+ * Three actions. **Confirm** applies every outcome. **Reject** returns it to
+ * the inspector and requires a note — an inspector cannot act on "no". **
+ * Dismiss** closes a report raised in error, releasing the quarantine without
+ * moving anything.
+ *
+ * `zone_mismatch` and `other` move no stock, so they carry no inspection at
+ * all and are confirmable straight from Open.
+ *
+ * Props:
+ *   incident    {object|null}  the list row; null/undefined = closed
+ *   onClose     {() => void}
+ *   canResolve  {boolean}      whether to render the decision form
+ *   onResolved  {() => void}   called after a successful decision (caller refetches)
+ */
+
+/** Reasons that reach the admin with no inspection, because nothing moves. */
+const INSPECTION_EXEMPT_REASONS = ['zone_mismatch', 'other'];
 
 /**
  * Human label for a stored cause value, falling back to the raw value so an
@@ -17,53 +47,52 @@ import { formatPieces } from '../utils/packageFormat';
 const causeLabel = (options, value) =>
   options.find((o) => o.value === value)?.label || value;
 
-/**
- * Resolve drawer for a single incident report. Renders as a Modal (this
- * codebase has no dedicated slide-out drawer primitive — SetBuilderModal
- * follows the same pattern for its editor surface).
- *
- * Read-only for users without `incident_reports.resolve` — shows status,
- * narrative, photo, and (if already reviewed) the resolution note and who
- * reviewed it. Resolvers additionally get a Confirm / Dismiss form whose
- * shape depends on the incident's `reason`.
- *
- * Props:
- *   incident    {object|null}  the incident row; null/undefined = closed
- *   onClose     {() => void}
- *   canResolve  {boolean}      whether to render the Confirm/Dismiss form
- *   onResolved  {() => void}   called after a successful resolve (caller refetches)
- */
 export default function IncidentResolveDrawer({ incident, onClose, canResolve, onResolved }) {
   const [note, setNote] = useState('');
-  const [correctedProductId, setCorrectedProductId] = useState('');
-  const [products, setProducts] = useState([]);
-  const [productFilter, setProductFilter] = useState('');
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [submitting, setSubmitting] = useState(null); // 'confirm' | 'dismiss' | null
+  const [rejectionNote, setRejectionNote] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+  const [submitting, setSubmitting] = useState(null); // 'confirm' | 'reject' | 'dismiss' | null
   const [photoUrl, setPhotoUrl] = useState(null);
   const [photoFailed, setPhotoFailed] = useState(false);
 
+  const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState(null);
+
   const isOpen = !!incident;
+  const incidentId = incident?.incident_id;
   const reason = incident?.reason;
 
   useEffect(() => {
     if (!isOpen) return;
     setNote('');
-    setCorrectedProductId('');
-    setProductFilter('');
+    setRejectionNote('');
+    setRejecting(false);
     setSubmitting(null);
-  }, [isOpen, incident?.incident_id]);
+  }, [isOpen, incidentId]);
+
+  /**
+   * The list row carries none of the inspection: no items, no evidence, no
+   * findings. Those come from the detail endpoint, and without them this screen
+   * would ask an admin to approve a write-off sight unseen.
+   */
+  const loadDetail = useCallback(async () => {
+    if (!incidentId) return;
+    try {
+      const res = await incidentReportsAPI.get(incidentId);
+      setDetail(res?.data || null);
+      setDetailError(null);
+    } catch (err) {
+      setDetail(null);
+      setDetailError(err.message || 'The inspection could not be loaded.');
+    }
+  }, [incidentId]);
 
   useEffect(() => {
-    // The picker only renders for an OPEN incident (see the action block below),
-    // so skip the 1000-product fetch for one that has already been reviewed.
-    if (!isOpen || !incident?.is_open || reasonMeta(reason).outcome !== 'retype' || !canResolve) return;
-    setLoadingProducts(true);
-    productsAPI.getAll({ per_page: 1000 })
-      .then((r) => setProducts(Array.isArray(r?.data) ? r.data : []))
-      .catch(() => setProducts([]))
-      .finally(() => setLoadingProducts(false));
-  }, [isOpen, incident?.is_open, reason, canResolve]);
+    setDetail(null);
+    setDetailError(null);
+    if (!isOpen) return;
+    loadDetail();
+  }, [isOpen, loadDetail]);
 
   /**
    * Photos live on a private disk behind an authenticated route, so <img src>
@@ -96,109 +125,99 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
     };
   }, [incident?.incident_id, incident?.photo_url]);
 
-  const filteredProducts = useMemo(() => {
-    const q = productFilter.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) =>
-      String(p.product_name || '').toLowerCase().includes(q) ||
-      String(p.product_code || '').toLowerCase().includes(q) ||
-      String(p.barcode || '').toLowerCase().includes(q)
-    );
-  }, [products, productFilter]);
-
   if (!incident) return null;
 
-  const outcome = reasonMeta(reason).outcome;
+  const exempt = INSPECTION_EXEMPT_REASONS.includes(reason);
+  // By NAME: the status ids are install-specific, and "sent back to the
+  // inspector" is a status rather than a flag.
+  const statusName = detail?.status_name || incident.status_name;
+  const inspected = statusName === 'Awaiting Inspection';
+  const decidable = exempt ? statusName === 'Open' || inspected : inspected;
+  const finished = statusName === 'Resolved' || statusName === 'Dismissed';
+
+  const items = Array.isArray(detail?.items) ? detail.items : [];
+  const evidence = Array.isArray(detail?.evidence) ? detail.evidence : [];
+  const deducting = items.filter((i) => i.outcome && outcomeMeta(i.outcome)?.keepsStock === false);
+
   // "25 pcs · 2 Box + 5 pcs", or just "25 pcs" without a pack size. A reviewer
   // approving a permanent write-off must see which unit they are approving.
   const qtyLabel = formatPieces(incident.quantity, incident.pieces_per_package, incident.package_unit);
-  const confirmDisabled =
-    submitting !== null ||
-    (outcome === 'retype' && !correctedProductId);
-  const confirmLabel = outcome === 'none' ? 'Acknowledge' : 'Confirm';
 
-  const doResolve = async (action) => {
-    const payload = { action, resolution_note: note.trim() || null };
-    // Keyed on outcome, not the reason string: the picker renders and Confirm
-    // gates on `outcome === 'retype'`, so a payload keyed on the reason would
-    // silently omit corrected_product_id for any future retype reason and 422.
-    if (action === 'confirm' && outcome === 'retype') {
-      payload.corrected_product_id = Number(correctedProductId);
-    }
+  const decide = async (action, payload = {}) => {
     setSubmitting(action);
     try {
-      await incidentReportsAPI.resolve(incident.incident_id, payload);
-      toast.success(action === 'confirm' ? 'Incident confirmed and resolved.' : 'Incident dismissed.');
+      await incidentReportsAPI.decide(incident.incident_id, {
+        action,
+        resolution_note: note.trim() || null,
+        ...payload,
+      });
+      toast.success({
+        confirm: 'Confirmed. The inspected outcomes have been applied to stock.',
+        reject: 'Sent back to the inspector.',
+        dismiss: 'Dismissed. The quarantine has been released and nothing moved.',
+      }[action]);
       onResolved?.();
     } catch (err) {
-      toast.error(err.message || 'Failed to resolve incident.');
+      toast.error(err.message || 'That decision could not be recorded.');
     } finally {
       setSubmitting(null);
     }
   };
 
   const handleConfirm = async () => {
-    if (confirmDisabled) return;
-    // Approving no longer deletes stock — it moves it into a hold. Missing is
-    // terminal; Defective and Returned go to Held Stock for a second decision.
-    if (outcome === 'missing') {
-      const ok = await confirmAction({
-        title: 'Confirm this incident?',
-        text: `This moves ${qtyLabel} of "${incident.product_name}" out of stock and records them as Missing. It posts a loss adjustment and cannot be undone from here.`,
-        confirmText: 'Confirm & record the loss',
-        tone: 'danger',
-      });
-      if (!ok) return;
-    }
+    if (submitting !== null) return;
 
-    if (outcome === 'defective') {
-      const ok = await confirmAction({
-        title: 'Confirm this incident?',
-        text: `This moves ${qtyLabel} of "${incident.product_name}" into Defective. The stock leaves active inventory and appears in Held Stock, where someone decides whether it goes back to the supplier or is scrapped.`,
-        confirmText: 'Confirm & hold as defective',
-        tone: 'danger',
-      });
-      if (!ok) return;
-    }
+    // Confirming is the ONLY step in this workflow that changes a quantity, so
+    // the dialog names what leaves rather than saying "are you sure".
+    const text = exempt
+      ? 'Nothing in stock changes — this report moves no goods. It is closed as reviewed and genuine.'
+      : deducting.length > 0
+        ? `This applies every inspected outcome in one go. ${deducting.length} unit${deducting.length === 1 ? '' : 's'} `
+          + `(${deducting.map((i) => outcomeLabel(i.outcome).toLowerCase()).join(', ')}) `
+          + 'will be deducted from stock. It cannot be undone from here.'
+        : 'This applies every inspected outcome. Nothing is deducted — every unit goes back into stock.';
 
-    if (outcome === 'return') {
-      // Deliberately does NOT say the stock is available again — that was true
-      // of the old restock-on-approval behaviour and is now the single most
-      // misleading thing this dialog could claim.
-      const where = incident.batch_id
-        ? `batch #${incident.batch_id}`
-        : "the location's unbatched stock, where it will be picked first";
-      const ok = await confirmAction({
-        title: 'Hold this stock for inspection?',
-        text: `This holds ${qtyLabel} of "${incident.product_name}" as Returned. It does NOT become sellable — someone must inspect it in Held Stock first. If it is found sellable it goes back to ${where}.`,
-        confirmText: 'Confirm & hold',
-      });
-      if (!ok) return;
-    }
+    const ok = await confirmAction({
+      title: 'Confirm this report?',
+      text,
+      confirmText: 'Confirm',
+      tone: deducting.length > 0 ? 'danger' : undefined,
+    });
+    if (!ok) return;
+    decide('confirm');
+  };
 
-    if (outcome === 'relocate') {
-      const ok = await confirmAction({
-        title: 'Record this mismatch?',
-        text: `Nothing in the system changes. The record is correct — someone needs to physically move the item back to ${incident.expected_zone || 'its recorded zone'}.`,
-        confirmText: 'Record it',
-      });
-      if (!ok) return;
-    }
-    doResolve('confirm');
+  const handleReject = async () => {
+    if (submitting !== null) return;
+    const written = rejectionNote.trim();
+    // An inspector cannot act on "no". The note is what they fix.
+    if (!written) return;
+    decide('reject', { rejection_note: written });
   };
 
   const handleDismiss = async () => {
     if (submitting !== null) return;
-    doResolve('dismiss');
+    const ok = await confirmAction({
+      title: 'Dismiss this report?',
+      text: 'The report is closed as raised in error. The quarantine is released, the units go back '
+        + 'into stock, and no quantity changes — nothing was ever deducted.',
+      confirmText: 'Dismiss it',
+    });
+    if (!ok) return;
+    decide('dismiss');
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Incident ${incident.incident_number}`} maxWidth={640}>
+    <Modal isOpen={isOpen} onClose={onClose} title={`Incident ${incident.incident_number}`} maxWidth={720}>
       <div className="ak-field" style={{ gap: '1rem', paddingTop: '1rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.6rem' }}>
           <div>
             <div className="ak-label">Reason</div>
             <div>{reasonLabel(reason)}</div>
+          </div>
+          <div>
+            <div className="ak-label">Status</div>
+            <div>{statusName || '—'}</div>
           </div>
           <div>
             <div className="ak-label">Product</div>
@@ -278,7 +297,7 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
         </div>
 
         <div>
-          <div className="ak-label">Photo</div>
+          <div className="ak-label">Photo filed with the report</div>
 
           {/* Nothing renders when photo_source is null: incidents filed before
               the camera existed genuinely do not know how their photo arrived,
@@ -313,91 +332,155 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
           )}
         </div>
 
-        {!incident.is_open && (
+        {detailError && <div className="ak-state ak-state--error">{detailError}</div>}
+
+        {exempt ? (
+          <div className="ak-state">
+            This type of report moves no stock, so there is no inspection to review — no units were
+            quarantined and no evidence was asked for. Confirming records it as reviewed and genuine.
+          </div>
+        ) : (
+          <>
+            <div style={{ borderTop: '1px solid var(--ak-line)', paddingTop: '0.8rem' }}>
+              <div className="ak-label">Inspection</div>
+              {inspected || finished ? (
+                <>
+                  <div style={{ fontSize: '0.86rem' }}>
+                    Inspected by {detail?.inspected_by_name || '—'}
+                    {detail?.inspected_at ? ` on ${new Date(detail.inspected_at).toLocaleString()}` : ''}
+                  </div>
+                  {(detail?.signed_by_representative || detail?.signed_by_branch_manager) && (
+                    <div className="ak-muted" style={{ fontSize: '0.82rem' }}>
+                      Hardcopy signed by {detail.signed_by_representative || '—'} and{' '}
+                      {detail.signed_by_branch_manager || '—'}
+                      {detail.signed_at ? ` on ${detail.signed_at}` : ''}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>
+                    {detail?.inspection_findings || <span className="ak-muted">No findings were written.</span>}
+                  </div>
+                  {detail?.checked_by_asc && (
+                    <div style={{ marginTop: 4 }}>
+                      <span className="ak-badge ak-badge--blue">Checked by an ASC</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="ak-state">
+                  Not inspected yet. Someone has to examine the goods and submit their findings before
+                  this can be confirmed — that is what the two signature lines on the form are for.
+                </div>
+              )}
+              {detail?.rejection_note && (
+                <div className="ak-muted" style={{ marginTop: 4, fontSize: '0.82rem' }}>
+                  Previously sent back: {detail.rejection_note}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="ak-label">Units and their outcomes</div>
+              {items.length === 0 ? (
+                <div className="ak-muted">No units are recorded on this report.</div>
+              ) : (
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {items.map((item) => {
+                    const status = itemStatusMeta(item.status);
+                    const meta = outcomeMeta(item.outcome);
+                    return (
+                      <li key={item.item_id} style={{ padding: '0.4rem 0', borderBottom: '1px solid var(--ak-line)' }}>
+                        <div>
+                          <strong>{item.product_name || `#${item.product_id}`}</strong>
+                          {' · '}{unitRoleLabel(item.unit_role)}
+                          {' · '}{formatPieces(item.quantity, item.pieces_per_package, item.package_unit)}
+                          {item.model_code ? ` · model ${item.model_code}` : ''}
+                          {item.serial_number ? ` · SN ${item.serial_number}` : ''}
+                          {' '}<span className={`ak-badge ${status.badge}`}>{status.label}</span>
+                        </div>
+                        <div style={{ fontSize: '0.86rem' }}>
+                          {item.outcome ? (
+                            <>
+                              Outcome: <strong>{outcomeLabel(item.outcome)}</strong>
+                              {meta?.keepsStock === false && (
+                                <span className="ak-muted"> · deducted on confirmation</span>
+                              )}
+                              {item.outcome_note ? ` — ${item.outcome_note}` : ''}
+                            </>
+                          ) : (
+                            <span className="ak-muted">No outcome recorded — this cannot be confirmed yet.</span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <div className="ak-label">Evidence</div>
+              {evidence.length === 0 ? (
+                <div className="ak-muted">Nothing was attached.</div>
+              ) : (
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {evidence.map((e) => (
+                    <li
+                      key={e.evidence_id}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.3rem 0' }}
+                    >
+                      {e.photo_path ? (
+                        <EvidenceThumbnail incidentId={incident.incident_id} evidenceId={e.evidence_id} />
+                      ) : (
+                        <span className="ak-badge ak-badge--amber">Skipped</span>
+                      )}
+                      <span style={{ fontSize: '0.86rem' }}>
+                        <strong>{requirementMeta(e.requirement).label}</strong>
+                        {/* A skip is shown WITH its reason, always. An
+                            incomplete report has to look incomplete rather
+                            than merely thin. */}
+                        {e.skipped_reason ? ` — ${e.skipped_reason}` : ''}
+                      </span>
+                      {e.photo_source && (
+                        <span className={`ak-badge ${e.photo_source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
+                          {e.photo_source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
+
+        {finished && (
           <div style={{ borderTop: '1px solid var(--ak-line)', paddingTop: '0.8rem' }}>
-            <div className="ak-label">Review outcome</div>
-            <div>Reviewed by {incident.reviewed_by_name || '—'}{incident.reviewed_at ? ` on ${new Date(incident.reviewed_at).toLocaleString()}` : ''}</div>
+            <div className="ak-label">Decision</div>
+            <div>
+              {statusName} by {incident.reviewed_by_name || '—'}
+              {incident.reviewed_at ? ` on ${new Date(incident.reviewed_at).toLocaleString()}` : ''}
+            </div>
             {incident.resolution_note && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{incident.resolution_note}</div>}
             {incident.adjustment_id && <div style={{ marginTop: 4 }}>Adjustment posted: #{incident.adjustment_id}</div>}
             {incident.correction_id && <div style={{ marginTop: 4 }}>Batch correction: #{incident.correction_id}</div>}
           </div>
         )}
 
-        {incident.is_open && canResolve && (
+        {canResolve && !finished && (
           <div style={{ borderTop: '1px solid var(--ak-line)', paddingTop: '0.9rem' }}>
-            {outcome === 'missing' && (
-              <p style={{ color: '#b91c1c', fontSize: '0.85rem', marginTop: 0 }}>
-                Confirming moves <strong>{qtyLabel}</strong> out of active stock and records it as
-                <strong> Missing</strong>, posting a loss adjustment. The stock stays countable for shrinkage
-                reporting but has no way back — an item that turns up later needs a fresh report.
-              </p>
-            )}
-
-            {outcome === 'defective' && (
-              <p style={{ color: '#b45309', fontSize: '0.85rem', marginTop: 0 }}>
-                Confirming moves <strong>{qtyLabel}</strong> into <strong>Defective</strong> and posts a damage
-                adjustment. It will appear in Held Stock, where someone decides whether it goes back to the
-                supplier or is scrapped. It cannot be put straight back into picking.
-              </p>
-            )}
-
-            {outcome === 'return' && (
-              <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
-                Confirming holds <strong>{qtyLabel}</strong> as <strong>Returned</strong>. It does
-                <strong> not</strong> become sellable — it appears in Held Stock for inspection first. If it is
-                found sellable it goes back
-                {incident.batch_id
-                  ? <> onto <strong>batch #{incident.batch_id}</strong></>
-                  : <> as <strong>unbatched stock</strong>, which will be picked first</>}.
-                It does not re-issue the correct item — run a normal issuance for that.
-              </p>
-            )}
-
-            {outcome === 'none' && (
-              <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
-                Acknowledging closes this report as reviewed and genuine. No stock moves and no adjustment is
-                posted. Dismiss instead if the report was raised in error.
-              </p>
-            )}
-
-            {outcome === 'retype' && (
-              <div className="ak-field" style={{ marginBottom: '0.8rem' }}>
-                <label className="ak-label">What is physically on the shelf? *</label>
-                <input
-                  className="ak-input"
-                  placeholder="Filter products…"
-                  value={productFilter}
-                  onChange={(e) => setProductFilter(e.target.value)}
-                  style={{ marginBottom: '0.4rem' }}
-                />
-                <select
-                  className="ak-select"
-                  value={correctedProductId}
-                  onChange={(e) => setCorrectedProductId(e.target.value)}
-                  disabled={loadingProducts}
-                >
-                  <option value="">{loadingProducts ? 'Loading products…' : 'Select the actual product…'}</option>
-                  {filteredProducts.map((p) => (
-                    <option key={p.product_id} value={String(p.product_id)}>
-                      {p.product_name}{p.product_code ? ` (${p.product_code})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {outcome === 'relocate' && (
-              <p style={{ fontSize: '0.85rem' }}>
-                <strong>Nothing in the system changes.</strong> The record says
-                {' '}<strong>{incident.expected_zone || '—'}</strong> and that is correct — the item was
-                physically put in <strong>{incident.actual_zone || '—'}</strong> by mistake. Confirming records
-                the observation so someone can go and move it back.
-              </p>
-            )}
+            <p style={{ fontSize: '0.85rem', marginTop: 0 }}>
+              <strong>Confirming is what moves the stock.</strong> Nothing has been deducted so far —
+              the quarantined units are still on the shelf and still counted. Confirming applies every
+              outcome above in one transaction
+              {deducting.length > 0
+                ? <>, deducting <strong>{deducting.length}</strong> of them from inventory.</>
+                : '.'}
+            </p>
 
             <div className="ak-field" style={{ marginBottom: '0.8rem' }}>
-              <label className="ak-label">Resolution note</label>
+              <label className="ak-label" htmlFor="incident-resolution-note">Note (optional)</label>
               <textarea
+                id="incident-resolution-note"
                 className="ak-input"
                 rows={3}
                 maxLength={2000}
@@ -406,19 +489,77 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+            {rejecting && (
+              <div className="ak-field" style={{ marginBottom: '0.8rem' }}>
+                <label className="ak-label" htmlFor="incident-rejection-note">
+                  What does the inspector need to fix? *
+                </label>
+                <textarea
+                  id="incident-rejection-note"
+                  className="ak-input"
+                  rows={3}
+                  maxLength={2000}
+                  value={rejectionNote}
+                  onChange={(e) => setRejectionNote(e.target.value)}
+                  placeholder="e.g. the sticker photo is unreadable — retake it"
+                />
+                <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
+                  Required. The report goes back to the inspector with this note; nobody can act on
+                  a bare refusal.
+                </span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', flexWrap: 'wrap' }}>
               <button type="button" className="ak-btn" onClick={handleDismiss} disabled={submitting !== null}>
                 {submitting === 'dismiss' ? 'Dismissing…' : 'Dismiss'}
               </button>
-              <button
-                type="button"
-                className="ak-btn ak-btn--primary"
-                onClick={handleConfirm}
-                disabled={confirmDisabled}
-              >
-                {submitting === 'confirm' ? 'Confirming…' : confirmLabel}
-              </button>
+              {rejecting ? (
+                <>
+                  <button
+                    type="button"
+                    className="ak-btn"
+                    onClick={() => { setRejecting(false); setRejectionNote(''); }}
+                    disabled={submitting !== null}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="ak-btn ak-btn--primary"
+                    onClick={handleReject}
+                    disabled={submitting !== null || !rejectionNote.trim()}
+                  >
+                    {submitting === 'reject' ? 'Sending back…' : 'Send back to the inspector'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="ak-btn"
+                    onClick={() => setRejecting(true)}
+                    disabled={submitting !== null || !inspected}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    className="ak-btn ak-btn--primary"
+                    onClick={handleConfirm}
+                    disabled={submitting !== null || !decidable}
+                  >
+                    {submitting === 'confirm' ? 'Confirming…' : 'Confirm'}
+                  </button>
+                </>
+              )}
             </div>
+
+            {!decidable && (
+              <p className="ak-muted" style={{ fontSize: '0.8rem', textAlign: 'right', marginBottom: 0 }}>
+                Waiting on the inspection.
+              </p>
+            )}
           </div>
         )}
 

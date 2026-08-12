@@ -18,7 +18,7 @@ export const NAV_BUNDLES = [
   { name: 'Transfers',             routePath: '/admin/transfers',        required: ['inventory_transfers.read'] },
   { name: 'Incident Reports',      routePath: '/admin/incidents',        required: ['incident_reports.read'] },
   { name: 'Inspections',           routePath: '/admin/inspections',      required: ['incident_reports.read'] },
-  { name: 'Held Stock',            routePath: '/admin/held-stock',       required: ['incident_reports.read'] },
+  { name: 'Incident Items',        routePath: '/admin/incident-items',   required: ['incident_reports.read'] },
   { name: 'Transactions',          routePath: '/admin/transactions',     required: ['sales_recording.read'] },
   { name: 'Customer Registry',     routePath: '/admin/customers',        required: ['customer_management.read'] },
   { name: 'Scan Barcode',          routePath: '/admin/inventory-operation', required: ['barcode_inventory_processing.create'] },
