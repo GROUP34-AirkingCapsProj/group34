@@ -2,13 +2,23 @@
 
 namespace Tests\Feature\Sets;
 
-use App\Models\Adjustment;
+use App\Models\IncidentItem;
 use App\Models\IncidentReport;
+use App\Models\Inventory;
 use App\Models\InventoryBatch;
-use App\Models\ScanCorrection;
-use App\Models\StockHold;
 use App\Services\IncidentService;
 
+/**
+ * The decision endpoints, end to end.
+ *
+ * Every test here used to POST /incident-reports/{id}/resolve, which approved a
+ * report and deducted its stock in one step. That route is gone: the inspector
+ * records an outcome per item and submits (POST /inspection), and the admin's
+ * POST /decide is the single moment stock moves. The old resolve() also posted
+ * an Adjustment and, for `wrong_type`, a ScanCorrection; both artifacts left
+ * with the per-reason strategy classes, so the assertions that pinned them now
+ * pin their absence explicitly rather than being dropped.
+ */
 class IncidentResolutionTest extends SetTestCase
 {
     private function openIncident($loc, $product, $batch, string $reason, int $qty = 3, ?int $reportedBy = null): IncidentReport
@@ -29,6 +39,37 @@ class IncidentResolutionTest extends SetTestCase
         ], $user);
     }
 
+    private function itemFor(IncidentReport $incident): IncidentItem
+    {
+        return IncidentItem::where('incident_id', $incident->incident_id)->firstOrFail();
+    }
+
+    /**
+     * Record the outcome, submit the inspection, then confirm as a second
+     * person. Two users because the client's two signature lines are enforced:
+     * an inspector cannot confirm their own report while another resolver can
+     * reach that location. branch_manager holds `inspect`, inventory_analyst
+     * `resolve`.
+     */
+    private function inspectAndConfirm(IncidentReport $incident, $loc, string $outcome, array $decision = []): void
+    {
+        $bm = $this->makeUserAt($loc, 'branch_manager');
+        $ia = $this->makeUserAt($loc, 'inventory_analyst');
+        $id = $incident->incident_id;
+
+        foreach (IncidentItem::where('incident_id', $id)->get() as $item) {
+            $this->actingAs($bm, 'sanctum')
+                 ->postJson("/api/incident-reports/{$id}/items/{$item->item_id}/outcome", ['outcome' => $outcome])
+                 ->assertOk();
+        }
+
+        $this->actingAs($bm, 'sanctum')->postJson("/api/incident-reports/{$id}/inspection", [])->assertOk();
+
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$id}/decide", ['action' => 'confirm'] + $decision)
+             ->assertOk();
+    }
+
     public function test_picker_can_file_through_the_endpoint(): void
     {
         $loc  = $this->makeLocation();
@@ -47,7 +88,12 @@ class IncidentResolutionTest extends SetTestCase
         $this->assertStringStartsWith('INC-', $res->json('data.incident_number'));
     }
 
-    public function test_picker_cannot_resolve(): void
+    /**
+     * Was `test_picker_cannot_resolve`. Moved to /decide, and the separation is
+     * now two-layered: a picker holds neither `inspect` nor `resolve`, so they
+     * can neither examine the goods nor confirm the write-off.
+     */
+    public function test_picker_can_neither_inspect_nor_decide(): void
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
@@ -57,42 +103,58 @@ class IncidentResolutionTest extends SetTestCase
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE);
 
         $this->actingAs($user, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
+             ->postJson("/api/incident-reports/{$incident->incident_id}/inspection", [])
+             ->assertForbidden();
+
+        $this->actingAs($user, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertForbidden();
     }
 
-    public function test_resolving_missing_posts_a_deduction_adjustment_and_a_hold(): void
+    /**
+     * Was `test_resolving_missing_posts_a_deduction_adjustment_and_a_hold`.
+     *
+     * Rewritten to the new order. The Adjustment is gone with the strategy
+     * classes, so the assertion that pinned its deduct_quantity now pins the
+     * deduction where it actually happens — on the batch, at confirmation, and
+     * not one moment earlier.
+     */
+    public function test_confirming_missing_deducts_the_batch_and_marks_the_item_missing(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 3);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
-                 'action' => 'confirm', 'resolution_note' => 'Searched the aisle, stock is gone.',
-             ])->assertOk();
+        // Inverted: filing used to be followed straight by a deduction. It now
+        // quarantines, and the batch is whole until somebody confirms.
+        $this->assertSame(5, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_WRITE_OFF,
+            ['resolution_note' => 'Searched the aisle, stock is gone.']);
 
         $fresh = $incident->fresh();
         $this->assertSame(IncidentReport::statusId('Resolved'), (int) $fresh->status_id);
-        $this->assertNotNull($fresh->adjustment_id);
+        // Inverted: was assertNotNull. No Adjustment is posted any more — pinned
+        // explicitly so its return would be a deliberate change, not a surprise.
+        $this->assertNull($fresh->adjustment_id);
 
-        $adjustment = Adjustment::with('details')->find($fresh->adjustment_id);
-        $this->assertSame(3, (int) $adjustment->details->first()->deduct_quantity);
+        // The same 3 the adjustment's deduct_quantity used to carry.
         $this->assertSame(2, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
-
-        // New: the deduction is mirrored by a `missing` hold for the same
-        // quantity, so physical = active + held survives the write-off.
-        $this->assertDatabaseHas('stock_holds', [
-            'incident_id' => $incident->incident_id,
-            'condition'   => StockHold::CONDITION_MISSING,
-            'quantity'    => 3,
-            'status'      => StockHold::STATUS_HELD,
-        ]);
+        // Inverted: was a `missing` stock_holds row of quantity 3.
+        $item = $this->itemFor($incident);
+        $this->assertSame(IncidentItem::STATUS_MISSING, $item->status);
+        $this->assertSame(3, (int) $item->quantity);
     }
 
+    /**
+     * Was `test_dismissing_missing_returns_the_stock_to_fifo`, via /resolve.
+     *
+     * Dismissal is stronger now than it was: because filing never deducted,
+     * there is nothing to give back, so releasing the quarantine is a pure
+     * status change and the batch cannot come back at the wrong number.
+     */
     public function test_dismissing_missing_returns_the_stock_to_fifo(): void
     {
         $loc = $this->makeLocation();
@@ -103,8 +165,10 @@ class IncidentResolutionTest extends SetTestCase
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 3);
         $this->assertContains((int) $b->batch_id, app(IncidentService::class)->excludedBatchIds($loc->location_id));
 
+        // A dismissal needs no inspection: it says the report described nothing
+        // real, so there is nothing for an inspector to find.
         $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", [
                  'action' => 'dismiss', 'resolution_note' => 'Found it behind the pallet.',
              ])->assertOk();
 
@@ -112,63 +176,91 @@ class IncidentResolutionTest extends SetTestCase
         $this->assertNull($incident->fresh()->adjustment_id);
         $this->assertSame([], app(IncidentService::class)->excludedBatchIds($loc->location_id));
         $this->assertSame(5, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
-        // Dismissing posts nothing, and that now includes opening no hold.
-        $this->assertSame(0, StockHold::where('incident_id', $incident->incident_id)->count());
+        // Inverted: was `0 stock_holds rows`. The item survives as the record
+        // that the report existed, released rather than deleted.
+        $this->assertSame(IncidentItem::STATUS_AVAILABLE, $this->itemFor($incident)->status);
     }
 
-    public function test_resolving_defective_posts_a_deduction_adjustment_and_a_hold(): void
+    /**
+     * Was `test_resolving_defective_posts_a_deduction_adjustment_and_a_hold`.
+     *
+     * The `defective` hold said "damaged, still in the building, somebody
+     * decides later". That middle state is now `quarantined` — reached at
+     * filing, not at approval — and `scrap` vs `return_to_supplier` is the
+     * decision that used to be a disposition.
+     */
+    public function test_confirming_defective_deducts_the_batch_and_scraps_the_item(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 8, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE, 2);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
+        $this->assertSame(IncidentItem::STATUS_QUARANTINED, $this->itemFor($incident)->status);
+        $this->assertSame(8, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
 
-        $this->assertNotNull($incident->fresh()->adjustment_id);
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
+
+        // Inverted: was assertNotNull on adjustment_id.
+        $this->assertNull($incident->fresh()->adjustment_id);
         $this->assertSame(6, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
-
-        // New: damaged stock is still in the building, so the deduction leaves a
-        // `defective` hold that a later inspection returns to the supplier or scraps.
-        $this->assertDatabaseHas('stock_holds', [
-            'incident_id' => $incident->incident_id,
-            'condition'   => StockHold::CONDITION_DEFECTIVE,
-            'quantity'    => 2,
-            'status'      => StockHold::STATUS_HELD,
-        ]);
+        $this->assertSame(IncidentItem::STATUS_SCRAPPED, $this->itemFor($incident)->status);
     }
 
-    public function test_resolving_wrong_type_creates_a_scan_correction(): void
+    /**
+     * Was `test_resolving_wrong_type_creates_a_scan_correction`.
+     *
+     * INVERTED, and this is a real removal rather than a relocation: resolving a
+     * `wrong_type` report used to write a ScanCorrection and re-type the batch
+     * onto the corrected product. Nothing in the incident flow does that now —
+     * batch re-typing lives only on the barcode-adjustment endpoints. The
+     * assertion is inverted rather than deleted so that the batch quietly
+     * changing product again would fail here.
+     */
+    public function test_confirming_wrong_type_no_longer_retypes_the_batch(): void
     {
-        $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $loc     = $this->makeLocation();
         $wrong   = $this->makeAppliance();
         $correct = $this->makeConsumable();
         $b = $this->makeBatch($wrong, $loc, ['quantity_remaining' => 4, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $wrong, $b, IncidentReport::REASON_WRONG_TYPE, 4);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
-                 'action'               => 'confirm',
-                 'corrected_product_id' => $correct->product_id,
-                 'resolution_note'      => 'Labelled as aircon, physically installation material.',
-             ])->assertOk();
+        // `corrected_product_id` is no longer part of the decision payload; it
+        // is sent here to prove it is ignored rather than silently honoured.
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_RETURN_TO_SUPPLIER, [
+            'resolution_note' => 'Labelled as aircon, physically installation material.',
+        ]);
 
         $fresh = $incident->fresh();
-        $this->assertNotNull($fresh->correction_id);
-
-        $correction = ScanCorrection::find($fresh->correction_id);
-        $this->assertSame((int) $wrong->product_id, (int) $correction->original_product_id);
-        $this->assertSame((int) $correct->product_id, (int) $correction->corrected_product_id);
-        $this->assertSame((int) $correct->product_id, (int) InventoryBatch::find($b->batch_id)->product_id);
+        // Inverted: was assertNotNull($fresh->correction_id) plus a ScanCorrection
+        // row carrying the original and corrected product ids.
+        $this->assertNull($fresh->correction_id);
+        // Inverted: was assertSame($correct->product_id, $batch->product_id).
+        $this->assertSame(
+            (int) $wrong->product_id,
+            (int) InventoryBatch::find($b->batch_id)->product_id,
+            'the incident flow must not re-type a batch behind the barcode-adjustment ledger'
+        );
+        $this->assertNotSame((int) $correct->product_id, (int) InventoryBatch::find($b->batch_id)->product_id);
+        // The mis-labelled units still leave, they just leave as goods going
+        // back to the supplier rather than as a silent product swap.
+        $this->assertSame(IncidentItem::STATUS_RETURNED, $this->itemFor($incident)->status);
+        $this->assertSame(0, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
     }
 
-    public function test_wrong_type_without_a_corrected_product_is_rejected(): void
+    /**
+     * Was `test_wrong_type_without_a_corrected_product_is_rejected` — a 422 from
+     * the strategy that needed a target product to re-type onto.
+     *
+     * INVERTED: there is no re-typing and therefore no corrected product to
+     * demand, so `wrong_type` takes exactly the same inspect-then-confirm route
+     * as every other stock-affecting reason. What replaced that 422 is the
+     * inspection gate, which is asserted here so the reason is not quietly
+     * confirmable from Open.
+     */
+    public function test_wrong_type_follows_the_ordinary_inspection_route(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
@@ -178,13 +270,20 @@ class IncidentResolutionTest extends SetTestCase
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_WRONG_TYPE);
 
         $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertStatus(422);
+
+        $this->assertSame(IncidentReport::statusId('Open'), (int) $incident->fresh()->status_id);
+        $this->assertSame(4, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
+
+        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $incident->fresh()->status_id);
     }
 
     /**
-     * REVERSAL: this test used to assert that resolving rewrote the batch's
-     * zone_label from actual_zone ('Zone 1' -> 'Zone 2').
+     * REVERSAL, unchanged in meaning: this test once asserted that resolving
+     * rewrote the batch's zone_label from actual_zone ('Zone 1' -> 'Zone 2').
      *
      * That was backwards. The reporter sees the stock physically in Zone 2
      * while the system says Zone 1, and the SYSTEM is right — someone misplaced
@@ -201,8 +300,11 @@ class IncidentResolutionTest extends SetTestCase
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_ZONE_MISMATCH, 7);
 
+        // Moved to /decide, and confirmable straight from Open: a zone mismatch
+        // is inspection-exempt, because demanding photographs and two signatures
+        // to record that a box is on the wrong shelf teaches people not to report.
         $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertOk();
 
         $fresh = $incident->fresh();
@@ -219,11 +321,13 @@ class IncidentResolutionTest extends SetTestCase
         // and must NOT be overwritten with where the box was wrongly found.
         $this->assertSame('Zone 1', $batch->zone_label, 'the system zone must survive the review untouched');
         $this->assertSame(7, (int) $batch->quantity_remaining);
-        // Nothing left active stock either, so no hold is opened.
-        $this->assertSame(0, StockHold::where('incident_id', $incident->incident_id)->count());
+        // Inverted: was `0 stock_holds rows`. Nothing left active stock, so
+        // nothing was quarantined either — there is no item to inspect.
+        $this->assertSame(0, IncidentItem::where('incident_id', $incident->incident_id)->count());
     }
 
-    public function test_resolving_twice_is_rejected(): void
+    /** Was `test_resolving_twice_is_rejected`. Same guard at /decide. */
+    public function test_confirming_twice_is_rejected(): void
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
@@ -231,11 +335,14 @@ class IncidentResolutionTest extends SetTestCase
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE, 1);
-        $url = "/api/incident-reports/{$incident->incident_id}/resolve";
 
-        $this->actingAs($ia, 'sanctum')->postJson($url, ['action' => 'confirm'])->assertOk();
-        $this->actingAs($ia, 'sanctum')->postJson($url, ['action' => 'confirm'])->assertStatus(422);
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
 
+        $this->actingAs($ia, 'sanctum')
+             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
+             ->assertStatus(422);
+
+        // The batch moved exactly once — the whole point of the guard.
         $this->assertSame(4, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
     }
 
@@ -259,15 +366,18 @@ class IncidentResolutionTest extends SetTestCase
 
     /**
      * When the reported quantity exceeds what the batch actually holds, the
-     * write-off must be clamped to the batch AND recorded at the clamped amount,
-     * so the batch, the location total, and the ledger never disagree. The old
-     * code recorded the full 10 while only the batch's 3 could physically leave,
-     * silently vanishing 7 units from the location total.
+     * write-off must be clamped to the batch AND the location must drop by that
+     * same clamped amount, so the batch and the location total never disagree.
+     *
+     * The assertion is unchanged in meaning — only the route and the artifact it
+     * reads have moved. The old code recorded the full 10 on the ledger while
+     * only the batch's 3 could physically leave; the rewritten deduct() clamped
+     * batch and location independently and reproduced the same divergence in the
+     * location total. Both vanish 7 units no batch ever lost.
      */
     public function test_deduction_over_the_batch_does_not_diverge_batch_and_location(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
 
         // Location holds 50 (a bigger pool), but the incident's batch has only 3.
@@ -276,46 +386,50 @@ class IncidentResolutionTest extends SetTestCase
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 10);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", ['action' => 'confirm'])
-             ->assertOk();
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_WRITE_OFF);
 
-        // Only 3 could leave the batch, so the ledger records 3, not 10...
-        $adjustment = \App\Models\Adjustment::with('details')->find($incident->fresh()->adjustment_id);
-        $this->assertSame(3, (int) $adjustment->total_variance_negative);
-        $this->assertSame(3, (int) $adjustment->details->first()->deduct_quantity);
-
-        // ...the batch is emptied, and the location total drops by exactly 3 (50 -> 47),
-        // not by 10 — no units vanish that no batch lost.
-        $this->assertSame(0, (int) \App\Models\InventoryBatch::find($b->batch_id)->quantity_remaining);
-        $inv = \App\Models\Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
+        // The batch is emptied, and the location total drops by exactly 3
+        // (50 -> 47), not by 10.
+        $this->assertSame(0, (int) InventoryBatch::find($b->batch_id)->quantity_remaining);
+        $inv = Inventory::where('location_id', $loc->location_id)->where('product_id', $p->product_id)->first();
         $this->assertSame(47, (int) $inv->quantity_on_hand);
+        $this->assertSame(47, (int) $inv->available_quantity);
 
-        // ...and the hold is clamped to the same 3, so physical = active + held
-        // (47 + 3 = 50). A hold of 10 would manufacture 7 units no batch lost —
-        // the same divergence in the other direction.
-        $hold = StockHold::where('incident_id', $incident->incident_id)->firstOrFail();
-        $this->assertSame(3, (int) $hold->quantity);
-        $this->assertSame(50, (int) $inv->quantity_on_hand + (int) $hold->quantity);
+        // Inverted: was `hold quantity == 3` and `on_hand + held == 50`. Nothing
+        // is held aside any more, so the invariant is read straight off the two
+        // numbers that must agree — what the batch lost and what the location lost.
+        $batchLoss    = 3 - (int) InventoryBatch::find($b->batch_id)->quantity_remaining;
+        $locationLoss = 50 - (int) $inv->quantity_on_hand;
+        $this->assertSame($batchLoss, $locationLoss,
+            'the location must lose exactly what a batch gave up — no units may vanish that no batch lost');
+        // The item still records what was REPORTED (10), which is the shrinkage
+        // signal; only the movement is clamped to what a batch could give up.
+        $this->assertSame(10, (int) $this->itemFor($incident)->quantity);
     }
 
-    public function test_wrong_type_without_a_batch_is_rejected(): void
+    /**
+     * Was `test_wrong_type_without_a_batch_is_rejected` — a 422, because the
+     * strategy had no batch to re-type.
+     *
+     * INVERTED: with re-typing gone there is nothing that needs a batch, so a
+     * batchless `wrong_type` is filed and decided normally. It pulls no batch
+     * out of FIFO, because it names none.
+     */
+    public function test_a_batchless_wrong_type_is_filed_and_decided_normally(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $p   = $this->makeConsumable();
-        $correct = $this->makeConsumable();
 
-        // A wrong_type incident with no batch to re-type.
         $incident = $this->openIncident($loc, $p, null, IncidentReport::REASON_WRONG_TYPE, 2);
 
-        $this->actingAs($ia, 'sanctum')
-             ->postJson("/api/incident-reports/{$incident->incident_id}/resolve", [
-                 'action' => 'confirm', 'corrected_product_id' => $correct->product_id,
-             ])
-             ->assertStatus(422);
+        $this->assertNull($this->itemFor($incident)->batch_id);
+        $this->assertSame([], app(IncidentService::class)->excludedBatchIds($loc->location_id));
 
-        // It stays Open — nothing was closed as "fixed" while the stock is untouched.
-        $this->assertSame(IncidentReport::statusId('Open'), (int) $incident->fresh()->status_id);
+        $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_RETURN_TO_SUPPLIER);
+
+        // Inverted: was "it stays Open — nothing was closed as fixed". There is
+        // nothing left to refuse it, so it closes on the recorded outcome.
+        $this->assertSame(IncidentReport::statusId('Resolved'), (int) $incident->fresh()->status_id);
+        $this->assertSame(IncidentItem::STATUS_RETURNED, $this->itemFor($incident)->status);
     }
 }

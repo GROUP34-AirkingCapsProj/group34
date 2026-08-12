@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Sets;
 
+use App\Models\IncidentItem;
 use App\Models\IncidentReport;
 use App\Services\FifoPickingService;
+use App\Services\IncidentItemService;
 use App\Services\IncidentService;
 use App\Support\ScanResult;
 
@@ -118,7 +120,20 @@ class IncidentFilingTest extends SetTestCase
         $this->assertSame([], app(IncidentService::class)->excludedBatchIds($loc->location_id));
     }
 
-    public function test_a_non_open_incident_no_longer_excludes_its_batch(): void
+    /**
+     * INVERTED. This used to assert that moving the incident off "Open" returned
+     * its batch to FIFO, because exclusion was derived from the INCIDENT's
+     * status.
+     *
+     * That was substantively wrong, and it broke once already: adding "Awaiting
+     * Inspection" silently handed stock that was under investigation back to the
+     * picking pool. Exclusion now follows the ITEM's status, so a report whose
+     * paperwork has moved on while its goods are still quarantined correctly
+     * keeps that batch out of rotation — the batch returns when somebody has
+     * actually decided what happened to the units, not when a status column
+     * changes.
+     */
+    public function test_a_settled_status_does_not_release_a_still_quarantined_batch(): void
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
@@ -134,9 +149,26 @@ class IncidentFilingTest extends SetTestCase
 
         $this->assertContains((int) $b->batch_id, app(IncidentService::class)->excludedBatchIds($loc->location_id));
 
-        // Simulate resolution (Task 19 builds the real resolve()). Once not Open,
-        // the batch returns to FIFO rotation with no cleanup step.
+        // Move the paperwork on WITHOUT settling the goods — exactly the shape
+        // the old Open-only query got wrong.
         $incident->update(['status_id' => IncidentReport::statusId('Resolved')]);
+
+        // Inverted: was assertSame([], ...). The units have had no outcome
+        // applied, so they are still quarantined and the batch is still unpickable.
+        $this->assertContains(
+            (int) $b->batch_id,
+            app(IncidentService::class)->excludedBatchIds($loc->location_id),
+            'a status change alone must not return uninspected stock to picking'
+        );
+
+        // Settling the ITEM is what releases it, and it does so on its own —
+        // no cleanup step, and no dependence on the incident's status.
+        app(IncidentItemService::class)->setOutcome(
+            IncidentItem::where('incident_id', $incident->incident_id)->firstOrFail(),
+            IncidentItem::OUTCOME_RESTOCK,
+            null
+        );
+        app(IncidentItemService::class)->applyOutcomes($incident, (int) $user->user_id);
 
         $this->assertSame([], app(IncidentService::class)->excludedBatchIds($loc->location_id));
     }
