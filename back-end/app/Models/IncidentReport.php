@@ -147,6 +147,20 @@ class IncidentReport extends Model
         return $this->belongsTo(User::class, 'inspected_by', 'user_id');
     }
 
+    /**
+     * The report's own status row, so it can be serialized by NAME.
+     *
+     * Every client-facing payload sends `status_name`, never a bare id: the
+     * incident statuses are install-specific — Open/Resolved/Dismissed/Awaiting
+     * Inspection are 46/47/48/53 in the dev database and 765/766/767/1862 in
+     * the test one — so a frontend that switches on the number works here and
+     * is silently wrong on any other install.
+     */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(StatusLookup::class, 'status_id', 'status_id');
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');

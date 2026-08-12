@@ -24,7 +24,7 @@ class IncidentReportController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = IncidentReport::with(['product.consumableDetail', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance'])
+        $query = IncidentReport::with(['product.consumableDetail', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance', 'status'])
             ->forUser(Auth::user());   // location scoping, same trait every other list uses
 
         if ($request->query('status') === 'open') {
@@ -94,6 +94,12 @@ class IncidentReportController extends Controller
                 'reported_by_name'        => trim(($i->reportedBy?->first_name ?? '') . ' ' . ($i->reportedBy?->last_name ?? '')),
                 'reporter_incident_count' => (int) ($counts[(int) $i->reported_by] ?? 0),
                 'status_id'               => (int) $i->status_id,
+                // By NAME, because the ids are install-specific. `is_open` alone
+                // cannot tell a report an admin REJECTED back to the inspector
+                // (Awaiting Inspection) from one that is finished, so an
+                // inspector's worklist built on it silently loses every
+                // rejection.
+                'status_name'             => $i->status?->status_name,
                 'is_open'                 => (int) $i->status_id === IncidentReport::statusId('Open'),
                 'reviewed_by_name'        => $i->reviewedBy !== null
                     ? trim(($i->reviewedBy->first_name ?? '') . ' ' . ($i->reviewedBy->last_name ?? ''))
