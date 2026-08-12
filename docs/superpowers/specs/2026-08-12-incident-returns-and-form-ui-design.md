@@ -19,7 +19,7 @@ There is also a boundary error waiting to happen: a returned unit going back to 
 
 ## Goals
 
-1. The filing screen reads like the client's document.
+1. **One document, not three screens.** The report the reporter files is the same file the inspector adds to and the same file the admin approves — accumulating, never re-keyed, and reading like the client's paper form at every stage.
 2. A return records who it came from, why, and — for a wrong delivery — both what came and what should have.
 3. Inbound returns register incoming goods rather than deducting stock that isn't there.
 4. Defective units route to the existing warranty module instead of a parallel implementation.
@@ -157,9 +157,31 @@ A wrong-delivery return proves *the delivery was wrong* — the pair plus the re
 
 Every requirement stays skippable with a written reason, shown to the admin beside it.
 
-## The form-shaped filing UI
+## One unified document, three modes
 
-One page, sectioned in the client's order, with a type dropdown driving what appears:
+**The report is a single file that travels.** The reporter fills their part and submits; the *same* document reaches the inspector, who adds evidence, findings and outcomes to it; the *same* document reaches the admin, who sees everything anyone has written in one place. Not three forms that share an id — one form that accumulates.
+
+Today it is three unrelated surfaces: a five-step wizard, a separate inspection page, and a drawer. An admin reading a drawer cannot see the shape of the document the inspector signed, and the inspector cannot see the form the reporter filled. That is the thing to fix.
+
+**One component, `IncidentDocument`, rendered in three modes:**
+
+| Mode | Who | Reporter's sections | Inspector's sections | Actions |
+|---|---|---|---|---|
+| `file` | reporter | **editable** | visible, empty, locked | Submit report |
+| `inspect` | inspector | **read-only** | **editable** | Print · Submit inspection |
+| `decide` | admin | read-only | read-only | Print · Confirm · Reject |
+
+**Earlier sections are locked, never hidden.** An inspector must see what the reporter claimed — that is half of what they are checking. An admin must see both. Hiding a completed section to save space is how the person with the authority to approve ends up approving something they never read.
+
+The inspector's sections render as empty, greyed placeholders during `file` mode rather than being absent, so a reporter can see what will be asked of the inspector later and what is not their job to answer.
+
+**The printed form is the same document** under print styles — not a second layout that can drift from the screen. What the inspector signs is what everyone saw.
+
+This consolidates four surfaces into one: the wizard, the inspection page, the decision drawer and the print builder all become `IncidentDocument` plus a print stylesheet.
+
+### Layout
+
+Sectioned in the client's order, with a type dropdown driving what appears:
 
 ```
 Incident type   [ Defective ▾ ]
@@ -170,8 +192,14 @@ Units             Model ID / Serial / DOR
 Unit defect
 Problem summary   date of purchase · customer · contact · site address
                   what happened
+─────────────────────────────────────────  ← everything below is the inspector's
 Attachments       the checklist for this type and reason
+Findings          what the inspection concluded
+Outcome per unit  restock · claim warranty · return to supplier · repair · scrap
+Signatures        authorized representative · branch manager · date
 ```
+
+The rule above the line is where the document changes hands. Above it is the reporter's; below it is the inspector's; the admin writes in neither and only decides.
 
 | Type | Sections shown |
 |---|---|
@@ -199,6 +227,9 @@ The five-step wizard is replaced. **The trade-off is real:** one question at a t
 | `claim_warranty` writes nothing to `warranty_claims` | the boundary holds |
 | `claim_warranty` holds the unit; `return_to_supplier` sends it away | the two are not the same outcome and must not share a status |
 | `return_to_supplier` is offered regardless of warranty state | only the warranty claim is gated |
+| In `inspect` mode the reporter's sections render read-only | an inspector checks the claim; they do not get to edit it |
+| In `decide` mode every section is present and read-only | an admin must be able to read what they are approving |
+| The printed document and the screen render from one source | a second layout is a second thing to drift |
 
 Existing incident tests that assert the two-valued `return_direction` or `return_to_supplier` are rewritten to the new vocabulary — never weakened to pass.
 
