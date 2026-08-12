@@ -22,7 +22,14 @@ class IncidentStatusSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach (['Missing', 'Defective', 'Returned', 'Quarantined', 'Scrapped'] as $name) {
+        // Every name IncidentItemService::SERIAL_STATUS_NAME can write. A name
+        // that map produces but the lookup lacks throws mid-confirmation —
+        // after stock has already moved inside the transaction — so the two
+        // lists must be kept in step.
+        foreach ([
+            'Missing', 'Defective', 'Returned', 'Quarantined', 'Scrapped',
+            'Under Repair', 'Awaiting Warranty Claim',
+        ] as $name) {
             DB::table('status_lookup')->updateOrInsert(
                 ['status_category' => 'inventory', 'status_name' => $name],
                 ['is_active' => 1, 'updated_at' => now(), 'created_at' => now()],
