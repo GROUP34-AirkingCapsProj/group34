@@ -125,11 +125,13 @@ class IncidentItemService
                     continue;
                 }
 
-                // Restock is the only outcome where the goods stay. Everything
-                // else means they left or were destroyed, so the count drops —
-                // and because quarantine never deducted, this is the single
-                // deduction for the whole lifecycle.
-                if (! in_array($item->outcome, IncidentItem::OUTCOME_RESTOCKS, true)) {
+                // Only the outcomes where the goods physically leave drop the
+                // count — and because quarantine never deducted, this is the
+                // single deduction for the whole lifecycle. The old check was
+                // "anything that isn't restock is a departure", which would
+                // delete a unit sitting on the bench under repair or awaiting a
+                // warranty claim.
+                if (in_array($item->outcome, IncidentItem::OUTCOMES_THAT_REMOVE_STOCK, true)) {
                     $this->deduct($item);
                 }
 

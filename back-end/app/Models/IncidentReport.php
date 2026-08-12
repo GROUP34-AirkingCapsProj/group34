@@ -33,6 +33,19 @@ class IncidentReport extends Model
      */
     public const RETURN_DIRECTIONS = ['from_customer', 'to_supplier'];
 
+    /** Who the goods came from, or are going to. */
+    public const RETURN_COUNTERPARTIES = ['customer', 'supplier', 'branch'];
+
+    public const RETURN_REASON_CODES = ['wrong_product', 'wrong_quantity', 'no_longer_needed'];
+
+    /**
+     * Which counterparties send goods TOWARD us.
+     *
+     * Derived, never asked: a reporter who answers "from a customer" and then
+     * "outbound" has created a contradiction with no correct resolution.
+     */
+    public const INBOUND_COUNTERPARTIES = ['customer', 'branch'];
+
     /**
      * Reasons whose resolution moves stock, and which therefore cannot be
      * filed without a product and a quantity.
@@ -80,7 +93,8 @@ class IncidentReport extends Model
         'status_id', 'reviewed_by', 'reviewed_at',
         'adjustment_id', 'correction_id', 'resolution_note',
         'last_known_location', 'suspected_cause', 'root_cause',
-        'return_direction', 'return_reason', 'related_transfer_id',
+        'return_direction', 'return_reason', 'return_counterparty', 'return_reason_code',
+        'related_transfer_id',
         // The client's document block, filled by the reporter.
         'dealer_name', 'dealer_phone', 'dealer_mobile', 'dealer_email', 'branch_address',
         'customer_name', 'customer_contact', 'site_address', 'purchased_at', 'received_at_dor',
