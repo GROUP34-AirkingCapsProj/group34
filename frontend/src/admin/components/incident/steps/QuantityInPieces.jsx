@@ -16,11 +16,14 @@ export default function QuantityInPieces({
   quantity, setQuantity,
   usesPacks, piecesPerPackage, packageUnit, totalPieces,
   packNote,
+  // The items step renders one of these per unit, and repeating a fixed id
+  // would point every label at the first row's input.
+  fieldId = 'incident-flow-qty',
   disabled,
 }) {
   return (
     <div className="ak-field">
-      <label className="ak-label" htmlFor="incident-flow-qty">{label} *</label>
+      <label className="ak-label" htmlFor={fieldId}>{label} *</label>
 
       {/* Two inputs when the product is sold in packs, one when it is not.
           Reporting "1" for a damaged box used to write off a single PIECE,
@@ -29,7 +32,7 @@ export default function QuantityInPieces({
       {usesPacks ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
           <input
-            id="incident-flow-qty"
+            id={fieldId}
             className="ak-input"
             type="number"
             min={0}
@@ -54,7 +57,7 @@ export default function QuantityInPieces({
         </div>
       ) : (
         <input
-          id="incident-flow-qty"
+          id={fieldId}
           className="ak-input"
           type="number"
           min={1}
