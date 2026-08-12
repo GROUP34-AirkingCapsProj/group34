@@ -35,6 +35,10 @@ class IncidentItemService
         IncidentItem::STATUS_SCRAPPED    => 'Scrapped',
         IncidentItem::STATUS_RETURNED    => 'Returned',
         IncidentItem::STATUS_MISSING     => 'Missing',
+        // Both units are still in the building — one on the bench, one waiting
+        // on a claim — so neither reads as gone to anyone who scans it.
+        IncidentItem::STATUS_UNDER_REPAIR            => 'Under Repair',
+        IncidentItem::STATUS_AWAITING_WARRANTY_CLAIM => 'Awaiting Warranty Claim',
     ];
 
     /**

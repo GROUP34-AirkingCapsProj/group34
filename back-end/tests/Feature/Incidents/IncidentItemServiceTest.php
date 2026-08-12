@@ -169,4 +169,35 @@ class IncidentItemServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $svc->applyOutcomes($incident, $this->actorId());
     }
+/**
+     * Every status the outcome map can produce must have a seeded serial-status
+     * name behind it.
+     *
+     * SERIAL_STATUS_NAME is read unconditionally in applyOutcomes(), BEFORE
+     * stampSerial()'s null-serial guard — so a missing entry is a TypeError
+     * mid-confirmation, after the stock movement has already run inside the
+     * transaction. It fires even for a consumable with no serial at all.
+     */
+    public function test_every_outcome_status_has_a_seeded_serial_status(): void
+    {
+        foreach (IncidentItem::OUTCOME_STATUS as $outcome => $status) {
+            $this->assertContains(
+                $status,
+                IncidentItem::STATUSES,
+                "outcome {$outcome} maps to an unknown status"
+            );
+
+            $name = (new \ReflectionClass(IncidentItemService::class))
+                ->getConstant('SERIAL_STATUS_NAME')[$status] ?? null;
+            $this->assertNotNull($name, "no serial-status name for {$status}");
+
+            $this->assertNotNull(
+                \DB::table("status_lookup")
+                    ->where("status_category", "inventory")
+                    ->where("status_name", $name)
+                    ->value("status_id"),
+                "inventory status \"{$name}\" is not seeded — run IncidentStatusSeeder"
+            );
+        }
+    }
 }
