@@ -22,7 +22,7 @@ const ItemManagement = lazy(() => import('./admin/pages/ItemManagement'));
 const SupplierNetwork = lazy(() => import('./admin/pages/SupplierNetwork'));
 const SetManagementPage = lazy(() => import('./admin/pages/SetManagementPage'));
 const IncidentReportsPage = lazy(() => import('./admin/pages/IncidentReportsPage'));
-const StockHoldsPage = lazy(() => import('./admin/pages/StockHoldsPage'));
+const IncidentItemsRegisterPage = lazy(() => import('./admin/pages/IncidentItemsRegisterPage'));
 const IncidentInspectionPage = lazy(() => import('./admin/pages/IncidentInspectionPage'));
 
 // Inventory
@@ -124,7 +124,11 @@ function App() {
           <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
           <Route path="/admin/sets" element={<RoleRoute><SetManagementPage /></RoleRoute>} />
           <Route path="/admin/incidents" element={<RoleRoute><IncidentReportsPage /></RoleRoute>} />
-          <Route path="/admin/held-stock" element={<RoleRoute><StockHoldsPage /></RoleRoute>} />
+          <Route path="/admin/incident-items" element={<RoleRoute><IncidentItemsRegisterPage /></RoleRoute>} />
+          {/* Held Stock became a read-only register when the inspection took
+              over its Dispose action. Bookmarks and any link still pointing at
+              the old path land on the register rather than a blank page. */}
+          <Route path="/admin/held-stock" element={<Navigate to="/admin/incident-items" replace />} />
           <Route path="/admin/inspections" element={<RoleRoute><IncidentInspectionPage /></RoleRoute>} />
           <Route path="/admin/purchase-orders" element={<Navigate to="/admin/draft-po-creator" replace />} />
           <Route path="/admin/budget-management" element={<RoleRoute><BudgetManagementPage /></RoleRoute>} />

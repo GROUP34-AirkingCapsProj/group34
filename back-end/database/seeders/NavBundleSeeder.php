@@ -44,7 +44,9 @@ class NavBundleSeeder extends Seeder
             // Gated on `read`, not `inspect`: the page shows what is waiting,
             // and the write actions on it check `inspect` for themselves.
             ['Inspections',          '/admin/inspections',          'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
-            ['Held Stock',           '/admin/held-stock',           'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
+            // Was 'Held Stock' at /admin/held-stock. It is a read-only register
+            // now — the inspection took over the Dispose action it existed for.
+            ['Incident Items',       '/admin/incident-items',       'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
 
             // SALES & LOGISTICS
             ['Transactions',         '/admin/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'sales_recording',     'read'],
