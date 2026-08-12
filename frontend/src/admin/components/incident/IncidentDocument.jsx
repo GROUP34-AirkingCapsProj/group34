@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { incidentReportsAPI, inventoryBatchesAPI, locationsAPI, productsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
+import { confirmAction } from '../../utils/confirm';
 import { reasonMeta } from '../../utils/incidentReasons';
 import { toBackendInstant } from '../../utils/incidentFlow';
 import { toClientPayload, toItemPayload } from '../../utils/incidentItems';
@@ -100,6 +101,8 @@ export default function IncidentDocument({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [showBlockers, setShowBlockers] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectionNote, setRejectionNote] = useState('');
 
   // The inspector's half. Held locally and saved as one document on submit,
   // unlike the per-item outcomes and the evidence, which the server records the
@@ -272,6 +275,58 @@ export default function IncidentDocument({
     }
   }, [inspectionMissing, incidentId, findings, checkedByAsc, signedByRep, signedByBm, signedAt, onSubmitted]);
 
+  /**
+   * The admin's decision. `confirm` is the ONE moment stock moves — every
+   * unit's outcome is applied in a single server-side transaction — so it goes
+   * through the shared confirm dialog like any other inventory-modifying
+   * submit.
+   */
+  const handleConfirm = useCallback(async () => {
+    const ok = await confirmAction({
+      title: 'Confirm this report?',
+      text: 'This applies every unit\'s outcome and moves the stock. It cannot be undone from here.',
+      confirmText: 'Confirm & apply',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await incidentReportsAPI.decide(incidentId, { action: 'confirm' });
+      toast.success('Report confirmed. The stock has been updated.');
+      onSubmitted?.();
+    } catch (err) {
+      setSubmitError(err?.message || 'Could not confirm this report.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [incidentId, onSubmitted]);
+
+  /**
+   * Sending it back. The note is required rather than optional: an inspector
+   * cannot act on "no", and a rejection with no stated reason costs them a
+   * second round trip to find out what was wrong.
+   */
+  const handleReject = useCallback(async () => {
+    if (rejectionNote.trim().length === 0) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await incidentReportsAPI.decide(incidentId, {
+        action: 'reject',
+        rejection_note: rejectionNote.trim(),
+      });
+      toast.success('Sent back to the inspector. Their evidence is kept.');
+      onSubmitted?.();
+    } catch (err) {
+      setSubmitError(err?.message || 'Could not send this report back.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [incidentId, rejectionNote, onSubmitted]);
+
   const handleSubmit = useCallback(async () => {
     if (missing.length > 0) { setShowBlockers(true); return; }
     setSubmitting(true);
@@ -384,6 +439,7 @@ export default function IncidentDocument({
 
   const busy = submitting || mode !== DOC_MODES.FILE;
   const inspecting = mode === DOC_MODES.INSPECT;
+  const deciding = mode === DOC_MODES.DECIDE;
   // Whichever half this person is filling in. One list, one place it renders.
   const blockers = inspecting ? inspectionMissing : missing;
   // The inspector's half is writable only when this person holds `inspect`.
@@ -600,12 +656,72 @@ export default function IncidentDocument({
             </button>
           </>
         )}
+
+        {deciding && (
+          <>
+            {/* The admin has the signed hardcopy in hand, but printing again
+                from the same document is how they check the paper matches. */}
+            <IncidentReportPrint report={report} />
+            <button
+              type="button"
+              className="ak-btn"
+              onClick={() => setRejecting((v) => !v)}
+              disabled={submitting}
+            >
+              {rejecting ? 'Cancel rejection' : 'Reject'}
+            </button>
+            <button
+              type="button"
+              className="ak-btn ak-btn--primary"
+              onClick={handleConfirm}
+              disabled={submitting || rejecting}
+            >
+              {submitting ? 'Confirming…' : 'Confirm'}
+            </button>
+          </>
+        )}
       </div>
+
+      {deciding && rejecting && (
+        <div className="ak-field" style={{ marginTop: '0.7rem' }}>
+          <label className="ak-label" htmlFor="incdoc-rejection-note">
+            Why are you sending it back? *
+          </label>
+          <textarea
+            id="incdoc-rejection-note"
+            className="ak-input"
+            rows={3}
+            maxLength={2000}
+            value={rejectionNote}
+            onChange={(e) => setRejectionNote(e.target.value)}
+            placeholder="e.g. the box photo shows a different serial than the sticker"
+            disabled={submitting}
+          />
+          {/* Required, not optional: an inspector cannot act on "no". */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              className="ak-btn ak-btn--primary"
+              onClick={handleReject}
+              disabled={submitting || rejectionNote.trim().length === 0}
+            >
+              Send back for re-inspection
+            </button>
+          </div>
+        </div>
+      )}
 
       {inspecting && (
         <p className="ak-muted" style={{ fontSize: '0.8rem', textAlign: 'right', margin: '0.3rem 0 0' }}>
           Submitting moves no stock. An admin confirms afterwards, and that is when the quantities
           change.
+        </p>
+      )}
+
+      {deciding && !rejecting && (
+        <p className="ak-muted" style={{ fontSize: '0.8rem', textAlign: 'right', margin: '0.3rem 0 0' }}>
+          <strong>Confirming is what moves the stock.</strong> Every unit's outcome is applied in one
+          step and cannot be undone from here.
         </p>
       )}
     </article>
