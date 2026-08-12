@@ -121,6 +121,137 @@ class IncidentFilingHttpTest extends SetTestCase
         $this->assertSame(IncidentItem::ROLE_SINGLE, $items[0]->unit_role);
     }
 
+    /**
+     * A wrong-product return names TWO products: what arrived and what should
+     * have. Both are validated keys or neither survives validate(), and the
+     * response echoes them from the in-memory model either way — so this asserts
+     * against the stored item row.
+     */
+    public function test_a_wrong_product_return_stores_both_product_ids(): void
+    {
+        $loc      = $this->makeLocation();
+        $wp       = $this->makeUserAt($loc, 'warehouse_personnel');
+        $arrived  = $this->makeConsumable('WRONG-ONE');
+        $expected = $this->makeConsumable('RIGHT-ONE');
+
+        $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'         => 'standalone',
+            'location_id'         => $loc->location_id,
+            'product_id'          => $arrived->product_id,
+            'reason'              => IncidentReport::REASON_RETURN,
+            'return_counterparty' => 'customer',
+            'return_reason_code'  => 'wrong_product',
+            'quantity'            => 1,
+            'narrative'           => 'The customer was delivered the wrong model.',
+            'items' => [[
+                'product_id'          => $arrived->product_id,
+                'expected_product_id' => $expected->product_id,
+                'quantity'            => 1,
+                'unit_role'           => IncidentItem::ROLE_SINGLE,
+            ]],
+        ])->assertCreated();
+
+        $incidentId = (int) $res->json('data.incident_id');
+
+        // The report's own two facts, which replaced return_direction.
+        $this->assertDatabaseHas('incident_reports', [
+            'incident_id'         => $incidentId,
+            'return_counterparty' => 'customer',
+            'return_reason_code'  => 'wrong_product',
+        ]);
+
+        $item = IncidentItem::where('incident_id', $incidentId)->firstOrFail();
+
+        $this->assertSame((int) $arrived->product_id, (int) $item->product_id,
+            'what actually arrived');
+        $this->assertSame((int) $expected->product_id, (int) $item->expected_product_id,
+            'and what should have — the pair is the whole point of a wrong-product return');
+    }
+
+    /**
+     * A wrong-quantity return records what was ORDERED beside what arrived.
+     * `quantity` alone is one number with no way to see it is the wrong one.
+     */
+    public function test_a_wrong_quantity_return_stores_the_ordered_quantity(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'         => 'standalone',
+            'location_id'         => $loc->location_id,
+            'product_id'          => $p->product_id,
+            'reason'              => IncidentReport::REASON_RETURN,
+            'return_counterparty' => 'customer',
+            'return_reason_code'  => 'wrong_quantity',
+            'quantity'            => 7,
+            'narrative'           => 'Ten were ordered, seven came back short-shipped.',
+            'items' => [[
+                'product_id'        => $p->product_id,
+                'quantity'          => 7,
+                'expected_quantity' => 10,
+                'unit_role'         => IncidentItem::ROLE_SINGLE,
+            ]],
+        ])->assertCreated();
+
+        $item = IncidentItem::where('incident_id', (int) $res->json('data.incident_id'))->firstOrFail();
+
+        $this->assertSame(7, (int) $item->quantity, 'what was delivered');
+        $this->assertSame(10, (int) $item->expected_quantity, 'what was ordered');
+    }
+
+    /**
+     * The flat (picking-modal) shape sends no `items`, and must carry the pair
+     * too — itemRowsFrom's fallback builds that row from the top-level keys, so
+     * they need their own rules as well as the items.* ones.
+     */
+    public function test_the_flat_shape_carries_the_pair_as_well(): void
+    {
+        $loc      = $this->makeLocation();
+        $wp       = $this->makeUserAt($loc, 'warehouse_personnel');
+        $arrived  = $this->makeConsumable('FLAT-WRONG');
+        $expected = $this->makeConsumable('FLAT-RIGHT');
+
+        $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'         => 'standalone',
+            'location_id'         => $loc->location_id,
+            'product_id'          => $arrived->product_id,
+            'reason'              => IncidentReport::REASON_RETURN,
+            'return_counterparty' => 'supplier',
+            'return_reason_code'  => 'wrong_product',
+            'quantity'            => 2,
+            'expected_product_id' => $expected->product_id,
+            'expected_quantity'   => 2,
+            'narrative'           => 'Supplier shipped the wrong model; sending it back.',
+        ])->assertCreated();
+
+        $item = IncidentItem::where('incident_id', (int) $res->json('data.incident_id'))->firstOrFail();
+
+        $this->assertSame((int) $expected->product_id, (int) $item->expected_product_id);
+        $this->assertSame(2, (int) $item->expected_quantity);
+    }
+
+    /** A counterparty or reason code outside the vocabulary must 422, not store a typo. */
+    public function test_an_unknown_return_counterparty_or_reason_code_is_rejected(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeConsumable();
+
+        $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
+            'source_type'         => 'standalone',
+            'location_id'         => $loc->location_id,
+            'product_id'          => $p->product_id,
+            'reason'              => IncidentReport::REASON_RETURN,
+            'quantity'            => 1,
+            'narrative'           => 'test',
+            'return_counterparty' => 'warehouse',      // not one of RETURN_COUNTERPARTIES
+            'return_reason_code'  => 'changed_my_mind', // not one of RETURN_REASON_CODES
+        ])->assertStatus(422)
+          ->assertJsonValidationErrors(['return_counterparty', 'return_reason_code']);
+    }
+
     /** A bad role must 422, not be quietly coerced or dropped. */
     public function test_an_unknown_unit_role_is_rejected(): void
     {

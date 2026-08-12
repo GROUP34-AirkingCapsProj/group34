@@ -87,6 +87,13 @@ class IncidentService
                 'suspected_cause'     => $data['suspected_cause'] ?? null,
                 'root_cause'          => $data['root_cause'] ?? null,
                 'return_direction'    => $data['return_direction'] ?? null,
+                // Superseding return_direction: who the counterparty is, and
+                // what went wrong. Direction is derived from the first of these
+                // and stored per item as is_inbound. Listed here for the same
+                // reason as everything above — this array, not $fillable, is
+                // what decides which columns a filing writes.
+                'return_counterparty' => $data['return_counterparty'] ?? null,
+                'return_reason_code'  => $data['return_reason_code'] ?? null,
                 'return_reason'       => $data['return_reason'] ?? null,
                 'related_transfer_id' => isset($data['related_transfer_id']) ? (int) $data['related_transfer_id'] : null,
                 // The client's document block, filled by the reporter — they are
@@ -150,6 +157,11 @@ class IncidentService
             'unit_role'     => IncidentItem::ROLE_SINGLE,
             'serial_number' => $data['serial_number'] ?? null,
             'model_code'    => $data['model_code'] ?? null,
+            // The wrong/correct pair on the flat shape. The `items` branch above
+            // carries these through untouched because array_merge preserves
+            // every key the validated row already has.
+            'expected_product_id' => $data['expected_product_id'] ?? null,
+            'expected_quantity'   => isset($data['expected_quantity']) ? (int) $data['expected_quantity'] : null,
             'is_inbound'    => $inbound,
         ]];
     }
