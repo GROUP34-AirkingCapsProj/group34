@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import EvidenceChecklist, { outstandingRequirements, requirementMeta }
   from '../components/incident/EvidenceChecklist';
+import IncidentReportPrint from '../components/incident/IncidentReportPrint';
 import { incidentReportsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
@@ -395,6 +396,20 @@ function InspectionForm({ report, canInspect, onChanged, onSubmitted }) {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+        {/* Printable BEFORE submission, and before the admin confirms: this is
+            the paper that gets signed and physically carried over, so the
+            unsaved findings and signature names on screen are printed with it
+            rather than the empty saved ones. */}
+        <IncidentReportPrint
+          report={report}
+          overrides={{
+            inspection_findings: findings.trim() || null,
+            checked_by_asc: checkedByAsc,
+            signed_by_representative: signedByRep.trim() || null,
+            signed_by_branch_manager: signedByBm.trim() || null,
+            signed_at: signedAt || null,
+          }}
+        />
         <button
           type="button"
           className="ak-btn ak-btn--primary"

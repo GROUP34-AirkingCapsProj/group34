@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Modal from './Modal';
 import { EvidenceThumbnail, requirementMeta } from './incident/EvidenceChecklist';
+import IncidentReportPrint from './incident/IncidentReportPrint';
 import { incidentReportsAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -563,7 +564,12 @@ export default function IncidentResolveDrawer({ incident, onClose, canResolve, o
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+          {/* The same document the inspector printed and signed, so the admin
+              can check the paper in their hand against the record. The list row
+              carries none of the client's document block, so this prints from
+              the detail and stays disabled until it has loaded. */}
+          <IncidentReportPrint report={detail} label="Print incident report" />
           <button type="button" className="ak-btn" onClick={onClose}>Close</button>
         </div>
       </div>
