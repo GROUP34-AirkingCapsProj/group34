@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\SystemSessionSettingsController;
 use App\Http\Controllers\Api\CompanySettingsController;
 use App\Http\Controllers\Api\AccountPolicyController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\ForgotPasswordOtpController;
 use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\IssuanceScanController;
 use App\Http\Controllers\Api\ArchiveController;
@@ -75,6 +76,11 @@ Route::get('/login/challenge', [AuthController::class, 'loginChallenge'])->middl
 Route::post('/register', [AuthController::class, 'register']);
 
 Route::post('/password-reset/complete', [PasswordResetController::class, 'complete'])->middleware('throttle:12,1');
+
+// OTP-based forgot password (email or SMS delivery)
+Route::post('/forgot-password', [ForgotPasswordOtpController::class, 'forgot'])->middleware('throttle:8,1');
+Route::post('/verify-reset-otp', [ForgotPasswordOtpController::class, 'verify'])->middleware('throttle:12,1');
+Route::post('/reset-password', [ForgotPasswordOtpController::class, 'reset'])->middleware('throttle:8,1');
 
 // Broadcasting auth for private channels — bare auth:sanctum (NOT auditor.readonly /
 // location.scope) so auditors can authenticate to the org channel. Channel-level
@@ -949,11 +955,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
             return $query->paginate($request->input('per_page', 50));
         });
 
-        Route::get('/audit-trail', function (\Illuminate\Http\Request $request) {
-            return \App\Models\AuditTrail::with('user')
-                ->orderBy('created_at', 'desc')
-                ->paginate($request->input('per_page', 50));
-        });
+        Route::get('/audit-trail', [AuditTrailController::class, 'legacyIndex']);
 
         Route::get('/audit-trail/user/{userId}', function ($userId) {
             return \App\Models\AuditTrail::where('user_id', $userId)
@@ -971,6 +973,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::get('/audit-trail/v2', [AuditTrailController::class, 'index']);
         Route::get('/audit-trail/v2/filter-options', [AuditTrailController::class, 'filterOptions']);
         Route::get('/audit-trail/v2/{audit_id}', [AuditTrailController::class, 'show']);
+        Route::get('/login-sessions', [\App\Http\Controllers\Api\LoginSessionController::class, 'index']);
     });
 
     /*

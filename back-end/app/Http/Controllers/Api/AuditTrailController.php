@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditTrail;
+use App\Models\LoginActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class AuditTrailController extends Controller
@@ -22,6 +24,7 @@ class AuditTrailController extends Controller
         'issuance_completed'   => 'Issuance Completed',
         'inventory_adjustment' => 'Inventory Adjusted',
         'stock_transfer'       => 'Stock Transferred',
+        'unauthorized_access'  => 'Unauthorized Access',
     ];
 
     private const TABLE_LABELS = [
@@ -54,6 +57,159 @@ class AuditTrailController extends Controller
     ];
 
     private const SKIP_FIELDS = ['created_at', 'updated_at', 'deleted_at'];
+
+    /**
+     * Legacy paginated audit feed used by the Audit Trail page.
+     * Unauthorized rows are only unrecognized accounts (no matching user) — shown as "unknown".
+     */
+    public function legacyIndex(Request $request): JsonResponse
+    {
+        $perPage = min(max((int) $request->input('per_page', 50), 5), 200);
+
+        $auditRows = AuditTrail::with('user')
+            ->orderByDesc('created_at')
+            ->limit(300)
+            ->get()
+            // Drop unauthorized rows tied to known users (wrong-password / permission noise).
+            ->filter(function (AuditTrail $row) {
+                if ($row->action !== 'unauthorized_access') {
+                    return true;
+                }
+
+                return $row->user_id === null;
+            })
+            ->values();
+
+        // Historical unrecognized attempts: failed login with no matching user_id.
+        $failedUnknown = LoginActivity::query()
+            ->where('success', false)
+            ->whereNull('user_id')
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get();
+
+        $unauthorizedTimestamps = [];
+        foreach ($auditRows->where('action', 'unauthorized_access') as $row) {
+            $ts = $row->created_at?->timestamp ?? 0;
+            $ip = (string) ($row->ip_address ?? '');
+            $unauthorizedTimestamps[$ip . '|' . $ts] = true;
+            $unauthorizedTimestamps[$ip . '|' . ($ts - 1)] = true;
+            $unauthorizedTimestamps[$ip . '|' . ($ts + 1)] = true;
+        }
+
+        $merged = $auditRows->values();
+
+        foreach ($failedUnknown as $fail) {
+            $ts = $fail->created_at?->timestamp ?? 0;
+            $ip = (string) ($fail->ip_address ?? '');
+            if (isset($unauthorizedTimestamps[$ip . '|' . $ts])) {
+                continue;
+            }
+
+            $merged->push((object) [
+                'audit_id' => 'login-fail-' . $fail->id,
+                'user_id' => null,
+                'action' => 'unauthorized_access',
+                'table_name' => 'security',
+                'record_id' => null,
+                'old_values' => null,
+                'new_values' => [
+                    'attempt_type' => 'unrecognized_account',
+                    'reason' => 'Unrecognized account attempted to access the system.',
+                    'attempted_email' => 'unknown',
+                ],
+                'ip_address' => $fail->ip_address,
+                'user_agent' => $fail->user_agent,
+                'created_at' => $fail->created_at,
+                'updated_at' => $fail->created_at,
+                'user' => null,
+                'is_synthetic' => true,
+            ]);
+        }
+
+        $sorted = $merged->sortByDesc(function ($row) {
+            $ts = $row->created_at ?? null;
+            if ($ts instanceof Carbon) {
+                return $ts->timestamp;
+            }
+            if ($ts) {
+                return Carbon::parse($ts)->timestamp;
+            }
+
+            return 0;
+        })->values();
+
+        $total = $sorted->count();
+        $page = max((int) $request->input('page', 1), 1);
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $lastPage);
+        $slice = $sorted->slice(($page - 1) * $perPage, $perPage)->values();
+
+        $data = $slice->map(function ($row) {
+            if ($row instanceof AuditTrail) {
+                return $this->serializeLegacyRow($row);
+            }
+
+            return [
+                'audit_id' => $row->audit_id,
+                'user_id' => null,
+                'action' => 'unauthorized_access',
+                'table_name' => 'security',
+                'record_id' => null,
+                'old_values' => null,
+                'new_values' => [
+                    'attempt_type' => 'unrecognized_account',
+                    'reason' => 'Unrecognized account attempted to access the system.',
+                    'attempted_email' => 'unknown',
+                ],
+                'ip_address' => $row->ip_address,
+                'user_agent' => $row->user_agent,
+                'created_at' => $row->created_at instanceof Carbon
+                    ? $row->created_at->toIso8601String()
+                    : ($row->created_at ? Carbon::parse($row->created_at)->toIso8601String() : null),
+                'updated_at' => $row->updated_at instanceof Carbon
+                    ? $row->updated_at->toIso8601String()
+                    : ($row->updated_at ? Carbon::parse($row->updated_at)->toIso8601String() : null),
+                'user' => null,
+            ];
+        });
+
+        return response()->json([
+            'current_page' => $page,
+            'data' => $data,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => $lastPage,
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function serializeLegacyRow(AuditTrail $row): array
+    {
+        $newValues = $row->new_values;
+        if ($row->action === 'unauthorized_access') {
+            $newValues = [
+                'attempt_type' => 'unrecognized_account',
+                'reason' => 'Unrecognized account attempted to access the system.',
+                'attempted_email' => 'unknown',
+            ];
+        }
+
+        return [
+            'audit_id' => $row->audit_id,
+            'user_id' => $row->action === 'unauthorized_access' ? null : $row->user_id,
+            'action' => $row->action,
+            'table_name' => $row->table_name,
+            'record_id' => $row->action === 'unauthorized_access' ? null : $row->record_id,
+            'old_values' => $row->old_values,
+            'new_values' => $newValues,
+            'ip_address' => $row->ip_address,
+            'user_agent' => $row->user_agent,
+            'created_at' => $row->created_at?->toIso8601String(),
+            'updated_at' => $row->updated_at?->toIso8601String(),
+            'user' => $row->action === 'unauthorized_access' ? null : $row->user,
+        ];
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -230,6 +386,10 @@ class AuditTrailController extends Controller
 
         if ($action === 'login')  return 'User signed in';
         if ($action === 'logout') return 'User signed out';
+
+        if ($action === 'unauthorized_access') {
+            return 'Unrecognized account attempted to access the system.';
+        }
 
         return \ucwords(\str_replace('_', ' ', $action));
     }
