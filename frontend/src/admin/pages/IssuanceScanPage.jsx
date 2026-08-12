@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -40,6 +40,7 @@ const fmtDate = (d) => {
 };
 
 export default function IssuanceScanPage() {
+  const navigate = useNavigate();
   const { user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName, locationType, isStrictLocation, allowedLocations } = useUserLocation();
 
@@ -385,9 +386,21 @@ export default function IssuanceScanPage() {
               <h1 className="ak-title">Issuance Order</h1>
               <p className="ak-sub">Build the order, confirm the quote, then pick with FIFO enforcement.</p>
             </div>
-            {issuanceId && (
-              <button type="button" className="isp-btn-secondary" onClick={async () => { await revertIfAbandoned(); resetAll(); }}>New Order</button>
-            )}
+            <div className="ak-actions">
+              <button
+                type="button"
+                className="ak-btn ak-btn--ghost"
+                onClick={async () => {
+                  await revertIfAbandoned();
+                  navigate('/admin/inventory-operation');
+                }}
+              >
+                ← Back
+              </button>
+              {issuanceId && (
+                <button type="button" className="isp-btn-secondary" onClick={async () => { await revertIfAbandoned(); resetAll(); }}>New Order</button>
+              )}
+            </div>
           </div>
         </header>
 

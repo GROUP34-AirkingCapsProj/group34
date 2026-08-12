@@ -165,8 +165,9 @@ export default function SetBuilderModal({ isOpen, onClose, initialSet, brands, o
 
   const lineTotal = (line) => {
     const p = productById.get(line.product_id);
-    const price = Number(p?.unit_price ?? line._unit_price ?? 0);
-    return price * lineTotalPieces(line);
+    const packagePrice = Number(p?.unit_price ?? line._unit_price ?? 0);
+    const piecesPerPackage = Math.max(1, pppFor(line));
+    return (packagePrice / piecesPerPackage) * lineTotalPieces(line);
   };
 
   const runningTotal = useMemo(

@@ -749,6 +749,36 @@ class InventoryScanTransactionController extends Controller
             ['barcode' => $barcode, 'location_id' => $locationId],
             0, null, ['stock_on_hand' => $stock]);
 
+        $serial = ItemSerial::query()
+            ->with(['location', 'status', 'receiving', 'scannedBy'])
+            ->where('product_id', $product->product_id)
+            ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($barcode))])
+            ->first();
+
+        $history = InventoryScanEvent::query()
+            ->with(['user', 'location', 'toLocation', 'purchaseOrder'])
+            ->where('product_id', $product->product_id)
+            ->where('action', 'applied')
+            ->forUser($request->user())
+            ->when($serial, function ($query) use ($barcode) {
+                $normalized = strtolower(trim($barcode));
+                $query->where(function ($q) use ($normalized) {
+                    $q->whereRaw('LOWER(TRIM(barcode)) = ?', [$normalized])
+                      ->orWhereRaw("LOWER(TRIM(COALESCE(serial_number, ''))) = ?", [$normalized]);
+                });
+            })
+            ->latest('created_at')
+            ->limit(50)
+            ->get();
+
+        $inventoryRows = collect($this->inventoryRowsForProduct((int) $product->product_id));
+        $totalOnHand = $inventoryRows->sum(
+            fn ($row) => (int) ($row->quantity_on_hand ?? 0)
+        );
+        $totalAvailable = $inventoryRows->sum(
+            fn ($row) => (int) ($row->available_quantity ?? $row->quantity_on_hand ?? 0)
+        );
+
         $fresh = $product->fresh()->load([
             'category',
             'status',
@@ -759,12 +789,20 @@ class InventoryScanTransactionController extends Controller
         return $this->success([
             'action' => 'applied',
             'product' => $fresh,
-            'inventory' => $this->inventoryRowsForProduct((int) $product->product_id),
+            'inventory' => $inventoryRows->values()->all(),
             'warnings' => [],
             'audit' => [
                 'location_id'   => $locationId ?: null,
                 'location_name' => $locationName,
                 'stock_on_hand' => $stock,
+                'current_stock' => $stock,
+                'total_on_hand' => $totalOnHand,
+                'total_available' => $totalAvailable,
+                'inventory_locations' => $inventoryRows->count(),
+                'matched_by' => $serial ? 'serial_number' : 'product_barcode',
+                'serial' => $serial,
+                'history_scope' => $serial ? 'serial' : 'product',
+                'history' => $history,
             ],
         ], 'Audit logged');
     }

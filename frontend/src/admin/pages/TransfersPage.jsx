@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
@@ -37,6 +38,7 @@ const fmtDate = (v) => {
 };
 
 const TransfersPage = () => {
+  const navigate = useNavigate();
   const { user, can } = useAuth();
   const roleKey = getRoleKey(user);
   const isAdmin = roleKey === ROLES.ADMIN;
@@ -244,7 +246,12 @@ const TransfersPage = () => {
               <p className="ak-sub">Request, verify, dispatch, and receive stock movements across locations — one worklist for the whole flow.</p>
             </div>
             <div className="ak-header-aside">
-              <button type="button" className="ak-btn ak-btn--primary" onClick={() => setShowNew(true)}>+ New Request</button>
+              <div className="ak-actions">
+                <button type="button" className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/inventory-operation')}>
+                  ← Back
+                </button>
+                <button type="button" className="ak-btn ak-btn--primary" onClick={() => setShowNew(true)}>+ New Request</button>
+              </div>
             </div>
           </div>
         </header>

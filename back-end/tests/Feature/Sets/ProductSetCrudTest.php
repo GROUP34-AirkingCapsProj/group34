@@ -51,6 +51,29 @@ class ProductSetCrudTest extends SetTestCase
         $this->assertEqualsWithDelta(300.0, (float) $res->json('data.set_price'), 0.001);
     }
 
+    public function test_packaged_material_set_price_counts_the_package_price_only_once(): void
+    {
+        $loc = $this->makeLocation();
+        $admin = $this->makeUserAt($loc, 'admin');
+        $product = $this->makeConsumable(price: 500, cost: 500);
+        $product->consumableDetail()->create([
+            'pieces_per_package' => 50,
+            'package_unit' => 'box',
+        ]);
+
+        $res = $this->actingAs($admin, 'sanctum')->postJson('/api/product-sets', [
+            'brand_ids' => $this->brandIds(1),
+            'lines' => [[
+                'product_id' => $product->product_id,
+                'quantity' => 50,
+            ]],
+        ]);
+
+        $res->assertCreated();
+        $this->assertEqualsWithDelta(500.0, (float) $res->json('data.set_price'), 0.001);
+        $this->assertEqualsWithDelta(500.0, (float) $res->json('data.lines.0.line_total'), 0.001);
+    }
+
     public function test_warehouse_personnel_cannot_create_a_set(): void
     {
         $loc  = $this->makeLocation();

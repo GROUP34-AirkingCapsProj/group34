@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 27, 2026 at 02:54 PM
+-- Generation Time: Aug 02, 2026 at 11:50 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.30
 
@@ -355,7 +355,382 @@ CREATE TABLE `audit_trail` (
 --
 
 INSERT INTO `audit_trail` (`audit_id`, `user_id`, `action`, `table_name`, `record_id`, `old_values`, `new_values`, `ip_address`, `user_agent`, `created_at`, `updated_at`) VALUES
-(2763, 2, 'logout', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-27 04:54:39', '2026-07-27 04:54:39');
+(2779, 2, 'login', NULL, NULL, NULL, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-29 01:09:59', '2026-07-29 01:09:59'),
+(2780, 2, 'login', NULL, NULL, NULL, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-29 03:08:27', '2026-07-29 03:08:27'),
+(2781, 6, 'login', NULL, NULL, NULL, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:13:30', '2026-07-29 03:13:30'),
+(2782, 3, 'login', NULL, NULL, NULL, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:21:03', '2026-07-29 03:21:03'),
+(2783, 6, 'logout', NULL, NULL, NULL, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:43:35', '2026-07-29 03:43:35'),
+(2784, 3, 'logout', NULL, NULL, NULL, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:59:45', '2026-07-29 03:59:45'),
+(2785, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-30 05:22:39', '2026-07-30 05:22:39'),
+(2786, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-30 07:45:37', '2026-07-30 07:45:37'),
+(2787, 2, 'logout', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-30 10:13:14', '2026-07-30 10:13:14'),
+(2788, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-30 21:41:39', '2026-07-30 21:41:39'),
+(2789, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-31 09:26:17', '2026-07-31 09:26:17'),
+(2790, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-31 18:47:22', '2026-07-31 18:47:22'),
+(2791, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 10:48:52', '2026-08-01 10:48:52'),
+(2792, 2, 'create', 'products', 346, NULL, '{\"product_code\":\"PROD-0C622990\",\"product_name\":\"Roll\",\"product_type\":\"installation_material\",\"description\":null,\"barcode\":\"2104352307539\",\"category_id\":\"Copper Tube\",\"unit_price\":9000,\"cost_price\":5000,\"recommended_stocks\":688,\"safety_stock\":45,\"max_stock_level\":6000,\"status_id\":null,\"product_id\":\"Roll\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 10:54:46', '2026-08-01 10:54:46'),
+(2793, 2, 'create', 'installation_material_details', 133, NULL, '{\"product_id\":\"Roll\",\"unit_id\":\"3\\/8 Roll\",\"pieces_per_package\":20,\"package_unit\":\"box\",\"is_serialized\":0,\"warranty_value\":10,\"warranty_unit\":\"month\",\"consumable_detail_id\":133}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 10:54:46', '2026-08-01 10:54:46'),
+(2794, 2, 'create', 'products', 347, NULL, '{\"product_code\":\"PROD-514E334D\",\"product_name\":\"Roll\",\"product_type\":\"installation_material\",\"description\":null,\"barcode\":\"2104352307539\",\"category_id\":\"Copper Tube\",\"unit_price\":9000,\"cost_price\":5000,\"recommended_stocks\":688,\"safety_stock\":45,\"max_stock_level\":6000,\"status_id\":null,\"product_id\":\"Roll\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 10:54:59', '2026-08-01 10:54:59'),
+(2795, 2, 'create', 'installation_material_details', 134, NULL, '{\"product_id\":\"Roll\",\"unit_id\":\"3\\/8 Roll\",\"pieces_per_package\":20,\"package_unit\":\"box\",\"is_serialized\":0,\"warranty_value\":10,\"warranty_unit\":\"month\",\"consumable_detail_id\":134}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 10:54:59', '2026-08-01 10:54:59'),
+(2796, 2, 'create', 'issuances', 154, NULL, '{\"location_id\":\"CDO Warehouse A\",\"customer_id\":\"Abc\",\"issuance_date\":\"2026-08-01\",\"issuance_type\":\"individual\",\"dr_number\":\"DR-20260801-3178F\",\"external_reference\":null,\"discount_type\":\"none\",\"discount_percent\":0,\"subtotal\":0,\"discount_amount\":0,\"total_amount\":0,\"notes\":null,\"issued_by\":\"Marichu Contado\",\"status_id\":\"Draft\",\"issuance_id\":\"Issuance #154\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 11:53:24', '2026-08-01 11:53:24'),
+(2797, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 21:03:36', '2026-08-01 21:03:36'),
+(2798, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 23:07:42', '2026-08-01 23:07:42'),
+(2799, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 02:31:57', '2026-08-02 02:31:57'),
+(2800, 2, 'logout', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 03:57:17', '2026-08-02 03:57:17'),
+(2801, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 06:19:55', '2026-08-02 06:19:55'),
+(2802, 10, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-02 06:36:56', '2026-08-02 06:36:56'),
+(2803, 10, 'logout', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-02 07:08:50', '2026-08-02 07:08:50'),
+(2804, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 09:35:18', '2026-08-02 09:35:18'),
+(2805, 2, 'create', 'product_sets', 3, NULL, '{\"capacity_rating\":\"1.5HP\",\"variant\":\"inverter\",\"is_active\":true,\"created_by\":\"Marichu Contado\",\"updated_by\":2,\"set_id\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:18:24', '2026-08-02 10:18:24'),
+(2806, 7, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-02 10:54:58', '2026-08-02 10:54:58'),
+(2807, 2, 'update', 'products', 191, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":12,\"safety_stock\":10,\"max_stock_level\":18}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2808, 2, 'update', 'products', 192, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":3,\"safety_stock\":1,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2809, 2, 'update', 'products', 193, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2810, 2, 'update', 'products', 194, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2811, 2, 'update', 'products', 195, '{\"recommended_stocks\":5,\"max_stock_level\":13}', '{\"recommended_stocks\":3,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2812, 2, 'update', 'products', 196, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2813, 2, 'update', 'products', 197, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":85,\"safety_stock\":44,\"max_stock_level\":218}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2814, 2, 'update', 'products', 198, '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":15}', '{\"recommended_stocks\":70,\"safety_stock\":36,\"max_stock_level\":180}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2815, 2, 'update', 'products', 199, '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":15}', '{\"recommended_stocks\":17,\"safety_stock\":9,\"max_stock_level\":41}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2816, 2, 'update', 'products', 200, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":17,\"safety_stock\":9,\"max_stock_level\":41}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:05', '2026-08-02 10:56:05'),
+(2817, 2, 'update', 'products', 201, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":18,\"safety_stock\":10,\"max_stock_level\":42}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2818, 2, 'update', 'products', 202, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2819, 2, 'update', 'products', 203, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2820, 2, 'update', 'products', 204, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2821, 2, 'update', 'products', 205, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2822, 2, 'update', 'products', 206, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":12}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2823, 2, 'update', 'products', 207, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":77,\"safety_stock\":37,\"max_stock_level\":208}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2824, 2, 'update', 'products', 208, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":77,\"safety_stock\":42,\"max_stock_level\":188}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2825, 2, 'update', 'products', 209, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":20,\"safety_stock\":10,\"max_stock_level\":50}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2826, 2, 'update', 'products', 210, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":18,\"safety_stock\":10,\"max_stock_level\":42}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2827, 2, 'update', 'products', 211, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":11,\"safety_stock\":8,\"max_stock_level\":19}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2828, 2, 'update', 'products', 212, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2829, 2, 'update', 'products', 213, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2830, 2, 'update', 'products', 214, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2831, 2, 'update', 'products', 215, '{\"recommended_stocks\":134,\"safety_stock\":47,\"max_stock_level\":335}', '{\"recommended_stocks\":67,\"safety_stock\":23,\"max_stock_level\":167}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2832, 2, 'update', 'products', 216, '{\"recommended_stocks\":170,\"safety_stock\":60,\"max_stock_level\":425}', '{\"recommended_stocks\":85,\"safety_stock\":30,\"max_stock_level\":212}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2833, 2, 'update', 'products', 217, '{\"recommended_stocks\":32,\"safety_stock\":11,\"max_stock_level\":80}', '{\"recommended_stocks\":57,\"safety_stock\":38,\"max_stock_level\":119}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2834, 2, 'update', 'products', 218, '{\"recommended_stocks\":111,\"safety_stock\":39,\"max_stock_level\":278}', '{\"recommended_stocks\":83,\"safety_stock\":34,\"max_stock_level\":244}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:06', '2026-08-02 10:56:06'),
+(2835, 2, 'update', 'products', 219, '{\"recommended_stocks\":165,\"safety_stock\":58,\"max_stock_level\":413}', '{\"recommended_stocks\":16,\"safety_stock\":8,\"max_stock_level\":40}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2836, 2, 'update', 'products', 220, '{\"recommended_stocks\":146,\"safety_stock\":51,\"max_stock_level\":365}', '{\"recommended_stocks\":15,\"safety_stock\":9,\"max_stock_level\":34}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2837, 2, 'update', 'products', 221, '{\"recommended_stocks\":105,\"safety_stock\":37,\"max_stock_level\":263}', '{\"recommended_stocks\":18,\"safety_stock\":10,\"max_stock_level\":43}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2838, 2, 'update', 'products', 222, '{\"recommended_stocks\":67,\"safety_stock\":23,\"max_stock_level\":168}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2839, 2, 'update', 'products', 223, '{\"recommended_stocks\":176,\"safety_stock\":62,\"max_stock_level\":440}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2840, 2, 'update', 'products', 224, '{\"recommended_stocks\":184,\"safety_stock\":64,\"max_stock_level\":460}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2841, 2, 'update', 'products', 225, '{\"recommended_stocks\":79,\"safety_stock\":28,\"max_stock_level\":198}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2842, 2, 'update', 'products', 226, '{\"recommended_stocks\":120,\"safety_stock\":42,\"max_stock_level\":300}', '{\"recommended_stocks\":60,\"safety_stock\":21,\"max_stock_level\":150}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2843, 2, 'update', 'products', 227, '{\"recommended_stocks\":141,\"safety_stock\":49,\"max_stock_level\":353}', '{\"recommended_stocks\":85,\"safety_stock\":39,\"max_stock_level\":234}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2844, 2, 'update', 'products', 228, '{\"recommended_stocks\":59,\"safety_stock\":21,\"max_stock_level\":148}', '{\"recommended_stocks\":85,\"safety_stock\":38,\"max_stock_level\":239}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2845, 2, 'update', 'products', 229, '{\"recommended_stocks\":124,\"safety_stock\":43,\"max_stock_level\":310}', '{\"recommended_stocks\":16,\"safety_stock\":10,\"max_stock_level\":35}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2846, 2, 'update', 'products', 230, '{\"recommended_stocks\":192,\"safety_stock\":67,\"max_stock_level\":480}', '{\"recommended_stocks\":14,\"safety_stock\":9,\"max_stock_level\":30}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2847, 2, 'update', 'products', 231, '{\"recommended_stocks\":75,\"safety_stock\":26,\"max_stock_level\":188}', '{\"recommended_stocks\":12,\"safety_stock\":8,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2848, 2, 'update', 'products', 232, '{\"recommended_stocks\":67,\"safety_stock\":23,\"max_stock_level\":168}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2849, 2, 'update', 'products', 233, '{\"recommended_stocks\":166,\"safety_stock\":58,\"max_stock_level\":415}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2850, 2, 'update', 'products', 234, '{\"recommended_stocks\":158,\"safety_stock\":55,\"max_stock_level\":395}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2851, 2, 'update', 'products', 235, '{\"recommended_stocks\":63,\"safety_stock\":22,\"max_stock_level\":158}', '{\"recommended_stocks\":2,\"safety_stock\":2,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2852, 2, 'update', 'products', 236, '{\"recommended_stocks\":84,\"safety_stock\":29,\"max_stock_level\":210}', '{\"recommended_stocks\":42,\"safety_stock\":14,\"max_stock_level\":105}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2853, 2, 'update', 'products', 237, '{\"recommended_stocks\":181,\"safety_stock\":63,\"max_stock_level\":453}', '{\"recommended_stocks\":109,\"safety_stock\":39,\"max_stock_level\":336}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:07', '2026-08-02 10:56:07'),
+(2854, 2, 'update', 'products', 238, '{\"recommended_stocks\":163,\"safety_stock\":57,\"max_stock_level\":408}', '{\"recommended_stocks\":71,\"safety_stock\":36,\"max_stock_level\":184}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2855, 2, 'update', 'products', 239, '{\"recommended_stocks\":87,\"safety_stock\":30,\"max_stock_level\":218}', '{\"recommended_stocks\":16,\"safety_stock\":9,\"max_stock_level\":37}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2856, 2, 'update', 'products', 240, '{\"recommended_stocks\":76,\"safety_stock\":27,\"max_stock_level\":190}', '{\"recommended_stocks\":15,\"safety_stock\":9,\"max_stock_level\":34}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2857, 2, 'update', 'products', 241, '{\"recommended_stocks\":71,\"safety_stock\":25,\"max_stock_level\":178}', '{\"recommended_stocks\":14,\"safety_stock\":9,\"max_stock_level\":30}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2858, 2, 'update', 'products', 242, '{\"recommended_stocks\":37,\"safety_stock\":13,\"max_stock_level\":93}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2859, 2, 'update', 'products', 243, '{\"recommended_stocks\":108,\"safety_stock\":38,\"max_stock_level\":270}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2860, 2, 'update', 'products', 244, '{\"recommended_stocks\":56,\"safety_stock\":20,\"max_stock_level\":140}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2861, 2, 'update', 'products', 245, '{\"recommended_stocks\":45,\"safety_stock\":16,\"max_stock_level\":113}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2862, 2, 'update', 'products', 246, '{\"recommended_stocks\":60,\"safety_stock\":21,\"max_stock_level\":150}', '{\"recommended_stocks\":30,\"safety_stock\":10,\"max_stock_level\":75}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2863, 2, 'update', 'products', 247, '{\"recommended_stocks\":117,\"safety_stock\":41,\"max_stock_level\":293}', '{\"recommended_stocks\":64,\"safety_stock\":29,\"max_stock_level\":178}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2864, 2, 'update', 'products', 248, '{\"recommended_stocks\":137,\"safety_stock\":48,\"max_stock_level\":343}', '{\"recommended_stocks\":76,\"safety_stock\":36,\"max_stock_level\":207}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2865, 2, 'update', 'products', 249, '{\"recommended_stocks\":164,\"safety_stock\":57,\"max_stock_level\":410}', '{\"recommended_stocks\":13,\"safety_stock\":9,\"max_stock_level\":23}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2866, 2, 'update', 'products', 250, '{\"recommended_stocks\":157,\"safety_stock\":55,\"max_stock_level\":393}', '{\"recommended_stocks\":9,\"safety_stock\":7,\"max_stock_level\":15}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2867, 2, 'update', 'products', 251, '{\"recommended_stocks\":181,\"safety_stock\":63,\"max_stock_level\":453}', '{\"recommended_stocks\":18,\"safety_stock\":12,\"max_stock_level\":37}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2868, 2, 'update', 'products', 252, '{\"recommended_stocks\":171,\"safety_stock\":60,\"max_stock_level\":428}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2869, 2, 'update', 'products', 253, '{\"recommended_stocks\":127,\"safety_stock\":44,\"max_stock_level\":318}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2870, 2, 'update', 'products', 254, '{\"recommended_stocks\":123,\"safety_stock\":43,\"max_stock_level\":308}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2871, 2, 'update', 'products', 255, '{\"recommended_stocks\":56,\"safety_stock\":20,\"max_stock_level\":140}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:08', '2026-08-02 10:56:08'),
+(2872, 2, 'update', 'products', 256, '{\"recommended_stocks\":144,\"safety_stock\":50,\"max_stock_level\":360}', '{\"recommended_stocks\":72,\"safety_stock\":25,\"max_stock_level\":180}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2873, 2, 'update', 'products', 257, '{\"recommended_stocks\":172,\"safety_stock\":60,\"max_stock_level\":430}', '{\"recommended_stocks\":75,\"safety_stock\":35,\"max_stock_level\":205}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2874, 2, 'update', 'products', 258, '{\"recommended_stocks\":159,\"safety_stock\":56,\"max_stock_level\":398}', '{\"recommended_stocks\":65,\"safety_stock\":28,\"max_stock_level\":185}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2875, 2, 'update', 'products', 259, '{\"recommended_stocks\":111,\"safety_stock\":39,\"max_stock_level\":278}', '{\"recommended_stocks\":16,\"safety_stock\":9,\"max_stock_level\":37}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2876, 2, 'update', 'products', 260, '{\"recommended_stocks\":168,\"safety_stock\":59,\"max_stock_level\":420}', '{\"recommended_stocks\":20,\"safety_stock\":10,\"max_stock_level\":50}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2877, 2, 'update', 'products', 261, '{\"recommended_stocks\":33,\"safety_stock\":12,\"max_stock_level\":83}', '{\"recommended_stocks\":15,\"safety_stock\":9,\"max_stock_level\":33}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2878, 2, 'update', 'products', 262, '{\"recommended_stocks\":174,\"safety_stock\":61,\"max_stock_level\":435}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2879, 2, 'update', 'products', 7, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":null}', '{\"recommended_stocks\":93,\"safety_stock\":36,\"max_stock_level\":279}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2880, 2, 'update', 'products', 263, '{\"recommended_stocks\":185,\"safety_stock\":65,\"max_stock_level\":463}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2881, 2, 'update', 'products', 8, '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":null}', '{\"recommended_stocks\":59,\"safety_stock\":31,\"max_stock_level\":150}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2882, 2, 'update', 'products', 264, '{\"recommended_stocks\":176,\"safety_stock\":62,\"max_stock_level\":440}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2883, 2, 'update', 'products', 9, '{\"safety_stock\":2,\"max_stock_level\":null}', '{\"safety_stock\":6,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2884, 2, 'update', 'products', 265, '{\"recommended_stocks\":54,\"safety_stock\":19,\"max_stock_level\":135}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2885, 2, 'update', 'products', 10, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":null}', '{\"recommended_stocks\":21,\"safety_stock\":11,\"max_stock_level\":52}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2886, 2, 'update', 'products', 266, '{\"recommended_stocks\":65,\"safety_stock\":23,\"max_stock_level\":163}', '{\"recommended_stocks\":32,\"safety_stock\":11,\"max_stock_level\":81}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2887, 2, 'update', 'products', 11, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":null}', '{\"recommended_stocks\":14,\"safety_stock\":9,\"max_stock_level\":28}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2888, 2, 'update', 'products', 267, '{\"recommended_stocks\":81,\"safety_stock\":28,\"max_stock_level\":203}', '{\"recommended_stocks\":62,\"safety_stock\":29,\"max_stock_level\":168}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:09', '2026-08-02 10:56:09'),
+(2889, 2, 'update', 'products', 12, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2890, 2, 'update', 'products', 268, '{\"recommended_stocks\":198,\"safety_stock\":69,\"max_stock_level\":495}', '{\"recommended_stocks\":71,\"safety_stock\":39,\"max_stock_level\":176}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2891, 2, 'update', 'products', 13, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":5,\"safety_stock\":3,\"max_stock_level\":8}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2892, 2, 'update', 'products', 269, '{\"recommended_stocks\":161,\"safety_stock\":56,\"max_stock_level\":403}', '{\"recommended_stocks\":17,\"safety_stock\":9,\"max_stock_level\":41}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2893, 2, 'update', 'products', 14, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":4,\"safety_stock\":2,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2894, 2, 'update', 'products', 270, '{\"recommended_stocks\":151,\"safety_stock\":53,\"max_stock_level\":378}', '{\"recommended_stocks\":13,\"safety_stock\":9,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2895, 2, 'update', 'products', 15, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2896, 2, 'update', 'products', 271, '{\"recommended_stocks\":200,\"safety_stock\":70,\"max_stock_level\":500}', '{\"recommended_stocks\":14,\"safety_stock\":10,\"max_stock_level\":23}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2897, 2, 'update', 'products', 16, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":14}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2898, 2, 'update', 'products', 272, '{\"recommended_stocks\":77,\"safety_stock\":27,\"max_stock_level\":193}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2899, 2, 'update', 'products', 17, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":72,\"safety_stock\":35,\"max_stock_level\":193}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2900, 2, 'update', 'products', 273, '{\"recommended_stocks\":159,\"safety_stock\":56,\"max_stock_level\":398}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2901, 2, 'update', 'products', 18, '{\"recommended_stocks\":12,\"safety_stock\":4,\"max_stock_level\":30}', '{\"recommended_stocks\":91,\"safety_stock\":37,\"max_stock_level\":265}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2902, 2, 'update', 'products', 274, '{\"recommended_stocks\":112,\"safety_stock\":39,\"max_stock_level\":280}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2903, 2, 'update', 'products', 19, '{\"recommended_stocks\":12,\"safety_stock\":4,\"max_stock_level\":30}', '{\"recommended_stocks\":18,\"safety_stock\":8,\"max_stock_level\":47}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2904, 2, 'update', 'products', 275, '{\"recommended_stocks\":90,\"safety_stock\":32,\"max_stock_level\":225}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2905, 2, 'update', 'products', 20, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":16,\"safety_stock\":11,\"max_stock_level\":31}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:10', '2026-08-02 10:56:10'),
+(2906, 2, 'update', 'products', 276, '{\"recommended_stocks\":120,\"safety_stock\":42,\"max_stock_level\":300}', '{\"recommended_stocks\":60,\"safety_stock\":21,\"max_stock_level\":150}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2907, 2, 'update', 'products', 21, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":18,\"safety_stock\":10,\"max_stock_level\":42}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2908, 2, 'update', 'products', 277, '{\"recommended_stocks\":123,\"safety_stock\":43,\"max_stock_level\":308}', '{\"recommended_stocks\":90,\"safety_stock\":40,\"max_stock_level\":251}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2909, 2, 'update', 'products', 22, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2910, 2, 'update', 'products', 278, '{\"recommended_stocks\":184,\"safety_stock\":64,\"max_stock_level\":460}', '{\"recommended_stocks\":61,\"safety_stock\":31,\"max_stock_level\":158}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2911, 2, 'update', 'products', 23, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2912, 2, 'update', 'products', 279, '{\"recommended_stocks\":95,\"safety_stock\":33,\"max_stock_level\":238}', '{\"recommended_stocks\":12,\"safety_stock\":7,\"max_stock_level\":26}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2913, 2, 'update', 'products', 24, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2914, 2, 'update', 'products', 280, '{\"recommended_stocks\":92,\"safety_stock\":32,\"max_stock_level\":230}', '{\"recommended_stocks\":16,\"safety_stock\":8,\"max_stock_level\":42}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2915, 2, 'update', 'products', 25, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":2,\"safety_stock\":2,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2916, 2, 'update', 'products', 281, '{\"recommended_stocks\":178,\"safety_stock\":62,\"max_stock_level\":445}', '{\"recommended_stocks\":12,\"safety_stock\":9,\"max_stock_level\":21}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11');
+INSERT INTO `audit_trail` (`audit_id`, `user_id`, `action`, `table_name`, `record_id`, `old_values`, `new_values`, `ip_address`, `user_agent`, `created_at`, `updated_at`) VALUES
+(2917, 2, 'update', 'products', 26, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":16}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2918, 2, 'update', 'products', 282, '{\"recommended_stocks\":148,\"safety_stock\":52,\"max_stock_level\":370}', '{\"recommended_stocks\":4,\"safety_stock\":2,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2919, 2, 'update', 'products', 27, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":86,\"safety_stock\":40,\"max_stock_level\":235}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2920, 2, 'update', 'products', 283, '{\"recommended_stocks\":152,\"safety_stock\":53,\"max_stock_level\":380}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2921, 2, 'update', 'products', 28, '{\"recommended_stocks\":14,\"safety_stock\":5,\"max_stock_level\":35}', '{\"recommended_stocks\":65,\"safety_stock\":33,\"max_stock_level\":170}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2922, 2, 'update', 'products', 284, '{\"recommended_stocks\":200,\"safety_stock\":70,\"max_stock_level\":500}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:11', '2026-08-02 10:56:11'),
+(2923, 2, 'update', 'products', 29, '{\"recommended_stocks\":14,\"safety_stock\":5,\"max_stock_level\":35}', '{\"recommended_stocks\":10,\"safety_stock\":7,\"max_stock_level\":17}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2924, 2, 'update', 'products', 285, '{\"recommended_stocks\":184,\"safety_stock\":64,\"max_stock_level\":460}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2925, 2, 'update', 'products', 30, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":22,\"safety_stock\":11,\"max_stock_level\":54}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2926, 2, 'update', 'products', 286, '{\"recommended_stocks\":46,\"safety_stock\":16,\"max_stock_level\":115}', '{\"recommended_stocks\":23,\"safety_stock\":8,\"max_stock_level\":57}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2927, 2, 'update', 'products', 31, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":12,\"safety_stock\":9,\"max_stock_level\":18}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2928, 2, 'update', 'products', 287, '{\"recommended_stocks\":127,\"safety_stock\":44,\"max_stock_level\":318}', '{\"recommended_stocks\":67,\"safety_stock\":34,\"max_stock_level\":173}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2929, 2, 'update', 'products', 32, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2930, 2, 'update', 'products', 288, '{\"recommended_stocks\":148,\"safety_stock\":52,\"max_stock_level\":370}', '{\"recommended_stocks\":85,\"safety_stock\":43,\"max_stock_level\":222}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2931, 2, 'update', 'products', 33, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2932, 2, 'update', 'products', 289, '{\"recommended_stocks\":151,\"safety_stock\":53,\"max_stock_level\":378}', '{\"recommended_stocks\":14,\"safety_stock\":10,\"max_stock_level\":24}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2933, 2, 'update', 'products', 34, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2934, 2, 'update', 'products', 290, '{\"recommended_stocks\":160,\"safety_stock\":56,\"max_stock_level\":400}', '{\"recommended_stocks\":12,\"safety_stock\":7,\"max_stock_level\":25}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2935, 2, 'update', 'products', 35, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2936, 2, 'update', 'products', 291, '{\"recommended_stocks\":39,\"safety_stock\":14,\"max_stock_level\":98}', '{\"recommended_stocks\":11,\"safety_stock\":7,\"max_stock_level\":20}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2937, 2, 'update', 'products', 36, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2938, 2, 'update', 'products', 292, '{\"recommended_stocks\":129,\"safety_stock\":45,\"max_stock_level\":323}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2939, 2, 'update', 'products', 37, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":97,\"safety_stock\":42,\"max_stock_level\":274}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2940, 2, 'update', 'products', 293, '{\"recommended_stocks\":82,\"safety_stock\":29,\"max_stock_level\":205}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2941, 2, 'update', 'products', 38, '{\"recommended_stocks\":17,\"safety_stock\":6,\"max_stock_level\":43}', '{\"recommended_stocks\":89,\"safety_stock\":43,\"max_stock_level\":237}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:12', '2026-08-02 10:56:12'),
+(2942, 2, 'update', 'products', 294, '{\"recommended_stocks\":50,\"safety_stock\":18,\"max_stock_level\":125}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2943, 2, 'update', 'products', 39, '{\"recommended_stocks\":17,\"safety_stock\":6,\"max_stock_level\":43}', '{\"recommended_stocks\":15,\"safety_stock\":9,\"max_stock_level\":31}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2944, 2, 'update', 'products', 295, '{\"recommended_stocks\":85,\"safety_stock\":30,\"max_stock_level\":213}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2945, 2, 'update', 'products', 40, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":16,\"safety_stock\":10,\"max_stock_level\":35}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2946, 2, 'update', 'products', 296, '{\"recommended_stocks\":179,\"safety_stock\":63,\"max_stock_level\":448}', '{\"recommended_stocks\":89,\"safety_stock\":31,\"max_stock_level\":224}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2947, 2, 'update', 'products', 41, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":12,\"safety_stock\":8,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2948, 2, 'update', 'products', 297, '{\"recommended_stocks\":125,\"safety_stock\":44,\"max_stock_level\":313}', '{\"recommended_stocks\":62,\"safety_stock\":36,\"max_stock_level\":145}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2949, 2, 'update', 'products', 42, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2950, 2, 'update', 'products', 298, '{\"recommended_stocks\":89,\"max_stock_level\":223}', '{\"recommended_stocks\":62,\"max_stock_level\":160}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2951, 2, 'update', 'products', 43, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2952, 2, 'update', 'products', 299, '{\"recommended_stocks\":166,\"safety_stock\":58,\"max_stock_level\":415}', '{\"recommended_stocks\":11,\"safety_stock\":7,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:13', '2026-08-02 10:56:13'),
+(2953, 2, 'update', 'products', 44, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2954, 2, 'update', 'products', 300, '{\"recommended_stocks\":92,\"safety_stock\":32,\"max_stock_level\":230}', '{\"recommended_stocks\":16,\"safety_stock\":10,\"max_stock_level\":34}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2955, 2, 'update', 'products', 45, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":4,\"safety_stock\":3,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2956, 2, 'update', 'products', 301, '{\"recommended_stocks\":97,\"safety_stock\":34,\"max_stock_level\":243}', '{\"recommended_stocks\":19,\"safety_stock\":10,\"max_stock_level\":45}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2957, 2, 'update', 'products', 46, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":12}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2958, 2, 'update', 'products', 302, '{\"recommended_stocks\":86,\"safety_stock\":30,\"max_stock_level\":215}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2959, 2, 'update', 'products', 47, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":76,\"safety_stock\":35,\"max_stock_level\":207}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2960, 2, 'update', 'products', 303, '{\"recommended_stocks\":186,\"safety_stock\":65,\"max_stock_level\":465}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2961, 2, 'update', 'products', 48, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":63,\"safety_stock\":31,\"max_stock_level\":165}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2962, 2, 'update', 'products', 304, '{\"recommended_stocks\":49,\"safety_stock\":17,\"max_stock_level\":122}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2963, 2, 'update', 'products', 49, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":20,\"safety_stock\":11,\"max_stock_level\":48}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2964, 2, 'update', 'products', 305, '{\"recommended_stocks\":173,\"safety_stock\":61,\"max_stock_level\":433}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2965, 2, 'update', 'products', 50, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":14,\"safety_stock\":10,\"max_stock_level\":25}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2966, 2, 'update', 'products', 306, '{\"recommended_stocks\":170,\"safety_stock\":60,\"max_stock_level\":425}', '{\"recommended_stocks\":85,\"safety_stock\":30,\"max_stock_level\":212}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2967, 2, 'update', 'products', 51, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":14,\"safety_stock\":8,\"max_stock_level\":32}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2968, 2, 'update', 'products', 307, '{\"recommended_stocks\":177,\"safety_stock\":62,\"max_stock_level\":443}', '{\"recommended_stocks\":65,\"safety_stock\":32,\"max_stock_level\":173}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2969, 2, 'update', 'products', 52, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2970, 2, 'update', 'products', 308, '{\"recommended_stocks\":78,\"safety_stock\":27,\"max_stock_level\":195}', '{\"recommended_stocks\":76,\"safety_stock\":38,\"max_stock_level\":199}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2971, 2, 'update', 'products', 53, '{\"safety_stock\":2,\"max_stock_level\":13}', '{\"safety_stock\":3,\"max_stock_level\":8}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2972, 2, 'update', 'products', 309, '{\"recommended_stocks\":51,\"safety_stock\":18,\"max_stock_level\":128}', '{\"recommended_stocks\":13,\"safety_stock\":9,\"max_stock_level\":26}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:14', '2026-08-02 10:56:14'),
+(2973, 2, 'update', 'products', 54, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2974, 2, 'update', 'products', 310, '{\"recommended_stocks\":93,\"safety_stock\":33,\"max_stock_level\":233}', '{\"recommended_stocks\":14,\"safety_stock\":10,\"max_stock_level\":23}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2975, 2, 'update', 'products', 55, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2976, 2, 'update', 'products', 311, '{\"recommended_stocks\":69,\"safety_stock\":24,\"max_stock_level\":173}', '{\"recommended_stocks\":13,\"safety_stock\":9,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2977, 2, 'update', 'products', 56, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2978, 2, 'update', 'products', 312, '{\"recommended_stocks\":39,\"safety_stock\":14,\"max_stock_level\":98}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2979, 2, 'update', 'products', 57, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":62,\"safety_stock\":30,\"max_stock_level\":167}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2980, 2, 'update', 'products', 313, '{\"recommended_stocks\":83,\"safety_stock\":29,\"max_stock_level\":208}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2981, 2, 'update', 'products', 58, '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":15}', '{\"recommended_stocks\":66,\"safety_stock\":27,\"max_stock_level\":192}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2982, 2, 'update', 'products', 314, '{\"recommended_stocks\":171,\"safety_stock\":60,\"max_stock_level\":428}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2983, 2, 'update', 'products', 59, '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":15}', '{\"recommended_stocks\":19,\"safety_stock\":10,\"max_stock_level\":48}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2984, 2, 'update', 'products', 315, '{\"recommended_stocks\":131,\"safety_stock\":46,\"max_stock_level\":328}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2985, 2, 'update', 'products', 60, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":18,\"safety_stock\":9,\"max_stock_level\":47}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2986, 2, 'update', 'products', 316, '{\"recommended_stocks\":159,\"safety_stock\":56,\"max_stock_level\":398}', '{\"recommended_stocks\":79,\"safety_stock\":28,\"max_stock_level\":199}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2987, 2, 'update', 'products', 61, '{\"recommended_stocks\":19,\"max_stock_level\":48}', '{\"recommended_stocks\":13,\"max_stock_level\":31}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:15', '2026-08-02 10:56:15'),
+(2988, 2, 'update', 'products', 317, '{\"recommended_stocks\":195,\"safety_stock\":68,\"max_stock_level\":488}', '{\"recommended_stocks\":55,\"safety_stock\":27,\"max_stock_level\":144}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2989, 2, 'update', 'products', 62, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":24}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2990, 2, 'update', 'products', 318, '{\"recommended_stocks\":130,\"safety_stock\":46,\"max_stock_level\":325}', '{\"recommended_stocks\":86,\"safety_stock\":35,\"max_stock_level\":250}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2991, 2, 'update', 'products', 63, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2992, 2, 'update', 'products', 319, '{\"recommended_stocks\":178,\"safety_stock\":62,\"max_stock_level\":445}', '{\"recommended_stocks\":16,\"safety_stock\":9,\"max_stock_level\":37}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2993, 2, 'update', 'products', 64, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2994, 2, 'update', 'products', 320, '{\"recommended_stocks\":90,\"safety_stock\":32,\"max_stock_level\":225}', '{\"recommended_stocks\":19,\"safety_stock\":10,\"max_stock_level\":45}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2995, 2, 'update', 'products', 65, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2996, 2, 'update', 'products', 321, '{\"recommended_stocks\":118,\"safety_stock\":41,\"max_stock_level\":295}', '{\"recommended_stocks\":16,\"safety_stock\":10,\"max_stock_level\":32}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:16', '2026-08-02 10:56:16'),
+(2997, 2, 'update', 'products', 66, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":24}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(2998, 2, 'update', 'products', 322, '{\"recommended_stocks\":71,\"safety_stock\":25,\"max_stock_level\":178}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(2999, 2, 'update', 'products', 67, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":85,\"safety_stock\":42,\"max_stock_level\":225}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3000, 2, 'update', 'products', 323, '{\"recommended_stocks\":124,\"safety_stock\":43,\"max_stock_level\":310}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3001, 2, 'update', 'products', 68, '{\"recommended_stocks\":20,\"safety_stock\":7,\"max_stock_level\":50}', '{\"recommended_stocks\":75,\"safety_stock\":35,\"max_stock_level\":205}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3002, 2, 'update', 'products', 324, '{\"recommended_stocks\":79,\"safety_stock\":28,\"max_stock_level\":198}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3003, 2, 'update', 'products', 69, '{\"recommended_stocks\":20,\"safety_stock\":7,\"max_stock_level\":50}', '{\"recommended_stocks\":12,\"safety_stock\":8,\"max_stock_level\":23}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3004, 2, 'update', 'products', 325, '{\"recommended_stocks\":30,\"safety_stock\":11,\"max_stock_level\":75}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3005, 2, 'update', 'products', 70, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":13,\"safety_stock\":7,\"max_stock_level\":30}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3006, 2, 'update', 'products', 326, '{\"recommended_stocks\":63,\"safety_stock\":22,\"max_stock_level\":158}', '{\"recommended_stocks\":31,\"safety_stock\":11,\"max_stock_level\":79}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:17', '2026-08-02 10:56:17'),
+(3007, 2, 'update', 'products', 71, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":15,\"safety_stock\":9,\"max_stock_level\":32}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3008, 2, 'update', 'products', 327, '{\"recommended_stocks\":47,\"safety_stock\":16,\"max_stock_level\":118}', '{\"recommended_stocks\":54,\"safety_stock\":31,\"max_stock_level\":127}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3009, 2, 'update', 'products', 72, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3010, 2, 'update', 'products', 328, '{\"recommended_stocks\":111,\"safety_stock\":39,\"max_stock_level\":278}', '{\"recommended_stocks\":67,\"safety_stock\":32,\"max_stock_level\":179}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3011, 2, 'update', 'products', 73, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3012, 2, 'update', 'products', 329, '{\"recommended_stocks\":41,\"safety_stock\":14,\"max_stock_level\":103}', '{\"recommended_stocks\":17,\"safety_stock\":9,\"max_stock_level\":42}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3013, 2, 'update', 'products', 74, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3014, 2, 'update', 'products', 330, '{\"recommended_stocks\":148,\"safety_stock\":52,\"max_stock_level\":370}', '{\"recommended_stocks\":21,\"safety_stock\":11,\"max_stock_level\":51}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3015, 2, 'update', 'products', 75, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3016, 2, 'update', 'products', 331, '{\"recommended_stocks\":163,\"safety_stock\":57,\"max_stock_level\":408}', '{\"recommended_stocks\":13,\"safety_stock\":8,\"max_stock_level\":26}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3017, 2, 'update', 'products', 76, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3018, 2, 'update', 'products', 332, '{\"recommended_stocks\":150,\"safety_stock\":53,\"max_stock_level\":375}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3019, 2, 'update', 'products', 77, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":76,\"safety_stock\":33,\"max_stock_level\":214}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3020, 2, 'update', 'products', 333, '{\"recommended_stocks\":132,\"safety_stock\":46,\"max_stock_level\":330}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3021, 2, 'update', 'products', 78, '{\"recommended_stocks\":15,\"safety_stock\":5,\"max_stock_level\":38}', '{\"recommended_stocks\":64,\"safety_stock\":34,\"max_stock_level\":160}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:18', '2026-08-02 10:56:18'),
+(3022, 2, 'update', 'products', 334, '{\"recommended_stocks\":177,\"safety_stock\":62,\"max_stock_level\":443}', '{\"recommended_stocks\":4,\"safety_stock\":3,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3023, 2, 'update', 'products', 79, '{\"recommended_stocks\":15,\"safety_stock\":5,\"max_stock_level\":38}', '{\"recommended_stocks\":14,\"safety_stock\":9,\"max_stock_level\":29}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3024, 2, 'update', 'products', 335, '{\"recommended_stocks\":199,\"safety_stock\":70,\"max_stock_level\":498}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3025, 2, 'update', 'products', 80, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":12,\"safety_stock\":8,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3026, 2, 'update', 'products', 336, '{\"recommended_stocks\":39,\"safety_stock\":14,\"max_stock_level\":98}', '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":49}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3027, 2, 'update', 'products', 81, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":12,\"safety_stock\":8,\"max_stock_level\":25}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3028, 2, 'update', 'products', 337, '{\"recommended_stocks\":36,\"safety_stock\":13,\"max_stock_level\":90}', '{\"recommended_stocks\":71,\"safety_stock\":34,\"max_stock_level\":192}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3029, 2, 'update', 'products', 82, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":4,\"safety_stock\":2,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3030, 2, 'update', 'products', 338, '{\"recommended_stocks\":150,\"safety_stock\":53,\"max_stock_level\":375}', '{\"recommended_stocks\":82,\"safety_stock\":38,\"max_stock_level\":223}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3031, 2, 'update', 'products', 83, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3032, 2, 'update', 'products', 339, '{\"recommended_stocks\":132,\"safety_stock\":46,\"max_stock_level\":330}', '{\"recommended_stocks\":14,\"safety_stock\":9,\"max_stock_level\":29}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3033, 2, 'update', 'products', 84, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3034, 2, 'update', 'products', 340, '{\"recommended_stocks\":130,\"safety_stock\":46,\"max_stock_level\":325}', '{\"recommended_stocks\":7,\"safety_stock\":5,\"max_stock_level\":10}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3035, 2, 'update', 'products', 85, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3036, 2, 'update', 'products', 341, '{\"recommended_stocks\":66,\"safety_stock\":23,\"max_stock_level\":165}', '{\"recommended_stocks\":27,\"safety_stock\":17,\"max_stock_level\":59}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3037, 2, 'update', 'products', 86, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":24}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:19', '2026-08-02 10:56:19'),
+(3038, 2, 'update', 'products', 342, '{\"recommended_stocks\":90,\"safety_stock\":32,\"max_stock_level\":225}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:20', '2026-08-02 10:56:20'),
+(3039, 2, 'update', 'products', 87, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":69,\"safety_stock\":34,\"max_stock_level\":181}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:20', '2026-08-02 10:56:20'),
+(3040, 2, 'update', 'products', 88, '{\"recommended_stocks\":20,\"safety_stock\":7,\"max_stock_level\":50}', '{\"recommended_stocks\":85,\"safety_stock\":34,\"max_stock_level\":250}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:20', '2026-08-02 10:56:20'),
+(3041, 2, 'update', 'products', 89, '{\"recommended_stocks\":20,\"safety_stock\":7,\"max_stock_level\":50}', '{\"recommended_stocks\":15,\"safety_stock\":8,\"max_stock_level\":36}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:20', '2026-08-02 10:56:20'),
+(3042, 2, 'update', 'products', 90, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":15,\"safety_stock\":10,\"max_stock_level\":29}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:20', '2026-08-02 10:56:20'),
+(3043, 2, 'update', 'products', 91, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":21,\"safety_stock\":10,\"max_stock_level\":56}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:20', '2026-08-02 10:56:20'),
+(3044, 2, 'update', 'products', 92, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3045, 2, 'update', 'products', 93, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":4,\"safety_stock\":2,\"max_stock_level\":9}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3046, 2, 'update', 'products', 94, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":4,\"safety_stock\":2,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3047, 2, 'update', 'products', 95, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3048, 2, 'update', 'products', 96, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3049, 2, 'update', 'products', 97, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":54,\"safety_stock\":30,\"max_stock_level\":130}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21');
+INSERT INTO `audit_trail` (`audit_id`, `user_id`, `action`, `table_name`, `record_id`, `old_values`, `new_values`, `ip_address`, `user_agent`, `created_at`, `updated_at`) VALUES
+(3050, 2, 'update', 'products', 98, '{\"recommended_stocks\":15,\"safety_stock\":5,\"max_stock_level\":38}', '{\"recommended_stocks\":79,\"safety_stock\":33,\"max_stock_level\":229}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3051, 2, 'update', 'products', 99, '{\"recommended_stocks\":15,\"safety_stock\":5,\"max_stock_level\":38}', '{\"recommended_stocks\":21,\"safety_stock\":11,\"max_stock_level\":53}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3052, 2, 'update', 'products', 100, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":18,\"safety_stock\":10,\"max_stock_level\":42}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3053, 2, 'update', 'products', 101, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":12,\"safety_stock\":8,\"max_stock_level\":25}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3054, 2, 'update', 'products', 102, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:21', '2026-08-02 10:56:21'),
+(3055, 2, 'update', 'products', 103, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3056, 2, 'update', 'products', 104, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3057, 2, 'update', 'products', 105, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":5,\"safety_stock\":3,\"max_stock_level\":8}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3058, 2, 'update', 'products', 106, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":16}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3059, 2, 'update', 'products', 107, '{\"recommended_stocks\":13,\"safety_stock\":5,\"max_stock_level\":33}', '{\"recommended_stocks\":60,\"safety_stock\":42,\"max_stock_level\":116}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3060, 2, 'update', 'products', 108, '{\"recommended_stocks\":14,\"safety_stock\":5,\"max_stock_level\":35}', '{\"recommended_stocks\":66,\"safety_stock\":37,\"max_stock_level\":162}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3061, 2, 'update', 'products', 109, '{\"recommended_stocks\":14,\"safety_stock\":5,\"max_stock_level\":35}', '{\"recommended_stocks\":20,\"safety_stock\":11,\"max_stock_level\":49}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3062, 2, 'update', 'products', 110, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":16,\"safety_stock\":10,\"max_stock_level\":32}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3063, 2, 'update', 'products', 111, '{\"safety_stock\":6,\"max_stock_level\":45}', '{\"safety_stock\":12,\"max_stock_level\":37}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3064, 2, 'update', 'products', 112, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":5,\"safety_stock\":3,\"max_stock_level\":8}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3065, 2, 'update', 'products', 113, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3066, 2, 'update', 'products', 114, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3067, 2, 'update', 'products', 115, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":4,\"safety_stock\":3,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3068, 2, 'update', 'products', 116, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":22}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3069, 2, 'update', 'products', 117, '{\"recommended_stocks\":18,\"safety_stock\":6,\"max_stock_level\":45}', '{\"recommended_stocks\":70,\"safety_stock\":33,\"max_stock_level\":190}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3070, 2, 'update', 'products', 118, '{\"recommended_stocks\":17,\"safety_stock\":6,\"max_stock_level\":43}', '{\"recommended_stocks\":68,\"safety_stock\":33,\"max_stock_level\":180}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3071, 2, 'update', 'products', 119, '{\"recommended_stocks\":17,\"safety_stock\":6,\"max_stock_level\":43}', '{\"recommended_stocks\":15,\"safety_stock\":10,\"max_stock_level\":29}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:22', '2026-08-02 10:56:22'),
+(3072, 2, 'update', 'products', 120, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":19,\"safety_stock\":10,\"max_stock_level\":45}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3073, 2, 'update', 'products', 121, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":16,\"safety_stock\":10,\"max_stock_level\":33}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3074, 2, 'update', 'products', 122, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3075, 2, 'update', 'products', 123, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3076, 2, 'update', 'products', 124, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3077, 2, 'update', 'products', 125, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3078, 2, 'update', 'products', 126, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":4,\"safety_stock\":1,\"max_stock_level\":10}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3079, 2, 'update', 'products', 127, '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '{\"recommended_stocks\":74,\"safety_stock\":34,\"max_stock_level\":205}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3080, 2, 'update', 'products', 128, '{\"recommended_stocks\":7,\"safety_stock\":2,\"max_stock_level\":18}', '{\"recommended_stocks\":74,\"safety_stock\":37,\"max_stock_level\":194}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3081, 2, 'update', 'products', 129, '{\"recommended_stocks\":7,\"safety_stock\":2,\"max_stock_level\":18}', '{\"recommended_stocks\":13,\"safety_stock\":8,\"max_stock_level\":29}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3082, 2, 'update', 'products', 130, '{\"safety_stock\":4,\"max_stock_level\":28}', '{\"safety_stock\":8,\"max_stock_level\":20}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3083, 2, 'update', 'products', 131, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":14,\"safety_stock\":9,\"max_stock_level\":30}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3084, 2, 'update', 'products', 132, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3085, 2, 'update', 'products', 133, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3086, 2, 'update', 'products', 134, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3087, 2, 'update', 'products', 135, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3088, 2, 'update', 'products', 136, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":14}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3089, 2, 'update', 'products', 137, '{\"recommended_stocks\":11,\"safety_stock\":4,\"max_stock_level\":28}', '{\"recommended_stocks\":69,\"safety_stock\":37,\"max_stock_level\":172}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:23', '2026-08-02 10:56:23'),
+(3090, 2, 'update', 'products', 138, '{\"recommended_stocks\":12,\"safety_stock\":4,\"max_stock_level\":30}', '{\"recommended_stocks\":83,\"safety_stock\":45,\"max_stock_level\":207}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3091, 2, 'update', 'products', 139, '{\"recommended_stocks\":12,\"safety_stock\":4,\"max_stock_level\":30}', '{\"recommended_stocks\":11,\"safety_stock\":9,\"max_stock_level\":14}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3092, 2, 'update', 'products', 140, '{\"recommended_stocks\":19,\"max_stock_level\":48}', '{\"recommended_stocks\":13,\"max_stock_level\":29}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3093, 2, 'update', 'products', 141, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":15,\"safety_stock\":8,\"max_stock_level\":35}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3094, 2, 'update', 'products', 142, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3095, 2, 'update', 'products', 143, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":24}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3096, 2, 'update', 'products', 144, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":3,\"safety_stock\":1,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3097, 2, 'update', 'products', 145, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3098, 2, 'update', 'products', 146, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":24}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3099, 2, 'update', 'products', 147, '{\"recommended_stocks\":19,\"safety_stock\":7,\"max_stock_level\":48}', '{\"recommended_stocks\":87,\"safety_stock\":36,\"max_stock_level\":251}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3100, 2, 'update', 'products', 148, '{\"recommended_stocks\":20,\"safety_stock\":7,\"max_stock_level\":50}', '{\"recommended_stocks\":78,\"safety_stock\":42,\"max_stock_level\":194}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3101, 2, 'update', 'products', 149, '{\"recommended_stocks\":20,\"safety_stock\":7,\"max_stock_level\":50}', '{\"recommended_stocks\":17,\"safety_stock\":10,\"max_stock_level\":39}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3102, 2, 'update', 'products', 150, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":22,\"safety_stock\":11,\"max_stock_level\":54}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3103, 2, 'update', 'products', 151, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":18,\"safety_stock\":13,\"max_stock_level\":33}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3104, 2, 'update', 'products', 152, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":4,\"safety_stock\":2,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3105, 2, 'update', 'products', 153, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3106, 2, 'update', 'products', 154, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":3,\"safety_stock\":1,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3107, 2, 'update', 'products', 155, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":4,\"safety_stock\":2,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:24', '2026-08-02 10:56:24'),
+(3108, 2, 'update', 'products', 156, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":8,\"safety_stock\":3,\"max_stock_level\":20}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3109, 2, 'update', 'products', 157, '{\"recommended_stocks\":16,\"safety_stock\":6,\"max_stock_level\":40}', '{\"recommended_stocks\":66,\"safety_stock\":34,\"max_stock_level\":171}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3110, 2, 'update', 'products', 158, '{\"recommended_stocks\":15,\"safety_stock\":5,\"max_stock_level\":38}', '{\"recommended_stocks\":64,\"safety_stock\":35,\"max_stock_level\":160}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3111, 2, 'update', 'products', 159, '{\"recommended_stocks\":15,\"safety_stock\":5,\"max_stock_level\":38}', '{\"recommended_stocks\":16,\"safety_stock\":9,\"max_stock_level\":39}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3112, 2, 'update', 'products', 160, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":7,\"safety_stock\":5,\"max_stock_level\":13}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3113, 2, 'update', 'products', 161, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":12,\"safety_stock\":6,\"max_stock_level\":28}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3114, 2, 'update', 'products', 162, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3115, 2, 'update', 'products', 163, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":4}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3116, 2, 'update', 'products', 164, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3117, 2, 'update', 'products', 165, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":4,\"safety_stock\":3,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3118, 2, 'update', 'products', 166, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":12}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3119, 2, 'update', 'products', 167, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":113,\"safety_stock\":44,\"max_stock_level\":336}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3120, 2, 'update', 'products', 168, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":74,\"safety_stock\":37,\"max_stock_level\":194}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3121, 2, 'update', 'products', 169, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":10,\"safety_stock\":7,\"max_stock_level\":18}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3122, 2, 'update', 'products', 170, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":22,\"safety_stock\":10,\"max_stock_level\":61}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3123, 2, 'update', 'products', 171, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":15,\"safety_stock\":8,\"max_stock_level\":37}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3124, 2, 'update', 'products', 172, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3125, 2, 'update', 'products', 173, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":4,\"safety_stock\":3,\"max_stock_level\":7}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3126, 2, 'update', 'products', 174, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":5}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:25', '2026-08-02 10:56:25'),
+(3127, 2, 'update', 'products', 175, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":2}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3128, 2, 'update', 'products', 176, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":6}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3129, 2, 'update', 'products', 177, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":73,\"safety_stock\":43,\"max_stock_level\":170}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3130, 2, 'update', 'products', 178, '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":15}', '{\"recommended_stocks\":72,\"safety_stock\":37,\"max_stock_level\":186}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3131, 2, 'update', 'products', 179, '{\"recommended_stocks\":6,\"safety_stock\":2,\"max_stock_level\":15}', '{\"recommended_stocks\":14,\"safety_stock\":8,\"max_stock_level\":32}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3132, 2, 'update', 'products', 180, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":20,\"safety_stock\":12,\"max_stock_level\":44}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3133, 2, 'update', 'products', 181, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":14,\"safety_stock\":10,\"max_stock_level\":26}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3134, 2, 'update', 'products', 182, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":2,\"safety_stock\":1,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3135, 2, 'update', 'products', 183, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":5,\"safety_stock\":3,\"max_stock_level\":8}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3136, 2, 'update', 'products', 184, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":0,\"safety_stock\":0,\"max_stock_level\":0}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3137, 2, 'update', 'products', 185, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":3,\"safety_stock\":2,\"max_stock_level\":3}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3138, 2, 'update', 'products', 186, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":12}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3139, 2, 'update', 'products', 187, '{\"recommended_stocks\":10,\"safety_stock\":4,\"max_stock_level\":25}', '{\"recommended_stocks\":72,\"safety_stock\":28,\"max_stock_level\":214}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3140, 2, 'update', 'products', 188, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":79,\"safety_stock\":40,\"max_stock_level\":206}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3141, 2, 'update', 'products', 189, '{\"recommended_stocks\":9,\"safety_stock\":3,\"max_stock_level\":23}', '{\"recommended_stocks\":13,\"safety_stock\":8,\"max_stock_level\":28}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3142, 2, 'update', 'products', 190, '{\"recommended_stocks\":5,\"safety_stock\":2,\"max_stock_level\":13}', '{\"recommended_stocks\":13,\"safety_stock\":8,\"max_stock_level\":29}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:56:26', '2026-08-02 10:56:26'),
+(3143, 2, 'update', 'suppliers', 2, '{\"supplier_name\":\"ABC\",\"contact_person\":\"ABC\",\"email\":\"abc@gmail.com\",\"address\":\"South Korea\"}', '{\"supplier_name\":\"Supplier A\",\"contact_person\":\"Juan dela Cruz\",\"email\":\"supplierA@gmail.com\",\"address\":\"Manila, Philippines\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:58:52', '2026-08-02 10:58:52'),
+(3144, 2, 'update', 'suppliers', 1, '{\"supplier_name\":\"Supplier China\",\"email\":\"supplier@gmail.com\",\"address\":\"China\",\"tin\":\"2222\"}', '{\"supplier_name\":\"Supplier A\",\"email\":\"supplierA@gmail.com\",\"address\":\"Beijing, China\",\"tin\":\"Net30\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 10:59:32', '2026-08-02 10:59:32'),
+(3145, 2, 'update', 'suppliers', 2, '{\"supplier_name\":\"Supplier A\",\"email\":\"supplierA@gmail.com\"}', '{\"supplier_name\":\"Supplier B\",\"email\":\"supplierB@gmail.com\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 11:00:03', '2026-08-02 11:00:03'),
+(3146, 2, 'update', 'products', 167, '{\"recommended_stocks\":113,\"safety_stock\":44,\"max_stock_level\":336}', '{\"recommended_stocks\":50,\"safety_stock\":20,\"max_stock_level\":100}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 11:06:32', '2026-08-02 11:06:32'),
+(3147, 2, 'login', NULL, NULL, NULL, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', '2026-08-02 13:21:24', '2026-08-02 13:21:24'),
+(3148, 2, 'update', 'budget_allocations', 25, '{\"period_label\":\"2026-Jul\",\"period_start\":\"2026-07-01T00:00:00.000000Z\",\"period_end\":\"2026-07-31T00:00:00.000000Z\"}', '{\"period_label\":\"2026-Aug\",\"period_start\":\"2026-08-01\",\"period_end\":\"2026-08-31\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', '2026-08-02 13:46:33', '2026-08-02 13:46:33'),
+(3149, 2, 'create', 'purchase_requests', 99, NULL, '{\"location_id\":null,\"supplier_id\":\"Supplier A\",\"budget_id\":null,\"pr_number\":\"PR-20260802-EVFK\",\"request_date\":\"2026-08-02\",\"needed_by_date\":\"2026-08-09\",\"purpose\":null,\"estimated_total\":72060.6,\"status_id\":\"Pending\",\"requested_by\":\"Marichu Contado\",\"pr_id\":\"PR-20260802-EVFK\"}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', '2026-08-02 13:47:54', '2026-08-02 13:47:54'),
+(3150, 2, 'create', 'purchase_request_details', 137, NULL, '{\"pr_id\":\"PR-20260802-EVFK\",\"product_id\":\"Rubber Insulation 1\\/2\\\" x 3\\/4\",\"location_id\":\"CDO Warehouse A\",\"quantity\":2,\"estimated_price\":268.98,\"subtotal\":537.96,\"notes\":null,\"pr_detail_id\":137}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', '2026-08-02 13:47:54', '2026-08-02 13:47:54'),
+(3151, 2, 'create', 'purchase_request_details', 138, NULL, '{\"pr_id\":\"PR-20260802-EVFK\",\"product_id\":\"TCL CoolPro EcoIn (2025 B2B Exclusive) 2.5HP Aircon\",\"location_id\":\"CDO Warehouse A\",\"quantity\":1,\"estimated_price\":43415.57,\"subtotal\":43415.57,\"notes\":null,\"pr_detail_id\":138}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', '2026-08-02 13:47:54', '2026-08-02 13:47:54'),
+(3152, 2, 'create', 'purchase_request_details', 139, NULL, '{\"pr_id\":\"PR-20260802-EVFK\",\"product_id\":\"TCL Window Smart Inverter (WiFi) 1.5HP Aircon\",\"location_id\":\"CDO Warehouse A\",\"quantity\":1,\"estimated_price\":28107.07,\"subtotal\":28107.07,\"notes\":null,\"pr_detail_id\":139}', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', '2026-08-02 13:47:54', '2026-08-02 13:47:54');
 
 -- --------------------------------------------------------
 
@@ -410,7 +785,9 @@ INSERT INTO `brand_lookup` (`brand_id`, `brand_name`, `created_at`, `updated_at`
 (13, 'Midea', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
 (14, 'Haier', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
 (15, 'Carrier', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
-(16, 'Koppel', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL);
+(16, 'Koppel', '2026-06-29 16:00:00', '2026-06-29 16:00:00', NULL),
+(17, 'Asample2', '2026-08-02 02:46:04', '2026-08-02 02:57:42', '2026-08-02 02:57:42'),
+(18, 'ADSDA', '2026-08-02 06:20:26', '2026-08-02 06:20:36', '2026-08-02 06:20:36');
 
 -- --------------------------------------------------------
 
@@ -438,6 +815,13 @@ CREATE TABLE `budget_allocations` (
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `budget_allocations`
+--
+
+INSERT INTO `budget_allocations` (`budget_id`, `location_id`, `category_id`, `period_label`, `period_start`, `period_end`, `total_budget`, `committed`, `spent`, `verification_status`, `verified_by`, `verified_at`, `verification_note`, `notes`, `created_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(25, 1, NULL, '2026-Aug', '2026-08-01', '2026-08-31', 1000000.00, 0.00, 0.00, 'verified', 7, '2026-07-28 00:16:20', NULL, NULL, 2, '2026-07-28 00:14:55', '2026-08-02 13:46:33', NULL);
 
 -- --------------------------------------------------------
 
@@ -492,13 +876,44 @@ CREATE TABLE `cache_locks` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `capacity_lookup`
+--
+
+CREATE TABLE `capacity_lookup` (
+  `capacity_id` bigint(20) UNSIGNED NOT NULL,
+  `capacity_value` varchar(20) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `capacity_lookup`
+--
+
+INSERT INTO `capacity_lookup` (`capacity_id`, `capacity_value`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(1, '1HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(2, '1.5HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(3, '2HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(4, '2.5HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(5, '0.6HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(6, '0.8HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(7, '3HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(8, '4HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(9, '6HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(10, '7HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(11, '5HP', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `category_lookup`
 --
 
 CREATE TABLE `category_lookup` (
   `category_id` bigint(20) UNSIGNED NOT NULL,
   `category_name` varchar(100) NOT NULL,
-  `category_type` varchar(50) NOT NULL COMMENT 'appliance | installation_material',
+  `category_type` varchar(50) NOT NULL COMMENT 'appliance | consumable | accessory',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
@@ -529,7 +944,8 @@ INSERT INTO `category_lookup` (`category_id`, `category_name`, `category_type`, 
 (18, 'PVC Fittings', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
 (19, 'Capacitors', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
 (20, 'Copper Fittings', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', '2026-07-07 18:15:56'),
-(21, 'Basic Tools', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL);
+(21, 'Basic Tools', 'installation_material', '2026-07-07 17:50:59', '2026-07-07 17:50:59', NULL),
+(22, 'Asample1', 'installation_material', '2026-08-02 02:45:10', '2026-08-02 02:57:25', '2026-08-02 02:57:25');
 
 -- --------------------------------------------------------
 
@@ -611,6 +1027,7 @@ CREATE TABLE `incident_reports` (
   `narrative` text DEFAULT NULL,
   `occurred_at` datetime DEFAULT NULL,
   `photo_path` varchar(255) DEFAULT NULL,
+  `photo_source` varchar(20) DEFAULT NULL,
   `reported_by` bigint(20) UNSIGNED NOT NULL,
   `status_id` bigint(20) UNSIGNED NOT NULL,
   `reviewed_by` bigint(20) UNSIGNED DEFAULT NULL,
@@ -872,6 +1289,7 @@ CREATE TABLE `issuances` (
   `location_id` bigint(20) UNSIGNED DEFAULT NULL,
   `customer_id` bigint(20) UNSIGNED DEFAULT NULL,
   `dr_number` varchar(50) DEFAULT NULL,
+  `external_reference` varchar(100) DEFAULT NULL,
   `issuance_date` date DEFAULT NULL,
   `issuance_type` varchar(50) DEFAULT NULL,
   `selection_mode` varchar(20) DEFAULT NULL,
@@ -893,6 +1311,13 @@ CREATE TABLE `issuances` (
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `issuances`
+--
+
+INSERT INTO `issuances` (`issuance_id`, `location_id`, `customer_id`, `dr_number`, `external_reference`, `issuance_date`, `issuance_type`, `selection_mode`, `planning_completed_at`, `discount_type`, `discount_percent`, `subtotal`, `discount_amount`, `total_amount`, `notes`, `purpose`, `issued_to_user_id`, `expected_return_date`, `actual_return_date`, `issued_by`, `approved_by`, `status_id`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(154, 1, 13, 'DR-20260801-3178F', NULL, '2026-08-01', 'individual', NULL, NULL, 'none', 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, NULL, NULL, 2, NULL, 45, '2026-08-01 11:53:24', '2026-08-01 11:53:24', NULL);
 
 -- --------------------------------------------------------
 
@@ -1019,6 +1444,40 @@ CREATE TABLE `login_activities` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `login_activities`
+--
+
+INSERT INTO `login_activities` (`id`, `user_id`, `username_attempt`, `success`, `failure_reason`, `ip_address`, `user_agent`, `created_at`) VALUES
+(448, 10, 'Bwarehouse@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 22:50:59'),
+(449, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-27 22:51:29'),
+(450, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-27 22:59:14'),
+(451, NULL, 'IA@airking.com', 0, 'Invalid CAPTCHA.', '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 23:58:11'),
+(452, 3, 'IA@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 23:58:24'),
+(453, 7, 'auditor@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-28 00:15:35'),
+(454, 2, 'adminchu@airking.com', 1, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-28 23:40:52'),
+(455, 2, 'adminchu@airking.com', 1, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-29 01:09:59'),
+(456, 2, 'adminchu@airking.com', 1, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-29 03:08:27'),
+(457, NULL, 'Awarehouse@airking.com', 0, 'Invalid CAPTCHA.', '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:12:56'),
+(458, 6, 'Awarehouse@airking.com', 0, 'Invalid credentials.', '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:13:10'),
+(459, 6, 'Awarehouse@airking.com', 1, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:13:30'),
+(460, NULL, 'IA@airking.com', 0, 'Invalid CAPTCHA.', '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:20:43'),
+(461, 3, 'IA@airking.com', 1, NULL, '192.168.254.171', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 03:21:03'),
+(462, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-30 05:22:39'),
+(463, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-30 07:45:37'),
+(464, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-30 21:41:39'),
+(465, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-31 09:26:17'),
+(466, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-07-31 18:47:22'),
+(467, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 10:48:52'),
+(468, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 21:03:36'),
+(469, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-01 23:07:42'),
+(470, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 02:31:57'),
+(471, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 06:19:55'),
+(472, 10, 'Bwarehouse@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-02 06:36:56'),
+(473, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0', '2026-08-02 09:35:18'),
+(474, 7, 'auditor@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-02 10:54:58'),
+(475, 2, 'adminchu@airking.com', 1, NULL, '10.218.135.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', '2026-08-02 13:21:24');
+
 -- --------------------------------------------------------
 
 --
@@ -1070,6 +1529,8 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (32, '2026_05_20_000003_add_claim_fields_to_warranty_records', 9),
 (33, '2026_05_21_090636_add_soft_delete_to_all_tables', 10),
 (34, '2026_05_21_151716_create_archive_logs_table', 11),
+(37, '2026_05_23_000001_create_product_issuable_units_table', 12),
+(38, '2026_05_23_000002_seed_product_issuable_units', 12),
 (39, '2026_05_26_000001_setup_interbranch_stock_transfer', 13),
 (40, '2026_06_07_000001_create_warranty_claims_tables', 14),
 (41, '2026_06_07_000002_add_warranty_claim_statuses', 15),
@@ -1111,7 +1572,19 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (95, '2026_07_27_000002_add_stock_snapshot_to_issuance_details', 49),
 (96, '2026_07_27_000003_reconcile_inventory_batches', 50),
 (97, '2026_07_27_000004_create_inventory_batch_movements_table', 51),
-(98, '2026_07_27_000006_backfill_missing_issuance_warranties', 52);
+(98, '2026_07_27_000006_backfill_missing_issuance_warranties', 52),
+(99, '2026_07_28_000001_add_external_reference_to_issuances_table', 53),
+(100, '2026_07_28_000010_expand_warranty_claim_order_and_holding', 53),
+(101, '2026_07_28_120000_normalize_scan_receiving_numbers', 53),
+(102, '2026_07_30_000001_create_capacity_lookup_table', 54),
+(103, '2026_07_30_000002_create_variant_lookup_table', 55),
+(104, '2026_07_30_000003_create_issuable_unit_preset_table', 56),
+(105, '2026_07_30_000005_make_unit_abbreviation_nullable', 57),
+(106, '2026_07_30_000004_backfill_lookup_tables', 58),
+(107, '2026_08_01_000001_drop_issuable_unit_tables', 59),
+(108, '2026_08_01_000002_normalise_category_type', 60),
+(109, '2026_08_01_000003_archive_descriptor_variants', 61),
+(110, '2026_08_01_000004_slim_lookup_tables', 62);
 
 -- --------------------------------------------------------
 
@@ -1138,7 +1611,6 @@ INSERT INTO `nav_bundle_permissions` (`id`, `bundle_id`, `permission_id`, `is_re
 (5, 5, 37, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
 (7, 7, 31, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
 (8, 8, 23, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
-(9, 9, 8, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
 (10, 10, 58, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
 (11, 11, 58, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
 (12, 12, 46, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
@@ -1160,7 +1632,8 @@ INSERT INTO `nav_bundle_permissions` (`id`, `bundle_id`, `permission_id`, `is_re
 (30, 30, 97, 1, '2026-07-13 12:10:38', '2026-07-13 12:10:38'),
 (31, 31, 106, 1, '2026-07-22 07:38:10', '2026-07-22 07:38:10'),
 (32, 32, 106, 1, '2026-07-26 00:19:20', '2026-07-26 00:19:20'),
-(33, 33, 112, 1, '2026-07-26 00:19:20', '2026-07-26 00:19:20');
+(33, 33, 112, 1, '2026-07-26 00:19:20', '2026-07-26 00:19:20'),
+(34, 9, 115, 1, '2026-07-31 12:09:30', '2026-07-31 12:09:30');
 
 -- --------------------------------------------------------
 
@@ -1191,7 +1664,7 @@ INSERT INTO `nav_permission_bundles` (`bundle_id`, `name`, `route_path`, `sideba
 (5, 'Purchase Orders', '/admin/draft-po-creator', 'PROCUREMENT & PLANNING', 'procurement', NULL, 2, 1, '2026-06-13 08:27:07', '2026-07-13 12:10:38'),
 (7, 'Supplier Network', '/admin/suppliers', 'PROCUREMENT & PLANNING', 'supplier', NULL, 3, 1, '2026-06-13 08:27:07', '2026-07-19 02:24:39'),
 (8, 'Item Master', '/admin/items', 'PROCUREMENT & PLANNING', 'items', NULL, 4, 1, '2026-06-13 08:27:07', '2026-07-19 02:24:39'),
-(9, 'Categories and Brands', '/admin/categories', 'PROCUREMENT & PLANNING', 'category', NULL, 5, 1, '2026-06-13 08:27:07', '2026-07-26 00:19:20'),
+(9, 'Item Lookups', '/admin/categories', 'PROCUREMENT & PLANNING', 'category', NULL, 5, 1, '2026-06-13 08:27:07', '2026-07-31 12:09:30'),
 (10, 'Transfer Requests', '/admin/transfer-requests', 'INVENTORY INTELLIGENCE', 'transfer', NULL, 1, 1, '2026-06-13 08:27:07', '2026-07-13 12:10:38'),
 (11, 'Interbranch Transfers', '/admin/ist', 'INVENTORY INTELLIGENCE', 'transfer', NULL, 3, 1, '2026-06-13 08:27:07', '2026-07-13 12:10:38'),
 (12, 'Transactions', '/admin/transactions', 'SALES & LOGISTICS', 'globaltransactions', NULL, 0, 1, '2026-06-13 08:27:07', '2026-06-13 08:27:07'),
@@ -1403,7 +1876,11 @@ INSERT INTO `permissions` (`permission_id`, `feature`, `action`, `description`, 
 (111, 'inventory_issuance', 'view_margin', 'View_margin access for inventory issuance', '2026-07-24 19:10:23', '2026-07-24 19:10:23'),
 (112, 'incident_reports', 'read', 'Read access for incident reports', '2026-07-25 07:28:45', '2026-07-25 07:28:45'),
 (113, 'incident_reports', 'create', 'Create access for incident reports', '2026-07-25 07:28:45', '2026-07-25 07:28:45'),
-(114, 'incident_reports', 'resolve', 'Resolve access for incident reports', '2026-07-25 07:28:45', '2026-07-25 07:28:45');
+(114, 'incident_reports', 'resolve', 'Resolve access for incident reports', '2026-07-25 07:28:45', '2026-07-25 07:28:45'),
+(115, 'lookup_management', 'read', 'Read access for lookup management', '2026-07-30 11:15:44', '2026-07-30 11:15:44'),
+(116, 'lookup_management', 'create', 'Create access for lookup management', '2026-07-30 11:15:44', '2026-07-30 11:15:44'),
+(117, 'lookup_management', 'update', 'Update access for lookup management', '2026-07-30 11:15:44', '2026-07-30 11:15:44'),
+(118, 'lookup_management', 'archive', 'Archive access for lookup management', '2026-07-30 11:15:44', '2026-07-30 11:15:44');
 
 -- --------------------------------------------------------
 
@@ -2226,7 +2703,32 @@ INSERT INTO `personal_access_tokens` (`id`, `tokenable_type`, `tokenable_id`, `n
 (413, 'App\\Models\\User', 2, 'auth-token', 'a4802c9c7191782d6da6a496c0f73de094d8b02ce2b5848c108211faff2a6918', '[\"*\"]', '2026-07-26 13:08:00', '2026-07-26 13:38:00', '2026-07-26 12:52:50', '2026-07-26 13:08:00'),
 (414, 'App\\Models\\User', 2, 'auth-token', '378a85012cbd83c3dd5f6a99474f2f080b1e1f354b879494ed744d0c665f4acf', '[\"*\"]', '2026-07-27 00:00:50', '2026-07-27 00:30:50', '2026-07-26 23:47:21', '2026-07-27 00:00:50'),
 (415, 'App\\Models\\User', 2, 'auth-token', 'cd4e5db4ce0a914a9ee6bfec73ecf66b6a7f7f20034125b2ab470536a37f7862', '[\"*\"]', '2026-07-27 04:53:36', '2026-07-27 05:23:36', '2026-07-27 04:53:36', '2026-07-27 04:53:36'),
-(416, 'App\\Models\\User', 2, 'auth-token', '6e3b4c42077dcd1297c2c709fa5dc16f1919a0ad6d5700d38ac15bb71ec2650a', '[\"*\"]', '2026-07-27 04:54:39', '2026-07-27 05:24:39', '2026-07-27 04:54:39', '2026-07-27 04:54:39');
+(416, 'App\\Models\\User', 2, 'auth-token', '6e3b4c42077dcd1297c2c709fa5dc16f1919a0ad6d5700d38ac15bb71ec2650a', '[\"*\"]', '2026-07-27 04:54:39', '2026-07-27 05:24:39', '2026-07-27 04:54:39', '2026-07-27 04:54:39'),
+(417, 'App\\Models\\User', 10, 'auth-token', '3705a0fb91752507b3732ce83d66d8cf2d031d4f60a2d25a2ee3dc109ccc8ac5', '[\"*\"]', '2026-07-28 00:20:52', '2026-07-28 00:50:52', '2026-07-27 22:50:59', '2026-07-28 00:20:52'),
+(418, 'App\\Models\\User', 2, 'auth-token', '15422299eb3eab32e059a278b7d0141edf9d0d77639438485e2ddea29437f5c4', '[\"*\"]', '2026-07-27 22:59:07', '2026-07-27 23:29:07', '2026-07-27 22:59:07', '2026-07-27 22:59:07'),
+(419, 'App\\Models\\User', 2, 'auth-token', 'ef9f07eab34e4a41e266f6d365ec4848e541b36004a0424e19512f1719289ab5', '[\"*\"]', '2026-07-28 00:20:32', '2026-07-28 00:50:32', '2026-07-27 22:59:14', '2026-07-28 00:20:32'),
+(420, 'App\\Models\\User', 3, 'auth-token', 'fb74e9321b1c65fddae2372b4f2857bb544fccec35195c0dcd746aaa25eb7582', '[\"*\"]', '2026-07-28 00:21:09', '2026-07-28 00:51:09', '2026-07-27 23:58:24', '2026-07-28 00:21:09'),
+(421, 'App\\Models\\User', 7, 'auth-token', 'db85138e4764081c2682992d003e68be6970d177637751ee15317935966f910a', '[\"*\"]', '2026-07-28 00:21:12', '2026-07-28 00:51:12', '2026-07-28 00:15:35', '2026-07-28 00:21:12'),
+(422, 'App\\Models\\User', 2, 'auth-token', 'b3fb525e41c80b1ca2a0d5ad85d4034baa70afbfac57719219d1d139f41033c9', '[\"*\"]', '2026-07-29 00:02:37', '2026-07-29 00:32:37', '2026-07-28 23:40:52', '2026-07-29 00:02:37'),
+(423, 'App\\Models\\User', 2, 'auth-token', 'd7eca12c626dc193f37cd32fedc892eba0f641170c0537e8d493e3a24e25db2f', '[\"*\"]', '2026-07-29 01:10:24', '2026-07-29 01:40:24', '2026-07-29 01:09:59', '2026-07-29 01:10:24'),
+(424, 'App\\Models\\User', 2, 'auth-token', 'eabda2f50527308efd1d8a4be4641ba8ffa6a4e0dfe57868ee6c5a88f2bbca62', '[\"*\"]', '2026-07-29 03:37:40', '2026-07-29 04:07:41', '2026-07-29 03:08:27', '2026-07-29 03:37:41'),
+(425, 'App\\Models\\User', 6, 'auth-token', '7e40a1c97346a00d6fb471512f1f3e332c4dd2bc4cdadd23345eb09cc7223101', '[\"*\"]', '2026-07-29 03:43:34', '2026-07-29 04:13:35', '2026-07-29 03:43:35', '2026-07-29 03:43:35'),
+(426, 'App\\Models\\User', 3, 'auth-token', '75c9826eaaf9f84ed20a020379a5a3b82735a40296ab79b923bd91ac7ea0ec2f', '[\"*\"]', '2026-07-29 03:59:45', '2026-07-29 04:29:45', '2026-07-29 03:59:45', '2026-07-29 03:59:45'),
+(427, 'App\\Models\\User', 2, 'auth-token', '9beced34d08033f245cc28714f9774531f66407ed83f588bafbdc3d44602dc2c', '[\"*\"]', '2026-07-30 06:51:48', '2026-07-30 07:21:48', '2026-07-30 05:22:39', '2026-07-30 06:51:48'),
+(428, 'App\\Models\\User', 2, 'auth-token', 'ebeb67c443f8fc20a2dce2c83da1b824c8221907d28ed884ee451dcff9f229da', '[\"*\"]', '2026-07-30 10:13:14', '2026-07-30 10:43:14', '2026-07-30 10:13:14', '2026-07-30 10:13:14'),
+(429, 'App\\Models\\User', 13, 't', '002786ac99166d06824278943002d8c9e1b8d12d265724c6baa6a6d79970cec5', '[\"*\"]', NULL, NULL, '2026-07-30 18:23:59', '2026-07-30 18:23:59'),
+(430, 'App\\Models\\User', 2, 'auth-token', 'd726eaf569608fe17bca63ca923de32c4f10d0548ae88309d6bca0aa597abaea', '[\"*\"]', '2026-07-30 21:43:40', '2026-07-30 22:13:40', '2026-07-30 21:41:39', '2026-07-30 21:43:40'),
+(431, 'App\\Models\\User', 2, 'auth-token', '3627b70808e008d211dbe1d05f43b0e5508ea3911662de4a4ae537212d1653f5', '[\"*\"]', '2026-07-31 10:01:03', '2026-07-31 10:31:05', '2026-07-31 09:26:17', '2026-07-31 10:01:07'),
+(432, 'App\\Models\\User', 2, 'auth-token', 'ff1de30b64647de263c7299daf30875fdd92f83631f19ee7842fcdb511ef74af', '[\"*\"]', '2026-07-31 19:01:01', '2026-07-31 19:31:01', '2026-07-31 18:47:22', '2026-07-31 19:01:01'),
+(433, 'App\\Models\\User', 2, 'auth-token', '0dc0a08733f7eea22f5568163a248ba6b0aa5fc3d7d930abd8769d2f16b9c840', '[\"*\"]', '2026-08-01 12:18:48', '2026-08-01 12:48:48', '2026-08-01 10:48:51', '2026-08-01 12:18:48'),
+(434, 'App\\Models\\User', 2, 'auth-token', 'c1bfff1d23a5a0b77a4f05727f53c7842d46073c9896e7175fed1968716f16f1', '[\"*\"]', '2026-08-01 21:11:40', '2026-08-01 21:41:40', '2026-08-01 21:03:36', '2026-08-01 21:11:40'),
+(435, 'App\\Models\\User', 2, 'auth-token', '2b0008506001b3fa739a27f5e0a0afd81763b678f57f46bd28c30cbb2086436f', '[\"*\"]', '2026-08-01 23:12:53', '2026-08-01 23:42:53', '2026-08-01 23:07:42', '2026-08-01 23:12:53'),
+(436, 'App\\Models\\User', 2, 'auth-token', '9643bb62f5136d2385b807eda65b2d5070e2b2844ad46990063982fe8094293d', '[\"*\"]', '2026-08-02 03:57:17', '2026-08-02 04:27:17', '2026-08-02 03:57:17', '2026-08-02 03:57:17'),
+(437, 'App\\Models\\User', 2, 'auth-token', 'a7cae97a1d0a33e446bbd4469ea25948ae320db8e4e42841551d7bd9aa8aada0', '[\"*\"]', '2026-08-02 06:53:29', '2026-08-02 07:23:29', '2026-08-02 06:19:55', '2026-08-02 06:53:29'),
+(438, 'App\\Models\\User', 10, 'auth-token', 'c92206cab87d6839808f8100f39db93f0a7b1e9ddd4cb4a3c93ef3ce4cca91f7', '[\"*\"]', '2026-08-02 07:08:50', '2026-08-02 07:38:50', '2026-08-02 07:08:50', '2026-08-02 07:08:50'),
+(439, 'App\\Models\\User', 2, 'auth-token', '70aeff4d5827468fc20b7af086ddfef2bc9afececa033f21f1106b9ed53e16a8', '[\"*\"]', '2026-08-02 11:22:46', '2026-08-02 11:52:46', '2026-08-02 09:35:18', '2026-08-02 11:22:46'),
+(440, 'App\\Models\\User', 7, 'auth-token', '2fe6287f1673bbe9b6c8c1f015a7aa7f3c75c1047a051a6c5f69a53ea879052a', '[\"*\"]', '2026-08-02 11:22:20', '2026-08-02 11:52:20', '2026-08-02 10:54:58', '2026-08-02 11:22:20'),
+(441, 'App\\Models\\User', 2, 'auth-token', '2cedc10831444516d6ae861a1faa6521ddd725ca5f87f7a1b0c8977eff948660', '[\"*\"]', '2026-08-02 13:50:52', '2026-08-02 14:20:52', '2026-08-02 13:21:24', '2026-08-02 13:50:52');
 
 -- --------------------------------------------------------
 
@@ -2279,343 +2781,343 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`product_id`, `category_id`, `product_code`, `product_name`, `product_type`, `barcode`, `description`, `unit_price`, `cost_price`, `recommended_stocks`, `safety_stock`, `max_stock_level`, `status_id`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(7, 1, 'CSD-10DA', 'CHiQ Morandi Inverter 1HP Aircon', 'appliance', '4800000000071', 'CHiQ Morandi Inverter 1HP split-type air conditioner. 3-year warranty.', 28520.13, 20612.35, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(8, 1, 'CSD-15DA', 'CHiQ Morandi Inverter 1.5HP Aircon', 'appliance', '4800000000088', 'CHiQ Morandi Inverter 1.5HP split-type air conditioner. 3-year warranty.', 39554.05, 30474.02, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(9, 1, 'CSD-20DA', 'CHiQ Morandi Inverter 2HP Aircon', 'appliance', '4800000000095', 'CHiQ Morandi Inverter 2HP split-type air conditioner. 3-year warranty.', 53516.32, 39302.92, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(10, 1, 'CSD-25DA', 'CHiQ Morandi Inverter 2.5HP Aircon', 'appliance', '4800000000101', 'CHiQ Morandi Inverter 2.5HP split-type air conditioner. 3-year warranty.', 59478.58, 41940.73, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(11, 1, 'CSD-10DC', 'CHiQ EVA Inverter 1HP Aircon', 'appliance', '4800000000118', 'CHiQ EVA Inverter 1HP split-type air conditioner. 3-year warranty.', 27681.81, 19503.22, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(12, 1, 'CSD-15DC', 'CHiQ EVA Inverter 1.5HP Aircon', 'appliance', '4800000000125', 'CHiQ EVA Inverter 1.5HP split-type air conditioner. 3-year warranty.', 37225.71, 28622.48, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(13, 1, 'TAC-06CWM/F', 'TCL Window Non-Inverter 0.6HP Aircon', 'appliance', '4800000000132', 'TCL Window Non-Inverter 0.6HP window-type air conditioner. 3-year warranty.', 17713.15, 13379.10, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(14, 1, 'TAC-07CWI/UB', 'TCL Window Standard Inverter 0.8HP Aircon', 'appliance', '4800000000149', 'TCL Window Standard Inverter 0.8HP window-type air conditioner. 3-year warranty.', 19867.76, 13653.92, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(15, 1, 'TAC-09CWI/UB', 'TCL Window Standard Inverter 1HP Aircon', 'appliance', '4800000000156', 'TCL Window Standard Inverter 1HP window-type air conditioner. 3-year warranty.', 26787.38, 20045.80, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(16, 1, 'TAC-12CWI/UB', 'TCL Window Standard Inverter 1.5HP Aircon', 'appliance', '4800000000163', 'TCL Window Standard Inverter 1.5HP window-type air conditioner. 3-year warranty.', 37199.26, 26521.21, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(17, 1, 'TAC-09CWI/UJE', 'TCL Window Smart Inverter (WiFi) 1HP Aircon', 'appliance', '4800000000170', 'TCL Window Smart Inverter (WiFi) 1HP window-type air conditioner. 3-year warranty.', 29057.06, 19803.55, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(18, 1, 'TAC-12CWI/UJE', 'TCL Window Smart Inverter (WiFi) 1.5HP Aircon', 'appliance', '4800000000187', 'TCL Window Smart Inverter (WiFi) 1.5HP window-type air conditioner. 3-year warranty.', 38805.30, 28107.07, 12, 4, 30, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(19, 1, 'TAC-18CWI/UJE', 'TCL Window Smart Inverter (WiFi) 2HP Aircon', 'appliance', '4800000000194', 'TCL Window Smart Inverter (WiFi) 2HP window-type air conditioner. 3-year warranty.', 53432.70, 39323.26, 12, 4, 30, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(20, 1, 'TAC-24CWI/UJE', 'TCL Window Smart Inverter (WiFi) 2.5HP Aircon', 'appliance', '4800000000200', 'TCL Window Smart Inverter (WiFi) 2.5HP window-type air conditioner. 3-year warranty.', 64599.54, 44009.73, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(21, 1, 'TAC-07CWI/UB2', 'TCL Window Standard Inverter 0.8HP Aircon', 'appliance', '4800000000217', 'TCL Window Standard Inverter 0.8HP window-type air conditioner. 3-year warranty.', 20067.20, 14036.20, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(22, 1, 'TAC-09CWI/UB2', 'TCL Window Standard Inverter 1HP Aircon', 'appliance', '4800000000224', 'TCL Window Standard Inverter 1HP window-type air conditioner. 3-year warranty.', 26815.60, 20423.83, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(23, 1, 'TAC-12CWI/UB2', 'TCL Window Standard Inverter 1.5HP Aircon', 'appliance', '4800000000231', 'TCL Window Standard Inverter 1.5HP window-type air conditioner. 3-year warranty.', 38549.48, 29976.46, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(24, 1, 'KV09WR-ARF31A', 'TCL Window Standard Inverter (New Model) 1HP Aircon', 'appliance', '4800000000248', 'TCL Window Standard Inverter (New Model) 1HP window-type air conditioner. 3-year warranty.', 28063.17, 21348.50, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(25, 1, 'KV12WR-ARF31A', 'TCL Window Standard Inverter (New Model) 1.5HP Aircon', 'appliance', '4800000000255', 'TCL Window Standard Inverter (New Model) 1.5HP window-type air conditioner. 3-year warranty.', 37139.98, 28694.35, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(26, 1, 'TAC-09CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 1HP Aircon', 'appliance', '4800000000262', 'TCL Window Smart Inverter (WiFi) 1HP window-type air conditioner. 3-year warranty.', 29381.97, 22627.06, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(27, 1, 'TAC-12CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 1.5HP Aircon', 'appliance', '4800000000279', 'TCL Window Smart Inverter (WiFi) 1.5HP window-type air conditioner. 3-year warranty.', 38006.84, 29550.70, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(28, 1, 'TAC-18CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 2HP Aircon', 'appliance', '4800000000286', 'TCL Window Smart Inverter (WiFi) 2HP window-type air conditioner. 3-year warranty.', 53070.16, 40215.51, 14, 5, 35, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(29, 1, 'TAC-24CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 2.5HP Aircon', 'appliance', '4800000000293', 'TCL Window Smart Inverter (WiFi) 2.5HP window-type air conditioner. 3-year warranty.', 63235.78, 46586.43, 14, 5, 35, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(30, 1, 'TAC-09CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 1HP Aircon', 'appliance', '4800000000309', 'TCL T-Pro IoT Inverter (Wi-Fi) 1HP split-type air conditioner. 3-year warranty.', 28781.20, 19680.30, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(31, 1, 'TAC-12CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 1.5HP Aircon', 'appliance', '4800000000316', 'TCL T-Pro IoT Inverter (Wi-Fi) 1.5HP split-type air conditioner. 3-year warranty.', 38968.09, 27139.72, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(32, 1, 'TAC-18CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 2HP Aircon', 'appliance', '4800000000323', 'TCL T-Pro IoT Inverter (Wi-Fi) 2HP split-type air conditioner. 3-year warranty.', 52913.54, 40239.69, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(33, 1, 'TAC-24CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 2.5HP Aircon', 'appliance', '4800000000330', 'TCL T-Pro IoT Inverter (Wi-Fi) 2.5HP split-type air conditioner. 3-year warranty.', 62444.91, 45762.75, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(34, 1, 'TAC-10CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1HP Aircon', 'appliance', '4800000000347', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1HP split-type air conditioner. 3-year warranty.', 27413.68, 19022.08, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(35, 1, 'TAC-13CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1.5HP Aircon', 'appliance', '4800000000354', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1.5HP split-type air conditioner. 3-year warranty.', 38810.31, 29486.52, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(36, 1, 'TAC-19CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2HP Aircon', 'appliance', '4800000000361', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2HP split-type air conditioner. 3-year warranty.', 54806.75, 38341.71, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(37, 1, 'TAC-25CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2.5HP Aircon', 'appliance', '4800000000378', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2.5HP split-type air conditioner. 3-year warranty.', 60056.67, 43415.57, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(38, 1, 'TAC-30CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 3HP Aircon', 'appliance', '4800000000385', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 3HP split-type air conditioner. 3-year warranty.', 70593.60, 54254.01, 17, 6, 43, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(39, 1, 'TAC-09CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1HP Aircon', 'appliance', '4800000000392', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1HP split-type air conditioner. 3-year warranty.', 27816.54, 19334.44, 17, 6, 43, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(40, 1, 'TAC-12CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1.5HP Aircon', 'appliance', '4800000000408', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1.5HP split-type air conditioner. 3-year warranty.', 36860.00, 26670.79, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(41, 1, 'TAC-18CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2HP Aircon', 'appliance', '4800000000415', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2HP split-type air conditioner. 3-year warranty.', 54577.12, 41181.71, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(42, 1, 'TAC-24CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2.5HP Aircon', 'appliance', '4800000000422', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2.5HP split-type air conditioner. 3-year warranty.', 63857.77, 49766.91, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(43, 1, 'TAC-10CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 1HP Aircon', 'appliance', '4800000000439', 'TCL VoxIN (Voice Control + Wi-Fi) 1HP split-type air conditioner. 3-year warranty.', 27913.65, 19140.67, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(44, 1, 'TAC-13CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 1.5HP Aircon', 'appliance', '4800000000446', 'TCL VoxIN (Voice Control + Wi-Fi) 1.5HP split-type air conditioner. 3-year warranty.', 36310.06, 27927.88, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(45, 1, 'TAC-19CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 2HP Aircon', 'appliance', '4800000000453', 'TCL VoxIN (Voice Control + Wi-Fi) 2HP split-type air conditioner. 3-year warranty.', 53043.33, 38016.15, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(46, 1, 'TAC-25CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 2.5HP Aircon', 'appliance', '4800000000460', 'TCL VoxIN (Voice Control + Wi-Fi) 2.5HP split-type air conditioner. 3-year warranty.', 63639.03, 43707.29, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(47, 1, '28TCFS/JI', 'TCL Floor Standing Inverter 3HP Aircon', 'appliance', '4800000000477', 'TCL Floor Standing Inverter 3HP split-type air conditioner. 3-year warranty.', 73463.70, 53643.93, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(48, 1, '36TCFS/JI', 'TCL Floor Standing Inverter 4HP Aircon', 'appliance', '4800000000484', 'TCL Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 89392.34, 66243.30, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(49, 1, '48TCFS/JI', 'TCL Floor Standing Inverter 6HP Aircon', 'appliance', '4800000000491', 'TCL Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 141671.38, 97420.32, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(50, 1, '28TCFS/JI2', 'TCL Floor Standing Inverter 3HP Aircon', 'appliance', '4800000000507', 'TCL Floor Standing Inverter 3HP split-type air conditioner. 3-year warranty.', 75445.50, 56325.35, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(51, 1, '60TCFS/JI2', 'TCL Floor Standing Inverter 7HP Aircon', 'appliance', '4800000000514', 'TCL Floor Standing Inverter 7HP split-type air conditioner. 3-year warranty.', 164420.60, 126097.45, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(52, 1, '24TCHC/MEI2', 'TCL Ceiling Cassette Inverter 2.5HP Aircon', 'appliance', '4800000000521', 'TCL Ceiling Cassette Inverter 2.5HP split-type air conditioner. 3-year warranty.', 64917.97, 49375.31, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(53, 1, '36TCHC/MEI2', 'TCL Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000000538', 'TCL Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 98078.00, 68104.38, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(54, 1, '42TCHC/MEI2', 'TCL Ceiling Cassette Inverter 5HP Aircon', 'appliance', '4800000000545', 'TCL Ceiling Cassette Inverter 5HP split-type air conditioner. 3-year warranty.', 113740.32, 86177.63, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(55, 1, '60TCHC/MEI2', 'TCL Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000000552', 'TCL Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 144128.26, 98817.22, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(56, 1, '36TCHC/CHI2', 'TCL Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000000569', 'TCL Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 90613.28, 66470.28, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(57, 1, '42TCHC/CHI2', 'TCL Ceiling Mounted Inverter 5HP Aircon', 'appliance', '4800000000576', 'TCL Ceiling Mounted Inverter 5HP split-type air conditioner. 3-year warranty.', 123026.88, 85559.04, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(58, 1, '60TCHC/CHI2', 'TCL Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000000583', 'TCL Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 147578.68, 112696.98, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(59, 1, 'TAC-08CSA-KEI', 'TCL Titan Gold 0.8HP Aircon', 'appliance', '4800000000590', 'TCL Titan Gold 0.8HP split-type air conditioner. 3-year warranty.', 19044.80, 13275.18, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(60, 1, 'TAC-09CSA-KEI', 'TCL Titan Gold 1HP Aircon', 'appliance', '4800000000606', 'TCL Titan Gold 1HP split-type air conditioner. 3-year warranty.', 29358.11, 20432.07, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(61, 1, 'TAC-12CSA-KEI', 'TCL Titan Gold 1.5HP Aircon', 'appliance', '4800000000613', 'TCL Titan Gold 1.5HP split-type air conditioner. 3-year warranty.', 36622.88, 26899.14, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(62, 1, 'TAC-18CSA-KEI', 'TCL Titan Gold 2HP Aircon', 'appliance', '4800000000620', 'TCL Titan Gold 2HP split-type air conditioner. 3-year warranty.', 52124.18, 37841.63, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(63, 1, 'TAC-22CSA-KEI', 'TCL Titan Gold 2.5HP Aircon', 'appliance', '4800000000637', 'TCL Titan Gold 2.5HP split-type air conditioner. 3-year warranty.', 58375.98, 40275.92, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(64, 1, 'IFAC-09CSD/XAF1', 'Iffalcon 1HP Inverter Aircon', 'appliance', '4800000000644', 'Iffalcon Inverter 1HP split-type air conditioner. 3-year warranty.', 28069.89, 20267.02, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(65, 1, 'IFAC-12CSD/XAF1', 'Iffalcon 1.5HP Inverter Aircon', 'appliance', '4800000000651', 'Iffalcon Inverter 1.5HP split-type air conditioner. 3-year warranty.', 39166.45, 27422.39, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(66, 1, 'IFAC-18CSD/XAF1', 'Iffalcon 2HP Inverter Aircon', 'appliance', '4800000000668', 'Iffalcon Inverter 2HP split-type air conditioner. 3-year warranty.', 50300.85, 34253.37, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(67, 1, 'IFAC-24CSD/XAF1', 'Iffalcon 2.5HP Inverter Aircon', 'appliance', '4800000000675', 'Iffalcon Inverter 2.5HP split-type air conditioner. 3-year warranty.', 63275.96, 43171.92, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(68, 1, 'FP-51ARA006HMNV-N5', 'Midea Window Non-Inverter 0.6HP Aircon', 'appliance', '4800000000682', 'Midea Window Non-Inverter 0.6HP window-type air conditioner. 3-year warranty.', 17681.83, 12991.37, 20, 7, 50, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(69, 1, 'FP-38AFS036KENV-J5', 'Midea Floor Standing Non-Inverter 4HP Aircon', 'appliance', '4800000000699', 'Midea Floor Standing Non-Inverter 4HP split-type air conditioner. 3-year warranty.', 98576.18, 76798.73, 20, 7, 50, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(70, 1, 'MWWA-08CRFN8', 'Midea Window Standard Inverter 0.8HP Aircon', 'appliance', '4800000000705', 'Midea Window Standard Inverter 0.8HP window-type air conditioner. 3-year warranty.', 19602.80, 13350.29, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(71, 1, 'MWWA-09CRFN8', 'Midea Window Standard Inverter 1HP Aircon', 'appliance', '4800000000712', 'Midea Window Standard Inverter 1HP window-type air conditioner. 3-year warranty.', 29340.98, 21063.60, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(72, 1, 'MWWA-12CRFN8', 'Midea Window Standard Inverter 1.5HP Aircon', 'appliance', '4800000000729', 'Midea Window Standard Inverter 1.5HP window-type air conditioner. 3-year warranty.', 38935.71, 28228.00, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(73, 1, 'FP-51ARA020HEIV-N4', 'Midea Window Smart Inverter (WiFi) 2HP Aircon', 'appliance', '4800000000736', 'Midea Window Smart Inverter (WiFi) 2HP window-type air conditioner. 3-year warranty.', 50937.95, 35904.12, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(74, 1, 'FP-51ARA025HEIV-N4', 'Midea Window Smart Inverter (WiFi) 2.5HP Aircon', 'appliance', '4800000000743', 'Midea Window Smart Inverter (WiFi) 2.5HP window-type air conditioner. 3-year warranty.', 65597.24, 50041.51, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(75, 1, 'FP-53AST010KEIV-F4', 'Midea Celest Inverter 1HP Aircon', 'appliance', '4800000000750', 'Midea Celest Inverter 1HP split-type air conditioner. 3-year warranty.', 26611.98, 18814.40, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(76, 1, 'FP-53AST010KEIV-F4-2.5HP', 'Midea Celest Inverter 2.5HP Aircon', 'appliance', '4800000000767', 'Midea Celest Inverter 2.5HP split-type air conditioner. 3-year warranty.', 58736.82, 43214.44, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(77, 1, 'MSCE-10CRFN8', 'Midea Celest Pro Full DC Inverter 1HP Aircon', 'appliance', '4800000000774', 'Midea Celest Pro Full DC Inverter 1HP split-type air conditioner. 3-year warranty.', 27107.58, 19534.81, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(78, 1, 'MSCE-13CRFN8', 'Midea Celest Pro Full DC Inverter 1.5HP Aircon', 'appliance', '4800000000781', 'Midea Celest Pro Full DC Inverter 1.5HP split-type air conditioner. 3-year warranty.', 37151.84, 28849.52, 15, 5, 38, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(79, 1, 'MSCE-19CRFN8', 'Midea Celest Pro Full DC Inverter 2HP Aircon', 'appliance', '4800000000798', 'Midea Celest Pro Full DC Inverter 2HP split-type air conditioner. 3-year warranty.', 54537.18, 40148.09, 15, 5, 38, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(80, 1, 'MSCE-22CRFN8', 'Midea Celest Pro Full DC Inverter 2.5HP Aircon', 'appliance', '4800000000804', 'Midea Celest Pro Full DC Inverter 2.5HP split-type air conditioner. 3-year warranty.', 63101.12, 47664.69, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(81, 1, 'MSCE-25CRFN8', 'Midea Celest Pro Full DC Inverter 3HP Aircon', 'appliance', '4800000000811', 'Midea Celest Pro Full DC Inverter 3HP split-type air conditioner. 3-year warranty.', 78346.20, 54206.17, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(82, 1, 'MFSI/O-36CDN8-MD3', 'Midea Floor Standing Inverter 4HP Aircon', 'appliance', '4800000000828', 'Midea Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 98927.30, 72440.50, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(83, 1, 'MFSI/O-52CDN8-MD1', 'Midea Floor Standing Inverter 6HP Aircon', 'appliance', '4800000000835', 'Midea Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 136360.90, 99334.82, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(84, 1, 'MFSI/O-52CDN8-DD1', 'Midea Floor Standing Inverter (3P 220V) 6HP Aircon', 'appliance', '4800000000842', 'Midea Floor Standing Inverter (3P 220V) 6HP split-type air conditioner. 3-year warranty.', 152297.56, 109055.71, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(85, 1, 'MCCI/O-36CDN8-MD3', 'Midea Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000000859', 'Midea Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 89632.88, 61296.34, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(86, 1, 'MCCI/O-52CDN8-MD1', 'Midea Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000000866', 'Midea Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 143578.42, 103646.39, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(87, 1, 'MUCI/O-36CDN8-MD3', 'Midea Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000000873', 'Midea Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 94545.14, 70637.51, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(88, 1, 'MCCI/O-52CDN8-MD1-6HP', 'Midea Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000000880', 'Midea Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 145941.34, 109695.35, 20, 7, 50, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(89, 1, 'FP-42AFC036KENV-N6', 'Midea Ceiling Mounted Non-Inverter 4HP Aircon', 'appliance', '4800000000897', 'Midea Ceiling Mounted Non-Inverter 4HP split-type air conditioner. 3-year warranty.', 97830.62, 68803.30, 20, 7, 50, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(90, 1, 'HSU-09CSV32', 'Haier Clean Cool Pro Inverter 1HP Aircon', 'appliance', '4800000000903', 'Haier Clean Cool Pro Inverter 1HP split-type air conditioner. 3-year warranty.', 26939.25, 18785.55, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(91, 1, 'HSU-13CSV32', 'Haier Clean Cool Pro Inverter 1.5HP Aircon', 'appliance', '4800000000910', 'Haier Clean Cool Pro Inverter 1.5HP split-type air conditioner. 3-year warranty.', 36207.46, 27969.54, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(92, 1, 'HSU-18CSV32', 'Haier Clean Cool Pro Inverter 2HP Aircon', 'appliance', '4800000000927', 'Haier Clean Cool Pro Inverter 2HP split-type air conditioner. 3-year warranty.', 49727.39, 38682.94, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(93, 1, 'HSU-25CSV32', 'Haier Clean Cool Pro Inverter 2.5HP Aircon', 'appliance', '4800000000934', 'Haier Clean Cool Pro Inverter 2.5HP split-type air conditioner. 3-year warranty.', 64636.74, 48531.20, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(94, 1, 'HSU-30PSV32', 'Haier Clean Cool Pro Inverter 3HP Aircon', 'appliance', '4800000000941', 'Haier Clean Cool Pro Inverter 3HP split-type air conditioner. 3-year warranty.', 76239.30, 58773.64, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(95, 1, 'AP105S2SK1SA', 'Haier Floor Standing Inverter 4HP Aircon', 'appliance', '4800000000958', 'Haier Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 91442.06, 70628.02, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(96, 1, 'AP60S4SE1ET', 'Haier Floor Standing Inverter 6HP Aircon', 'appliance', '4800000000965', 'Haier Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 145132.24, 98747.98, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(97, 1, 'ABH105H1ERG', 'Haier Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000000972', 'Haier Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 98996.84, 76961.13, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(98, 1, 'ABH140K1ERG', 'Haier Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000000989', 'Haier Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 153376.36, 117363.59, 15, 5, 38, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(99, 1, 'AC105S2SH1FA', 'Haier Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000000996', 'Haier Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 97681.28, 68358.34, 15, 5, 38, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(100, 1, 'AC140S2SK1FA', 'Haier Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000001009', 'Haier Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 146221.48, 101071.21, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(101, 1, 'AR09TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 1HP Aircon', 'appliance', '4800000001016', 'Samsung Standard Inverter (Digital S-Inverter) 1HP split-type air conditioner. 3-year warranty.', 26989.31, 19688.97, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(102, 1, 'AR12TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 1.5HP Aircon', 'appliance', '4800000001023', 'Samsung Standard Inverter (Digital S-Inverter) 1.5HP split-type air conditioner. 3-year warranty.', 38358.87, 29800.62, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(103, 1, 'AR18TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 2HP Aircon', 'appliance', '4800000001030', 'Samsung Standard Inverter (Digital S-Inverter) 2HP split-type air conditioner. 3-year warranty.', 48913.07, 34871.11, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(104, 1, 'AR24TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 2.5HP Aircon', 'appliance', '4800000001047', 'Samsung Standard Inverter (Digital S-Inverter) 2.5HP split-type air conditioner. 3-year warranty.', 61098.27, 46661.97, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(105, 1, 'AR10AYKAGWKXTC', 'Samsung WindFree ActivClean 1HP Aircon', 'appliance', '4800000001054', 'Samsung WindFree ActivClean 1HP split-type air conditioner. 3-year warranty.', 26756.13, 20459.07, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(106, 1, 'AR10AYKAGWKXTC-1.5HP', 'Samsung WindFree ActivClean 1.5HP Aircon', 'appliance', '4800000001061', 'Samsung WindFree ActivClean 1.5HP split-type air conditioner. 3-year warranty.', 36180.10, 26147.72, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(107, 1, 'AR10AYKAGWKXTC-2HP', 'Samsung WindFree ActivClean 2HP Aircon', 'appliance', '4800000001078', 'Samsung WindFree ActivClean 2HP split-type air conditioner. 3-year warranty.', 52912.91, 38051.79, 13, 5, 33, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(108, 1, 'AR10AYKAGWKXTC-2.5HP', 'Samsung WindFree ActivClean 2.5HP Aircon', 'appliance', '4800000001085', 'Samsung WindFree ActivClean 2.5HP split-type air conditioner. 3-year warranty.', 61627.26, 44686.54, 14, 5, 35, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(109, 1, 'AC036BNPDKC/TC', 'Samsung Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001092', 'Samsung Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 99109.70, 75365.00, 14, 5, 35, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(110, 1, 'AC048BNPDKC/TC', 'Samsung Floor Standing Inverter 6HP Aircon', 'appliance', '4800000001108', 'Samsung Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 145913.50, 112677.32, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(111, 1, 'AC100TN4DKC/TC', 'Samsung Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000001115', 'Samsung Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 89622.62, 63584.56, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(112, 1, 'AC140TN4DKC/TC', 'Samsung Ceiling Cassette Inverter 5HP Aircon', 'appliance', '4800000001122', 'Samsung Ceiling Cassette Inverter 5HP split-type air conditioner. 3-year warranty.', 124216.32, 86907.95, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(113, 1, 'AC100TNCDKC/TC', 'Samsung Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000001139', 'Samsung Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 91641.56, 63833.85, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(114, 1, 'AC140TNCDKC/TC', 'Samsung Ceiling Mounted Inverter 5HP Aircon', 'appliance', '4800000001146', 'Samsung Ceiling Mounted Inverter 5HP split-type air conditioner. 3-year warranty.', 123235.68, 84983.32, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(115, 1, 'AC160TNCDKC/TC', 'Samsung Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000001153', 'Samsung Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 144820.78, 104533.09, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(116, 1, 'FP-53CAC009308', 'Carrier Nexus Inverter 1HP Aircon', 'appliance', '4800000001160', 'Carrier Nexus Inverter 1HP split-type air conditioner. 3-year warranty.', 26530.34, 18315.22, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(117, 1, 'FP-53CAC012308', 'Carrier Nexus Inverter 1.5HP Aircon', 'appliance', '4800000001177', 'Carrier Nexus Inverter 1.5HP split-type air conditioner. 3-year warranty.', 39191.07, 30568.25, 18, 6, 45, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(118, 1, 'FP-53CAC018308', 'Carrier Nexus Inverter 2HP Aircon', 'appliance', '4800000001184', 'Carrier Nexus Inverter 2HP split-type air conditioner. 3-year warranty.', 52174.72, 36653.26, 17, 6, 43, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(119, 1, 'FP-53CAC024308', 'Carrier Nexus Inverter 2.5HP Aircon', 'appliance', '4800000001191', 'Carrier Nexus Inverter 2.5HP split-type air conditioner. 3-year warranty.', 65159.02, 46735.96, 17, 6, 43, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(120, 1, '38CL V036308', 'Carrier Slim Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001207', 'Carrier Slim Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 100426.40, 70004.23, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(121, 1, 'DFE-ASD 04.0HP', 'Carrier Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001214', 'Carrier Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 93784.76, 64492.03, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(122, 1, '42DFECAR04HEGS2GN1', 'Carrier Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001221', 'Carrier Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 97632.26, 70685.76, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(123, 1, 'DFE-ASD 06.0HP', 'Carrier Floor Standing Inverter (1-Phase 220V) 6HP Aircon', 'appliance', '4800000001238', 'Carrier Floor Standing Inverter (1-Phase 220V) 6HP split-type air conditioner. 3-year warranty.', 137752.90, 99078.77, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(124, 1, 'FP-53CFE-ASC', 'Carrier Floor Standing Non-Inverter 4HP Aircon', 'appliance', '4800000001245', 'Carrier Floor Standing Non-Inverter 4HP split-type air conditioner. 3-year warranty.', 99179.24, 75516.07, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(125, 1, 'FP-53CFE600', 'Carrier Floor Standing Non-Inverter 6HP Aircon', 'appliance', '4800000001252', 'Carrier Floor Standing Non-Inverter 6HP split-type air conditioner. 3-year warranty.', 142209.04, 101673.78, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(126, 1, '53CAV036308-2', 'Carrier Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000001269', 'Carrier Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 93120.14, 65740.96, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(127, 1, '53CAV055308-2', 'Carrier Ceiling Cassette Inverter 5HP Aircon', 'appliance', '4800000001276', 'Carrier Ceiling Cassette Inverter 5HP split-type air conditioner. 3-year warranty.', 123457.44, 84527.61, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(128, 1, '53CUV036308-2', 'Carrier Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000001283', 'Carrier Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 93902.18, 69658.52, 7, 2, 18, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(129, 1, '53CUV055308-2', 'Carrier Ceiling Mounted Inverter 5HP Aircon', 'appliance', '4800000001290', 'Carrier Ceiling Mounted Inverter 5HP split-type air conditioner. 3-year warranty.', 116179.68, 83318.26, 7, 2, 18, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(130, 1, '42DFECAR06HEGS2GN', 'Carrier Chilled Water Aircon', 'appliance', '4800000001306', 'Carrier Chilled Water split-type air conditioner. 3-year warranty.', 30677.88, 22264.47, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(131, 1, 'KV09WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 1HP Aircon', 'appliance', '4800000001313', 'Koppel R32 Super Inverter - Lunaire 1HP split-type air conditioner. 3-year warranty.', 29592.98, 21594.00, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(132, 1, 'KV12WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 1.5HP Aircon', 'appliance', '4800000001320', 'Koppel R32 Super Inverter - Lunaire 1.5HP split-type air conditioner. 3-year warranty.', 35908.78, 26527.97, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(133, 1, 'KV18WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 2HP Aircon', 'appliance', '4800000001337', 'Koppel R32 Super Inverter - Lunaire 2HP split-type air conditioner. 3-year warranty.', 49648.77, 36232.18, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(134, 1, 'KV24WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 2.5HP Aircon', 'appliance', '4800000001344', 'Koppel R32 Super Inverter - Lunaire 2.5HP split-type air conditioner. 3-year warranty.', 62345.96, 45213.91, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(135, 1, 'KV27WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 3HP Aircon', 'appliance', '4800000001351', 'Koppel R32 Super Inverter - Lunaire 3HP split-type air conditioner. 3-year warranty.', 73112.70, 51257.85, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(136, 1, 'KV36FM-ARF21D', 'Koppel Floor Inverter 4HP Aircon', 'appliance', '4800000001368', 'Koppel Floor Inverter 4HP split-type air conditioner. 3-year warranty.', 100668.08, 76090.97, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(137, 1, 'KV60FM-ARF21D', 'Koppel Floor Inverter 6HP Aircon', 'appliance', '4800000001375', 'Koppel Floor Inverter 6HP split-type air conditioner. 3-year warranty.', 145588.12, 107628.93, 11, 4, 28, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(138, 1, 'KV36CC-ARF21D', 'Koppel Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000001382', 'Koppel Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 92717.72, 69058.01, 12, 4, 30, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(139, 1, 'KV60CC-ARF21D', 'Koppel Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000001399', 'Koppel Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 151264.00, 111728.13, 12, 4, 30, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(140, 1, 'HS09IBA', 'LG Dual Inverter 1HP Aircon', 'appliance', '4800000001405', 'LG Dual Inverter 1HP split-type air conditioner. 3-year warranty.', 28027.55, 20650.98, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(141, 1, 'HS12IBA', 'LG Dual Inverter 1.5HP Aircon', 'appliance', '4800000001412', 'LG Dual Inverter 1.5HP split-type air conditioner. 3-year warranty.', 37480.16, 25529.99, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(142, 1, 'HS18IBA', 'LG Dual Inverter 2HP Aircon', 'appliance', '4800000001429', 'LG Dual Inverter 2HP split-type air conditioner. 3-year warranty.', 53816.46, 38615.46, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(143, 1, 'HS24IBA', 'LG Dual Inverter 2.5HP Aircon', 'appliance', '4800000001436', 'LG Dual Inverter 2.5HP split-type air conditioner. 3-year warranty.', 64810.09, 44547.22, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(144, 1, 'ZPNQ36GT3E0', 'LG Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001443', 'LG Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 90266.72, 68291.29, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(145, 1, 'ZPNQ60GT3A0', 'LG Floor Standing Inverter 6HP Aircon', 'appliance', '4800000001450', 'LG Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 150689.80, 106908.39, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(146, 1, 'ZTNQ30GNLE0/ENWHASA', 'LG Ceiling Cassette Inverter 3HP Aircon', 'appliance', '4800000001467', 'LG Ceiling Cassette Inverter 3HP split-type air conditioner. 3-year warranty.', 71260.50, 50632.01, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 17:22:18', NULL),
-(147, 2, 'S45H', 'TCL Soundbar S45H', 'appliance', '4800000001474', 'TCL Soundbar television. 12-month warranty.', 5087.12, 3493.07, 19, 7, 48, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(148, 2, 'S55H', 'TCL Soundbar S55H', 'appliance', '4800000001481', 'TCL Soundbar television. 12-month warranty.', 5591.66, 3828.95, 20, 7, 50, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(149, 2, 'Q75H', 'TCL Soundbar Q75H', 'appliance', '4800000001498', 'TCL Soundbar television. 12-month warranty.', 8362.83, 6450.17, 20, 7, 50, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(150, 2, 'Q85H', 'TCL Soundbar Q85H', 'appliance', '4800000001504', 'TCL Soundbar television. 12-month warranty.', 7335.08, 5417.76, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(151, 2, '32D3400', 'TCL Digital TV 32D3400', 'appliance', '4800000001511', 'TCL Digital TV television. 12-month warranty.', 15587.34, 11133.10, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(152, 2, '32S5401AF', 'TCL Digital TV 32S5401AF', 'appliance', '4800000001528', 'TCL Digital TV television. 12-month warranty.', 15678.96, 10784.30, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(153, 2, '32S5402', 'TCL Android Smart TV 32S5402', 'appliance', '4800000001535', 'TCL Android Smart TV television. 12-month warranty.', 15089.64, 10660.98, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(154, 2, '32S5K', 'TCL 2K Google TV 32S5K', 'appliance', '4800000001542', 'TCL 2K Google TV television. 12-month warranty.', 15223.74, 11068.72, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(155, 2, '40S5400A', 'TCL Android Smart TV 40S5400A', 'appliance', '4800000001559', 'TCL Android Smart TV television. 12-month warranty.', 15504.90, 11655.65, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(156, 2, '40S5K', 'TCL 2K Google TV 40S5K', 'appliance', '4800000001566', 'TCL 2K Google TV television. 12-month warranty.', 14782.20, 11079.55, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(157, 2, '43S5400A', 'TCL Android Smart TV 43S5400A', 'appliance', '4800000001573', 'TCL Android Smart TV television. 12-month warranty.', 15171.36, 10847.67, 16, 6, 40, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(158, 2, '43S5K', 'TCL 2K Google TV 43S5K', 'appliance', '4800000001580', 'TCL 2K Google TV television. 12-month warranty.', 14496.72, 10550.13, 15, 5, 38, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(159, 2, '43V6B', 'TCL 4K Google TV 43V6B', 'appliance', '4800000001597', 'TCL 4K Google TV television. 12-month warranty.', 14670.60, 10121.10, 15, 5, 38, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(160, 2, '50V6B', 'TCL 4K Google TV 50V6B', 'appliance', '4800000001603', 'TCL 4K Google TV television. 12-month warranty.', 15018.00, 11448.52, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(161, 2, '55P635', 'TCL 4K Google TV 55P635', 'appliance', '4800000001610', 'TCL 4K Google TV television. 12-month warranty.', 14316.36, 10703.63, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(162, 2, '65V6B', 'TCL 4K Google TV 65V6B', 'appliance', '4800000001627', 'TCL 4K Google TV television. 12-month warranty.', 15574.74, 11951.90, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(163, 2, '43P7K', 'TCL QLED Google TV 43P7K', 'appliance', '4800000001634', 'TCL QLED Google TV television. 12-month warranty.', 15001.26, 10921.82, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(164, 2, '50P7K', 'TCL QLED Google TV 50P7K', 'appliance', '4800000001641', 'TCL QLED Google TV television. 12-month warranty.', 14720.28, 10011.85, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(165, 2, '55P7K', 'TCL QLED Google TV 55P7K', 'appliance', '4800000001658', 'TCL QLED Google TV television. 12-month warranty.', 15619.20, 10660.26, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(166, 2, '65P7K', 'TCL QLED Google TV 65P7K', 'appliance', '4800000001665', 'TCL QLED Google TV television. 12-month warranty.', 14767.26, 10377.99, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(167, 2, '75P7K', 'TCL QLED Google TV 75P7K', 'appliance', '4800000001672', 'TCL QLED Google TV television. 12-month warranty.', 15777.06, 11059.09, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(168, 2, '85P8K', 'TCL QLED Google TV 144Hz 85P8K', 'appliance', '4800000001689', 'TCL QLED Google TV 144Hz television. 12-month warranty.', 15196.02, 11508.40, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(169, 2, '98P8K', 'TCL QLED Google TV 144Hz 98P8K', 'appliance', '4800000001696', 'TCL QLED Google TV 144Hz television. 12-month warranty.', 14680.14, 9991.89, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(170, 3, 'TR-59PHB', 'Condura 1 Door Direct Cool Non-Inverter TR-59PHB', 'appliance', '4800000001702', 'Condura 1 Door Direct Cool Non-Inverter refrigerator. 12-month warranty.', 15239.04, 11615.20, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(171, 3, 'TR-99PHB', 'Condura Single Door Non-Inverter TR-99PHB', 'appliance', '4800000001719', 'Condura Single Door Non-Inverter refrigerator. 12-month warranty.', 44108.65, 34091.13, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(172, 3, 'TR-190INV/DB', 'Condura Single Door Inverter TR-190INV/DB', 'appliance', '4800000001726', 'Condura Single Door Inverter refrigerator. 12-month warranty.', 32847.69, 25323.93, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(173, 3, 'TRF-118PH', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-118PH', 'appliance', '4800000001733', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 21167.71, 14712.83, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(174, 3, 'TRF-207PH', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-207PH', 'appliance', '4800000001740', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 34120.22, 23543.63, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(175, 3, 'TRF-230PH', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-230PH', 'appliance', '4800000001757', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 44419.26, 31917.46, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(176, 3, 'TRF-230INV/D', 'Condura 2 Door Top Mount No Frost Inverter TRF-230INV/D', 'appliance', '4800000001764', 'Condura 2 Door Top Mount No Frost Inverter refrigerator. 12-month warranty.', 20239.75, 14498.34, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(177, 3, 'TRF-H199INV/N', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-H199INV/N', 'appliance', '4800000001771', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 14998.47, 11680.21, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(178, 3, 'TRF-H220INV/N', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-H220INV/N', 'appliance', '4800000001788', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 29890.30, 21043.07, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(179, 3, 'TRF-H260INV/N', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-H260INV/N', 'appliance', '4800000001795', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 31442.87, 22177.29, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(180, 3, 'TRF-H360INV/N', 'Condura 2 Door Top Mount No Frost Inverter TRF-H360INV/N', 'appliance', '4800000001801', 'Condura 2 Door Top Mount No Frost Inverter refrigerator. 12-month warranty.', 25169.21, 17128.40, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(181, 3, 'TRF-INV430CDSS', 'Condura 4 Door Cross Door No Frost Inverter TRF-INV430CDSS', 'appliance', '4800000001818', 'Condura 4 Door Cross Door No Frost Inverter refrigerator. 12-month warranty.', 34674.50, 25093.24, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(182, 3, 'TRF-INV436BMSB', 'Condura 4 Door Cross Door No Frost Inverter TRF-INV436BMSB', 'appliance', '4800000001825', 'Condura 4 Door Cross Door No Frost Inverter refrigerator. 12-month warranty.', 21158.61, 14678.57, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(183, 3, 'TRF-505PH', 'Condura 2 Door Side-by-Side No Frost Inverter TRF-505PH', 'appliance', '4800000001832', 'Condura 2 Door Side-by-Side No Frost Inverter refrigerator. 12-month warranty.', 41503.51, 30046.47, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(184, 3, 'TRF-199 INV/S', 'Condura Freezer TRF-199 INV/S', 'appliance', '4800000001849', 'Condura Freezer refrigerator. 12-month warranty.', 29548.09, 20883.11, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(185, 3, 'TRF-210 INV/N', 'Condura Freezer TRF-210 INV/N', 'appliance', '4800000001856', 'Condura Freezer refrigerator. 12-month warranty.', 15793.45, 10884.53, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(186, 3, 'TCF-230 INV/D', 'Condura Inverter TCF-230 INV/D', 'appliance', '4800000001863', 'Condura Inverter refrigerator. 12-month warranty.', 32047.58, 23635.73, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(187, 3, 'TCF-185PUPH', 'Condura Chest Freezer Non-Inverter TCF-185PUPH', 'appliance', '4800000001870', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 28899.11, 21023.81, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(188, 3, 'TCF-245PUPH', 'Condura Chest Freezer Non-Inverter TCF-245PUPH', 'appliance', '4800000001887', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 24016.39, 17562.71, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(189, 3, 'TCF-305PUPH', 'Condura Chest Freezer Non-Inverter TCF-305PUPH', 'appliance', '4800000001894', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 27572.74, 21038.28, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(190, 3, 'TCF-380PUPH', 'Condura Chest Freezer Non-Inverter TCF-380PUPH', 'appliance', '4800000001900', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 41645.51, 29705.33, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(191, 3, 'TCF-450PUPH', 'Condura Chest Freezer Non-Inverter TCF-450PUPH', 'appliance', '4800000001917', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 46262.84, 31638.23, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(192, 3, 'TUF-H260INV/D', 'Condura Upright Freezer Inverter Defrost TUF-H260INV/D', 'appliance', '4800000001924', 'Condura Upright Freezer Inverter Defrost refrigerator. 12-month warranty.', 43545.82, 32242.20, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(193, 3, 'TRF-INV660SBGB', 'Condura 2 Door Side-by-Side No Frost Inverter TRF-INV660SBGB', 'appliance', '4800000001931', 'Condura 2 Door Side-by-Side No Frost Inverter refrigerator. 12-month warranty.', 41347.14, 29590.91, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(194, 3, 'TRF-INV560CDGB', 'Condura 4 Door Cross Door No Frost Inverter TRF-INV560CDGB', 'appliance', '4800000001948', 'Condura 4 Door Cross Door No Frost Inverter refrigerator. 12-month warranty.', 31300.10, 22107.57, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(195, 4, 'TWT-60Z1', 'Condura Twin Tub TWT-60Z1', 'appliance', '4800000001955', 'Condura Twin Tub washing machine. 12-month warranty.', 18801.56, 14322.65, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(196, 4, 'TWT-80Z2', 'Condura Twin Tub TWT-80Z2', 'appliance', '4800000001962', 'Condura Twin Tub washing machine. 12-month warranty.', 12984.04, 9751.01, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL);
+(7, 1, 'CSD-10DA', 'CHiQ Morandi Inverter 1HP Aircon', 'appliance', '4800000000071', 'CHiQ Morandi Inverter 1HP split-type air conditioner. 3-year warranty.', 28520.13, 20612.35, 93, 36, 279, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(8, 1, 'CSD-15DA', 'CHiQ Morandi Inverter 1.5HP Aircon', 'appliance', '4800000000088', 'CHiQ Morandi Inverter 1.5HP split-type air conditioner. 3-year warranty.', 39554.05, 30474.02, 59, 31, 150, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(9, 1, 'CSD-20DA', 'CHiQ Morandi Inverter 2HP Aircon', 'appliance', '4800000000095', 'CHiQ Morandi Inverter 2HP split-type air conditioner. 3-year warranty.', 53516.32, 39302.92, 6, 6, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(10, 1, 'CSD-25DA', 'CHiQ Morandi Inverter 2.5HP Aircon', 'appliance', '4800000000101', 'CHiQ Morandi Inverter 2.5HP split-type air conditioner. 3-year warranty.', 59478.58, 41940.73, 21, 11, 52, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(11, 1, 'CSD-10DC', 'CHiQ EVA Inverter 1HP Aircon', 'appliance', '4800000000118', 'CHiQ EVA Inverter 1HP split-type air conditioner. 3-year warranty.', 27681.81, 19503.22, 14, 9, 28, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(12, 1, 'CSD-15DC', 'CHiQ EVA Inverter 1.5HP Aircon', 'appliance', '4800000000125', 'CHiQ EVA Inverter 1.5HP split-type air conditioner. 3-year warranty.', 37225.71, 28622.48, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(13, 1, 'TAC-06CWM/F', 'TCL Window Non-Inverter 0.6HP Aircon', 'appliance', '4800000000132', 'TCL Window Non-Inverter 0.6HP window-type air conditioner. 3-year warranty.', 17713.15, 13379.10, 5, 3, 8, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(14, 1, 'TAC-07CWI/UB', 'TCL Window Standard Inverter 0.8HP Aircon', 'appliance', '4800000000149', 'TCL Window Standard Inverter 0.8HP window-type air conditioner. 3-year warranty.', 19867.76, 13653.92, 4, 2, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(15, 1, 'TAC-09CWI/UB', 'TCL Window Standard Inverter 1HP Aircon', 'appliance', '4800000000156', 'TCL Window Standard Inverter 1HP window-type air conditioner. 3-year warranty.', 26787.38, 20045.80, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(16, 1, 'TAC-12CWI/UB', 'TCL Window Standard Inverter 1.5HP Aircon', 'appliance', '4800000000163', 'TCL Window Standard Inverter 1.5HP window-type air conditioner. 3-year warranty.', 37199.26, 26521.21, 5, 2, 14, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(17, 1, 'TAC-09CWI/UJE', 'TCL Window Smart Inverter (WiFi) 1HP Aircon', 'appliance', '4800000000170', 'TCL Window Smart Inverter (WiFi) 1HP window-type air conditioner. 3-year warranty.', 29057.06, 19803.55, 72, 35, 193, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(18, 1, 'TAC-12CWI/UJE', 'TCL Window Smart Inverter (WiFi) 1.5HP Aircon', 'appliance', '4800000000187', 'TCL Window Smart Inverter (WiFi) 1.5HP window-type air conditioner. 3-year warranty.', 38805.30, 28107.07, 91, 37, 265, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(19, 1, 'TAC-18CWI/UJE', 'TCL Window Smart Inverter (WiFi) 2HP Aircon', 'appliance', '4800000000194', 'TCL Window Smart Inverter (WiFi) 2HP window-type air conditioner. 3-year warranty.', 53432.70, 39323.26, 18, 8, 47, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(20, 1, 'TAC-24CWI/UJE', 'TCL Window Smart Inverter (WiFi) 2.5HP Aircon', 'appliance', '4800000000200', 'TCL Window Smart Inverter (WiFi) 2.5HP window-type air conditioner. 3-year warranty.', 64599.54, 44009.73, 16, 11, 31, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(21, 1, 'TAC-07CWI/UB2', 'TCL Window Standard Inverter 0.8HP Aircon', 'appliance', '4800000000217', 'TCL Window Standard Inverter 0.8HP window-type air conditioner. 3-year warranty.', 20067.20, 14036.20, 18, 10, 42, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(22, 1, 'TAC-09CWI/UB2', 'TCL Window Standard Inverter 1HP Aircon', 'appliance', '4800000000224', 'TCL Window Standard Inverter 1HP window-type air conditioner. 3-year warranty.', 26815.60, 20423.83, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(23, 1, 'TAC-12CWI/UB2', 'TCL Window Standard Inverter 1.5HP Aircon', 'appliance', '4800000000231', 'TCL Window Standard Inverter 1.5HP window-type air conditioner. 3-year warranty.', 38549.48, 29976.46, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(24, 1, 'KV09WR-ARF31A', 'TCL Window Standard Inverter (New Model) 1HP Aircon', 'appliance', '4800000000248', 'TCL Window Standard Inverter (New Model) 1HP window-type air conditioner. 3-year warranty.', 28063.17, 21348.50, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(25, 1, 'KV12WR-ARF31A', 'TCL Window Standard Inverter (New Model) 1.5HP Aircon', 'appliance', '4800000000255', 'TCL Window Standard Inverter (New Model) 1.5HP window-type air conditioner. 3-year warranty.', 37139.98, 28694.35, 2, 2, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(26, 1, 'TAC-09CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 1HP Aircon', 'appliance', '4800000000262', 'TCL Window Smart Inverter (WiFi) 1HP window-type air conditioner. 3-year warranty.', 29381.97, 22627.06, 6, 2, 16, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(27, 1, 'TAC-12CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 1.5HP Aircon', 'appliance', '4800000000279', 'TCL Window Smart Inverter (WiFi) 1.5HP window-type air conditioner. 3-year warranty.', 38006.84, 29550.70, 86, 40, 235, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(28, 1, 'TAC-18CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 2HP Aircon', 'appliance', '4800000000286', 'TCL Window Smart Inverter (WiFi) 2HP window-type air conditioner. 3-year warranty.', 53070.16, 40215.51, 65, 33, 170, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(29, 1, 'TAC-24CWI/UJE2', 'TCL Window Smart Inverter (WiFi) 2.5HP Aircon', 'appliance', '4800000000293', 'TCL Window Smart Inverter (WiFi) 2.5HP window-type air conditioner. 3-year warranty.', 63235.78, 46586.43, 10, 7, 17, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(30, 1, 'TAC-09CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 1HP Aircon', 'appliance', '4800000000309', 'TCL T-Pro IoT Inverter (Wi-Fi) 1HP split-type air conditioner. 3-year warranty.', 28781.20, 19680.30, 22, 11, 54, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(31, 1, 'TAC-12CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 1.5HP Aircon', 'appliance', '4800000000316', 'TCL T-Pro IoT Inverter (Wi-Fi) 1.5HP split-type air conditioner. 3-year warranty.', 38968.09, 27139.72, 12, 9, 18, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(32, 1, 'TAC-18CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 2HP Aircon', 'appliance', '4800000000323', 'TCL T-Pro IoT Inverter (Wi-Fi) 2HP split-type air conditioner. 3-year warranty.', 52913.54, 40239.69, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(33, 1, 'TAC-24CSA/MEI', 'TCL T-Pro IoT Inverter (Wi-Fi) 2.5HP Aircon', 'appliance', '4800000000330', 'TCL T-Pro IoT Inverter (Wi-Fi) 2.5HP split-type air conditioner. 3-year warranty.', 62444.91, 45762.75, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(34, 1, 'TAC-10CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1HP Aircon', 'appliance', '4800000000347', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1HP split-type air conditioner. 3-year warranty.', 27413.68, 19022.08, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(35, 1, 'TAC-13CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1.5HP Aircon', 'appliance', '4800000000354', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 1.5HP split-type air conditioner. 3-year warranty.', 38810.31, 29486.52, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(36, 1, 'TAC-19CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2HP Aircon', 'appliance', '4800000000361', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2HP split-type air conditioner. 3-year warranty.', 54806.75, 38341.71, 9, 3, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(37, 1, 'TAC-25CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2.5HP Aircon', 'appliance', '4800000000378', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 2.5HP split-type air conditioner. 3-year warranty.', 60056.67, 43415.57, 97, 42, 274, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(38, 1, 'TAC-30CSD/KEI-S', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 3HP Aircon', 'appliance', '4800000000385', 'TCL CoolPro EcoIn (2025 B2B Exclusive) 3HP split-type air conditioner. 3-year warranty.', 70593.60, 54254.01, 89, 43, 237, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(39, 1, 'TAC-09CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1HP Aircon', 'appliance', '4800000000392', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1HP split-type air conditioner. 3-year warranty.', 27816.54, 19334.44, 15, 9, 31, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(40, 1, 'TAC-12CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1.5HP Aircon', 'appliance', '4800000000408', 'TCL Cool Pro Obsidian+ (Wi-Fi) 1.5HP split-type air conditioner. 3-year warranty.', 36860.00, 26670.79, 16, 10, 35, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(41, 1, 'TAC-18CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2HP Aircon', 'appliance', '4800000000415', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2HP split-type air conditioner. 3-year warranty.', 54577.12, 41181.71, 12, 8, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(42, 1, 'TAC-24CSA/BEI', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2.5HP Aircon', 'appliance', '4800000000422', 'TCL Cool Pro Obsidian+ (Wi-Fi) 2.5HP split-type air conditioner. 3-year warranty.', 63857.77, 49766.91, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(43, 1, 'TAC-10CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 1HP Aircon', 'appliance', '4800000000439', 'TCL VoxIN (Voice Control + Wi-Fi) 1HP split-type air conditioner. 3-year warranty.', 27913.65, 19140.67, 3, 2, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(44, 1, 'TAC-13CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 1.5HP Aircon', 'appliance', '4800000000446', 'TCL VoxIN (Voice Control + Wi-Fi) 1.5HP split-type air conditioner. 3-year warranty.', 36310.06, 27927.88, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(45, 1, 'TAC-19CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 2HP Aircon', 'appliance', '4800000000453', 'TCL VoxIN (Voice Control + Wi-Fi) 2HP split-type air conditioner. 3-year warranty.', 53043.33, 38016.15, 4, 3, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(46, 1, 'TAC-25CSD/WEI', 'TCL VoxIN (Voice Control + Wi-Fi) 2.5HP Aircon', 'appliance', '4800000000460', 'TCL VoxIN (Voice Control + Wi-Fi) 2.5HP split-type air conditioner. 3-year warranty.', 63639.03, 43707.29, 5, 2, 12, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(47, 1, '28TCFS/JI', 'TCL Floor Standing Inverter 3HP Aircon', 'appliance', '4800000000477', 'TCL Floor Standing Inverter 3HP split-type air conditioner. 3-year warranty.', 73463.70, 53643.93, 76, 35, 207, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(48, 1, '36TCFS/JI', 'TCL Floor Standing Inverter 4HP Aircon', 'appliance', '4800000000484', 'TCL Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 89392.34, 66243.30, 63, 31, 165, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(49, 1, '48TCFS/JI', 'TCL Floor Standing Inverter 6HP Aircon', 'appliance', '4800000000491', 'TCL Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 141671.38, 97420.32, 20, 11, 48, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(50, 1, '28TCFS/JI2', 'TCL Floor Standing Inverter 3HP Aircon', 'appliance', '4800000000507', 'TCL Floor Standing Inverter 3HP split-type air conditioner. 3-year warranty.', 75445.50, 56325.35, 14, 10, 25, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(51, 1, '60TCFS/JI2', 'TCL Floor Standing Inverter 7HP Aircon', 'appliance', '4800000000514', 'TCL Floor Standing Inverter 7HP split-type air conditioner. 3-year warranty.', 164420.60, 126097.45, 14, 8, 32, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(52, 1, '24TCHC/MEI2', 'TCL Ceiling Cassette Inverter 2.5HP Aircon', 'appliance', '4800000000521', 'TCL Ceiling Cassette Inverter 2.5HP split-type air conditioner. 3-year warranty.', 64917.97, 49375.31, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(53, 1, '36TCHC/MEI2', 'TCL Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000000538', 'TCL Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 98078.00, 68104.38, 5, 3, 8, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(54, 1, '42TCHC/MEI2', 'TCL Ceiling Cassette Inverter 5HP Aircon', 'appliance', '4800000000545', 'TCL Ceiling Cassette Inverter 5HP split-type air conditioner. 3-year warranty.', 113740.32, 86177.63, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(55, 1, '60TCHC/MEI2', 'TCL Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000000552', 'TCL Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 144128.26, 98817.22, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(56, 1, '36TCHC/CHI2', 'TCL Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000000569', 'TCL Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 90613.28, 66470.28, 2, 1, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(57, 1, '42TCHC/CHI2', 'TCL Ceiling Mounted Inverter 5HP Aircon', 'appliance', '4800000000576', 'TCL Ceiling Mounted Inverter 5HP split-type air conditioner. 3-year warranty.', 123026.88, 85559.04, 62, 30, 167, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(58, 1, '60TCHC/CHI2', 'TCL Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000000583', 'TCL Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 147578.68, 112696.98, 66, 27, 192, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(59, 1, 'TAC-08CSA-KEI', 'TCL Titan Gold 0.8HP Aircon', 'appliance', '4800000000590', 'TCL Titan Gold 0.8HP split-type air conditioner. 3-year warranty.', 19044.80, 13275.18, 19, 10, 48, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(60, 1, 'TAC-09CSA-KEI', 'TCL Titan Gold 1HP Aircon', 'appliance', '4800000000606', 'TCL Titan Gold 1HP split-type air conditioner. 3-year warranty.', 29358.11, 20432.07, 18, 9, 47, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(61, 1, 'TAC-12CSA-KEI', 'TCL Titan Gold 1.5HP Aircon', 'appliance', '4800000000613', 'TCL Titan Gold 1.5HP split-type air conditioner. 3-year warranty.', 36622.88, 26899.14, 13, 7, 31, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(62, 1, 'TAC-18CSA-KEI', 'TCL Titan Gold 2HP Aircon', 'appliance', '4800000000620', 'TCL Titan Gold 2HP split-type air conditioner. 3-year warranty.', 52124.18, 37841.63, 9, 3, 24, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(63, 1, 'TAC-22CSA-KEI', 'TCL Titan Gold 2.5HP Aircon', 'appliance', '4800000000637', 'TCL Titan Gold 2.5HP split-type air conditioner. 3-year warranty.', 58375.98, 40275.92, 3, 2, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(64, 1, 'IFAC-09CSD/XAF1', 'Iffalcon 1HP Inverter Aircon', 'appliance', '4800000000644', 'Iffalcon Inverter 1HP split-type air conditioner. 3-year warranty.', 28069.89, 20267.02, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(65, 1, 'IFAC-12CSD/XAF1', 'Iffalcon 1.5HP Inverter Aircon', 'appliance', '4800000000651', 'Iffalcon Inverter 1.5HP split-type air conditioner. 3-year warranty.', 39166.45, 27422.39, 3, 2, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(66, 1, 'IFAC-18CSD/XAF1', 'Iffalcon 2HP Inverter Aircon', 'appliance', '4800000000668', 'Iffalcon Inverter 2HP split-type air conditioner. 3-year warranty.', 50300.85, 34253.37, 9, 3, 24, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(67, 1, 'IFAC-24CSD/XAF1', 'Iffalcon 2.5HP Inverter Aircon', 'appliance', '4800000000675', 'Iffalcon Inverter 2.5HP split-type air conditioner. 3-year warranty.', 63275.96, 43171.92, 85, 42, 225, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(68, 1, 'FP-51ARA006HMNV-N5', 'Midea Window Non-Inverter 0.6HP Aircon', 'appliance', '4800000000682', 'Midea Window Non-Inverter 0.6HP window-type air conditioner. 3-year warranty.', 17681.83, 12991.37, 75, 35, 205, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(69, 1, 'FP-38AFS036KENV-J5', 'Midea Floor Standing Non-Inverter 4HP Aircon', 'appliance', '4800000000699', 'Midea Floor Standing Non-Inverter 4HP split-type air conditioner. 3-year warranty.', 98576.18, 76798.73, 12, 8, 23, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(70, 1, 'MWWA-08CRFN8', 'Midea Window Standard Inverter 0.8HP Aircon', 'appliance', '4800000000705', 'Midea Window Standard Inverter 0.8HP window-type air conditioner. 3-year warranty.', 19602.80, 13350.29, 13, 7, 30, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(71, 1, 'MWWA-09CRFN8', 'Midea Window Standard Inverter 1HP Aircon', 'appliance', '4800000000712', 'Midea Window Standard Inverter 1HP window-type air conditioner. 3-year warranty.', 29340.98, 21063.60, 15, 9, 32, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(72, 1, 'MWWA-12CRFN8', 'Midea Window Standard Inverter 1.5HP Aircon', 'appliance', '4800000000729', 'Midea Window Standard Inverter 1.5HP window-type air conditioner. 3-year warranty.', 38935.71, 28228.00, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(73, 1, 'FP-51ARA020HEIV-N4', 'Midea Window Smart Inverter (WiFi) 2HP Aircon', 'appliance', '4800000000736', 'Midea Window Smart Inverter (WiFi) 2HP window-type air conditioner. 3-year warranty.', 50937.95, 35904.12, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(74, 1, 'FP-51ARA025HEIV-N4', 'Midea Window Smart Inverter (WiFi) 2.5HP Aircon', 'appliance', '4800000000743', 'Midea Window Smart Inverter (WiFi) 2.5HP window-type air conditioner. 3-year warranty.', 65597.24, 50041.51, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(75, 1, 'FP-53AST010KEIV-F4', 'Midea Celest Inverter 1HP Aircon', 'appliance', '4800000000750', 'Midea Celest Inverter 1HP split-type air conditioner. 3-year warranty.', 26611.98, 18814.40, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(76, 1, 'FP-53AST010KEIV-F4-2.5HP', 'Midea Celest Inverter 2.5HP Aircon', 'appliance', '4800000000767', 'Midea Celest Inverter 2.5HP split-type air conditioner. 3-year warranty.', 58736.82, 43214.44, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(77, 1, 'MSCE-10CRFN8', 'Midea Celest Pro Full DC Inverter 1HP Aircon', 'appliance', '4800000000774', 'Midea Celest Pro Full DC Inverter 1HP split-type air conditioner. 3-year warranty.', 27107.58, 19534.81, 76, 33, 214, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(78, 1, 'MSCE-13CRFN8', 'Midea Celest Pro Full DC Inverter 1.5HP Aircon', 'appliance', '4800000000781', 'Midea Celest Pro Full DC Inverter 1.5HP split-type air conditioner. 3-year warranty.', 37151.84, 28849.52, 64, 34, 160, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(79, 1, 'MSCE-19CRFN8', 'Midea Celest Pro Full DC Inverter 2HP Aircon', 'appliance', '4800000000798', 'Midea Celest Pro Full DC Inverter 2HP split-type air conditioner. 3-year warranty.', 54537.18, 40148.09, 14, 9, 29, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(80, 1, 'MSCE-22CRFN8', 'Midea Celest Pro Full DC Inverter 2.5HP Aircon', 'appliance', '4800000000804', 'Midea Celest Pro Full DC Inverter 2.5HP split-type air conditioner. 3-year warranty.', 63101.12, 47664.69, 12, 8, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(81, 1, 'MSCE-25CRFN8', 'Midea Celest Pro Full DC Inverter 3HP Aircon', 'appliance', '4800000000811', 'Midea Celest Pro Full DC Inverter 3HP split-type air conditioner. 3-year warranty.', 78346.20, 54206.17, 12, 8, 25, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(82, 1, 'MFSI/O-36CDN8-MD3', 'Midea Floor Standing Inverter 4HP Aircon', 'appliance', '4800000000828', 'Midea Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 98927.30, 72440.50, 4, 2, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(83, 1, 'MFSI/O-52CDN8-MD1', 'Midea Floor Standing Inverter 6HP Aircon', 'appliance', '4800000000835', 'Midea Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 136360.90, 99334.82, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(84, 1, 'MFSI/O-52CDN8-DD1', 'Midea Floor Standing Inverter (3P 220V) 6HP Aircon', 'appliance', '4800000000842', 'Midea Floor Standing Inverter (3P 220V) 6HP split-type air conditioner. 3-year warranty.', 152297.56, 109055.71, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(85, 1, 'MCCI/O-36CDN8-MD3', 'Midea Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000000859', 'Midea Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 89632.88, 61296.34, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(86, 1, 'MCCI/O-52CDN8-MD1', 'Midea Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000000866', 'Midea Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 143578.42, 103646.39, 9, 3, 24, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(87, 1, 'MUCI/O-36CDN8-MD3', 'Midea Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000000873', 'Midea Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 94545.14, 70637.51, 69, 34, 181, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:20', NULL),
+(88, 1, 'MCCI/O-52CDN8-MD1-6HP', 'Midea Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000000880', 'Midea Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 145941.34, 109695.35, 85, 34, 250, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:20', NULL),
+(89, 1, 'FP-42AFC036KENV-N6', 'Midea Ceiling Mounted Non-Inverter 4HP Aircon', 'appliance', '4800000000897', 'Midea Ceiling Mounted Non-Inverter 4HP split-type air conditioner. 3-year warranty.', 97830.62, 68803.30, 15, 8, 36, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:20', NULL),
+(90, 1, 'HSU-09CSV32', 'Haier Clean Cool Pro Inverter 1HP Aircon', 'appliance', '4800000000903', 'Haier Clean Cool Pro Inverter 1HP split-type air conditioner. 3-year warranty.', 26939.25, 18785.55, 15, 10, 29, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:20', NULL),
+(91, 1, 'HSU-13CSV32', 'Haier Clean Cool Pro Inverter 1.5HP Aircon', 'appliance', '4800000000910', 'Haier Clean Cool Pro Inverter 1.5HP split-type air conditioner. 3-year warranty.', 36207.46, 27969.54, 21, 10, 56, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:20', NULL),
+(92, 1, 'HSU-18CSV32', 'Haier Clean Cool Pro Inverter 2HP Aircon', 'appliance', '4800000000927', 'Haier Clean Cool Pro Inverter 2HP split-type air conditioner. 3-year warranty.', 49727.39, 38682.94, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(93, 1, 'HSU-25CSV32', 'Haier Clean Cool Pro Inverter 2.5HP Aircon', 'appliance', '4800000000934', 'Haier Clean Cool Pro Inverter 2.5HP split-type air conditioner. 3-year warranty.', 64636.74, 48531.20, 4, 2, 9, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(94, 1, 'HSU-30PSV32', 'Haier Clean Cool Pro Inverter 3HP Aircon', 'appliance', '4800000000941', 'Haier Clean Cool Pro Inverter 3HP split-type air conditioner. 3-year warranty.', 76239.30, 58773.64, 4, 2, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(95, 1, 'AP105S2SK1SA', 'Haier Floor Standing Inverter 4HP Aircon', 'appliance', '4800000000958', 'Haier Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 91442.06, 70628.02, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(96, 1, 'AP60S4SE1ET', 'Haier Floor Standing Inverter 6HP Aircon', 'appliance', '4800000000965', 'Haier Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 145132.24, 98747.98, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(97, 1, 'ABH105H1ERG', 'Haier Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000000972', 'Haier Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 98996.84, 76961.13, 54, 30, 130, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(98, 1, 'ABH140K1ERG', 'Haier Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000000989', 'Haier Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 153376.36, 117363.59, 79, 33, 229, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(99, 1, 'AC105S2SH1FA', 'Haier Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000000996', 'Haier Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 97681.28, 68358.34, 21, 11, 53, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(100, 1, 'AC140S2SK1FA', 'Haier Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000001009', 'Haier Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 146221.48, 101071.21, 18, 10, 42, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(101, 1, 'AR09TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 1HP Aircon', 'appliance', '4800000001016', 'Samsung Standard Inverter (Digital S-Inverter) 1HP split-type air conditioner. 3-year warranty.', 26989.31, 19688.97, 12, 8, 25, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(102, 1, 'AR12TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 1.5HP Aircon', 'appliance', '4800000001023', 'Samsung Standard Inverter (Digital S-Inverter) 1.5HP split-type air conditioner. 3-year warranty.', 38358.87, 29800.62, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:21', NULL),
+(103, 1, 'AR18TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 2HP Aircon', 'appliance', '4800000001030', 'Samsung Standard Inverter (Digital S-Inverter) 2HP split-type air conditioner. 3-year warranty.', 48913.07, 34871.11, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(104, 1, 'AR24TYHYEWKNTC', 'Samsung Standard Inverter (Digital S-Inverter) 2.5HP Aircon', 'appliance', '4800000001047', 'Samsung Standard Inverter (Digital S-Inverter) 2.5HP split-type air conditioner. 3-year warranty.', 61098.27, 46661.97, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(105, 1, 'AR10AYKAGWKXTC', 'Samsung WindFree ActivClean 1HP Aircon', 'appliance', '4800000001054', 'Samsung WindFree ActivClean 1HP split-type air conditioner. 3-year warranty.', 26756.13, 20459.07, 5, 3, 8, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(106, 1, 'AR10AYKAGWKXTC-1.5HP', 'Samsung WindFree ActivClean 1.5HP Aircon', 'appliance', '4800000001061', 'Samsung WindFree ActivClean 1.5HP split-type air conditioner. 3-year warranty.', 36180.10, 26147.72, 6, 2, 16, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(107, 1, 'AR10AYKAGWKXTC-2HP', 'Samsung WindFree ActivClean 2HP Aircon', 'appliance', '4800000001078', 'Samsung WindFree ActivClean 2HP split-type air conditioner. 3-year warranty.', 52912.91, 38051.79, 60, 42, 116, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(108, 1, 'AR10AYKAGWKXTC-2.5HP', 'Samsung WindFree ActivClean 2.5HP Aircon', 'appliance', '4800000001085', 'Samsung WindFree ActivClean 2.5HP split-type air conditioner. 3-year warranty.', 61627.26, 44686.54, 66, 37, 162, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(109, 1, 'AC036BNPDKC/TC', 'Samsung Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001092', 'Samsung Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 99109.70, 75365.00, 20, 11, 49, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(110, 1, 'AC048BNPDKC/TC', 'Samsung Floor Standing Inverter 6HP Aircon', 'appliance', '4800000001108', 'Samsung Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 145913.50, 112677.32, 16, 10, 32, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(111, 1, 'AC100TN4DKC/TC', 'Samsung Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000001115', 'Samsung Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 89622.62, 63584.56, 18, 12, 37, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(112, 1, 'AC140TN4DKC/TC', 'Samsung Ceiling Cassette Inverter 5HP Aircon', 'appliance', '4800000001122', 'Samsung Ceiling Cassette Inverter 5HP split-type air conditioner. 3-year warranty.', 124216.32, 86907.95, 5, 3, 8, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(113, 1, 'AC100TNCDKC/TC', 'Samsung Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000001139', 'Samsung Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 91641.56, 63833.85, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(114, 1, 'AC140TNCDKC/TC', 'Samsung Ceiling Mounted Inverter 5HP Aircon', 'appliance', '4800000001146', 'Samsung Ceiling Mounted Inverter 5HP split-type air conditioner. 3-year warranty.', 123235.68, 84983.32, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(115, 1, 'AC160TNCDKC/TC', 'Samsung Ceiling Mounted Inverter 6HP Aircon', 'appliance', '4800000001153', 'Samsung Ceiling Mounted Inverter 6HP split-type air conditioner. 3-year warranty.', 144820.78, 104533.09, 4, 3, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(116, 1, 'FP-53CAC009308', 'Carrier Nexus Inverter 1HP Aircon', 'appliance', '4800000001160', 'Carrier Nexus Inverter 1HP split-type air conditioner. 3-year warranty.', 26530.34, 18315.22, 9, 3, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(117, 1, 'FP-53CAC012308', 'Carrier Nexus Inverter 1.5HP Aircon', 'appliance', '4800000001177', 'Carrier Nexus Inverter 1.5HP split-type air conditioner. 3-year warranty.', 39191.07, 30568.25, 70, 33, 190, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(118, 1, 'FP-53CAC018308', 'Carrier Nexus Inverter 2HP Aircon', 'appliance', '4800000001184', 'Carrier Nexus Inverter 2HP split-type air conditioner. 3-year warranty.', 52174.72, 36653.26, 68, 33, 180, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(119, 1, 'FP-53CAC024308', 'Carrier Nexus Inverter 2.5HP Aircon', 'appliance', '4800000001191', 'Carrier Nexus Inverter 2.5HP split-type air conditioner. 3-year warranty.', 65159.02, 46735.96, 15, 10, 29, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:22', NULL),
+(120, 1, '38CL V036308', 'Carrier Slim Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001207', 'Carrier Slim Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 100426.40, 70004.23, 19, 10, 45, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(121, 1, 'DFE-ASD 04.0HP', 'Carrier Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001214', 'Carrier Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 93784.76, 64492.03, 16, 10, 33, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(122, 1, '42DFECAR04HEGS2GN1', 'Carrier Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001221', 'Carrier Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 97632.26, 70685.76, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(123, 1, 'DFE-ASD 06.0HP', 'Carrier Floor Standing Inverter (1-Phase 220V) 6HP Aircon', 'appliance', '4800000001238', 'Carrier Floor Standing Inverter (1-Phase 220V) 6HP split-type air conditioner. 3-year warranty.', 137752.90, 99078.77, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(124, 1, 'FP-53CFE-ASC', 'Carrier Floor Standing Non-Inverter 4HP Aircon', 'appliance', '4800000001245', 'Carrier Floor Standing Non-Inverter 4HP split-type air conditioner. 3-year warranty.', 99179.24, 75516.07, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(125, 1, 'FP-53CFE600', 'Carrier Floor Standing Non-Inverter 6HP Aircon', 'appliance', '4800000001252', 'Carrier Floor Standing Non-Inverter 6HP split-type air conditioner. 3-year warranty.', 142209.04, 101673.78, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(126, 1, '53CAV036308-2', 'Carrier Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000001269', 'Carrier Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 93120.14, 65740.96, 4, 1, 10, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(127, 1, '53CAV055308-2', 'Carrier Ceiling Cassette Inverter 5HP Aircon', 'appliance', '4800000001276', 'Carrier Ceiling Cassette Inverter 5HP split-type air conditioner. 3-year warranty.', 123457.44, 84527.61, 74, 34, 205, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(128, 1, '53CUV036308-2', 'Carrier Ceiling Mounted Inverter 4HP Aircon', 'appliance', '4800000001283', 'Carrier Ceiling Mounted Inverter 4HP split-type air conditioner. 3-year warranty.', 93902.18, 69658.52, 74, 37, 194, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(129, 1, '53CUV055308-2', 'Carrier Ceiling Mounted Inverter 5HP Aircon', 'appliance', '4800000001290', 'Carrier Ceiling Mounted Inverter 5HP split-type air conditioner. 3-year warranty.', 116179.68, 83318.26, 13, 8, 29, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(130, 1, '42DFECAR06HEGS2GN', 'Carrier Chilled Water Aircon', 'appliance', '4800000001306', 'Carrier Chilled Water split-type air conditioner. 3-year warranty.', 30677.88, 22264.47, 11, 8, 20, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(131, 1, 'KV09WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 1HP Aircon', 'appliance', '4800000001313', 'Koppel R32 Super Inverter - Lunaire 1HP split-type air conditioner. 3-year warranty.', 29592.98, 21594.00, 14, 9, 30, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(132, 1, 'KV12WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 1.5HP Aircon', 'appliance', '4800000001320', 'Koppel R32 Super Inverter - Lunaire 1.5HP split-type air conditioner. 3-year warranty.', 35908.78, 26527.97, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(133, 1, 'KV18WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 2HP Aircon', 'appliance', '4800000001337', 'Koppel R32 Super Inverter - Lunaire 2HP split-type air conditioner. 3-year warranty.', 49648.77, 36232.18, 3, 2, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(134, 1, 'KV24WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 2.5HP Aircon', 'appliance', '4800000001344', 'Koppel R32 Super Inverter - Lunaire 2.5HP split-type air conditioner. 3-year warranty.', 62345.96, 45213.91, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(135, 1, 'KV27WM-ARF31D', 'Koppel R32 Super Inverter - Lunaire 3HP Aircon', 'appliance', '4800000001351', 'Koppel R32 Super Inverter - Lunaire 3HP split-type air conditioner. 3-year warranty.', 73112.70, 51257.85, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(136, 1, 'KV36FM-ARF21D', 'Koppel Floor Inverter 4HP Aircon', 'appliance', '4800000001368', 'Koppel Floor Inverter 4HP split-type air conditioner. 3-year warranty.', 100668.08, 76090.97, 5, 2, 14, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(137, 1, 'KV60FM-ARF21D', 'Koppel Floor Inverter 6HP Aircon', 'appliance', '4800000001375', 'Koppel Floor Inverter 6HP split-type air conditioner. 3-year warranty.', 145588.12, 107628.93, 69, 37, 172, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:23', NULL),
+(138, 1, 'KV36CC-ARF21D', 'Koppel Ceiling Cassette Inverter 4HP Aircon', 'appliance', '4800000001382', 'Koppel Ceiling Cassette Inverter 4HP split-type air conditioner. 3-year warranty.', 92717.72, 69058.01, 83, 45, 207, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(139, 1, 'KV60CC-ARF21D', 'Koppel Ceiling Cassette Inverter 6HP Aircon', 'appliance', '4800000001399', 'Koppel Ceiling Cassette Inverter 6HP split-type air conditioner. 3-year warranty.', 151264.00, 111728.13, 11, 9, 14, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(140, 1, 'HS09IBA', 'LG Dual Inverter 1HP Aircon', 'appliance', '4800000001405', 'LG Dual Inverter 1HP split-type air conditioner. 3-year warranty.', 28027.55, 20650.98, 13, 7, 29, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(141, 1, 'HS12IBA', 'LG Dual Inverter 1.5HP Aircon', 'appliance', '4800000001412', 'LG Dual Inverter 1.5HP split-type air conditioner. 3-year warranty.', 37480.16, 25529.99, 15, 8, 35, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(142, 1, 'HS18IBA', 'LG Dual Inverter 2HP Aircon', 'appliance', '4800000001429', 'LG Dual Inverter 2HP split-type air conditioner. 3-year warranty.', 53816.46, 38615.46, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(143, 1, 'HS24IBA', 'LG Dual Inverter 2.5HP Aircon', 'appliance', '4800000001436', 'LG Dual Inverter 2.5HP split-type air conditioner. 3-year warranty.', 64810.09, 44547.22, 9, 3, 24, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(144, 1, 'ZPNQ36GT3E0', 'LG Floor Standing Inverter 4HP Aircon', 'appliance', '4800000001443', 'LG Floor Standing Inverter 4HP split-type air conditioner. 3-year warranty.', 90266.72, 68291.29, 3, 1, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(145, 1, 'ZPNQ60GT3A0', 'LG Floor Standing Inverter 6HP Aircon', 'appliance', '4800000001450', 'LG Floor Standing Inverter 6HP split-type air conditioner. 3-year warranty.', 150689.80, 106908.39, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(146, 1, 'ZTNQ30GNLE0/ENWHASA', 'LG Ceiling Cassette Inverter 3HP Aircon', 'appliance', '4800000001467', 'LG Ceiling Cassette Inverter 3HP split-type air conditioner. 3-year warranty.', 71260.50, 50632.01, 9, 3, 24, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(147, 2, 'S45H', 'TCL Soundbar S45H', 'appliance', '4800000001474', 'TCL Soundbar television. 12-month warranty.', 5087.12, 3493.07, 87, 36, 251, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(148, 2, 'S55H', 'TCL Soundbar S55H', 'appliance', '4800000001481', 'TCL Soundbar television. 12-month warranty.', 5591.66, 3828.95, 78, 42, 194, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(149, 2, 'Q75H', 'TCL Soundbar Q75H', 'appliance', '4800000001498', 'TCL Soundbar television. 12-month warranty.', 8362.83, 6450.17, 17, 10, 39, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(150, 2, 'Q85H', 'TCL Soundbar Q85H', 'appliance', '4800000001504', 'TCL Soundbar television. 12-month warranty.', 7335.08, 5417.76, 22, 11, 54, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(151, 2, '32D3400', 'TCL Digital TV 32D3400', 'appliance', '4800000001511', 'TCL Digital TV television. 12-month warranty.', 15587.34, 11133.10, 18, 13, 33, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(152, 2, '32S5401AF', 'TCL Digital TV 32S5401AF', 'appliance', '4800000001528', 'TCL Digital TV television. 12-month warranty.', 15678.96, 10784.30, 4, 2, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(153, 2, '32S5402', 'TCL Android Smart TV 32S5402', 'appliance', '4800000001535', 'TCL Android Smart TV television. 12-month warranty.', 15089.64, 10660.98, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(154, 2, '32S5K', 'TCL 2K Google TV 32S5K', 'appliance', '4800000001542', 'TCL 2K Google TV television. 12-month warranty.', 15223.74, 11068.72, 3, 1, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(155, 2, '40S5400A', 'TCL Android Smart TV 40S5400A', 'appliance', '4800000001559', 'TCL Android Smart TV television. 12-month warranty.', 15504.90, 11655.65, 4, 2, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:24', NULL),
+(156, 2, '40S5K', 'TCL 2K Google TV 40S5K', 'appliance', '4800000001566', 'TCL 2K Google TV television. 12-month warranty.', 14782.20, 11079.55, 8, 3, 20, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(157, 2, '43S5400A', 'TCL Android Smart TV 43S5400A', 'appliance', '4800000001573', 'TCL Android Smart TV television. 12-month warranty.', 15171.36, 10847.67, 66, 34, 171, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(158, 2, '43S5K', 'TCL 2K Google TV 43S5K', 'appliance', '4800000001580', 'TCL 2K Google TV television. 12-month warranty.', 14496.72, 10550.13, 64, 35, 160, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(159, 2, '43V6B', 'TCL 4K Google TV 43V6B', 'appliance', '4800000001597', 'TCL 4K Google TV television. 12-month warranty.', 14670.60, 10121.10, 16, 9, 39, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(160, 2, '50V6B', 'TCL 4K Google TV 50V6B', 'appliance', '4800000001603', 'TCL 4K Google TV television. 12-month warranty.', 15018.00, 11448.52, 7, 5, 13, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(161, 2, '55P635', 'TCL 4K Google TV 55P635', 'appliance', '4800000001610', 'TCL 4K Google TV television. 12-month warranty.', 14316.36, 10703.63, 12, 6, 28, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(162, 2, '65V6B', 'TCL 4K Google TV 65V6B', 'appliance', '4800000001627', 'TCL 4K Google TV television. 12-month warranty.', 15574.74, 11951.90, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(163, 2, '43P7K', 'TCL QLED Google TV 43P7K', 'appliance', '4800000001634', 'TCL QLED Google TV television. 12-month warranty.', 15001.26, 10921.82, 3, 2, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(164, 2, '50P7K', 'TCL QLED Google TV 50P7K', 'appliance', '4800000001641', 'TCL QLED Google TV television. 12-month warranty.', 14720.28, 10011.85, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(165, 2, '55P7K', 'TCL QLED Google TV 55P7K', 'appliance', '4800000001658', 'TCL QLED Google TV television. 12-month warranty.', 15619.20, 10660.26, 4, 3, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(166, 2, '65P7K', 'TCL QLED Google TV 65P7K', 'appliance', '4800000001665', 'TCL QLED Google TV television. 12-month warranty.', 14767.26, 10377.99, 5, 2, 12, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(167, 2, '75P7K', 'TCL QLED Google TV 75P7K', 'appliance', '4800000001672', 'TCL QLED Google TV television. 12-month warranty.', 15777.06, 11059.09, 50, 20, 100, 3, '2026-06-29 16:00:00', '2026-08-02 11:06:32', NULL),
+(168, 2, '85P8K', 'TCL QLED Google TV 144Hz 85P8K', 'appliance', '4800000001689', 'TCL QLED Google TV 144Hz television. 12-month warranty.', 15196.02, 11508.40, 74, 37, 194, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(169, 2, '98P8K', 'TCL QLED Google TV 144Hz 98P8K', 'appliance', '4800000001696', 'TCL QLED Google TV 144Hz television. 12-month warranty.', 14680.14, 9991.89, 10, 7, 18, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(170, 3, 'TR-59PHB', 'Condura 1 Door Direct Cool Non-Inverter TR-59PHB', 'appliance', '4800000001702', 'Condura 1 Door Direct Cool Non-Inverter refrigerator. 12-month warranty.', 15239.04, 11615.20, 22, 10, 61, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(171, 3, 'TR-99PHB', 'Condura Single Door Non-Inverter TR-99PHB', 'appliance', '4800000001719', 'Condura Single Door Non-Inverter refrigerator. 12-month warranty.', 44108.65, 34091.13, 15, 8, 37, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(172, 3, 'TR-190INV/DB', 'Condura Single Door Inverter TR-190INV/DB', 'appliance', '4800000001726', 'Condura Single Door Inverter refrigerator. 12-month warranty.', 32847.69, 25323.93, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(173, 3, 'TRF-118PH', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-118PH', 'appliance', '4800000001733', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 21167.71, 14712.83, 4, 3, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(174, 3, 'TRF-207PH', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-207PH', 'appliance', '4800000001740', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 34120.22, 23543.63, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:25', NULL),
+(175, 3, 'TRF-230PH', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-230PH', 'appliance', '4800000001757', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 44419.26, 31917.46, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(176, 3, 'TRF-230INV/D', 'Condura 2 Door Top Mount No Frost Inverter TRF-230INV/D', 'appliance', '4800000001764', 'Condura 2 Door Top Mount No Frost Inverter refrigerator. 12-month warranty.', 20239.75, 14498.34, 2, 1, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(177, 3, 'TRF-H199INV/N', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-H199INV/N', 'appliance', '4800000001771', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 14998.47, 11680.21, 73, 43, 170, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(178, 3, 'TRF-H220INV/N', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-H220INV/N', 'appliance', '4800000001788', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 29890.30, 21043.07, 72, 37, 186, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(179, 3, 'TRF-H260INV/N', 'Condura 2 Door Top Mount Defrost Non-Inverter TRF-H260INV/N', 'appliance', '4800000001795', 'Condura 2 Door Top Mount Defrost Non-Inverter refrigerator. 12-month warranty.', 31442.87, 22177.29, 14, 8, 32, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(180, 3, 'TRF-H360INV/N', 'Condura 2 Door Top Mount No Frost Inverter TRF-H360INV/N', 'appliance', '4800000001801', 'Condura 2 Door Top Mount No Frost Inverter refrigerator. 12-month warranty.', 25169.21, 17128.40, 20, 12, 44, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(181, 3, 'TRF-INV430CDSS', 'Condura 4 Door Cross Door No Frost Inverter TRF-INV430CDSS', 'appliance', '4800000001818', 'Condura 4 Door Cross Door No Frost Inverter refrigerator. 12-month warranty.', 34674.50, 25093.24, 14, 10, 26, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(182, 3, 'TRF-INV436BMSB', 'Condura 4 Door Cross Door No Frost Inverter TRF-INV436BMSB', 'appliance', '4800000001825', 'Condura 4 Door Cross Door No Frost Inverter refrigerator. 12-month warranty.', 21158.61, 14678.57, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(183, 3, 'TRF-505PH', 'Condura 2 Door Side-by-Side No Frost Inverter TRF-505PH', 'appliance', '4800000001832', 'Condura 2 Door Side-by-Side No Frost Inverter refrigerator. 12-month warranty.', 41503.51, 30046.47, 5, 3, 8, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(184, 3, 'TRF-199 INV/S', 'Condura Freezer TRF-199 INV/S', 'appliance', '4800000001849', 'Condura Freezer refrigerator. 12-month warranty.', 29548.09, 20883.11, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(185, 3, 'TRF-210 INV/N', 'Condura Freezer TRF-210 INV/N', 'appliance', '4800000001856', 'Condura Freezer refrigerator. 12-month warranty.', 15793.45, 10884.53, 3, 2, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(186, 3, 'TCF-230 INV/D', 'Condura Inverter TCF-230 INV/D', 'appliance', '4800000001863', 'Condura Inverter refrigerator. 12-month warranty.', 32047.58, 23635.73, 5, 2, 12, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(187, 3, 'TCF-185PUPH', 'Condura Chest Freezer Non-Inverter TCF-185PUPH', 'appliance', '4800000001870', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 28899.11, 21023.81, 72, 28, 214, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(188, 3, 'TCF-245PUPH', 'Condura Chest Freezer Non-Inverter TCF-245PUPH', 'appliance', '4800000001887', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 24016.39, 17562.71, 79, 40, 206, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(189, 3, 'TCF-305PUPH', 'Condura Chest Freezer Non-Inverter TCF-305PUPH', 'appliance', '4800000001894', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 27572.74, 21038.28, 13, 8, 28, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(190, 3, 'TCF-380PUPH', 'Condura Chest Freezer Non-Inverter TCF-380PUPH', 'appliance', '4800000001900', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 41645.51, 29705.33, 13, 8, 29, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:26', NULL),
+(191, 3, 'TCF-450PUPH', 'Condura Chest Freezer Non-Inverter TCF-450PUPH', 'appliance', '4800000001917', 'Condura Chest Freezer Non-Inverter refrigerator. 12-month warranty.', 46262.84, 31638.23, 12, 10, 18, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(192, 3, 'TUF-H260INV/D', 'Condura Upright Freezer Inverter Defrost TUF-H260INV/D', 'appliance', '4800000001924', 'Condura Upright Freezer Inverter Defrost refrigerator. 12-month warranty.', 43545.82, 32242.20, 3, 1, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(193, 3, 'TRF-INV660SBGB', 'Condura 2 Door Side-by-Side No Frost Inverter TRF-INV660SBGB', 'appliance', '4800000001931', 'Condura 2 Door Side-by-Side No Frost Inverter refrigerator. 12-month warranty.', 41347.14, 29590.91, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(194, 3, 'TRF-INV560CDGB', 'Condura 4 Door Cross Door No Frost Inverter TRF-INV560CDGB', 'appliance', '4800000001948', 'Condura 4 Door Cross Door No Frost Inverter refrigerator. 12-month warranty.', 31300.10, 22107.57, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(195, 4, 'TWT-60Z1', 'Condura Twin Tub TWT-60Z1', 'appliance', '4800000001955', 'Condura Twin Tub washing machine. 12-month warranty.', 18801.56, 14322.65, 3, 2, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(196, 4, 'TWT-80Z2', 'Condura Twin Tub TWT-80Z2', 'appliance', '4800000001962', 'Condura Twin Tub washing machine. 12-month warranty.', 12984.04, 9751.01, 2, 1, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL);
 INSERT INTO `products` (`product_id`, `category_id`, `product_code`, `product_name`, `product_type`, `barcode`, `description`, `unit_price`, `cost_price`, `recommended_stocks`, `safety_stock`, `max_stock_level`, `status_id`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(197, 4, 'TWT-90Z2', 'Condura Twin Tub TWT-90Z2', 'appliance', '4800000001979', 'Condura Twin Tub washing machine. 12-month warranty.', 16506.71, 12076.47, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(198, 4, 'TWT-100Z2', 'Condura Twin Tub TWT-100Z2', 'appliance', '4800000001986', 'Condura Twin Tub washing machine. 12-month warranty.', 25371.46, 18371.98, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(199, 4, 'TWT-130Z2', 'Condura Twin Tub TWT-130Z2', 'appliance', '4800000001993', 'Condura Twin Tub washing machine. 12-month warranty.', 31544.81, 21473.50, 6, 2, 15, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(200, 4, 'TWA75-F107TLW', 'Condura Top Load Fully Automatic TWA75-F107TLW', 'appliance', '4800000002006', 'Condura Top Load Fully Automatic washing machine. 12-month warranty.', 36656.49, 26545.53, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(201, 4, 'TWA85-F708TLW', 'Condura Top Load Fully Automatic TWA85-F708TLW', 'appliance', '4800000002013', 'Condura Top Load Fully Automatic washing machine. 12-month warranty.', 23637.52, 17734.76, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(202, 4, 'TWA95-F709TLW', 'Condura Top Load Fully Automatic TWA95-F709TLW', 'appliance', '4800000002020', 'Condura Top Load Fully Automatic washing machine. 12-month warranty.', 18526.06, 13728.92, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(203, 4, 'TWA90-P71', 'Condura Top Load Fully Automatic Inverter TWA90-P71', 'appliance', '4800000002037', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 29057.37, 20116.71, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(204, 4, 'TWA100-P71', 'Condura Top Load Fully Automatic Inverter TWA100-P71', 'appliance', '4800000002044', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 33550.55, 24507.67, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(205, 4, 'TWA110-P71', 'Condura Top Load Fully Automatic Inverter TWA110-P71', 'appliance', '4800000002051', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 27765.26, 19920.46, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(206, 4, 'TWA130-P70', 'Condura Top Load Fully Automatic Inverter TWA130-P70', 'appliance', '4800000002068', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 17314.58, 11867.41, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(207, 4, 'TWF60-P60', 'Condura Front Load Fully Automatic Inverter TWF60-P60', 'appliance', '4800000002075', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 31947.40, 24824.73, 10, 4, 25, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(208, 4, 'TWF65-P60', 'Condura Front Load Fully Automatic Inverter TWF65-P60', 'appliance', '4800000002082', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 19440.53, 15057.08, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(209, 4, 'TWF75-P60', 'Condura Front Load Fully Automatic Inverter TWF75-P60', 'appliance', '4800000002099', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 24436.21, 18863.04, 9, 3, 23, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(210, 4, 'TWF85-P60', 'Condura Front Load Fully Automatic Inverter TWF85-P60', 'appliance', '4800000002105', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 23792.41, 17051.78, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(211, 4, 'TWF105-C20', 'Condura Front Load Fully Automatic Inverter Commercial TWF105-C20', 'appliance', '4800000002112', 'Condura Front Load Fully Automatic Inverter Commercial washing machine. 12-month warranty.', 24838.08, 18094.04, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(212, 4, 'TWD120-C682DG', 'Condura Front Load Fully Automatic Inverter Commercial TWD120-C682DG', 'appliance', '4800000002129', 'Condura Front Load Fully Automatic Inverter Commercial washing machine. 12-month warranty.', 31229.95, 22474.95, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 03:51:04', NULL),
-(213, 9, 'TY-LWYR87W', 'Condura Water Dispenser Top Load TY-LWYR87W', 'appliance', '4800000002136', 'Condura Top Load home appliance. 12-month warranty.', 1537.17, 1135.95, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:31:34', NULL),
-(214, 9, 'TY-LWYR110T', 'Condura Water Dispenser Bottom Load TY-LWYR110T', 'appliance', '4800000002143', 'Condura Bottom Load home appliance. 12-month warranty.', 1886.89, 1387.90, 5, 2, 13, 3, '2026-06-29 16:00:00', '2026-07-07 17:31:34', NULL),
-(215, 10, 'PROD-215', 'Copper Tube 1/4 CT (Roll)', 'installation_material', '4800000002150', 'Copper Tube 1/4 CT (Roll).', 1893.15, 1443.15, 134, 47, 335, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(216, 10, 'PROD-216', 'Copper Tube 1/4 CT (Per Foot)', 'installation_material', '4800000002167', 'Copper Tube 1/4 CT (Per Foot).', 79.97, 62.10, 170, 60, 425, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(217, 10, 'PROD-217', 'Copper Tube 3/8 CT (Roll)', 'installation_material', '4800000002174', 'Copper Tube 3/8 CT (Roll).', 1220.68, 842.72, 32, 11, 80, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(218, 10, 'PROD-218', 'Copper Tube 3/8 CT (Per Foot)', 'installation_material', '4800000002181', 'Copper Tube 3/8 CT (Per Foot).', 69.71, 50.11, 111, 39, 278, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(219, 10, 'PROD-219', 'Copper Tube 1/2 CT (Roll)', 'installation_material', '4800000002198', 'Copper Tube 1/2 CT (Roll).', 1464.96, 1101.84, 165, 58, 413, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(220, 10, 'PROD-220', 'Copper Tube 1/2 CT (Per Foot)', 'installation_material', '4800000002204', 'Copper Tube 1/2 CT (Per Foot).', 114.52, 80.98, 146, 51, 365, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(221, 10, 'PROD-221', 'Copper Tube 5/8 CT (Roll)', 'installation_material', '4800000002211', 'Copper Tube 5/8 CT (Roll).', 1773.30, 1215.44, 105, 37, 263, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(222, 10, 'PROD-222', 'Copper Tube 5/8 CT (Per Foot)', 'installation_material', '4800000002228', 'Copper Tube 5/8 CT (Per Foot).', 78.31, 54.33, 67, 23, 168, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(223, 10, 'PROD-223', 'Copper Tube 3/4 CT (Roll)', 'installation_material', '4800000002235', 'Copper Tube 3/4 CT (Roll).', 2052.00, 1575.07, 176, 62, 440, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(224, 10, 'PROD-224', 'Copper Tube 3/4 CT (Per Foot)', 'installation_material', '4800000002242', 'Copper Tube 3/4 CT (Per Foot).', 81.40, 57.64, 184, 64, 460, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(225, 11, 'PROD-225', 'PE Foam 1/4\"', 'installation_material', '4800000002259', 'PE Foam 1/4\".', 151.15, 107.37, 79, 28, 198, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(226, 11, 'PROD-226', 'PE Foam 3/8\"', 'installation_material', '4800000002266', 'PE Foam 3/8\".', 307.19, 235.25, 120, 42, 300, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(227, 11, 'PROD-227', 'PE Foam 1/2\"', 'installation_material', '4800000002273', 'PE Foam 1/2\".', 406.96, 311.63, 141, 49, 353, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(228, 11, 'PROD-228', 'PE Foam 5/8\"', 'installation_material', '4800000002280', 'PE Foam 5/8\".', 219.53, 154.38, 59, 21, 148, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(229, 11, 'PROD-229', 'PE Foam 3/4\"', 'installation_material', '4800000002297', 'PE Foam 3/4\".', 311.59, 234.07, 124, 43, 310, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(230, 12, 'PROD-230', 'Rubber Insulation 1/4\" x 1/2', 'installation_material', '4800000002303', 'Rubber Insulation 1/4\" x 1/2.', 378.33, 268.21, 192, 67, 480, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(231, 12, 'PROD-231', 'Rubber Insulation 3/8\" x 1/2', 'installation_material', '4800000002310', 'Rubber Insulation 3/8\" x 1/2.', 382.65, 284.91, 75, 26, 188, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(232, 12, 'PROD-232', 'Rubber Insulation 1/2\" x 1/2', 'installation_material', '4800000002327', 'Rubber Insulation 1/2\" x 1/2.', 331.83, 244.67, 67, 23, 168, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(233, 12, 'PROD-233', 'Rubber Insulation 5/8\" x 1/2', 'installation_material', '4800000002334', 'Rubber Insulation 5/8\" x 1/2.', 263.76, 192.66, 166, 58, 415, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(234, 12, 'PROD-234', 'Rubber Insulation 3/4\" x 1/2', 'installation_material', '4800000002341', 'Rubber Insulation 3/4\" x 1/2.', 294.59, 211.62, 158, 55, 395, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(235, 12, 'PROD-235', 'Rubber Insulation 1/4\" x 3/4', 'installation_material', '4800000002358', 'Rubber Insulation 1/4\" x 3/4.', 334.29, 228.38, 63, 22, 158, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(236, 12, 'PROD-236', 'Rubber Insulation 3/8\" x 3/4', 'installation_material', '4800000002365', 'Rubber Insulation 3/8\" x 3/4.', 362.62, 260.28, 84, 29, 210, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(237, 12, 'PROD-237', 'Rubber Insulation 1/2\" x 3/4', 'installation_material', '4800000002372', 'Rubber Insulation 1/2\" x 3/4.', 362.37, 268.98, 181, 63, 453, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(238, 12, 'PROD-238', 'Rubber Insulation 5/8\" x 3/4', 'installation_material', '4800000002389', 'Rubber Insulation 5/8\" x 3/4.', 305.44, 233.65, 163, 57, 408, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(239, 13, 'PROD-239', 'Bracket Iron Painted (1HP-1.5HP)', 'installation_material', '4800000002396', 'Bracket Iron Painted (1HP-1.5HP).', 96.44, 69.80, 87, 30, 218, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(240, 13, 'PROD-240', 'Bracket Iron Painted (2HP-3HP)', 'installation_material', '4800000002402', 'Bracket Iron Painted (2HP-3HP).', 116.80, 81.86, 76, 27, 190, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(241, 13, 'PROD-241', 'Bracket White Powder (1HP-1.5HP)', 'installation_material', '4800000002419', 'Bracket White Powder (1HP-1.5HP).', 116.58, 84.13, 71, 25, 178, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(242, 13, 'PROD-242', 'Bracket White Powder (2HP-3HP)', 'installation_material', '4800000002426', 'Bracket White Powder (2HP-3HP).', 91.31, 63.53, 37, 13, 93, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(243, 14, 'PROD-243', 'PVC/Polyethylene Tape', 'installation_material', '4800000002433', 'PVC/Polyethylene Tape.', 137.73, 98.12, 108, 38, 270, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(244, 14, 'PROD-244', 'Spray Paint', 'installation_material', '4800000002440', 'Spray Paint.', 137.87, 107.37, 56, 20, 140, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(245, 14, 'PROD-245', 'Solvent', 'installation_material', '4800000002457', 'Solvent.', 618.63, 442.05, 45, 16, 113, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(246, 14, 'PROD-246', 'Elastoseal', 'installation_material', '4800000002464', 'Elastoseal.', 618.81, 440.49, 60, 21, 150, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(247, 14, 'PROD-247', 'Welding Rod', 'installation_material', '4800000002471', 'Welding Rod.', 459.23, 332.01, 117, 41, 293, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(248, 14, 'PROD-248', 'Welding Electrodes', 'installation_material', '4800000002488', 'Welding Electrodes.', 334.59, 234.69, 137, 48, 343, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(249, 14, 'PROD-249', 'Electrical Clip', 'installation_material', '4800000002495', 'Electrical Clip.', 556.51, 415.61, 164, 57, 410, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(250, 14, 'PROD-250', 'Cutting Disc', 'installation_material', '4800000002501', 'Cutting Disc.', 121.02, 92.52, 157, 55, 393, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(251, 14, 'PROD-251', 'Angle Bar (1/2 length)', 'installation_material', '4800000002518', 'Angle Bar (1/2 length).', 308.99, 211.06, 181, 63, 453, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(252, 14, 'PROD-252', 'Silver Rod', 'installation_material', '4800000002525', 'Silver Rod.', 298.72, 227.97, 171, 60, 428, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(253, 14, 'PROD-253', 'Insulation Tape (Prime) (Box)', 'installation_material', '4800000002532', 'Insulation Tape (Prime) (Box).', 293.85, 210.28, 127, 44, 318, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(254, 14, 'PROD-254', 'Insulation Tape (Prime) (Per Foot)', 'installation_material', '4800000002549', 'Insulation Tape (Prime) (Per Foot).', 356.32, 260.09, 123, 43, 308, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(255, 15, 'PROD-255', 'Electrical Tape 8 mtrs', 'installation_material', '4800000002556', 'Electrical Tape 8 mtrs.', 448.45, 318.10, 56, 20, 140, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(256, 15, 'PROD-256', 'Royal Cord #16/4 (Roll)', 'installation_material', '4800000002563', 'Royal Cord #16/4 (Roll).', 280.14, 214.77, 144, 50, 360, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(257, 15, 'PROD-257', 'Royal Cord #16/4 (Per Meter)', 'installation_material', '4800000002570', 'Royal Cord #16/4 (Per Meter).', 698.51, 530.52, 172, 60, 430, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(258, 15, 'PROD-258', 'Royal Cord #14/4 (Roll)', 'installation_material', '4800000002587', 'Royal Cord #14/4 (Roll).', 235.05, 162.04, 159, 56, 398, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(259, 15, 'PROD-259', 'Royal Cord #14/4 (Per Meter)', 'installation_material', '4800000002594', 'Royal Cord #14/4 (Per Meter).', 341.15, 249.11, 111, 39, 278, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(260, 15, 'PROD-260', 'THHN Wire #14 (Box)', 'installation_material', '4800000002600', 'THHN Wire #14 (Box).', 417.63, 284.97, 168, 59, 420, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(261, 15, 'PROD-261', 'THHN Wire #14 (Per Meter)', 'installation_material', '4800000002617', 'THHN Wire #14 (Per Meter).', 81.51, 62.49, 33, 12, 83, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(262, 15, 'PROD-262', 'THHN Wire #12 (Box)', 'installation_material', '4800000002624', 'THHN Wire #12 (Box).', 52.13, 39.83, 174, 61, 435, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(263, 15, 'PROD-263', 'THHN Wire #12 (Per Meter)', 'installation_material', '4800000002631', 'THHN Wire #12 (Per Meter).', 454.27, 350.50, 185, 65, 463, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(264, 15, 'PROD-264', 'THHN Wire #10 (Box)', 'installation_material', '4800000002648', 'THHN Wire #10 (Box).', 722.78, 514.83, 176, 62, 440, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(265, 15, 'PROD-265', 'THHN Wire #10 (Per Meter)', 'installation_material', '4800000002655', 'THHN Wire #10 (Per Meter).', 305.87, 234.44, 54, 19, 135, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(266, 15, 'PROD-266', 'Mouldflex 1/2 (Roll)', 'installation_material', '4800000002662', 'Mouldflex 1/2 (Roll).', 731.47, 559.59, 65, 23, 163, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(267, 15, 'PROD-267', 'Mouldflex 1/2 (Per Meter)', 'installation_material', '4800000002679', 'Mouldflex 1/2 (Per Meter).', 446.83, 332.74, 81, 28, 203, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(268, 16, 'PROD-268', 'Expansion Bolt 3/8', 'installation_material', '4800000002686', 'Expansion Bolt 3/8.', 318.82, 220.80, 198, 69, 495, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(269, 16, 'PROD-269', 'Conduit Clamp 1.5\' (nipis)', 'installation_material', '4800000002693', 'Conduit Clamp 1.5\' (nipis).', 402.29, 278.27, 161, 56, 403, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(270, 16, 'PROD-270', 'Conduit Clamp 2\' (nipis)', 'installation_material', '4800000002709', 'Conduit Clamp 2\' (nipis).', 233.56, 164.65, 151, 53, 378, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(271, 16, 'PROD-271', 'Conduit Clamp 1.5\' (baga)', 'installation_material', '4800000002716', 'Conduit Clamp 1.5\' (baga).', 125.55, 97.80, 200, 70, 500, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(272, 16, 'PROD-272', 'Conduit Clamp 2\' (baga)', 'installation_material', '4800000002723', 'Conduit Clamp 2\' (baga).', 239.50, 180.84, 77, 27, 193, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(273, 16, 'PROD-273', 'Bolt 1/4 x 1.5 Ord.', 'installation_material', '4800000002730', 'Bolt 1/4 x 1.5 Ord..', 721.17, 555.25, 159, 56, 398, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(274, 16, 'PROD-274', 'Nut 1/4 x 1.5', 'installation_material', '4800000002747', 'Nut 1/4 x 1.5.', 148.37, 113.82, 112, 39, 280, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(275, 16, 'PROD-275', 'Washer', 'installation_material', '4800000002754', 'Washer.', 276.39, 200.23, 90, 32, 225, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(276, 16, 'PROD-276', 'Tox #6', 'installation_material', '4800000002761', 'Tox #6.', 476.32, 327.87, 120, 42, 300, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(277, 16, 'PROD-277', 'Metal Screw 8 x 1', 'installation_material', '4800000002778', 'Metal Screw 8 x 1.', 191.80, 132.09, 123, 43, 308, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(278, 16, 'PROD-278', 'Text Screw (1 1/2\")', 'installation_material', '4800000002785', 'Text Screw (1 1/2\").', 386.36, 278.13, 184, 64, 460, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(279, 16, 'PROD-279', 'Text Screw #3', 'installation_material', '4800000002792', 'Text Screw #3.', 465.47, 337.93, 95, 33, 238, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(280, 16, 'PROD-280', 'Text Wood Screw (1.5\")', 'installation_material', '4800000002808', 'Text Wood Screw (1.5\").', 344.00, 256.18, 92, 32, 230, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(281, 16, 'PROD-281', 'Text Wood Screw (2.0\")', 'installation_material', '4800000002815', 'Text Wood Screw (2.0\").', 762.74, 579.95, 178, 62, 445, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(282, 16, 'PROD-282', 'Text Wood Screw (2 1/2\")', 'installation_material', '4800000002822', 'Text Wood Screw (2 1/2\").', 657.54, 508.44, 148, 52, 370, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(283, 16, 'PROD-283', 'Access Valve', 'installation_material', '4800000002839', 'Access Valve.', 432.18, 322.54, 152, 53, 380, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(284, 17, 'PROD-284', 'MAPP Gas', 'installation_material', '4800000002846', 'MAPP Gas.', 705.42, 481.15, 200, 70, 500, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(285, 17, 'PROD-285', 'R32 Refrigerant', 'installation_material', '4800000002853', 'R32 Refrigerant.', 105.43, 78.95, 184, 64, 460, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(286, 17, 'PROD-286', 'R-410A Refrigerant', 'installation_material', '4800000002860', 'R-410A Refrigerant.', 51.22, 34.92, 46, 16, 115, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(287, 17, 'PROD-287', 'R-134A Refrigerant', 'installation_material', '4800000002877', 'R-134A Refrigerant.', 473.50, 335.30, 127, 44, 318, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(288, 18, 'PROD-288', 'PVC Clamp 3/4\"', 'installation_material', '4800000002884', 'PVC Clamp 3/4\".', 623.26, 479.53, 148, 52, 370, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(289, 18, 'PROD-289', 'PVC Elbow 3/4\"', 'installation_material', '4800000002891', 'PVC Elbow 3/4\".', 628.72, 446.03, 151, 53, 378, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(290, 18, 'PROD-290', 'PVC Tee 3/4\"', 'installation_material', '4800000002907', 'PVC Tee 3/4\".', 537.88, 366.20, 160, 56, 400, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(291, 18, 'PROD-291', 'PVC Clamp 1/2\"', 'installation_material', '4800000002914', 'PVC Clamp 1/2\".', 687.53, 480.11, 39, 14, 98, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(292, 18, 'PROD-292', 'PVC Elbow 1/2\"', 'installation_material', '4800000002921', 'PVC Elbow 1/2\".', 574.71, 441.15, 129, 45, 323, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(293, 18, 'PROD-293', 'PVC Pipe 1/2\"', 'installation_material', '4800000002938', 'PVC Pipe 1/2\".', 120.14, 81.77, 82, 29, 205, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(294, 18, 'PROD-294', 'PVC Pipe 3/4\"', 'installation_material', '4800000002945', 'PVC Pipe 3/4\".', 637.50, 452.09, 50, 18, 125, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(295, 18, 'PROD-295', 'PVC Elbow Big', 'installation_material', '4800000002952', 'PVC Elbow Big.', 284.91, 204.55, 85, 30, 213, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(296, 18, 'PROD-296', 'PVC Cladding', 'installation_material', '4800000002969', 'PVC Cladding.', 63.50, 48.71, 179, 63, 448, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(297, 18, 'PROD-297', 'PVC Tee 1/2', 'installation_material', '4800000002976', 'PVC Tee 1/2.', 756.10, 584.87, 125, 44, 313, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(298, 19, 'PROD-298', 'Capacitor 15+ 3UF', 'installation_material', '4800000002983', 'Capacitor 15+ 3UF.', 816.44, 580.64, 89, 31, 223, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(299, 19, 'PROD-299', 'Capacitor 17+ 2UF', 'installation_material', '4800000002990', 'Capacitor 17+ 2UF.', 733.27, 511.13, 166, 58, 415, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(300, 19, 'PROD-300', 'Capacitor 20+ 1.5UF', 'installation_material', '4800000003003', 'Capacitor 20+ 1.5UF.', 548.41, 423.89, 92, 32, 230, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(301, 19, 'PROD-301', 'Capacitor 20+ 4UF', 'installation_material', '4800000003010', 'Capacitor 20+ 4UF.', 776.31, 601.38, 97, 34, 243, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(302, 19, 'PROD-302', 'Capacitor 25UF', 'installation_material', '4800000003027', 'Capacitor 25UF.', 751.45, 526.05, 86, 30, 215, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(303, 19, 'PROD-303', 'Capacitor 30UF', 'installation_material', '4800000003034', 'Capacitor 30UF.', 751.60, 538.39, 186, 65, 465, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(304, 19, 'PROD-304', 'Capacitor 30+ 3UF', 'installation_material', '4800000003041', 'Capacitor 30+ 3UF.', 123.27, 90.58, 49, 17, 122, 3, '2026-06-29 16:00:00', '2026-07-19 06:13:09', NULL),
-(305, 19, 'PROD-305', 'Capacitor 30+ 5UF', 'installation_material', '4800000003058', 'Capacitor 30+ 5UF.', 327.98, 243.53, 173, 61, 433, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(306, 19, 'PROD-306', 'Capacitor 40UF', 'installation_material', '4800000003065', 'Capacitor 40UF.', 110.99, 81.60, 170, 60, 425, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(307, 19, 'PROD-307', 'Capacitor 60+ 5UF', 'installation_material', '4800000003072', 'Capacitor 60+ 5UF.', 789.52, 596.30, 177, 62, 443, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(308, 19, 'PROD-308', 'Capacitor 60UF', 'installation_material', '4800000003089', 'Capacitor 60UF.', 249.20, 185.13, 78, 27, 195, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(309, 19, 'PROD-309', 'Capacitor 45UF', 'installation_material', '4800000003096', 'Capacitor 45UF.', 716.61, 493.08, 51, 18, 128, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(310, 19, 'PROD-310', 'Capacitor 4UF', 'installation_material', '4800000003102', 'Capacitor 4UF.', 517.84, 380.61, 93, 33, 233, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(311, 19, 'PROD-311', 'Capacitor 5UF', 'installation_material', '4800000003119', 'Capacitor 5UF.', 528.81, 360.51, 69, 24, 173, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(312, 19, 'PROD-312', 'Capacitor 10UF', 'installation_material', '4800000003126', 'Capacitor 10UF.', 595.26, 412.87, 39, 14, 98, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(313, 15, 'PROD-313', 'Circuit Breaker 20A Bolt On 2P', 'installation_material', '4800000003133', 'Circuit Breaker 20A Bolt On 2P.', 639.40, 471.45, 83, 29, 208, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(314, 15, 'PROD-314', 'Circuit Breaker 30A Bolt On 2P', 'installation_material', '4800000003140', 'Circuit Breaker 30A Bolt On 2P.', 737.51, 562.73, 171, 60, 428, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(315, 15, 'PROD-315', 'Circuit Breaker 40A Bolt On 2P', 'installation_material', '4800000003157', 'Circuit Breaker 40A Bolt On 2P.', 445.60, 339.26, 131, 46, 328, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(316, 15, 'PROD-316', 'Circuit Breaker 20A Plug In 2P', 'installation_material', '4800000003164', 'Circuit Breaker 20A Plug In 2P.', 437.73, 304.20, 159, 56, 398, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(317, 15, 'PROD-317', 'Circuit Breaker 30A Plug In 2P', 'installation_material', '4800000003171', 'Circuit Breaker 30A Plug In 2P.', 383.35, 263.76, 195, 68, 488, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(318, 15, 'PROD-318', 'Circuit Breaker 40A Plug In 2P', 'installation_material', '4800000003188', 'Circuit Breaker 40A Plug In 2P.', 310.38, 217.04, 130, 46, 325, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(319, 15, 'PROD-319', 'Safety Breaker w/ Housing Indoor 20A', 'installation_material', '4800000003195', 'Safety Breaker w/ Housing Indoor 20A.', 368.54, 269.49, 178, 62, 445, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(320, 15, 'PROD-320', 'Safety Breaker w/ Housing Indoor 30A', 'installation_material', '4800000003201', 'Safety Breaker w/ Housing Indoor 30A.', 532.59, 386.99, 90, 32, 225, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(321, 15, 'PROD-321', 'Breaker Enclosure Nema Bolt On', 'installation_material', '4800000003218', 'Breaker Enclosure Nema Bolt On.', 380.41, 268.61, 118, 41, 295, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(322, 15, 'PROD-322', 'Breaker Enclosure Nema Plug In', 'installation_material', '4800000003225', 'Breaker Enclosure Nema Plug In.', 478.69, 327.95, 71, 25, 178, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(323, 15, 'PROD-323', 'Nema Type 3R', 'installation_material', '4800000003232', 'Nema Type 3R.', 298.17, 210.65, 124, 43, 310, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(324, 15, 'PROD-324', 'Drain Hose (Roll)', 'installation_material', '4800000003249', 'Drain Hose (Roll).', 773.45, 527.18, 79, 28, 198, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(325, 15, 'PROD-325', 'Drain Hose (Per Meter)', 'installation_material', '4800000003256', 'Drain Hose (Per Meter).', 112.25, 81.04, 30, 11, 75, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(326, 15, 'PROD-326', 'Copper Elbow 1/4', 'installation_material', '4800000003263', 'Copper Elbow 1/4.', 346.03, 262.19, 63, 22, 158, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(327, 15, 'PROD-327', 'Copper Elbow 1/2', 'installation_material', '4800000003270', 'Copper Elbow 1/2.', 532.24, 404.75, 47, 16, 118, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(328, 15, 'PROD-328', 'Copper Elbow 3/4', 'installation_material', '4800000003287', 'Copper Elbow 3/4.', 649.31, 444.82, 111, 39, 278, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(329, 15, 'PROD-329', 'Copper Elbow 3/8', 'installation_material', '4800000003294', 'Copper Elbow 3/8.', 282.27, 197.09, 41, 14, 103, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(330, 15, 'PROD-330', 'Copper Elbow 5/8', 'installation_material', '4800000003300', 'Copper Elbow 5/8.', 552.99, 409.40, 148, 52, 370, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(331, 15, 'PROD-331', 'Copper Coupling 1/4', 'installation_material', '4800000003317', 'Copper Coupling 1/4.', 751.89, 547.67, 163, 57, 408, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(332, 15, 'PROD-332', 'Copper Coupling 1/2', 'installation_material', '4800000003324', 'Copper Coupling 1/2.', 479.03, 332.99, 150, 53, 375, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(333, 15, 'PROD-333', 'Copper Coupling 3/4', 'installation_material', '4800000003331', 'Copper Coupling 3/4.', 469.26, 322.38, 132, 46, 330, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(334, 15, 'PROD-334', 'Copper Coupling 3/8', 'installation_material', '4800000003348', 'Copper Coupling 3/8.', 259.40, 194.33, 177, 62, 443, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(335, 15, 'PROD-335', 'Copper Coupling 5/8', 'installation_material', '4800000003355', 'Copper Coupling 5/8.', 612.60, 435.69, 199, 70, 498, 3, '2026-06-29 16:00:00', '2026-07-07 18:15:56', NULL),
-(336, 21, 'PROD-336', 'Tube Cutter (Aruki)', 'installation_material', '4800000003362', 'Tube Cutter (Aruki).', 742.38, 535.69, 39, 14, 98, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(337, 21, 'PROD-337', 'Hand Torch Mapgas', 'installation_material', '4800000003379', 'Hand Torch Mapgas.', 447.83, 317.04, 36, 13, 90, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(338, 21, 'PROD-338', 'Tube Bender 1/4', 'installation_material', '4800000003386', 'Tube Bender 1/4.', 125.07, 89.61, 150, 53, 375, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(339, 21, 'PROD-339', 'Tube Bender 3/8', 'installation_material', '4800000003393', 'Tube Bender 3/8.', 550.42, 385.00, 132, 46, 330, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(340, 21, 'PROD-340', 'Tube Bender 1/2', 'installation_material', '4800000003409', 'Tube Bender 1/2.', 476.79, 347.77, 130, 46, 325, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(341, 21, 'PROD-341', 'Tube Bender 5/8', 'installation_material', '4800000003416', 'Tube Bender 5/8.', 547.33, 426.09, 66, 23, 165, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL),
-(342, 21, 'PROD-342', 'Tube Bender 3/4', 'installation_material', '4800000003423', 'Tube Bender 3/4.', 571.98, 445.36, 90, 32, 225, 3, '2026-06-29 16:00:00', '2026-07-07 17:50:59', NULL);
+(197, 4, 'TWT-90Z2', 'Condura Twin Tub TWT-90Z2', 'appliance', '4800000001979', 'Condura Twin Tub washing machine. 12-month warranty.', 16506.71, 12076.47, 85, 44, 218, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(198, 4, 'TWT-100Z2', 'Condura Twin Tub TWT-100Z2', 'appliance', '4800000001986', 'Condura Twin Tub washing machine. 12-month warranty.', 25371.46, 18371.98, 70, 36, 180, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(199, 4, 'TWT-130Z2', 'Condura Twin Tub TWT-130Z2', 'appliance', '4800000001993', 'Condura Twin Tub washing machine. 12-month warranty.', 31544.81, 21473.50, 17, 9, 41, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(200, 4, 'TWA75-F107TLW', 'Condura Top Load Fully Automatic TWA75-F107TLW', 'appliance', '4800000002006', 'Condura Top Load Fully Automatic washing machine. 12-month warranty.', 36656.49, 26545.53, 17, 9, 41, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:05', NULL),
+(201, 4, 'TWA85-F708TLW', 'Condura Top Load Fully Automatic TWA85-F708TLW', 'appliance', '4800000002013', 'Condura Top Load Fully Automatic washing machine. 12-month warranty.', 23637.52, 17734.76, 18, 10, 42, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(202, 4, 'TWA95-F709TLW', 'Condura Top Load Fully Automatic TWA95-F709TLW', 'appliance', '4800000002020', 'Condura Top Load Fully Automatic washing machine. 12-month warranty.', 18526.06, 13728.92, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(203, 4, 'TWA90-P71', 'Condura Top Load Fully Automatic Inverter TWA90-P71', 'appliance', '4800000002037', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 29057.37, 20116.71, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(204, 4, 'TWA100-P71', 'Condura Top Load Fully Automatic Inverter TWA100-P71', 'appliance', '4800000002044', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 33550.55, 24507.67, 3, 2, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(205, 4, 'TWA110-P71', 'Condura Top Load Fully Automatic Inverter TWA110-P71', 'appliance', '4800000002051', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 27765.26, 19920.46, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(206, 4, 'TWA130-P70', 'Condura Top Load Fully Automatic Inverter TWA130-P70', 'appliance', '4800000002068', 'Condura Top Load Fully Automatic Inverter washing machine. 12-month warranty.', 17314.58, 11867.41, 5, 2, 12, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(207, 4, 'TWF60-P60', 'Condura Front Load Fully Automatic Inverter TWF60-P60', 'appliance', '4800000002075', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 31947.40, 24824.73, 77, 37, 208, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(208, 4, 'TWF65-P60', 'Condura Front Load Fully Automatic Inverter TWF65-P60', 'appliance', '4800000002082', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 19440.53, 15057.08, 77, 42, 188, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(209, 4, 'TWF75-P60', 'Condura Front Load Fully Automatic Inverter TWF75-P60', 'appliance', '4800000002099', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 24436.21, 18863.04, 20, 10, 50, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(210, 4, 'TWF85-P60', 'Condura Front Load Fully Automatic Inverter TWF85-P60', 'appliance', '4800000002105', 'Condura Front Load Fully Automatic Inverter washing machine. 12-month warranty.', 23792.41, 17051.78, 18, 10, 42, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(211, 4, 'TWF105-C20', 'Condura Front Load Fully Automatic Inverter Commercial TWF105-C20', 'appliance', '4800000002112', 'Condura Front Load Fully Automatic Inverter Commercial washing machine. 12-month warranty.', 24838.08, 18094.04, 11, 8, 19, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(212, 4, 'TWD120-C682DG', 'Condura Front Load Fully Automatic Inverter Commercial TWD120-C682DG', 'appliance', '4800000002129', 'Condura Front Load Fully Automatic Inverter Commercial washing machine. 12-month warranty.', 31229.95, 22474.95, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(213, 9, 'TY-LWYR87W', 'Condura Water Dispenser Top Load TY-LWYR87W', 'appliance', '4800000002136', 'Condura Top Load home appliance. 12-month warranty.', 1537.17, 1135.95, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(214, 9, 'TY-LWYR110T', 'Condura Water Dispenser Bottom Load TY-LWYR110T', 'appliance', '4800000002143', 'Condura Bottom Load home appliance. 12-month warranty.', 1886.89, 1387.90, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(215, 10, 'PROD-215', 'Copper Tube 1/4 CT (Roll)', 'installation_material', '4800000002150', 'Copper Tube 1/4 CT (Roll).', 1893.15, 1443.15, 67, 23, 167, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(216, 10, 'PROD-216', 'Copper Tube 1/4 CT (Per Foot)', 'installation_material', '4800000002167', 'Copper Tube 1/4 CT (Per Foot).', 79.97, 62.10, 85, 30, 212, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(217, 10, 'PROD-217', 'Copper Tube 3/8 CT (Roll)', 'installation_material', '4800000002174', 'Copper Tube 3/8 CT (Roll).', 1220.68, 842.72, 57, 38, 119, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(218, 10, 'PROD-218', 'Copper Tube 3/8 CT (Per Foot)', 'installation_material', '4800000002181', 'Copper Tube 3/8 CT (Per Foot).', 69.71, 50.11, 83, 34, 244, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:06', NULL),
+(219, 10, 'PROD-219', 'Copper Tube 1/2 CT (Roll)', 'installation_material', '4800000002198', 'Copper Tube 1/2 CT (Roll).', 1464.96, 1101.84, 16, 8, 40, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(220, 10, 'PROD-220', 'Copper Tube 1/2 CT (Per Foot)', 'installation_material', '4800000002204', 'Copper Tube 1/2 CT (Per Foot).', 114.52, 80.98, 15, 9, 34, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(221, 10, 'PROD-221', 'Copper Tube 5/8 CT (Roll)', 'installation_material', '4800000002211', 'Copper Tube 5/8 CT (Roll).', 1773.30, 1215.44, 18, 10, 43, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(222, 10, 'PROD-222', 'Copper Tube 5/8 CT (Per Foot)', 'installation_material', '4800000002228', 'Copper Tube 5/8 CT (Per Foot).', 78.31, 54.33, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(223, 10, 'PROD-223', 'Copper Tube 3/4 CT (Roll)', 'installation_material', '4800000002235', 'Copper Tube 3/4 CT (Roll).', 2052.00, 1575.07, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(224, 10, 'PROD-224', 'Copper Tube 3/4 CT (Per Foot)', 'installation_material', '4800000002242', 'Copper Tube 3/4 CT (Per Foot).', 81.40, 57.64, 3, 2, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(225, 11, 'PROD-225', 'PE Foam 1/4\"', 'installation_material', '4800000002259', 'PE Foam 1/4\".', 151.15, 107.37, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(226, 11, 'PROD-226', 'PE Foam 3/8\"', 'installation_material', '4800000002266', 'PE Foam 3/8\".', 307.19, 235.25, 60, 21, 150, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(227, 11, 'PROD-227', 'PE Foam 1/2\"', 'installation_material', '4800000002273', 'PE Foam 1/2\".', 406.96, 311.63, 85, 39, 234, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(228, 11, 'PROD-228', 'PE Foam 5/8\"', 'installation_material', '4800000002280', 'PE Foam 5/8\".', 219.53, 154.38, 85, 38, 239, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(229, 11, 'PROD-229', 'PE Foam 3/4\"', 'installation_material', '4800000002297', 'PE Foam 3/4\".', 311.59, 234.07, 16, 10, 35, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(230, 12, 'PROD-230', 'Rubber Insulation 1/4\" x 1/2', 'installation_material', '4800000002303', 'Rubber Insulation 1/4\" x 1/2.', 378.33, 268.21, 14, 9, 30, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(231, 12, 'PROD-231', 'Rubber Insulation 3/8\" x 1/2', 'installation_material', '4800000002310', 'Rubber Insulation 3/8\" x 1/2.', 382.65, 284.91, 12, 8, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(232, 12, 'PROD-232', 'Rubber Insulation 1/2\" x 1/2', 'installation_material', '4800000002327', 'Rubber Insulation 1/2\" x 1/2.', 331.83, 244.67, 3, 2, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(233, 12, 'PROD-233', 'Rubber Insulation 5/8\" x 1/2', 'installation_material', '4800000002334', 'Rubber Insulation 5/8\" x 1/2.', 263.76, 192.66, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(234, 12, 'PROD-234', 'Rubber Insulation 3/4\" x 1/2', 'installation_material', '4800000002341', 'Rubber Insulation 3/4\" x 1/2.', 294.59, 211.62, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(235, 12, 'PROD-235', 'Rubber Insulation 1/4\" x 3/4', 'installation_material', '4800000002358', 'Rubber Insulation 1/4\" x 3/4.', 334.29, 228.38, 2, 2, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(236, 12, 'PROD-236', 'Rubber Insulation 3/8\" x 3/4', 'installation_material', '4800000002365', 'Rubber Insulation 3/8\" x 3/4.', 362.62, 260.28, 42, 14, 105, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(237, 12, 'PROD-237', 'Rubber Insulation 1/2\" x 3/4', 'installation_material', '4800000002372', 'Rubber Insulation 1/2\" x 3/4.', 362.37, 268.98, 109, 39, 336, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:07', NULL),
+(238, 12, 'PROD-238', 'Rubber Insulation 5/8\" x 3/4', 'installation_material', '4800000002389', 'Rubber Insulation 5/8\" x 3/4.', 305.44, 233.65, 71, 36, 184, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(239, 13, 'PROD-239', 'Bracket Iron Painted (1HP-1.5HP)', 'installation_material', '4800000002396', 'Bracket Iron Painted (1HP-1.5HP).', 96.44, 69.80, 16, 9, 37, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(240, 13, 'PROD-240', 'Bracket Iron Painted (2HP-3HP)', 'installation_material', '4800000002402', 'Bracket Iron Painted (2HP-3HP).', 116.80, 81.86, 15, 9, 34, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(241, 13, 'PROD-241', 'Bracket White Powder (1HP-1.5HP)', 'installation_material', '4800000002419', 'Bracket White Powder (1HP-1.5HP).', 116.58, 84.13, 14, 9, 30, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(242, 13, 'PROD-242', 'Bracket White Powder (2HP-3HP)', 'installation_material', '4800000002426', 'Bracket White Powder (2HP-3HP).', 91.31, 63.53, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(243, 14, 'PROD-243', 'PVC/Polyethylene Tape', 'installation_material', '4800000002433', 'PVC/Polyethylene Tape.', 137.73, 98.12, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(244, 14, 'PROD-244', 'Spray Paint', 'installation_material', '4800000002440', 'Spray Paint.', 137.87, 107.37, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(245, 14, 'PROD-245', 'Solvent', 'installation_material', '4800000002457', 'Solvent.', 618.63, 442.05, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(246, 14, 'PROD-246', 'Elastoseal', 'installation_material', '4800000002464', 'Elastoseal.', 618.81, 440.49, 30, 10, 75, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(247, 14, 'PROD-247', 'Welding Rod', 'installation_material', '4800000002471', 'Welding Rod.', 459.23, 332.01, 64, 29, 178, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(248, 14, 'PROD-248', 'Welding Electrodes', 'installation_material', '4800000002488', 'Welding Electrodes.', 334.59, 234.69, 76, 36, 207, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(249, 14, 'PROD-249', 'Electrical Clip', 'installation_material', '4800000002495', 'Electrical Clip.', 556.51, 415.61, 13, 9, 23, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(250, 14, 'PROD-250', 'Cutting Disc', 'installation_material', '4800000002501', 'Cutting Disc.', 121.02, 92.52, 9, 7, 15, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(251, 14, 'PROD-251', 'Angle Bar (1/2 length)', 'installation_material', '4800000002518', 'Angle Bar (1/2 length).', 308.99, 211.06, 18, 12, 37, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(252, 14, 'PROD-252', 'Silver Rod', 'installation_material', '4800000002525', 'Silver Rod.', 298.72, 227.97, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(253, 14, 'PROD-253', 'Insulation Tape (Prime) (Box)', 'installation_material', '4800000002532', 'Insulation Tape (Prime) (Box).', 293.85, 210.28, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(254, 14, 'PROD-254', 'Insulation Tape (Prime) (Per Foot)', 'installation_material', '4800000002549', 'Insulation Tape (Prime) (Per Foot).', 356.32, 260.09, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(255, 15, 'PROD-255', 'Electrical Tape 8 mtrs', 'installation_material', '4800000002556', 'Electrical Tape 8 mtrs.', 448.45, 318.10, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:08', NULL),
+(256, 15, 'PROD-256', 'Royal Cord #16/4 (Roll)', 'installation_material', '4800000002563', 'Royal Cord #16/4 (Roll).', 280.14, 214.77, 72, 25, 180, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(257, 15, 'PROD-257', 'Royal Cord #16/4 (Per Meter)', 'installation_material', '4800000002570', 'Royal Cord #16/4 (Per Meter).', 698.51, 530.52, 75, 35, 205, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(258, 15, 'PROD-258', 'Royal Cord #14/4 (Roll)', 'installation_material', '4800000002587', 'Royal Cord #14/4 (Roll).', 235.05, 162.04, 65, 28, 185, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(259, 15, 'PROD-259', 'Royal Cord #14/4 (Per Meter)', 'installation_material', '4800000002594', 'Royal Cord #14/4 (Per Meter).', 341.15, 249.11, 16, 9, 37, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(260, 15, 'PROD-260', 'THHN Wire #14 (Box)', 'installation_material', '4800000002600', 'THHN Wire #14 (Box).', 417.63, 284.97, 20, 10, 50, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(261, 15, 'PROD-261', 'THHN Wire #14 (Per Meter)', 'installation_material', '4800000002617', 'THHN Wire #14 (Per Meter).', 81.51, 62.49, 15, 9, 33, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(262, 15, 'PROD-262', 'THHN Wire #12 (Box)', 'installation_material', '4800000002624', 'THHN Wire #12 (Box).', 52.13, 39.83, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(263, 15, 'PROD-263', 'THHN Wire #12 (Per Meter)', 'installation_material', '4800000002631', 'THHN Wire #12 (Per Meter).', 454.27, 350.50, 3, 2, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(264, 15, 'PROD-264', 'THHN Wire #10 (Box)', 'installation_material', '4800000002648', 'THHN Wire #10 (Box).', 722.78, 514.83, 3, 2, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(265, 15, 'PROD-265', 'THHN Wire #10 (Per Meter)', 'installation_material', '4800000002655', 'THHN Wire #10 (Per Meter).', 305.87, 234.44, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(266, 15, 'PROD-266', 'Mouldflex 1/2 (Roll)', 'installation_material', '4800000002662', 'Mouldflex 1/2 (Roll).', 731.47, 559.59, 32, 11, 81, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(267, 15, 'PROD-267', 'Mouldflex 1/2 (Per Meter)', 'installation_material', '4800000002679', 'Mouldflex 1/2 (Per Meter).', 446.83, 332.74, 62, 29, 168, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:09', NULL),
+(268, 16, 'PROD-268', 'Expansion Bolt 3/8', 'installation_material', '4800000002686', 'Expansion Bolt 3/8.', 318.82, 220.80, 71, 39, 176, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(269, 16, 'PROD-269', 'Conduit Clamp 1.5\' (nipis)', 'installation_material', '4800000002693', 'Conduit Clamp 1.5\' (nipis).', 402.29, 278.27, 17, 9, 41, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(270, 16, 'PROD-270', 'Conduit Clamp 2\' (nipis)', 'installation_material', '4800000002709', 'Conduit Clamp 2\' (nipis).', 233.56, 164.65, 13, 9, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(271, 16, 'PROD-271', 'Conduit Clamp 1.5\' (baga)', 'installation_material', '4800000002716', 'Conduit Clamp 1.5\' (baga).', 125.55, 97.80, 14, 10, 23, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(272, 16, 'PROD-272', 'Conduit Clamp 2\' (baga)', 'installation_material', '4800000002723', 'Conduit Clamp 2\' (baga).', 239.50, 180.84, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(273, 16, 'PROD-273', 'Bolt 1/4 x 1.5 Ord.', 'installation_material', '4800000002730', 'Bolt 1/4 x 1.5 Ord..', 721.17, 555.25, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(274, 16, 'PROD-274', 'Nut 1/4 x 1.5', 'installation_material', '4800000002747', 'Nut 1/4 x 1.5.', 148.37, 113.82, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(275, 16, 'PROD-275', 'Washer', 'installation_material', '4800000002754', 'Washer.', 276.39, 200.23, 3, 2, 6, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:10', NULL),
+(276, 16, 'PROD-276', 'Tox #6', 'installation_material', '4800000002761', 'Tox #6.', 476.32, 327.87, 60, 21, 150, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(277, 16, 'PROD-277', 'Metal Screw 8 x 1', 'installation_material', '4800000002778', 'Metal Screw 8 x 1.', 191.80, 132.09, 90, 40, 251, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(278, 16, 'PROD-278', 'Text Screw (1 1/2\")', 'installation_material', '4800000002785', 'Text Screw (1 1/2\").', 386.36, 278.13, 61, 31, 158, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(279, 16, 'PROD-279', 'Text Screw #3', 'installation_material', '4800000002792', 'Text Screw #3.', 465.47, 337.93, 12, 7, 26, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(280, 16, 'PROD-280', 'Text Wood Screw (1.5\")', 'installation_material', '4800000002808', 'Text Wood Screw (1.5\").', 344.00, 256.18, 16, 8, 42, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(281, 16, 'PROD-281', 'Text Wood Screw (2.0\")', 'installation_material', '4800000002815', 'Text Wood Screw (2.0\").', 762.74, 579.95, 12, 9, 21, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(282, 16, 'PROD-282', 'Text Wood Screw (2 1/2\")', 'installation_material', '4800000002822', 'Text Wood Screw (2 1/2\").', 657.54, 508.44, 4, 2, 7, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(283, 16, 'PROD-283', 'Access Valve', 'installation_material', '4800000002839', 'Access Valve.', 432.18, 322.54, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(284, 17, 'PROD-284', 'MAPP Gas', 'installation_material', '4800000002846', 'MAPP Gas.', 705.42, 481.15, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:11', NULL),
+(285, 17, 'PROD-285', 'R32 Refrigerant', 'installation_material', '4800000002853', 'R32 Refrigerant.', 105.43, 78.95, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(286, 17, 'PROD-286', 'R-410A Refrigerant', 'installation_material', '4800000002860', 'R-410A Refrigerant.', 51.22, 34.92, 23, 8, 57, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(287, 17, 'PROD-287', 'R-134A Refrigerant', 'installation_material', '4800000002877', 'R-134A Refrigerant.', 473.50, 335.30, 67, 34, 173, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(288, 18, 'PROD-288', 'PVC Clamp 3/4\"', 'installation_material', '4800000002884', 'PVC Clamp 3/4\".', 623.26, 479.53, 85, 43, 222, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(289, 18, 'PROD-289', 'PVC Elbow 3/4\"', 'installation_material', '4800000002891', 'PVC Elbow 3/4\".', 628.72, 446.03, 14, 10, 24, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(290, 18, 'PROD-290', 'PVC Tee 3/4\"', 'installation_material', '4800000002907', 'PVC Tee 3/4\".', 537.88, 366.20, 12, 7, 25, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(291, 18, 'PROD-291', 'PVC Clamp 1/2\"', 'installation_material', '4800000002914', 'PVC Clamp 1/2\".', 687.53, 480.11, 11, 7, 20, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(292, 18, 'PROD-292', 'PVC Elbow 1/2\"', 'installation_material', '4800000002921', 'PVC Elbow 1/2\".', 574.71, 441.15, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(293, 18, 'PROD-293', 'PVC Pipe 1/2\"', 'installation_material', '4800000002938', 'PVC Pipe 1/2\".', 120.14, 81.77, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:12', NULL),
+(294, 18, 'PROD-294', 'PVC Pipe 3/4\"', 'installation_material', '4800000002945', 'PVC Pipe 3/4\".', 637.50, 452.09, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(295, 18, 'PROD-295', 'PVC Elbow Big', 'installation_material', '4800000002952', 'PVC Elbow Big.', 284.91, 204.55, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(296, 18, 'PROD-296', 'PVC Cladding', 'installation_material', '4800000002969', 'PVC Cladding.', 63.50, 48.71, 89, 31, 224, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(297, 18, 'PROD-297', 'PVC Tee 1/2', 'installation_material', '4800000002976', 'PVC Tee 1/2.', 756.10, 584.87, 62, 36, 145, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(298, 19, 'PROD-298', 'Capacitor 15+ 3UF', 'installation_material', '4800000002983', 'Capacitor 15+ 3UF.', 816.44, 580.64, 62, 31, 160, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(299, 19, 'PROD-299', 'Capacitor 17+ 2UF', 'installation_material', '4800000002990', 'Capacitor 17+ 2UF.', 733.27, 511.13, 11, 7, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:13', NULL),
+(300, 19, 'PROD-300', 'Capacitor 20+ 1.5UF', 'installation_material', '4800000003003', 'Capacitor 20+ 1.5UF.', 548.41, 423.89, 16, 10, 34, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(301, 19, 'PROD-301', 'Capacitor 20+ 4UF', 'installation_material', '4800000003010', 'Capacitor 20+ 4UF.', 776.31, 601.38, 19, 10, 45, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(302, 19, 'PROD-302', 'Capacitor 25UF', 'installation_material', '4800000003027', 'Capacitor 25UF.', 751.45, 526.05, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(303, 19, 'PROD-303', 'Capacitor 30UF', 'installation_material', '4800000003034', 'Capacitor 30UF.', 751.60, 538.39, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(304, 19, 'PROD-304', 'Capacitor 30+ 3UF', 'installation_material', '4800000003041', 'Capacitor 30+ 3UF.', 123.27, 90.58, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(305, 19, 'PROD-305', 'Capacitor 30+ 5UF', 'installation_material', '4800000003058', 'Capacitor 30+ 5UF.', 327.98, 243.53, 3, 2, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(306, 19, 'PROD-306', 'Capacitor 40UF', 'installation_material', '4800000003065', 'Capacitor 40UF.', 110.99, 81.60, 85, 30, 212, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(307, 19, 'PROD-307', 'Capacitor 60+ 5UF', 'installation_material', '4800000003072', 'Capacitor 60+ 5UF.', 789.52, 596.30, 65, 32, 173, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(308, 19, 'PROD-308', 'Capacitor 60UF', 'installation_material', '4800000003089', 'Capacitor 60UF.', 249.20, 185.13, 76, 38, 199, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(309, 19, 'PROD-309', 'Capacitor 45UF', 'installation_material', '4800000003096', 'Capacitor 45UF.', 716.61, 493.08, 13, 9, 26, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:14', NULL),
+(310, 19, 'PROD-310', 'Capacitor 4UF', 'installation_material', '4800000003102', 'Capacitor 4UF.', 517.84, 380.61, 14, 10, 23, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(311, 19, 'PROD-311', 'Capacitor 5UF', 'installation_material', '4800000003119', 'Capacitor 5UF.', 528.81, 360.51, 13, 9, 22, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(312, 19, 'PROD-312', 'Capacitor 10UF', 'installation_material', '4800000003126', 'Capacitor 10UF.', 595.26, 412.87, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(313, 15, 'PROD-313', 'Circuit Breaker 20A Bolt On 2P', 'installation_material', '4800000003133', 'Circuit Breaker 20A Bolt On 2P.', 639.40, 471.45, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(314, 15, 'PROD-314', 'Circuit Breaker 30A Bolt On 2P', 'installation_material', '4800000003140', 'Circuit Breaker 30A Bolt On 2P.', 737.51, 562.73, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(315, 15, 'PROD-315', 'Circuit Breaker 40A Bolt On 2P', 'installation_material', '4800000003157', 'Circuit Breaker 40A Bolt On 2P.', 445.60, 339.26, 2, 1, 5, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(316, 15, 'PROD-316', 'Circuit Breaker 20A Plug In 2P', 'installation_material', '4800000003164', 'Circuit Breaker 20A Plug In 2P.', 437.73, 304.20, 79, 28, 199, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:15', NULL),
+(317, 15, 'PROD-317', 'Circuit Breaker 30A Plug In 2P', 'installation_material', '4800000003171', 'Circuit Breaker 30A Plug In 2P.', 383.35, 263.76, 55, 27, 144, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(318, 15, 'PROD-318', 'Circuit Breaker 40A Plug In 2P', 'installation_material', '4800000003188', 'Circuit Breaker 40A Plug In 2P.', 310.38, 217.04, 86, 35, 250, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(319, 15, 'PROD-319', 'Safety Breaker w/ Housing Indoor 20A', 'installation_material', '4800000003195', 'Safety Breaker w/ Housing Indoor 20A.', 368.54, 269.49, 16, 9, 37, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(320, 15, 'PROD-320', 'Safety Breaker w/ Housing Indoor 30A', 'installation_material', '4800000003201', 'Safety Breaker w/ Housing Indoor 30A.', 532.59, 386.99, 19, 10, 45, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(321, 15, 'PROD-321', 'Breaker Enclosure Nema Bolt On', 'installation_material', '4800000003218', 'Breaker Enclosure Nema Bolt On.', 380.41, 268.61, 16, 10, 32, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:16', NULL),
+(322, 15, 'PROD-322', 'Breaker Enclosure Nema Plug In', 'installation_material', '4800000003225', 'Breaker Enclosure Nema Plug In.', 478.69, 327.95, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(323, 15, 'PROD-323', 'Nema Type 3R', 'installation_material', '4800000003232', 'Nema Type 3R.', 298.17, 210.65, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(324, 15, 'PROD-324', 'Drain Hose (Roll)', 'installation_material', '4800000003249', 'Drain Hose (Roll).', 773.45, 527.18, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(325, 15, 'PROD-325', 'Drain Hose (Per Meter)', 'installation_material', '4800000003256', 'Drain Hose (Per Meter).', 112.25, 81.04, 2, 1, 2, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(326, 15, 'PROD-326', 'Copper Elbow 1/4', 'installation_material', '4800000003263', 'Copper Elbow 1/4.', 346.03, 262.19, 31, 11, 79, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:17', NULL),
+(327, 15, 'PROD-327', 'Copper Elbow 1/2', 'installation_material', '4800000003270', 'Copper Elbow 1/2.', 532.24, 404.75, 54, 31, 127, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(328, 15, 'PROD-328', 'Copper Elbow 3/4', 'installation_material', '4800000003287', 'Copper Elbow 3/4.', 649.31, 444.82, 67, 32, 179, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(329, 15, 'PROD-329', 'Copper Elbow 3/8', 'installation_material', '4800000003294', 'Copper Elbow 3/8.', 282.27, 197.09, 17, 9, 42, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(330, 15, 'PROD-330', 'Copper Elbow 5/8', 'installation_material', '4800000003300', 'Copper Elbow 5/8.', 552.99, 409.40, 21, 11, 51, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(331, 15, 'PROD-331', 'Copper Coupling 1/4', 'installation_material', '4800000003317', 'Copper Coupling 1/4.', 751.89, 547.67, 13, 8, 26, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(332, 15, 'PROD-332', 'Copper Coupling 1/2', 'installation_material', '4800000003324', 'Copper Coupling 1/2.', 479.03, 332.99, 2, 1, 3, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(333, 15, 'PROD-333', 'Copper Coupling 3/4', 'installation_material', '4800000003331', 'Copper Coupling 3/4.', 469.26, 322.38, 3, 2, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:18', NULL),
+(334, 15, 'PROD-334', 'Copper Coupling 3/8', 'installation_material', '4800000003348', 'Copper Coupling 3/8.', 259.40, 194.33, 4, 3, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(335, 15, 'PROD-335', 'Copper Coupling 5/8', 'installation_material', '4800000003355', 'Copper Coupling 5/8.', 612.60, 435.69, 0, 0, 0, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(336, 21, 'PROD-336', 'Tube Cutter (Aruki)', 'installation_material', '4800000003362', 'Tube Cutter (Aruki).', 742.38, 535.69, 19, 7, 49, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(337, 21, 'PROD-337', 'Hand Torch Mapgas', 'installation_material', '4800000003379', 'Hand Torch Mapgas.', 447.83, 317.04, 71, 34, 192, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(338, 21, 'PROD-338', 'Tube Bender 1/4', 'installation_material', '4800000003386', 'Tube Bender 1/4.', 125.07, 89.61, 82, 38, 223, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(339, 21, 'PROD-339', 'Tube Bender 3/8', 'installation_material', '4800000003393', 'Tube Bender 3/8.', 550.42, 385.00, 14, 9, 29, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(340, 21, 'PROD-340', 'Tube Bender 1/2', 'installation_material', '4800000003409', 'Tube Bender 1/2.', 476.79, 347.77, 7, 5, 10, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(341, 21, 'PROD-341', 'Tube Bender 5/8', 'installation_material', '4800000003416', 'Tube Bender 5/8.', 547.33, 426.09, 27, 17, 59, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL),
+(342, 21, 'PROD-342', 'Tube Bender 3/4', 'installation_material', '4800000003423', 'Tube Bender 3/4.', 571.98, 445.36, 2, 1, 4, 3, '2026-06-29 16:00:00', '2026-08-02 10:56:19', NULL);
 
 -- --------------------------------------------------------
 
@@ -2635,6 +3137,13 @@ CREATE TABLE `product_sets` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `product_sets`
+--
+
+INSERT INTO `product_sets` (`set_id`, `capacity_rating`, `variant`, `is_active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(3, '1.5HP', 'inverter', 1, 2, 2, '2026-08-02 10:18:24', '2026-08-02 10:18:24', NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -2648,6 +3157,15 @@ CREATE TABLE `product_set_brands` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `product_set_brands`
+--
+
+INSERT INTO `product_set_brands` (`id`, `set_id`, `brand_id`, `created_at`, `updated_at`) VALUES
+(5, 3, 15, NULL, NULL),
+(6, 3, 11, NULL, NULL),
+(7, 3, 7, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -2665,6 +3183,13 @@ CREATE TABLE `product_set_lines` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `product_set_lines`
+--
+
+INSERT INTO `product_set_lines` (`set_line_id`, `set_id`, `product_id`, `quantity`, `spec_note`, `sort_order`, `created_at`, `updated_at`) VALUES
+(4, 3, 327, 89.000, NULL, 0, '2026-08-02 10:18:24', '2026-08-02 10:18:24');
 
 -- --------------------------------------------------------
 
@@ -2770,6 +3295,13 @@ CREATE TABLE `purchase_requests` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `purchase_requests`
+--
+
+INSERT INTO `purchase_requests` (`pr_id`, `location_id`, `supplier_id`, `budget_id`, `pr_number`, `request_date`, `needed_by_date`, `purpose`, `preferred_supplier_id`, `estimated_total`, `status_id`, `requested_by`, `approved_by`, `approval_date`, `rejection_reason`, `converted_to_po_id`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(99, NULL, 1, NULL, 'PR-20260802-EVFK', '2026-08-02', '2026-08-09', NULL, NULL, 72060.60, 13, 2, NULL, NULL, NULL, NULL, '2026-08-02 13:47:54', '2026-08-02 13:47:54', NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -2788,6 +3320,15 @@ CREATE TABLE `purchase_request_details` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `purchase_request_details`
+--
+
+INSERT INTO `purchase_request_details` (`pr_detail_id`, `pr_id`, `product_id`, `location_id`, `quantity`, `estimated_price`, `subtotal`, `notes`, `created_at`, `updated_at`) VALUES
+(137, 99, 237, 1, 2, 268.98, 537.96, NULL, '2026-08-02 13:47:54', '2026-08-02 13:47:54'),
+(138, 99, 37, 1, 1, 43415.57, 43415.57, NULL, '2026-08-02 13:47:54', '2026-08-02 13:47:54'),
+(139, 99, 18, 1, 1, 28107.07, 28107.07, NULL, '2026-08-02 13:47:54', '2026-08-02 13:47:54');
 
 -- --------------------------------------------------------
 
@@ -3485,7 +4026,27 @@ INSERT INTO `role_permissions` (`id`, `role_id`, `permission_id`, `is_granted`, 
 (567, 5, 114, 0, '2026-07-25 07:28:46', '2026-07-25 07:28:46'),
 (568, 3, 114, 0, '2026-07-25 07:28:46', '2026-07-25 07:28:46'),
 (569, 2, 114, 1, '2026-07-25 07:28:46', '2026-07-25 07:28:46'),
-(570, 4, 114, 0, '2026-07-25 07:28:46', '2026-07-25 07:28:46');
+(570, 4, 114, 0, '2026-07-25 07:28:46', '2026-07-25 07:28:46'),
+(571, 1, 115, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(572, 5, 115, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(573, 3, 115, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(574, 2, 115, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(575, 4, 115, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(576, 1, 116, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(577, 5, 116, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(578, 3, 116, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(579, 2, 116, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(580, 4, 116, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(581, 1, 117, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(582, 5, 117, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(583, 3, 117, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(584, 2, 117, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(585, 4, 117, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(586, 1, 118, 1, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(587, 5, 118, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(588, 3, 118, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(589, 2, 118, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45'),
+(590, 4, 118, 0, '2026-07-30 11:15:45', '2026-07-30 11:15:45');
 
 -- --------------------------------------------------------
 
@@ -3666,6 +4227,349 @@ CREATE TABLE `stock_parameter_suggestions` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `stock_parameter_suggestions`
+--
+
+INSERT INTO `stock_parameter_suggestions` (`suggestion_id`, `product_id`, `current_recommended`, `suggested_recommended`, `current_safety`, `suggested_safety`, `current_max`, `suggested_max`, `reason_codes`, `summary`, `status`, `reviewed_by`, `reviewed_at`, `run_at`, `created_at`, `updated_at`) VALUES
+(1352, 7, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1353, 8, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1354, 9, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1355, 10, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1356, 11, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1357, 12, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1358, 13, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1359, 14, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1360, 15, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1361, 16, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1362, 17, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1363, 18, 12, 6, 4, 2, 30, 15, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1364, 19, 12, 6, 4, 2, 30, 15, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1365, 20, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1366, 21, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1367, 22, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1368, 23, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1369, 24, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1370, 25, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1371, 26, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1372, 27, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1373, 28, 14, 7, 5, 2, 35, 17, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1374, 29, 14, 7, 5, 2, 35, 17, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1375, 30, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1376, 31, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1377, 32, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1378, 33, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1379, 34, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1380, 35, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1381, 36, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1382, 37, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1383, 38, 17, 8, 6, 3, 43, 21, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1384, 39, 17, 8, 6, 3, 43, 21, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1385, 40, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1386, 41, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1387, 42, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1388, 43, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1389, 44, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1390, 45, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1391, 46, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1392, 47, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1393, 48, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1394, 49, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1395, 50, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1396, 51, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1397, 52, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1398, 53, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1399, 54, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1400, 55, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1401, 56, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1402, 57, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1403, 58, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1404, 59, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1405, 60, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1406, 61, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1407, 62, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1408, 63, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1409, 64, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1410, 65, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1411, 66, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1412, 67, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1413, 68, 20, 10, 7, 3, 50, 25, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1414, 69, 20, 10, 7, 3, 50, 25, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1415, 70, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1416, 71, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1417, 72, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1418, 73, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1419, 74, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1420, 75, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1421, 76, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1422, 77, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1423, 78, 15, 7, 5, 2, 38, 19, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1424, 79, 15, 7, 5, 2, 38, 19, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1425, 80, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1426, 81, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1427, 82, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1428, 83, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1429, 84, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1430, 85, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1431, 86, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1432, 87, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1433, 88, 20, 10, 7, 3, 50, 25, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1434, 89, 20, 10, 7, 3, 50, 25, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1435, 90, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1436, 91, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1437, 92, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1438, 93, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1439, 94, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1440, 95, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1441, 96, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1442, 97, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1443, 98, 15, 7, 5, 2, 38, 19, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1444, 99, 15, 7, 5, 2, 38, 19, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1445, 100, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1446, 101, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1447, 102, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1448, 103, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1449, 104, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1450, 105, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1451, 106, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1452, 107, 13, 6, 5, 2, 33, 16, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1453, 108, 14, 7, 5, 2, 35, 17, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1454, 109, 14, 7, 5, 2, 35, 17, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1455, 110, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1456, 111, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1457, 112, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1458, 113, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1459, 114, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1460, 115, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1461, 116, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1462, 117, 18, 9, 6, 3, 45, 22, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1463, 118, 17, 8, 6, 3, 43, 21, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1464, 119, 17, 8, 6, 3, 43, 21, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1465, 120, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1466, 121, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1467, 122, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1468, 123, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1469, 124, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1470, 125, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1471, 126, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1472, 127, 8, 4, 3, 1, 20, 10, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1473, 128, 7, 3, 2, 1, 18, 9, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1474, 129, 7, 3, 2, 1, 18, 9, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1475, 130, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1476, 131, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1477, 132, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1478, 133, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1479, 134, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1480, 135, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1481, 136, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1482, 137, 11, 5, 4, 2, 28, 14, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1483, 138, 12, 6, 4, 2, 30, 15, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1484, 139, 12, 6, 4, 2, 30, 15, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1485, 140, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1486, 141, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1487, 142, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1488, 143, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1489, 144, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1490, 145, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1491, 146, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1492, 147, 19, 9, 7, 3, 48, 24, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1493, 148, 20, 10, 7, 3, 50, 25, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1494, 149, 20, 10, 7, 3, 50, 25, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1495, 150, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1496, 151, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1497, 152, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1498, 153, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1499, 154, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1500, 155, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1501, 156, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1502, 157, 16, 8, 6, 3, 40, 20, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1503, 158, 15, 7, 5, 2, 38, 19, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1504, 159, 15, 7, 5, 2, 38, 19, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1505, 160, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1506, 161, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1507, 162, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1508, 163, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1509, 164, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1510, 165, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1511, 166, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1512, 167, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1513, 168, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1514, 169, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1515, 170, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1516, 171, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1517, 172, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1518, 173, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1519, 174, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1520, 175, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1521, 176, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1522, 177, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1523, 178, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1524, 179, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1525, 180, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1526, 181, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1527, 182, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1528, 183, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1529, 184, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1530, 185, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1531, 186, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1532, 187, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1533, 188, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1534, 189, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1535, 190, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1536, 191, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1537, 192, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1538, 193, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1539, 194, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1540, 195, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1541, 196, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1542, 197, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1543, 198, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1544, 199, 6, 3, 2, 1, 15, 7, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1545, 200, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1546, 201, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1547, 202, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1548, 203, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1549, 204, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1550, 205, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1551, 206, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1552, 207, 10, 5, 4, 2, 25, 12, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1553, 208, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1554, 209, 9, 4, 3, 1, 23, 11, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1555, 210, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1556, 211, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1557, 212, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1558, 213, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1559, 214, 5, 2, 2, 1, 13, 6, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1560, 215, 134, 67, 47, 23, 335, 167, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1561, 216, 170, 85, 60, 30, 425, 212, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1562, 217, 32, 16, 11, 5, 80, 40, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1563, 218, 111, 55, 39, 19, 278, 139, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1564, 219, 165, 82, 58, 29, 413, 206, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1565, 220, 146, 73, 51, 25, 365, 182, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1566, 221, 105, 52, 37, 18, 263, 131, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1567, 222, 67, 33, 23, 11, 168, 84, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1568, 223, 176, 88, 62, 31, 440, 220, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1569, 224, 184, 92, 64, 32, 460, 230, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1570, 225, 79, 39, 28, 14, 198, 99, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1571, 226, 120, 60, 42, 21, 300, 150, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1572, 227, 141, 70, 49, 24, 353, 176, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1573, 228, 59, 29, 21, 10, 148, 74, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1574, 229, 124, 62, 43, 21, 310, 155, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1575, 230, 192, 96, 67, 33, 480, 240, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1576, 231, 75, 37, 26, 13, 188, 94, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1577, 232, 67, 33, 23, 11, 168, 84, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1578, 233, 166, 83, 58, 29, 415, 207, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1579, 234, 158, 79, 55, 27, 395, 197, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1580, 235, 63, 31, 22, 11, 158, 79, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1581, 236, 84, 42, 29, 14, 210, 105, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1582, 237, 181, 90, 63, 31, 453, 226, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1583, 238, 163, 81, 57, 28, 408, 204, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1584, 239, 87, 43, 30, 15, 218, 109, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1585, 240, 76, 38, 27, 13, 190, 95, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1586, 241, 71, 35, 25, 12, 178, 89, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1587, 242, 37, 18, 13, 6, 93, 46, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1588, 243, 108, 54, 38, 19, 270, 135, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1589, 244, 56, 28, 20, 10, 140, 70, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1590, 245, 45, 22, 16, 8, 113, 56, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1591, 246, 60, 30, 21, 10, 150, 75, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1592, 247, 117, 58, 41, 20, 293, 146, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1593, 248, 137, 68, 48, 24, 343, 171, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1594, 249, 164, 82, 57, 28, 410, 205, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1595, 250, 157, 78, 55, 27, 393, 196, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1596, 251, 181, 90, 63, 31, 453, 226, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1597, 252, 171, 85, 60, 30, 428, 214, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1598, 253, 127, 63, 44, 22, 318, 159, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1599, 254, 123, 61, 43, 21, 308, 154, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1600, 255, 56, 28, 20, 10, 140, 70, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1601, 256, 144, 72, 50, 25, 360, 180, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1602, 257, 172, 86, 60, 30, 430, 215, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1603, 258, 159, 79, 56, 28, 398, 199, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27');
+INSERT INTO `stock_parameter_suggestions` (`suggestion_id`, `product_id`, `current_recommended`, `suggested_recommended`, `current_safety`, `suggested_safety`, `current_max`, `suggested_max`, `reason_codes`, `summary`, `status`, `reviewed_by`, `reviewed_at`, `run_at`, `created_at`, `updated_at`) VALUES
+(1604, 259, 111, 55, 39, 19, 278, 139, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1605, 260, 168, 84, 59, 29, 420, 210, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1606, 261, 33, 16, 12, 6, 83, 41, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1607, 262, 174, 87, 61, 30, 435, 217, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1608, 263, 185, 92, 65, 32, 463, 231, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1609, 264, 176, 88, 62, 31, 440, 220, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1610, 265, 54, 27, 19, 9, 135, 67, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1611, 266, 65, 32, 23, 11, 163, 81, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1612, 267, 81, 40, 28, 14, 203, 101, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1613, 268, 198, 99, 69, 34, 495, 247, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1614, 269, 161, 80, 56, 28, 403, 201, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1615, 270, 151, 75, 53, 26, 378, 189, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1616, 271, 200, 100, 70, 35, 500, 250, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1617, 272, 77, 38, 27, 13, 193, 96, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1618, 273, 159, 79, 56, 28, 398, 199, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1619, 274, 112, 56, 39, 19, 280, 140, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1620, 275, 90, 45, 32, 16, 225, 112, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1621, 276, 120, 60, 42, 21, 300, 150, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1622, 277, 123, 61, 43, 21, 308, 154, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1623, 278, 184, 92, 64, 32, 460, 230, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1624, 279, 95, 47, 33, 16, 238, 119, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1625, 280, 92, 46, 32, 16, 230, 115, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1626, 281, 178, 89, 62, 31, 445, 222, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1627, 282, 148, 74, 52, 26, 370, 185, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1628, 283, 152, 76, 53, 26, 380, 190, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1629, 284, 200, 100, 70, 35, 500, 250, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1630, 285, 184, 92, 64, 32, 460, 230, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1631, 286, 46, 23, 16, 8, 115, 57, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1632, 287, 127, 63, 44, 22, 318, 159, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1633, 288, 148, 74, 52, 26, 370, 185, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1634, 289, 151, 75, 53, 26, 378, 189, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1635, 290, 160, 80, 56, 28, 400, 200, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1636, 291, 39, 19, 14, 7, 98, 49, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1637, 292, 129, 64, 45, 22, 323, 161, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1638, 293, 82, 41, 29, 14, 205, 102, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1639, 294, 50, 25, 18, 9, 125, 62, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1640, 295, 85, 42, 30, 15, 213, 106, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1641, 296, 179, 89, 63, 31, 448, 224, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1642, 297, 125, 62, 44, 22, 313, 156, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1643, 298, 89, 44, 31, 15, 223, 111, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1644, 299, 166, 83, 58, 29, 415, 207, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1645, 300, 92, 46, 32, 16, 230, 115, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1646, 301, 97, 48, 34, 17, 243, 121, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1647, 302, 86, 43, 30, 15, 215, 107, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1648, 303, 186, 93, 65, 32, 465, 232, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1649, 304, 49, 24, 17, 8, 122, 61, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1650, 305, 173, 86, 61, 30, 433, 216, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1651, 306, 170, 85, 60, 30, 425, 212, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1652, 307, 177, 88, 62, 31, 443, 221, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1653, 308, 78, 39, 27, 13, 195, 97, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1654, 309, 51, 25, 18, 9, 128, 64, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1655, 310, 93, 46, 33, 16, 233, 116, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1656, 311, 69, 34, 24, 12, 173, 86, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1657, 312, 39, 19, 14, 7, 98, 49, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1658, 313, 83, 41, 29, 14, 208, 104, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1659, 314, 171, 85, 60, 30, 428, 214, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1660, 315, 131, 65, 46, 23, 328, 164, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1661, 316, 159, 79, 56, 28, 398, 199, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1662, 317, 195, 97, 68, 34, 488, 244, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1663, 318, 130, 65, 46, 23, 325, 162, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1664, 319, 178, 89, 62, 31, 445, 222, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1665, 320, 90, 45, 32, 16, 225, 112, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1666, 321, 118, 59, 41, 20, 295, 147, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1667, 322, 71, 35, 25, 12, 178, 89, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1668, 323, 124, 62, 43, 21, 310, 155, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1669, 324, 79, 39, 28, 14, 198, 99, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1670, 325, 30, 15, 11, 5, 75, 37, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1671, 326, 63, 31, 22, 11, 158, 79, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1672, 327, 47, 23, 16, 8, 118, 59, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1673, 328, 111, 55, 39, 19, 278, 139, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1674, 329, 41, 20, 14, 7, 103, 51, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1675, 330, 148, 74, 52, 26, 370, 185, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1676, 331, 163, 81, 57, 28, 408, 204, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1677, 332, 150, 75, 53, 26, 375, 187, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1678, 333, 132, 66, 46, 23, 330, 165, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1679, 334, 177, 88, 62, 31, 443, 221, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1680, 335, 199, 99, 70, 35, 498, 249, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1681, 336, 39, 19, 14, 7, 98, 49, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1682, 337, 36, 18, 13, 6, 90, 45, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1683, 338, 150, 75, 53, 26, 375, 187, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1684, 339, 132, 66, 46, 23, 330, 165, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1685, 340, 130, 65, 46, 23, 325, 162, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1686, 341, 66, 33, 23, 11, 165, 82, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27'),
+(1687, 342, 90, 45, 32, 16, 225, 112, '[\"NO_MOVEMENT\"]', 'Out of stock with no demand in the last 90 days.', 'pending', NULL, NULL, '2026-08-01 08:00:00', '2026-08-01 18:32:27', '2026-08-01 18:32:27');
+
 -- --------------------------------------------------------
 
 --
@@ -3694,8 +4598,8 @@ CREATE TABLE `suppliers` (
 --
 
 INSERT INTO `suppliers` (`supplier_id`, `supplier_name`, `contact_person`, `contact_number`, `email`, `address`, `origin`, `region`, `tin`, `status_id`, `notes`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'Supplier China', 'Xijin Ping', '093343566453', 'supplier@gmail.com', 'China', 'Local', NULL, '2222', 24, 'Supplier', '2026-04-25 12:47:51', '2026-04-25 12:47:51', NULL),
-(2, 'ABC', 'ABC', '09654554345', 'abc@gmail.com', 'South Korea', 'Local', NULL, 'Net30', 36, NULL, '2026-07-12 03:59:35', '2026-07-12 03:59:35', NULL);
+(1, 'Supplier A', 'Xijin Ping', '093343566453', 'supplierA@gmail.com', 'Beijing, China', 'Local', NULL, 'Net30', 24, 'Supplier', '2026-04-25 12:47:51', '2026-08-02 10:59:32', NULL),
+(2, 'Supplier B', 'Juan dela Cruz', '09654554345', 'supplierB@gmail.com', 'Manila, Philippines', 'Local', NULL, 'Net30', 36, NULL, '2026-07-12 03:59:35', '2026-08-02 11:00:03', NULL);
 
 -- --------------------------------------------------------
 
@@ -3713,6 +4617,13 @@ CREATE TABLE `supplier_product` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `supplier_product`
+--
+
+INSERT INTO `supplier_product` (`supplier_prod_id`, `supplier_id`, `product_id`, `product_price`, `currency`, `status_id`, `created_at`, `updated_at`) VALUES
+(1, 2, 342, 10.00, 'PHP', 36, '2026-07-30 05:29:36', '2026-07-30 05:30:09');
 
 -- --------------------------------------------------------
 
@@ -3858,7 +4769,7 @@ INSERT INTO `unit_lookup` (`unit_id`, `unit_name`, `unit_abbreviation`, `created
 (2, 'Piece', 'pc', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
 (3, 'Roll', 'roll', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
 (4, 'Meter', 'm', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
-(5, 'Set', 'set', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
+(5, 'Set', 'set', '2026-04-22 21:50:17', '2026-07-31 18:50:53', '2026-07-31 18:50:53'),
 (6, 'Box', 'box', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
 (7, 'Kilogram', 'kg', '2026-04-22 21:50:17', '2026-04-22 21:50:17', NULL),
 (8, 'Liter', 'L', '2026-04-26 09:31:36', '2026-04-26 09:31:36', NULL),
@@ -3871,7 +4782,9 @@ INSERT INTO `unit_lookup` (`unit_id`, `unit_name`, `unit_abbreviation`, `created
 (15, 'Pack', 'pack', '2026-05-22 13:29:31', '2026-05-22 13:29:31', NULL),
 (16, 'Drum', 'drum', '2026-05-22 13:29:31', '2026-05-22 13:29:31', NULL),
 (17, 'Carton', 'ctn', '2026-05-22 13:29:31', '2026-05-22 13:29:31', NULL),
-(18, 'Bag', 'bag', '2026-05-22 13:29:31', '2026-05-22 13:29:31', NULL);
+(18, 'Bag', 'bag', '2026-05-22 13:29:31', '2026-05-22 13:29:31', NULL),
+(19, 'ABC', 'abc', '2026-07-30 05:59:39', '2026-07-30 05:59:39', NULL),
+(20, 'Asample4', 'sam4', '2026-08-02 02:48:28', '2026-08-02 02:48:28', NULL);
 
 -- --------------------------------------------------------
 
@@ -3916,7 +4829,9 @@ INSERT INTO `users` (`user_id`, `first_name`, `last_name`, `username`, `email`, 
 (8, 'Mari', 'Con', 'maricontado', 'contadomarichu@gmail.com', '09664392599', NULL, NULL, 1, 2, 1, NULL, '$2y$12$QzG/4gdhzdQCvF6/meIRa.HBbBGb.T7x06Jx6gQehaGT9AUU0AcsW', NULL, '2026-05-11 13:48:36', '2026-05-11 13:48:36', NULL, NULL, NULL, NULL),
 (9, 'Admin', 'Chai', 'AdminChai', 'adminchai@airking.com', '095545366', NULL, NULL, 1, 2, 1, NULL, '$2y$12$NF5Ib8BDWdoY9n1vt5J.hO3xiblJV80Vawl2wGONQ080z3KQ.UBq6', NULL, '2026-05-21 08:31:43', '2026-05-21 08:31:43', NULL, NULL, NULL, NULL),
 (10, 'Warehouse B', 'Personnel', 'abcWarehouse', 'Bwarehouse@airking.com', '09324564322', NULL, NULL, 4, 3, 1, NULL, '$2y$12$E5uIf1KnEEfUydtW2StawewfVhiCfPIc7UISECMGFnZ.QZS3HY5cy', NULL, '2026-06-13 00:27:56', '2026-07-21 21:56:41', NULL, NULL, NULL, NULL),
-(11, 'T', 'U', 'u_6a5f949d9ec44', '6a5f949d9ec5f@example.test', NULL, NULL, NULL, 3, NULL, 1, NULL, '$2y$12$odPHJ6yds6CTmNaHjVCNZeX3DFqje7o51azMkg3ykOTFXiai4sMCK', NULL, '2026-07-21 07:47:41', '2026-07-21 07:47:41', NULL, NULL, NULL, NULL);
+(11, 'T', 'U', 'u_6a5f949d9ec44', '6a5f949d9ec5f@example.test', NULL, NULL, NULL, 3, NULL, 1, NULL, '$2y$12$odPHJ6yds6CTmNaHjVCNZeX3DFqje7o51azMkg3ykOTFXiai4sMCK', NULL, '2026-07-21 07:47:41', '2026-07-21 07:47:41', NULL, NULL, NULL, NULL),
+(12, 'Test', 'Admin', 'u_6a6bffbeb60e7', '6a6bffbeb60ea@example.test', NULL, NULL, NULL, 1, NULL, 1, NULL, '$2y$12$bA3vTZ7YM0c6SYfF23hoTeXLSDx51OxLr.0iUuwuwQoDAEP4QYSMa', NULL, '2026-07-30 17:51:58', '2026-07-30 17:51:58', NULL, NULL, NULL, NULL),
+(13, 'MT', 'Admin', 'mt_6a6c073f4c61a', '6a6c073f4c61d@example.test', NULL, NULL, NULL, 1, NULL, 1, NULL, '$2y$12$yD28BqtVn4UsIMg6pX9WreGmMD9eAPYQkbEXWi3fxNzDIY7OTO.m2', NULL, '2026-07-30 18:23:59', '2026-07-30 18:23:59', NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -4063,6 +4978,82 @@ INSERT INTO `user_permission_overrides` (`id`, `user_id`, `permission_id`, `is_g
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `variant_lookup`
+--
+
+CREATE TABLE `variant_lookup` (
+  `variant_id` bigint(20) UNSIGNED NOT NULL,
+  `variant_name` varchar(100) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `variant_lookup`
+--
+
+INSERT INTO `variant_lookup` (`variant_id`, `variant_name`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(1, 'Morandi Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(2, 'EVA Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(3, 'Window Non-Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(4, 'Window Standard Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(5, 'Window Smart Inverter (WiFi)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(6, 'Window Standard Inverter (New Model)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(7, 'T-Pro IoT Inverter (Wi-Fi)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(8, 'CoolPro EcoIn (2025 B2B Exclusive)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(9, 'Cool Pro Obsidian+ (Wi-Fi)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(10, 'VoxIN (Voice Control + Wi-Fi)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(11, 'Floor Standing Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(12, 'Ceiling Cassette Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(13, 'Ceiling Mounted Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(14, 'Titan Gold', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(15, 'Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', NULL),
+(16, 'Floor Standing Non-Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(17, 'Celest Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(18, 'Celest Pro Full DC Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(19, 'Floor Standing Inverter (3P 220V)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(20, 'Ceiling Mounted Non-Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(21, 'Clean Cool Pro Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(22, 'Standard Inverter (Digital S-Inverter)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(23, 'WindFree ActivClean', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(24, 'Nexus Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(25, 'Slim Floor Standing Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(26, 'Floor Standing Inverter (1-Phase 220V)', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(27, 'Chilled Water', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(28, 'R32 Super Inverter - Lunaire', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(29, 'Floor Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(30, 'Dual Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(31, 'Soundbar', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(32, 'Digital TV', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(33, 'Android Smart TV', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(34, '2K Google TV', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(35, '4K Google TV', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(36, 'QLED Google TV', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(37, 'QLED Google TV 144Hz', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(38, '1 Door Direct Cool Non-Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(39, 'Single Door Non-Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(40, 'Single Door Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(41, '2 Door Top Mount Defrost Non-Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(42, '2 Door Top Mount No Frost Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(43, '4 Door Cross Door No Frost Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(44, '2 Door Side-by-Side No Frost Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(45, 'Freezer', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(46, 'Chest Freezer Non-Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(47, 'Upright Freezer Inverter Defrost', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(48, 'Twin Tub', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(49, 'Top Load Fully Automatic', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(50, 'Top Load Fully Automatic Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(51, 'Front Load Fully Automatic Inverter', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(52, 'Front Load Fully Automatic Inverter Commercial', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(53, 'Top Load', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(54, 'Bottom Load', '2026-07-31 07:39:53', '2026-07-31 07:39:53', '2026-08-02 05:52:43'),
+(55, 'Asample3', '2026-08-02 02:46:34', '2026-08-02 02:46:34', '2026-08-02 05:52:43'),
+(56, 'Non-inverter', '2026-08-02 02:51:27', '2026-08-02 02:51:27', NULL);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `warranty_claims`
 --
 
@@ -4095,12 +5086,57 @@ CREATE TABLE `warranty_claim_details` (
   `claim_detail_id` bigint(20) UNSIGNED NOT NULL,
   `claim_id` bigint(20) UNSIGNED NOT NULL,
   `product_id` bigint(20) UNSIGNED NOT NULL,
+  `product_set_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `line_source` varchar(20) NOT NULL DEFAULT 'custom',
   `serial_number` varchar(100) DEFAULT NULL,
+  `quantity_requested` int(11) NOT NULL DEFAULT 0,
   `quantity_issued` int(11) NOT NULL DEFAULT 1,
   `quantity_in_pieces` int(11) NOT NULL DEFAULT 1,
   `quantity_unit` varchar(50) DEFAULT NULL,
   `unit_cost` decimal(12,2) NOT NULL DEFAULT 0.00,
   `line_cost` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `warranty_claim_returns`
+--
+
+CREATE TABLE `warranty_claim_returns` (
+  `return_id` bigint(20) UNSIGNED NOT NULL,
+  `claim_id` bigint(20) UNSIGNED NOT NULL,
+  `product_id` bigint(20) UNSIGNED NOT NULL,
+  `serial_number` varchar(100) NOT NULL,
+  `location_id` bigint(20) UNSIGNED NOT NULL,
+  `holding_status` varchar(30) NOT NULL DEFAULT 'warranty_holding',
+  `received_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `released_at` timestamp NULL DEFAULT NULL,
+  `release_disposition` varchar(30) DEFAULT NULL,
+  `replacement_warranty_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `warranty_inventory_movements`
+--
+
+CREATE TABLE `warranty_inventory_movements` (
+  `movement_id` bigint(20) UNSIGNED NOT NULL,
+  `claim_id` bigint(20) UNSIGNED NOT NULL,
+  `claim_detail_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `product_id` bigint(20) UNSIGNED NOT NULL,
+  `location_id` bigint(20) UNSIGNED NOT NULL,
+  `movement_type` varchar(40) NOT NULL,
+  `quantity` int(11) NOT NULL,
+  `serial_number` varchar(100) DEFAULT NULL,
+  `performed_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `moved_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -4231,6 +5267,13 @@ ALTER TABLE `cache_locks`
   ADD PRIMARY KEY (`key`);
 
 --
+-- Indexes for table `capacity_lookup`
+--
+ALTER TABLE `capacity_lookup`
+  ADD PRIMARY KEY (`capacity_id`),
+  ADD KEY `capacity_lookup_scope_idx` (`capacity_value`);
+
+--
 -- Indexes for table `category_lookup`
 --
 ALTER TABLE `category_lookup`
@@ -4332,7 +5375,8 @@ ALTER TABLE `issuances`
   ADD KEY `issuances_issued_by_foreign` (`issued_by`),
   ADD KEY `issuances_approved_by_foreign` (`approved_by`),
   ADD KEY `issuances_status_id_foreign` (`status_id`),
-  ADD KEY `issuances_customer_id_foreign` (`customer_id`);
+  ADD KEY `issuances_customer_id_foreign` (`customer_id`),
+  ADD KEY `issuances_external_reference_index` (`external_reference`);
 
 --
 -- Indexes for table `issuance_details`
@@ -4780,6 +5824,13 @@ ALTER TABLE `user_permission_overrides`
   ADD KEY `user_permission_overrides_permission_id_foreign` (`permission_id`);
 
 --
+-- Indexes for table `variant_lookup`
+--
+ALTER TABLE `variant_lookup`
+  ADD PRIMARY KEY (`variant_id`),
+  ADD KEY `variant_lookup_scope_idx` (`variant_name`);
+
+--
 -- Indexes for table `warranty_claims`
 --
 ALTER TABLE `warranty_claims`
@@ -4799,7 +5850,29 @@ ALTER TABLE `warranty_claims`
 ALTER TABLE `warranty_claim_details`
   ADD PRIMARY KEY (`claim_detail_id`),
   ADD KEY `warranty_claim_details_claim_id_foreign` (`claim_id`),
-  ADD KEY `warranty_claim_details_product_id_foreign` (`product_id`);
+  ADD KEY `warranty_claim_details_product_id_foreign` (`product_id`),
+  ADD KEY `warranty_claim_details_product_set_id_foreign` (`product_set_id`);
+
+--
+-- Indexes for table `warranty_claim_returns`
+--
+ALTER TABLE `warranty_claim_returns`
+  ADD PRIMARY KEY (`return_id`),
+  ADD UNIQUE KEY `warranty_claim_returns_claim_id_unique` (`claim_id`),
+  ADD KEY `warranty_claim_returns_product_id_foreign` (`product_id`),
+  ADD KEY `warranty_claim_returns_location_id_foreign` (`location_id`),
+  ADD KEY `warranty_claim_returns_replacement_warranty_id_foreign` (`replacement_warranty_id`),
+  ADD KEY `warranty_claim_returns_serial_number_index` (`serial_number`);
+
+--
+-- Indexes for table `warranty_inventory_movements`
+--
+ALTER TABLE `warranty_inventory_movements`
+  ADD PRIMARY KEY (`movement_id`),
+  ADD KEY `warranty_inventory_movements_claim_detail_id_foreign` (`claim_detail_id`),
+  ADD KEY `warranty_inventory_movements_product_id_foreign` (`product_id`),
+  ADD KEY `warranty_inventory_movements_location_id_foreign` (`location_id`),
+  ADD KEY `warranty_inventory_movements_claim_id_moved_at_index` (`claim_id`,`moved_at`);
 
 --
 -- Indexes for table `warranty_records`
@@ -4822,13 +5895,13 @@ ALTER TABLE `warranty_records`
 -- AUTO_INCREMENT for table `adjustments`
 --
 ALTER TABLE `adjustments`
-  MODIFY `adjustment_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `adjustment_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `adjustment_details`
 --
 ALTER TABLE `adjustment_details`
-  MODIFY `adjustment_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `adjustment_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `appliance_details`
@@ -4846,7 +5919,7 @@ ALTER TABLE `archive_logs`
 -- AUTO_INCREMENT for table `audit_trail`
 --
 ALTER TABLE `audit_trail`
-  MODIFY `audit_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2764;
+  MODIFY `audit_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3153;
 
 --
 -- AUTO_INCREMENT for table `barcode_scans`
@@ -4858,13 +5931,13 @@ ALTER TABLE `barcode_scans`
 -- AUTO_INCREMENT for table `brand_lookup`
 --
 ALTER TABLE `brand_lookup`
-  MODIFY `brand_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `brand_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `budget_allocations`
 --
 ALTER TABLE `budget_allocations`
-  MODIFY `budget_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `budget_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `budget_transactions`
@@ -4873,10 +5946,16 @@ ALTER TABLE `budget_transactions`
   MODIFY `txn_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
 
 --
+-- AUTO_INCREMENT for table `capacity_lookup`
+--
+ALTER TABLE `capacity_lookup`
+  MODIFY `capacity_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+
+--
 -- AUTO_INCREMENT for table `category_lookup`
 --
 ALTER TABLE `category_lookup`
-  MODIFY `category_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `category_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `customers`
@@ -4894,25 +5973,25 @@ ALTER TABLE `delivery_receipts`
 -- AUTO_INCREMENT for table `incident_reports`
 --
 ALTER TABLE `incident_reports`
-  MODIFY `incident_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `incident_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `installation_material_details`
 --
 ALTER TABLE `installation_material_details`
-  MODIFY `consumable_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=133;
+  MODIFY `consumable_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=135;
 
 --
 -- AUTO_INCREMENT for table `inventory`
 --
 ALTER TABLE `inventory`
-  MODIFY `inventory_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
+  MODIFY `inventory_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1055;
 
 --
 -- AUTO_INCREMENT for table `inventory_batches`
 --
 ALTER TABLE `inventory_batches`
-  MODIFY `batch_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `batch_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `inventory_batch_movements`
@@ -4930,13 +6009,13 @@ ALTER TABLE `inventory_scan_events`
 -- AUTO_INCREMENT for table `issuances`
 --
 ALTER TABLE `issuances`
-  MODIFY `issuance_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=152;
+  MODIFY `issuance_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=335;
 
 --
 -- AUTO_INCREMENT for table `issuance_details`
 --
 ALTER TABLE `issuance_details`
-  MODIFY `issuance_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=116;
+  MODIFY `issuance_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1681;
 
 --
 -- AUTO_INCREMENT for table `issuance_sets`
@@ -4960,19 +6039,19 @@ ALTER TABLE `locations`
 -- AUTO_INCREMENT for table `login_activities`
 --
 ALTER TABLE `login_activities`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=448;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=476;
 
 --
 -- AUTO_INCREMENT for table `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=99;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=111;
 
 --
 -- AUTO_INCREMENT for table `nav_bundle_permissions`
 --
 ALTER TABLE `nav_bundle_permissions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `nav_permission_bundles`
@@ -4996,7 +6075,7 @@ ALTER TABLE `pending_products`
 -- AUTO_INCREMENT for table `permissions`
 --
 ALTER TABLE `permissions`
-  MODIFY `permission_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=115;
+  MODIFY `permission_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=119;
 
 --
 -- AUTO_INCREMENT for table `permission_audit_logs`
@@ -5008,7 +6087,7 @@ ALTER TABLE `permission_audit_logs`
 -- AUTO_INCREMENT for table `personal_access_tokens`
 --
 ALTER TABLE `personal_access_tokens`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=417;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=442;
 
 --
 -- AUTO_INCREMENT for table `pick_reservations`
@@ -5020,25 +6099,25 @@ ALTER TABLE `pick_reservations`
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `product_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=346;
+  MODIFY `product_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=348;
 
 --
 -- AUTO_INCREMENT for table `product_sets`
 --
 ALTER TABLE `product_sets`
-  MODIFY `set_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `set_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `product_set_brands`
 --
 ALTER TABLE `product_set_brands`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `product_set_lines`
 --
 ALTER TABLE `product_set_lines`
-  MODIFY `set_line_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `set_line_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `profit_loss`
@@ -5062,13 +6141,13 @@ ALTER TABLE `purchase_order_details`
 -- AUTO_INCREMENT for table `purchase_requests`
 --
 ALTER TABLE `purchase_requests`
-  MODIFY `pr_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=99;
+  MODIFY `pr_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=100;
 
 --
 -- AUTO_INCREMENT for table `purchase_request_details`
 --
 ALTER TABLE `purchase_request_details`
-  MODIFY `pr_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=137;
+  MODIFY `pr_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=140;
 
 --
 -- AUTO_INCREMENT for table `purchase_returns`
@@ -5098,7 +6177,7 @@ ALTER TABLE `receiving_details`
 -- AUTO_INCREMENT for table `restock_recommendations`
 --
 ALTER TABLE `restock_recommendations`
-  MODIFY `recommendation_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1717;
+  MODIFY `recommendation_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3588;
 
 --
 -- AUTO_INCREMENT for table `roles`
@@ -5110,25 +6189,25 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `role_permissions`
 --
 ALTER TABLE `role_permissions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=571;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=591;
 
 --
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `sales_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `sales_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=271;
 
 --
 -- AUTO_INCREMENT for table `sales_details`
 --
 ALTER TABLE `sales_details`
-  MODIFY `sales_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `sales_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3567;
 
 --
 -- AUTO_INCREMENT for table `scan_corrections`
 --
 ALTER TABLE `scan_corrections`
-  MODIFY `correction_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `correction_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `status_lookup`
@@ -5140,7 +6219,7 @@ ALTER TABLE `status_lookup`
 -- AUTO_INCREMENT for table `stock_parameter_suggestions`
 --
 ALTER TABLE `stock_parameter_suggestions`
-  MODIFY `suggestion_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1352;
+  MODIFY `suggestion_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1688;
 
 --
 -- AUTO_INCREMENT for table `suppliers`
@@ -5152,7 +6231,7 @@ ALTER TABLE `suppliers`
 -- AUTO_INCREMENT for table `supplier_product`
 --
 ALTER TABLE `supplier_product`
-  MODIFY `supplier_prod_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `supplier_prod_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `system_settings`
@@ -5188,13 +6267,13 @@ ALTER TABLE `transfer_tracking`
 -- AUTO_INCREMENT for table `unit_lookup`
 --
 ALTER TABLE `unit_lookup`
-  MODIFY `unit_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `unit_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `user_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `user_locations`
@@ -5209,10 +6288,16 @@ ALTER TABLE `user_permission_overrides`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=111;
 
 --
+-- AUTO_INCREMENT for table `variant_lookup`
+--
+ALTER TABLE `variant_lookup`
+  MODIFY `variant_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
+
+--
 -- AUTO_INCREMENT for table `warranty_claims`
 --
 ALTER TABLE `warranty_claims`
-  MODIFY `claim_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `claim_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `warranty_claim_details`
@@ -5221,10 +6306,22 @@ ALTER TABLE `warranty_claim_details`
   MODIFY `claim_detail_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
+-- AUTO_INCREMENT for table `warranty_claim_returns`
+--
+ALTER TABLE `warranty_claim_returns`
+  MODIFY `return_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `warranty_inventory_movements`
+--
+ALTER TABLE `warranty_inventory_movements`
+  MODIFY `movement_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `warranty_records`
 --
 ALTER TABLE `warranty_records`
-  MODIFY `warranty_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `warranty_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- Constraints for dumped tables
@@ -5693,7 +6790,26 @@ ALTER TABLE `warranty_claims`
 --
 ALTER TABLE `warranty_claim_details`
   ADD CONSTRAINT `warranty_claim_details_claim_id_foreign` FOREIGN KEY (`claim_id`) REFERENCES `warranty_claims` (`claim_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `warranty_claim_details_product_id_foreign` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `warranty_claim_details_product_id_foreign` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `warranty_claim_details_product_set_id_foreign` FOREIGN KEY (`product_set_id`) REFERENCES `product_sets` (`set_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `warranty_claim_returns`
+--
+ALTER TABLE `warranty_claim_returns`
+  ADD CONSTRAINT `warranty_claim_returns_claim_id_foreign` FOREIGN KEY (`claim_id`) REFERENCES `warranty_claims` (`claim_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `warranty_claim_returns_location_id_foreign` FOREIGN KEY (`location_id`) REFERENCES `locations` (`location_id`),
+  ADD CONSTRAINT `warranty_claim_returns_product_id_foreign` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`),
+  ADD CONSTRAINT `warranty_claim_returns_replacement_warranty_id_foreign` FOREIGN KEY (`replacement_warranty_id`) REFERENCES `warranty_records` (`warranty_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `warranty_inventory_movements`
+--
+ALTER TABLE `warranty_inventory_movements`
+  ADD CONSTRAINT `warranty_inventory_movements_claim_detail_id_foreign` FOREIGN KEY (`claim_detail_id`) REFERENCES `warranty_claim_details` (`claim_detail_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `warranty_inventory_movements_claim_id_foreign` FOREIGN KEY (`claim_id`) REFERENCES `warranty_claims` (`claim_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `warranty_inventory_movements_location_id_foreign` FOREIGN KEY (`location_id`) REFERENCES `locations` (`location_id`),
+  ADD CONSTRAINT `warranty_inventory_movements_product_id_foreign` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`);
 
 --
 -- Constraints for table `warranty_records`
