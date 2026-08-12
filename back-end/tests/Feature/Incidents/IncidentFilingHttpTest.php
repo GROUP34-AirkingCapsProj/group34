@@ -74,7 +74,11 @@ class IncidentFilingHttpTest extends SetTestCase
             'reason'           => IncidentReport::REASON_RETURN,
             'quantity'         => 1,
             'narrative'        => 'Customer returned the wrong model.',
-            'return_direction' => 'from_customer',
+            // Was `return_direction: from_customer`. Who the counterparty is and
+            // what went wrong are two independent facts; the direction is
+            // derived from the first and never asked.
+            'return_counterparty' => 'customer',
+            'return_reason_code'  => 'wrong_product',
             'dealer_name'      => 'LGM Davao',
             'dealer_phone'     => '(082) 000-0000',
             'dealer_email'     => 'dealer@example.com',
