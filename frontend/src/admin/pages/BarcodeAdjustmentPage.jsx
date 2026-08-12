@@ -18,7 +18,7 @@ import { useAuth, useUserLocation } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
-import IncidentFlow from '../components/incident/IncidentFlow';
+import IncidentDocument from '../components/incident/IncidentDocument';
 import IncidentList from '../components/incident/IncidentList';
 import '../styles/barcode_scan.css';
 import '../styles/po_receiving.css';
@@ -885,9 +885,12 @@ export default function BarcodeAdjustmentPage() {
           </div>
         </header>
 
-        {/* Mode 1 — the guided incident flow, replacing everything below the header. */}
+        {/* Mode 1 — the incident report form, replacing everything below the
+            header. The same document the inspector and the admin will see, in
+            `file` mode: two filing surfaces sharing one form rather than a
+            wizard here and a sheet there. */}
         {incidentOpen ? (
-          <IncidentFlow
+          <IncidentDocument
             onCancel={() => setIncidentOpen(false)}
             onFiled={() => { setIncidentOpen(false); setIncidentRefreshToken((n) => n + 1); }}
           />

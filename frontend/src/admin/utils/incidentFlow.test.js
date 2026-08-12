@@ -1,5 +1,16 @@
 import { stepsFor, toBackendInstant, totalPiecesFrom, STEP_KEYS } from './incidentFlow';
 
+/**
+ * `stepsFor` belongs to IncidentFlow, the five-step wizard that IncidentDocument
+ * has replaced on both filing surfaces. The wizard is still on disk as the
+ * fallback while `inspect` and `decide` are built, so these assertions still
+ * describe live code — but nothing renders it any more. **Delete this block
+ * together with `stepsFor` and IncidentFlow.jsx in Task 10.**
+ *
+ * `toBackendInstant` and `totalPiecesFrom` below are NOT wizard-only: the
+ * document sends the same UTC instant and does the same pack arithmetic, and
+ * both were live bugs. Those stay.
+ */
 describe('stepsFor', () => {
   it('gives a quarantining reason five steps, items after the outcome', () => {
     expect(stepsFor('missing')).toEqual([

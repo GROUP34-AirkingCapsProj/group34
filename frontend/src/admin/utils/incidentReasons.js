@@ -92,10 +92,67 @@ export const ROOT_CAUSES = [
   { value: 'other', label: 'Something else' },
 ];
 
-/** The two directions a return can travel. Mirrors IncidentReport::RETURN_DIRECTIONS. */
+/**
+ * The two directions a return can travel. Mirrors IncidentReport::RETURN_DIRECTIONS.
+ *
+ * RETIRED in favour of the counterparty and reason code below, which are two
+ * independent facts rather than one field conflating who the counterparty was
+ * with which way the goods travel. Kept only until the wizard is deleted.
+ */
 export const RETURN_DIRECTIONS = [
   { value: 'from_customer', label: 'Coming back from a customer' },
   { value: 'to_supplier', label: 'Going back to the supplier' },
+];
+
+/**
+ * Who the goods came from, or go back to. Mirrors
+ * IncidentReport::RETURN_COUNTERPARTIES.
+ *
+ * Direction is DERIVED from this and never asked: a reporter who answers "from
+ * a customer" and then "outbound" has created a contradiction with no correct
+ * resolution. `customer` and `branch` are inbound; `supplier` is outbound.
+ */
+export const RETURN_COUNTERPARTIES = [
+  {
+    value: 'customer',
+    label: 'From a customer',
+    help: 'The goods are coming back to us. They were issued out long ago and are in no batch, so nothing is deducted — they are registered as arriving and stay out of the stock count until an admin accepts them back.',
+  },
+  {
+    value: 'branch',
+    label: 'From another branch',
+    help: 'An interbranch return. Treated exactly like a customer return: the goods are arriving, and are not counted until accepted.',
+  },
+  {
+    value: 'supplier',
+    label: 'Back to the supplier',
+    help: 'The goods are here now and are going out. They are quarantined so nobody can pick them; the count drops only when an admin confirms.',
+  },
+];
+
+/**
+ * Why. Mirrors IncidentReport::RETURN_REASON_CODES.
+ *
+ * Defective is deliberately absent. A faulty unit is an inspection OUTCOME —
+ * the inspector decides whether it is repaired, claimed under warranty, sent
+ * back or scrapped — and offering it here would let a reporter pre-empt that.
+ */
+export const RETURN_REASON_CODES = [
+  {
+    value: 'wrong_product',
+    label: 'The wrong product was delivered',
+    help: 'Record both what arrived and what should have. Nothing is raised from it — getting the right unit out is a normal issuance someone raises separately.',
+  },
+  {
+    value: 'wrong_quantity',
+    label: 'The wrong quantity was delivered',
+    help: 'Record what was ordered. The delivered figure is the quantity on each unit below, so the discrepancy is written down rather than implied.',
+  },
+  {
+    value: 'no_longer_needed',
+    label: 'No longer needed',
+    help: 'The goods are fine and simply unwanted. The evidence asked for is about whether they are still sellable.',
+  },
 ];
 
 const BY_VALUE = INCIDENT_REASONS.reduce((acc, r) => { acc[r.value] = r; return acc; }, {});
