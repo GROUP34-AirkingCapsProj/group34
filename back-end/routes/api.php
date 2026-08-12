@@ -590,6 +590,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | carries two signature lines so that one person cannot both examine the
     | goods and approve their write-off.
     */
+    // The read side of the inspection: one report with its items, its evidence
+    // and the inspector's findings. Declared BEFORE the {id}/... routes for
+    // readability only — it cannot shadow them, being a different depth.
+    // `read`, not `inspect`: the admin who decides holds resolve + read and
+    // must be able to see what was submitted.
+    Route::middleware('permission:incident_reports,read')
+         ->get('/incident-reports/{id}', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'show'])
+         ->whereNumber('id');
     Route::middleware('permission:incident_reports,inspect')
          ->post('/incident-reports/{id}/evidence', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'storeEvidence']);
     Route::middleware('permission:incident_reports,inspect')

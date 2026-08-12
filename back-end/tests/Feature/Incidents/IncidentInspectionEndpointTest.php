@@ -303,6 +303,116 @@ class IncidentInspectionEndpointTest extends TestCase
     }
 
     /**
+     * The read side. Without it the inspection screen cannot show the evidence
+     * it already attached — the photo route needs an evidence_id no list
+     * endpoint returns — and the admin's decision screen cannot show the
+     * findings or the skipped requirements, which is the whole point of a
+     * checklist whose incompleteness is supposed to be loud.
+     */
+    public function test_the_show_endpoint_returns_items_evidence_and_findings(): void
+    {
+        ['incident' => $incident, 'location' => $location] = $this->makeScenario('defective');
+
+        $inspector = $this->makeUser('branch_manager', (int) $location->location_id);
+        $item      = $this->items($incident)->first();
+
+        $this->actingAs($inspector, 'sanctum')
+            ->postJson("/api/incident-reports/{$incident->incident_id}/items/{$item->item_id}/outcome",
+                ['outcome' => IncidentItem::OUTCOME_SCRAP, 'note' => 'compressor seized'])
+            ->assertOk();
+
+        $this->actingAs($inspector, 'sanctum')
+            ->postJson("/api/incident-reports/{$incident->incident_id}/evidence", [
+                'requirement'    => IncidentEvidence::REQ_BOX_TWO_SIDES,
+                'skipped_reason' => 'the box was already discarded',
+            ])
+            ->assertStatus(201);
+
+        $this->actingAs($inspector, 'sanctum')
+            ->postJson("/api/incident-reports/{$incident->incident_id}/inspection",
+                ['inspection_findings' => 'unit does not power on'])
+            ->assertOk();
+
+        // Read back as the APPROVER, who holds resolve + read but not the
+        // inspect permission the write routes are gated on — the admin must be
+        // able to see what they are being asked to confirm.
+        $this->actingAs($this->makeUser('inventory_analyst'), 'sanctum')
+            ->getJson("/api/incident-reports/{$incident->incident_id}")
+            ->assertOk()
+            ->assertJsonPath('data.inspection_findings', 'unit does not power on')
+            ->assertJsonPath('data.inspected_by', (int) $inspector->getKey())
+            ->assertJsonPath('data.items.0.outcome', IncidentItem::OUTCOME_SCRAP)
+            ->assertJsonPath('data.items.0.outcome_note', 'compressor seized')
+            ->assertJsonPath('data.evidence.0.requirement', IncidentEvidence::REQ_BOX_TWO_SIDES)
+            ->assertJsonPath('data.evidence.0.skipped_reason', 'the box was already discarded')
+            // The header the decision screen renders around all of that.
+            ->assertJsonPath('data.narrative', 'endpoint test')
+            ->assertJsonPath('data.location_id', (int) $location->location_id);
+    }
+
+    /**
+     * A report an admin REJECTED back to the inspector must be tellable apart
+     * from one that is finished.
+     *
+     * Both are "not open", and status_id is install-specific — Awaiting
+     * Inspection is 53 in the dev database and 1862 in this one — so a client
+     * with only `is_open` and a number either drops every rejection out of the
+     * inspector's worklist or hardcodes an id that is wrong on the next
+     * install. The name is the only thing that travels.
+     */
+    public function test_a_rejected_report_is_distinguishable_from_a_resolved_one(): void
+    {
+        $approver = $this->makeUser('inventory_analyst');
+
+        ['incident' => $rejected, 'location' => $location] = $this->makeScenario('defective');
+        $inspector = $this->makeUser('branch_manager', (int) $location->location_id);
+        $item      = $this->items($rejected)->first();
+
+        $this->actingAs($inspector, 'sanctum')
+            ->postJson("/api/incident-reports/{$rejected->incident_id}/items/{$item->item_id}/outcome",
+                ['outcome' => IncidentItem::OUTCOME_SCRAP])
+            ->assertOk();
+        $this->actingAs($inspector, 'sanctum')
+            ->postJson("/api/incident-reports/{$rejected->incident_id}/inspection", [])
+            ->assertOk();
+        $this->actingAs($approver, 'sanctum')
+            ->postJson("/api/incident-reports/{$rejected->incident_id}/decide", [
+                'action'         => 'reject',
+                'rejection_note' => 'the sticker photo is unreadable',
+            ])
+            ->assertOk();
+
+        // A second report, taken all the way to Resolved.
+        ['incident' => $resolved] = $this->makeScenario('zone_mismatch');
+        $this->actingAs($approver, 'sanctum')
+            ->postJson("/api/incident-reports/{$resolved->incident_id}/decide", ['action' => 'confirm'])
+            ->assertOk();
+
+        $this->actingAs($approver, 'sanctum')
+            ->getJson("/api/incident-reports/{$rejected->incident_id}")
+            ->assertOk()
+            ->assertJsonPath('data.status_name', 'Awaiting Inspection')
+            ->assertJsonPath('data.rejection_note', 'the sticker photo is unreadable');
+
+        $this->actingAs($approver, 'sanctum')
+            ->getJson("/api/incident-reports/{$resolved->incident_id}")
+            ->assertOk()
+            ->assertJsonPath('data.status_name', 'Resolved');
+
+        // …and the list endpoint the worklist is actually built from carries the
+        // same name, so the queue can be selected without fetching each report.
+        $listed = $this->actingAs($approver, 'sanctum')
+            ->getJson('/api/incident-reports')
+            ->assertOk()
+            ->json('data');
+
+        $byId = collect($listed)->keyBy('incident_id');
+
+        $this->assertSame('Awaiting Inspection', $byId[(int) $rejected->incident_id]['status_name']);
+        $this->assertSame('Resolved', $byId[(int) $resolved->incident_id]['status_name']);
+    }
+
+    /**
      * An unconstrained path let a filer submit another user's avatar, or an
      * absolute URL the frontend would fetch as-is.
      */

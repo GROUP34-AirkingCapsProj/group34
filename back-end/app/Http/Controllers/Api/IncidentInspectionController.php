@@ -91,6 +91,33 @@ class IncidentInspectionController extends Controller
         ]);
     }
 
+    /**
+     * One report in full: its header, its items, and its evidence.
+     *
+     * The read counterpart of everything this controller writes. Without it the
+     * inspection screen cannot show the evidence it already attached (the photo
+     * route needs an evidence_id no list endpoint returns), and the admin's
+     * decision screen cannot show the findings, the skipped requirements or
+     * their stated reasons — the whole point of the checklist being that an
+     * incomplete report is visibly incomplete.
+     *
+     * Gated on `read`, not `inspect`: the admin who decides holds `resolve` and
+     * `read`, and must be able to see what the inspector submitted.
+     */
+    public function show(int $id): JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+
+        if ($incident === null) {
+            return response()->json(['success' => false, 'message' => 'Incident not found.'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => $this->reportPayload($incident, full: true),
+        ]);
+    }
+
     /** One attachment against the checklist — a photo, or an explicit skip with a reason. */
     public function storeEvidence(Request $request, int $id): JsonResponse
     {
@@ -347,16 +374,30 @@ class IncidentInspectionController extends Controller
         return IncidentReport::forUser(Auth::user())->find($id);
     }
 
-    private function reportPayload(IncidentReport $incident): array
+    /**
+     * @param bool $full whether to include the report header and the client's
+     *                   document block — the decision and inspection screens
+     *                   need them; a submit/decide response is answering a
+     *                   caller who already has the row on screen.
+     */
+    private function reportPayload(IncidentReport $incident, bool $full = false): array
     {
-        $incident->load(['items.product', 'evidence']);
+        $incident->load(['items.product.consumableDetail', 'evidence', 'status', 'inspectedBy']);
 
-        return [
+        $payload = [
             'incident_id'              => (int) $incident->incident_id,
             'incident_number'          => $incident->incident_number,
             'reason'                   => $incident->reason,
             'status_id'                => (int) $incident->status_id,
+            // By NAME. The ids differ between installs, so a client that
+            // branches on the number is right here and wrong elsewhere; and
+            // "rejected back to the inspector" is a status, not a flag, so
+            // without the name it is indistinguishable from a closed report.
+            'status_name'              => $incident->status?->status_name,
             'inspected_by'             => $incident->inspected_by !== null ? (int) $incident->inspected_by : null,
+            'inspected_by_name'        => $incident->inspectedBy !== null
+                ? trim(($incident->inspectedBy->first_name ?? '') . ' ' . ($incident->inspectedBy->last_name ?? ''))
+                : null,
             'inspected_at'             => optional($incident->inspected_at)->toIso8601String(),
             'inspection_findings'      => $incident->inspection_findings,
             'checked_by_asc'           => (bool) $incident->checked_by_asc,
@@ -368,6 +409,56 @@ class IncidentInspectionController extends Controller
             'items'                    => $incident->items->map(fn (IncidentItem $i) => $this->itemPayload($i))->all(),
             'evidence'                 => $incident->evidence
                 ->map(fn (IncidentEvidence $e) => $this->evidencePayload($e))->all(),
+        ];
+
+        if (! $full) {
+            return $payload;
+        }
+
+        $incident->load(['product.consumableDetail', 'location', 'reportedBy']);
+
+        return $payload + [
+            'source_type'         => $incident->source_type,
+            'source_id'           => $incident->source_id !== null ? (int) $incident->source_id : null,
+            'location_id'         => (int) $incident->location_id,
+            'location_name'       => $incident->location?->location_name,
+            // (int) null is 0, a real product id — an `other` report has no
+            // product and must serialize as null.
+            'product_id'          => $incident->product_id !== null ? (int) $incident->product_id : null,
+            'product_name'        => $incident->product?->product_name,
+            'pieces_per_package'  => (int) ($incident->product?->pieces_per_package ?? 1),
+            'package_unit'        => $incident->product?->consumableDetail?->package_unit,
+            'batch_id'            => $incident->batch_id !== null ? (int) $incident->batch_id : null,
+            'quantity'            => (int) $incident->quantity,
+            'narrative'           => $incident->narrative,
+            'expected_zone'       => $incident->expected_zone,
+            'actual_zone'         => $incident->actual_zone,
+            'last_known_location' => $incident->last_known_location,
+            'suspected_cause'     => $incident->suspected_cause,
+            'root_cause'          => $incident->root_cause,
+            'return_direction'    => $incident->return_direction,
+            'return_reason'       => $incident->return_reason,
+            'photo_path'          => $incident->photo_path,
+            'photo_url'           => $incident->photo_path
+                ? "/incident-reports/{$incident->incident_id}/photo"
+                : null,
+            'photo_source'        => $incident->photo_source,
+            'occurred_at'         => optional($incident->occurred_at)->toIso8601String(),
+            'reported_by'         => (int) $incident->reported_by,
+            'reported_by_name'    => trim(($incident->reportedBy?->first_name ?? '') . ' ' . ($incident->reportedBy?->last_name ?? '')),
+            'created_at'          => optional($incident->created_at)->toIso8601String(),
+            // The client's document block, filled by the reporter at filing —
+            // the inspection screen prints it onto their form.
+            'dealer_name'         => $incident->dealer_name,
+            'dealer_phone'        => $incident->dealer_phone,
+            'dealer_mobile'       => $incident->dealer_mobile,
+            'dealer_email'        => $incident->dealer_email,
+            'branch_address'      => $incident->branch_address,
+            'customer_name'       => $incident->customer_name,
+            'customer_contact'    => $incident->customer_contact,
+            'site_address'        => $incident->site_address,
+            'purchased_at'        => optional($incident->purchased_at)->toDateString(),
+            'received_at_dor'     => optional($incident->received_at_dor)->toDateString(),
         ];
     }
 
