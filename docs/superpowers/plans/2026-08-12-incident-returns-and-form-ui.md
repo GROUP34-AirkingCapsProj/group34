@@ -12,6 +12,35 @@
 
 ---
 
+## RESUME HERE — status as of 2026-08-12, HEAD `1085e76`
+
+| Task | State |
+|---|---|
+| 1–7 (all backend) | ✅ done. **853 tests passing**, 9 failing = the `WarrantyClaimTest` baseline |
+| 8 — document shell + `file` mode | ✅ done (`09f8d3b`) |
+| 9 — `inspect` mode | ✅ done (`bda4083`) |
+| **10 — `decide` mode + retire old surfaces** | ⚠️ **PART DONE** — see below |
+| 11 — print from the same document | ❌ not started |
+| 12 — verification | ❌ not started |
+
+**What is left in Task 10, precisely:**
+
+1. **Swap `IncidentResolveDrawer` to render `IncidentDocument` in `decide` mode.** Confirm/Reject already exist on the document (`1085e76`) — the drawer just doesn't use them yet. It still renders its own ~578-line summary.
+
+   This is **not cosmetic**. The drawer shows the units, their outcomes, the evidence and the findings — but **not the dealer, customer or site block the reporter filled**. An admin currently approves without seeing half of what was claimed, which is the exact failure the unified-document design exists to prevent. Verified by grep: the drawer has no `dealer_name` / `customer_name` render at all.
+
+   The drawer is rendered from `components/incident/IncidentList.jsx:227` with props `incident` (a **list row**, not the full report), `onClose`, `canResolve`, `onResolved`. The list row carries none of the client block — the wrapper must fetch `GET /api/incident-reports/{id}` (`incidentReportsAPI.show`) and pass the result as `report`.
+
+2. **Delete the wizard.** `IncidentFlow.jsx` plus any `steps/` files nothing else imports. Task 8 already swapped **both** filing surfaces (`IncidentReportsPage` and `BarcodeAdjustmentPage`), so nothing renders it — confirm with `grep -rn "IncidentFlow" src/` before deleting. Current hits are its own definition, four doc-comments in `steps/`, and `incidentFlow.test.js`.
+
+3. **`utils/incidentFlow.test.js`** — delete the `stepsFor` describe block (annotated wizard-only). **Keep `toBackendInstant` and `totalPiecesFrom`**: `IncidentDocument` sends the same UTC instant and does the same pack arithmetic, and both were live production bugs. Move them to a better-named file if `stepsFor` was the only reason for this one.
+
+**Nothing in this feature has been driven by a human.** The backend is well covered; no one has filed, inspected, printed or confirmed a report through the UI. Task 12's manual pass is the real outstanding risk, not the remaining code.
+
+**58 commits ahead of `origin/backupV3`, unpushed.**
+
+---
+
 ## Before you start — read all of it
 
 Every item here has already gone wrong on this feature.
