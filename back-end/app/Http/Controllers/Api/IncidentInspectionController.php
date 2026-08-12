@@ -9,6 +9,7 @@ use App\Models\IncidentReport;
 use App\Models\User;
 use App\Services\IncidentItemService;
 use App\Services\IncidentService;
+use App\Services\WarrantyStateService;
 use App\Support\PermissionResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -226,6 +227,24 @@ class IncidentInspectionController extends Controller
 
         if ($item === null) {
             return response()->json(['success' => false, 'message' => 'Item not found on this incident.'], 404);
+        }
+
+        // Enforced here, not only in the UI. A rule the client merely renders is
+        // not a rule: the screen would hide the button while the endpoint kept
+        // accepting the outcome, and a claim raised against a unit with no cover
+        // is invisible until a warranty officer opens it and finds nothing to
+        // claim against.
+        $warranty = app(WarrantyStateService::class);
+        $state    = $warranty->stateFor($item);
+
+        if (! in_array($validated['outcome'], $warranty->outcomesForState($state), true)) {
+            return response()->json([
+                'success'        => false,
+                'message'        => $state === WarrantyStateService::EXPIRED
+                    ? 'This unit\'s warranty has expired, so it cannot be sent for a warranty claim.'
+                    : 'This unit has no warranty record, so it cannot be sent for a warranty claim.',
+                'warranty_state' => $state,
+            ], 422);
         }
 
         try {
@@ -464,6 +483,9 @@ class IncidentInspectionController extends Controller
 
     private function itemPayload(IncidentItem $item, bool $withLocation = false): array
     {
+        $warranty      = app(WarrantyStateService::class);
+        $warrantyState = $warranty->stateFor($item);
+
         $payload = [
             'item_id'            => (int) $item->item_id,
             'incident_id'        => (int) $item->incident_id,
@@ -486,6 +508,17 @@ class IncidentInspectionController extends Controller
             'status'             => $item->status,
             'outcome'            => $item->outcome,
             'outcome_note'       => $item->outcome_note,
+            // Served, never re-derived by the client — the same discipline the
+            // retired allowed_dispositions followed. The gate is enforced in
+            // setOutcome(); this is what lets the screen render only the
+            // buttons that will actually be accepted.
+            //
+            // in_warranty / expired / none are three states, not two. Expired
+            // and none offer the same choices but mean different things: one
+            // unit was sold and its cover ran out, the other was never
+            // registered at all, and only the payload can tell them apart.
+            'warranty_state'     => $warrantyState,
+            'allowed_outcomes'   => $warranty->outcomesForState($warrantyState),
             'created_at'         => optional($item->created_at)->toIso8601String(),
         ];
 
