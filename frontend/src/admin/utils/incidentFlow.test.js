@@ -1,47 +1,15 @@
-import { stepsFor, toBackendInstant, totalPiecesFrom, STEP_KEYS } from './incidentFlow';
+import { toBackendInstant, totalPiecesFrom } from './incidentFlow';
 
 /**
- * `stepsFor` belongs to IncidentFlow, the five-step wizard that IncidentDocument
- * has replaced on both filing surfaces. The wizard is still on disk as the
- * fallback while `inspect` and `decide` are built, so these assertions still
- * describe live code — but nothing renders it any more. **Delete this block
- * together with `stepsFor` and IncidentFlow.jsx in Task 10.**
+ * The two conversions that were live production bugs, and are still live code:
+ * IncidentDocument sends the same UTC instant and does the same pack
+ * arithmetic.
  *
- * `toBackendInstant` and `totalPiecesFrom` below are NOT wizard-only: the
- * document sends the same UTC instant and does the same pack arithmetic, and
- * both were live bugs. Those stay.
+ * A bare datetime-local value made the UTC server read a Manila "now" as eight
+ * hours ahead and reject every filing that carried a timestamp; reporting "1"
+ * for a damaged box wrote off a single PIECE. The five-step wizard these once
+ * also covered is gone, and its stepsFor block went with it.
  */
-describe('stepsFor', () => {
-  it('gives a quarantining reason five steps, items after the outcome', () => {
-    expect(stepsFor('missing')).toEqual([
-      STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.ITEMS, STEP_KEYS.DETAILS,
-    ]);
-  });
-
-  it('gives each of the five stock-affecting types an outcome step', () => {
-    ['missing', 'defective', 'return', 'wrong_type', 'zone_mismatch']
-      .forEach((r) => expect(stepsFor(r)).toContain(STEP_KEYS.OUTCOME));
-  });
-
-  // Mirrors IncidentService::INSPECTION_EXEMPT_REASONS: a zone mismatch
-  // quarantines nothing, so there are no physical units to enumerate and
-  // asking for them would be four screens of nothing.
-  it('skips the items step for a zone mismatch, which creates no items', () => {
-    expect(stepsFor('zone_mismatch')).toEqual([
-      STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.OUTCOME, STEP_KEYS.DETAILS,
-    ]);
-  });
-
-  it('skips the outcome step for `other`, which moves no stock', () => {
-    expect(stepsFor('other')).toEqual([
-      STEP_KEYS.WHAT, STEP_KEYS.WHERE, STEP_KEYS.DETAILS,
-    ]);
-  });
-
-  it('treats an unrecognised reason as `other` rather than throwing', () => {
-    expect(stepsFor('not_a_real_reason')).toHaveLength(3);
-  });
-});
 
 describe('toBackendInstant', () => {
   // A bare `datetime-local` value has no zone. Sent verbatim it made the UTC

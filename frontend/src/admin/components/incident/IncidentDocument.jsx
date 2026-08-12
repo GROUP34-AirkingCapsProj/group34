@@ -327,6 +327,32 @@ export default function IncidentDocument({
     }
   }, [incidentId, rejectionNote, onSubmitted]);
 
+  /**
+   * Raised in error. Releases the quarantine without moving anything — nothing
+   * was ever deducted, so there is no arithmetic to undo.
+   */
+  const handleDismiss = useCallback(async () => {
+    const ok = await confirmAction({
+      title: 'Dismiss this report?',
+      text: 'The report is closed as raised in error. The quarantine is released, the units go back '
+        + 'into stock, and no quantity changes — nothing was ever deducted.',
+      confirmText: 'Dismiss it',
+    });
+    if (!ok) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await incidentReportsAPI.decide(incidentId, { action: 'dismiss' });
+      toast.success('Report dismissed. The quarantine is released.');
+      onSubmitted?.();
+    } catch (err) {
+      setSubmitError(err?.message || 'Could not dismiss this report.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [incidentId, onSubmitted]);
+
   const handleSubmit = useCallback(async () => {
     if (missing.length > 0) { setShowBlockers(true); return; }
     setSubmitting(true);
@@ -662,6 +688,14 @@ export default function IncidentDocument({
             {/* The admin has the signed hardcopy in hand, but printing again
                 from the same document is how they check the paper matches. */}
             <IncidentReportPrint report={report} />
+            <button
+              type="button"
+              className="ak-btn"
+              onClick={handleDismiss}
+              disabled={submitting || rejecting}
+            >
+              Dismiss
+            </button>
             <button
               type="button"
               className="ak-btn"
