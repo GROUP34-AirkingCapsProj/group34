@@ -276,7 +276,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
         $this->assertNull($row['root_cause'], 'a missing report carries no root cause');
     }
 
-    public function test_a_return_carries_its_direction_and_a_defective_its_root_cause(): void
+    public function test_a_return_carries_its_counterparty_and_reason_and_a_defective_its_root_cause(): void
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
@@ -303,18 +303,29 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'product_id'       => $p->product_id,
             'reason'           => 'return',
             'quantity'         => 3,
-            'narrative'        => 'Customer sent three back, wrong model on the delivery.',
-            'return_direction' => 'from_customer',
-            'return_reason'    => 'wrong model delivered',
+            'narrative'           => 'Customer sent three back, wrong model on the delivery.',
+            'return_counterparty' => 'customer',
+            'return_reason_code'  => 'wrong_product',
+            'return_reason'       => 'wrong model delivered',
         ])->assertCreated();
 
-        // to_supplier vs from_customer are opposite movements; storing the wrong
-        // one (or none) is what the single `customer_return` reason used to do.
+        // Was asserted on return_direction, which conflated WHO the counterparty
+        // was with WHICH WAY the goods travel and could not express an
+        // interbranch return at all. The two facts are now stored separately and
+        // the direction is derived from the counterparty.
         $this->assertDatabaseHas('incident_reports', [
-            'incident_id'      => (int) $return->json('data.incident_id'),
-            'return_direction' => 'from_customer',
-            'return_reason'    => 'wrong model delivered',
+            'incident_id'         => (int) $return->json('data.incident_id'),
+            'return_counterparty' => 'customer',
+            'return_reason_code'  => 'wrong_product',
+            'return_reason'       => 'wrong model delivered',
         ]);
+
+        // A customer return is INBOUND: the three units were issued out long ago
+        // and are in no batch, so the item binds to none and nothing is
+        // deducted. This used to quarantine a batch the units were not in.
+        $item = IncidentItem::where('incident_id', (int) $return->json('data.incident_id'))->firstOrFail();
+        $this->assertTrue((bool) $item->is_inbound);
+        $this->assertNull($item->batch_id);
     }
 
     public function test_a_cause_outside_the_allowed_set_is_rejected(): void
@@ -332,10 +343,13 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'reason'           => 'missing',
             'quantity'         => 1,
             'narrative'        => 'Filed with a cause nobody defined.',
-            'suspected_cause'  => 'stolen',            // not one of SUSPECTED_CAUSES
-            'return_direction' => 'sideways',
+            'suspected_cause'     => 'stolen',      // not one of SUSPECTED_CAUSES
+            // Was `return_direction: sideways`. The vocabulary being guarded is
+            // now the counterparty's, and the column is still a plain string, so
+            // the validator remains the only thing keeping a typo out.
+            'return_counterparty' => 'sideways',   // not one of RETURN_COUNTERPARTIES
         ])->assertStatus(422)
-          ->assertJsonValidationErrors(['suspected_cause', 'return_direction']);
+          ->assertJsonValidationErrors(['suspected_cause', 'return_counterparty']);
     }
 
     public function test_the_endpoint_rejects_an_occurrence_in_the_future(): void
