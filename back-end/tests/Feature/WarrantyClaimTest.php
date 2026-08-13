@@ -36,6 +36,10 @@ class WarrantyClaimTest extends TestCase
             'location_id'  => $locationId,
         ]);
 
+        // A scan FULFILS an order line; it no longer creates one. The part has to
+        // be on the warranty order before anyone can scan it against the claim.
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 2);
+
         $detail = $this->service()->addItem($claim, ['barcode' => $code, 'quantity' => 2]);
 
         $this->assertSame((int) $part->product_id, (int) $detail->product_id);
@@ -209,6 +213,8 @@ class WarrantyClaimTest extends TestCase
             'location_id'  => $locationId,
         ]);
 
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 3);
+
         $detail = $this->service()->addItem($claim, [
             'barcode'  => $part->barcode ?: $part->product_code,
             'quantity' => 3,
@@ -237,6 +243,8 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'replacement',
             'location_id'  => $locationId,
         ]);
+
+        $this->service()->addCustomOrderLine($claim, (int) $replacement['product']->product_id, 1);
 
         $detail = $this->service()->addItem($claim, [
             'barcode' => $replacement['serial'],
@@ -282,10 +290,14 @@ class WarrantyClaimTest extends TestCase
             'location_id'  => $appliance['location']->location_id,
         ]);
 
+        $this->service()->addCustomOrderLine($claim, (int) $r1['product']->product_id, 1);
         $this->service()->addItem($claim, ['barcode' => $r1['serial']]);
 
+        // The one-unit rule now lives on the ORDER, not on the scan: a
+        // replacement order cannot be extended past a single unit, so the second
+        // unit is refused before anybody gets to scan it.
         $this->expectException(\App\Exceptions\WarrantyClaimException::class);
-        $this->service()->addItem($claim->fresh(), ['barcode' => $r2['serial']]);
+        $this->service()->addCustomOrderLine($claim->fresh(), (int) $r2['product']->product_id, 1);
     }
 
     public function test_remove_repair_part_restores_stock(): void
@@ -302,6 +314,7 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'repair',
             'location_id'  => $locationId,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 4);
         $detail = $this->service()->addItem($claim, ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 4]);
 
         $this->service()->removeItem($claim->fresh(), $detail->claim_detail_id);
@@ -309,7 +322,15 @@ class WarrantyClaimTest extends TestCase
         $this->assertDatabaseHas('inventory', [
             'product_id' => $part->product_id, 'location_id' => $locationId, 'quantity_on_hand' => 100,
         ]);
-        $this->assertDatabaseMissing('warranty_claim_details', ['claim_detail_id' => $detail->claim_detail_id]);
+        // Reversing a scan un-fulfils the ORDER LINE rather than deleting it —
+        // the part is still on the warranty order, just no longer issued, so it
+        // can be re-scanned without re-ordering it.
+        $this->assertDatabaseHas('warranty_claim_details', [
+            'claim_detail_id'    => $detail->claim_detail_id,
+            'quantity_requested' => 4,
+            'quantity_issued'    => 0,
+            'quantity_in_pieces' => 0,
+        ]);
     }
 
     public function test_remove_replacement_unit_restores_serial(): void
@@ -325,6 +346,7 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'replacement',
             'location_id'  => $appliance['location']->location_id,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $replacement['product']->product_id, 1);
         $detail = $this->service()->addItem($claim, ['barcode' => $replacement['serial']]);
 
         $this->service()->removeItem($claim->fresh(), $detail->claim_detail_id);
@@ -348,6 +370,7 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'repair',
             'location_id'  => $locationId,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 2);
         $this->service()->addItem($claim, ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 2]);
 
         $before = \App\Models\WarrantyRecord::count();
@@ -379,6 +402,7 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'replacement',
             'location_id'  => $locationId,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $replacement['product']->product_id, 1);
         $this->service()->addItem($claim, ['barcode' => $replacement['serial']]);
 
         $this->service()->completeClaim($claim->fresh());
@@ -425,6 +449,11 @@ class WarrantyClaimTest extends TestCase
         ])->assertStatus(201)->json();
 
         $claimId = $init['data']['claim_id'] ?? $init['claim_id'];
+
+        $this->postJson("/api/warranty-claims/{$claimId}/order/custom", [
+            'product_id'         => $part->product_id,
+            'quantity_in_pieces' => 1,
+        ])->assertOk();
 
         $this->postJson("/api/warranty-claims/{$claimId}/item", [
             'barcode'  => $part->barcode ?: $part->product_code,
