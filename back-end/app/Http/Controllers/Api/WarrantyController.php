@@ -61,10 +61,57 @@ class WarrantyController extends Controller
                   ->whereDate('warranty_end_date', '<=', now()->addDays(30));
         }
 
-        return $this->paginated(
-            $query->paginate($request->integer('per_page', 15)),
-            'Warranty records retrieved'
+        $page = $query->paginate($request->integer('per_page', 15));
+
+        $response = $this->paginated($page, 'Warranty records retrieved');
+
+        // Counted in SQL over the whole scoped set, NOT over $page->items().
+        // The screen used to tally the rows it had been handed and label the
+        // result "Active (page)", so the headline figures changed as you paged
+        // and never described the business.
+        return $response->setData(
+            (object) ($response->getData(true) + ['summary' => $this->summaryFor($request)])
         );
+    }
+
+    /**
+     * Active / expired / claimed totals for the current filters.
+     *
+     * Deliberately ignores any status filter: these counts are what the status
+     * filter is chosen FROM, so narrowing to "Expired" must not reduce the other
+     * two to zero. Every other filter still applies, so the numbers describe the
+     * set the user is actually looking at.
+     *
+     * @return array<string,int>
+     */
+    private function summaryFor(Request $request): array
+    {
+        $base = fn () => WarrantyRecord::query()
+            ->forUser($request->user())
+            ->when($request->filled('customer_id'),
+                fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+            ->when($request->filled('product_id'),
+                fn ($q) => $q->where('product_id', $request->integer('product_id')))
+            ->when($request->filled('serial_number'), fn ($q) => $q->whereRaw(
+                'LOWER(TRIM(serial_number)) = ?',
+                [strtolower(trim($request->string('serial_number')))]
+            ))
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate(
+                'warranty_end_date', '>=', $request->string('date_from')
+            ));
+
+        $active  = (clone $base())->withEffectiveStatus(WarrantyRecord::STATUS_ACTIVE)->count();
+        $expired = (clone $base())->withEffectiveStatus(WarrantyRecord::STATUS_EXPIRED)->count();
+        $claimed = (clone $base())->withEffectiveStatus(WarrantyRecord::STATUS_CLAIMED)->count();
+
+        return [
+            'active'  => $active,
+            'expired' => $expired,
+            'claimed' => $claimed,
+            // Summed rather than counted separately so the three states and the
+            // total can never disagree on screen.
+            'total'   => $active + $expired + $claimed,
+        ];
     }
 
     // GET /api/warranties/{id}

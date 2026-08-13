@@ -154,6 +154,35 @@ class WarrantyExpiryTest extends TestCase
         $this->assertTrue($row['is_expired'], 'and it must not contradict itself');
     }
 
+    /**
+     * The summary counts every matching record, not the page you happen to be on.
+     *
+     * The page used to count the 15 rows in front of it and label the result
+     * "Active (page)", so the headline numbers changed when you paged. They are
+     * counted in SQL across the whole scoped set now, on the derived state, so
+     * a lapsed record is counted as expired even while its column says active.
+     */
+    public function test_the_list_summary_counts_every_record_not_just_the_page(): void
+    {
+        $lapsed = $this->makeWarranty(daysAgo: 4);
+        $live   = $this->makeWarranty(daysAgo: -60);
+
+        $summary = $this->actingAs($this->admin(), 'sanctum')
+            ->getJson('/api/warranties?per_page=1')
+            ->assertOk()
+            ->json('summary');
+
+        $this->assertGreaterThanOrEqual(1, $summary['active']);
+        $this->assertGreaterThanOrEqual(1, $summary['expired']);
+        $this->assertSame(
+            $summary['active'] + $summary['expired'] + $summary['claimed'],
+            $summary['total'],
+            'every record falls into exactly one of the three states'
+        );
+        $this->assertGreaterThan(1, $summary['total'],
+            'the summary must exceed the single row this page returned');
+    }
+
     /** …and the command is what actually tidies the column. */
     public function test_the_expire_command_updates_the_stored_column(): void
     {
