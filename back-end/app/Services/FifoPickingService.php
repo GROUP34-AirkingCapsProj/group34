@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\Product;
@@ -219,6 +220,35 @@ class FifoPickingService
                 ->exists();
 
             if (! $hasAnyBatch) {
+                // Case (a), with one exception. Batch exclusion cannot speak for
+                // a product that has no batches, so a report filed against
+                // legacy stock would wave straight through here and let a picker
+                // walk off with the very goods under review. Compare the
+                // quantities instead: when the incident holds everything on the
+                // shelf, there is nothing left to accept.
+                //
+                // A PARTIAL hold still passes — this path has no per-scan ledger
+                // to charge against, and the availability pool upstream is what
+                // stops an order being raised for more than the free quantity.
+                $onHand = (int) (Inventory::where('product_id', $productId)
+                    ->where('location_id', $locationId)
+                    ->value('quantity_on_hand') ?? 0);
+
+                $quarantined = (int) (app(IncidentService::class)
+                    ->quarantinedQuantities($locationId)[$productId] ?? 0);
+
+                if ($quarantined > 0 && $onHand - $quarantined <= 0) {
+                    return new ScanResult(
+                        status:       ScanResult::FIFO_VIOLATION,
+                        message:      "All stock of {$product->product_name} here is under an open incident report. "
+                                      . 'It cannot be picked until that report is settled.',
+                        productId:    $productId,
+                        productName:  $product->product_name,
+                        serialId:     $serial !== null ? (int) $serial->serial_id : null,
+                        serialNumber: $serial?->serial_number
+                    );
+                }
+
                 return new ScanResult(
                     status:       ScanResult::ACCEPTED,
                     message:      'Accepted.',

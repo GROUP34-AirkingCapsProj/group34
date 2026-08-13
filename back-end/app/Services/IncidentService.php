@@ -181,6 +181,22 @@ class IncidentService
         return IncidentItem::quarantinedBatchIds($locationId);
     }
 
+    /**
+     * Quarantined pieces per product at a location, for availability quotes.
+     *
+     * The companion to excludedBatchIds(): that one stops a quarantined BATCH
+     * being picked, this one stops the quantity being PROMISED. Both are needed,
+     * because an item filed without a batch excludes no batch at all, and a
+     * quote reads inventory rather than batches — so without this a picker gets
+     * handed an order the FIFO engine will then refuse as under review.
+     *
+     * @return array<int,int> product_id => pieces
+     */
+    public function quarantinedQuantities(int $locationId): array
+    {
+        return IncidentItem::quarantinedQuantities($locationId);
+    }
+
     /** How many incidents a picker has filed in the trailing window — the theft signal. */
     public function incidentCountFor(int $userId, int $days = 30): int
     {
@@ -302,14 +318,31 @@ class IncidentService
             $this->items->applyOutcomes($locked, $adminId);
         }
 
+        // Re-read: applyOutcomes may have just written a shortfall onto the note,
+        // and $locked's copy predates it. Assigning the admin's note straight
+        // over the top would erase the one record that the stock went missing.
+        $shortfall = IncidentReport::whereKey($locked->getKey())->value('resolution_note');
+        $adminNote = $options['resolution_note'] ?? null;
+
         $locked->update([
             'status_id'       => IncidentReport::statusId('Resolved'),
             'reviewed_by'     => $adminId,
             'reviewed_at'     => now(),
-            'resolution_note' => $options['resolution_note'] ?? null,
+            'resolution_note' => $this->mergeNotes($shortfall, $adminNote),
         ]);
 
         return $locked->fresh();
+    }
+
+    /** Keep both halves of the resolution note, and stay null when there is nothing to say. */
+    private function mergeNotes(?string $existing, ?string $added): ?string
+    {
+        $parts = array_values(array_filter([
+            trim((string) $existing),
+            trim((string) $added),
+        ], fn (string $p) => $p !== ''));
+
+        return $parts === [] ? null : implode("\n", $parts);
     }
 
     /**
