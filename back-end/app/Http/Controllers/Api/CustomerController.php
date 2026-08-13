@@ -187,7 +187,16 @@ class CustomerController extends Controller
             'warranty_duration_label' => $w->warranty_duration_label,
             'days_remaining'          => $w->days_remaining,
             'is_expired'              => $w->is_expired,
-            'status_name'             => $w->status?->status_name,
+            // Derived, like is_expired directly above it. Read off the stored
+            // column these two contradicted each other: a warranty that lapsed
+            // before anyone last opened the warranty list came back as
+            // "Active" with is_expired true in the same row.
+            'status_name'             => match ($w->effective_status_id) {
+                WarrantyRecord::STATUS_ACTIVE  => 'Active',
+                WarrantyRecord::STATUS_EXPIRED => 'Expired',
+                WarrantyRecord::STATUS_CLAIMED => 'Claimed',
+                default                        => $w->status?->status_name,
+            },
         ]);
 
         $claims = \App\Models\WarrantyClaim::with(['details.product', 'status'])
