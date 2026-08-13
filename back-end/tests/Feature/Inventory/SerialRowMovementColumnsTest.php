@@ -78,6 +78,12 @@ class SerialRowMovementColumnsTest extends TestCase
             ->where('receiving_details.product_id', $product->product_id)
             ->where('receivings.location_id', $loc->location_id)
             ->orderBy('receiving_details.created_at')
+            // Tie-breaker: created_at is a whole-second `timestamp` and both
+            // receivings are posted inside the same second, so ordering by it
+            // alone leaves MariaDB free to hand back either row first and "the
+            // FIRST batch" silently becomes the second. The endpoint under test
+            // had the same ambiguity, which is what made this test flaky.
+            ->orderBy('receiving_details.receiving_detail_id')
             ->get(['receiving_details.receiving_id']);
         $firstReceivingId = $rows[0]->receiving_id;
 
