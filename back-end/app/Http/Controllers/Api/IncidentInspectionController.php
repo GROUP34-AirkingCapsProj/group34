@@ -235,15 +235,24 @@ class IncidentInspectionController extends Controller
         // is invisible until a warranty officer opens it and finds nothing to
         // claim against.
         $warranty = app(WarrantyStateService::class);
-        $state    = $warranty->stateFor($item);
+        $decision = $warranty->evaluate($item);
 
-        if (! in_array($validated['outcome'], $warranty->outcomesForState($state), true)) {
+        if (! in_array($validated['outcome'], $decision->outcomes, true)) {
+            // Two different gates reach this line, and telling them apart is the
+            // whole point: one says the CUSTOMER's cover is gone, the other says
+            // the SUPPLIER's is. An inspector reading the wrong one goes and
+            // argues with the wrong party.
+            $isSupplierGate = $validated['outcome'] === IncidentItem::OUTCOME_RETURN_TO_SUPPLIER;
+
             return response()->json([
-                'success'        => false,
-                'message'        => $state === WarrantyStateService::EXPIRED
-                    ? 'This unit\'s warranty has expired, so it cannot be sent for a warranty claim.'
-                    : 'This unit has no warranty record, so it cannot be sent for a warranty claim.',
-                'warranty_state' => $state,
+                'success'           => false,
+                'message'           => $isSupplierGate
+                    ? $this->supplierGateMessage($decision->supplier)
+                    : ($decision->customerState === WarrantyStateService::EXPIRED
+                        ? 'This unit\'s warranty has expired, so it cannot be sent for a warranty claim.'
+                        : 'This unit has no warranty record, so it cannot be sent for a warranty claim.'),
+                'warranty_state'    => $decision->customerState,
+                'supplier_warranty' => $decision->supplier->toArray(),
             ], 422);
         }
 
@@ -488,10 +497,25 @@ class IncidentInspectionController extends Controller
         ];
     }
 
+    /** Why a supplier return was refused, in terms the inspector can act on. */
+    private function supplierGateMessage(\App\Support\SupplierWarranty $supplier): string
+    {
+        if ($supplier->state === WarrantyStateService::EXPIRED) {
+            $who = $supplier->supplierName ?? 'the supplier';
+
+            return "This unit's supplier warranty ran out on {$supplier->endDate}, "
+                . "so it cannot be returned to {$who} as a warranty claim.";
+        }
+
+        return 'This unit cannot be traced to a receiving with a warranty term, '
+            . 'so there is no supplier cover to return it under.';
+    }
+
     private function itemPayload(IncidentItem $item, bool $withLocation = false): array
     {
         $warranty      = app(WarrantyStateService::class);
-        $warrantyState = $warranty->stateFor($item);
+        $decision      = $warranty->evaluate($item);
+        $warrantyState = $decision->customerState;
 
         $payload = [
             'item_id'            => (int) $item->item_id,
@@ -535,7 +559,13 @@ class IncidentInspectionController extends Controller
             // unit was sold and its cover ran out, the other was never
             // registered at all, and only the payload can tell them apart.
             'warranty_state'     => $warrantyState,
-            'allowed_outcomes'   => $warranty->outcomesForState($warrantyState),
+            // The SECOND clock. A unit in stock has no customer warranty and
+            // never will until it is sold, but the supplier still stands behind
+            // it — and that, not the customer's cover, is what decides whether a
+            // defective one can go back. Served with its dates and supplier so
+            // the screen can say WHY, not just show a colour.
+            'supplier_warranty'  => $decision->supplier->toArray(),
+            'allowed_outcomes'   => $decision->outcomes,
             'created_at'         => optional($item->created_at)->toIso8601String(),
         ];
 

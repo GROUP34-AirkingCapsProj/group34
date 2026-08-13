@@ -150,8 +150,8 @@ test('a warranty claim appears when the server says the unit is covered', async 
 });
 
 // `expired` and `none` offer the same choices but are not the same fact: one
-// unit was sold and its cover ran out, the other was never registered at all.
-test('expired and no-record are told apart on screen', async () => {
+// unit was sold and its cover ran out, the other has not been sold at all.
+test('expired and not-yet-sold are told apart on screen', async () => {
   const { unmount } = await renderDoc({ mode: 'inspect', report: filedReport() });
   expect(screen.getByText('Warranty expired')).toBeInTheDocument();
   unmount();
@@ -160,7 +160,33 @@ test('expired and no-record are told apart on screen', async () => {
     mode: 'inspect',
     report: filedReport({ items: [{ ...filedReport().items[0], warranty_state: 'none' }] }),
   });
-  expect(screen.getByText('No warranty record')).toBeInTheDocument();
+  expect(screen.getByText('Not sold yet')).toBeInTheDocument();
+});
+
+// The second clock. Stock on the shelf reads "not sold yet" on the customer
+// badge while the supplier still stands behind it, and only the supplier badge
+// can tell an inspector whether a defective unit may go back.
+test('supplier warranty is shown beside the customer one', async () => {
+  await renderDoc({
+    mode: 'inspect',
+    report: filedReport({
+      items: [{
+        ...filedReport().items[0],
+        warranty_state: 'none',
+        supplier_warranty: {
+          state: 'in_warranty',
+          end_date: '2029-08-12',
+          supplier_name: 'Supplier A',
+          receiving_number: 'RCV-0044',
+          po_number: 'PO-0064',
+        },
+      }],
+    }),
+  });
+
+  expect(screen.getByText('Not sold yet')).toBeInTheDocument();
+  expect(screen.getByText('Supplier warranty active')).toBeInTheDocument();
+  expect(screen.getByText(/until 2029-08-12 · Supplier A · RCV-0044 \/ PO-0064/)).toBeInTheDocument();
 });
 
 // A disabled button with no explanation is a dead end: the inspector cannot

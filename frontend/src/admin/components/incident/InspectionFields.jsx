@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { DocField } from './sections/DocumentSection';
 import {
   ITEM_OUTCOMES, itemStatusMeta, outcomeLabel, outcomeMeta, outcomeRemovesStock,
-  unitRoleLabel, warrantyStateMeta,
+  unitRoleLabel, warrantyStateMeta, supplierWarrantyMeta, supplierWarrantyDetail,
 } from '../../utils/incidentItems';
 import { formatPieces } from '../../utils/packageFormat';
 
@@ -115,6 +115,8 @@ function ItemOutcomeRow({ item, disabled, onSave }) {
   const settled = item.status !== 'quarantined';
   const status = itemStatusMeta(item.status);
   const warranty = warrantyStateMeta(item.warranty_state);
+  const supplierWarranty = supplierWarrantyMeta(item.supplier_warranty?.state);
+  const supplierDetail = supplierWarrantyDetail(item.supplier_warranty);
   const qtyLabel = formatPieces(item.quantity, item.pieces_per_package, item.package_unit);
 
   // Rendered as given. The already-chosen outcome is unioned in so a decision
@@ -147,6 +149,21 @@ function ItemOutcomeRow({ item, disabled, onSave }) {
         <div style={{ marginBottom: '0.5rem' }}>
           <span className={`ak-badge ${warranty.badge}`}>{warranty.label}</span>{' '}
           <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{warranty.help}</span>
+        </div>
+      )}
+
+      {/* The second clock, shown beside the first rather than instead of it.
+          Stock on the shelf has supplier cover and no customer warranty, and an
+          inspector deciding whether a defective unit can go back needs THIS
+          one — reading only the customer badge would tell them the unit is
+          uncovered when the supplier still stands behind it. */}
+      {supplierWarranty && (
+        <div style={{ marginBottom: '0.5rem' }}>
+          <span className={`ak-badge ${supplierWarranty.badge}`}>{supplierWarranty.label}</span>{' '}
+          {supplierDetail && (
+            <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{supplierDetail} — </span>
+          )}
+          <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{supplierWarranty.help}</span>
         </div>
       )}
 
@@ -187,9 +204,19 @@ function ItemOutcomeRow({ item, disabled, onSave }) {
                 This unit is deducted from stock when an admin confirms the report.
               </span>
             )}
-            {choices.length < ITEM_OUTCOMES.length && item.warranty_state !== 'in_warranty' && (
+            {/* Two different absences, named separately. The list can now be
+                short because the CUSTOMER's cover is gone (no warranty claim) or
+                because the SUPPLIER's is (no return to supplier), and a single
+                "a warranty claim is not offered" caption on a row missing the
+                supplier return sends the inspector looking for the wrong thing. */}
+            {!choices.includes('claim_warranty') && item.warranty_state !== 'in_warranty' && (
               <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
                 A warranty claim is not offered for this unit — see the warranty note above.
+              </span>
+            )}
+            {!choices.includes('return_to_supplier') && (
+              <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
+                Returning this unit to the supplier is not offered — its supplier cover has run out.
               </span>
             )}
           </div>
