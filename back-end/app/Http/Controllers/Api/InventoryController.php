@@ -354,7 +354,14 @@ class InventoryController extends Controller
                 ->max('d.created_at');
 
             $serials = $receivingDetails
-                ->sortBy('received_at')
+                // received_at is receiving_details.created_at, a whole-second
+                // `timestamp`, and the query underneath has no ORDER BY. Two
+                // receivings booked in the same second therefore TIE, sortBy is
+                // stable, and the rows come out in whatever order MariaDB felt
+                // like returning them — so the same history screen could list
+                // the batches in a different order on a refresh. The row id is
+                // the insertion order, which is the order a reader expects.
+                ->sortBy([['received_at', 'asc'], ['receiving_detail_id', 'asc']])
                 ->map(function ($rd) use ($soldByReceiving, $stockOutAtByReceiving, $unlinkedStockOutAt) {
                     $received = (int) $rd->quantity_amount;
                     $stockOut = (int) ($soldByReceiving[$rd->receiving_id] ?? 0);
