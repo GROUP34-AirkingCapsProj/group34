@@ -111,11 +111,58 @@ export const WARRANTY_STATES = [
   },
   {
     value: 'none',
-    label: 'No warranty record',
+    label: 'Not sold yet',
+    // The old wording — "no warranty record exists, it was never registered" —
+    // read as lost data on a unit that is simply still in stock. A customer
+    // warranty begins at SALE, so a unit nobody has bought has none yet, and
+    // that is the normal state of everything on the shelf rather than a fault.
+    // The supplier badge beside this one carries the cover that does apply.
+    help: 'This unit has not been sold, so no customer warranty has started. Check the supplier warranty below for cover on returns.',
     badge: 'ak-badge--gray',
-    help: 'No warranty record exists for this serial — it was never registered, or the unit carries no serial at all.',
   },
 ];
+
+/**
+ * The SUPPLIER's cover, served per item as `supplier_warranty`.
+ *
+ * A separate clock from the customer one above, and the two disagree constantly
+ * by design: stock on the shelf is under supplier cover with no customer
+ * warranty at all, which is exactly the case the customer badge alone could not
+ * describe. This is what decides whether a defective unit can go back.
+ */
+export const SUPPLIER_WARRANTY_STATES = [
+  {
+    value: 'in_warranty',
+    label: 'Supplier warranty active',
+    badge: 'ak-badge--green',
+    help: 'The supplier still covers this unit, so a defective one can be returned to them.',
+  },
+  {
+    value: 'expired',
+    label: 'Supplier warranty expired',
+    badge: 'ak-badge--amber',
+    help: 'The supplier’s cover has run out, so a defective unit can no longer be returned to them as a warranty claim.',
+  },
+  {
+    value: 'none',
+    label: 'No supplier cover on record',
+    badge: 'ak-badge--gray',
+    help: 'This unit could not be traced to a receiving with a warranty term, so there is no supplier cover to return it under.',
+  },
+];
+
+export const supplierWarrantyMeta = (value) =>
+  SUPPLIER_WARRANTY_STATES.find((s) => s.value === value) || null;
+
+/** "active until 2029-08-12 · Supplier A · RCV-0044 / PO-0064", skipping whatever is missing. */
+export const supplierWarrantyDetail = (sw) => {
+  if (!sw) return '';
+  return [
+    sw.end_date ? `until ${sw.end_date}` : null,
+    sw.supplier_name || null,
+    [sw.receiving_number, sw.po_number].filter(Boolean).join(' / ') || null,
+  ].filter(Boolean).join(' · ');
+};
 
 export const warrantyStateMeta = (value) =>
   WARRANTY_STATES.find((s) => s.value === value) || null;

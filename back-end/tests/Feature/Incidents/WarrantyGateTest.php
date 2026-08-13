@@ -230,15 +230,39 @@ class WarrantyGateTest extends TestCase
         );
     }
 
-    /** Only claim_warranty is gated — returning goods commercially never is. */
-    public function test_an_expired_unit_may_still_be_returned_to_the_supplier(): void
+    /**
+     * The supplier gate, which is a different clock from the customer one.
+     *
+     * This incident is `defective`, and the scenario's batch is not traceable to
+     * a receiving, so there is no supplier cover to return the unit under. The
+     * CUSTOMER's warranty state is irrelevant here — a warranty return is a
+     * claim against the supplier, and the supplier is the one who has to still
+     * be standing behind it.
+     */
+    public function test_a_defective_unit_with_no_supplier_cover_cannot_be_returned(): void
     {
         $scenario = $this->makeScenario();
         $item     = $this->payloadItems($scenario)[$scenario['lapsed']];
 
-        $this->assertContains(IncidentItem::OUTCOME_RETURN_TO_SUPPLIER, $item['allowed_outcomes']);
+        $this->assertNotContains(IncidentItem::OUTCOME_RETURN_TO_SUPPLIER, $item['allowed_outcomes']);
         $this->assertContains(IncidentItem::OUTCOME_WRITE_OFF, $item['allowed_outcomes'],
-            'a missing unit is written off whatever its warranty says');
+            'a missing unit is written off whatever any warranty says');
+    }
+
+    /**
+     * …and a COMMERCIAL return is still never gated.
+     *
+     * A supplier who shipped the wrong item is wrong on day 400 as much as on
+     * day 4, so a wrong-type return stays available with no cover at all.
+     */
+    public function test_a_commercial_return_is_not_gated_by_supplier_cover(): void
+    {
+        $scenario = $this->makeScenario();
+        $scenario['incident']->update(['reason' => \App\Models\IncidentReport::REASON_WRONG_TYPE]);
+
+        $item = $this->payloadItems($scenario)[$scenario['lapsed']];
+
+        $this->assertContains(IncidentItem::OUTCOME_RETURN_TO_SUPPLIER, $item['allowed_outcomes']);
     }
 
     /**
