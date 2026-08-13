@@ -7,10 +7,69 @@ use Illuminate\Support\Facades\DB;
 
 class ProductSetCrudTest extends SetTestCase
 {
-    /** @return int[] */
+    /**
+     * Live brands, oldest first.
+     *
+     * `whereNull('deleted_at')` is not decoration: brand_lookup carries
+     * soft-deleted rows, and ProductSet::brands() filters them out on read. A
+     * set synced to a deleted brand attaches happily and then comes back empty,
+     * which reads as "the API dropped my brand" rather than "the fixture picked
+     * a dead one". The ordering matters for the same reason — an unordered
+     * LIMIT let MariaDB hand back the deleted row first.
+     *
+     * @return int[]
+     */
     private function brandIds(int $n = 2): array
     {
-        return DB::table('brand_lookup')->limit($n)->pluck('brand_id')->map(fn ($id) => (int) $id)->all();
+        return DB::table('brand_lookup')
+            ->whereNull('deleted_at')
+            ->orderBy('brand_id')
+            ->limit($n)
+            ->pluck('brand_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * A deleted brand is refused rather than quietly dropped.
+     *
+     * `exists:` queries the table raw and does not honour soft deletes, while
+     * ProductSet::brands() filters them on read — so a deleted id used to pass
+     * validation, get written to the pivot, and then vanish from the response.
+     * The caller got a 201 listing brands with theirs missing, and the hidden
+     * pivot row would resurface if the brand were ever restored.
+     */
+    public function test_a_soft_deleted_brand_is_rejected(): void
+    {
+        $loc   = $this->makeLocation();
+        $admin = $this->makeUserAt($loc, 'admin');
+
+        $dead = \App\Models\BrandLookup::create(['brand_name' => 'Gone-' . uniqid()]);
+        $dead->delete();
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/product-sets', [
+            'brand_ids'       => [$dead->brand_id],
+            'capacity_rating' => '2TR',
+            'lines'           => [],
+        ])->assertStatus(422)->assertJsonValidationErrors('brand_ids.0');
+    }
+
+    /** …and a live brand still goes through untouched. */
+    public function test_a_live_brand_is_still_accepted(): void
+    {
+        $loc   = $this->makeLocation();
+        $admin = $this->makeUserAt($loc, 'admin');
+
+        $res = $this->actingAs($admin, 'sanctum')->postJson('/api/product-sets', [
+            'brand_ids'       => $this->brandIds(1),
+            'capacity_rating' => '2TR',
+            'lines'           => [],
+        ])->assertCreated();
+
+        $this->assertSame(
+            $this->brandIds(1),
+            array_map('intval', array_column($res->json('data.brands'), 'brand_id'))
+        );
     }
 
     public function test_admin_creates_a_set_with_lines(): void
