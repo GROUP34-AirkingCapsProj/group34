@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ProductSetController extends Controller
 {
@@ -152,7 +153,13 @@ class ProductSetController extends Controller
     {
         return $request->validate([
             'brand_ids'       => [$ignoreId === null ? 'required' : 'sometimes', 'array', 'min:1'],
-            'brand_ids.*'     => 'integer|exists:brand_lookup,brand_id',
+            // Scoped to LIVE brands. A bare `exists:` queries the table raw and
+            // ignores soft deletes, but brands() filters them on read — so a
+            // deleted id passed validation, landed in the pivot, and then went
+            // missing from the response the caller got back. Worse, the hidden
+            // row survives: restoring the brand would silently reattach it to
+            // sets nobody edited. Rejecting it says so instead.
+            'brand_ids.*'     => ['integer', Rule::exists('brand_lookup', 'brand_id')->whereNull('deleted_at')],
             'capacity_rating' => 'nullable|string|max:60',
             'variant'         => 'nullable|string|max:100',
             'is_active'       => 'nullable|boolean',
