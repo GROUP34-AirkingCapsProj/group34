@@ -52,3 +52,6 @@ back-end/.env.testing
 
 # Local Claude settings (machine-specific)
 .claude/settings.local.json
+
+# Brainstorming companion scratch (mockups, session state)
+.superpowers/
