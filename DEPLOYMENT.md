@@ -124,6 +124,34 @@ path at the top of the script if XAMPP is not at `C:\XAMPP1`.
 
 ---
 
+## Scheduled tasks (optional, but worth setting up)
+
+Nothing breaks without these — they are tidy-up jobs, and every screen is
+correct whether or not they have ever run. Warranty expiry in particular is
+worked out from the end date each time it is displayed, so a machine with no
+scheduler still shows Active and Expired correctly.
+
+What the scheduler buys you is a `warranty_records.status_id` that reports and
+exports can trust without re-deriving, plus auto-archiving.
+
+| Command | When | What it does |
+|---|---|---|
+| `warranties:expire` | daily 01:00 | Marks active warranties past their end date as expired |
+| `archive:auto` | daily 02:00 | Auto-archives per Archive Settings |
+| `archive:cleanup` | weekly Sun 03:00 | Retention cleanup |
+
+To run them, one Windows Task Scheduler entry every minute is enough — Laravel
+decides what is actually due:
+
+```
+C:\XAMPP1\php\php.exe C:\xampp\htdocs\Airking_Inventory\back-end\artisan schedule:run
+```
+
+Any single command can also be run by hand at any time, e.g.
+`php artisan warranties:expire`.
+
+---
+
 ## When you're back to coding
 
 Development mode is fine while writing code:

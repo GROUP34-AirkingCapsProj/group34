@@ -20,11 +20,11 @@ class WarrantyController extends Controller
     // GET /api/warranties
     public function index(Request $request)
     {
-        // Batch-expire any warranties past their end date before listing
-        WarrantyRecord::where('status_id', self::STATUS_ACTIVE)
-            ->whereDate('warranty_end_date', '<', now()->toDateString())
-            ->update(['status_id' => self::STATUS_EXPIRED]);
-
+        // No batch UPDATE here any more. A GET that rewrites rows made expiry
+        // depend on somebody opening this page, so every other reader saw a
+        // stale "Active" until they did. The state is derived per record now
+        // (WarrantyRecord::effective_status_id) and `warranties:expire` tidies
+        // the stored column on its own schedule.
         $query = WarrantyRecord::with([
             'product.applianceDetail.brand',
             'customer',
@@ -40,7 +40,11 @@ class WarrantyController extends Controller
             $query->where('product_id', $request->integer('product_id'));
         }
         if ($request->filled('status_id')) {
-            $query->where('status_id', $request->integer('status_id'));
+            // Filtered on the DERIVED state, so the list agrees with the badges
+            // it renders. A plain status_id match listed warranties that lapsed
+            // last week under "Active" purely because nothing had rewritten the
+            // column yet.
+            $query->withEffectiveStatus($request->integer('status_id'));
         }
         if ($request->filled('serial_number')) {
             $query->whereRaw(
@@ -89,11 +93,8 @@ class WarrantyController extends Controller
     // Used by the warranty lookup page and warranty-type issuance flow.
     public function lookupBySerial(string $serial)
     {
-        // Auto-expire stale active warranties before lookup
-        WarrantyRecord::where('status_id', self::STATUS_ACTIVE)
-            ->whereDate('warranty_end_date', '<', now()->toDateString())
-            ->update(['status_id' => self::STATUS_EXPIRED]);
-
+        // Same reasoning as index(): a lookup is a read, and the state it
+        // reports is derived rather than written on the way past.
         $warranty = WarrantyRecord::with([
             'product.applianceDetail.brand',
             'customer',
@@ -235,6 +236,29 @@ class WarrantyController extends Controller
     }
 
     // PRIVATE HELPER
+    /**
+     * The name matching the DERIVED status.
+     *
+     * The `status` relation points at whatever the stored column says, so a
+     * lapsed record would have come back labelled "Active" beside an
+     * effective status of Expired — the payload contradicting itself.
+     */
+    private function statusName(WarrantyRecord $w): ?string
+    {
+        $effective = $w->effective_status_id;
+
+        if ($effective === (int) $w->status_id) {
+            return $w->status?->status_name;
+        }
+
+        return match ($effective) {
+            WarrantyRecord::STATUS_ACTIVE  => 'Active',
+            WarrantyRecord::STATUS_EXPIRED => 'Expired',
+            WarrantyRecord::STATUS_CLAIMED => 'Claimed',
+            default                        => $w->status?->status_name,
+        };
+    }
+
     private function formatWarranty(WarrantyRecord $w): array
     {
         $claimedByName = $w->claimedByUser
@@ -250,8 +274,13 @@ class WarrantyController extends Controller
             'warranty_end_date'       => $w->warranty_end_date?->format('Y-m-d'),
             'warranty_period_months'  => $w->warranty_period_months,
             'warranty_duration_label' => $w->warranty_duration_label,
-            'status_name'             => $w->status?->status_name,
-            'status_id'               => $w->status_id,
+            // The DERIVED state, not the stored column. A record whose cover
+            // ended last week is expired the moment it is read, whether or not
+            // `warranties:expire` has run since. stored_status_id is kept
+            // alongside so a reader can still see what the column says.
+            'status_name'             => $this->statusName($w),
+            'status_id'               => $w->effective_status_id,
+            'stored_status_id'        => $w->status_id,
             'is_expired'              => $w->is_expired,
             'days_remaining'          => $w->days_remaining,
             'claim_date'              => $w->claim_date?->format('Y-m-d'),
