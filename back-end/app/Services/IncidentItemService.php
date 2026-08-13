@@ -158,6 +158,8 @@ class IncidentItemService
                 );
             }
 
+            $shortfalls = [];
+
             foreach ($items as $item) {
                 if ($item->status !== IncidentItem::STATUS_QUARANTINED) {
                     continue;
@@ -176,7 +178,12 @@ class IncidentItemService
                     // "anything that isn't restock is a departure", which would
                     // delete a unit sitting on the bench under repair or awaiting
                     // a warranty claim.
-                    $this->deduct($item);
+                    $short = $this->deduct($item);
+
+                    if ($short > 0) {
+                        $shortfalls[] = "product {$item->product_id}: {$short} of "
+                            . (int) $item->quantity . ' pc could not be deducted';
+                    }
                 }
 
                 $status = IncidentItem::OUTCOME_STATUS[$item->outcome];
@@ -189,7 +196,39 @@ class IncidentItemService
                     makeReceivable: $status === IncidentItem::STATUS_AVAILABLE,
                 );
             }
+
+            $this->recordShortfalls($incident, $shortfalls);
         });
+    }
+
+    /**
+     * Write down what the confirmation could not take.
+     *
+     * A deduction can only remove stock that is still there, so goods picked out
+     * from under an open report leave the count short of what the report says.
+     * Clamping alone loses that difference silently and the next physical count
+     * finds an unexplained gap — so the gap goes onto the report itself, in the
+     * same transaction as the deduction that caused it.
+     *
+     * @param array<int,string> $shortfalls
+     */
+    private function recordShortfalls(IncidentReport $incident, array $shortfalls): void
+    {
+        if ($shortfalls === []) {
+            return;
+        }
+
+        // Re-read rather than trusting the passed model: applyOutcomes may have
+        // been handed a stale instance, and this appends to the note rather than
+        // replacing it.
+        $current = (string) (IncidentReport::whereKey($incident->getKey())->value('resolution_note') ?? '');
+
+        $line = 'Stock shortfall on confirmation — ' . implode('; ', $shortfalls)
+            . '. The stock was gone before this report was settled; a physical count is needed.';
+
+        IncidentReport::whereKey($incident->getKey())->update([
+            'resolution_note' => trim($current === '' ? $line : $current . "\n" . $line),
+        ]);
     }
 
     /**
@@ -288,9 +327,16 @@ class IncidentItemService
         ]);
     }
 
-    private function deduct(IncidentItem $item): void
+    /**
+     * Take the goods out of the count.
+     *
+     * @return int pieces the report named that were NOT there to take — see
+     *             recordShortfalls(). Zero on a clean deduction.
+     */
+    private function deduct(IncidentItem $item): int
     {
-        $quantity = (int) $item->quantity;
+        $requested = (int) $item->quantity;
+        $quantity  = $requested;
 
         if ($item->batch_id !== null) {
             $batch = InventoryBatch::lockForUpdate()->find($item->batch_id);
@@ -310,10 +356,21 @@ class IncidentItemService
             ->lockForUpdate()
             ->first();
 
-        if ($inventory !== null) {
-            $inventory->decrement('quantity_on_hand', min($quantity, (int) $inventory->quantity_on_hand));
-            $inventory->decrement('available_quantity', min($quantity, (int) $inventory->available_quantity));
+        if ($inventory === null) {
+            // No inventory row: nothing was ever counted here, so the whole
+            // quantity is unaccounted for rather than zero.
+            return $requested;
         }
+
+        $deducted = min($quantity, (int) $inventory->quantity_on_hand);
+
+        $inventory->decrement('quantity_on_hand', $deducted);
+        // Availability is clamped independently on purpose: it can legitimately
+        // sit below on-hand, and driving it from $deducted would push it
+        // negative on a product that is already fully reserved.
+        $inventory->decrement('available_quantity', min($quantity, (int) $inventory->available_quantity));
+
+        return max(0, $requested - $deducted);
     }
 
     /**

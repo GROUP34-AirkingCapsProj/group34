@@ -366,9 +366,18 @@ class IssuanceOrderController extends Controller
             ->groupBy('product_id')
             ->pluck('held', 'product_id');
 
+        // Stock named by an unsettled incident is physically present, so it is
+        // still in available_quantity — but it must not be promised to anybody.
+        // Subtracted here rather than deducted at filing, for the same reason
+        // reservations are: confirming or dismissing the report returns the
+        // quantity to the pool with no cleanup step to forget.
+        $quarantined = app(\App\Services\IncidentService::class)->quarantinedQuantities($locationId);
+
         $pool = [];
         foreach ($productIds as $pid) {
-            $pool[$pid] = max(0, (int) ($onHand[$pid] ?? 0) - (int) ($heldElsewhere[$pid] ?? 0));
+            $pool[$pid] = max(0, (int) ($onHand[$pid] ?? 0)
+                - (int) ($heldElsewhere[$pid] ?? 0)
+                - (int) ($quarantined[$pid] ?? 0));
         }
 
         return $pool;
