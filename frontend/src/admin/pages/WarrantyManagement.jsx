@@ -4,8 +4,12 @@ import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { warrantiesAPI, getApiBaseUrl, getToken } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import '../styles/dashboard_air.css';
+import '../styles/airking_ds.css';
 import '../styles/warranty_management.css';
+
+const ACTIVE = 33;
+const EXPIRED = 34;
+const CLAIMED = 35;
 
 const fmtDate = (d) => {
   if (!d) return '—';
@@ -17,23 +21,39 @@ const daysRemaining = (endDate) => {
   return Math.ceil((new Date(endDate) - new Date()) / 86400000);
 };
 
+/**
+ * The status the API reports is already DERIVED from the warranty's end date
+ * (WarrantyRecord::effective_status_id), so this renders what it is handed and
+ * never second-guesses it. A page that recalculated expiry itself would
+ * disagree with the filters, which are evaluated in SQL.
+ */
 const StatusBadge = ({ statusId }) => {
-  if (statusId === 33) return <span className="war-status-badge war-status-active">Active</span>;
-  if (statusId === 34) return <span className="war-status-badge war-status-expired">Expired</span>;
-  if (statusId === 35) return <span className="war-status-badge war-status-claimed">Claimed</span>;
-  return <span className="war-status-badge">{statusId}</span>;
+  if (statusId === ACTIVE)  return <span className="ak-badge ak-badge--green">Active</span>;
+  if (statusId === EXPIRED) return <span className="ak-badge ak-badge--red">Expired</span>;
+  if (statusId === CLAIMED) return <span className="ak-badge ak-badge--blue">Claimed</span>;
+  return <span className="ak-badge ak-badge--gray">{statusId}</span>;
 };
 
 const DaysChip = ({ endDate, statusId }) => {
-  if (statusId === 35) return <span className="war-days war-days-claimed">Claimed</span>;
-  if (statusId === 34) return <span className="war-days war-days-expired">Expired</span>;
+  if (statusId === CLAIMED) return <span className="ak-badge ak-badge--gray">Claimed</span>;
+  if (statusId === EXPIRED) return <span className="ak-badge ak-badge--red">Expired</span>;
   const days = daysRemaining(endDate);
   if (days === null) return null;
-  if (days < 0)   return <span className="war-days war-days-expired">{Math.abs(days)}d ago</span>;
-  if (days <= 30) return <span className="war-days war-days-danger">{days}d left</span>;
-  if (days <= 90) return <span className="war-days war-days-warn">{days}d left</span>;
-  return <span className="war-days war-days-ok">{days}d left</span>;
+  if (days < 0)  return <span className="ak-badge ak-badge--red">{Math.abs(days)}d ago</span>;
+  if (days <= 30) return <span className="ak-badge ak-badge--red">{days}d left</span>;
+  if (days <= 90) return <span className="ak-badge ak-badge--amber">{days}d left</span>;
+  return <span className="ak-badge ak-badge--green">{days}d left</span>;
 };
+
+const StatCard = ({ tone, label, value, children }) => (
+  <div className={`ak-stat war-stat--${tone}`}>
+    <div className="ak-stat-icon">{children}</div>
+    <div>
+      <div className="ak-stat-label">{label}</div>
+      <div className="ak-stat-value">{value}</div>
+    </div>
+  </div>
+);
 
 const WarrantyManagement = () => {
   const { can } = useAuth();
@@ -46,6 +66,10 @@ const WarrantyManagement = () => {
   const [expiringSoon, setExpiringSoon] = useState(false);
   const [currentPage, setCurrentPage]   = useState(1);
   const [pagination, setPagination]     = useState({ total: 0, last_page: 1 });
+  // Counted by the API across every matching record. The page used to tally the
+  // rows it had been handed and label them "Active (page)", so the headline
+  // numbers changed as you paged and described nothing.
+  const [summary, setSummary] = useState({ active: 0, expired: 0, claimed: 0, total: 0 });
   const [viewingWarranty, setViewingWarranty] = useState(null);
 
   // Serial lookup
@@ -69,6 +93,7 @@ const WarrantyManagement = () => {
       setWarranties(list);
       const meta = res?.meta ?? res?.pagination ?? {};
       setPagination({ total: meta.total ?? list.length, last_page: meta.last_page ?? 1 });
+      if (res?.summary) setSummary(res.summary);
       setError(null);
     } catch (err) {
       setError(err.message || 'Failed to load warranties.');
@@ -119,140 +144,111 @@ const WarrantyManagement = () => {
     a.click();
   };
 
-  const totalPages    = pagination.last_page || 1;
-  const countByStatus = (sid) => warranties.filter((w) => w.status_id === sid).length;
-  const activeCount   = countByStatus(33);
-  const expiredCount  = countByStatus(34);
-  const claimedCount  = countByStatus(35);
+  const totalPages = pagination.last_page || 1;
 
-  // Resolve serial result fields — API returns { warranty: {...}, is_claimable, is_expired, is_claimed }
-  const sr       = serialResult?.warranty ?? null;
+  // Resolve serial result fields — API returns { warranty: {...}, is_claimable, ... }
+  const sr = serialResult?.warranty ?? null;
   const srClaimable = serialResult?.is_claimable ?? false;
+  const srExpired   = serialResult?.is_expired ?? false;
 
   return (
     <AdminLayout searchPlaceholder="Search warranties..." onSearch={() => {}}>
-     <div className="ak-page">
-      <header className="ak-header">
-       <div className="ak-header-row">
-        <div className="war-page-header-left">
-          <p className="ak-eyebrow">After-sales · Warranties</p>
-          <h1 className="ak-title">Warranty Records</h1>
-          <p className="ak-sub">View and manage product warranties created from issuances.</p>
-        </div>
-        <div className="ak-header-aside">
-        <button type="button" className="ak-btn ak-btn--ghost war-btn-create" onClick={handleExport}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 6 }}>
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Export CSV
-        </button>
-        </div>
-       </div>
-      </header>
+      <div className="ak-page">
+        <header className="ak-header">
+          <div className="ak-header-row">
+            <div>
+              <p className="ak-eyebrow">After-sales · Warranties</p>
+              <h1 className="ak-title">Warranty Records</h1>
+              <p className="ak-sub">Product warranties created from customer sales.</p>
+            </div>
+            <div className="ak-header-aside">
+              <button type="button" className="ak-btn ak-btn--ghost" onClick={handleExport}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export CSV
+              </button>
+            </div>
+          </div>
+        </header>
 
-      {/* Stats row */}
-      <div className="war-stats-row">
-        <div className="war-stat-card">
-          <div className="war-stat-icon war-stat-icon-green">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              <path d="M9 12l2 2 4-4"/>
+        <div className="ak-stat-grid war-stats">
+          <StatCard tone="green" label="Active" value={summary.active}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
             </svg>
-          </div>
-          <div className="war-stat-info">
-            <span className="war-stat-label">Active (page)</span>
-            <span className="war-stat-number">{activeCount}</span>
-          </div>
-        </div>
-        <div className="war-stat-card">
-          <div className="war-stat-icon war-stat-icon-red">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </StatCard>
+          <StatCard tone="red" label="Expired" value={summary.expired}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
             </svg>
-          </div>
-          <div className="war-stat-info">
-            <span className="war-stat-label">Expired (page)</span>
-            <span className="war-stat-number">{expiredCount}</span>
-          </div>
-        </div>
-        <div className="war-stat-card">
-          <div className="war-stat-icon war-stat-icon-blue">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
+          </StatCard>
+          <StatCard tone="blue" label="Claimed" value={summary.claimed}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
             </svg>
-          </div>
-          <div className="war-stat-info">
-            <span className="war-stat-label">Claimed (page)</span>
-            <span className="war-stat-number">{claimedCount}</span>
-          </div>
-        </div>
-        <div className="war-stat-card">
-          <div className="war-stat-icon war-stat-icon-blue">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="18" rx="2"/>
-              <line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/>
-              <line x1="8" y1="17" x2="12" y2="17"/>
+          </StatCard>
+          <StatCard tone="blue" label="Total" value={summary.total}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="3" width="20" height="18" rx="2" />
+              <line x1="8" y1="9" x2="16" y2="9" /><line x1="8" y1="13" x2="16" y2="13" />
             </svg>
-          </div>
-          <div className="war-stat-info">
-            <span className="war-stat-label">Total</span>
-            <span className="war-stat-number">{pagination.total}</span>
-          </div>
+          </StatCard>
         </div>
-      </div>
 
-      {/* Serial lookup */}
-      <div className="war-filters-card">
-        <div className="war-filters-header">
-          <h3>Serial Number Lookup</h3>
-          <p>Check warranty status by scanning or entering a serial number</p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-          <input
-            type="text"
-            placeholder="Scan or enter serial number..."
-            value={serialInput}
-            onChange={(e) => { setSerialInput(e.target.value); setSerialResult(null); setSerialError(''); }}
-            onKeyDown={(e) => e.key === 'Enter' && handleSerialLookup()}
-            style={{ flex: 1, padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
-          />
-          <button
-            type="button"
-            className="war-btn-create"
-            onClick={handleSerialLookup}
-            disabled={serialLoading || !serialInput.trim()}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {serialLoading ? 'Checking...' : 'Check Warranty'}
-          </button>
-        </div>
-        {serialError && (
-          <div style={{ marginTop: 10, padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, color: '#b91c1c', fontSize: 13 }}>
-            {serialError}
+        {/* Serial lookup — kept as its own panel because this is the scanner
+            workflow, and a scanner needs one target that is always in the same
+            place rather than a search box that also does other things. */}
+        <section className="ak-card">
+          <div className="ak-card-head">
+            <div>
+              <h3 className="ak-card-title">Serial Number Lookup</h3>
+              <p className="ak-card-meta">Scan or type a serial number to check its warranty.</p>
+            </div>
           </div>
-        )}
-        {sr && (
-          <div style={{ marginTop: 10, padding: '14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>{sr.product?.product_name ?? '—'}</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>SN: {sr.serial_number}</span>
-                <span style={{ fontSize: 13 }}>Customer: {sr.customer?.customer_name ?? '—'}</span>
-                <span style={{ fontSize: 13 }}>
-                  Period: {sr.warranty_duration_label ?? `${sr.warranty_period_months} mo`}
-                  {' '}&mdash;{' '}{fmtDate(sr.warranty_start_date)} to {fmtDate(sr.warranty_end_date)}
+
+          <div className="war-lookup-row">
+            <input
+              type="text"
+              className="ak-input"
+              placeholder="Scan or enter serial number…"
+              value={serialInput}
+              onChange={(e) => { setSerialInput(e.target.value); setSerialResult(null); setSerialError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleSerialLookup()}
+            />
+            <button
+              type="button"
+              className="ak-btn ak-btn--primary"
+              onClick={handleSerialLookup}
+              disabled={serialLoading || !serialInput.trim()}
+            >
+              {serialLoading ? 'Checking…' : 'Check Warranty'}
+            </button>
+          </div>
+
+          {serialError && <div className="ak-state ak-state--error war-result">{serialError}</div>}
+
+          {sr && (
+            <div className={`war-result ${srExpired ? 'war-result--expired' : 'war-result--found'}`}>
+              <div className="war-result-main">
+                <span className="war-result-title">{sr.product?.product_name ?? '—'}</span>
+                <span className="war-result-line ak-mono">SN: {sr.serial_number}</span>
+                <span className="war-result-line">Customer: {sr.customer?.customer_name ?? '—'}</span>
+                <span className="war-result-line">
+                  {sr.warranty_duration_label ?? `${sr.warranty_period_months} mo`}
+                  {' · '}{fmtDate(sr.warranty_start_date)} to {fmtDate(sr.warranty_end_date)}
                 </span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+              <div className="war-result-side">
                 <StatusBadge statusId={sr.status_id} />
                 <DaysChip endDate={sr.warranty_end_date} statusId={sr.status_id} />
                 {srClaimable && canClaim && (
                   <button
                     type="button"
-                    className="war-btn-assign"
+                    className="ak-btn ak-btn--primary ak-btn--sm"
                     onClick={() => goToClaim(sr.serial_number)}
                   >
                     Claim Warranty
@@ -260,234 +256,244 @@ const WarrantyManagement = () => {
                 )}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </section>
 
-      {/* Filters */}
-      <div className="war-filters-card">
-        <div className="war-filters-row">
-          <div className="war-filter-group">
-            <label>Search</label>
-            <div className="war-search-input">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
+        <section className="ak-card">
+          <div className="ak-toolbar">
+            <div className="ak-search">
               <input
                 type="text"
-                placeholder="Serial number, product, customer..."
+                className="ak-input"
+                placeholder="Serial number, product, customer…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-          </div>
-          <div className="war-filter-group">
-            <label>Status</label>
             <select
+              className="ak-select"
               value={filterStatus}
               onChange={(e) => { setFilterStatus(e.target.value); setExpiringSoon(false); }}
             >
-              <option value="">All Status</option>
-              <option value="33">Active</option>
-              <option value="34">Expired</option>
-              <option value="35">Claimed</option>
+              <option value="">All statuses</option>
+              <option value={ACTIVE}>Active</option>
+              <option value={EXPIRED}>Expired</option>
+              <option value={CLAIMED}>Claimed</option>
             </select>
-          </div>
-          <div className="war-filter-group">
-            <label>&nbsp;</label>
-            <label className="war-toggle-label">
+            <label className="ak-label war-toggle">
               <input
                 type="checkbox"
                 checked={expiringSoon}
                 onChange={(e) => { setExpiringSoon(e.target.checked); if (e.target.checked) setFilterStatus(''); }}
               />
-              Expiring in 30 days
+              {' '}Expiring in 30 days
             </label>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Table */}
-      <div className="war-table-card">
-        <div className="war-table-header">
-          <h3>Warranty Records</h3>
-          <span className="war-table-count">{pagination.total} records total</span>
-        </div>
-        {loading && <Loader />}
-        {error   && <div className="error-message">Error: {error}</div>}
-        <div className="war-table-wrapper">
-          <table className="war-table">
-            <thead>
-              <tr>
-                <th>SERIAL NUMBER</th>
-                <th>PRODUCT</th>
-                <th>CUSTOMER</th>
-                <th>SALE DATE</th>
-                <th>WARRANTY END</th>
-                <th>PERIOD</th>
-                <th>STATUS</th>
-                <th>DAYS LEFT</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {warranties.length === 0 ? (
-                <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
-                    {loading ? <Loader /> : 'No warranty records found.'}
-                  </td>
-                </tr>
-              ) : (
-                warranties.map((w) => (
-                  <tr key={w.warranty_id}>
-                    <td className="war-cell-serial">
-                      <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{w.serial_number}</span>
-                    </td>
-                    <td className="war-cell-item">{w.product?.product_name ?? '—'}</td>
-                    <td>
-                      <div className="war-cell-customer">
-                        <span className="war-customer-name">{w.customer?.customer_name ?? '—'}</span>
-                        {w.customer?.contact_number && (
-                          <span className="war-customer-contact">{w.customer.contact_number}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>{fmtDate(w.sale_date)}</td>
-                    <td>{fmtDate(w.warranty_end_date)}</td>
-                    <td>{w.warranty_duration_label ?? `${w.warranty_period_months} mo`}</td>
-                    <td><StatusBadge statusId={w.status_id} /></td>
-                    <td><DaysChip endDate={w.warranty_end_date} statusId={w.status_id} /></td>
-                    <td>
-                      <div className="war-cell-actions">
-                        <button className="war-btn-view" onClick={() => setViewingWarranty(w)}>View</button>
-                        {w.status_id === 33 && canClaim && (
-                          <button
-                            className="war-btn-assign"
-                            onClick={() => goToClaim(w.serial_number)}
-                          >
-                            Claim Warranty
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {totalPages > 1 && (
-          <div className="pagination" style={{ padding: '16px', display: 'flex', justifyContent: 'center', gap: '4px' }}>
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>Previous</button>
-            {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1).map((page) => (
-              <button key={page} className={currentPage === page ? 'active' : ''} onClick={() => setCurrentPage(page)}>
-                {page}
-              </button>
-            ))}
-            {totalPages > 10 && <span style={{ padding: '4px 8px', color: '#9ca3af' }}>...</span>}
-            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
+        <section className="ak-card ak-card--flush">
+          <div className="ak-card-head">
+            <div>
+              <h3 className="ak-card-title">Warranty Records</h3>
+              <p className="ak-card-meta">{pagination.total} record{pagination.total === 1 ? '' : 's'} matching</p>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* View modal */}
-      {viewingWarranty && (
-        <Modal isOpen title="Warranty Details" onClose={() => setViewingWarranty(null)}>
-          <div className="war-view-details">
-            <div className="form-row">
-              <div className="form-group">
-                <label>Warranty ID</label>
-                <p>#{viewingWarranty.warranty_id}</p>
-              </div>
-              <div className="form-group">
-                <label>Status</label>
-                <p><StatusBadge statusId={viewingWarranty.status_id} /></p>
-              </div>
+          {error && <div className="ak-state ak-state--error">{error}</div>}
+
+          {loading ? (
+            <div className="ak-state"><Loader /></div>
+          ) : warranties.length === 0 ? (
+            <div className="ak-state">No warranty records found.</div>
+          ) : (
+            <div className="ak-table-wrap">
+              <table className="ak-table">
+                <thead>
+                  <tr>
+                    <th>Serial number</th>
+                    <th>Product</th>
+                    <th>Customer</th>
+                    <th>Sale date</th>
+                    <th>Warranty end</th>
+                    <th>Period</th>
+                    <th>Status</th>
+                    <th>Days left</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {warranties.map((w) => (
+                    <tr key={w.warranty_id}>
+                      <td className="ak-mono">{w.serial_number}</td>
+                      <td>{w.product?.product_name ?? '—'}</td>
+                      <td>
+                        <div className="war-cell-stack">
+                          <span>{w.customer?.customer_name ?? '—'}</span>
+                          {w.customer?.contact_number && (
+                            <span className="war-cell-sub">{w.customer.contact_number}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>{fmtDate(w.sale_date)}</td>
+                      <td>{fmtDate(w.warranty_end_date)}</td>
+                      <td>{w.warranty_duration_label ?? `${w.warranty_period_months} mo`}</td>
+                      <td><StatusBadge statusId={w.status_id} /></td>
+                      <td><DaysChip endDate={w.warranty_end_date} statusId={w.status_id} /></td>
+                      <td>
+                        <div className="war-row-actions">
+                          <button
+                            type="button"
+                            className="ak-btn ak-btn--ghost ak-btn--sm"
+                            onClick={() => setViewingWarranty(w)}
+                          >
+                            View
+                          </button>
+                          {w.status_id === ACTIVE && canClaim && (
+                            <button
+                              type="button"
+                              className="ak-btn ak-btn--primary ak-btn--sm"
+                              onClick={() => goToClaim(w.serial_number)}
+                            >
+                              Claim
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="form-group">
-              <label>Serial Number</label>
-              <p style={{ fontFamily: 'monospace' }}>{viewingWarranty.serial_number}</p>
-            </div>
-            <div className="form-group">
-              <label>Product</label>
-              <p>{viewingWarranty.product?.product_name ?? '—'}</p>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Customer</label>
-                <p>{viewingWarranty.customer?.customer_name ?? '—'}</p>
-              </div>
-              <div className="form-group">
-                <label>Contact</label>
-                <p>{viewingWarranty.customer?.contact_number ?? '—'}</p>
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Sale Date</label>
-                <p>{fmtDate(viewingWarranty.sale_date)}</p>
-              </div>
-              <div className="form-group">
-                <label>Period</label>
-                <p>{viewingWarranty.warranty_duration_label ?? `${viewingWarranty.warranty_period_months} months`}</p>
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Warranty Start</label>
-                <p>{fmtDate(viewingWarranty.warranty_start_date)}</p>
-              </div>
-              <div className="form-group">
-                <label>Warranty End</label>
-                <p>{fmtDate(viewingWarranty.warranty_end_date)}</p>
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Days Remaining</label>
-              <p><DaysChip endDate={viewingWarranty.warranty_end_date} statusId={viewingWarranty.status_id} /></p>
-            </div>
-            {viewingWarranty.claim_date && (
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Claim Date</label>
-                  <p>{fmtDate(viewingWarranty.claim_date)}</p>
-                </div>
-                <div className="form-group">
-                  <label>Claimed By</label>
-                  <p>{viewingWarranty.claimed_by_name ?? '—'}</p>
-                </div>
-              </div>
-            )}
-            {viewingWarranty.claim_notes && (
-              <div className="form-group">
-                <label>Claim Notes</label>
-                <p>{viewingWarranty.claim_notes}</p>
-              </div>
-            )}
-            {viewingWarranty.notes && (
-              <div className="form-group">
-                <label>Notes</label>
-                <p>{viewingWarranty.notes}</p>
-              </div>
-            )}
-            <div className="modal-footer">
-              <button type="button" className="btn-cancel" onClick={() => setViewingWarranty(null)}>Close</button>
-              {viewingWarranty.status_id === 33 && canClaim && (
+          )}
+
+          {totalPages > 1 && (
+            <div className="war-pagination">
+              <button
+                type="button"
+                className="ak-btn ak-btn--ghost ak-btn--sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                Previous
+              </button>
+              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1).map((page) => (
                 <button
                   type="button"
-                  className="btn-save"
-                  onClick={() => goToClaim(viewingWarranty.serial_number)}
+                  key={page}
+                  className={`ak-btn ak-btn--ghost ak-btn--sm ${currentPage === page ? 'is-active' : ''}`}
+                  onClick={() => setCurrentPage(page)}
                 >
-                  Claim Warranty
+                  {page}
                 </button>
-              )}
+              ))}
+              {totalPages > 10 && <span className="war-pagination-gap">…</span>}
+              <button
+                type="button"
+                className="ak-btn ak-btn--ghost ak-btn--sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                Next
+              </button>
             </div>
-          </div>
-        </Modal>
-      )}
+          )}
+        </section>
 
-     </div>
+        {viewingWarranty && (
+          <Modal isOpen title="Warranty Details" onClose={() => setViewingWarranty(null)}>
+            <div className="war-view-details">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Warranty ID</label>
+                  <p>#{viewingWarranty.warranty_id}</p>
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <p><StatusBadge statusId={viewingWarranty.status_id} /></p>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Serial Number</label>
+                <p className="ak-mono">{viewingWarranty.serial_number}</p>
+              </div>
+              <div className="form-group">
+                <label>Product</label>
+                <p>{viewingWarranty.product?.product_name ?? '—'}</p>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Customer</label>
+                  <p>{viewingWarranty.customer?.customer_name ?? '—'}</p>
+                </div>
+                <div className="form-group">
+                  <label>Contact</label>
+                  <p>{viewingWarranty.customer?.contact_number ?? '—'}</p>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Sale Date</label>
+                  <p>{fmtDate(viewingWarranty.sale_date)}</p>
+                </div>
+                <div className="form-group">
+                  <label>Period</label>
+                  <p>{viewingWarranty.warranty_duration_label ?? `${viewingWarranty.warranty_period_months} months`}</p>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Warranty Start</label>
+                  <p>{fmtDate(viewingWarranty.warranty_start_date)}</p>
+                </div>
+                <div className="form-group">
+                  <label>Warranty End</label>
+                  <p>{fmtDate(viewingWarranty.warranty_end_date)}</p>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Days Remaining</label>
+                <p><DaysChip endDate={viewingWarranty.warranty_end_date} statusId={viewingWarranty.status_id} /></p>
+              </div>
+              {viewingWarranty.claim_date && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Claim Date</label>
+                    <p>{fmtDate(viewingWarranty.claim_date)}</p>
+                  </div>
+                  <div className="form-group">
+                    <label>Claimed By</label>
+                    <p>{viewingWarranty.claimed_by_name ?? '—'}</p>
+                  </div>
+                </div>
+              )}
+              {viewingWarranty.claim_notes && (
+                <div className="form-group">
+                  <label>Claim Notes</label>
+                  <p>{viewingWarranty.claim_notes}</p>
+                </div>
+              )}
+              {viewingWarranty.notes && (
+                <div className="form-group">
+                  <label>Notes</label>
+                  <p>{viewingWarranty.notes}</p>
+                </div>
+              )}
+              <div className="modal-footer">
+                <button type="button" className="btn-cancel" onClick={() => setViewingWarranty(null)}>Close</button>
+                {viewingWarranty.status_id === ACTIVE && canClaim && (
+                  <button
+                    type="button"
+                    className="btn-save"
+                    onClick={() => goToClaim(viewingWarranty.serial_number)}
+                  >
+                    Claim Warranty
+                  </button>
+                )}
+              </div>
+            </div>
+          </Modal>
+        )}
+      </div>
     </AdminLayout>
   );
 };
