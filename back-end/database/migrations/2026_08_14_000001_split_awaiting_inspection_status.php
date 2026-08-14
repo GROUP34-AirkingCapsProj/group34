@@ -51,15 +51,15 @@ return new class extends Migration
 
         // Already inspected and NOT sent back: the admin owes a decision.
         //
-        // `rejection_note IS NULL` is exact GIVEN the controller's
-        // `required_if:action,reject` (IncidentInspectionController.php:320),
-        // which is the only path that reaches a rejection today. The service
-        // itself does not enforce it — reject() writes
-        // `$options['rejection_note'] ?? $options['resolution_note'] ?? null`
-        // and will persist NULL happily, so the invariant is the controller's,
-        // not the model's. The other half holds unconditionally:
-        // submitInspection() nulls the note (IncidentService.php:255), so a
-        // surviving note can only mean "sent back and not yet resubmitted".
+        // `rejection_note IS NULL` is exact for the rows this scans. When they
+        // were written the invariant was the CONTROLLER's alone — its
+        // `required_if:action,reject` was the only thing standing between a
+        // rejection and a NULL note, because reject() persisted whatever it was
+        // handed. reject() now requires a non-empty note itself and throws
+        // without one, so the guarantee is the service's too; the historical
+        // rows below simply predate that. The other half has always held
+        // unconditionally: submitInspection() nulls the note, so a surviving
+        // note can only mean "sent back and not yet resubmitted".
         //
         // Rows rejected before 2026_08_12_000003 added the column would also
         // carry NULL and be read as submitted; closed in practice, as the live

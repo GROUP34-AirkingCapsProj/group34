@@ -107,10 +107,12 @@ class IncidentItem extends Model
      * Batch ids currently unpickable because an item on an unfinished report
      * names them.
      *
-     * Driven from ITEM status, not incident status. Deriving it from the
-     * incident's status broke once already: adding "Awaiting Inspection"
-     * silently returned stock under investigation to the picking pool, because
-     * the query filtered on "Open".
+     * Read off ITEM status, not the incident's. Deriving it from the incident
+     * broke once already: adding "Awaiting Inspection" silently returned stock
+     * under investigation to the picking pool, because the query filtered on
+     * "Open". "Awaiting Approval" is the same trap. An item is quarantined
+     * until somebody has actually decided what happened to it, whatever the
+     * paperwork says.
      */
     public static function quarantinedBatchIds(int $locationId): array
     {

@@ -272,7 +272,7 @@ class IncidentInspectionController extends Controller
         ]);
     }
 
-    /** Submit the findings: Open -> Awaiting Inspection. Moves no stock. */
+    /** Submit the findings: Open or Awaiting Inspection -> Awaiting Approval. Moves no stock. */
     public function submit(Request $request, int $id): JsonResponse
     {
         $incident = $this->visibleIncident($id);

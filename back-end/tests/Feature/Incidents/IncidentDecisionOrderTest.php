@@ -211,7 +211,7 @@ class IncidentDecisionOrderTest extends TestCase
      * Inspection.
      *
      * Inverted: approval no longer comes first, so there is nothing to park.
-     * Awaiting Inspection is now reached by the inspector SUBMITTING, and a
+     * Awaiting Approval is now reached by the inspector SUBMITTING, and a
      * confirmation attempted before that is refused outright.
      */
     public function test_a_defective_report_cannot_be_confirmed_before_it_is_inspected(): void
@@ -231,7 +231,7 @@ class IncidentDecisionOrderTest extends TestCase
         app(IncidentService::class)->submitInspection($incident, [], $this->reviewerId());
 
         $this->assertSame(
-            IncidentReport::statusId('Awaiting Inspection'),
+            IncidentReport::statusId('Awaiting Approval'),
             (int) $incident->refresh()->status_id
         );
     }
