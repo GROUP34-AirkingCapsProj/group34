@@ -186,8 +186,9 @@ class IncidentService
      * Read off ITEM status, not the incident's. Deriving it from the incident
      * broke once already: adding "Awaiting Inspection" silently returned stock
      * under investigation to the picking pool, because the query filtered on
-     * "Open". An item is quarantined until somebody has actually decided what
-     * happened to it, whatever the paperwork says.
+     * "Open". "Awaiting Approval" is the same trap. An item is quarantined
+     * until somebody has actually decided what happened to it, whatever the
+     * paperwork says.
      */
     public function excludedBatchIds(int $locationId): array
     {
