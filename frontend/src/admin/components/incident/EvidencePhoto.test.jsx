@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { EvidenceThumbnail } from './EvidencePhoto';
+import { EvidenceThumbnail, PhotoSourceBadge } from './EvidencePhoto';
 import Modal from '../Modal';
 import { incidentReportsAPI } from '../../services/api';
 
@@ -129,5 +129,42 @@ describe('EvidenceThumbnail', () => {
 
     expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /enlarge/i })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * One component for all three call sites — the reporter's photo, the
+ * inspector's checklist and the admin's summary — because what is shared is a
+ * POLICY about what the app may claim, and three copies of a policy are three
+ * chances for one of them to start claiming more than the data supports.
+ */
+describe('PhotoSourceBadge', () => {
+  test('says the app watched the capture', () => {
+    render(<PhotoSourceBadge source="captured" />);
+
+    expect(screen.getByText('Taken in-app')).toBeInTheDocument();
+  });
+
+  test('says a file came from somewhere it cannot vouch for', () => {
+    render(<PhotoSourceBadge source="uploaded" />);
+
+    expect(screen.getByText('Uploaded from device')).toBeInTheDocument();
+  });
+
+  // Never "verified": a capture and a gallery pick arrive at the server as
+  // identical uploads, so the badge may only state what the app observed.
+  test('never claims the photo was verified', () => {
+    const { container } = render(<PhotoSourceBadge source="captured" />);
+
+    expect(container.textContent).not.toMatch(/verif/i);
+  });
+
+  // The one sanctioned exception to the document's state-every-absence rule.
+  // A report filed before the camera existed does not know how its photo
+  // arrived, and "unknown" would be a claim the data cannot support.
+  test('a photo of unknown provenance renders nothing at all', () => {
+    const { container } = render(<PhotoSourceBadge source={null} />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

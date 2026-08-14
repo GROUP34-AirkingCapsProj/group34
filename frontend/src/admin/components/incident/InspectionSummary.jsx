@@ -4,7 +4,7 @@ import {
   supplierWarrantyDetail, supplierWarrantyMeta, warrantyStateMeta,
 } from '../../utils/incidentItems';
 import { UnitIdentity } from './UnitIdentity';
-import { EvidenceThumbnail } from './EvidencePhoto';
+import { EvidenceThumbnail, PhotoSourceBadge } from './EvidencePhoto';
 import { requirementMeta, requirementsFor } from '../../utils/incidentDocument';
 
 /**
@@ -321,23 +321,10 @@ function RequirementSummary({ incidentId, requirement, attached, alsoAttached = 
                 alt={meta.label}
               />
 
-              {/* PROVENANCE, and it matters more to the person approving than to
-                  the one who took the photo. Never "verified": a capture and a
-                  gallery pick arrive as identical uploads, so this states only
-                  what the app observed — a temptation to read as proof that is
-                  stronger here, on the screen where stock is written off.
-
-                  Nothing renders when photo_source is null, which is the one
-                  sanctioned exception to this file's state-every-absence rule.
-                  Reports filed before the camera existed genuinely do not know
-                  how their photo arrived, and labelling them "unknown" would be
-                  a claim the data does not support. ReportPhoto.jsx makes the
-                  same choice for the same reason — please leave it. */}
-              {e.photo_source && (
-                <span className={`ak-badge ${e.photo_source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
-                  {e.photo_source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
-                </span>
-              )}
+              {/* Provenance matters more to the person approving than to the
+                  one who took the photo. A null source renders nothing rather
+                  than "unknown" — see PhotoSourceBadge, which owns that rule. */}
+              <PhotoSourceBadge source={e.photo_source} />
             </div>
           ))}
         </div>
