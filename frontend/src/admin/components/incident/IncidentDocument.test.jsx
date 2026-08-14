@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import IncidentDocument from './IncidentDocument';
 import {
   incidentReportsAPI, inventoryBatchesAPI, locationsAPI, productsAPI,
@@ -236,20 +236,30 @@ const inspectedReport = () => filedReport({
 test('decide mode shows the admin the whole inspection, not four empty sections', async () => {
   await renderDoc({ mode: 'decide', report: inspectedReport() });
 
+  // Scoped to the section each thing belongs IN, not merely to the page. This
+  // task's whole content is "put the right summary in the right section", and a
+  // page-wide getByText cannot tell four correctly-placed summaries apart from
+  // all four crammed into one with three left empty — which on screen is
+  // indistinguishable from the bug being fixed.
+  const findings = within(section(/^Findings$/));
+  const outcomes = within(section(/^Outcome per unit$/));
+  const attachments = within(section(/^Attachments$/));
+  const signatures = within(section(/^Signatures$/));
+
   // Findings, and whose judgement this is.
-  expect(screen.getByText(/Compressor seized\. Casing intact\./)).toBeInTheDocument();
-  expect(screen.getByText(/Inspected by Rita Cruz/)).toBeInTheDocument();
+  expect(findings.getByText(/Compressor seized\. Casing intact\./)).toBeInTheDocument();
+  expect(findings.getByText(/Inspected by Rita Cruz/)).toBeInTheDocument();
 
   // The outcome that Confirm will apply, and that it moves stock.
-  expect(screen.getByText('Scrap')).toBeInTheDocument();
-  expect(screen.getByText(/Confirming deducts this unit from stock/i)).toBeInTheDocument();
+  expect(outcomes.getByText('Scrap')).toBeInTheDocument();
+  expect(outcomes.getByText(/Confirming deducts this unit from stock/i)).toBeInTheDocument();
 
   // The evidence, including why one requirement has no photo.
-  expect(screen.getByText(/the box was already discarded/)).toBeInTheDocument();
+  expect(attachments.getByText(/the box was already discarded/)).toBeInTheDocument();
 
   // The names on the hardcopy in their hand.
-  expect(screen.getByText('A. Reyes')).toBeInTheDocument();
-  expect(screen.getByText('M. Santos')).toBeInTheDocument();
+  expect(signatures.getByText('A. Reyes')).toBeInTheDocument();
+  expect(signatures.getByText('M. Santos')).toBeInTheDocument();
 });
 
 test('decide mode gives the admin nothing to write in below the rule', async () => {

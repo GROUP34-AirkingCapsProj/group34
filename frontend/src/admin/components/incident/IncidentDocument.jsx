@@ -475,6 +475,14 @@ export default function IncidentDocument({
   // be able to see what was attached and decided.
   const inspectorLocked = !inspecting || !canInspect || submitting;
 
+  // The two states the four sections below the rule switch on, named once so
+  // all four gates read identically and the only difference between them is
+  // which components they name. They previously differed — two tested `report`
+  // and two did not — and four gates that look parallel but are not is the
+  // exact near-miss that produced the blank-sections bug.
+  const editingInspection = inspecting && report;
+  const readingInspection = deciding && report;
+
   return (
     <article className="incdoc">
       <header className="incdoc__head">
@@ -583,7 +591,7 @@ export default function IncidentDocument({
           {/* Three renderings, one section. `file` passes nothing and gets the
               greyed preview of what will be asked; `inspect` gets the checklist
               that writes; `decide` gets the same evidence, read-only. */}
-          {inspecting && report ? (
+          {editingInspection ? (
             <EvidenceChecklist
               incidentId={incidentId}
               reason={report.reason}
@@ -594,7 +602,7 @@ export default function IncidentDocument({
               onRemoved={handleEvidenceRemoved}
               disabled={inspectorLocked}
             />
-          ) : deciding && report ? (
+          ) : readingInspection ? (
             <EvidenceSummary
               incidentId={incidentId}
               reason={report.reason}
@@ -610,13 +618,13 @@ export default function IncidentDocument({
 
       {has(SECTION.FINDINGS) && (
         <FindingsSection state={state(SECTION.FINDINGS)}>
-          {inspecting ? (
+          {editingInspection ? (
             <FindingsFields
               findings={findings} setFindings={setFindings}
               checkedByAsc={checkedByAsc} setCheckedByAsc={setCheckedByAsc}
               disabled={inspectorLocked}
             />
-          ) : deciding && report ? (
+          ) : readingInspection ? (
             <FindingsSummary report={report} />
           ) : null}
         </FindingsSection>
@@ -624,9 +632,9 @@ export default function IncidentDocument({
 
       {has(SECTION.OUTCOMES) && (
         <OutcomesSection state={state(SECTION.OUTCOMES)} units={form.units}>
-          {inspecting && report ? (
+          {editingInspection ? (
             <OutcomeRows items={items} disabled={inspectorLocked} onSave={handleOutcome} />
-          ) : deciding && report ? (
+          ) : readingInspection ? (
             <OutcomeSummary items={items} />
           ) : null}
         </OutcomesSection>
@@ -634,14 +642,14 @@ export default function IncidentDocument({
 
       {has(SECTION.SIGNATURES) && (
         <SignaturesSection state={state(SECTION.SIGNATURES)}>
-          {inspecting ? (
+          {editingInspection ? (
             <SignatureFields
               signedByRep={signedByRep} setSignedByRep={setSignedByRep}
               signedByBm={signedByBm} setSignedByBm={setSignedByBm}
               signedAt={signedAt} setSignedAt={setSignedAt}
               disabled={inspectorLocked}
             />
-          ) : deciding && report ? (
+          ) : readingInspection ? (
             <SignatureSummary report={report} />
           ) : null}
         </SignaturesSection>
