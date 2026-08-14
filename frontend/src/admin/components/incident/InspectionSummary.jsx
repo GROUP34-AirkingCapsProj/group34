@@ -155,3 +155,32 @@ function UnitOutcomeSummary({ item }) {
     </fieldset>
   );
 }
+
+/**
+ * The two names on the hardcopy.
+ *
+ * The system records that signing happened; what is legally signed is the
+ * printed sheet. The admin has that sheet in hand, and these three values are
+ * what they check it against — so a blank box has to read "not recorded" rather
+ * than looking like a field this screen forgot to render.
+ */
+export function SignatureSummary({ report }) {
+  const lines = [
+    ['Authorised representative', report?.signed_by_representative],
+    ['Branch manager', report?.signed_by_branch_manager],
+    ['Date signed', report?.signed_at],
+  ];
+
+  return (
+    <div className="incdoc__row">
+      {lines.map(([label, value]) => (
+        <div key={label}>
+          <span className="ak-label">{label}</span>
+          <div>
+            {value || <span className="ak-muted">Not recorded</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
