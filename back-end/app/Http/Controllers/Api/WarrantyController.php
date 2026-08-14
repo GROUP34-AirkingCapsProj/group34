@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\WarrantyRecord;
+use App\Services\SerialLookupService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -140,37 +141,23 @@ class WarrantyController extends Controller
     // Used by the warranty lookup page and warranty-type issuance flow.
     public function lookupBySerial(string $serial)
     {
-        // Same reasoning as index(): a lookup is a read, and the state it
-        // reports is derived rather than written on the way past.
-        $warranty = WarrantyRecord::with([
-            'product.applianceDetail.brand',
-            'customer',
-            'status',
-            'issuance.location',
-        ])
-        ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($serial))])
-        ->latest()
-        ->first();
+        // Answers about the UNIT, not only about a warranty record. Searching
+        // warranty_records alone meant every unit still in the warehouse came
+        // back 404 — true, and useless to someone holding the thing.
+        //
+        // 200 in every case, including an unknown serial: "we have never seen
+        // this number" is an answer the panel should render plainly, not an
+        // error box.
+        $lookup = app(SerialLookupService::class)->find($serial);
 
-        if (! $warranty) {
-            return response()->json([
-                'success' => false,
-                'found'   => false,
-                'message' => 'No warranty record found for this serial number.',
-            ], 404);
-        }
+        $payload = $lookup->toArray();
+        $customer = $payload['customer_warranty'];
 
-        $formatted = $this->formatWarranty($warranty);
-        $isExpired = $formatted['is_expired'];
-        $isClaimed = $warranty->status_id === self::STATUS_CLAIMED;
-
-        return response()->json([
-            'success'      => true,
-            'found'        => true,
-            'warranty'     => $formatted,
-            'is_expired'   => $isExpired,
-            'is_claimed'   => $isClaimed,
-            'is_claimable' => ! $isExpired && ! $isClaimed,
+        return response()->json($payload + [
+            'success' => true,
+            'found'   => $lookup->state !== \App\Support\SerialLookup::UNKNOWN,
+            // Kept for the claim button, which asks exactly one question.
+            'is_claimable' => (bool) ($customer['is_claimable'] ?? false),
         ]);
     }
 

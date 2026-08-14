@@ -68,13 +68,26 @@ class WarrantyStateService
      */
     public function supplierStateFor(IncidentItem $item): SupplierWarranty
     {
-        $receiving = $this->receivingFor($item);
+        return $this->coverFor((int) $item->product_id, $this->receivingIdFor($item));
+    }
+
+    /**
+     * The same cover, asked for by product and receiving rather than by incident.
+     *
+     * Split out because incidents stopped being the only caller: the serial
+     * lookup answers the same question about a unit nobody has filed a report
+     * on. Keeping one implementation means the two screens cannot drift into
+     * disagreeing about when a supplier's cover ends.
+     */
+    public function coverFor(int $productId, ?int $receivingId): SupplierWarranty
+    {
+        $receiving = $receivingId === null ? null : $this->receivingRow($receivingId);
 
         if ($receiving === null || $receiving->receiving_date === null) {
             return new SupplierWarranty(state: self::NONE);
         }
 
-        $months = $this->termMonthsFor((int) $item->product_id);
+        $months = $this->termMonthsFor($productId);
 
         // No term configured is NOT expired cover. One says the supplier stands
         // behind it for nothing, the other says nobody ever recorded how long —
@@ -106,15 +119,12 @@ class WarrantyStateService
     }
 
     /**
-     * The receiving this unit arrived on, with its supplier resolved.
+     * Which receiving this incident's goods arrived on.
      *
      * Serialized units carry receiving_id themselves; everything else reaches it
-     * through the batch. COALESCE on the supplier is not defensive padding:
-     * every receiving in the live database has a NULL supplier_id and a real PO,
-     * so reading the column alone would leave the supplier blank on every unit
-     * in the system.
+     * through the batch.
      */
-    private function receivingFor(IncidentItem $item): ?object
+    private function receivingIdFor(IncidentItem $item): ?int
     {
         $receivingId = $item->serial?->receiving_id;
 
@@ -124,10 +134,18 @@ class WarrantyStateService
                 ->value('receiving_id');
         }
 
-        if ($receivingId === null) {
-            return null;
-        }
+        return $receivingId === null ? null : (int) $receivingId;
+    }
 
+    /**
+     * The receiving with its supplier resolved.
+     *
+     * COALESCE on the supplier is not defensive padding: every receiving in the
+     * live database has a NULL supplier_id and a real PO, so reading the column
+     * alone would leave the supplier blank on every unit in the system.
+     */
+    private function receivingRow(int $receivingId): ?object
+    {
         return DB::table('receivings as r')
             ->leftJoin('purchase_orders as po', 'po.po_id', '=', 'r.po_id')
             ->leftJoin('suppliers as s', 's.supplier_id', '=', DB::raw('COALESCE(r.supplier_id, po.supplier_id)'))
