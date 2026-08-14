@@ -250,13 +250,19 @@ export function EvidenceSummary({ incidentId, reason, checkedByAsc, returnReason
 
       {/* Attached against a requirement this reason no longer asks for — an ASC
           report attached before the tick was cleared, say. Hiding it would look
-          like the file had been deleted when it is still on the report. */}
-      {extra.map((e) => (
+          like the file had been deleted when it is still on the report.
+
+          GROUPED BY REQUIREMENT, exactly as the required list above is. Mapping
+          the rows directly would give two orphan photos of the same requirement
+          two separate cards each badged "1 attached", so the same two photos
+          would be described differently depending only on whether the reason
+          still asks for them. */}
+      {[...new Set(extra.map((e) => e.requirement))].map((req) => (
         <RequirementSummary
-          key={`extra-${e.evidence_id}`}
+          key={`extra-${req}`}
           incidentId={incidentId}
-          requirement={e.requirement}
-          attached={[e]}
+          requirement={req}
+          attached={extra.filter((e) => e.requirement === req)}
           alsoAttached
         />
       ))}
