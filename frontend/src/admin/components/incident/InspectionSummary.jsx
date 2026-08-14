@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  itemStatusMeta, outcomeLabel, outcomeRemovesStock, unitRoleLabel,
+  outcomeLabel, outcomeRemovesStock,
   supplierWarrantyDetail, supplierWarrantyMeta, warrantyStateMeta,
 } from '../../utils/incidentItems';
-import { formatPieces } from '../../utils/packageFormat';
+import { UnitIdentity } from './UnitIdentity';
 
 /**
  * The inspector's half of the document, READ-ONLY — the admin's view.
@@ -24,11 +24,22 @@ import { formatPieces } from '../../utils/packageFormat';
  * stock movement they could not see.
  */
 
-/** When the inspection happened, in the reader's own locale. */
+/**
+ * When the inspection happened, in the reader's own locale.
+ *
+ * A NAMED month, explicitly. The bare toLocaleString() this replaced rendered
+ * 8/13/2026 for one admin and 13/08/2026 for another, and for the first twelve
+ * days of any month those two orderings are the same string meaning different
+ * days — on a screen whose whole job is cross-checking a date against a sheet
+ * in the reader's hand. Seconds are dropped: nobody reconciles to the second.
+ */
 const formatInstant = (iso) => {
   if (!iso) return null;
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleString();
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
 };
 
 /** What the inspection concluded, who concluded it, and when. */
@@ -83,32 +94,25 @@ export function OutcomeSummary({ items }) {
 /**
  * One unit, as the admin reads it.
  *
- * Deliberately mirrors ItemOutcomeRow's header and badges. The admin holds the
- * signed hardcopy the inspector printed from that same layout, and two
- * renderings that describe the same unit differently is how a mismatch gets
- * waved through.
+ * Its identity line comes from the shared UnitIdentity for a reason: the
+ * inspector's editable row and this read-only one are two views of the same
+ * facts for the same reader, one deciding and one confirming. If they name the
+ * unit differently the admin cannot tell whether the decision in front of them
+ * belongs to the unit in front of them, so the two must not be able to drift.
+ *
+ * Below the identity the two DO diverge, deliberately: the inspector needs the
+ * `.help` text explaining what each warranty state permits, and the admin —
+ * who cannot change any of it — needs the badges and nothing else.
  */
 function UnitOutcomeSummary({ item }) {
-  const status = itemStatusMeta(item.status);
   const warranty = warrantyStateMeta(item.warranty_state);
   const supplier = supplierWarrantyMeta(item.supplier_warranty?.state);
   const supplierDetail = supplierWarrantyDetail(item.supplier_warranty);
-  const qtyLabel = formatPieces(item.quantity, item.pieces_per_package, item.package_unit);
   const settled = item.status !== 'quarantined';
 
   return (
     <fieldset className="incdoc__unit">
-      <legend className="incdoc__unit-legend">
-        {unitRoleLabel(item.unit_role)}{' '}
-        <span className={`ak-badge ${status.badge}`}>{status.label}</span>
-      </legend>
-
-      <div style={{ fontSize: '0.86rem', marginBottom: '0.5rem' }}>
-        <strong>{item.product_name || `#${item.product_id}`}</strong> · {qtyLabel}
-        {item.batch_id ? ` · batch #${item.batch_id}` : ''}
-        {item.model_code ? ` · model ${item.model_code}` : ''}
-        {item.serial_number ? ` · SN ${item.serial_number}` : ''}
-      </div>
+      <UnitIdentity item={item} />
 
       {/* Both clocks, because they disagree by design: stock on the shelf has
           supplier cover and no customer warranty at all. An admin reading only
@@ -127,16 +131,36 @@ function UnitOutcomeSummary({ item }) {
         </div>
       )}
 
-      {item.outcome ? (
+      {/* SETTLED IS ASKED FIRST, and the order is load-bearing. A unit can be
+          settled with no outcome at all: release() dismisses a report by moving
+          the status and deliberately ignores whatever the inspector recorded.
+          Asking about the outcome first calls that unit "undecided" and invites
+          the admin to chase a decision on something already closed. */}
+      {settled ? (
+        <div className="ak-muted" style={{ fontSize: '0.86rem' }}>
+          {item.outcome ? (
+            <>
+              Settled as <strong>{outcomeLabel(item.outcome)}</strong>
+              {item.outcome_note ? ` — ${item.outcome_note}` : ''}
+            </>
+          ) : (
+            // Said in full rather than as "Settled as —". This unit is closed
+            // and nothing was applied to it; a dash leaves the admin unable to
+            // tell that apart from a value this screen failed to load.
+            'Settled with no outcome recorded — the report was dismissed, so nothing was applied to this unit.'
+          )}
+        </div>
+      ) : item.outcome ? (
         <div style={{ fontSize: '0.86rem' }}>
-          {settled ? 'Settled as ' : 'The inspector decided: '}
-          <strong>{outcomeLabel(item.outcome)}</strong>
+          The inspector decided: <strong>{outcomeLabel(item.outcome)}</strong>
           {item.outcome_note ? ` — ${item.outcome_note}` : ''}
 
           {/* Said on the row, not in a footnote. Confirming is the one and only
               moment stock moves, and the person confirming is not the person who
-              chose this. */}
-          {!settled && outcomeRemovesStock(item.outcome) && (
+              chose this. Unreachable for a settled unit by construction now:
+              that unit was deducted by an earlier confirmation, and saying this
+              over it would be a warning about a movement already made. */}
+          {outcomeRemovesStock(item.outcome) && (
             <div style={{ marginTop: '0.35rem' }}>
               <span className="ak-badge ak-badge--amber">
                 Confirming deducts this unit from stock.
@@ -165,10 +189,15 @@ function UnitOutcomeSummary({ item }) {
  * than looking like a field this screen forgot to render.
  */
 export function SignatureSummary({ report }) {
+  // Trimmed, exactly as FindingsSummary trims its findings: a name of spaces is
+  // not a signature, and rendered as-is it is indistinguishable from a signed
+  // line — the one thing this block must never show.
+  const signed = (v) => String(v ?? '').trim() || null;
+
   const lines = [
-    ['Authorised representative', report?.signed_by_representative],
-    ['Branch manager', report?.signed_by_branch_manager],
-    ['Date signed', report?.signed_at],
+    ['Authorised representative', signed(report?.signed_by_representative)],
+    ['Branch manager', signed(report?.signed_by_branch_manager)],
+    ['Date signed', signed(report?.signed_at)],
   ];
 
   return (
