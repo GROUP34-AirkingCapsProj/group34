@@ -24,7 +24,9 @@ export default function OutcomesSection({ state, units, children }) {
         ? 'The inspector decides each unit separately. Confirming those decisions is what finally moves the stock count — filing this report does not.'
         : undefined}
     >
-      {children ?? (
+      {/* `||`, not `??`: `false ?? fallback` is `false`, so a boolean-gated
+          child would silently erase this fallback. */}
+      {children || (
         <ul className="incdoc__checklist">
           {rows.map((u, i) => (
             <li key={u.uid}>Unit {i + 1} — awaiting inspection</li>

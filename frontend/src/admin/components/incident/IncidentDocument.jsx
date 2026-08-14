@@ -14,6 +14,8 @@ import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 import EvidenceChecklist, { requirementMeta } from './EvidenceChecklist';
 import IncidentReportPrint from './IncidentReportPrint';
 import { FindingsFields, OutcomeRows, SignatureFields } from './InspectionFields';
+import { FindingsSummary, OutcomeSummary, SignatureSummary } from './InspectionSummary';
+import { EvidenceSummary } from './EvidenceSummary';
 import TypeSection from './sections/TypeSection';
 import ReturnSection from './sections/ReturnSection';
 import DealerSection from './sections/DealerSection';
@@ -578,7 +580,10 @@ export default function IncidentDocument({
           reason={form.reason}
           returnReasonCode={form.returnReasonCode}
         >
-          {inspecting && report && (
+          {/* Three renderings, one section. `file` passes nothing and gets the
+              greyed preview of what will be asked; `inspect` gets the checklist
+              that writes; `decide` gets the same evidence, read-only. */}
+          {inspecting && report ? (
             <EvidenceChecklist
               incidentId={incidentId}
               reason={report.reason}
@@ -589,40 +594,56 @@ export default function IncidentDocument({
               onRemoved={handleEvidenceRemoved}
               disabled={inspectorLocked}
             />
-          )}
+          ) : deciding && report ? (
+            <EvidenceSummary
+              incidentId={incidentId}
+              reason={report.reason}
+              // The SAVED tick, not the local one. The admin reads what was
+              // submitted; they are not composing it.
+              checkedByAsc={!!report.checked_by_asc}
+              returnReasonCode={report.return_reason_code}
+              evidence={evidence}
+            />
+          ) : null}
         </AttachmentsSection>
       )}
 
       {has(SECTION.FINDINGS) && (
         <FindingsSection state={state(SECTION.FINDINGS)}>
-          {inspecting && (
+          {inspecting ? (
             <FindingsFields
               findings={findings} setFindings={setFindings}
               checkedByAsc={checkedByAsc} setCheckedByAsc={setCheckedByAsc}
               disabled={inspectorLocked}
             />
-          )}
+          ) : deciding && report ? (
+            <FindingsSummary report={report} />
+          ) : null}
         </FindingsSection>
       )}
 
       {has(SECTION.OUTCOMES) && (
         <OutcomesSection state={state(SECTION.OUTCOMES)} units={form.units}>
-          {inspecting && report && (
+          {inspecting && report ? (
             <OutcomeRows items={items} disabled={inspectorLocked} onSave={handleOutcome} />
-          )}
+          ) : deciding && report ? (
+            <OutcomeSummary items={items} />
+          ) : null}
         </OutcomesSection>
       )}
 
       {has(SECTION.SIGNATURES) && (
         <SignaturesSection state={state(SECTION.SIGNATURES)}>
-          {inspecting && (
+          {inspecting ? (
             <SignatureFields
               signedByRep={signedByRep} setSignedByRep={setSignedByRep}
               signedByBm={signedByBm} setSignedByBm={setSignedByBm}
               signedAt={signedAt} setSignedAt={setSignedAt}
               disabled={inspectorLocked}
             />
-          )}
+          ) : deciding && report ? (
+            <SignatureSummary report={report} />
+          ) : null}
         </SignaturesSection>
       )}
 

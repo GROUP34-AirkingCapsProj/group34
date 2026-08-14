@@ -18,7 +18,9 @@ export default function SignaturesSection({ state, children }) {
         ? 'Signed off at the inspection, on the printed copy of this same document.'
         : undefined}
     >
-      {children ?? (
+      {/* `||`, not `??`: `false ?? fallback` is `false`, so a boolean-gated
+          child would silently erase this fallback. */}
+      {children || (
         <div className="incdoc__row">
           <div>Authorized representative — name and date</div>
           <div>Branch manager — name and date</div>

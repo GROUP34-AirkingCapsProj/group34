@@ -17,7 +17,9 @@ export default function FindingsSection({ state, children }) {
         ? 'Filled in at the inspection, once someone has the unit in front of them.'
         : undefined}
     >
-      {children ?? <p style={{ margin: 0 }}>Not inspected yet.</p>}
+      {/* `||`, not `??`: `false ?? fallback` is `false`, so a boolean-gated
+          child would silently erase this fallback. */}
+      {children || <p style={{ margin: 0 }}>Not inspected yet.</p>}
     </DocumentSection>
   );
 }
