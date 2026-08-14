@@ -19,6 +19,19 @@ use Illuminate\Support\Facades\DB;
  * There is no per-reason resolution strategy any more: the inspector records an
  * outcome on each physical item, and IncidentItemService::applyOutcomes applies
  * every type uniformly.
+ *
+ * The lifecycle. Every status write in this class is one of these five, and
+ * each status has exactly one writer and one owner — a status that means two
+ * things is the bug this table exists to prevent:
+ *
+ *   Status               Written by           Whose turn
+ *   -------------------- -------------------- --------------------------------
+ *   Open                 file()               inspector — or admin directly,
+ *                                             for the exempt reasons
+ *   Awaiting Inspection  reject()             inspector
+ *   Awaiting Approval    submitInspection()   admin
+ *   Resolved             confirm()            nobody
+ *   Dismissed            dismiss()            nobody
  */
 class IncidentService
 {
@@ -306,6 +319,17 @@ class IncidentService
         });
     }
 
+    /**
+     * Awaiting Approval -> Resolved, and the one moment stock moves.
+     *
+     * The exempt reasons are the single place the "a sent-back report cannot be
+     * confirmed" guarantee below does not hold: they skip the status check
+     * entirely, so an exempt report that was submitted, rejected and then
+     * confirmed ends at Resolved still carrying its rejection_note, which
+     * nothing here clears. Harmless — those reasons move no stock, and the
+     * split migration only scans rows sitting at Awaiting Inspection — but
+     * written down rather than left to be discovered.
+     */
     private function confirm(IncidentReport $locked, array $options, int $adminId): IncidentReport
     {
         $exempt = in_array($locked->reason, self::INSPECTION_EXEMPT_REASONS, true);
@@ -375,7 +399,13 @@ class IncidentService
             throw new \RuntimeException('There is no submitted inspection to reject.');
         }
 
-        $note = trim((string) ($options['rejection_note'] ?? $options['resolution_note'] ?? ''));
+        // rejection_note only. `resolution_note` is what confirm() and dismiss()
+        // write when they CLOSE a report, so accepting it here would let a
+        // non-controller caller satisfy "say what to fix" with closing text —
+        // landing the report at Awaiting Inspection badged "Sent back: recount
+        // came out fine", and satisfying the guard three lines below while
+        // doing it. A silent wrong value in place of the loud refusal.
+        $note = trim((string) ($options['rejection_note'] ?? ''));
 
         if ($note === '') {
             throw new \InvalidArgumentException('Sending a report back needs a note saying what to fix.');

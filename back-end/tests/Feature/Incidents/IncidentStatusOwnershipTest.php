@@ -315,7 +315,87 @@ class IncidentStatusOwnershipTest extends TestCase
             (int) $rejected->status_id,
             'A rejected report is the INSPECTOR\'s turn.'
         );
-        $this->assertNotNull($rejected->rejection_note);
+        // Exact, not assertNotNull: the blank-note test pins trim()'s role as a
+        // gate, but nothing would notice it failing to NORMALISE — a padded or
+        // garbage note would persist unremarked.
+        $this->assertSame('the sticker photo is unreadable', $rejected->rejection_note);
+    }
+
+    /** trim() normalises what it stores, it does not only decide whether to store. */
+    public function test_a_padded_note_is_stored_trimmed(): void
+    {
+        $submitted = $this->submittedReport();
+
+        $rejected = app(IncidentService::class)->decide(
+            $submitted,
+            'reject',
+            ['rejection_note' => '   redo the box photo   '],
+            $this->actorId(),
+        );
+
+        $this->assertSame('redo the box photo', $rejected->rejection_note);
+    }
+
+    /**
+     * `resolution_note` must NOT satisfy the rejection note.
+     *
+     * It is the field confirm() and dismiss() write when they CLOSE a report.
+     * Accepting it here would let a caller outside the controller send a report
+     * back badged "Sent back: recount came out fine" — closing text reading as
+     * a fix instruction — and satisfy the non-null-note guard while doing it,
+     * turning the refusal above into a silent wrong value.
+     */
+    public function test_a_resolution_note_does_not_satisfy_the_rejection_note(): void
+    {
+        $submitted = $this->submittedReport();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('needs a note');
+
+        app(IncidentService::class)->decide(
+            $submitted,
+            'reject',
+            ['resolution_note' => 'recount came out fine'],
+            $this->actorId(),
+        );
+    }
+
+    /**
+     * A decided report takes no further submission.
+     *
+     * Before the split this could not be expressed: there was no status meaning
+     * "already with the admin", so the submit guard's list was the whole of the
+     * inspector's world. Now it is load-bearing, and untested it stayed green
+     * with the guard disabled outright.
+     *
+     * The scenario is an inspector whose page is still open when the admin
+     * confirms. Stock is not double-deducted — IncidentItemService catches that
+     * under its own lock — but a Resolved report would jump back to Awaiting
+     * Approval, overwrite inspected_by/inspected_at, null the note, and
+     * reappear on the admin's Decide queue.
+     */
+    public function test_a_confirmed_report_cannot_be_submitted_again(): void
+    {
+        $submitted = $this->submittedReport();
+
+        // A real confirmation, not an exempt shortcut: applyOutcomes refuses an
+        // item with no outcome, and going through it is what makes this the
+        // stock-moving path the guard is protecting.
+        app(\App\Services\IncidentItemService::class)->setOutcome(
+            \App\Models\IncidentItem::where('incident_id', $submitted->incident_id)->firstOrFail(),
+            \App\Models\IncidentItem::OUTCOME_SCRAP,
+            null,
+        );
+
+        $confirmed = app(IncidentService::class)
+            ->decide($submitted->fresh(), 'confirm', [], $this->actorId());
+
+        $this->assertSame($this->incidentStatusId('Resolved'), (int) $confirmed->status_id);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('already been decided');
+
+        app(IncidentService::class)->submitInspection($confirmed, [], $this->actorId());
     }
 
     public function test_resubmitting_a_rejected_report_returns_it_to_the_admin(): void
