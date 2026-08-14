@@ -28,6 +28,10 @@ export function EvidenceThumbnail({
     let objectUrl = null;
     setUrl(null);
     setFailed(false);
+    // A lightbox left open across an id change would reappear showing a
+    // different photo once the new blob lands. Callers key by evidence id
+    // today, but this must not depend on that.
+    setOpen(false);
 
     incidentReportsAPI.evidencePhotoBlob(incidentId, evidenceId)
       .then((blob) => {
