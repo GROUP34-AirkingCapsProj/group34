@@ -49,9 +49,19 @@ const IncidentInspectionPage = () => {
     try {
       const res = await incidentReportsAPI.list();
       const rows = Array.isArray(res?.data) ? res.data : [];
-      setQueue(rows.filter((r) =>
+      const inspectable = rows.filter((r) =>
         INSPECTABLE_STATUSES.includes(r.status_name)
-        && !INSPECTION_EXEMPT_REASONS.includes(r.reason)));
+        && !INSPECTION_EXEMPT_REASONS.includes(r.reason));
+      setQueue(inspectable);
+      // A submitted inspection belongs to the ADMIN now, so it is gone from
+      // this list. Leaving it selected left the document on screen in `inspect`
+      // mode with a live Submit button, which is what made submitting look like
+      // it had done nothing at all.
+      setSelectedId((current) => (
+        current !== null && !inspectable.some((r) => String(r.incident_id) === String(current))
+          ? null
+          : current
+      ));
       setQueueError(null);
     } catch (err) {
       setQueueError(err.message || 'Failed to load reports awaiting inspection.');
@@ -157,7 +167,7 @@ const IncidentInspectionPage = () => {
                 report={report}
                 canInspect={canInspect}
                 onChanged={setReport}
-                onSubmitted={() => { loadQueue(); loadReport(report.incident_id); }}
+                onSubmitted={() => { loadQueue(); }}
               />
             )}
           </div>
