@@ -211,7 +211,11 @@ class IncidentService
     }
 
     /**
-     * The inspector submits their findings: Open -> Awaiting Inspection.
+     * The inspector submits their findings: the report becomes the ADMIN's.
+     *
+     * Open or Awaiting Inspection -> Awaiting Approval. The two accepted
+     * starting points are "never inspected" and "the admin sent it back"; both
+     * are the inspector's turn, and submitting ends it.
      *
      * Touches NO stock. Everything recorded here — the findings, the ASC tick,
      * the names on the hardcopy that gets signed by hand — is evidence for the
@@ -227,10 +231,11 @@ class IncidentService
                 throw new \RuntimeException('This incident no longer exists.');
             }
 
-            // Awaiting Inspection is accepted as well as Open because a rejected
-            // report sits at Awaiting Inspection: the admin sends it back to the
-            // inspector, who fixes what the note asked for and submits again. A
-            // Resolved or Dismissed report is finished and takes no more.
+            // The two states that are the inspector's turn. Open is a report
+            // nobody has examined; Awaiting Inspection is one the admin sent
+            // back, which the inspector fixes and submits again. Awaiting
+            // Approval is already with the admin, and a Resolved or Dismissed
+            // report is finished — neither takes a submission.
             $allowed = [
                 IncidentReport::statusId('Open'),
                 IncidentReport::statusId('Awaiting Inspection'),
@@ -241,7 +246,7 @@ class IncidentService
             }
 
             $locked->update([
-                'status_id'                => IncidentReport::statusId('Awaiting Inspection'),
+                'status_id'                => IncidentReport::statusId('Awaiting Approval'),
                 'inspected_by'             => $inspectorId,
                 'inspected_at'             => now(),
                 'inspection_findings'      => $data['inspection_findings'] ?? null,
@@ -305,7 +310,7 @@ class IncidentService
     {
         $exempt = in_array($locked->reason, self::INSPECTION_EXEMPT_REASONS, true);
 
-        if (! $exempt && (int) $locked->status_id !== IncidentReport::statusId('Awaiting Inspection')) {
+        if (! $exempt && (int) $locked->status_id !== IncidentReport::statusId('Awaiting Approval')) {
             throw new \RuntimeException(
                 'This incident has not been inspected yet. An inspection must be submitted before it can be confirmed.'
             );
@@ -348,20 +353,37 @@ class IncidentService
     /**
      * Send it back to the inspector.
      *
-     * The status does not move: the report is already Awaiting Inspection and
-     * stays there, because rejection returns it to the inspector's queue, not to
-     * filing. Only the note changes, and the evidence and the per-item outcomes
-     * are left alone so the inspector edits rather than re-enters them.
+     * Awaiting Approval -> Awaiting Inspection. The status MOVES, where it used
+     * to stay put: both states shared one status, so a report the admin had
+     * just sent back was indistinguishable from one waiting on them, and it sat
+     * in the inspector's queue alongside every inspection they had already
+     * submitted.
+     *
+     * The note is REQUIRED here and not only in the controller. An inspector
+     * cannot act on "no", and the split above reads a non-null note as "sent
+     * back" — so a rejection path that skipped the controller's
+     * `required_if:action,reject` would produce a report nothing could tell
+     * apart from a submitted one.
+     *
+     * Only the status and the note change. The evidence and the per-item
+     * outcomes are left alone so the inspector edits rather than re-enters
+     * them, and submitInspection() clears the note when they resubmit.
      */
     private function reject(IncidentReport $locked, array $options): IncidentReport
     {
-        if ((int) $locked->status_id !== IncidentReport::statusId('Awaiting Inspection')) {
+        if ((int) $locked->status_id !== IncidentReport::statusId('Awaiting Approval')) {
             throw new \RuntimeException('There is no submitted inspection to reject.');
+        }
+
+        $note = trim((string) ($options['rejection_note'] ?? $options['resolution_note'] ?? ''));
+
+        if ($note === '') {
+            throw new \InvalidArgumentException('Sending a report back needs a note saying what to fix.');
         }
 
         $locked->update([
             'status_id'      => IncidentReport::statusId('Awaiting Inspection'),
-            'rejection_note' => $options['rejection_note'] ?? $options['resolution_note'] ?? null,
+            'rejection_note' => $note,
         ]);
 
         return $locked->fresh();

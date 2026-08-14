@@ -96,7 +96,7 @@ class IncidentStatusOwnershipTest extends TestCase
      * reason it exists there: a hand-built row encodes the test's assumption
      * about the shape rather than the shape the service actually writes.
      */
-    private function fileIncident(): IncidentReport
+    private function fileIncident(string $reason = 'return'): IncidentReport
     {
         $location = \App\Models\Location::query()->firstOrFail();
         $product  = \App\Models\Product::query()->firstOrFail();
@@ -127,7 +127,7 @@ class IncidentStatusOwnershipTest extends TestCase
             'location_id' => (int) $location->location_id,
             'product_id'  => (int) $product->product_id,
             'batch_id'    => (int) $batch->batch_id,
-            'reason'      => 'return',
+            'reason'      => $reason,
             'quantity'    => 1,
             'narrative'   => 'test',
         ], $this->actorId());
@@ -153,6 +153,26 @@ class IncidentStatusOwnershipTest extends TestCase
             ['rejection_note' => 'the sticker photo is unreadable'],
             $this->actorId(),
         );
+    }
+
+    /**
+     * Shape 1 as the OLD code left it on disk.
+     *
+     * The migration is a one-time fix for rows written before this split, and
+     * submitInspection() no longer writes any: it goes straight to Awaiting
+     * Approval. So the row is built by the service — which is what guarantees
+     * the inspected_at / null-note shape the migration's rule keys on is real —
+     * and only its status is wound back to what the old write produced.
+     */
+    private function legacySubmittedReport(): IncidentReport
+    {
+        $submitted = $this->submittedReport();
+
+        DB::table('incident_reports')
+            ->where('incident_id', $submitted->incident_id)
+            ->update(['status_id' => $this->incidentStatusId('Awaiting Inspection')]);
+
+        return $submitted->fresh();
     }
 
     /**
@@ -217,7 +237,7 @@ class IncidentStatusOwnershipTest extends TestCase
      */
     public function test_up_routes_each_row_shape_to_its_owner(): void
     {
-        $submitted      = $this->submittedReport();
+        $submitted      = $this->legacySubmittedReport();
         $sentBack       = $this->sentBackReport();
         $neverInspected = $this->neverInspectedReport();
 
@@ -242,16 +262,19 @@ class IncidentStatusOwnershipTest extends TestCase
      *
      * Both halves are idempotent or the migration is not: the UPDATE must find
      * nothing left to move, and the updateOrInsert must not add a second
-     * `Awaiting Approval` row. The status is dropped first so the count below
-     * distinguishes "inserted exactly once" from "never inserted at all".
+     * `Awaiting Approval` row. The status is dropped before the runs so the
+     * count below distinguishes "inserted exactly once" from "never inserted at
+     * all" — but AFTER the fixtures, because submitInspection() now writes
+     * Awaiting Approval and cannot build a legacy row without it.
      */
     public function test_up_is_idempotent(): void
     {
-        $this->forgetAwaitingApproval();
-
-        $submitted      = $this->submittedReport();
+        $submitted      = $this->legacySubmittedReport();
         $sentBack       = $this->sentBackReport();
         $neverInspected = $this->neverInspectedReport();
+
+        // Safe only because nothing above is left pointing at the row.
+        $this->forgetAwaitingApproval();
 
         $this->runMigration();
         $second = $this->runMigration();
@@ -270,5 +293,121 @@ class IncidentStatusOwnershipTest extends TestCase
                 ->count(),
             'updateOrInsert keys on (status_category, status_name): one row after two runs, not zero and not two.'
         );
+    }
+
+    public function test_submitting_an_inspection_hands_the_report_to_the_admin(): void
+    {
+        $submitted = $this->submittedReport();
+
+        $this->assertSame(
+            $this->incidentStatusId('Awaiting Approval'),
+            (int) $submitted->status_id,
+            'A submitted inspection is the ADMIN\'s turn, not the inspector\'s.'
+        );
+    }
+
+    public function test_rejecting_hands_the_report_back_to_the_inspector(): void
+    {
+        $rejected = $this->sentBackReport();
+
+        $this->assertSame(
+            $this->incidentStatusId('Awaiting Inspection'),
+            (int) $rejected->status_id,
+            'A rejected report is the INSPECTOR\'s turn.'
+        );
+        $this->assertNotNull($rejected->rejection_note);
+    }
+
+    public function test_resubmitting_a_rejected_report_returns_it_to_the_admin(): void
+    {
+        $rejected = $this->sentBackReport();
+
+        $resubmitted = app(IncidentService::class)->submitInspection(
+            $rejected,
+            ['inspection_findings' => 'fixed what the note asked for'],
+            $this->actorId(),
+        );
+
+        $this->assertSame(
+            $this->incidentStatusId('Awaiting Approval'),
+            (int) $resubmitted->status_id
+        );
+        // The note answered its round; leaving it would have the admin's own
+        // screen accuse a fixed report of being rejected.
+        $this->assertNull($resubmitted->rejection_note);
+    }
+
+    /**
+     * The guard the old model could not express.
+     *
+     * A sent-back report and a submitted one shared a status, so "confirm what
+     * I just rejected" was indistinguishable from "confirm a real inspection"
+     * — and confirming is the single moment stock moves.
+     */
+    public function test_an_admin_cannot_confirm_a_report_they_just_sent_back(): void
+    {
+        $rejected = $this->sentBackReport();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('has not been inspected yet');
+
+        app(IncidentService::class)->decide($rejected, 'confirm', [], $this->actorId());
+    }
+
+    public function test_rejecting_a_report_with_no_submitted_inspection_is_refused(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('no submitted inspection to reject');
+
+        app(IncidentService::class)->decide(
+            $this->fileIncident(),
+            'reject',
+            ['rejection_note' => 'nope'],
+            $this->actorId(),
+        );
+    }
+
+    /**
+     * A zone mismatch creates no items and is never inspected, so it is
+     * confirmed straight from Open. Splitting the inspected statuses must not
+     * catch it in the new guard.
+     */
+    public function test_an_exempt_reason_still_confirms_straight_from_open(): void
+    {
+        $confirmed = app(IncidentService::class)
+            ->decide($this->fileIncident('zone_mismatch'), 'confirm', [], $this->actorId());
+
+        $this->assertSame($this->incidentStatusId('Resolved'), (int) $confirmed->status_id);
+    }
+
+    /**
+     * The migration's routing rule reads a non-null rejection_note as "sent
+     * back". That was a CONTROLLER invariant — IncidentInspectionController
+     * applies required_if:action,reject — while the service itself would
+     * persist NULL from `$options['rejection_note'] ?? $options['resolution_note'] ?? null`.
+     *
+     * A second rejection path that skipped the controller (a console command, a
+     * bulk action) would leave a NULL-note report at Awaiting Inspection,
+     * indistinguishable from a submitted one. Enforced here so the invariant
+     * belongs to the layer that depends on it.
+     */
+    public function test_rejecting_without_a_note_is_refused(): void
+    {
+        $submitted = $this->submittedReport();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('needs a note');
+
+        app(IncidentService::class)->decide($submitted, 'reject', [], $this->actorId());
+    }
+
+    public function test_rejecting_with_a_blank_note_is_refused(): void
+    {
+        $submitted = $this->submittedReport();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('needs a note');
+
+        app(IncidentService::class)->decide($submitted, 'reject', ['rejection_note' => '   '], $this->actorId());
     }
 }
