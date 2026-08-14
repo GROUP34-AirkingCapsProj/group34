@@ -286,6 +286,33 @@ describe('EvidenceSummary', () => {
     expect(screen.queryByText(/unknown/i)).not.toBeInTheDocument();
   });
 
+  // IncidentInspectionController enforces photo-xor-skip PER ROW, not per
+  // requirement, so this shape is reachable: the inspector photographed one
+  // side of the box and wrote off the other. Both halves must survive — a
+  // badge counting rows would claim two photographs over one, and suppressing
+  // the reason because a photo exists would silently drop the only account of
+  // where the second side went.
+  test('a requirement can hold a photo and a skip at once, and shows both', async () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="defective"
+      checkedByAsc={false}
+      evidence={[
+        { evidence_id: 20, requirement: 'box_two_sides', photo_path: 'incidents/side1.jpg', photo_source: 'captured' },
+        { evidence_id: 21, requirement: 'box_two_sides', photo_path: null, skipped_reason: 'the other side was destroyed in transit' },
+      ]}
+    />);
+
+    expect(await screen.findByRole('button', { name: /enlarge/i })).toBeInTheDocument();
+    // One photograph, not two rows.
+    expect(screen.getByText('1 attached')).toBeInTheDocument();
+    expect(screen.queryByText('2 attached')).not.toBeInTheDocument();
+    // A photo on the requirement must not swallow the written reason.
+    expect(screen.getByText(/the other side was destroyed in transit/)).toBeInTheDocument();
+    // Photographed beats skipped for the badge: something IS attached here.
+    expect(screen.queryByText('Skipped')).not.toBeInTheDocument();
+  });
+
   test('an outstanding requirement says nothing was attached and no reason given', () => {
     render(<EvidenceSummary incidentId={5} reason="wrong_type" checkedByAsc={false} evidence={[]} />);
 
@@ -302,6 +329,45 @@ describe('EvidenceSummary', () => {
     />);
 
     expect(screen.getByText(/Also attached: ASC service report/i)).toBeInTheDocument();
+  });
+
+  // Every orphan, not just the first.
+  test('all orphaned evidence is shown, not merely the first row', () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="wrong_type"
+      checkedByAsc={false}
+      evidence={[
+        { evidence_id: 9, requirement: 'asc_service_report', photo_path: null, skipped_reason: 'no ASC nearby' },
+        { evidence_id: 10, requirement: 'receipt_or_dor', photo_path: null, skipped_reason: 'the receipt was never issued' },
+      ]}
+    />);
+
+    expect(screen.getByText(/Also attached: ASC service report/i)).toBeInTheDocument();
+    expect(screen.getByText(/Also attached: Receipt or delivery receipt/i)).toBeInTheDocument();
+    expect(screen.getByText(/no ASC nearby/)).toBeInTheDocument();
+    expect(screen.getByText(/the receipt was never issued/)).toBeInTheDocument();
+  });
+
+  // Orphans group by REQUIREMENT, exactly as the required list does. Two photos
+  // of one requirement are one card badged "2 attached" — not two cards each
+  // badged "1 attached", which would describe the same two photographs
+  // differently depending only on whether the reason still asks for them.
+  test('two orphans of one requirement are one card, counted together', async () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="wrong_type"
+      checkedByAsc={false}
+      evidence={[
+        { evidence_id: 31, requirement: 'box_two_sides', photo_path: 'incidents/x.jpg', photo_source: 'captured' },
+        { evidence_id: 32, requirement: 'box_two_sides', photo_path: 'incidents/y.jpg', photo_source: 'captured' },
+      ]}
+    />);
+
+    expect(await screen.findAllByRole('button', { name: /enlarge/i })).toHaveLength(2);
+    expect(screen.getAllByText(/Also attached: Two sides of the box/i)).toHaveLength(1);
+    expect(screen.getByText('2 attached')).toBeInTheDocument();
+    expect(screen.queryByText('1 attached')).not.toBeInTheDocument();
   });
 
   test('says so when the reason asks for no photographs', () => {
