@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { DocField } from './sections/DocumentSection';
 import {
-  ITEM_OUTCOMES, itemStatusMeta, outcomeLabel, outcomeMeta, outcomeRemovesStock,
-  unitRoleLabel, warrantyStateMeta, supplierWarrantyMeta, supplierWarrantyDetail,
+  outcomeLabel, outcomeMeta, outcomeRemovesStock,
+  warrantyStateMeta, supplierWarrantyMeta, supplierWarrantyDetail,
 } from '../../utils/incidentItems';
-import { formatPieces } from '../../utils/packageFormat';
+import { UnitIdentity } from './UnitIdentity';
 
 /**
  * The inspector's half of the document, as fields.
@@ -113,11 +113,9 @@ export function OutcomeRows({ items, disabled, onSave }) {
 function ItemOutcomeRow({ item, disabled, onSave }) {
   const [note, setNote] = useState(item.outcome_note || '');
   const settled = item.status !== 'quarantined';
-  const status = itemStatusMeta(item.status);
   const warranty = warrantyStateMeta(item.warranty_state);
   const supplierWarranty = supplierWarrantyMeta(item.supplier_warranty?.state);
   const supplierDetail = supplierWarrantyDetail(item.supplier_warranty);
-  const qtyLabel = formatPieces(item.quantity, item.pieces_per_package, item.package_unit);
 
   // Rendered as given. The already-chosen outcome is unioned in so a decision
   // recorded while the unit was still covered does not vanish from its own
@@ -129,17 +127,10 @@ function ItemOutcomeRow({ item, disabled, onSave }) {
 
   return (
     <fieldset className="incdoc__unit">
-      <legend className="incdoc__unit-legend">
-        {unitRoleLabel(item.unit_role)}{' '}
-        <span className={`ak-badge ${status.badge}`}>{status.label}</span>
-      </legend>
-
-      <div style={{ fontSize: '0.86rem', marginBottom: '0.5rem' }}>
-        <strong>{item.product_name || `#${item.product_id}`}</strong> · {qtyLabel}
-        {item.batch_id ? ` · batch #${item.batch_id}` : ''}
-        {item.model_code ? ` · model ${item.model_code}` : ''}
-        {item.serial_number ? ` · SN ${item.serial_number}` : ''}
-      </div>
+      {/* Shared with the admin's read-only rendering rather than duplicated:
+          the inspector deciding and the admin confirming must be shown the same
+          unit, named the same way. See UnitIdentity. */}
+      <UnitIdentity item={item} />
 
       {/* Beside the selector, not inside it. `expired` and `none` offer the
           same choices but mean different things — one unit was sold and its
