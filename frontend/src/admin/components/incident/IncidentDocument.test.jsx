@@ -213,8 +213,10 @@ test('submitting an unfinished inspection says what is outstanding', async () =>
  * The decide-mode test above asserts only on CSS classes, which is why four
  * empty sections shipped. These assert on what an admin can actually read.
  */
-const inspectedReport = () => filedReport({
-  status_name: 'Awaiting Inspection',
+const inspectedReport = (over = {}) => filedReport({
+  // Submitted, so it is the ADMIN's turn. Awaiting Inspection now means the
+  // opposite — the admin sent it back — and would make this non-decidable.
+  status_name: 'Awaiting Approval',
   inspection_findings: 'Compressor seized. Casing intact.',
   checked_by_asc: true,
   inspected_by_name: 'Rita Cruz',
@@ -231,6 +233,7 @@ const inspectedReport = () => filedReport({
     outcome: 'scrap',
     outcome_note: 'compressor seized, casing intact',
   }],
+  ...over,
 });
 
 test('decide mode shows the admin the whole inspection, not four empty sections', async () => {
@@ -308,3 +311,29 @@ test('file mode still greys the inspector half rather than summarising it', asyn
   expect(screen.getByText(/Unit 1 — awaiting inspection/)).toBeInTheDocument();
   expect(screen.getByText(/Branch manager — name and date/)).toBeInTheDocument();
 });
+
+/**
+ * The list already tells an admin a sent-back report is not theirs. The drawer
+ * used to open it with a live Confirm anyway — the two screens disagreeing
+ * about who owns a report being the exact bug the status split exists to fix.
+ */
+test('decide mode withholds the decision on a report that is not the admin’s', async () => {
+  await renderDoc({
+    mode: 'decide',
+    report: inspectedReport({ status_name: 'Awaiting Inspection' }),
+  });
+
+  expect(screen.getByRole('button', { name: /^confirm$/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^reject$/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^dismiss$/i })).toBeDisabled();
+  // Not a dead end: it says whose turn it is.
+  expect(screen.getByText(/sent this back to the inspector/i)).toBeInTheDocument();
+});
+
+test('decide mode allows the decision once the inspection is submitted', async () => {
+  await renderDoc({ mode: 'decide', report: inspectedReport() });
+
+  expect(screen.getByRole('button', { name: /^confirm$/i })).toBeEnabled();
+  expect(screen.getByText(/Confirming is what moves the stock/i)).toBeInTheDocument();
+});
+

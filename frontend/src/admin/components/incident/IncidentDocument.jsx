@@ -7,8 +7,8 @@ import { toBackendInstant } from '../../utils/incidentFlow';
 import { toClientPayload, toItemPayload } from '../../utils/incidentItems';
 import { newUnit, resolveUnits } from '../../utils/incidentUnits';
 import {
-  DOC_MODES, SECTION, formFromReport, requirementMeta, sectionsFor, sectionState,
-  toLocalInputValue, whatInspectionIsMissing, whatIsMissing,
+  DOC_MODES, INSPECTION_EXEMPT_REASONS, SECTION, formFromReport, requirementMeta,
+  sectionsFor, sectionState, toLocalInputValue, whatInspectionIsMissing, whatIsMissing,
 } from '../../utils/incidentDocument';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 import EvidenceChecklist from './EvidenceChecklist';
@@ -491,6 +491,21 @@ export default function IncidentDocument({
   const editingInspection = inspecting && report;
   const readingInspection = deciding && report;
 
+  /**
+   * Whether the server would actually accept a decision on this report.
+   *
+   * `confirm()` requires Awaiting Approval, except for the two
+   * inspection-exempt reasons, which create no items and are confirmed
+   * straight from Open. Rendering a live Confirm on anything else contradicts
+   * the incident list, which has already told this admin the report is with
+   * the inspector — and the two screens disagreeing about who owns a report is
+   * the whole bug this change exists to fix. The server still refuses either
+   * way; this stops the screen offering something it knows will fail.
+   */
+  const decidable = deciding && report
+    && (report.status_name === 'Awaiting Approval'
+      || (INSPECTION_EXEMPT_REASONS.includes(report.reason) && report.status_name === 'Open'));
+
   return (
     <article className="incdoc">
       <header className="incdoc__head">
@@ -729,7 +744,7 @@ export default function IncidentDocument({
               type="button"
               className="ak-btn"
               onClick={handleDismiss}
-              disabled={submitting || rejecting}
+              disabled={submitting || rejecting || !decidable}
             >
               Dismiss
             </button>
@@ -737,7 +752,7 @@ export default function IncidentDocument({
               type="button"
               className="ak-btn"
               onClick={() => setRejecting((v) => !v)}
-              disabled={submitting}
+              disabled={submitting || !decidable}
             >
               {rejecting ? 'Cancel rejection' : 'Reject'}
             </button>
@@ -745,7 +760,7 @@ export default function IncidentDocument({
               type="button"
               className="ak-btn ak-btn--primary"
               onClick={handleConfirm}
-              disabled={submitting || rejecting}
+              disabled={submitting || rejecting || !decidable}
             >
               {submitting ? 'Confirming…' : 'Confirm'}
             </button>
@@ -789,7 +804,20 @@ export default function IncidentDocument({
         </p>
       )}
 
-      {deciding && !rejecting && (
+      {/* Said in words, never left as three greyed buttons. A disabled control
+          with no explanation is a dead end, and here the reason is the whole
+          point of the status split — this report is somebody else's turn. */}
+      {deciding && report && !decidable && (
+        <div className="ak-state" style={{ marginTop: '0.7rem' }}>
+          {report.status_name === 'Awaiting Inspection'
+            ? 'You sent this back to the inspector. It returns here once they resubmit it.'
+            : report.status_name === 'Open'
+              ? 'Nobody has inspected this yet. It reaches you once an inspector submits their findings.'
+              : `This report is ${report.status_name || 'closed'} — there is nothing left to decide.`}
+        </div>
+      )}
+
+      {deciding && !rejecting && decidable && (
         <p className="ak-muted" style={{ fontSize: '0.8rem', textAlign: 'right', margin: '0.3rem 0 0' }}>
           <strong>Confirming is what moves the stock.</strong> Every unit's outcome is applied in one
           step and cannot be undone from here.
