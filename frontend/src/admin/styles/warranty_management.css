@@ -38,8 +38,25 @@
   display: flex; justify-content: space-between; align-items: flex-start;
   flex-wrap: wrap; gap: 0.9rem;
 }
-.ak-page .war-result--found   { background: #f2fbf6; border-color: #bfe8d0; }
-.ak-page .war-result--expired { background: #fff7ed; border-color: #fde2c2; }
+/* Tinted by STATE, because the panel now answers where a unit is and not only
+   whether a warranty exists. Amber is "look closer" — returned, or sold with no
+   cover recorded — rather than an error. */
+.ak-page .war-result--in_stock         { background: #f2fbf6; border-color: #bfe8d0; }
+.ak-page .war-result--sold             { background: #f4f7ff; border-color: #cddafb; }
+.ak-page .war-result--returned         { background: #fff7ed; border-color: #fde2c2; }
+.ak-page .war-result--sold_no_warranty { background: #fff7ed; border-color: #fde2c2; }
+.ak-page .war-result--unknown          { background: var(--ak-band); border-color: var(--ak-line); }
+
+/* The two clocks, stacked so they read as a pair rather than as competing facts. */
+.ak-page .war-covers {
+  display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.55rem;
+  padding-top: 0.55rem; border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+.ak-page .war-cover-line { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.ak-page .war-cover-title {
+  font-size: 0.76rem; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--ak-ink-faint); min-width: 8.5rem;
+}
 .ak-page .war-result-main  { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 .ak-page .war-result-title { font-family: var(--ak-display); font-weight: 700; font-size: 0.98rem; }
 .ak-page .war-result-line  { font-size: 0.83rem; color: var(--ak-ink-soft); }

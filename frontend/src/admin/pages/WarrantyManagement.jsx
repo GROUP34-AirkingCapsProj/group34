@@ -45,6 +45,46 @@ const DaysChip = ({ endDate, statusId }) => {
   return <span className="ak-badge ak-badge--green">{days}d left</span>;
 };
 
+/**
+ * Where the unit is, in one badge.
+ *
+ * The lookup answers about the UNIT now, not only about a warranty record, so
+ * "no warranty" is no longer the same statement as "we have never seen this".
+ */
+const UNIT_STATES = {
+  in_stock:         { label: 'In inventory', badge: 'ak-badge--green' },
+  returned:         { label: 'Returned by customer', badge: 'ak-badge--amber' },
+  sold:             { label: 'Sold', badge: 'ak-badge--blue' },
+  sold_no_warranty: { label: 'Sold — no warranty on record', badge: 'ak-badge--amber' },
+  unknown:          { label: 'Not recognised', badge: 'ak-badge--gray' },
+};
+
+const WARRANTY_STATES = {
+  in_warranty: { label: 'Active', badge: 'ak-badge--green' },
+  expired:     { label: 'Expired', badge: 'ak-badge--red' },
+  claimed:     { label: 'Claimed', badge: 'ak-badge--blue' },
+  none:        { label: 'None', badge: 'ak-badge--gray' },
+};
+
+const WarrantyLine = ({ title, cover, emptyNote }) => {
+  const meta = WARRANTY_STATES[cover?.state] ?? WARRANTY_STATES.none;
+  const covered = cover?.state === 'in_warranty' || cover?.state === 'expired';
+
+  return (
+    <div className="war-cover-line">
+      <span className="war-cover-title">{title}</span>
+      <span className={`ak-badge ${meta.badge}`}>{meta.label}</span>
+      {covered && cover?.end_date && (
+        <span className="war-result-line">
+          until {fmtDate(cover.end_date)}
+          {cover.supplier_name ? ` · ${cover.supplier_name}` : ''}
+        </span>
+      )}
+      {!covered && emptyNote && <span className="war-result-line">{emptyNote}</span>}
+    </div>
+  );
+};
+
 const StatCard = ({ tone, label, value, children }) => (
   <div className={`ak-stat war-stat--${tone}`}>
     <div className="ak-stat-icon">{children}</div>
@@ -146,10 +186,12 @@ const WarrantyManagement = () => {
 
   const totalPages = pagination.last_page || 1;
 
-  // Resolve serial result fields — API returns { warranty: {...}, is_claimable, ... }
-  const sr = serialResult?.warranty ?? null;
-  const srClaimable = serialResult?.is_claimable ?? false;
-  const srExpired   = serialResult?.is_expired ?? false;
+  // The lookup answers about the unit: { state, unit, sale, incident,
+  // customer_warranty, supplier_warranty }. An unknown serial comes back 200
+  // with state 'unknown' rather than a 404, so it renders as an answer.
+  const sr          = serialResult ?? null;
+  const srState     = UNIT_STATES[sr?.state] ?? null;
+  const srClaimable = sr?.is_claimable ?? false;
 
   return (
     <AdminLayout searchPlaceholder="Search warranties..." onSearch={() => {}}>
@@ -231,20 +273,57 @@ const WarrantyManagement = () => {
 
           {serialError && <div className="ak-state ak-state--error war-result">{serialError}</div>}
 
-          {sr && (
-            <div className={`war-result ${srExpired ? 'war-result--expired' : 'war-result--found'}`}>
+          {sr && srState && (
+            <div className={`war-result war-result--${sr.state}`}>
               <div className="war-result-main">
-                <span className="war-result-title">{sr.product?.product_name ?? '—'}</span>
+                <span className="war-result-title">{sr.unit?.product_name ?? sr.sale?.product_name ?? 'Unit'}</span>
                 <span className="war-result-line ak-mono">SN: {sr.serial_number}</span>
-                <span className="war-result-line">Customer: {sr.customer?.customer_name ?? '—'}</span>
-                <span className="war-result-line">
-                  {sr.warranty_duration_label ?? `${sr.warranty_period_months} mo`}
-                  {' · '}{fmtDate(sr.warranty_start_date)} to {fmtDate(sr.warranty_end_date)}
-                </span>
+
+                {/* Where it is — the question the old panel could not answer. */}
+                {sr.state === 'in_stock' && (
+                  <span className="war-result-line">
+                    {sr.unit?.location_name ?? 'Location unknown'}
+                    {sr.unit?.status_name ? ` · ${sr.unit.status_name}` : ''}
+                  </span>
+                )}
+                {sr.sale && (
+                  <span className="war-result-line">
+                    {sr.sale.customer_name ?? 'Customer unknown'}
+                    {sr.sale.sale_date ? ` · sold ${fmtDate(sr.sale.sale_date)}` : ''}
+                    {sr.sale.dr_number ? ` · ${sr.sale.dr_number}` : ''}
+                  </span>
+                )}
+                {sr.incident && (
+                  <span className="war-result-line">
+                    Held by {sr.incident.incident_number} ({sr.incident.incident_status})
+                  </span>
+                )}
+                {sr.state === 'unknown' && (
+                  <span className="war-result-line">
+                    This serial is not in inventory, not on a sale, and has no warranty record.
+                  </span>
+                )}
+
+                {sr.state !== 'unknown' && (
+                  <div className="war-covers">
+                    <WarrantyLine
+                      title="Customer warranty"
+                      cover={sr.customer_warranty}
+                      emptyNote={sr.customer_warranty?.reason === 'not_sold'
+                        ? 'not sold yet'
+                        : 'no record for this sale'}
+                    />
+                    <WarrantyLine
+                      title="Supplier warranty"
+                      cover={sr.supplier_warranty}
+                      emptyNote="no cover traced to a receiving"
+                    />
+                  </div>
+                )}
               </div>
+
               <div className="war-result-side">
-                <StatusBadge statusId={sr.status_id} />
-                <DaysChip endDate={sr.warranty_end_date} statusId={sr.status_id} />
+                <span className={`ak-badge ${srState.badge}`}>{srState.label}</span>
                 {srClaimable && canClaim && (
                   <button
                     type="button"
