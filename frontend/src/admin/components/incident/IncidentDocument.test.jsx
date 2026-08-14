@@ -1,7 +1,9 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import IncidentDocument from './IncidentDocument';
-import { inventoryBatchesAPI, locationsAPI, productsAPI } from '../../services/api';
+import {
+  incidentReportsAPI, inventoryBatchesAPI, locationsAPI, productsAPI,
+} from '../../services/api';
 
 /**
  * The shell and its mode plumbing.
@@ -34,6 +36,10 @@ beforeEach(() => {
   locationsAPI.getAll.mockResolvedValue({ data: [{ location_id: 1, location_name: 'Carmen' }] });
   productsAPI.getAll.mockResolvedValue({ data: [] });
   inventoryBatchesAPI.getAll.mockResolvedValue({ data: [] });
+  incidentReportsAPI.evidencePhotoBlob.mockResolvedValue(new Blob(['x']));
+  incidentReportsAPI.photoBlob.mockResolvedValue(new Blob(['x']));
+  global.URL.createObjectURL = jest.fn(() => 'blob:fake-url');
+  global.URL.revokeObjectURL = jest.fn();
 });
 
 const renderDoc = async (props = {}) => {
@@ -199,4 +205,96 @@ test('submitting an unfinished inspection says what is outstanding', async () =>
   expect(await screen.findByText(/still outstanding/i)).toBeInTheDocument();
   expect(screen.getByText('an outcome on 1 unit')).toBeInTheDocument();
   expect(screen.getByText(/picture of the defect —/i)).toBeInTheDocument();
+});
+
+/**
+ * A report the inspector has finished with, waiting on the admin.
+ *
+ * The decide-mode test above asserts only on CSS classes, which is why four
+ * empty sections shipped. These assert on what an admin can actually read.
+ */
+const inspectedReport = () => filedReport({
+  status_name: 'Awaiting Inspection',
+  inspection_findings: 'Compressor seized. Casing intact.',
+  checked_by_asc: true,
+  inspected_by_name: 'Rita Cruz',
+  inspected_at: '2026-08-13T09:15:00+08:00',
+  signed_by_representative: 'A. Reyes',
+  signed_by_branch_manager: 'M. Santos',
+  signed_at: '2026-08-13',
+  evidence: [
+    { evidence_id: 1, requirement: 'defect_photo', photo_path: 'incidents/a.jpg', photo_source: 'captured' },
+    { evidence_id: 4, requirement: 'box_two_sides', photo_path: null, skipped_reason: 'the box was already discarded' },
+  ],
+  items: [{
+    ...filedReport().items[0],
+    outcome: 'scrap',
+    outcome_note: 'compressor seized, casing intact',
+  }],
+});
+
+test('decide mode shows the admin the whole inspection, not four empty sections', async () => {
+  await renderDoc({ mode: 'decide', report: inspectedReport() });
+
+  // Findings, and whose judgement this is.
+  expect(screen.getByText(/Compressor seized\. Casing intact\./)).toBeInTheDocument();
+  expect(screen.getByText(/Inspected by Rita Cruz/)).toBeInTheDocument();
+
+  // The outcome that Confirm will apply, and that it moves stock.
+  expect(screen.getByText('Scrap')).toBeInTheDocument();
+  expect(screen.getByText(/Confirming deducts this unit from stock/i)).toBeInTheDocument();
+
+  // The evidence, including why one requirement has no photo.
+  expect(screen.getByText(/the box was already discarded/)).toBeInTheDocument();
+
+  // The names on the hardcopy in their hand.
+  expect(screen.getByText('A. Reyes')).toBeInTheDocument();
+  expect(screen.getByText('M. Santos')).toBeInTheDocument();
+});
+
+test('decide mode gives the admin nothing to write in below the rule', async () => {
+  await renderDoc({ mode: 'decide', report: inspectedReport() });
+
+  // setOutcome is `inspect`-gated and decide is `resolve`-gated: a control here
+  // would 403 rather than save.
+  expect(screen.queryByLabelText(/what happens to this unit/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /can.t provide this/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^remove$/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /submit inspection/i })).not.toBeInTheDocument();
+});
+
+/**
+ * The worst case for a summary: a report the inspector opened and did nothing
+ * to. Every block must say its absence in words — a blank one is exactly the
+ * bug, and "nothing recorded" and "this screen failed to load it" must never
+ * look the same to someone about to move stock.
+ */
+test('decide mode states an empty inspection in words rather than blank space', async () => {
+  await renderDoc({
+    mode: 'decide',
+    report: filedReport({ evidence: [], items: [] }),
+  });
+
+  expect(screen.getByText(/no inspection has been submitted/i)).toBeInTheDocument();
+  expect(screen.getByText(/names no physical units/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/not recorded/i).length).toBeGreaterThan(0);
+  // The evidence checklist still lists what was never answered, rather than
+  // collapsing to nothing and reading as "no photographs were required".
+  expect(screen.getAllByText(/Nothing was attached against this requirement/i).length)
+    .toBeGreaterThan(0);
+});
+
+test('file mode still greys the inspector half rather than summarising it', async () => {
+  await renderDoc();
+
+  // The reporter sees what WILL be asked, so they keep the box instead of
+  // throwing it away. The ternary must not swallow this fallback.
+  expect(screen.getByText(/Picture of the defect/i)).toBeInTheDocument();
+
+  // The other three previews below the rule, for the same reason: all four
+  // took their content as a boolean-gated child, so all four could vanish
+  // together and the class-only test above would still have passed.
+  expect(screen.getByText('Not inspected yet.')).toBeInTheDocument();
+  expect(screen.getByText(/Unit 1 — awaiting inspection/)).toBeInTheDocument();
+  expect(screen.getByText(/Branch manager — name and date/)).toBeInTheDocument();
 });

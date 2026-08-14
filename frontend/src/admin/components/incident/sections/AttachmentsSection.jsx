@@ -31,7 +31,10 @@ export default function AttachmentsSection({ state, reason, returnReasonCode, ch
         ? 'The inspector attaches these. Nothing here is yours to fill in — but if any of it is about to be thrown away, keep it.'
         : undefined}
     >
-      {children ?? (
+      {/* `||`, NOT `??`. A child gated on a boolean arrives here as `false`,
+          and `false ?? fallback` is `false` — which React renders as nothing.
+          That is exactly how four empty sections reached the admin. */}
+      {children || (
         <ul className="incdoc__checklist">
           {required.map((req) => (
             <li key={req}>{requirementMeta(req).label}</li>
