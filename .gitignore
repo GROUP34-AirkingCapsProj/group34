@@ -55,3 +55,4 @@ back-end/.env.testing
 
 # Brainstorming companion scratch (mockups, session state)
 .superpowers/
+backups/
