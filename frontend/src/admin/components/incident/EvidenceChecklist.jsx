@@ -6,10 +6,6 @@ import { toast } from '../../utils/toast';
 import { requirementMeta, requirementsFor } from '../../utils/incidentDocument';
 import { EvidenceThumbnail, PhotoSourceBadge } from './EvidencePhoto';
 
-// Re-exported from its old home so an importer that has not been updated still
-// resolves. It moved because the admin's read-only summary needs it too.
-export { EvidenceThumbnail };
-
 /**
  * The matrix, the labels and both derived lists live in
  * `utils/incidentDocument`, so the document can show a reporter in `file` mode
@@ -23,11 +19,9 @@ export { EvidenceThumbnail };
  * because the admin's READ-ONLY summary needs the labels, and importing them
  * from this file would have pulled CameraCapture, useIncidentPhoto, `toast` and
  * the mutating API calls below into a view that must not be able to write.
- * Re-exported so an importer that has not been updated still resolves.
+ * Import them from the util; this file deliberately re-exports nothing, so the
+ * barrier cannot be crossed by accident.
  */
-export {
-  EVIDENCE_REQUIREMENTS, requirementMeta, requirementsFor, outstandingRequirements,
-} from '../../utils/incidentDocument';
 
 /**
  * Props:

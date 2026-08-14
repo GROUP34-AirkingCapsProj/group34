@@ -32,7 +32,9 @@ import PhotoLightbox from './PhotoLightbox';
  * be a claim the data cannot support. This is the one sanctioned exception to
  * the incident document's state-every-absence rule, and it lives here — in one
  * place, with the reasoning — so it is enforced rather than merely commented at
- * each of the three call sites that used to copy it.
+ * each of the saved-photo call sites that used to copy it. (The live
+ * pre-upload preview in ProblemSummarySection states its own source: nothing
+ * has been saved yet, so there is no null case to get wrong.)
  */
 export function PhotoSourceBadge({ source }) {
   if (!source) return null;
