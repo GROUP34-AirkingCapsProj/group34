@@ -52,6 +52,17 @@ export const isInspectorSection = (key) => INSPECTOR_SECTIONS.includes(key);
 const OUTCOMES_WITHOUT_UNITS = ['relocate', 'none'];
 
 /**
+ * The same two, by REASON rather than by outcome — a direct mirror of
+ * IncidentService::INSPECTION_EXEMPT_REASONS.
+ *
+ * Exported because three screens need it and each had grown its own copy: the
+ * inspector's queue excludes these (there is nothing to inspect), and the
+ * admin's document allows a decision on one straight from Open, since
+ * `confirm()` bypasses the Awaiting Approval guard for exactly these reasons.
+ */
+export const INSPECTION_EXEMPT_REASONS = ['zone_mismatch', 'other'];
+
+/**
  * The human name and the explanatory help for every requirement.
  *
  * Mirrors App\Models\IncidentEvidence::REQUIREMENTS. The server is the

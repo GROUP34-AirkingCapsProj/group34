@@ -4,7 +4,7 @@ import Loader from '../components/Loader';
 import IncidentDocument from '../components/incident/IncidentDocument';
 import { incidentReportsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { DOC_MODES } from '../utils/incidentDocument';
+import { DOC_MODES, INSPECTION_EXEMPT_REASONS } from '../utils/incidentDocument';
 import { reasonLabel } from '../utils/incidentReasons';
 
 /**
@@ -25,9 +25,6 @@ import { reasonLabel } from '../utils/incidentReasons';
  * admin REJECTED back sits at Awaiting Inspection rather than Open, so a queue
  * built on an `is_open` flag would silently lose every rejection.
  */
-
-/** The two reasons that move no stock, and therefore need no inspection. */
-const INSPECTION_EXEMPT_REASONS = ['zone_mismatch', 'other'];
 
 const INSPECTABLE_STATUSES = ['Open', 'Awaiting Inspection'];
 
