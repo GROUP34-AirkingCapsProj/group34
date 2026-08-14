@@ -28,7 +28,10 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [statusFilter, setStatusFilter] = useState('open'); // 'open' | 'all'
+  // Defaults to everything still awaiting somebody. 'open' is status Open
+  // ALONE, which since the Awaiting Approval split hides the reports
+  // submitted for this admin's decision — the ones they came here for.
+  const [statusFilter, setStatusFilter] = useState('unfinished'); // 'unfinished' | 'open' | 'all'
   const [reasonFilter, setReasonFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [locations, setLocations] = useState([]);
@@ -54,7 +57,7 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
     setLoading(true);
     try {
       const params = {};
-      if (statusFilter === 'open') params.status = 'open';
+      if (statusFilter !== 'all') params.status = statusFilter;
       if (reasonFilter) params.reason = reasonFilter;
       if (locationFilter) params.location_id = locationFilter;
       const res = await incidentReportsAPI.list(params);
@@ -71,6 +74,16 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
   useEffect(() => { load(); }, [load]);
 
   useImperativeHandle(ref, () => ({ reload: load }), [load]);
+
+  /**
+   * Whose turn it is, by STATUS rather than by the badge's wording. The Decide
+   * button used to compare the display string, so renaming a label silently
+   * removed the button with nothing to catch it.
+   */
+  const awaitsAdmin = useCallback(
+    (incident) => statusNameById[incident.status_id] === 'Awaiting Approval',
+    [statusNameById],
+  );
 
   const statusLabel = useMemo(() => (incident) => {
     if (incident.is_open) return { text: 'Open', cls: 'ak-badge--amber' };
@@ -113,6 +126,7 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
 
       <div className="ak-toolbar">
         <select className="ak-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="unfinished">Needs attention</option>
           <option value="open">Open only</option>
           <option value="all">All statuses</option>
         </select>
@@ -213,13 +227,13 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
                       <button
                         type="button"
                         className={`ak-btn ak-btn--sm${
-                          canResolve && st.text === 'Awaiting approval' ? ' ak-btn--primary' : ''
+                          canResolve && awaitsAdmin(i) ? ' ak-btn--primary' : ''
                         }`}
                         onClick={() => setSelected(i)}
                       >
                         {!canResolve
                           ? 'View'
-                          : st.text === 'Awaiting approval'
+                          : awaitsAdmin(i)
                             ? 'Decide'
                             : i.is_open ? 'Review' : 'View'}
                       </button>

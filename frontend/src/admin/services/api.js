@@ -1600,7 +1600,7 @@ export const incidentReportsAPI = {
       method: 'POST', body: JSON.stringify(payload),
     }),
 
-  /** Submit the inspection: Open → Awaiting Inspection. Moves no stock. */
+  /** Submit the inspection: Open or Awaiting Inspection → Awaiting Approval. Moves no stock. */
   submitInspection: async (id, payload) =>
     apiRequest(`/incident-reports/${id}/inspection`, { method: 'POST', body: JSON.stringify(payload) }),
 
