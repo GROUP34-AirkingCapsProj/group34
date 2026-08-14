@@ -303,15 +303,37 @@ function RequirementSummary({ incidentId, requirement, attached, alsoAttached = 
       )}
 
       {photos.length > 0 && (
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           {photos.map((e) => (
-            <EvidenceThumbnail
+            <div
               key={e.evidence_id}
-              incidentId={incidentId}
-              evidenceId={e.evidence_id}
-              enlargeable
-              alt={meta.label}
-            />
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}
+            >
+              <EvidenceThumbnail
+                incidentId={incidentId}
+                evidenceId={e.evidence_id}
+                enlargeable
+                alt={meta.label}
+              />
+
+              {/* PROVENANCE, and it matters more to the person approving than to
+                  the one who took the photo. Never "verified": a capture and a
+                  gallery pick arrive as identical uploads, so this states only
+                  what the app observed — a temptation to read as proof that is
+                  stronger here, on the screen where stock is written off.
+
+                  Nothing renders when photo_source is null, which is the one
+                  sanctioned exception to this file's state-every-absence rule.
+                  Reports filed before the camera existed genuinely do not know
+                  how their photo arrived, and labelling them "unknown" would be
+                  a claim the data does not support. ReportPhoto.jsx makes the
+                  same choice for the same reason — please leave it. */}
+              {e.photo_source && (
+                <span className={`ak-badge ${e.photo_source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
+                  {e.photo_source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
+                </span>
+              )}
+            </div>
           ))}
         </div>
       )}

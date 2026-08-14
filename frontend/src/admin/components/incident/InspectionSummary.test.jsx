@@ -247,6 +247,45 @@ describe('EvidenceSummary', () => {
     expect(await screen.findAllByRole('button', { name: /enlarge/i })).toHaveLength(3);
   });
 
+  // Provenance, and it matters more to the approver than to the photographer.
+  // "Taken in-app" means the app watched the capture happen; "Uploaded from
+  // device" means the file came from somewhere it cannot vouch for. An admin
+  // writing off stock on the strength of a photograph should know which.
+  //
+  // Counted per label rather than merely asserted present: the fixture holds
+  // two captures and one upload, so a badge hardcoded to either wording still
+  // renders something for every photo and would pass a presence check.
+  test('each photo says whether the app watched it being taken', async () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="defective"
+      checkedByAsc={false}
+      evidence={defectiveEvidence}
+    />);
+
+    await screen.findAllByRole('button', { name: /enlarge/i });
+
+    expect(screen.getAllByText('Taken in-app')).toHaveLength(2);
+    expect(screen.getAllByText('Uploaded from device')).toHaveLength(1);
+  });
+
+  // The one sanctioned exception to this file's state-every-absence rule.
+  // Reports filed before the camera existed do not know how their photo
+  // arrived, and "unknown" would be a claim the data cannot support.
+  test('a photo of unknown provenance claims no provenance at all', async () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="wrong_type"
+      checkedByAsc={false}
+      evidence={[{ evidence_id: 7, requirement: 'model_serial_sticker', photo_path: 'incidents/old.jpg' }]}
+    />);
+
+    expect(await screen.findByRole('button', { name: /enlarge/i })).toBeInTheDocument();
+    expect(screen.queryByText('Taken in-app')).not.toBeInTheDocument();
+    expect(screen.queryByText('Uploaded from device')).not.toBeInTheDocument();
+    expect(screen.queryByText(/unknown/i)).not.toBeInTheDocument();
+  });
+
   test('an outstanding requirement says nothing was attached and no reason given', () => {
     render(<EvidenceSummary incidentId={5} reason="wrong_type" checkedByAsc={false} evidence={[]} />);
 
