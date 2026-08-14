@@ -17,6 +17,11 @@ import { formatPieces } from '../../utils/packageFormat';
  * way, which is the entire point of it existing. If it ever needs to know which
  * half is calling it, that is the signal this extraction was wrong and the two
  * headers were never really the same thing.
+ *
+ * MUST be rendered as a direct child of a `<fieldset>`. It returns a fragment
+ * whose first node is a `<legend>`, and a legend outside a fieldset is invalid
+ * DOM that no lint rule and no test here would catch — it simply renders
+ * inconsistently between browsers.
  */
 export function UnitIdentity({ item }) {
   const status = itemStatusMeta(item.status);
