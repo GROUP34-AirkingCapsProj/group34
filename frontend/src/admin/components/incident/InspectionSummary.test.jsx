@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { FindingsSummary, OutcomeSummary } from './InspectionSummary';
+import { FindingsSummary, OutcomeSummary, SignatureSummary } from './InspectionSummary';
 
 /**
  * The admin's read-only half of the incident document.
@@ -117,5 +117,26 @@ describe('OutcomeSummary', () => {
     render(<OutcomeSummary items={[]} />);
 
     expect(screen.getByText(/names no physical units/i)).toBeInTheDocument();
+  });
+});
+
+describe('SignatureSummary', () => {
+  test('shows both names and the date from the signed hardcopy', () => {
+    render(<SignatureSummary report={{
+      signed_by_representative: 'A. Reyes',
+      signed_by_branch_manager: 'M. Santos',
+      signed_at: '2026-08-13',
+    }} />);
+
+    expect(screen.getByText('A. Reyes')).toBeInTheDocument();
+    expect(screen.getByText('M. Santos')).toBeInTheDocument();
+    expect(screen.getByText('2026-08-13')).toBeInTheDocument();
+  });
+
+  // An unsigned form is a fact the admin needs, not an empty box to skim past.
+  test('names each missing signature rather than leaving a gap', () => {
+    render(<SignatureSummary report={{}} />);
+
+    expect(screen.getAllByText(/Not recorded/i)).toHaveLength(3);
   });
 });
