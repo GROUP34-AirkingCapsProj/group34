@@ -76,9 +76,15 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
     if (incident.is_open) return { text: 'Open', cls: 'ak-badge--amber' };
     const name = statusNameById[incident.status_id];
     if (name === 'Dismissed') return { text: 'Dismissed', cls: 'ak-badge--gray' };
-    // Approved, but its stock is still sitting in Held Stock waiting for
-    // someone to inspect it. Deliberately NOT green — nothing is finished.
-    if (name === 'Awaiting Inspection') return { text: 'Awaiting inspection', cls: 'ak-badge--blue' };
+    // The admin owes a decision on this one. Deliberately NOT green — nothing
+    // is finished, and its stock is still quarantined.
+    if (name === 'Awaiting Approval') return { text: 'Awaiting approval', cls: 'ak-badge--blue' };
+    // Sent back: it is the INSPECTOR's turn, not the admin's. Grey rather than
+    // blue so an admin scanning this list can see at a glance that they are not
+    // the one holding it up. The two used to share a status, which is why every
+    // submitted inspection reappeared in the inspector's queue badged
+    // "Sent back".
+    if (name === 'Awaiting Inspection') return { text: 'Sent back to inspector', cls: 'ak-badge--gray' };
     // Default to Resolved once reviewed — covers the brief window before the
     // status lookup has loaded, and any status other than Open/Dismissed.
     return { text: name || 'Resolved', cls: 'ak-badge--green' };
@@ -198,20 +204,22 @@ const IncidentList = React.forwardRef(function IncidentList(_props, ref) {
                     </td>
                     <td><span className={`ak-badge ${st.cls}`}>{st.text}</span></td>
                     <td>
-                      {/* A report at Awaiting Inspection is waiting on the ADMIN,
-                          not the inspector — its inspection is already submitted.
-                          Labelling it "View" like a closed report gave the person
-                          who has to act on it no signal that it needs them. */}
+                      {/* A report at Awaiting Approval is waiting on the ADMIN
+                          — its inspection is already submitted. Labelling it
+                          "View" like a closed report gave the person who has to
+                          act on it no signal that it needs them. A report sent
+                          back to the inspector is NOT theirs to act on, and
+                          must not offer Decide. */}
                       <button
                         type="button"
                         className={`ak-btn ak-btn--sm${
-                          canResolve && st.text === 'Awaiting inspection' ? ' ak-btn--primary' : ''
+                          canResolve && st.text === 'Awaiting approval' ? ' ak-btn--primary' : ''
                         }`}
                         onClick={() => setSelected(i)}
                       >
                         {!canResolve
                           ? 'View'
-                          : st.text === 'Awaiting inspection'
+                          : st.text === 'Awaiting approval'
                             ? 'Decide'
                             : i.is_open ? 'Review' : 'View'}
                       </button>
