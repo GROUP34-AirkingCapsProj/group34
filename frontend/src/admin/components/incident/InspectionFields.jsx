@@ -107,7 +107,7 @@ export function OutcomeRows({ items, disabled, onSave }) {
  * gate on `claim_warranty` is a real warranty record with an unexpired end
  * date, and setOutcome() enforces it with a 422 — so re-deriving it here could
  * only ever produce a screen that offers something the endpoint refuses, or
- * hides something it would have accepted. ITEM_OUTCOMES is consulted for
+ * hides something it would have accepted. `outcomeLabel` is consulted for
  * WORDING alone.
  */
 function ItemOutcomeRow({ item, disabled, onSave }) {
