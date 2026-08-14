@@ -4,7 +4,7 @@ import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 import { incidentReportsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
 import { requirementMeta, requirementsFor } from '../../utils/incidentDocument';
-import { EvidenceThumbnail } from './EvidencePhoto';
+import { EvidenceThumbnail, PhotoSourceBadge } from './EvidencePhoto';
 
 // Re-exported from its old home so an importer that has not been updated still
 // resolves. It moved because the admin's read-only summary needs it too.
@@ -204,13 +204,7 @@ function RequirementBlock({ incidentId, requirement, attached, onAdded, onRemove
               <strong>Skipped:</strong> {e.skipped_reason}
             </span>
           )}
-          {e.photo_source && (
-            <span className={`ak-badge ${e.photo_source === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
-              {/* Never "verified": a capture and a gallery pick arrive as
-                  identical uploads, so this states what the app observed. */}
-              {e.photo_source === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
-            </span>
-          )}
+          <PhotoSourceBadge source={e.photo_source} />
           <button
             type="button"
             className="ak-btn ak-btn--sm"

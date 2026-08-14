@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { incidentReportsAPI } from '../../services/api';
+import { PhotoSourceBadge } from './EvidencePhoto';
 
 /**
  * The one photo the REPORTER attached at filing, shown on the locked document.
@@ -48,16 +49,11 @@ export default function ReportPhoto({ incidentId, photoPath, photoSource }) {
   return (
     <div className="ak-field">
       <span className="ak-label">Photo filed with the report</span>
-      {/* Nothing renders when photo_source is null: reports filed before the
-          camera existed genuinely do not know how their photo arrived, and a
-          badge on them would be an invented claim. Never "verified" either — a
-          capture and a gallery pick arrive as identical uploads, so this states
-          only what the app observed. */}
+      {/* A null source renders nothing rather than "unknown" — PhotoSourceBadge
+          owns that rule, and the reasoning, for all three call sites. */}
       {photoSource && (
         <div>
-          <span className={`ak-badge ${photoSource === 'captured' ? 'ak-badge--green' : 'ak-badge--gray'}`}>
-            {photoSource === 'captured' ? 'Taken in-app' : 'Uploaded from device'}
-          </span>
+          <PhotoSourceBadge source={photoSource} />
         </div>
       )}
       {url ? (
