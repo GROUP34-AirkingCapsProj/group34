@@ -58,17 +58,18 @@ Both `Awaiting Inspection` rows — `INC-20260811-7F249` (id 16) and
 so both migrate cleanly with no guessing. **There are currently zero ambiguous
 rows.**
 
-The migration must still implement the ambiguous-row rule below, because it has
-to be correct against whatever is in the table on the day it runs.
+The migration must still implement the full rule below, because it has to be
+correct against whatever is in the table on the day it runs — including reports
+that get rejected between now and the deploy.
 
 ## Constraints
 
-- **`rejection_note` is never cleared.** `submitInspection()` (:243-250) writes
-  status, inspector, findings and signatures but leaves the note, so a report
-  that was rejected, fixed and resubmitted still carries it. That is why the
-  note alone cannot identify a rejected row, and why
-  `IncidentDocument.jsx:503` shows "Sent back by the admin" on reports that have
-  since been fixed.
+- **`rejection_note` is already cleared on resubmit** — `IncidentService.php:255`
+  sets it to null inside `submitInspection()`, with a comment saying a
+  resubmission answers the rejection. This makes the note an exact marker: it is
+  non-null only on a report the admin sent back that the inspector has not yet
+  resubmitted. The migration rule below relies on that, and nothing needs to
+  change here.
 - **Statuses are read by NAME, never by id.** Ids are install-specific. Every
   call site already follows this.
 - **`Open` cannot be collapsed away.** The two inspection-exempt reasons
@@ -112,9 +113,8 @@ the existing entry.
 **`IncidentService::submitInspection()`** (:221)
 - accepts from `Open` or `Awaiting Inspection`, unchanged
 - writes `Awaiting Approval` instead of `Awaiting Inspection`
-- **clears `rejection_note` to null.** The note described a round trip that this
-  submission closes. Leaving it makes the admin's own screen accuse a fixed
-  report of being rejected, and makes the field useless as a signal.
+- already clears `rejection_note` (:255) — unchanged, and it is what makes the
+  migration rule exact
 
 **`IncidentService::confirm()`** (:304) — the guard at :308 requires
 `Awaiting Approval`. The exempt-reason bypass is unchanged.
@@ -144,10 +144,16 @@ A single migration, run before the code change takes effect.
    - `inspected_at IS NOT NULL`
 3. Leave every other row untouched.
 
-Rule 3 routes anything ambiguous to the **inspector**, which is the recoverable
-direction. A report wrongly sent to the inspector costs one resubmit; a report
-wrongly sent to the admin can be confirmed, and **confirming is the one action
-that moves stock**.
+Because `submitInspection()` clears the note (:255), a non-null
+`rejection_note` at `Awaiting Inspection` can only mean "sent back and not yet
+resubmitted". The rule is therefore exact rather than a guess, and there is no
+population of genuinely ambiguous rows.
+
+Rule 3 still exists as a floor: anything that does not match all three
+conditions — a row with no `inspected_at`, or any shape not anticipated here —
+stays with the **inspector**, which is the recoverable direction. A report
+wrongly sent to the inspector costs one resubmit; a report wrongly sent to the
+admin can be confirmed, and **confirming is the one action that moves stock**.
 
 The migration reports how many rows it moved and how many `Awaiting Inspection`
 rows it left behind, so the result can be checked against expectation.
