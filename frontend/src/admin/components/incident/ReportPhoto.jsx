@@ -56,9 +56,11 @@ export default function ReportPhoto({ incidentId, photoPath, photoSource }) {
       <span className="ak-label">Photo filed with the report</span>
       {/* A null source renders nothing rather than "unknown" — PhotoSourceBadge
           owns that rule, and the reasoning, for all three call sites. */}
-      <div>
-        <PhotoSourceBadge source={photoSource} />
-      </div>
+      {photoSource && (
+        <div>
+          <PhotoSourceBadge source={photoSource} />
+        </div>
+      )}
       {url ? (
         <>
           {/* Enlargeable for the same reason the evidence thumbnails are: the

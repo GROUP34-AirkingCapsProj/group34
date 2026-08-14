@@ -7,11 +7,11 @@ import { toBackendInstant } from '../../utils/incidentFlow';
 import { toClientPayload, toItemPayload } from '../../utils/incidentItems';
 import { newUnit, resolveUnits } from '../../utils/incidentUnits';
 import {
-  DOC_MODES, SECTION, formFromReport, sectionsFor, sectionState,
+  DOC_MODES, SECTION, formFromReport, requirementMeta, sectionsFor, sectionState,
   toLocalInputValue, whatInspectionIsMissing, whatIsMissing,
 } from '../../utils/incidentDocument';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
-import EvidenceChecklist, { requirementMeta } from './EvidenceChecklist';
+import EvidenceChecklist from './EvidenceChecklist';
 import IncidentReportPrint from './IncidentReportPrint';
 import { FindingsFields, OutcomeRows, SignatureFields } from './InspectionFields';
 import { FindingsSummary, OutcomeSummary, SignatureSummary } from './InspectionSummary';
@@ -47,9 +47,17 @@ import '../../styles/incident_document.css';
  * see both. Hiding a completed section to tidy the screen is how the person
  * with the authority to approve ends up approving something they never read.
  *
- * This file owns `file` and `inspect`. Task 10 adds `decide` against the same
- * section list and the same `sectionState()` rules, and Task 11 prints this
- * same markup.
+ * All three modes run off the same section list and the same `sectionState()`
+ * rules, and IncidentReportPrint prints this same document. Below the rule each
+ * section takes its content as `children`: the editable fields in `inspect`,
+ * the read-only summaries in `decide`, and `null` in `file` so the section's own
+ * greyed preview shows through.
+ *
+ * Those children must be `null` and never `false` when there is nothing to
+ * render. `{children ?? fallback}` returned `false` for a boolean-gated child,
+ * which React draws as nothing — that is how the admin came to be shown four
+ * empty sections and asked to confirm a stock movement they could not see. The
+ * sections now use `||`, but pass `null` here regardless.
  *
  * Props:
  *   mode        {'file'|'inspect'|'decide'}  defaults to `file`

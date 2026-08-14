@@ -16,8 +16,9 @@ import { evidenceRequirementsFor, requirementMeta } from '../../../utils/inciden
  * sellable. Mirrors App\Models\IncidentEvidence::requiredFor(); the server is
  * the authority and this list exists so nobody is told after a 422.
  *
- * Task 9 makes this editable in `inspect` mode by rendering EvidenceChecklist
- * in place of the preview below.
+ * Both later modes replace the preview with `children`: `inspect` renders
+ * EvidenceChecklist, which writes, and `decide` renders EvidenceSummary, which
+ * shows the same evidence read-only.
  */
 export default function AttachmentsSection({ state, reason, returnReasonCode, children }) {
   const required = evidenceRequirementsFor(reason, returnReasonCode);

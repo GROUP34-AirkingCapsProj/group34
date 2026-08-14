@@ -43,5 +43,3 @@ export function UnitIdentity({ item }) {
     </>
   );
 }
-
-export default UnitIdentity;
