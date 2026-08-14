@@ -40,9 +40,17 @@ class IncidentStatusSeeder extends Seeder
         // resolved — nobody has decided anything yet. Reading "Resolved" on the
         // triage list while the units sit un-inspected in a corner overstates
         // what filing actually did.
-        DB::table('status_lookup')->updateOrInsert(
-            ['status_category' => 'incident', 'status_name' => 'Awaiting Inspection'],
-            ['is_active' => 1, 'updated_at' => now(), 'created_at' => now()],
-        );
+        //
+        // The two are separate owners, not two words for one state: Awaiting
+        // Inspection is the INSPECTOR's turn (the admin sent it back) and
+        // Awaiting Approval is the ADMIN's (the inspection is submitted).
+        // Sharing one status made every submitted inspection reappear in the
+        // inspector's queue badged "Sent back".
+        foreach (['Awaiting Inspection', 'Awaiting Approval'] as $name) {
+            DB::table('status_lookup')->updateOrInsert(
+                ['status_category' => 'incident', 'status_name' => $name],
+                ['is_active' => 1, 'updated_at' => now(), 'created_at' => now()],
+            );
+        }
     }
 }
