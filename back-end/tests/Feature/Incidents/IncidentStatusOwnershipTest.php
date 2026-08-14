@@ -490,4 +490,51 @@ class IncidentStatusOwnershipTest extends TestCase
 
         app(IncidentService::class)->decide($submitted, 'reject', ['rejection_note' => '   '], $this->actorId());
     }
+
+    /**
+     * The admin's worklist filter.
+     *
+     * `scopeOpen()` is status Open ALONE. Since the split, a report submitted
+     * for the admin's decision is Awaiting Approval — so a worklist built on
+     * `open()` hides exactly the reports it exists to surface. With no Open
+     * reports on the books it renders an empty list while inspections wait,
+     * which is what the live data looked like: 0 Open, 2 Awaiting Approval.
+     */
+    public function test_the_unfinished_scope_includes_a_report_waiting_on_the_admin(): void
+    {
+        $submitted = $this->submittedReport();
+
+        $unfinished = IncidentReport::query()->unfinished()->pluck('incident_id')->all();
+        $openOnly   = IncidentReport::query()->open()->pluck('incident_id')->all();
+
+        $this->assertContains((int) $submitted->incident_id, array_map('intval', $unfinished));
+        $this->assertNotContains(
+            (int) $submitted->incident_id,
+            array_map('intval', $openOnly),
+            'scopeOpen is Open alone — this is why the admin needed a wider filter.'
+        );
+    }
+
+    public function test_the_unfinished_scope_includes_a_report_sent_back_to_the_inspector(): void
+    {
+        $rejected = $this->sentBackReport();
+
+        $this->assertContains(
+            (int) $rejected->incident_id,
+            array_map('intval', IncidentReport::query()->unfinished()->pluck('incident_id')->all())
+        );
+    }
+
+    /** Finished is finished: a decided report drops out of every worklist. */
+    public function test_the_unfinished_scope_excludes_a_decided_report(): void
+    {
+        $dismissed = app(IncidentService::class)
+            ->decide($this->fileIncident(), 'dismiss', [], $this->actorId());
+
+        $this->assertSame($this->incidentStatusId('Dismissed'), (int) $dismissed->status_id);
+        $this->assertNotContains(
+            (int) $dismissed->incident_id,
+            array_map('intval', IncidentReport::query()->unfinished()->pluck('incident_id')->all())
+        );
+    }
 }

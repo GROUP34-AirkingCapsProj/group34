@@ -27,8 +27,15 @@ class IncidentReportController extends Controller
         $query = IncidentReport::with(['product.consumableDetail', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance', 'status'])
             ->forUser(Auth::user());   // location scoping, same trait every other list uses
 
+        // `open` is strictly status Open and is kept for callers that mean it.
+        // `unfinished` is the one a worklist wants: everything still awaiting
+        // somebody, which since the Awaiting Approval split is three statuses
+        // rather than one.
         if ($request->query('status') === 'open') {
             $query->open();
+        }
+        if ($request->query('status') === 'unfinished') {
+            $query->unfinished();
         }
         if ($reason = $request->query('reason')) {
             $query->where('reason', $reason);

@@ -144,6 +144,27 @@ class IncidentReport extends Model
         return $query->where('status_id', self::statusId('Open'));
     }
 
+    /**
+     * Everything still in flight — whoever it is waiting on.
+     *
+     * Open, Awaiting Inspection and Awaiting Approval are three different
+     * people's turns, and `scopeOpen()` is only the first of them. An admin's
+     * worklist built on `open()` shows the reports nobody has inspected yet and
+     * HIDES the ones submitted for their decision, which is the exact opposite
+     * of what they came to the screen for — with no Open reports on the books,
+     * it renders an empty list while inspections sit waiting.
+     *
+     * Defined as "not finished" rather than as a list of the three, so a status
+     * added later lands in somebody's queue rather than silently nowhere.
+     */
+    public function scopeUnfinished(Builder $query): Builder
+    {
+        return $query->whereNotIn('status_id', [
+            self::statusId('Resolved'),
+            self::statusId('Dismissed'),
+        ]);
+    }
+
     /** The physical things this report is about — one row per unit. */
     public function items(): HasMany
     {
