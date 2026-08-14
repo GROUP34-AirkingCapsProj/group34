@@ -55,5 +55,3 @@ export function EvidenceThumbnail({ incidentId, evidenceId, size = 64 }) {
     />
   );
 }
-
-export default EvidenceThumbnail;
