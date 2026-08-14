@@ -3,7 +3,7 @@ import CameraCapture from '../CameraCapture';
 import { useIncidentPhoto } from '../../hooks/useIncidentPhoto';
 import { incidentReportsAPI } from '../../services/api';
 import { toast } from '../../utils/toast';
-import { requirementsFor } from '../../utils/incidentDocument';
+import { requirementMeta, requirementsFor } from '../../utils/incidentDocument';
 import { EvidenceThumbnail } from './EvidencePhoto';
 
 // Re-exported from its old home so an importer that has not been updated still
@@ -11,74 +11,23 @@ import { EvidenceThumbnail } from './EvidencePhoto';
 export { EvidenceThumbnail };
 
 /**
- * The client's photographic evidence checklist.
+ * The matrix, the labels and both derived lists live in
+ * `utils/incidentDocument`, so the document can show a reporter in `file` mode
+ * what the inspector will be asked for and block submission on the same list
+ * the checklist renders — one list, not three that can disagree. They mirror
+ * App\Models\IncidentEvidence::requiredFor() and ::REQUIREMENTS, which are the
+ * authority; the client copy exists so an inspector is told what is outstanding
+ * before they submit rather than after a 422.
  *
- * Mirrors App\Models\IncidentEvidence::REQUIREMENTS and REQUIRED_BY_REASON. The
- * server is the authority; this list exists so the inspector is told what is
- * still outstanding before they submit rather than after a 422.
+ * EVIDENCE_REQUIREMENTS and requirementMeta were defined here once. They moved
+ * because the admin's READ-ONLY summary needs the labels, and importing them
+ * from this file would have pulled CameraCapture, useIncidentPhoto, `toast` and
+ * the mutating API calls below into a view that must not be able to write.
+ * Re-exported so an importer that has not been updated still resolves.
  */
-export const EVIDENCE_REQUIREMENTS = [
-  {
-    value: 'defect_photo',
-    label: 'Picture of the defect',
-    help: 'The fault itself, close enough to see what is wrong.',
-  },
-  {
-    value: 'model_serial_sticker',
-    label: 'Model / serial sticker',
-    help: 'The sticker on the unit, readable. Where the label does not match the goods, this is the evidence.',
-  },
-  {
-    value: 'box_two_sides',
-    label: 'Two sides of the box',
-    help: 'Including the side carrying the serial sticker. Two photos are expected here, not one.',
-  },
-  {
-    value: 'accessories_warranty',
-    label: 'Accessories and warranty card',
-    help: 'The complete accessories laid out, with the warranty card visible.',
-  },
-  {
-    value: 'asc_service_report',
-    label: 'ASC service report',
-    help: 'The service centre’s written report.',
-  },
-  {
-    value: 'wrong_product_photo',
-    label: 'The product that actually arrived',
-    help: 'What was delivered, with its label readable — half of what proves the delivery was wrong.',
-  },
-  {
-    value: 'correct_product_photo',
-    label: 'The product that should have arrived',
-    help: 'What was ordered — the order line, the catalogue page, or the correct unit. The other half of the pair.',
-  },
-  {
-    value: 'returned_goods_photo',
-    label: 'The returned goods',
-    help: 'The goods as they came back, so it is on record whether they are still sellable.',
-  },
-  {
-    value: 'receipt_or_dor',
-    label: 'Receipt or delivery receipt (DOR)',
-    help: 'The document proving the delivery happened. Asked for on every return.',
-  },
-];
-
-export const requirementMeta = (value) =>
-  EVIDENCE_REQUIREMENTS.find((r) => r.value === value)
-  || { value, label: String(value || '').replace(/_/g, ' '), help: '' };
-
-/**
- * The matrix and both derived lists live in `utils/incidentDocument`, so the
- * document can show a reporter in `file` mode what the inspector will be asked
- * for and block submission on the same list the checklist renders — one list,
- * not three that can disagree. They mirror
- * App\Models\IncidentEvidence::requiredFor(), which is the authority; the
- * client copy exists so an inspector is told what is outstanding before they
- * submit rather than after a 422.
- */
-export { requirementsFor, outstandingRequirements } from '../../utils/incidentDocument';
+export {
+  EVIDENCE_REQUIREMENTS, requirementMeta, requirementsFor, outstandingRequirements,
+} from '../../utils/incidentDocument';
 
 /**
  * Props:

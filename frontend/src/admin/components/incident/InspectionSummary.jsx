@@ -5,8 +5,7 @@ import {
 } from '../../utils/incidentItems';
 import { UnitIdentity } from './UnitIdentity';
 import { EvidenceThumbnail } from './EvidencePhoto';
-import { requirementMeta } from './EvidenceChecklist';
-import { requirementsFor } from '../../utils/incidentDocument';
+import { requirementMeta, requirementsFor } from '../../utils/incidentDocument';
 
 /**
  * The inspector's half of the document, READ-ONLY — the admin's view.
