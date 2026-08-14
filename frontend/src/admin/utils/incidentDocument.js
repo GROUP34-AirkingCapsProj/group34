@@ -52,6 +52,78 @@ export const isInspectorSection = (key) => INSPECTOR_SECTIONS.includes(key);
 const OUTCOMES_WITHOUT_UNITS = ['relocate', 'none'];
 
 /**
+ * The human name and the explanatory help for every requirement.
+ *
+ * Mirrors App\Models\IncidentEvidence::REQUIREMENTS. The server is the
+ * authority; this list exists so the inspector is told what is still
+ * outstanding before they submit rather than after a 422.
+ *
+ * IT LIVES HERE, not in EvidenceChecklist, because the admin's read-only
+ * summary needs the labels too — and reaching into the checklist for them would
+ * drag CameraCapture, useIncidentPhoto, `toast` and the MUTATING half of
+ * incidentReportsAPI into the one view whose defining property is that it
+ * cannot write. A label lookup is a pure fact about the document, so it belongs
+ * beside the other pure facts about the document.
+ */
+export const EVIDENCE_REQUIREMENTS = [
+  {
+    value: 'defect_photo',
+    label: 'Picture of the defect',
+    help: 'The fault itself, close enough to see what is wrong.',
+  },
+  {
+    value: 'model_serial_sticker',
+    label: 'Model / serial sticker',
+    help: 'The sticker on the unit, readable. Where the label does not match the goods, this is the evidence.',
+  },
+  {
+    value: 'box_two_sides',
+    label: 'Two sides of the box',
+    help: 'Including the side carrying the serial sticker. Two photos are expected here, not one.',
+  },
+  {
+    value: 'accessories_warranty',
+    label: 'Accessories and warranty card',
+    help: 'The complete accessories laid out, with the warranty card visible.',
+  },
+  {
+    value: 'asc_service_report',
+    label: 'ASC service report',
+    help: 'The service centre’s written report.',
+  },
+  {
+    value: 'wrong_product_photo',
+    label: 'The product that actually arrived',
+    help: 'What was delivered, with its label readable — half of what proves the delivery was wrong.',
+  },
+  {
+    value: 'correct_product_photo',
+    label: 'The product that should have arrived',
+    help: 'What was ordered — the order line, the catalogue page, or the correct unit. The other half of the pair.',
+  },
+  {
+    value: 'returned_goods_photo',
+    label: 'The returned goods',
+    help: 'The goods as they came back, so it is on record whether they are still sellable.',
+  },
+  {
+    value: 'receipt_or_dor',
+    label: 'Receipt or delivery receipt (DOR)',
+    help: 'The document proving the delivery happened. Asked for on every return.',
+  },
+];
+
+/**
+ * Falls back to the raw value with its underscores opened out rather than
+ * returning nothing. A requirement the server knows about and this list does not
+ * must still render as words — a blank checklist line is the exact failure the
+ * read-only summary exists to prevent.
+ */
+export const requirementMeta = (value) =>
+  EVIDENCE_REQUIREMENTS.find((r) => r.value === value)
+  || { value, label: String(value || '').replace(/_/g, ' '), help: '' };
+
+/**
  * What each type is asked to photograph. Mirrors
  * App\Models\IncidentEvidence::requiredFor() — reason-driven, not type-driven.
  *

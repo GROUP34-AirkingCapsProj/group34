@@ -1,7 +1,6 @@
 import React from 'react';
 import DocumentSection from './DocumentSection';
-import { evidenceRequirementsFor } from '../../../utils/incidentDocument';
-import { requirementMeta } from '../EvidenceChecklist';
+import { evidenceRequirementsFor, requirementMeta } from '../../../utils/incidentDocument';
 
 /**
  * The photographic evidence checklist — the inspector's, not the reporter's.
