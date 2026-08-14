@@ -177,7 +177,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
         // Acknowledge sends the existing 'confirm' action; only the label differs.
         // Moved from /resolve to /decide, and it still lands directly on
         // Resolved: `other` is inspection-exempt, so there is no intervening
-        // Awaiting Inspection to walk through.
+        // Awaiting Inspection or Awaiting Approval to walk through.
         $this->actingAs($ia, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", [
                  'action' => 'confirm', 'resolution_note' => 'Maintenance ticket raised.',

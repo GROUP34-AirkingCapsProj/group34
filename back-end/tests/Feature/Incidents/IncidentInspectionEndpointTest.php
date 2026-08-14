@@ -193,7 +193,7 @@ class IncidentInspectionEndpointTest extends TestCase
             ->assertOk();
 
         $this->assertSame(
-            IncidentReport::statusId('Awaiting Inspection'),
+            IncidentReport::statusId('Awaiting Approval'),
             (int) $incident->refresh()->status_id
         );
         $this->assertSame(100, (int) $inventory->refresh()->quantity_on_hand,
@@ -275,7 +275,7 @@ class IncidentInspectionEndpointTest extends TestCase
             ->assertStatus(403);
 
         $this->assertSame(
-            IncidentReport::statusId('Awaiting Inspection'),
+            IncidentReport::statusId('Awaiting Approval'),
             (int) $incident->refresh()->status_id
         );
     }

@@ -100,7 +100,8 @@ class IncidentReportController extends Controller
                 // cannot tell a report an admin REJECTED back to the inspector
                 // (Awaiting Inspection) from one that is finished, so an
                 // inspector's worklist built on it silently loses every
-                // rejection.
+                // rejection. A submitted inspection is Awaiting Approval and
+                // belongs to the admin.
                 'status_name'             => $i->status?->status_name,
                 'is_open'                 => (int) $i->status_id === IncidentReport::statusId('Open'),
                 'reviewed_by_name'        => $i->reviewedBy !== null
