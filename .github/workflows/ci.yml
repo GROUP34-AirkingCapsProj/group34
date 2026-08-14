@@ -69,7 +69,13 @@ jobs:
         with:
           # Matches local dev (8.2.30); composer.json requires ^8.2.
           php-version: "8.2"
-          extensions: mbstring, xml, ctype, json, pdo_mysql, bcmath
+          # gd is required by the tests, not by the app: Laravel's
+          # UploadedFile::fake()->image() generates a real image to upload, and
+          # throws "GD extension is not installed" without it. Leaving it out
+          # fails 13 tests across IncidentPhotoUploadTest, AccountAvatarTest and
+          # AccountPolicyEnforcementTest for a reason that has nothing to do with
+          # the code under test.
+          extensions: mbstring, xml, ctype, json, pdo_mysql, bcmath, gd
           coverage: none
       - name: Get Composer cache dir
         id: composer-cache
