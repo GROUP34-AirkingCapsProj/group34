@@ -4,6 +4,9 @@ import {
   supplierWarrantyDetail, supplierWarrantyMeta, warrantyStateMeta,
 } from '../../utils/incidentItems';
 import { UnitIdentity } from './UnitIdentity';
+import { EvidenceThumbnail } from './EvidencePhoto';
+import { requirementMeta } from './EvidenceChecklist';
+import { requirementsFor } from '../../utils/incidentDocument';
 
 /**
  * The inspector's half of the document, READ-ONLY — the admin's view.
@@ -211,5 +214,113 @@ export function SignatureSummary({ report }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * The evidence checklist as the ADMIN reads it — the same requirements the
+ * inspector answered, with no way to add, skip or remove anything.
+ *
+ * This is the section the whole change exists for: it rendered completely
+ * empty, so an admin approving a write-off could not see a single photograph of
+ * the unit being written off.
+ *
+ * `checkedByAsc` must come from the SAVED report rather than any local state.
+ * Ticking the ASC box is what adds the service report to the required list, and
+ * the admin is reading what was submitted, not composing it.
+ */
+export function EvidenceSummary({ incidentId, reason, checkedByAsc, returnReasonCode, evidence }) {
+  const required = requirementsFor(reason, checkedByAsc, returnReasonCode);
+  const rows = Array.isArray(evidence) ? evidence : [];
+  const extra = rows.filter((e) => !required.includes(e.requirement));
+
+  if (required.length === 0 && extra.length === 0) {
+    return <p style={{ margin: 0 }}>This type of report asks for no photographs.</p>;
+  }
+
+  return (
+    <div className="ak-field" style={{ gap: '0.8rem' }}>
+      {required.map((req) => (
+        <RequirementSummary
+          key={req}
+          incidentId={incidentId}
+          requirement={req}
+          attached={rows.filter((e) => e.requirement === req)}
+        />
+      ))}
+
+      {/* Attached against a requirement this reason no longer asks for — an ASC
+          report attached before the tick was cleared, say. Hiding it would look
+          like the file had been deleted when it is still on the report. */}
+      {extra.map((e) => (
+        <RequirementSummary
+          key={`extra-${e.evidence_id}`}
+          incidentId={incidentId}
+          requirement={e.requirement}
+          attached={[e]}
+          alsoAttached
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One checklist line, read-only.
+ *
+ * Three states the admin must be able to tell apart: photographed, skipped with
+ * a written reason, and never answered. A SKIP SATISFIES A REQUIREMENT — that
+ * is the point of recording one, so the admin sees the box photo is missing
+ * BECAUSE the box was discarded rather than seeing a thin report and guessing.
+ */
+function RequirementSummary({ incidentId, requirement, attached, alsoAttached = false }) {
+  const meta = requirementMeta(requirement);
+  const photos = attached.filter((e) => e.photo_path);
+  const skips = attached.filter((e) => !e.photo_path);
+  const satisfied = attached.length > 0;
+  const skippedOnly = satisfied && photos.length === 0;
+
+  return (
+    <fieldset
+      className="ak-card"
+      style={{ border: '1px solid var(--ak-line, #ddd)', padding: '0.75rem', margin: 0 }}
+    >
+      <legend className="ak-label" style={{ padding: '0 0.35rem' }}>
+        {alsoAttached ? `Also attached: ${meta.label}` : meta.label}{' '}
+        {satisfied ? (
+          <span className={`ak-badge ${skippedOnly ? 'ak-badge--gray' : 'ak-badge--green'}`}>
+            {skippedOnly ? 'Skipped' : `${photos.length} attached`}
+          </span>
+        ) : (
+          <span className="ak-badge ak-badge--amber">Outstanding</span>
+        )}
+      </legend>
+
+      {!satisfied && (
+        <div className="ak-muted" style={{ fontSize: '0.82rem' }}>
+          Nothing was attached against this requirement, and no reason was given.
+        </div>
+      )}
+
+      {photos.length > 0 && (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {photos.map((e) => (
+            <EvidenceThumbnail
+              key={e.evidence_id}
+              incidentId={incidentId}
+              evidenceId={e.evidence_id}
+              enlargeable
+              alt={meta.label}
+            />
+          ))}
+        </div>
+      )}
+
+      {skips.map((e) => (
+        <div key={e.evidence_id} style={{ fontSize: '0.85rem' }}>
+          <strong>Skipped:</strong> {e.skipped_reason}
+        </div>
+      ))}
+    </fieldset>
   );
 }

@@ -1,6 +1,9 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { FindingsSummary, OutcomeSummary, SignatureSummary } from './InspectionSummary';
+import {
+  EvidenceSummary, FindingsSummary, OutcomeSummary, SignatureSummary,
+} from './InspectionSummary';
+import { incidentReportsAPI } from '../../services/api';
 
 /**
  * The admin's read-only half of the incident document.
@@ -11,6 +14,23 @@ import { FindingsSummary, OutcomeSummary, SignatureSummary } from './InspectionS
  * class — which is exactly how an admin came to be asked to confirm a stock
  * movement they could not see.
  */
+
+// EvidenceSummary renders EvidenceThumbnail, which fetches each photo from the
+// private disk. Nothing here tests the fetch — EvidencePhoto.test.jsx does —
+// but without a stub the module reaches for a real axios client.
+jest.mock('../../services/api', () => ({
+  incidentReportsAPI: {
+    evidencePhotoBlob: jest.fn(),
+  },
+}));
+
+// jsdom has no object-URL plumbing. CRA's Jest resets mocks between tests, so
+// the resolved value is armed here rather than in the factory.
+beforeEach(() => {
+  global.URL.createObjectURL = jest.fn(() => 'blob:fake-url');
+  global.URL.revokeObjectURL = jest.fn();
+  incidentReportsAPI.evidencePhotoBlob.mockResolvedValue(new Blob(['x']));
+});
 
 describe('FindingsSummary', () => {
   test('shows the findings, the ASC fact, and who inspected it', () => {
@@ -194,5 +214,77 @@ describe('SignatureSummary', () => {
     }} />);
 
     expect(screen.getAllByText(/Not recorded/i)).toHaveLength(1);
+  });
+});
+
+describe('EvidenceSummary', () => {
+  // A `defective` report asks for four requirements — see
+  // evidenceRequirementsFor() in utils/incidentDocument.
+  const defectiveEvidence = [
+    { evidence_id: 1, requirement: 'defect_photo', photo_path: 'incidents/a.jpg', photo_source: 'captured' },
+    { evidence_id: 2, requirement: 'defect_photo', photo_path: 'incidents/b.jpg', photo_source: 'uploaded' },
+    { evidence_id: 3, requirement: 'model_serial_sticker', photo_path: 'incidents/c.jpg', photo_source: 'captured' },
+    { evidence_id: 4, requirement: 'box_two_sides', photo_path: null, skipped_reason: 'the box was already discarded' },
+  ];
+
+  test('shows every requirement with its photos, skips and outstanding items', async () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="defective"
+      checkedByAsc={false}
+      returnReasonCode={null}
+      evidence={defectiveEvidence}
+    />);
+
+    expect(screen.getByText('2 attached')).toBeInTheDocument();
+    expect(screen.getByText('Skipped')).toBeInTheDocument();
+    // A skip SATISFIES a requirement — the reason is the evidence.
+    expect(screen.getByText(/the box was already discarded/)).toBeInTheDocument();
+    // accessories_warranty was never answered.
+    expect(screen.getByText('Outstanding')).toBeInTheDocument();
+
+    // Three photos, three enlargeable thumbnails.
+    expect(await screen.findAllByRole('button', { name: /enlarge/i })).toHaveLength(3);
+  });
+
+  test('an outstanding requirement says nothing was attached and no reason given', () => {
+    render(<EvidenceSummary incidentId={5} reason="wrong_type" checkedByAsc={false} evidence={[]} />);
+
+    expect(screen.getByText(/no reason was given/i)).toBeInTheDocument();
+  });
+
+  // Hiding it would read as a deleted file when it is still on the report.
+  test('evidence against a requirement no longer asked for is still shown', () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="wrong_type"
+      checkedByAsc={false}
+      evidence={[{ evidence_id: 9, requirement: 'asc_service_report', photo_path: null, skipped_reason: 'no ASC nearby' }]}
+    />);
+
+    expect(screen.getByText(/Also attached: ASC service report/i)).toBeInTheDocument();
+  });
+
+  test('says so when the reason asks for no photographs', () => {
+    render(<EvidenceSummary incidentId={5} reason="missing" checkedByAsc={false} evidence={[]} />);
+
+    expect(screen.getByText(/asks for no photographs/i)).toBeInTheDocument();
+  });
+
+  // The two halves of that condition are separate facts. A `missing` report is
+  // asked for nothing, but a photograph attached before the reason was changed
+  // is still on it — announcing "no photographs" over the top of one is how the
+  // admin comes to decide without seeing what is there.
+  test('an attachment survives a reason that asks for no photographs', async () => {
+    render(<EvidenceSummary
+      incidentId={5}
+      reason="missing"
+      checkedByAsc={false}
+      evidence={[{ evidence_id: 12, requirement: 'defect_photo', photo_path: 'incidents/d.jpg', photo_source: 'captured' }]}
+    />);
+
+    expect(screen.queryByText(/asks for no photographs/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Also attached: Picture of the defect/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /enlarge/i })).toBeInTheDocument();
   });
 });
