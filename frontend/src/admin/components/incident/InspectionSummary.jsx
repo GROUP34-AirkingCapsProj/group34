@@ -1,4 +1,9 @@
 import React from 'react';
+import {
+  itemStatusMeta, outcomeLabel, outcomeRemovesStock, unitRoleLabel,
+  supplierWarrantyDetail, supplierWarrantyMeta, warrantyStateMeta,
+} from '../../utils/incidentItems';
+import { formatPieces } from '../../utils/packageFormat';
 
 /**
  * The inspector's half of the document, READ-ONLY — the admin's view.
@@ -61,5 +66,92 @@ export function FindingsSummary({ report }) {
           : 'No inspection has been submitted on this report yet.'}
       </p>
     </>
+  );
+}
+
+/** Every unit on the report and what the inspector decided about each. */
+export function OutcomeSummary({ items }) {
+  const rows = Array.isArray(items) ? items : [];
+
+  if (rows.length === 0) {
+    return <p style={{ margin: 0 }}>This report names no physical units.</p>;
+  }
+
+  return rows.map((item) => <UnitOutcomeSummary key={item.item_id} item={item} />);
+}
+
+/**
+ * One unit, as the admin reads it.
+ *
+ * Deliberately mirrors ItemOutcomeRow's header and badges. The admin holds the
+ * signed hardcopy the inspector printed from that same layout, and two
+ * renderings that describe the same unit differently is how a mismatch gets
+ * waved through.
+ */
+function UnitOutcomeSummary({ item }) {
+  const status = itemStatusMeta(item.status);
+  const warranty = warrantyStateMeta(item.warranty_state);
+  const supplier = supplierWarrantyMeta(item.supplier_warranty?.state);
+  const supplierDetail = supplierWarrantyDetail(item.supplier_warranty);
+  const qtyLabel = formatPieces(item.quantity, item.pieces_per_package, item.package_unit);
+  const settled = item.status !== 'quarantined';
+
+  return (
+    <fieldset className="incdoc__unit">
+      <legend className="incdoc__unit-legend">
+        {unitRoleLabel(item.unit_role)}{' '}
+        <span className={`ak-badge ${status.badge}`}>{status.label}</span>
+      </legend>
+
+      <div style={{ fontSize: '0.86rem', marginBottom: '0.5rem' }}>
+        <strong>{item.product_name || `#${item.product_id}`}</strong> · {qtyLabel}
+        {item.batch_id ? ` · batch #${item.batch_id}` : ''}
+        {item.model_code ? ` · model ${item.model_code}` : ''}
+        {item.serial_number ? ` · SN ${item.serial_number}` : ''}
+      </div>
+
+      {/* Both clocks, because they disagree by design: stock on the shelf has
+          supplier cover and no customer warranty at all. An admin reading only
+          the customer badge would think an uncovered unit was being returned. */}
+      {warranty && (
+        <div style={{ marginBottom: '0.35rem' }}>
+          <span className={`ak-badge ${warranty.badge}`}>{warranty.label}</span>
+        </div>
+      )}
+      {supplier && (
+        <div style={{ marginBottom: '0.5rem' }}>
+          <span className={`ak-badge ${supplier.badge}`}>{supplier.label}</span>{' '}
+          {supplierDetail && (
+            <span className="ak-muted" style={{ fontSize: '0.8rem' }}>{supplierDetail}</span>
+          )}
+        </div>
+      )}
+
+      {item.outcome ? (
+        <div style={{ fontSize: '0.86rem' }}>
+          {settled ? 'Settled as ' : 'The inspector decided: '}
+          <strong>{outcomeLabel(item.outcome)}</strong>
+          {item.outcome_note ? ` — ${item.outcome_note}` : ''}
+
+          {/* Said on the row, not in a footnote. Confirming is the one and only
+              moment stock moves, and the person confirming is not the person who
+              chose this. */}
+          {!settled && outcomeRemovesStock(item.outcome) && (
+            <div style={{ marginTop: '0.35rem' }}>
+              <span className="ak-badge ak-badge--amber">
+                Confirming deducts this unit from stock.
+              </span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: '0.86rem' }}>
+          <span className="ak-badge ak-badge--amber">No outcome recorded</span>{' '}
+          <span className="ak-muted">
+            The inspector left this unit undecided, so there is nothing to apply to it.
+          </span>
+        </div>
+      )}
+    </fieldset>
   );
 }
