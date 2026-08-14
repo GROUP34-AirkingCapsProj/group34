@@ -26,6 +26,54 @@ class IncidentStatusOwnershipTest extends TestCase
             ->value('status_id');
     }
 
+    /**
+     * The migration file returns an anonymous class instance, so a test can
+     * require it and drive up() directly. Under DatabaseTransactions the rows
+     * it touches roll back with everything else, which is what lets these
+     * tests exercise the real statement instead of restating its WHERE clause.
+     */
+    private function runMigration(): void
+    {
+        $migration = require base_path(
+            'database/migrations/2026_08_14_000001_split_awaiting_inspection_status.php'
+        );
+
+        $migration->up();
+    }
+
+    /**
+     * A report at `Awaiting Inspection` in one of the three shapes up() sorts.
+     *
+     * Only the columns the rule reads are interesting; the rest are here
+     * because the table demands them. location_id and reported_by are resolved
+     * from real rows rather than written as literals, since the seeded ids
+     * differ between the dev and test databases.
+     */
+    private function reportAwaitingInspection(?string $inspectedAt, ?string $rejectionNote): int
+    {
+        return (int) DB::table('incident_reports')->insertGetId([
+            'incident_number' => 'INC-TEST-' . bin2hex(random_bytes(4)),
+            'source_type'     => 'standalone',
+            'location_id'     => \App\Models\Location::query()->firstOrFail()->getKey(),
+            'reported_by'     => \App\Models\User::query()->firstOrFail()->getKey(),
+            'reason'          => 'return',
+            'quantity'        => 1,
+            'status_id'       => $this->incidentStatusId('Awaiting Inspection'),
+            'inspected_at'    => $inspectedAt,
+            'rejection_note'  => $rejectionNote,
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+    }
+
+    private function statusNameOf(int $incidentId): string
+    {
+        return (string) DB::table('incident_reports')
+            ->join('status_lookup', 'status_lookup.status_id', '=', 'incident_reports.status_id')
+            ->where('incident_reports.incident_id', $incidentId)
+            ->value('status_lookup.status_name');
+    }
+
     public function test_awaiting_approval_status_exists(): void
     {
         $this->assertNotSame(
@@ -36,56 +84,59 @@ class IncidentStatusOwnershipTest extends TestCase
     }
 
     /**
-     * The rule the migration applies, exercised against all three row shapes.
+     * The migration's own UPDATE, run against all three row shapes.
      *
-     * This asserts the CRITERIA rather than re-running the migration file,
-     * which has already run by the time any test boots. The real check against
-     * production data is the row count in Task 6.
+     * Deleting `whereNotNull('inspected_at')` from the migration must break
+     * this test — that is the check that it is testing the rule and not a
+     * paraphrase of it.
      */
-    public function test_the_migration_rule_routes_each_row_shape_correctly(): void
+    public function test_up_routes_each_row_shape_to_its_owner(): void
     {
-        $awaitingInspection = $this->incidentStatusId('Awaiting Inspection');
-
-        $matches = fn (array $row) => $row['status_id'] === $awaitingInspection
-            && $row['rejection_note'] === null
-            && $row['inspected_at'] !== null;
-
         // Inspected, never sent back → the admin owes a decision.
-        $this->assertTrue($matches([
-            'status_id' => $awaitingInspection,
-            'rejection_note' => null,
-            'inspected_at' => '2026-08-14 05:14:24',
-        ]));
+        $submitted = $this->reportAwaitingInspection('2026-08-14 05:14:24', null);
 
         // Sent back → stays with the inspector. submitInspection() nulls the
         // note, so a surviving note can only mean "not yet resubmitted".
-        $this->assertFalse($matches([
-            'status_id' => $awaitingInspection,
-            'rejection_note' => 'the sticker photo is unreadable',
-            'inspected_at' => '2026-08-14 05:14:24',
-        ]));
+        $sentBack = $this->reportAwaitingInspection('2026-08-14 05:14:24', 'the sticker photo is unreadable');
 
         // Never inspected → stays with the inspector. Should not exist at this
         // status, and the rule declines to guess if it does.
-        $this->assertFalse($matches([
-            'status_id' => $awaitingInspection,
-            'rejection_note' => null,
-            'inspected_at' => null,
-        ]));
+        $neverInspected = $this->reportAwaitingInspection(null, null);
+
+        $this->runMigration();
+
+        $this->assertSame('Awaiting Approval', $this->statusNameOf($submitted));
+        $this->assertSame('Awaiting Inspection', $this->statusNameOf($sentBack));
+        $this->assertSame('Awaiting Inspection', $this->statusNameOf($neverInspected));
     }
 
     /**
-     * Idempotent: nothing is left at Awaiting Inspection that the rule would
-     * still move, so a second run is a no-op.
+     * Running up() twice is a no-op the second time.
+     *
+     * Both halves are idempotent or the migration is not: the UPDATE must find
+     * nothing left to move, and the updateOrInsert must not leave a second
+     * `Awaiting Approval` row behind.
      */
-    public function test_the_migration_left_nothing_it_would_move_again(): void
+    public function test_up_is_idempotent(): void
     {
-        $stillMovable = DB::table('incident_reports')
-            ->where('status_id', $this->incidentStatusId('Awaiting Inspection'))
-            ->whereNull('rejection_note')
-            ->whereNotNull('inspected_at')
-            ->count();
+        $submitted      = $this->reportAwaitingInspection('2026-08-14 05:14:24', null);
+        $sentBack       = $this->reportAwaitingInspection('2026-08-14 05:14:24', 'unreadable sticker');
+        $neverInspected = $this->reportAwaitingInspection(null, null);
 
-        $this->assertSame(0, $stillMovable);
+        $this->runMigration();
+        $this->runMigration();
+
+        $this->assertSame('Awaiting Approval', $this->statusNameOf($submitted));
+        $this->assertSame('Awaiting Inspection', $this->statusNameOf($sentBack));
+        $this->assertSame('Awaiting Inspection', $this->statusNameOf($neverInspected));
+
+        $this->assertSame(
+            1,
+            DB::table('status_lookup')
+                ->where('status_category', 'incident')
+                ->where('status_name', 'Awaiting Approval')
+                ->count(),
+            'updateOrInsert keys on (status_category, status_name), so a second run must not add a row.'
+        );
     }
 }
