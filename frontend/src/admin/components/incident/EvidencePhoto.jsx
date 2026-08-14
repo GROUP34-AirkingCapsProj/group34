@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { incidentReportsAPI } from '../../services/api';
+import PhotoLightbox from './PhotoLightbox';
 
 /**
  * One evidence photo, fetched from the private disk.
@@ -15,9 +16,12 @@ import { incidentReportsAPI } from '../../services/api';
  * inside EvidenceChecklist would make the read-only view import from the upload
  * UI.
  */
-export function EvidenceThumbnail({ incidentId, evidenceId, size = 64 }) {
+export function EvidenceThumbnail({
+  incidentId, evidenceId, size = 64, enlargeable = false, alt = 'Incident evidence',
+}) {
   const [url, setUrl] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let revoked = false;
@@ -47,11 +51,32 @@ export function EvidenceThumbnail({ incidentId, evidenceId, size = 64 }) {
     return <span className="ak-muted" style={{ fontSize: '0.8rem' }}>Loading photo…</span>;
   }
 
-  return (
+  const img = (
     <img
       src={url}
-      alt="Incident evidence"
+      alt={alt}
       style={{ width: size, height: size, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--ak-line)' }}
     />
+  );
+
+  if (!enlargeable) return img;
+
+  return (
+    <>
+      <button
+        type="button"
+        // 64px cannot show whether a compressor is seized. The admin decides on
+        // these photographs, so opening one full-size is not a nicety.
+        title={`${alt} — click to enlarge`}
+        // The <img> inside would otherwise name this button, and `title` is only
+        // consulted when nothing else names an element. Say it outright.
+        aria-label={`${alt} — click to enlarge`}
+        onClick={() => setOpen(true)}
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'zoom-in', lineHeight: 0 }}
+      >
+        {img}
+      </button>
+      {open && <PhotoLightbox url={url} alt={alt} onClose={() => setOpen(false)} />}
+    </>
   );
 }
