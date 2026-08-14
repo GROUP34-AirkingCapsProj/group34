@@ -32,16 +32,38 @@ return new class extends Migration
         $awaitingInspection = $this->statusId('Awaiting Inspection');
         $awaitingApproval   = $this->statusId('Awaiting Approval');
 
-        if ($awaitingInspection === null || $awaitingApproval === null) {
+        // Expected on a fresh install: migrations run before seeders, so there
+        // is no Awaiting Inspection row yet and nothing to split.
+        if ($awaitingInspection === null) {
             return;
+        }
+
+        // Impossible unless the updateOrInsert above silently did nothing —
+        // a broken deploy. Aborting here names the cause while it is still
+        // legible; returning would print a reassuring "moved 0" and leave
+        // statusId() to throw on the first submitted inspection instead.
+        if ($awaitingApproval === null) {
+            throw new \RuntimeException(
+                'No incident status named Awaiting Approval immediately after inserting one: '
+                . 'the updateOrInsert above did nothing. Refusing to report a no-op split.'
+            );
         }
 
         // Already inspected and NOT sent back: the admin owes a decision.
         //
-        // `rejection_note IS NULL` is an exact marker rather than a guess,
-        // because submitInspection() nulls the note (IncidentService.php:255) —
-        // so a note can only survive on a report the admin sent back that the
-        // inspector has not yet resubmitted.
+        // `rejection_note IS NULL` is exact GIVEN the controller's
+        // `required_if:action,reject` (IncidentInspectionController.php:320),
+        // which is the only path that reaches a rejection today. The service
+        // itself does not enforce it — reject() writes
+        // `$options['rejection_note'] ?? $options['resolution_note'] ?? null`
+        // and will persist NULL happily, so the invariant is the controller's,
+        // not the model's. The other half holds unconditionally:
+        // submitInspection() nulls the note (IncidentService.php:255), so a
+        // surviving note can only mean "sent back and not yet resubmitted".
+        //
+        // Rows rejected before 2026_08_12_000003 added the column would also
+        // carry NULL and be read as submitted; closed in practice, as the live
+        // counts confirm no such row exists.
         $moved = DB::table('incident_reports')
             ->where('status_id', $awaitingInspection)
             ->whereNull('rejection_note')
