@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { EvidenceThumbnail } from './EvidencePhoto';
 import { incidentReportsAPI } from '../../services/api';
 
@@ -40,6 +40,7 @@ describe('EvidenceThumbnail', () => {
     // The overlay shows the SAME object URL the thumbnail already holds.
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', 'blob:fake-url');
     expect(incidentReportsAPI.evidencePhotoBlob).toHaveBeenCalledTimes(1);
   });
 
