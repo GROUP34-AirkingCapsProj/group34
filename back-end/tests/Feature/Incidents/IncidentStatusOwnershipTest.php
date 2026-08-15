@@ -529,12 +529,80 @@ class IncidentStatusOwnershipTest extends TestCase
     public function test_the_unfinished_scope_excludes_a_decided_report(): void
     {
         $dismissed = app(IncidentService::class)
-            ->decide($this->fileIncident(), 'dismiss', [], $this->actorId());
+            ->decide($this->fileIncident(), 'dismiss', ['resolution_note' => 'raised in error'], $this->actorId());
 
         $this->assertSame($this->incidentStatusId('Dismissed'), (int) $dismissed->status_id);
         $this->assertNotContains(
             (int) $dismissed->incident_id,
             array_map('intval', IncidentReport::query()->unfinished()->pluck('incident_id')->all())
         );
+    }
+
+    /**
+     * Dismissing needs a reason, for a stronger reason than rejecting does.
+     *
+     * release() puts every quarantined unit back in the picking pool and
+     * discards whatever outcome the inspector recorded. It used to accept
+     * silence while a rejection — which moves nothing physical — demanded an
+     * explanation, so the system asked why for the harmless action and shrugged
+     * at the one that changes what is sellable.
+     */
+    public function test_dismissing_without_a_note_is_refused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('needs a note');
+
+        app(IncidentService::class)->decide($this->fileIncident(), 'dismiss', [], $this->actorId());
+    }
+
+    public function test_dismissing_with_a_blank_note_is_refused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('needs a note');
+
+        app(IncidentService::class)
+            ->decide($this->fileIncident(), 'dismiss', ['resolution_note' => '   '], $this->actorId());
+    }
+
+    public function test_a_dismissal_records_its_reason_trimmed(): void
+    {
+        $dismissed = app(IncidentService::class)->decide(
+            $this->fileIncident(),
+            'dismiss',
+            ['resolution_note' => '  the pallet was miscounted, nothing is damaged  '],
+            $this->actorId(),
+        );
+
+        $this->assertSame($this->incidentStatusId('Dismissed'), (int) $dismissed->status_id);
+        $this->assertSame('the pallet was miscounted, nothing is damaged', $dismissed->resolution_note);
+    }
+
+    /**
+     * Dismissing stays available from Open. "Raised in error" is a judgement
+     * about whether the report should exist, not about the inspection — making
+     * someone inspect a mistake before they may throw it out is the wrong shape.
+     */
+    public function test_a_report_can_be_dismissed_before_anyone_inspects_it(): void
+    {
+        $report = $this->fileIncident();
+        $this->assertSame($this->incidentStatusId('Open'), (int) $report->status_id);
+
+        $dismissed = app(IncidentService::class)
+            ->decide($report, 'dismiss', ['resolution_note' => 'filed against the wrong batch'], $this->actorId());
+
+        $this->assertSame($this->incidentStatusId('Dismissed'), (int) $dismissed->status_id);
+    }
+
+    /** And from Awaiting Approval, discarding the inspection it carries. */
+    public function test_a_submitted_report_can_still_be_dismissed(): void
+    {
+        $dismissed = app(IncidentService::class)->decide(
+            $this->submittedReport(),
+            'dismiss',
+            ['resolution_note' => 'duplicate of INC-0001'],
+            $this->actorId(),
+        );
+
+        $this->assertSame($this->incidentStatusId('Dismissed'), (int) $dismissed->status_id);
     }
 }

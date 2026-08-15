@@ -113,6 +113,8 @@ export default function IncidentDocument({
   const [showBlockers, setShowBlockers] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [rejectionNote, setRejectionNote] = useState('');
+  const [dismissing, setDismissing] = useState(false);
+  const [dismissalNote, setDismissalNote] = useState('');
 
   // The inspector's half. Held locally and saved as one document on submit,
   // unlike the per-item outcomes and the evidence, which the server records the
@@ -342,18 +344,15 @@ export default function IncidentDocument({
    * was ever deducted, so there is no arithmetic to undo.
    */
   const handleDismiss = useCallback(async () => {
-    const ok = await confirmAction({
-      title: 'Dismiss this report?',
-      text: 'The report is closed as raised in error. The quarantine is released, the units go back '
-        + 'into stock, and no quantity changes — nothing was ever deducted.',
-      confirmText: 'Dismiss it',
-    });
-    if (!ok) return;
+    if (dismissalNote.trim().length === 0) return;
 
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await incidentReportsAPI.decide(incidentId, { action: 'dismiss' });
+      await incidentReportsAPI.decide(incidentId, {
+        action: 'dismiss',
+        resolution_note: dismissalNote.trim(),
+      });
       toast.success('Report dismissed. The quarantine is released.');
       onSubmitted?.();
     } catch (err) {
@@ -361,7 +360,7 @@ export default function IncidentDocument({
     } finally {
       setSubmitting(false);
     }
-  }, [incidentId, onSubmitted]);
+  }, [incidentId, dismissalNote, onSubmitted]);
 
   const handleSubmit = useCallback(async () => {
     if (missing.length > 0) { setShowBlockers(true); return; }
@@ -502,9 +501,25 @@ export default function IncidentDocument({
    * the whole bug this change exists to fix. The server still refuses either
    * way; this stops the screen offering something it knows will fail.
    */
-  const decidable = deciding && report
-    && (report.status_name === 'Awaiting Approval'
-      || (INSPECTION_EXEMPT_REASONS.includes(report.reason) && report.status_name === 'Open'));
+  // One predicate per action, mirroring what the server would actually accept.
+  // A single `decidable` covering all three was wrong: it disabled Dismiss on a
+  // report nobody had inspected, which the server allows and which is the whole
+  // point of dismissing — throwing out a mistake before wasting an inspection.
+  const statusName = report?.status_name;
+  const awaitingApproval = statusName === 'Awaiting Approval';
+  const exemptAndOpen = report
+    && INSPECTION_EXEMPT_REASONS.includes(report.reason)
+    && statusName === 'Open';
+
+  // confirm() requires Awaiting Approval, except for the two inspection-exempt
+  // reasons, which create no items and are confirmed straight from Open.
+  const canConfirm = !!(deciding && report && (awaitingApproval || exemptAndOpen));
+  // reject() has no exemption: there must be a submitted inspection to send back.
+  const canReject = !!(deciding && awaitingApproval);
+  // dismiss() is deliberately unguarded by status — "raised in error" is a
+  // judgement about whether the report should exist, not about the inspection.
+  const canDismiss = !!(deciding && report
+    && !['Resolved', 'Dismissed'].includes(statusName));
 
   return (
     <article className="incdoc">
@@ -743,16 +758,16 @@ export default function IncidentDocument({
             <button
               type="button"
               className="ak-btn"
-              onClick={handleDismiss}
-              disabled={submitting || rejecting || !decidable}
+              onClick={() => setDismissing((v) => !v)}
+              disabled={submitting || rejecting || !canDismiss}
             >
-              Dismiss
+              {dismissing ? 'Cancel dismissal' : 'Dismiss'}
             </button>
             <button
               type="button"
               className="ak-btn"
               onClick={() => setRejecting((v) => !v)}
-              disabled={submitting || !decidable}
+              disabled={submitting || dismissing || !canReject}
             >
               {rejecting ? 'Cancel rejection' : 'Reject'}
             </button>
@@ -760,7 +775,7 @@ export default function IncidentDocument({
               type="button"
               className="ak-btn ak-btn--primary"
               onClick={handleConfirm}
-              disabled={submitting || rejecting || !decidable}
+              disabled={submitting || rejecting || dismissing || !canConfirm}
             >
               {submitting ? 'Confirming…' : 'Confirm'}
             </button>
@@ -797,6 +812,46 @@ export default function IncidentDocument({
         </div>
       )}
 
+      {deciding && dismissing && (
+        <div className="ak-field" style={{ marginTop: '0.7rem' }}>
+          <label className="ak-label" htmlFor="incdoc-dismissal-note">
+            Why was this raised in error? *
+          </label>
+          <textarea
+            id="incdoc-dismissal-note"
+            className="ak-input"
+            rows={3}
+            maxLength={2000}
+            value={dismissalNote}
+            onChange={(e) => setDismissalNote(e.target.value)}
+            placeholder="e.g. the pallet was miscounted — nothing is actually damaged"
+            disabled={submitting}
+          />
+          {/* Required for a stronger reason than a rejection's note: dismissing
+              puts every quarantined unit back in the picking pool and discards
+              whatever outcome the inspector recorded. reviewed_by and
+              reviewed_at say who and when; this is the only thing that says
+              why, and an inspector who finds a unit they scrapped back on the
+              shelf has nothing else to read. */}
+          <span className="ak-muted" style={{ fontSize: '0.8rem' }}>
+            This releases the quarantine and puts the units back into stock.
+            {report?.status_name === 'Awaiting Approval'
+              ? ' The inspector’s recorded outcomes are discarded.'
+              : ''}
+          </span>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              className="ak-btn ak-btn--primary"
+              onClick={handleDismiss}
+              disabled={submitting || dismissalNote.trim().length === 0}
+            >
+              Dismiss as raised in error
+            </button>
+          </div>
+        </div>
+      )}
+
       {inspecting && (
         <p className="ak-muted" style={{ fontSize: '0.8rem', textAlign: 'right', margin: '0.3rem 0 0' }}>
           Submitting moves no stock. An admin confirms afterwards, and that is when the quantities
@@ -807,7 +862,7 @@ export default function IncidentDocument({
       {/* Said in words, never left as three greyed buttons. A disabled control
           with no explanation is a dead end, and here the reason is the whole
           point of the status split — this report is somebody else's turn. */}
-      {deciding && report && !decidable && (
+      {deciding && report && !canConfirm && !canReject && (
         <div className="ak-state" style={{ marginTop: '0.7rem' }}>
           {report.status_name === 'Awaiting Inspection'
             ? 'You sent this back to the inspector. It returns here once they resubmit it.'
@@ -817,7 +872,7 @@ export default function IncidentDocument({
         </div>
       )}
 
-      {deciding && !rejecting && decidable && (
+      {deciding && !rejecting && !dismissing && canConfirm && (
         <p className="ak-muted" style={{ fontSize: '0.8rem', textAlign: 'right', margin: '0.3rem 0 0' }}>
           <strong>Confirming is what moves the stock.</strong> Every unit's outcome is applied in one
           step and cannot be undone from here.

@@ -428,13 +428,37 @@ class IncidentService
      */
     private function dismiss(IncidentReport $locked, array $options, int $adminId): IncidentReport
     {
+        // Required, like a rejection's note and for a stronger reason.
+        //
+        // Dismissing is the second most consequential thing an admin can do:
+        // release() puts every quarantined unit back in the picking pool, and
+        // it deliberately discards whatever outcome an inspector recorded. Yet
+        // it used to accept silence, while REJECTING — which moves nothing
+        // physical — demanded an explanation. So the system asked why for the
+        // harmless action and shrugged at the one that changes what is
+        // sellable. reviewed_by/reviewed_at name who and when; only this says
+        // why, and an inspector who finds a unit they scrapped back on the
+        // shelf has nothing else to read.
+        //
+        // Deliberately NOT status-guarded: "raised in error" is a judgement
+        // about whether the report should exist at all, which does not depend
+        // on anyone having inspected it. Forcing an inspection before you can
+        // throw out a mistake would be the wrong shape.
+        $note = trim((string) ($options['resolution_note'] ?? ''));
+
+        if ($note === '') {
+            throw new \InvalidArgumentException(
+                'Dismissing a report needs a note saying why it was raised in error.'
+            );
+        }
+
         $this->items->release($locked);
 
         $locked->update([
             'status_id'       => IncidentReport::statusId('Dismissed'),
             'reviewed_by'     => $adminId,
             'reviewed_at'     => now(),
-            'resolution_note' => $options['resolution_note'] ?? null,
+            'resolution_note' => $note,
         ]);
 
         return $locked->fresh();

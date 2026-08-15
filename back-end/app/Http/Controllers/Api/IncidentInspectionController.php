@@ -318,7 +318,12 @@ class IncidentInspectionController extends Controller
         $validated = $request->validate([
             'action'          => ['required', Rule::in(['confirm', 'reject', 'dismiss'])],
             'rejection_note'  => 'required_if:action,reject|nullable|string|max:2000',
-            'resolution_note' => 'nullable|string|max:2000',
+            // Required on a dismissal for the same reason a rejection needs its
+            // note, and a stronger one: dismissing releases the quarantined
+            // units back into the picking pool and discards the inspector's
+            // recorded outcomes. Optional on a confirm, where it is merged with
+            // any shortfall note the settlement produced.
+            'resolution_note' => 'required_if:action,dismiss|nullable|string|max:2000',
         ]);
 
         $actorId = (int) Auth::id();
