@@ -90,7 +90,52 @@ class InventoryController extends Controller
         }
 
         $perPage = $request->input('per_page', 15);
-        return $this->paginated($query->paginate($perPage), 'Inventory retrieved successfully');
+        $page    = $query->paginate($perPage);
+
+        return $this->paginated($this->withQuarantined($page), 'Inventory retrieved successfully');
+    }
+
+    /**
+     * Say how much of each row is spoken for by an unsettled incident.
+     *
+     * Filing quarantines WITHOUT deducting: the goods are physically present
+     * and still counted, they simply must not be promised or picked. The
+     * picking engine already honours that — FifoPickingService, the issuance
+     * pick plan and scan, and transfers all exclude quarantined batches and
+     * subtract quarantined pieces — but this screen knew nothing about it. A
+     * row with stock under investigation read exactly like one without, so the
+     * person deciding whether they could promise it was reading the number the
+     * picker would then be refused.
+     *
+     * DERIVED, never stored, and `quantity_on_hand` is left alone. That is the
+     * same choice reservations make and it is what lets confirming or
+     * dismissing a report return the stock with no cleanup step to forget —
+     * which is exactly how batches end up excluded from picking forever by a
+     * report nobody can see any more.
+     *
+     * One grouped query per distinct location on the page, not per row.
+     */
+    private function withQuarantined($page)
+    {
+        $byLocation = [];
+
+        foreach ($page->getCollection()->pluck('location_id')->unique() as $locationId) {
+            $byLocation[(int) $locationId] = \App\Models\IncidentItem::quarantinedQuantities((int) $locationId);
+        }
+
+        $page->getCollection()->transform(function ($row) use ($byLocation) {
+            $held = (int) ($byLocation[(int) $row->location_id][(int) $row->product_id] ?? 0);
+
+            $row->quarantined_quantity = $held;
+            // What is actually left to promise. Without it every reader has to
+            // do the subtraction themselves, and the one who forgets is the one
+            // who promises stock the FIFO engine will refuse.
+            $row->unquarantined_quantity = max(0, (int) $row->quantity_on_hand - $held);
+
+            return $row;
+        });
+
+        return $page;
     }
 
     /**
