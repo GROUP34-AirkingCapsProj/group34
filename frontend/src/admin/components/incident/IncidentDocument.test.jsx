@@ -325,9 +325,38 @@ test('decide mode withholds the decision on a report that is not the admin’s',
 
   expect(screen.getByRole('button', { name: /^confirm$/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /^reject$/i })).toBeDisabled();
-  expect(screen.getByRole('button', { name: /^dismiss$/i })).toBeDisabled();
   // Not a dead end: it says whose turn it is.
   expect(screen.getByText(/sent this back to the inspector/i)).toBeInTheDocument();
+
+  // Dismiss STAYS available. "Raised in error" is a judgement about whether the
+  // report should exist at all, which does not depend on anyone having
+  // inspected it — and the server has no status guard on it either.
+  expect(screen.getByRole('button', { name: /^dismiss$/i })).toBeEnabled();
+});
+
+// Dismissing releases the quarantine and discards the inspector's outcomes, so
+// it asks why — the same demand a rejection makes, for a stronger reason.
+test('dismissing asks for a reason before it will release the quarantine', async () => {
+  await renderDoc({ mode: 'decide', report: inspectedReport() });
+
+  fireEvent.click(screen.getByRole('button', { name: /^dismiss$/i }));
+
+  const submit = screen.getByRole('button', { name: /dismiss as raised in error/i });
+  expect(submit).toBeDisabled();
+  expect(screen.getByText(/recorded outcomes are discarded/i)).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText(/why was this raised in error/i), {
+    target: { value: 'the pallet was miscounted' },
+  });
+
+  expect(submit).toBeEnabled();
+});
+
+test('a report nobody has inspected can still be dismissed', async () => {
+  await renderDoc({ mode: 'decide', report: filedReport() });
+
+  expect(screen.getByRole('button', { name: /^dismiss$/i })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /^confirm$/i })).toBeDisabled();
 });
 
 test('decide mode allows the decision once the inspection is submitted', async () => {
