@@ -335,6 +335,11 @@ const InventoryManagement = () => {
   // Appliance model code, falling back to barcode for consumables/bulk items.
   const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || item.product?.barcode || '';
   const getItemQty     = (item) => Number(item.quantity_on_hand ?? item.quantity ?? 0);
+  // Pieces named by an unsettled incident. Physically present and still counted
+  // in quantity_on_hand — the picking engine excludes them, but until now this
+  // screen showed the same number either way, so a reader deciding whether they
+  // could promise stock was reading the figure a picker would then be refused.
+  const getItemHeld    = (item) => Number(item.quarantined_quantity ?? 0);
   const getItemReorder = (item) => Number(item.product?.recommended_stocks || item.reorder_level || 5);
   const getItemSafety  = (item) => Number(item.product?.safety_stock) || Math.round(getItemReorder(item) * 0.25) || 1;
   const getItemMax     = (item) => Number(item.product?.max_stock_level) || getItemReorder(item) * 4 || 100;
@@ -868,7 +873,17 @@ const InventoryManagement = () => {
                                 </div>
                               </div>
                             </td>
-                            <td className="inv-cell-qty"><strong>{getItemQty(item)}</strong></td>
+                            <td className="inv-cell-qty">
+                              <strong>{getItemQty(item)}</strong>
+                              {getItemHeld(item) > 0 && (
+                                <div
+                                  className="inv-qty-held"
+                                  title={`${getItemHeld(item)} under an open incident report — not pickable, and not promised to anybody. ${item.unquarantined_quantity ?? (getItemQty(item) - getItemHeld(item))} free.`}
+                                >
+                                  {getItemHeld(item)} held
+                                </div>
+                              )}
+                            </td>
                             <td className="inv-cell-num">
                               {item.product?.product_type !== 'appliance' && item.product?.pieces_per_package > 1
                                 ? (item.packages_on_hand ?? Math.floor(getItemQty(item) / item.product.pieces_per_package))
