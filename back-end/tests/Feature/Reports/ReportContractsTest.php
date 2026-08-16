@@ -30,4 +30,23 @@ class ReportContractsTest extends ReportTestCase
 
         $this->assertStringContainsString('nullable', $param->rules()['location_id']);
     }
+
+    public function test_an_unknown_parameter_type_is_a_programming_error(): void
+    {
+        $param = new ReportParameter('bogus', 'not-a-real-type', 'Bogus');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown report parameter type: not-a-real-type');
+
+        $param->rules();
+    }
+
+    public function test_a_select_with_no_options_does_not_reject_every_value(): void
+    {
+        $param = new ReportParameter('status', ReportParameter::TYPE_SELECT, 'Status');
+
+        $validator = \Illuminate\Support\Facades\Validator::make(['status' => 'anything'], $param->rules());
+
+        $this->assertTrue($validator->passes());
+    }
 }
