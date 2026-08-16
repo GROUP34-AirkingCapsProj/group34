@@ -13,7 +13,7 @@ body{padding:32pt;font-family:Arial,DejaVu Sans,sans-serif;color:#000;font-size:
 .meta{width:100%;border-collapse:collapse;margin-bottom:10px}
 .meta td{padding:2px 4px;vertical-align:top}
 .meta .label{font-weight:bold;width:110px;white-space:nowrap;text-transform:uppercase;font-size:8px}
-.section-title{font-weight:bold;text-transform:uppercase;font-size:9px;margin:12px 0 4px}
+.section-title{font-weight:bold;text-transform:uppercase;font-size:9px;margin:12px 0 4px;page-break-after:avoid}
 table.data{width:100%;border-collapse:collapse;page-break-inside:auto}
 table.data th,table.data td{border:1px solid #000;padding:3px 4px;vertical-align:top}
 table.data th{text-align:left;text-transform:uppercase;font-size:8px;background:#eee}

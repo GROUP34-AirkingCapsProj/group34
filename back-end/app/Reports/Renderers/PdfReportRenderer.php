@@ -15,16 +15,16 @@ use Barryvdh\DomPDF\Facade\Pdf;
  */
 class PdfReportRenderer
 {
-    private const PAPER_WIDTHS = ['a4' => 595.28, 'letter' => 612, 'legal' => 612, 'a5' => 419.53];
+    private const VALID_PAPER_SIZES = ['a4', 'letter', 'legal', 'a5'];
 
     /** @param array<string,string> $meta filter summary shown under the title */
     public function render(ReportDataset $dataset, string $title, array $meta): string
     {
         // SystemSetting::pdfPaperSize() already normalizes to lowercase and
-        // falls back to 'a4' on its own, so this isset() check is just a
+        // falls back to 'a4' on its own, so this in_array() check is just a
         // defensive guard against the const list ever drifting from it.
         $paperSize = SystemSetting::pdfPaperSize();
-        if (! isset(self::PAPER_WIDTHS[$paperSize])) {
+        if (! in_array($paperSize, self::VALID_PAPER_SIZES, true)) {
             $paperSize = 'a4';
         }
 
