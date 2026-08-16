@@ -41,6 +41,7 @@ configuration, and is worthless until generation is solid.
 | Formats | PDF + CSV | No spreadsheet library is installed, and the real workflow is PDF handed to a manager. CSV opens in Excel and streams without memory pressure. Cards are relabelled "PDF / CSV". |
 | Location Performance | Stock movement + valuation, no revenue | Sales are recorded through Transactions, not the `sales` table. A revenue section would report zeros. |
 | "Branch Performance" renamed | Location Performance | Branches and warehouses were unified into `locations`; the old title named a table that no longer exists. |
+| Warehouse Utilization scope | Occupancy **and** throughput (PO receipts, transfers, goods out) | Space used is only half of utilization; the other half is how hard that space was worked. Name kept, date range added. |
 | Architecture | Report registry, one class per report | The six reports differ in query shape but share all plumbing: scoping, rendering, storage, sizing, audit row. |
 
 ## Architecture
@@ -206,13 +207,65 @@ Totals: count of items below threshold.
 
 ### 5. Warehouse Utilization
 
-Parameters: location type. Point-in-time.
+Title unchanged. Description becomes "Capacity, occupancy, and goods throughput",
+replacing "Capacity and occupancy analysis" — the report now covers more than the old
+card claimed.
 
-Rows: location, type, capacity, occupied units (`SUM(quantity_on_hand)`), utilization
-percentage, remaining capacity.
+This report answers two questions at once: how much of its space a warehouse is using,
+and how hard it worked that space over a period — goods received against purchase
+orders, goods transferred, and goods sent out.
 
+Parameters: date range (required), location, location type (defaults to `warehouse`).
+
+The date range is new. Occupancy is a snapshot, but receiving, transfers, and outflow
+are period activity. **The document header states both framings explicitly** —
+occupancy "as of" the generation timestamp, throughput "for the period" — so a 62%
+occupancy figure is never misread as a monthly average. This is the one report mixing
+a point-in-time measure with period measures, and the labelling carries that weight.
+
+The type filter defaults to `warehouse` because the report keeps its name and its
+content is warehouse-operations specific. The filter remains available for other
+location types.
+
+**Section A — Space utilization (as of run time).** Location, type, capacity, occupied
+units (`SUM(inventory.quantity_on_hand)`), utilization percentage, remaining capacity.
 Locations with a null `capacity` render as "not set" and are excluded from the
 aggregate percentage — never 0%, never a division error.
+
+**Section B — Goods received against purchase orders (period).** From `receivings`
+joined to `purchase_orders` on `po_id`, filtered by `receiving_date` and grouped by
+`location_id`. Per location: GRN count, distinct PO count, units received
+(`total_quantity_received`), units damaged (`total_quantity_damaged`), and damage rate.
+
+On-time performance compares `receivings.receiving_date` against
+`purchase_orders.expected_delivery_date`: counts of on-time and late receipts, and an
+on-time percentage. Receipts whose PO has a null `expected_delivery_date` cannot be
+judged and are excluded from that percentage, with the excluded count printed beside
+it — the same honesty rule as null capacity in Section A.
+
+**Section C — Transfers (period).** Units in (`to_location_id` = the location) and
+units out (`from_location_id` = the location), from `material_movement_ledger`.
+
+**Section D — Goods out (period).** Units dispatched from the location — issuances and
+outbound movement — from `material_movement_ledger`.
+
+**Throughput summary.** Total units handled (received + transferred in + transferred
+out + dispatched), and units handled per unit of capacity. That last figure is the
+report's point: it expresses how many times over the period the warehouse worked
+through its own storage capacity, which is the "processes goods efficiently against
+available space" measure. Locations with null capacity show units handled but no ratio.
+
+**Double-counting.** Sections C and D read `material_movement_ledger`; Section B reads
+`receivings`. If receiving also writes ledger rows, a warehouse's inbound units would
+be counted twice in the throughput total. Sections C and D therefore exclude
+receiving-type `transaction_type_id` values, and a test asserts a received unit
+appears exactly once in the throughput total. The precise type IDs are confirmed
+against `transaction_type_lookup` during implementation.
+
+**CSV shape.** The four sections are natural in PDF but not in CSV. The CSV export
+emits one row per location with every metric as a column — occupancy, receiving,
+transfer, dispatch, and throughput figures flattened side by side — rather than
+stacked sections a spreadsheet cannot filter.
 
 ### 6. User Activity
 
@@ -304,8 +357,14 @@ Backend feature tests under `tests/Feature/Reports/`, matching the existing layo
 - Permission: 403 on generate without `report_viewing.create`.
 - Low Stock: the threshold falls back to `products.recommended_stocks` when
   `inventory.reorder_level` is null, and the row reports which source applied.
-- Warehouse Utilization: a null-capacity location renders "not set" and is excluded
-  from the aggregate percentage.
+- Warehouse Utilization: a null-capacity location renders "not set", is excluded from
+  the aggregate percentage, and shows units handled without a throughput ratio.
+- Warehouse Utilization: a receipt whose PO has a null `expected_delivery_date` is
+  excluded from the on-time percentage and reported in the excluded count.
+- Warehouse Utilization: a received unit is counted exactly once in the throughput
+  total — the double-counting guard between `receivings` and
+  `material_movement_ledger`.
+- Warehouse Utilization: CSV emits one flat row per location; PDF emits four sections.
 - Empty dataset returns 422 and writes no `report_runs` row.
 - PDF row cap returns 422 above the limit.
 - Prune deletes the file, stamps `file_pruned_at`, and retains the row.
