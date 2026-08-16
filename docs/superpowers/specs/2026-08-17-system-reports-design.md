@@ -39,7 +39,8 @@ configuration, and is worthless until generation is solid.
 | Parameters | Per-report modal dialog | The six reports honor genuinely different filters. A shared filter bar would show inputs that do nothing for half the cards — the same dishonesty being fixed. |
 | Recent Reports storage | Store the generated file, 90-day retention | A run is a point-in-time record. Regenerating on demand would show today's numbers under last week's timestamp. |
 | Formats | PDF + CSV | No spreadsheet library is installed, and the real workflow is PDF handed to a manager. CSV opens in Excel and streams without memory pressure. Cards are relabelled "PDF / CSV". |
-| Branch Performance | Stock movement + valuation, no revenue | Sales are recorded through Transactions, not the `sales` table. A revenue section would report zeros. |
+| Location Performance | Stock movement + valuation, no revenue | Sales are recorded through Transactions, not the `sales` table. A revenue section would report zeros. |
+| "Branch Performance" renamed | Location Performance | Branches and warehouses were unified into `locations`; the old title named a table that no longer exists. |
 | Architecture | Report registry, one class per report | The six reports differ in query shape but share all plumbing: scoping, rendering, storage, sizing, audit row. |
 
 ## Architecture
@@ -159,7 +160,9 @@ Totals: SKU count, total units, total valuation from `products.cost_price`.
 
 Parameters: date range (required), location, transaction type.
 Source: `transactions` (`branch_id`, `type`, `quantity`, `unit_price`,
-`total_amount`, `date`).
+`total_amount`, `date`). Note that `branch_id` is a legacy column name that holds a
+`location_id` — `Transaction::branch()` already resolves it to `Location`. The column
+is left alone; only report-facing labels say "location".
 
 Rows: date, transaction code, type, location, product, qty, unit price, total.
 Totals: count and value per type, grand total.
@@ -167,12 +170,24 @@ Totals: count and value per type, grand total.
 This is the report most likely to be large, which is why CSV streams rather than
 buffering.
 
-### 3. Branch Performance
+### 3. Location Performance
 
-Parameters: date range (required), location.
+Key `location-performance`. Title "Location Performance", description "Location-wise
+inventory movement and valuation".
+
+There is no such thing as a branch in this system. The
+`2025_01_15_000000_update_locations_unified` migration folded the separate `branches`
+and `warehouses` tables into a single `locations` table with a `location_type` of
+`warehouse`, `showroom`, or `branch_office`, and the sidebar has said "Location
+Management" ever since. The card's old "Branch Performance" title named a table that
+no longer exists.
+
+Parameters: date range (required), location, location type.
 
 Per location: units in (receivings + transfers in), units out (issuances + transfers
-out), net adjustments, closing stock units, closing valuation.
+out), net adjustments, closing stock units, closing valuation. Each row also carries
+the location's type, so a warehouse and a showroom are never silently averaged
+together in a reader's head.
 
 Movement comes from `material_movement_ledger` grouped by `from_location_id` /
 `to_location_id` and `transaction_type_id`. Valuation joins `inventory` to
