@@ -243,7 +243,10 @@ class PermissionSeeder extends Seeder
                 'approve' => ['admin', 'branch_manager', 'warehouse_personnel'],
             ],
             'report_viewing' => [
-                'read' => ['admin', 'inventory_analyst', 'auditor'],
+                'read'   => ['admin', 'inventory_analyst', 'auditor'],
+                // Generating writes a file and a report_runs row, so it is a
+                // separate action from viewing the catalog.
+                'create' => ['admin', 'inventory_analyst', 'auditor'],
             ],
             'notification_panel' => [
                 'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
