@@ -1,8 +1,5 @@
 <?php
 
-use App\Models\Permission;
-use App\Models\Role;
-use App\Models\RolePermission;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -17,38 +14,77 @@ use Illuminate\Support\Facades\DB;
  * PermissionResolver treats "no row" and "row with is_granted=false" the same
  * way today, but writing the false rows keeps this permission's shape
  * consistent with every other one the seeder produces.
+ *
+ * Uses DB::table rather than the Eloquent models — the codebase's convention
+ * for data-writing migrations (see 2026_08_12_000005_drop_incident_dispose_
+ * permission.php). Role in particular uses the Auditable trait, which fires
+ * boot hooks on save/delete; a migration should not trigger audit logging as
+ * a side effect, especially on a database where that infrastructure may not
+ * yet exist.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        $permission = Permission::firstOrCreate(
-            ['feature' => 'report_viewing', 'action' => 'create'],
-            ['description' => 'Create access for report viewing']
-        );
+        $permissionId = DB::table('permissions')
+            ->where('feature', 'report_viewing')
+            ->where('action', 'create')
+            ->value('permission_id');
+
+        if ($permissionId === null) {
+            $permissionId = DB::table('permissions')->insertGetId([
+                'feature'     => 'report_viewing',
+                'action'      => 'create',
+                'description' => 'Create access for report viewing',
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ]);
+        }
 
         $grantedSlugs = ['admin', 'inventory_analyst', 'auditor'];
 
-        $roleMap = Role::pluck('role_id', 'role_name')->all();
+        $roles = DB::table('roles')->pluck('role_name', 'role_id');
 
-        DB::transaction(function () use ($roleMap, $grantedSlugs, $permission) {
-            foreach ($roleMap as $slug => $roleId) {
-                RolePermission::updateOrCreate(
-                    ['role_id' => $roleId, 'permission_id' => $permission->permission_id],
-                    ['is_granted' => in_array($slug, $grantedSlugs, true)]
-                );
+        DB::transaction(function () use ($roles, $grantedSlugs, $permissionId) {
+            foreach ($roles as $roleId => $slug) {
+                $isGranted = in_array($slug, $grantedSlugs, true);
+
+                $exists = DB::table('role_permissions')
+                    ->where('role_id', $roleId)
+                    ->where('permission_id', $permissionId)
+                    ->exists();
+
+                if ($exists) {
+                    DB::table('role_permissions')
+                        ->where('role_id', $roleId)
+                        ->where('permission_id', $permissionId)
+                        ->update([
+                            'is_granted' => $isGranted,
+                            'updated_at' => now(),
+                        ]);
+                } else {
+                    DB::table('role_permissions')->insert([
+                        'role_id'       => $roleId,
+                        'permission_id' => $permissionId,
+                        'is_granted'    => $isGranted,
+                        'created_at'    => now(),
+                        'updated_at'    => now(),
+                    ]);
+                }
             }
         });
     }
 
     public function down(): void
     {
-        $permission = Permission::where('feature', 'report_viewing')
-            ->where('action', 'create')->first();
+        $permissionId = DB::table('permissions')
+            ->where('feature', 'report_viewing')
+            ->where('action', 'create')
+            ->value('permission_id');
 
-        if ($permission) {
-            RolePermission::where('permission_id', $permission->permission_id)->delete();
-            $permission->delete();
+        if ($permissionId !== null) {
+            DB::table('role_permissions')->where('permission_id', $permissionId)->delete();
+            DB::table('permissions')->where('permission_id', $permissionId)->delete();
         }
     }
 };

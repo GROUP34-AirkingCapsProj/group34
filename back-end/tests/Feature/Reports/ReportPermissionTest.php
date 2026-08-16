@@ -19,5 +19,15 @@ class ReportPermissionTest extends ReportTestCase
         $this->assertTrue(
             app(PermissionResolver::class)->canUser((int) $analyst->user_id, 'report_viewing', 'create')
         );
+
+        // branch_manager holds neither report_viewing.read nor .create in
+        // PermissionSeeder::matrix() — a negative case so this test cannot
+        // pass if canUser() is broken to return true unconditionally, or if
+        // report_viewing.create were accidentally granted to every role.
+        $branchManager = $this->makeUserAt($this->makeLocation(), 'branch_manager');
+
+        $this->assertFalse(
+            app(PermissionResolver::class)->canUser((int) $branchManager->user_id, 'report_viewing', 'create')
+        );
     }
 }
