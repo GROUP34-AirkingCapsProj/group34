@@ -66,7 +66,7 @@ class ReportParameter
                     ? "{$required}|string"
                     : "{$required}|string|in:" . implode(',', array_keys($this->options)),
             ],
-            default => throw new \UnhandledMatchError("Unknown report parameter type: {$this->type}"),
+            default => throw new \InvalidArgumentException("Unknown report parameter type: {$this->type}"),
         };
     }
 
