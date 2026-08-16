@@ -32,8 +32,8 @@ class PdfReportRenderer
             'title'        => $title,
             'meta'         => $meta,
             'columns'      => $dataset->columns,
-            'rows'         => $dataset->rows,
-            'sections'     => $dataset->sections,
+            'rows'         => $this->formatRows($dataset->rows, $dataset->columnFormats),
+            'sections'     => $this->formatSections($dataset->sections, $dataset->columnFormats),
             'summary'      => $dataset->summary,
             'notes'        => $dataset->notes,
             'generated_at' => now()->format('Y-m-d H:i'),
@@ -44,5 +44,52 @@ class PdfReportRenderer
                 'phone'   => SystemSetting::companyPhone(),
             ],
         ])->setPaper($paperSize)->output();
+    }
+
+    /**
+     * Definitions emit raw numbers (so CSV stays machine-readable); this is
+     * where the PDF applies each column's declared display format
+     * (thousands separators, decimals) — right before the row reaches the
+     * blade, which just echoes whatever it is handed.
+     *
+     * @param array<int,array>     $rows
+     * @param array<string,string> $formats column key => ReportDataset::FORMAT_*
+     * @return array<int,array>
+     */
+    private function formatRows(array $rows, array $formats): array
+    {
+        if ($formats === []) {
+            return $rows;
+        }
+
+        foreach ($rows as &$row) {
+            foreach ($formats as $key => $format) {
+                if (array_key_exists($key, $row) && $row[$key] !== null) {
+                    $row[$key] = ReportDataset::formatValue($row[$key], $format);
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Sections reuse the same rows as the flat table, just regrouped, so the
+     * same column-format map applies to them.
+     *
+     * @param array<int,array>     $sections
+     * @param array<string,string> $formats
+     * @return array<int,array>
+     */
+    private function formatSections(array $sections, array $formats): array
+    {
+        if ($formats === []) {
+            return $sections;
+        }
+
+        return array_map(
+            fn (array $section) => array_merge($section, ['rows' => $this->formatRows($section['rows'], $formats)]),
+            $sections
+        );
     }
 }

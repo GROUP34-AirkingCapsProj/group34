@@ -17,6 +17,11 @@ use App\Reports\ReportDataset;
  * tables, so a multi-section report flattens to one row per subject with every
  * metric as its own column. Written through fputcsv so a product name
  * containing a comma or a quote cannot shift the remaining columns.
+ *
+ * `dataset->columnFormats` is also deliberately ignored: it is a display
+ * instruction for the PDF, and row values are already raw numbers by
+ * contract, so a numeric column lands here unquoted and summable instead of
+ * as a formatted string like "72,000.00" that spreadsheets read as text.
  */
 class CsvReportRenderer
 {

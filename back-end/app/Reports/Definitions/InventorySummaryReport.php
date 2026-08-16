@@ -92,8 +92,12 @@ class InventorySummaryReport implements ReportDefinition
                 'quantity_on_hand'   => $qty,
                 'available_quantity' => (int) $inventory->available_quantity,
                 'reorder_level'      => (int) $inventory->reorder_level,
-                'cost_price'         => number_format($cost, 2),
-                'stock_value'        => number_format($value, 2),
+                // Raw numbers, not formatted strings — CSV writes these as-is
+                // and must stay summable/pivotable; the PDF's display format
+                // (thousands separators, 2 decimals) is declared below via
+                // columnFormats instead of baked in here.
+                'cost_price'         => round($cost, 2),
+                'stock_value'        => round($value, 2),
             ];
         }
 
@@ -118,6 +122,10 @@ class InventorySummaryReport implements ReportDefinition
                 'Total valuation' => number_format($totalValue, 2),
             ],
             notes: ['Stock levels are current as of the generation time; this report has no historical range.'],
+            columnFormats: [
+                'cost_price'  => ReportDataset::FORMAT_MONEY,
+                'stock_value' => ReportDataset::FORMAT_MONEY,
+            ],
         );
     }
 }

@@ -69,4 +69,22 @@ class ReportContractsTest extends ReportTestCase
 
         $this->assertTrue($dataset->isEmpty());
     }
+
+    public function test_column_formats_default_to_empty_so_unformatted_columns_keep_working(): void
+    {
+        $dataset = new ReportDataset(columns: ['location' => 'Location'], rows: [['location' => 'CDO']]);
+
+        $this->assertSame([], $dataset->columnFormats);
+    }
+
+    public function test_money_format_adds_thousands_separator_and_two_decimals(): void
+    {
+        $this->assertSame('72,000.00', ReportDataset::formatValue(72000, ReportDataset::FORMAT_MONEY));
+        $this->assertSame('72,000.00', ReportDataset::formatValue(72000.0, ReportDataset::FORMAT_MONEY));
+    }
+
+    public function test_integer_format_adds_thousands_separator_with_no_decimals(): void
+    {
+        $this->assertSame('1,234', ReportDataset::formatValue(1234, ReportDataset::FORMAT_INTEGER));
+    }
 }
