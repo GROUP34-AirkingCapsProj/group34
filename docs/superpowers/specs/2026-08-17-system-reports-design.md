@@ -244,10 +244,18 @@ judged and are excluded from that percentage, with the excluded count printed be
 it — the same honesty rule as null capacity in Section A.
 
 **Section C — Transfers (period).** Units in (`to_location_id` = the location) and
-units out (`from_location_id` = the location), from `material_movement_ledger`.
+units out (`from_location_id` = the location), from `material_movement_ledger`
+restricted to `transaction_type_id` 3 (Transfer).
 
-**Section D — Goods out (period).** Units dispatched from the location — issuances and
-outbound movement — from `material_movement_ledger`.
+**Section D — Goods out (period).** Units dispatched from the location, from
+`material_movement_ledger`: `transaction_type_id` 2 (Stock Out — issuing inventory for
+operations) and 6 (Sales). Type 5 (Return to Vendor) is goods leaving but is a reversal
+of inbound rather than fulfilment, so it is reported on its own line and excluded from
+the dispatch figure. Type 4 (Adjustment) is a count correction, not goods movement, and
+is excluded from throughput entirely.
+
+The `transaction_type_lookup` values are fixed and seeded: 1 Stock In, 2 Stock Out,
+3 Transfer, 4 Adjustment, 5 Return to Vendor, 6 Sales.
 
 **Throughput summary.** Total units handled (received + transferred in + transferred
 out + dispatched), and units handled per unit of capacity. That last figure is the
@@ -258,9 +266,8 @@ available space" measure. Locations with null capacity show units handled but no
 **Double-counting.** Sections C and D read `material_movement_ledger`; Section B reads
 `receivings`. If receiving also writes ledger rows, a warehouse's inbound units would
 be counted twice in the throughput total. Sections C and D therefore exclude
-receiving-type `transaction_type_id` values, and a test asserts a received unit
-appears exactly once in the throughput total. The precise type IDs are confirmed
-against `transaction_type_lookup` during implementation.
+`transaction_type_id` 1 (Stock In), and a test asserts a received unit appears exactly
+once in the throughput total.
 
 **CSV shape.** The four sections are natural in PDF but not in CSV. The CSV export
 emits one row per location with every metric as a column — occupancy, receiving,
