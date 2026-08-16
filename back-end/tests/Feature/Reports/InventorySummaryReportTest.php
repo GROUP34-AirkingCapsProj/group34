@@ -3,6 +3,7 @@
 namespace Tests\Feature\Reports;
 
 use App\Reports\Definitions\InventorySummaryReport;
+use App\Reports\ReportDataset;
 use App\Reports\ReportParameters;
 
 class InventorySummaryReportTest extends ReportTestCase
@@ -22,7 +23,16 @@ class InventorySummaryReportTest extends ReportTestCase
 
         $this->assertNotNull($row, 'The stocked product must appear.');
         $this->assertSame(3, $row['quantity_on_hand']);
-        $this->assertSame('72,000.00', $row['stock_value']);
+
+        // The dataset carries the raw number, not a display string — CSV
+        // writes exactly this value, unquoted, so a spreadsheet can sum it.
+        $this->assertSame(72000.0, $row['stock_value']);
+        $this->assertSame(24000.0, $row['cost_price']);
+
+        // Thousands separators and decimals are a PDF display concern, so
+        // the definition declares the format rather than baking it in.
+        $this->assertSame(ReportDataset::FORMAT_MONEY, $dataset->columnFormats['stock_value']);
+        $this->assertSame(ReportDataset::FORMAT_MONEY, $dataset->columnFormats['cost_price']);
     }
 
     public function test_it_declares_no_date_range(): void

@@ -131,6 +131,15 @@ class LowStockReport implements ReportDefinition
                 'Total shortfall units' => number_format(array_sum(array_column($rows, 'shortfall'))),
             ],
             notes: ['Threshold is the location reorder level where set, otherwise the product default.'],
+            // Rows here were already raw ints, so this is not fixing a bug —
+            // it just declares the PDF display format explicitly rather than
+            // relying on the blade's default of "print the value as-is",
+            // so a large shortfall still reads with a thousands separator.
+            columnFormats: [
+                'quantity_on_hand' => ReportDataset::FORMAT_INTEGER,
+                'threshold'        => ReportDataset::FORMAT_INTEGER,
+                'shortfall'        => ReportDataset::FORMAT_INTEGER,
+            ],
         );
     }
 }
