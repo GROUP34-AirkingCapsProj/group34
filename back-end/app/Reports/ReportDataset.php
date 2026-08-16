@@ -13,6 +13,13 @@ namespace App\Reports;
 class ReportDataset
 {
     /**
+     * `rows` is the canonical data and must always be populated when the
+     * report has results — it is what `isEmpty()` checks and what CSV
+     * writes. `sections` is an optional, PDF-only regrouping of those same
+     * rows into several focused tables; it is never a substitute for rows,
+     * so a dataset cannot carry sections without the rows they were
+     * derived from.
+     *
      * @param array<string,string> $columns  request key => display label
      * @param array<int,array>     $rows     each keyed by the column keys
      * @param array<string,string> $summary  label => formatted total
@@ -26,6 +33,11 @@ class ReportDataset
         public readonly array $sections = [],
         public readonly array $notes = [],
     ) {
+        if ($this->rows === [] && $this->sections !== []) {
+            throw new \InvalidArgumentException(
+                'ReportDataset sections are a presentation view of rows and cannot stand alone: rows is empty but sections is not.'
+            );
+        }
     }
 
     public function rowCount(): int

@@ -4,7 +4,15 @@ namespace App\Reports;
 
 use Carbon\CarbonImmutable;
 
-/** Validated parameter values, handed to a definition's build(). */
+/**
+ * Validated parameter values, handed to a definition's build().
+ *
+ * Must only be constructed from request data that has already passed the
+ * validation rules built from each ReportParameter (see
+ * ReportParameter::rules()) — this class does not validate anything itself.
+ * On garbage input, `dateFrom()`/`dateTo()` let CarbonImmutable::parse()
+ * throw rather than silently producing a wrong date.
+ */
 class ReportParameters
 {
     public function __construct(private readonly array $values)

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reports;
 
+use App\Reports\ReportDataset;
 use App\Reports\ReportParameter;
 use App\Reports\ReportParameters;
 
@@ -48,5 +49,24 @@ class ReportContractsTest extends ReportTestCase
         $validator = \Illuminate\Support\Facades\Validator::make(['status' => 'anything'], $param->rules());
 
         $this->assertTrue($validator->passes());
+    }
+
+    public function test_sections_cannot_stand_in_for_empty_rows(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('sections are a presentation view of rows');
+
+        new ReportDataset(
+            columns: ['location' => 'Location'],
+            rows: [],
+            sections: [['title' => 'By Location', 'columns' => ['location' => 'Location'], 'rows' => []]],
+        );
+    }
+
+    public function test_a_dataset_with_no_rows_is_empty(): void
+    {
+        $dataset = new ReportDataset(columns: ['location' => 'Location'], rows: []);
+
+        $this->assertTrue($dataset->isEmpty());
     }
 }
