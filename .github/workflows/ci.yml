@@ -63,6 +63,28 @@ jobs:
       run:
         working-directory: back-end
 
+    # Point every artisan command at the MariaDB service above.
+    #
+    # `cp .env.example .env` below writes DB_CONNECTION=sqlite, which is the
+    # right default for a developer opening the repo but wrong for this job:
+    # the dump goes into MariaDB, so a migrate that follows .env lands on an
+    # empty SQLite file instead. Laravel then CREATES that file and fails on the
+    # very first migration, because these are ALTER-style migrations that assume
+    # the dump's base tables already exist — the same failure the comment above
+    # describes for an empty database.
+    #
+    # Set here rather than by sed-ing .env because real environment variables
+    # win over .env (Laravel's Dotenv never overwrites an existing one), so this
+    # holds for migrate, the seeders and the test run alike. The values match
+    # what phpunit.xml already declares, so nothing disagrees.
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: airkingV5_test
+      DB_USERNAME: root
+      DB_PASSWORD: ""
+
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
