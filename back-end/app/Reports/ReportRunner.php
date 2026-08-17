@@ -10,6 +10,7 @@ use App\Reports\Renderers\CsvReportRenderer;
 use App\Reports\Renderers\PdfReportRenderer;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -94,7 +95,7 @@ class ReportRunner
 
         $extension = $format === 'pdf' ? 'pdf' : 'csv';
         $fileName = $this->fileName($definition->title(), $extension);
-        $path = "reports/{$fileName}";
+        $path = $this->storedPath($fileName, $extension);
 
         Storage::disk(self::DISK)->put($path, $content);
         $sizeBytes = Storage::disk(self::DISK)->size($path);
@@ -234,12 +235,36 @@ class ReportRunner
         return $name !== '' ? $name : ($user->username ?? "#{$userId}");
     }
 
-    /** {Title_In_Snake}_{Y-m-d_His}.{ext}, e.g. Inventory_Summary_Report_2026-08-17_143022.pdf */
+    /**
+     * The name the file is DOWNLOADED as: {Title_In_Snake}_{Y-m-d_His}.{ext},
+     * e.g. Inventory_Summary_Report_2026-08-17_143022.pdf. Human-facing, so it
+     * carries nothing but the title and the moment.
+     */
     private function fileName(string $title, string $extension): string
     {
         $slug = str_replace(' ', '_', $title);
         $timestamp = now()->format('Y-m-d_His');
 
         return "{$slug}_{$timestamp}.{$extension}";
+    }
+
+    /**
+     * Where the file is STORED, which is deliberately not the download name.
+     *
+     * The name has second granularity, so two runs of the same report and
+     * format inside one second collide. Sharing a path meant Storage::put
+     * overwrote, both rows pointed at one file, and the first run downloaded
+     * the second's data under its own filters and row count — then pruning
+     * either one deleted the file the other still claimed to have.
+     *
+     * The random suffix lives only in the path: the user still gets the clean
+     * name back on download, because Storage::download() is passed file_name
+     * separately.
+     */
+    private function storedPath(string $fileName, string $extension): string
+    {
+        $stem = substr($fileName, 0, -(strlen($extension) + 1));
+
+        return "reports/{$stem}_" . Str::random(8) . ".{$extension}";
     }
 }
