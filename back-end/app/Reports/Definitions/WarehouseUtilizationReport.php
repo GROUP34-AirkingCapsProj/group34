@@ -43,12 +43,15 @@ use Illuminate\Support\Facades\DB;
  * so this sentinel is never coerced into "0.00" by the PDF renderer.
  *
  * Percentages and ratios (utilization %, damage rate, on-time %, throughput
- * ratio) are pre-formatted strings computed here, not raw floats run through
- * `columnFormats` — there is no FORMAT_PERCENT in the deliberately small
- * closed set on ReportDataset, and adding one is out of this file's scope.
- * Whole-number columns (capacity, occupied units, receipt/unit counts,
- * transfer/dispatch units) stay raw ints with FORMAT_INTEGER declared, per
- * the project-wide "rows carry raw numbers" rule.
+ * ratio) are raw floats in `rows`, exactly like every other numeric column —
+ * `ReportDataset::FORMAT_PERCENT`/`FORMAT_DECIMAL` (added alongside this
+ * report) tell the PDF renderer how to display them; CSV writes the raw
+ * number so a spreadsheet can sort/pivot on utilization or throughput, which
+ * is the whole point of this report. Whole-number columns (capacity,
+ * occupied units, receipt/unit counts, transfer/dispatch units) stay raw
+ * ints with FORMAT_INTEGER declared. The one exception in either group is
+ * the literal string `'Not set'` for a location with no configured
+ * capacity — see the signature-requirement paragraph above.
  *
  * **CSV vs PDF shape.** `rows` is one flat row per location with every
  * metric as its own column — the shape CSV needs, and the canonical data
@@ -278,9 +281,9 @@ class WarehouseUtilizationReport implements ReportDefinition
                 $locationsWithoutCapacity++;
             } else {
                 $capacityCell = $capacity;
-                $utilizationCell = $this->formatPercent($occupiedUnits, $capacity);
+                $utilizationCell = $this->rawPercent($occupiedUnits, $capacity);
                 $remainingCell = $capacity - $occupiedUnits;
-                $throughputCell = $this->formatRatio($unitsHandled, $capacity);
+                $throughputCell = $this->rawRatio($unitsHandled, $capacity);
 
                 $sumCapacityForAggregate += $capacity;
                 $sumOccupiedForAggregate += $occupiedUnits;
@@ -298,11 +301,11 @@ class WarehouseUtilizationReport implements ReportDefinition
                 'po_count'           => $poCount,
                 'units_received'     => $unitsReceived[$id],
                 'units_damaged'      => $unitsDamaged[$id],
-                'damage_rate'        => $this->formatPercent($unitsDamaged[$id], $unitsReceived[$id]),
+                'damage_rate'        => $this->rawPercent($unitsDamaged[$id], $unitsReceived[$id]),
                 'on_time_count'      => $onTimeCount[$id],
                 'late_count'         => $lateCount[$id],
                 'unrated_count'      => $unratedCount[$id],
-                'on_time_pct'        => $this->formatPercent($onTimeCount[$id], $onTimeCount[$id] + $lateCount[$id]),
+                'on_time_pct'        => $this->rawPercent($onTimeCount[$id], $onTimeCount[$id] + $lateCount[$id]),
                 'transfers_in'       => $transfersIn[$id],
                 'transfers_out'      => $transfersOut[$id],
                 'goods_out_issuance' => $goodsOutIssuance[$id],
@@ -333,20 +336,20 @@ class WarehouseUtilizationReport implements ReportDefinition
             'Locations'                    => number_format(count($rows)),
             'Locations without a capacity' => number_format($locationsWithoutCapacity),
             'Total occupied units'         => number_format($totalOccupied),
-            'Aggregate utilization %'      => $this->formatPercent($sumOccupiedForAggregate, $sumCapacityForAggregate),
+            'Aggregate utilization %'      => $this->formatPercentString($sumOccupiedForAggregate, $sumCapacityForAggregate),
             'Total receipts'               => number_format($totalReceivingCount),
             'Distinct POs received'        => number_format($totalPoCount),
             'Total units received'         => number_format($totalUnitsReceived),
             'Total units damaged'          => number_format($totalUnitsDamaged),
-            'Overall damage rate'          => $this->formatPercent($totalUnitsDamaged, $totalUnitsReceived),
-            'Overall on-time %'            => $this->formatPercent($totalOnTime, $totalOnTime + $totalLate),
+            'Overall damage rate'          => $this->formatPercentString($totalUnitsDamaged, $totalUnitsReceived),
+            'Overall on-time %'            => $this->formatPercentString($totalOnTime, $totalOnTime + $totalLate),
             'Receipts excluded (no expected delivery date)' => number_format($totalUnrated),
             'Total transfers in'           => number_format($totalTransfersIn),
             'Total transfers out'          => number_format($totalTransfersOut),
             'Total units issued'           => number_format($totalGoodsOutIssuance),
             'Total units sold'             => number_format($totalGoodsOutSales),
             'Total units handled (throughput)' => number_format($totalUnitsHandled),
-            'Aggregate throughput ratio'   => $this->formatRatio($sumUnitsHandledForAggregate, $sumCapacityForAggregate),
+            'Aggregate throughput ratio'   => $this->formatRatioString($sumUnitsHandledForAggregate, $sumCapacityForAggregate),
         ];
 
         $notes = [$this->framingNote()];
@@ -408,30 +411,54 @@ class WarehouseUtilizationReport implements ReportDefinition
     }
 
     /**
-     * A percentage as a display-ready string, or the literal 'Not set' when
-     * the denominator is zero — never a division by zero, never a misleading
-     * 0%. Used for utilization, damage rate, and on-time percentage alike.
+     * A percentage as a RAW number (e.g. 25.0 for "25.0%"), or the literal
+     * 'Not set' when the denominator is zero — never a division by zero,
+     * never a misleading 0%. Goes into `rows` for utilization, damage rate,
+     * and on-time percentage alike; `columnFormats` declares FORMAT_PERCENT
+     * for those columns so the PDF renderer adds the '%' and CSV gets the
+     * plain number.
      */
-    private function formatPercent(float $numerator, float $denominator): string
+    private function rawPercent(float $numerator, float $denominator): int|float|string
     {
         if ($denominator <= 0.0) {
             return 'Not set';
         }
 
-        return number_format(($numerator / $denominator) * 100, 1) . '%';
+        return round(($numerator / $denominator) * 100, 1);
     }
 
     /**
-     * Units handled per unit of capacity — the throughput ratio — as a
-     * display-ready string, or 'Not set' when capacity is zero/unset.
+     * Units handled per unit of capacity — the throughput ratio — as a RAW
+     * number, or 'Not set' when capacity is zero/unset. Goes into `rows`;
+     * `columnFormats` declares FORMAT_DECIMAL for throughput_ratio.
      */
-    private function formatRatio(float $numerator, float $denominator): string
+    private function rawRatio(float $numerator, float $denominator): int|float|string
     {
         if ($denominator <= 0.0) {
             return 'Not set';
         }
 
-        return number_format($numerator / $denominator, 2);
+        return round($numerator / $denominator, 2);
+    }
+
+    /**
+     * Same percentage, pre-formatted as display text — used only for
+     * `summary`, which stays pre-formatted strings by design (see
+     * ReportDataset's doc-comment: nothing downstream parses it).
+     */
+    private function formatPercentString(float $numerator, float $denominator): string
+    {
+        $raw = $this->rawPercent($numerator, $denominator);
+
+        return is_string($raw) ? $raw : number_format($raw, 1) . '%';
+    }
+
+    /** Same ratio, pre-formatted as display text — for `summary` only. */
+    private function formatRatioString(float $numerator, float $denominator): string
+    {
+        $raw = $this->rawRatio($numerator, $denominator);
+
+        return is_string($raw) ? $raw : number_format($raw, 2);
     }
 
     private function framingNote(): string
@@ -543,20 +570,24 @@ class WarehouseUtilizationReport implements ReportDefinition
         return [
             'capacity'           => ReportDataset::FORMAT_INTEGER,
             'occupied_units'     => ReportDataset::FORMAT_INTEGER,
+            'utilization_pct'    => ReportDataset::FORMAT_PERCENT,
             'remaining_capacity' => ReportDataset::FORMAT_INTEGER,
             'receiving_count'    => ReportDataset::FORMAT_INTEGER,
             'po_count'           => ReportDataset::FORMAT_INTEGER,
             'units_received'     => ReportDataset::FORMAT_INTEGER,
             'units_damaged'      => ReportDataset::FORMAT_INTEGER,
+            'damage_rate'        => ReportDataset::FORMAT_PERCENT,
             'on_time_count'      => ReportDataset::FORMAT_INTEGER,
             'late_count'         => ReportDataset::FORMAT_INTEGER,
             'unrated_count'      => ReportDataset::FORMAT_INTEGER,
+            'on_time_pct'        => ReportDataset::FORMAT_PERCENT,
             'transfers_in'       => ReportDataset::FORMAT_INTEGER,
             'transfers_out'      => ReportDataset::FORMAT_INTEGER,
             'goods_out_issuance' => ReportDataset::FORMAT_INTEGER,
             'goods_out_sales'    => ReportDataset::FORMAT_INTEGER,
             'goods_out_total'    => ReportDataset::FORMAT_INTEGER,
             'units_handled'      => ReportDataset::FORMAT_INTEGER,
+            'throughput_ratio'   => ReportDataset::FORMAT_DECIMAL,
         ];
     }
 }
