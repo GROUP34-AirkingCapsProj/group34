@@ -289,7 +289,7 @@ function ParameterField({ param, values, setField, locations, categories, users 
         value={values[param.key]}
         onChange={(v) => setField(param.key, v)}
         options={options}
-        allLabel={param.required ? null : `Any ${param.label.toLowerCase()}`}
+        allLabel={`Any ${param.label.toLowerCase()}`}
       />
     );
   }
@@ -304,6 +304,15 @@ function ParameterField({ param, values, setField, locations, categories, users 
 }
 
 function SelectField({ fieldId, param, value, onChange, options, allLabel }) {
+  // The "All …" entry is the empty value, and handleSubmit drops empty values
+  // from the payload — so it only means "all" for a filter the backend widens
+  // when the key is absent. That is false twice over: a required parameter is
+  // rejected outright, and a parameter with a default has that default put
+  // back by ReportRunner::validateAndApplyDefaults(). Offering it there would
+  // advertise a filter the backend does not honour, which is the one thing
+  // this dialog exists to prevent.
+  const canBeCleared = !param.required && param.default == null;
+
   return (
     <div className="ak-field">
       <label className="ak-label" htmlFor={fieldId}>
@@ -315,7 +324,7 @@ function SelectField({ fieldId, param, value, onChange, options, allLabel }) {
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value)}
       >
-        {allLabel && <option value="">{allLabel}</option>}
+        {allLabel && canBeCleared && <option value="">{allLabel}</option>}
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
