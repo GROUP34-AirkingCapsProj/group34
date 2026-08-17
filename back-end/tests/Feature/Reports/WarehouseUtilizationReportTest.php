@@ -49,6 +49,72 @@ class WarehouseUtilizationReportTest extends ReportTestCase
         ]);
     }
 
+    /**
+     * Transfer, Issuance and PurchaseOrder all use SoftDeletes, and this
+     * report reads them through DB::table(), which does not apply the global
+     * scope. Deleted documents inflate throughput; a deleted PO also keeps
+     * supplying an expected delivery date, so a receipt that can no longer be
+     * judged still lands in the on-time percentage.
+     */
+    public function test_soft_deleted_transfers_issuances_and_purchase_orders_are_excluded(): void
+    {
+        $location = $this->makeLocation('SoftDelWH');
+        $other    = $this->makeLocation('SoftDelWHOther');
+        $admin    = $this->makeUserAt($location, 'admin');
+        $product  = $this->makeAppliance();
+
+        Transfer::create([
+            'from_location_id'           => $other->location_id,
+            'to_location_id'             => $location->location_id,
+            'transfer_number'            => 'TRF-WU-IN-' . uniqid(),
+            'transfer_date'              => '2026-08-11',
+            'total_quantity_transferred' => 12,
+            'total_quantity_received'    => 12,
+        ])->delete();
+
+        Transfer::create([
+            'from_location_id'           => $location->location_id,
+            'to_location_id'             => $other->location_id,
+            'transfer_number'            => 'TRF-WU-OUT-' . uniqid(),
+            'transfer_date'              => '2026-08-12',
+            'total_quantity_transferred' => 9,
+            'total_quantity_received'    => 9,
+        ])->delete();
+
+        $issuance = Issuance::create([
+            'location_id'   => $location->location_id,
+            'issuance_date' => '2026-08-13',
+        ]);
+        IssuanceDetail::create([
+            'issuance_id'     => $issuance->issuance_id,
+            'product_id'      => $product->product_id,
+            'quantity_issued' => 6,
+        ]);
+        $issuance->delete();
+
+        // The receiving survives — only its PO is archived, so the receipt is
+        // still counted but can no longer be rated on-time or late.
+        $receiving = $this->makeReceivingWithPo($location->location_id, '2026-08-20', '2026-08-15', received: 10);
+        PurchaseOrder::whereKey($receiving->po_id)->delete();
+
+        $dataset = app(WarehouseUtilizationReport::class)->build(
+            $this->params('2026-08-01', '2026-08-31', ['location_id' => $location->location_id]),
+            $admin
+        );
+
+        $row = collect($dataset->rows)->firstWhere('location', 'SoftDelWH');
+        $this->assertNotNull($row);
+        $this->assertSame(0, $row['transfers_in'], 'A deleted transfer must not count as transfers in.');
+        $this->assertSame(0, $row['transfers_out'], 'A deleted transfer must not count as transfers out.');
+        $this->assertSame(0, $row['goods_out_issuance'], 'A deleted issuance must not count as goods out.');
+        $this->assertSame(10, $row['units_received'], 'The surviving receipt still counts.');
+        $this->assertSame(10, $row['units_handled'], 'Throughput counts the receipt and nothing deleted.');
+
+        $this->assertSame(0, $row['on_time_count'], 'A deleted PO cannot rate a receipt as on time.');
+        $this->assertSame(0, $row['late_count']);
+        $this->assertSame(1, $row['unrated_count'], 'With its PO archived the receipt is unrated.');
+    }
+
     public function test_it_declares_date_range_as_required_and_defaults_location_type_to_warehouse(): void
     {
         $definition = app(WarehouseUtilizationReport::class);

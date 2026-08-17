@@ -31,6 +31,74 @@ class LocationPerformanceReportTest extends ReportTestCase
         $this->assertTrue($dateRange->required, 'date_range must be required.');
     }
 
+    /**
+     * Transfer, Issuance and Adjustment all use SoftDeletes, but this report
+     * reaches them through DB::table(), which does not apply Eloquent's global
+     * scope. A deleted document left in the totals here makes this report
+     * disagree with TransactionReport — which goes through Eloquent — over the
+     * very same period.
+     */
+    public function test_soft_deleted_movements_are_excluded(): void
+    {
+        $location = $this->makeLocation('SoftDelLoc');
+        $other    = $this->makeLocation('SoftDelOther');
+        $admin    = $this->makeUserAt($location, 'admin');
+        $product  = $this->makeAppliance();
+
+        // Receivings are not soft-deletable, so this one anchors the row and
+        // proves the report still counts what is genuinely there.
+        $receiving = $this->makeReceiving($location->location_id);
+        $receiving->update(['total_quantity_received' => 12, 'receiving_date' => '2026-08-10']);
+
+        Transfer::create([
+            'from_location_id'           => $other->location_id,
+            'to_location_id'             => $location->location_id,
+            'transfer_number'            => 'TRF-DEL-IN-' . uniqid(),
+            'transfer_date'              => '2026-08-11',
+            'total_quantity_transferred' => 10,
+            'total_quantity_received'    => 10,
+        ])->delete();
+
+        Transfer::create([
+            'from_location_id'           => $location->location_id,
+            'to_location_id'             => $other->location_id,
+            'transfer_number'            => 'TRF-DEL-OUT-' . uniqid(),
+            'transfer_date'              => '2026-08-12',
+            'total_quantity_transferred' => 9,
+            'total_quantity_received'    => 9,
+        ])->delete();
+
+        $issuance = Issuance::create([
+            'location_id'   => $location->location_id,
+            'issuance_date' => '2026-08-13',
+        ]);
+        IssuanceDetail::create([
+            'issuance_id'     => $issuance->issuance_id,
+            'product_id'      => $product->product_id,
+            'quantity_issued' => 7,
+        ]);
+        $issuance->delete();
+
+        Adjustment::create([
+            'location_id'             => $location->location_id,
+            'adjustment_number'       => 'ADJ-DEL-' . uniqid(),
+            'adjustment_date'         => '2026-08-14',
+            'total_variance_positive' => 6,
+            'total_variance_negative' => 2,
+        ])->delete();
+
+        $dataset = app(LocationPerformanceReport::class)->build(
+            $this->params('2026-08-01', '2026-08-31', ['location_id' => $location->location_id]),
+            $admin
+        );
+
+        $row = collect($dataset->rows)->firstWhere('location', 'SoftDelLoc');
+        $this->assertNotNull($row);
+        $this->assertSame(12, $row['units_in'], 'A deleted transfer must not count as units in.');
+        $this->assertSame(0, $row['units_out'], 'A deleted transfer or issuance must not count as units out.');
+        $this->assertSame(0, $row['net_adjustments'], 'A deleted adjustment must not move the net.');
+    }
+
     public function test_units_in_and_units_out_are_separated_correctly(): void
     {
         $location = $this->makeLocation('Main');
