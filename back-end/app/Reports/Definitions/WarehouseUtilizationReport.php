@@ -150,7 +150,17 @@ class WarehouseUtilizationReport implements ReportDefinition
 
         $this->applyDateFilter(
             DB::table('receivings')
-                ->leftJoin('purchase_orders', 'purchase_orders.po_id', '=', 'receivings.po_id')
+                // PurchaseOrder uses SoftDeletes and DB::table() bypasses the
+                // global scope, so an archived PO would keep supplying an
+                // expected delivery date. The condition belongs in the join,
+                // not the where: in the where it would drop the receiving
+                // itself, and a receipt whose PO is gone is still a receipt —
+                // it is simply no longer rateable, which is what a null
+                // expected_delivery_date already means here.
+                ->leftJoin('purchase_orders', function ($join) {
+                    $join->on('purchase_orders.po_id', '=', 'receivings.po_id')
+                        ->whereNull('purchase_orders.deleted_at');
+                })
                 ->whereIn('receivings.location_id', $locationIds),
             'receivings.receiving_date', $fromDate, $toDate
         )->select(
@@ -178,6 +188,14 @@ class WarehouseUtilizationReport implements ReportDefinition
                 // A receipt whose PO has no expected delivery date cannot be
                 // judged on-time vs late — excluded from that percentage,
                 // counted here instead (see class doc-comment).
+                //
+                // The comparison below is a string compare, which is exact
+                // only because receivings.receiving_date and
+                // purchase_orders.expected_delivery_date are both DATE
+                // columns and therefore both 'Y-m-d'. Widen either to DATETIME
+                // and '2026-08-17 00:00:00' <= '2026-08-17' turns false,
+                // classifying an on-time receipt as late — compare on
+                // date parts if that ever changes.
                 if ($row->expected_delivery_date === null) {
                     $unratedCount[$locationId]++;
                 } elseif ($row->receiving_date <= $row->expected_delivery_date) {
@@ -191,8 +209,11 @@ class WarehouseUtilizationReport implements ReportDefinition
         $transfersIn  = array_fill_keys($locationIds, 0);
         $transfersOut = array_fill_keys($locationIds, 0);
 
+        // Transfer and Issuance use SoftDeletes; DB::table() does not apply
+        // the global scope, so deleted documents would inflate throughput and
+        // the goods-out lines. Excluded explicitly here and below.
         $this->applyDateFilter(
-            DB::table('transfers')->whereIn('to_location_id', $locationIds),
+            DB::table('transfers')->whereNull('deleted_at')->whereIn('to_location_id', $locationIds),
             'transfer_date', $fromDate, $toDate
         )->select('to_location_id as location_id', DB::raw('SUM(total_quantity_received) as qty'))
             ->groupBy('to_location_id')
@@ -202,7 +223,7 @@ class WarehouseUtilizationReport implements ReportDefinition
             });
 
         $this->applyDateFilter(
-            DB::table('transfers')->whereIn('from_location_id', $locationIds),
+            DB::table('transfers')->whereNull('deleted_at')->whereIn('from_location_id', $locationIds),
             'transfer_date', $fromDate, $toDate
         )->select('from_location_id as location_id', DB::raw('SUM(total_quantity_transferred) as qty'))
             ->groupBy('from_location_id')
@@ -218,6 +239,7 @@ class WarehouseUtilizationReport implements ReportDefinition
         $this->applyDateFilter(
             DB::table('issuance_details')
                 ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
+                ->whereNull('issuances.deleted_at')
                 ->whereIn('issuances.location_id', $locationIds),
             'issuances.issuance_date', $fromDate, $toDate
         )->select('issuances.location_id as location_id', DB::raw('SUM(issuance_details.quantity_issued) as qty'))

@@ -130,8 +130,14 @@ class LocationPerformanceReport implements ReportDefinition
 
         // Units in: transfers received AT the location (what actually
         // arrived, not what was sent — see class doc-comment).
+        //
+        // Transfer/Issuance/Adjustment all use SoftDeletes, and DB::table()
+        // bypasses Eloquent's global scope, so every one of these queries
+        // excludes deleted_at explicitly — same reasoning as the products
+        // join below. Without it this report counts documents that
+        // TransactionReport, which goes through Eloquent, does not.
         $this->applyDateFilter(
-            DB::table('transfers')->whereIn('to_location_id', $locationIds),
+            DB::table('transfers')->whereNull('deleted_at')->whereIn('to_location_id', $locationIds),
             'transfer_date', $fromDate, $toDate
         )->select('to_location_id', DB::raw('SUM(total_quantity_received) as qty'))
             ->groupBy('to_location_id')
@@ -144,6 +150,7 @@ class LocationPerformanceReport implements ReportDefinition
         $this->applyDateFilter(
             DB::table('issuance_details')
                 ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
+                ->whereNull('issuances.deleted_at')
                 ->whereIn('issuances.location_id', $locationIds),
             'issuances.issuance_date', $fromDate, $toDate
         )->select('issuances.location_id as location_id', DB::raw('SUM(issuance_details.quantity_issued) as qty'))
@@ -169,7 +176,7 @@ class LocationPerformanceReport implements ReportDefinition
         // Units out: transfers sent FROM the location (what left, not what
         // was received at the other end — see class doc-comment).
         $this->applyDateFilter(
-            DB::table('transfers')->whereIn('from_location_id', $locationIds),
+            DB::table('transfers')->whereNull('deleted_at')->whereIn('from_location_id', $locationIds),
             'transfer_date', $fromDate, $toDate
         )->select('from_location_id', DB::raw('SUM(total_quantity_transferred) as qty'))
             ->groupBy('from_location_id')
@@ -181,7 +188,7 @@ class LocationPerformanceReport implements ReportDefinition
         // Net adjustments: reported in its own column, never folded into
         // units in/out — a count correction is not goods moving.
         $this->applyDateFilter(
-            DB::table('adjustments')->whereIn('location_id', $locationIds),
+            DB::table('adjustments')->whereNull('deleted_at')->whereIn('location_id', $locationIds),
             'adjustment_date', $fromDate, $toDate
         )->select(
             'location_id',
