@@ -59,9 +59,30 @@ class ReportDataset
         }
     }
 
-    /** Render one raw value for display under a declared format. */
+    /**
+     * Render one raw value for display under a declared format.
+     *
+     * A definition can legitimately put a non-numeric sentinel in a
+     * money/integer column — Task 10's Warehouse Utilization report puts the
+     * literal string 'Not set' in capacity/utilization/throughput columns
+     * for a location nobody has configured, specifically so it reads as
+     * "not set" rather than a misleading 0 or 0%. (float) coercion would
+     * silently turn that into "0.00", so non-numeric values pass through
+     * unchanged instead of being coerced. null renders as '—', matching the
+     * dash the blade already uses elsewhere for an absent cell — the PDF
+     * renderer currently filters null out before calling this, so this is
+     * defence for future callers rather than a live path today.
+     */
     public static function formatValue(mixed $value, string $format): string
     {
+        if ($value === null) {
+            return '—';
+        }
+
+        if (! is_numeric($value)) {
+            return (string) $value;
+        }
+
         return match ($format) {
             self::FORMAT_MONEY   => number_format((float) $value, 2),
             self::FORMAT_INTEGER => number_format((float) $value),
