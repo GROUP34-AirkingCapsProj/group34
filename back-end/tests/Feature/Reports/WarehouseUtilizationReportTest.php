@@ -81,8 +81,12 @@ class WarehouseUtilizationReportTest extends ReportTestCase
         $this->assertNotNull($row);
         $this->assertSame(100, $row['capacity']);
         $this->assertSame(25, $row['occupied_units']);
-        $this->assertSame('25.0%', $row['utilization_pct']);
+        // Raw number in the dataset (25.0, not "25.0%") — CSV must be able
+        // to sort/pivot on it. The PDF renderer is what adds the '%'.
+        $this->assertSame(25.0, $row['utilization_pct']);
         $this->assertSame(75, $row['remaining_capacity']);
+        $this->assertSame(ReportDataset::FORMAT_PERCENT, $dataset->columnFormats['utilization_pct']);
+        $this->assertSame('25.0%', ReportDataset::formatValue($row['utilization_pct'], ReportDataset::FORMAT_PERCENT));
     }
 
     public function test_null_capacity_renders_not_set_and_is_excluded_from_the_aggregate(): void
@@ -130,7 +134,7 @@ class WarehouseUtilizationReportTest extends ReportTestCase
         $withCapRow = collect($dataset->rows)->firstWhere('location', 'WithCapLoc');
         $this->assertNotNull($withCapRow);
         $this->assertSame(100, $withCapRow['capacity']);
-        $this->assertSame('30.0%', $withCapRow['utilization_pct']);
+        $this->assertSame(30.0, $withCapRow['utilization_pct']);
 
         // Aggregate utilization excludes NoCapLoc entirely: only WithCapLoc's
         // 30/100 counts, so the aggregate must equal WithCapLoc's own figure,
@@ -163,7 +167,10 @@ class WarehouseUtilizationReportTest extends ReportTestCase
         $this->assertSame(1, $row['on_time_count']);
         $this->assertSame(1, $row['late_count']);
         $this->assertSame(0, $row['unrated_count']);
-        $this->assertSame('50.0%', $row['on_time_pct']);
+        $this->assertSame(50.0, $row['on_time_pct']);
+        $this->assertSame(13.3, $row['damage_rate'], '4 damaged / 30 received, rounded to one decimal.');
+        $this->assertSame(ReportDataset::FORMAT_PERCENT, $dataset->columnFormats['damage_rate']);
+        $this->assertSame(ReportDataset::FORMAT_PERCENT, $dataset->columnFormats['on_time_pct']);
     }
 
     public function test_a_receipt_with_no_expected_delivery_date_is_excluded_from_on_time_percentage(): void
@@ -187,7 +194,7 @@ class WarehouseUtilizationReportTest extends ReportTestCase
         $this->assertSame(0, $row['late_count']);
         $this->assertSame(1, $row['unrated_count']);
         // Only the rated receipt counts toward the percentage: 1/1 = 100%.
-        $this->assertSame('100.0%', $row['on_time_pct']);
+        $this->assertSame(100.0, $row['on_time_pct']);
 
         $this->assertStringContainsString('could not be judged on-time', implode(' ', $dataset->notes));
     }
@@ -320,7 +327,10 @@ class WarehouseUtilizationReportTest extends ReportTestCase
         $row = collect($dataset->rows)->firstWhere('location', 'ThroughputLoc');
         $this->assertNotNull($row);
         $this->assertSame(25, $row['units_handled']);
-        $this->assertSame('0.50', $row['throughput_ratio']);
+        // Raw number in the dataset — the PDF renderer adds display formatting.
+        $this->assertSame(0.5, $row['throughput_ratio']);
+        $this->assertSame(ReportDataset::FORMAT_DECIMAL, $dataset->columnFormats['throughput_ratio']);
+        $this->assertSame('0.50', ReportDataset::formatValue($row['throughput_ratio'], ReportDataset::FORMAT_DECIMAL));
     }
 
     public function test_count_adjustments_are_excluded_from_throughput(): void
@@ -431,6 +441,110 @@ class WarehouseUtilizationReportTest extends ReportTestCase
             'A scoped user with no assigned location must see nothing — never everything.');
         $this->assertSame([], $dataset->sections,
             'sections cannot stand in for empty rows.');
+    }
+
+    public function test_percent_and_decimal_columns_are_raw_in_the_dataset_and_formatted_in_pdf_and_csv(): void
+    {
+        $location = $this->makeLocation('FormatCheckLoc');
+        $location->update(['capacity' => 200]);
+        $admin = $this->makeUserAt($location, 'admin');
+        $product = $this->makeAppliance();
+        $this->setStock($location->location_id, $product->product_id, 50);
+
+        $dataset = app(WarehouseUtilizationReport::class)->build(
+            $this->params('2026-08-01', '2026-08-31', ['location_id' => $location->location_id]),
+            $admin
+        );
+
+        $row = collect($dataset->rows)->firstWhere('location', 'FormatCheckLoc');
+        $this->assertNotNull($row);
+
+        // Dataset shape: raw numbers, not pre-formatted strings.
+        $this->assertIsFloat($row['utilization_pct']);
+        $this->assertSame(25.0, $row['utilization_pct']);
+
+        // CSV shape: the raw number survives untouched (CsvReportRenderer
+        // ignores columnFormats by design), so a spreadsheet can sort/pivot
+        // on utilization and throughput — parsed back out rather than
+        // substring-matched, so this can't be fooled by a coincidental
+        // adjacent digit sequence.
+        $csv = app(\App\Reports\Renderers\CsvReportRenderer::class)
+            ->render($dataset, 'Warehouse Utilization', []);
+        $lines = array_map('str_getcsv', array_filter(explode("\n", trim($csv))));
+        $header = $lines[0];
+        $dataLine = $lines[1];
+        $utilizationIndex = array_search('Utilization %', $header, true);
+        $this->assertNotFalse($utilizationIndex);
+        $this->assertSame('25', $dataLine[$utilizationIndex],
+            'CSV must write the raw percent number, not "25.0%".');
+
+        // PDF shape: the same raw number is display-formatted with FORMAT_PERCENT/FORMAT_DECIMAL.
+        $pdf = app(\App\Reports\Renderers\PdfReportRenderer::class)
+            ->render($dataset, 'Warehouse Utilization', []);
+        $this->assertIsString($pdf);
+        $this->assertNotEmpty($pdf);
+    }
+
+    public function test_not_set_sentinel_survives_the_new_percent_and_decimal_formats(): void
+    {
+        // Direct regression guard on ReportDataset::formatValue() for the
+        // exact formats this report declares for utilization/damage
+        // rate/on-time/throughput — a (float) coercion here would silently
+        // turn 'Not set' into "0.0%"/"0.00", exactly the bug this report
+        // exists to prevent.
+        $this->assertSame('Not set', ReportDataset::formatValue('Not set', ReportDataset::FORMAT_PERCENT));
+        $this->assertSame('Not set', ReportDataset::formatValue('Not set', ReportDataset::FORMAT_DECIMAL));
+    }
+
+    public function test_not_set_survives_end_to_end_through_the_real_pdf_renderer(): void
+    {
+        $noCapacity = \App\Models\Location::create([
+            'location_code' => 'LOC-' . uniqid(),
+            'location_name' => 'PdfNotSetLoc',
+            'location_type' => 'branch_office',
+        ]);
+        $admin = $this->makeUserAt($noCapacity, 'admin');
+
+        $dataset = app(WarehouseUtilizationReport::class)->build(
+            $this->params('2026-08-01', '2026-08-31', [
+                'location_id'   => $noCapacity->location_id,
+                'location_type' => 'branch_office',
+            ]),
+            $admin
+        );
+
+        $row = collect($dataset->rows)->firstWhere('location', 'PdfNotSetLoc');
+        $this->assertSame('Not set', $row['utilization_pct']);
+        $this->assertSame('Not set', $row['throughput_ratio']);
+
+        $pdfPath = sys_get_temp_dir() . '/wu_not_set_check_' . uniqid() . '.pdf';
+        file_put_contents(
+            $pdfPath,
+            app(\App\Reports\Renderers\PdfReportRenderer::class)->render($dataset, 'Warehouse Utilization', [])
+        );
+
+        // A regression that turns 'Not set' into "0.0%" would still leave the
+        // PDF non-empty, so this needs the literal text to appear — checked
+        // by extracting text with pdftotext if it's on PATH; otherwise fall
+        // back to a raw-bytes scan, since dompdf frequently leaves the text
+        // stream uncompressed for a document this small.
+        $text = null;
+        $pdftotext = trim((string) shell_exec('where pdftotext 2>NUL || which pdftotext 2>/dev/null'));
+        if ($pdftotext !== '') {
+            $txtPath = $pdfPath . '.txt';
+            shell_exec('pdftotext ' . escapeshellarg($pdfPath) . ' ' . escapeshellarg($txtPath));
+            if (file_exists($txtPath)) {
+                $text = file_get_contents($txtPath);
+                @unlink($txtPath);
+            }
+        }
+
+        if ($text === null) {
+            $text = file_get_contents($pdfPath);
+        }
+
+        $this->assertStringContainsString('Not set', $text);
+        @unlink($pdfPath);
     }
 
     public function test_location_type_defaults_to_warehouse(): void

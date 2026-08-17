@@ -89,6 +89,37 @@ class ReportContractsTest extends ReportTestCase
     }
 
     /**
+     * Added for Task 10's Warehouse Utilization report: utilization %,
+     * damage rate, and on-time % need a display format that appends '%'
+     * without losing the raw number CSV needs to sort/pivot on.
+     */
+    public function test_percent_format_adds_one_decimal_and_a_trailing_percent_sign(): void
+    {
+        $this->assertSame('25.0%', ReportDataset::formatValue(25, ReportDataset::FORMAT_PERCENT));
+        $this->assertSame('25.0%', ReportDataset::formatValue(25.0, ReportDataset::FORMAT_PERCENT));
+        $this->assertSame('13.3%', ReportDataset::formatValue(13.333, ReportDataset::FORMAT_PERCENT));
+    }
+
+    /**
+     * Added alongside FORMAT_PERCENT for the throughput ratio (units handled
+     * per unit of capacity). Two decimal places, thousands separator, no
+     * unit suffix — a generic reusable "decimal" shape rather than a
+     * one-off "ratio with a x suffix" format, per the closed-set rule.
+     */
+    public function test_decimal_format_adds_two_decimals_and_a_thousands_separator(): void
+    {
+        $this->assertSame('0.50', ReportDataset::formatValue(0.5, ReportDataset::FORMAT_DECIMAL));
+        $this->assertSame('1,234.50', ReportDataset::formatValue(1234.5, ReportDataset::FORMAT_DECIMAL));
+    }
+
+    /** The 'Not set' sentinel must survive the two new formats exactly as it does money/integer. */
+    public function test_a_non_numeric_sentinel_survives_percent_and_decimal_formatting(): void
+    {
+        $this->assertSame('Not set', ReportDataset::formatValue('Not set', ReportDataset::FORMAT_PERCENT));
+        $this->assertSame('Not set', ReportDataset::formatValue('Not set', ReportDataset::FORMAT_DECIMAL));
+    }
+
+    /**
      * Warehouse Utilization puts the literal 'Not set' in its capacity and
      * utilization columns for a location nobody has configured, precisely so
      * it never reads as a misleading 0 or 0%. A (float) coercion would undo

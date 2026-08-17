@@ -17,9 +17,22 @@ class ReportDataset
      * Deliberately small — this is a lookup key for number_format(), not a
      * formatting mini-language. Add to this set only if a genuinely new
      * shape of number shows up (e.g. percentages), not as a one-off.
+     *
+     * FORMAT_PERCENT and FORMAT_DECIMAL were added for Task 10's Warehouse
+     * Utilization report (utilization %, damage rate, on-time % → PERCENT;
+     * throughput ratio → DECIMAL), replacing pre-formatted strings that CSV
+     * could not sort or pivot on. FORMAT_DECIMAL was chosen over a
+     * one-off "FORMAT_RATIO" with a "×" suffix: two decimal places with a
+     * thousands separator is a generic, reusable shape (any future
+     * report needing a non-money, non-integer decimal can reuse it),
+     * whereas a "×" suffix is domain-specific display text that belongs in
+     * a column label, not a format. Keeping the set to generic numeric
+     * shapes — not one format per report — is the point of it being closed.
      */
     public const FORMAT_MONEY   = 'money';
     public const FORMAT_INTEGER = 'integer';
+    public const FORMAT_PERCENT = 'percent';
+    public const FORMAT_DECIMAL = 'decimal';
 
     /**
      * `rows` is the canonical data and must always be populated when the
@@ -63,12 +76,13 @@ class ReportDataset
      * Render one raw value for display under a declared format.
      *
      * A definition can legitimately put a non-numeric sentinel in a
-     * money/integer column — Task 10's Warehouse Utilization report puts the
-     * literal string 'Not set' in capacity/utilization/throughput columns
-     * for a location nobody has configured, specifically so it reads as
-     * "not set" rather than a misleading 0 or 0%. (float) coercion would
-     * silently turn that into "0.00", so non-numeric values pass through
-     * unchanged instead of being coerced. null renders as '—', matching the
+     * money/integer/percent/decimal column — Task 10's Warehouse Utilization
+     * report puts the literal string 'Not set' in its capacity (INTEGER) and
+     * utilization/throughput (PERCENT/DECIMAL) columns for a location nobody
+     * has configured, specifically so it reads as "not set" rather than a
+     * misleading 0 or 0%. (float) coercion would silently turn that into
+     * "0.00" or "0.0%", so non-numeric values pass through unchanged instead
+     * of being coerced. null renders as '—', matching the
      * dash the blade already uses elsewhere for an absent cell — the PDF
      * renderer currently filters null out before calling this, so this is
      * defence for future callers rather than a live path today.
@@ -86,6 +100,8 @@ class ReportDataset
         return match ($format) {
             self::FORMAT_MONEY   => number_format((float) $value, 2),
             self::FORMAT_INTEGER => number_format((float) $value),
+            self::FORMAT_PERCENT => number_format((float) $value, 1) . '%',
+            self::FORMAT_DECIMAL => number_format((float) $value, 2),
             default              => (string) $value,
         };
     }
