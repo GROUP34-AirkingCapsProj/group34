@@ -46,6 +46,57 @@ class ReportApiTest extends ReportTestCase
         );
     }
 
+    /**
+     * User Activity declares a `user` filter and is availableTo every
+     * centralized user — admin, inventory_analyst and auditor. The dropdown
+     * behind that filter cannot come from GET /users, which is gated on
+     * user_account_management.read and seeded to admin alone: the other two
+     * would 403 and land on an empty "All users" list, i.e. a filter the
+     * dialog offers and the user cannot actually use.
+     */
+    public function test_an_auditor_can_load_the_user_filter_options(): void
+    {
+        $auditor = $this->makeUserAt($this->makeLocation(), 'auditor');
+        $this->actingAs($auditor, 'sanctum');
+
+        $response = $this->getJson('/api/reports/filter-users');
+
+        $response->assertOk();
+
+        $users = $response->json('data');
+        $this->assertNotEmpty($users, 'An auditor must get a populated user list.');
+
+        $mine = collect($users)->firstWhere('user_id', $auditor->user_id);
+        $this->assertNotNull($mine);
+        $this->assertArrayHasKey('first_name', $mine);
+        $this->assertArrayHasKey('username', $mine);
+    }
+
+    /**
+     * The dropdown needs a name and an id and nothing else. Serving the whole
+     * user record here would hand every report viewer the contact details that
+     * GET /users deliberately keeps behind user_account_management.
+     */
+    public function test_the_user_filter_options_carry_no_contact_details(): void
+    {
+        $admin = $this->makeUserAt($this->makeLocation(), 'admin');
+        $this->actingAs($admin, 'sanctum');
+
+        $row = $this->getJson('/api/reports/filter-users')->assertOk()->json('data.0');
+
+        foreach (['email', 'phone', 'address', 'avatar_path', 'password'] as $field) {
+            $this->assertArrayNotHasKey($field, $row);
+        }
+    }
+
+    public function test_the_user_filter_options_require_report_permission(): void
+    {
+        $noReports = $this->makeUserAt($this->makeLocation(), 'warehouse_personnel');
+        $this->actingAs($noReports, 'sanctum');
+
+        $this->getJson('/api/reports/filter-users')->assertForbidden();
+    }
+
     public function test_generate_returns_the_run_record(): void
     {
         $location = $this->makeLocation();

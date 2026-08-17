@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReportRun;
+use App\Models\User;
 use App\Reports\EmptyReportException;
 use App\Reports\ReportRegistry;
 use App\Reports\ReportRunner;
@@ -47,6 +48,30 @@ class ReportController extends Controller
         ], $definitions);
 
         return $this->success($catalog, 'Report catalog retrieved successfully');
+    }
+
+    /**
+     * The options behind a report's `user` filter.
+     *
+     * This exists because GET /users is gated on user_account_management.read,
+     * which is seeded to admin alone, while report_viewing.read is seeded to
+     * admin, inventory_analyst and auditor — and User Activity declares a
+     * `user` filter for all three. Populating the dropdown from /users left
+     * the other two roles with a silent 403 and a filter they could not use.
+     *
+     * It serves only what a dropdown needs. The contact details /users carries
+     * stay behind the permission that guards them; being able to run a report
+     * is not a reason to read everyone's email address.
+     */
+    public function filterUsers()
+    {
+        $users = User::query()
+            ->select(['user_id', 'first_name', 'last_name', 'username'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        return $this->success($users, 'Report filter users retrieved successfully');
     }
 
     public function generate(Request $request)

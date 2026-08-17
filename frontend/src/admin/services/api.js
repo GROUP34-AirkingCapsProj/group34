@@ -1944,6 +1944,14 @@ export const reportsAPI = {
       }),
     }),
 
+  /**
+   * GET /reports/filter-users → [{user_id, first_name, last_name, username}]
+   * for the `user` parameter's dropdown. Not usersAPI.getAll: that route is
+   * gated on user_account_management.read (admin only), while reports are
+   * open to inventory_analyst and auditor too.
+   */
+  getFilterUsers: async () => apiRequest('/reports/filter-users'),
+
   /** GET /reports/runs — paginated, newest first. */
   getRuns: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
