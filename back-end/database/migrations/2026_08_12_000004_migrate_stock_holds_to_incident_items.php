@@ -24,7 +24,25 @@ return new class extends Migration
             return;
         }
 
+        // Which reports are already finished, by name — the incident status ids
+        // are install-specific, so matching on the number would be silently
+        // wrong on any database but the one it was written against.
+        $closures = DB::table('incident_reports as ir')
+            ->join('status_lookup as sl', 'sl.status_id', '=', 'ir.status_id')
+            ->where('sl.status_category', 'incident')
+            ->whereIn('sl.status_name', ['Resolved', 'Dismissed'])
+            ->pluck('sl.status_name', 'ir.incident_id');
+
+        $stranded = 0;
+
         foreach (DB::table('stock_holds')->get() as $hold) {
+            $closedAs = $closures[$hold->incident_id] ?? null;
+            $status   = $this->statusFor($hold, $closedAs);
+
+            if ($status === 'quarantined' && $closedAs !== null) {
+                $stranded++;
+            }
+
             DB::table('incident_items')->insert([
                 'incident_id'   => $hold->incident_id,
                 'product_id'    => $hold->product_id,
@@ -32,7 +50,7 @@ return new class extends Migration
                 'batch_id'      => $hold->batch_id,
                 'unit_role'     => 'single',
                 'quantity'      => $hold->quantity,
-                'status'        => $this->statusFor($hold),
+                'status'        => $status,
                 'outcome'       => $this->outcomeFor($hold),
                 'outcome_note'  => $hold->disposition_note,
                 'created_at'    => $hold->created_at,
@@ -40,23 +58,53 @@ return new class extends Migration
             ]);
         }
 
+        if ($stranded > 0) {
+            echo "  migrate_stock_holds_to_incident_items: {$stranded} item(s) under a "
+                . "closed report carry no disposition and stay quarantined — they are "
+                . "held out of picking until somebody reviews them.\n";
+        }
+
         Schema::dropIfExists('stock_holds');
     }
 
-    private function statusFor(object $hold): string
+    /**
+     * $closedAs is the parent report's status NAME once it is finished —
+     * 'Resolved', 'Dismissed', or null while it is still in flight.
+     *
+     * It has to be consulted. `quarantined` means "somebody still has to
+     * decide", and a closed report has no screen left to decide it on: the
+     * batch stays out of FIFO picking and nothing in the UI can ever release
+     * it. So a hold under a closed report is settled here the way closing the
+     * report would have settled it.
+     */
+    private function statusFor(object $hold, ?string $closedAs): string
     {
-        if ($hold->status === 'held') {
-            // Never inspected under the old order either — it was waiting for a
-            // disposition, which is what quarantined now means.
+        if ($hold->status === 'held' && $closedAs === null) {
+            // Still in flight: not inspected under the old order either — it was
+            // waiting for a disposition, which is what quarantined now means.
             return 'quarantined';
         }
 
-        return match ($hold->disposition) {
+        $status = match ($hold->disposition) {
             'restocked'            => 'available',
             'scrapped'             => 'scrapped',
             'returned_to_supplier' => 'returned',
             default                => $hold->condition === 'missing' ? 'missing' : 'quarantined',
         };
+
+        // A dismissal says the report described nothing real, so whatever is
+        // still undecided goes back to the picking pool — exactly what
+        // IncidentItemService::release() does, and for the same reason it
+        // ignores anything an inspector recorded. A hold that already has a
+        // disposition keeps it: those goods physically moved.
+        if ($status === 'quarantined' && $closedAs === 'Dismissed') {
+            return 'available';
+        }
+
+        // Resolved with nothing recorded falls through as quarantined on
+        // purpose. Guessing at stock is worse than leaving it; up() warns so a
+        // human decides instead of the migration.
+        return $status;
     }
 
     private function outcomeFor(object $hold): ?string
