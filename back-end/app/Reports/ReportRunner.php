@@ -46,7 +46,8 @@ class ReportRunner
     /**
      * @param array<string,mixed> $parameters raw request input, unvalidated
      *
-     * @throws \InvalidArgumentException          unknown report key or undeclared format
+     * @throws \InvalidArgumentException          unknown report key
+     * @throws UnsupportedFormatException          the report does not declare that format
      * @throws AuthorizationException              user may not run this report
      * @throws ValidationException                 parameters fail the definition's own rules,
      *                                              or include a key the definition does not declare
@@ -65,7 +66,7 @@ class ReportRunner
         }
 
         if (! in_array($format, $definition->formats(), true)) {
-            throw new \InvalidArgumentException(
+            throw new UnsupportedFormatException(
                 "The {$definition->title()} report does not support the \"{$format}\" format."
             );
         }

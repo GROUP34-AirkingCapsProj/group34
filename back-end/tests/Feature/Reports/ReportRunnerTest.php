@@ -14,6 +14,7 @@ use App\Reports\ReportRunner;
 use App\Reports\Renderers\CsvReportRenderer;
 use App\Reports\Renderers\PdfReportRenderer;
 use App\Reports\RowCapExceededException;
+use App\Reports\UnsupportedFormatException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -222,7 +223,11 @@ class ReportRunnerTest extends ReportTestCase
         $location = $this->makeLocation();
         $admin    = $this->makeUserAt($location, 'admin');
 
-        $this->expectException(\InvalidArgumentException::class);
+        // Specifically UnsupportedFormatException, not the bare
+        // \InvalidArgumentException an unknown report key raises: the two mean
+        // different things to a client, and the controller maps them to 422
+        // and 404 respectively.
+        $this->expectException(UnsupportedFormatException::class);
 
         $this->runner()->run('low-stock', 'xlsx', [], $admin);
     }
