@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-17-system-reports-design.md`
 
+> **SUPERSEDED — Tasks 8, 9, and 10.** Those tasks were written against the tables
+> `transactions` and `material_movement_ledger`, which do not exist in this database
+> and never have. Their task text below is WRONG and must not be implemented as
+> written. The corrected sources are in the spec under reports 2, 3, and 5 — read
+> those sections instead. Tasks 1-7 and 11-20 are unaffected.
+
 ---
 
 ## Orientation for the implementing engineer
