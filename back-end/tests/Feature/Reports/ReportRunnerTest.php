@@ -149,6 +149,45 @@ class ReportRunnerTest extends ReportTestCase
         );
     }
 
+    /**
+     * The stored path was {Title}_{Y-m-d_His}.{ext} — second granularity and
+     * nothing else — so two runs of the same report and format inside one
+     * second produced the same path. Storage::put overwrote, both rows pointed
+     * at one file, and downloading the first served the second's data under
+     * the first's filters and row count. Worse, pruning the first deleted the
+     * shared file and the second 404'd while still reporting is_expired false.
+     *
+     * Time is frozen so the collision is deterministic rather than dependent
+     * on the suite happening to cross a second boundary.
+     */
+    public function test_two_runs_in_the_same_second_do_not_overwrite_each_other(): void
+    {
+        $location = $this->makeLocation();
+        $product  = $this->makeAppliance();
+        $admin    = $this->makeUserAt($location, 'admin');
+
+        $inventory = $this->setStock($location->location_id, $product->product_id, 2);
+        $inventory->update(['reorder_level' => 5]);
+
+        $this->travelTo(now()->startOfSecond());
+
+        $first  = $this->runner()->run('low-stock', 'csv', ['location_id' => $location->location_id], $admin);
+        $second = $this->runner()->run('low-stock', 'csv', ['location_id' => $location->location_id], $admin);
+        $this->writtenPaths[] = $first->file_path;
+        $this->writtenPaths[] = $second->file_path;
+
+        $this->assertNotSame($first->file_path, $second->file_path,
+            'Two runs in the same second must not share a stored file.');
+
+        $this->assertTrue(Storage::disk('local')->exists($first->file_path));
+        $this->assertTrue(Storage::disk('local')->exists($second->file_path));
+
+        // Deleting one run's file must leave the other's intact.
+        Storage::disk('local')->delete($first->file_path);
+        $this->assertTrue(Storage::disk('local')->exists($second->file_path),
+            'Pruning one run must not remove another run\'s file.');
+    }
+
     public function test_an_empty_dataset_throws_and_leaves_no_report_run_row(): void
     {
         // A location with no inventory rows at all cannot produce any low-stock line.
@@ -204,7 +243,15 @@ class ReportRunnerTest extends ReportTestCase
             '/^Low_Stock_Report_\d{4}-\d{2}-\d{2}_\d{6}\.csv$/',
             $run->file_name
         );
-        $this->assertSame('reports/' . $run->file_name, $run->file_path);
+
+        // The stored path is NOT 'reports/' . file_name: it carries a random
+        // suffix so two runs in the same second cannot share a file (see
+        // ReportRunner::storedPath). The clean name is what the user gets
+        // back on download; the unique one is what is on disk.
+        $this->assertMatchesRegularExpression(
+            '/^reports\/Low_Stock_Report_\d{4}-\d{2}-\d{2}_\d{6}_[A-Za-z0-9]{8}\.csv$/',
+            $run->file_path
+        );
     }
 
     /**
