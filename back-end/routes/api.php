@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\DeliveryReceiptController;
 use App\Http\Controllers\Api\IssuanceController;
 use App\Http\Controllers\Api\TransferController;
 use App\Http\Controllers\Api\AdjustmentController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\BarcodeAdjustmentController;
 use App\Http\Controllers\Api\ProfitLossController;
 use App\Http\Controllers\Api\ActivityLogController;
@@ -1025,69 +1026,22 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | REPORTS & ANALYTICS
     |--------------------------------------------------------------------------
     */
+    // Task 14: removed seven dead closures that used to live here
+    // (inventory-valuation, sales-summary, movement-history, low-stock-report,
+    // adjustments-summary, receivings-summary, profit-loss-summary). Nothing in
+    // the frontend called any of them, and low-stock-report was actively wrong —
+    // it compared stock against the global products.recommended_stocks while
+    // ignoring the per-location inventory.reorder_level, so it could never
+    // report a per-location shortfall. That logic now lives correctly in
+    // App\Reports\Definitions\LowStockReport, served through the routes below.
     Route::prefix('reports')->group(function () {
-        Route::get('/inventory-valuation', function () {
-            $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
-            $products = \App\Models\Product::with(['category', 'applianceDetail.brand'])
-                ->selectRaw("products.*, {$sub} AS total_qty")
-                ->get()
-                ->map(fn($p) => [
-                    'product_id'   => $p->product_id,
-                    'product_name' => $p->product_name,
-                    'category'     => $p->category?->category_name,
-                    'brand'        => $p->applianceDetail?->brand?->brand_name,
-                    'quantity'     => (int) ($p->total_qty ?? 0),
-                    'cost_price'   => $p->cost_price,
-                    'total_value'  => ($p->total_qty ?? 0) * $p->cost_price,
-                ]);
-            return response()->json(['success' => true, 'data' => $products]);
+        Route::middleware('permission:report_viewing,read')->group(function () {
+            Route::get('/catalog', [ReportController::class, 'catalog']);
+            Route::get('/runs', [ReportController::class, 'runs']);
+            Route::get('/runs/{id}/download', [ReportController::class, 'download']);
         });
-        Route::get('/sales-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\Sale::with('customer');
-            if ($request->has('date_from')) {
-                $query->where('sale_date', '>=', $request->date_from);
-            }
-            if ($request->has('date_to')) {
-                $query->where('sale_date', '<=', $request->date_to);
-            }
-            return response()->json(['success' => true, 'data' => $query->paginate(50)]);
-        });
-        Route::get('/movement-history', function () {
-            return response()->json(['success' => true, 'data' => \App\Models\Transfer::with(['fromLocation', 'toLocation'])->orderBy('created_at', 'desc')->paginate(50)]);
-        });
-        Route::get('/low-stock-report', function () {
-            $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
-            $products = \App\Models\Product::with(['category', 'applianceDetail.brand'])
-                ->selectRaw("products.*, {$sub} AS total_qty")
-                ->whereRaw("{$sub} <= recommended_stocks")
-                ->get();
-            return response()->json(['success' => true, 'data' => $products]);
-        });
-        Route::get('/adjustments-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\Adjustment::with(['location', 'createdBy']);
-            if ($request->has('location_id')) {
-                $query->where('location_id', $request->location_id);
-            }
-            return response()->json(['success' => true, 'data' => $query->orderBy('created_at', 'desc')->paginate(50)]);
-        });
-        Route::get('/receivings-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\Receiving::with(['purchaseOrder.supplier', 'location', 'receivedBy']);
-            if ($request->has('location_id')) {
-                $query->where('location_id', $request->location_id);
-            }
-            return response()->json(['success' => true, 'data' => $query->orderBy('created_at', 'desc')->paginate(50)]);
-        });
-        Route::get('/profit-loss-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\ProfitLoss::with(['product', 'model', 'recordedBy']);
-            if ($request->has('product_id')) {
-                $query->where('product_id', $request->product_id);
-            }
-            return response()->json([
-                'success' => true,
-                'data'    => $query->orderBy('created_at', 'desc')->paginate(50),
-                'summary' => ['total_loss' => \App\Models\ProfitLoss::sum('total_loss_amount')],
-            ]);
-        });
+        Route::middleware('permission:report_viewing,create')
+            ->post('/generate', [ReportController::class, 'generate']);
     });
 });
 
@@ -1105,6 +1059,13 @@ Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
 
 Route::middleware(['auth.query.token', 'permission:inventory_adjustments,read'])
      ->get('/adjustments/{id}/pdf', [AdjustmentController::class, 'pdf']);
+
+// A top-level browser navigation (opening/saving the report file) cannot set
+// an Authorization header, so this takes the token as a ?token= query param
+// like the other document downloads above. Same controller action as the
+// Bearer-token /reports/runs/{id}/download route inside the auth group.
+Route::middleware(['auth.query.token', 'permission:report_viewing,read'])
+     ->get('/reports/runs/{id}/file', [ReportController::class, 'download']);
 
 // sendBeacon (tab-close/refresh) can't set an Authorization header, so the
 // issuance wizard's abandon-revert beacon authenticates via ?token= like the
