@@ -3,7 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import GenerateReportDialog from '../components/reports/GenerateReportDialog';
 import RecentReportsList from '../components/reports/RecentReportsList';
 import { toast } from '../utils/toast';
-import { reportsAPI, locationsAPI, categoriesAPI, usersAPI } from '../services/api';
+import { reportsAPI, locationsAPI, categoriesAPI } from '../services/api';
 import '../styles/dashboard_air.css';
 import '../styles/system_reports.css';
 
@@ -160,9 +160,15 @@ const SystemReports = () => {
     categoriesAPI.getAll()
       .then((res) => setCategories(Array.isArray(res?.data) ? res.data : []))
       .catch(() => setCategories([]));
-    usersAPI.getAll({ per_page: 200 })
+    // Not usersAPI.getAll: that route needs user_account_management.read,
+    // which only admin has, so an auditor or inventory analyst — both of whom
+    // can run User Activity — got a 403 and a filter with nothing in it.
+    reportsAPI.getFilterUsers()
       .then((res) => setUsers(Array.isArray(res?.data) ? res.data : []))
-      .catch(() => setUsers([]));
+      .catch((err) => {
+        setUsers([]);
+        toast.error('Could not load the user filter', err?.message);
+      });
   }, [loadCatalog, loadRuns]);
 
   const openGenerate = (report) => {

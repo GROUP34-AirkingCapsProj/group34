@@ -1037,6 +1037,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::prefix('reports')->group(function () {
         Route::middleware('permission:report_viewing,read')->group(function () {
             Route::get('/catalog', [ReportController::class, 'catalog']);
+            // The `user` filter's dropdown. Served here rather than from
+            // GET /users, which is admin-only while report_viewing is not —
+            // see ReportController::filterUsers().
+            Route::get('/filter-users', [ReportController::class, 'filterUsers']);
             Route::get('/runs', [ReportController::class, 'runs']);
             Route::get('/runs/{id}/download', [ReportController::class, 'download']);
         });
