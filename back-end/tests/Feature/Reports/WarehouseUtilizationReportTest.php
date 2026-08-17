@@ -524,27 +524,64 @@ class WarehouseUtilizationReportTest extends ReportTestCase
         );
 
         // A regression that turns 'Not set' into "0.0%" would still leave the
-        // PDF non-empty, so this needs the literal text to appear — checked
-        // by extracting text with pdftotext if it's on PATH; otherwise fall
-        // back to a raw-bytes scan, since dompdf frequently leaves the text
-        // stream uncompressed for a document this small.
-        $text = null;
+        // PDF non-empty, so this needs the literal text to appear.
+        $text = $this->pdfText($pdfPath);
+
+        $this->assertStringContainsString('Not set', $text);
+        @unlink($pdfPath);
+    }
+
+    /**
+     * The text of a rendered PDF.
+     *
+     * Uses pdftotext when it is on PATH, and otherwise reads the page content
+     * stream directly rather than skipping — this assertion is the only thing
+     * standing between 'Not set' and a silent "0.0%", and it should hold on a
+     * machine without poppler installed just as well as on one with it.
+     *
+     * A raw-byte scan cannot do that job: dompdf flate-compresses the content
+     * stream, and even inflated it writes strings as UTF-16BE, so an ASCII
+     * needle appears nowhere in the file at either level.
+     */
+    private function pdfText(string $pdfPath): string
+    {
         $pdftotext = trim((string) shell_exec('where pdftotext 2>NUL || which pdftotext 2>/dev/null'));
         if ($pdftotext !== '') {
             $txtPath = $pdfPath . '.txt';
             shell_exec('pdftotext ' . escapeshellarg($pdfPath) . ' ' . escapeshellarg($txtPath));
             if (file_exists($txtPath)) {
-                $text = file_get_contents($txtPath);
+                $text = (string) file_get_contents($txtPath);
                 @unlink($txtPath);
+
+                return $text;
             }
         }
 
-        if ($text === null) {
-            $text = file_get_contents($pdfPath);
+        $pdf  = (string) file_get_contents($pdfPath);
+        $text = '';
+
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $streams);
+
+        foreach ($streams[1] as $stream) {
+            $content = @gzuncompress($stream);
+
+            // Embedded font programs inflate too; only the page content stream
+            // carries the show-text operators.
+            if ($content === false || ! str_contains($content, 'TJ')) {
+                continue;
+            }
+
+            // Each drawn string is a parenthesised literal, with any literal
+            // parenthesis or backslash inside it backslash-escaped.
+            preg_match_all('/\(((?:[^()\\\\]|\\\\.)*)\)/s', $content, $literals);
+
+            foreach ($literals[1] as $literal) {
+                $unescaped = str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $literal);
+                $text .= mb_convert_encoding($unescaped, 'UTF-8', 'UTF-16BE') . "\n";
+            }
         }
 
-        $this->assertStringContainsString('Not set', $text);
-        @unlink($pdfPath);
+        return $text;
     }
 
     public function test_location_type_defaults_to_warehouse(): void
