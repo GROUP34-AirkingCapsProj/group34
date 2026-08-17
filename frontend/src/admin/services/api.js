@@ -1919,3 +1919,48 @@ export const barcodeAdjustmentAPI = {
     return apiRequest(query ? `/compliance/logs?${query}` : '/compliance/logs');
   },
 };
+
+/* ======================
+   REPORTS API
+   The catalog is the single source of truth for what a card offers and what
+   a generate dialog asks for — see App\Http\Controllers\Api\ReportController.
+====================== */
+export const reportsAPI = {
+  /** GET /reports/catalog → [{key, title, description, formats, parameters}] */
+  getCatalog: async () => apiRequest('/reports/catalog'),
+
+  /**
+   * POST /reports/generate. `parameters` is the flat wire object the dialog
+   * built (e.g. { date_from, date_to, location_id }) — the backend validates
+   * it against the report's own declared parameters.
+   */
+  generate: async ({ reportKey, format, parameters = {} }) =>
+    apiRequest('/reports/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        report_key: reportKey,
+        format,
+        parameters,
+      }),
+    }),
+
+  /** GET /reports/runs — paginated, newest first. */
+  getRuns: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/reports/runs?${query}` : '/reports/runs');
+  },
+
+  /**
+   * Browser-navigable URL for a run's file. Uses a query-token rather than a
+   * fetch + blob because a top-level navigation (download / new-tab view)
+   * cannot set an Authorization header — see auth.query.token middleware.
+   */
+  fileUrl: (runId, { inline = false } = {}) => {
+    const token = getToken();
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (inline) params.set('inline', '1');
+    const query = params.toString();
+    return `${getApiBaseUrl()}/reports/runs/${runId}/file${query ? `?${query}` : ''}`;
+  },
+};
