@@ -78,6 +78,11 @@ class IssuanceController extends Controller
                 'details.*.condition_returned'=> 'nullable|string|max:50',
             ]);
 
+            // No location guard here on purpose: EnsureAssignedLocationAccess
+            // ('location.scope', applied to every non-GET route in this group)
+            // has already overwritten location_id with the user's own for any
+            // location-strict role, so by this point the value cannot name
+            // another branch. A check here would be unreachable.
             DB::beginTransaction();
 
             $issuance = Issuance::create(Arr::except($validated, ['details']));
@@ -85,10 +90,23 @@ class IssuanceController extends Controller
             foreach ($validated['details'] as $detail) {
                 $issuance->details()->create($detail);
 
-                // Deduct inventory at issuance location
+                // Deduct inventory at issuance location.
+                //
+                // Locked before it is read, not just before it is written: the
+                // availability check below and the deduction that follows have
+                // to be one atomic step. Unlocked, two requests for the last 5
+                // pieces both read 5, both pass the check, and both deduct —
+                // ten issued against five, and because the write is
+                // max(0, ...) the row settles on 0 instead of going negative,
+                // so nothing surfaces it. The same lock is what
+                // InventoryBatchService's class contract requires of anyone
+                // calling deductFifo() below; its own lockForUpdate() calls
+                // rely on this outer lock to serialize. IssuanceScanController
+                // does this correctly and this path did not.
                 $qty = (int) ($detail['quantity_issued'] ?? 0);
                 $inventory = Inventory::where('location_id', $validated['location_id'])
                     ->where('product_id', $detail['product_id'])
+                    ->lockForUpdate()
                     ->first();
 
                 if (!$inventory) {
@@ -147,11 +165,32 @@ class IssuanceController extends Controller
         }
     }
 
-    public function cancel($id)
+    /**
+     * Whether this user may act on this particular issuance.
+     *
+     * EnsureAssignedLocationAccess pins a location-strict user's location_id on
+     * the way in, which is enough for create — the row is made at their own
+     * branch either way. It does nothing for an action addressed by id, where
+     * the record already exists and may belong to anyone, so the record's own
+     * location is what has to be checked.
+     */
+    private function mayActOn(Request $request, Issuance $issuance): bool
+    {
+        $user = $request->user();
+
+        return $user->isCentralized()
+            || (int) $user->scopedLocationId() === (int) $issuance->location_id;
+    }
+
+    public function cancel(Request $request, $id)
     {
         try {
-            return DB::transaction(function () use ($id) {
+            return DB::transaction(function () use ($request, $id) {
                 $issuance = Issuance::lockForUpdate()->findOrFail($id);
+
+                if (! $this->mayActOn($request, $issuance)) {
+                    return $this->forbidden('You do not have access to this location.');
+                }
 
                 if ((int) $issuance->status_id !== IssuanceStatus::draft()) {
                     return $this->error('Only a draft issue-out can be cancelled.', 422);
@@ -186,6 +225,14 @@ class IssuanceController extends Controller
                 'approved_by'          => 'nullable|exists:users,user_id',
                 'status_id'            => 'nullable|exists:status_lookup,status_id',
             ]);
+
+            // The id comes from the URL, and location.scope only rewrites
+            // request INPUT — it never looks at the row being addressed. So
+            // nothing else stops a user at one branch editing another branch's
+            // issuance; that check has to happen here, against the record.
+            if (! $this->mayActOn($request, $issuance)) {
+                return $this->forbidden('You do not have access to this location.');
+            }
 
             $issuance->update($validated);
 
