@@ -87,4 +87,29 @@ class ReportContractsTest extends ReportTestCase
     {
         $this->assertSame('1,234', ReportDataset::formatValue(1234, ReportDataset::FORMAT_INTEGER));
     }
+
+    /**
+     * Warehouse Utilization puts the literal 'Not set' in its capacity and
+     * utilization columns for a location nobody has configured, precisely so
+     * it never reads as a misleading 0 or 0%. A (float) coercion would undo
+     * that and reintroduce the bug the sentinel exists to prevent.
+     */
+    public function test_a_non_numeric_sentinel_survives_formatting(): void
+    {
+        $this->assertSame('Not set', ReportDataset::formatValue('Not set', ReportDataset::FORMAT_INTEGER));
+        $this->assertSame('Not set', ReportDataset::formatValue('Not set', ReportDataset::FORMAT_MONEY));
+        $this->assertSame('—', ReportDataset::formatValue('—', ReportDataset::FORMAT_MONEY));
+    }
+
+    public function test_a_null_renders_as_a_dash_rather_than_zero(): void
+    {
+        $this->assertSame('—', ReportDataset::formatValue(null, ReportDataset::FORMAT_MONEY));
+        $this->assertSame('—', ReportDataset::formatValue(null, ReportDataset::FORMAT_INTEGER));
+    }
+
+    /** Numeric strings are still numbers — a decimal:2 cast returns one. */
+    public function test_a_numeric_string_still_formats(): void
+    {
+        $this->assertSame('24,000.00', ReportDataset::formatValue('24000.00', ReportDataset::FORMAT_MONEY));
+    }
 }
