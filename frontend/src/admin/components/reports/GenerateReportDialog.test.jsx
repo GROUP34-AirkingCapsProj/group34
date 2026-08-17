@@ -46,6 +46,19 @@ const csvOnlyReport = {
   parameters: [],
 };
 
+// A parameter the backend gives a default: warehouse utilization's location
+// type. ReportRunner re-injects the default whenever the key is absent, so
+// "no value" is not a state this filter can be in.
+const warehouseUtilizationReport = {
+  key: 'warehouse-utilization',
+  title: 'Warehouse Utilization',
+  description: 'Capacity, occupancy, and goods throughput',
+  formats: ['pdf', 'csv'],
+  parameters: [
+    { key: 'location_type', type: 'location_type', label: 'Location Type', required: false, options: {}, default: 'warehouse' },
+  ],
+};
+
 const noop = () => {};
 
 describe('GenerateReportDialog', () => {
@@ -130,6 +143,37 @@ describe('GenerateReportDialog', () => {
       format: 'pdf',
       parameters: {},
     });
+  });
+
+  /**
+   * The "All …" entry means "send nothing and let the backend widen it". A
+   * parameter carrying a default cannot do that: ReportRunner puts the default
+   * back, so picking "All location types" would silently return warehouses
+   * under a footer reading "Location Type: Warehouse" — a card advertising a
+   * filter the backend does not honour, which is the one thing this dialog
+   * exists to prevent.
+   */
+  test('a parameter with a backend default offers no "All" option and seeds that default', () => {
+    render(
+      <GenerateReportDialog report={warehouseUtilizationReport} locations={locations} onGenerate={noop} onClose={noop} />
+    );
+
+    expect(screen.queryByText('All location types')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Location Type')).toHaveValue('warehouse');
+  });
+
+  test('a defaulted parameter is always submitted, and the chosen value survives', () => {
+    const onGenerate = jest.fn();
+    render(
+      <GenerateReportDialog report={warehouseUtilizationReport} locations={locations} onGenerate={onGenerate} onClose={noop} />
+    );
+
+    fireEvent.change(screen.getByLabelText('Location Type'), { target: { value: 'showroom' } });
+    fireEvent.click(screen.getByRole('button', { name: /generate/i }));
+
+    expect(onGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ parameters: { location_type: 'showroom' } })
+    );
   });
 
   test('only declared formats are offered — a csv-only report shows no PDF radio', () => {
