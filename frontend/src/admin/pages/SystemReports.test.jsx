@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import SystemReports from './SystemReports';
-import { reportsAPI, locationsAPI, categoriesAPI, usersAPI } from '../services/api';
+import { reportsAPI, locationsAPI, categoriesAPI } from '../services/api';
 
 /**
  * Asserts the rewritten page renders entirely from the API — never from the
@@ -18,11 +18,11 @@ jest.mock('../services/api', () => ({
     getCatalog: jest.fn(),
     getRuns: jest.fn(),
     generate: jest.fn(),
+    getFilterUsers: jest.fn(),
     fileUrl: jest.fn(() => 'http://example.test/file'),
   },
   locationsAPI: { getAll: jest.fn() },
   categoriesAPI: { getAll: jest.fn() },
-  usersAPI: { getAll: jest.fn() },
 }));
 
 jest.mock('../utils/toast', () => ({
@@ -52,7 +52,10 @@ const activeRun = {
   file_name: 'inventory-summary-20260101.pdf',
   format: 'pdf',
   created_at: '2026-01-01T09:00:00Z',
-  generatedBy: { first_name: 'Dana', last_name: 'Reyes' },
+  // Laravel snake-cases relation keys, and relations are merged OVER
+  // attributes — so `generated_by` on the wire is the eager-loaded user
+  // object, not the id column, and there is no `generatedBy` key at all.
+  generated_by: { user_id: 4, first_name: 'Dana', last_name: 'Reyes' },
   row_count: 12,
   file_size_bytes: 2048,
   is_expired: false,
@@ -72,7 +75,7 @@ const setupDefaults = () => {
   reportsAPI.generate.mockResolvedValue({ data: { ...activeRun, report_run_id: 3 } });
   locationsAPI.getAll.mockResolvedValue({ data: [] });
   categoriesAPI.getAll.mockResolvedValue({ data: [] });
-  usersAPI.getAll.mockResolvedValue({ data: [] });
+  reportsAPI.getFilterUsers.mockResolvedValue({ data: [] });
 };
 
 beforeEach(() => {
@@ -95,6 +98,25 @@ test('only declared formats are advertised', async () => {
   expect(within(card).getByText('CSV')).toBeInTheDocument();
   expect(within(card).queryByText(/PDF \/ Excel/)).not.toBeInTheDocument();
   expect(within(card).queryByText('PDF')).not.toBeInTheDocument();
+});
+
+test('a recent run names the person who generated it', async () => {
+  render(<SystemReports />);
+
+  expect(await screen.findByText(/by Dana Reyes/)).toBeInTheDocument();
+  expect(screen.queryByText(/by Unknown user/)).not.toBeInTheDocument();
+});
+
+/**
+ * The user filter has to come from a route every report-viewing role can
+ * reach. GET /users is gated on user_account_management.read, seeded to admin
+ * alone, so sourcing it there left an auditor or inventory analyst with a
+ * swallowed 403 and a dropdown containing only "All users".
+ */
+test('the user filter is loaded from the reports endpoint, not the admin-only user list', async () => {
+  render(<SystemReports />);
+
+  await waitFor(() => expect(reportsAPI.getFilterUsers).toHaveBeenCalled());
 });
 
 test('an empty state replaces the invented filenames', async () => {
