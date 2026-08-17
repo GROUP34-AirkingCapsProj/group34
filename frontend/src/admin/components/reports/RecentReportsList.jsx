@@ -47,7 +47,10 @@ export default function RecentReportsList({ runs = [], loading = false, onRerun 
 
 function RecentReportRow({ run, onRerun }) {
   const expired = !!run.is_expired;
-  const generatedBy = userDisplayName(run.generatedBy);
+  // `generated_by`, not `generatedBy`: Laravel snake-cases relation keys on
+  // serialization and merges relations over attributes, so the eager-loaded
+  // user arrives under the same key as the id column it shadows.
+  const generatedBy = userDisplayName(run.generated_by);
 
   return (
     <div
@@ -115,7 +118,9 @@ function RecentReportRow({ run, onRerun }) {
 // call ->load('generatedBy')); User has no full_name column, only
 // first_name/last_name, so it's assembled here rather than assumed.
 function userDisplayName(user) {
-  if (!user) return 'Unknown user';
+  // A run whose relation was not eager-loaded carries the bare id here, which
+  // is a number and names nobody.
+  if (!user || typeof user !== 'object') return 'Unknown user';
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
   return name || user.username || user.email || 'Unknown user';
 }
