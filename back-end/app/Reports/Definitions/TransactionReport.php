@@ -64,10 +64,7 @@ class TransactionReport implements ReportDefinition
         return [
             new ReportParameter('date_range', ReportParameter::TYPE_DATE_RANGE, 'Date Range', required: true),
             new ReportParameter('location_id', ReportParameter::TYPE_LOCATION, 'Location'),
-            new ReportParameter('movement_type', ReportParameter::TYPE_SELECT, 'Movement Type', options: array_map(
-                fn (string $label) => $label,
-                self::TYPE_LABELS
-            )),
+            new ReportParameter('movement_type', ReportParameter::TYPE_SELECT, 'Movement Type', options: self::TYPE_LABELS),
         ];
     }
 
@@ -84,6 +81,21 @@ class TransactionReport implements ReportDefinition
     public function availableTo(User $user): bool
     {
         return true;
+    }
+
+    /**
+     * Apply an inclusive [from, to] filter on a source's own date column.
+     * Both bounds are plain 'Y-m-d' strings (see build()'s note on why),
+     * and either may be null if that bound wasn't supplied.
+     */
+    private function applyDateRange($query, string $dateColumn, ?string $from, ?string $to): void
+    {
+        if ($from !== null) {
+            $query->where($dateColumn, '>=', $from);
+        }
+        if ($to !== null) {
+            $query->where($dateColumn, '<=', $to);
+        }
     }
 
     public function build(ReportParameters $params, User $user): ReportDataset
@@ -107,12 +119,7 @@ class TransactionReport implements ReportDefinition
 
         if ($wantsType(self::TYPE_RECEIVING)) {
             $query = Receiving::query()->forUser($user)->with('location');
-            if ($fromDate !== null) {
-                $query->where('receiving_date', '>=', $fromDate);
-            }
-            if ($toDate !== null) {
-                $query->where('receiving_date', '<=', $toDate);
-            }
+            $this->applyDateRange($query, 'receiving_date', $fromDate, $toDate);
             if ($locationId !== null) {
                 $query->where('location_id', $locationId);
             }
@@ -137,12 +144,7 @@ class TransactionReport implements ReportDefinition
 
         if ($wantsType(self::TYPE_ISSUANCE)) {
             $query = Issuance::query()->forUser($user)->with('location')->withSum('details', 'quantity_issued');
-            if ($fromDate !== null) {
-                $query->where('issuance_date', '>=', $fromDate);
-            }
-            if ($toDate !== null) {
-                $query->where('issuance_date', '<=', $toDate);
-            }
+            $this->applyDateRange($query, 'issuance_date', $fromDate, $toDate);
             if ($locationId !== null) {
                 $query->where('location_id', $locationId);
             }
@@ -168,12 +170,7 @@ class TransactionReport implements ReportDefinition
 
         if ($wantsType(self::TYPE_TRANSFER)) {
             $query = Transfer::query()->forUser($user)->with(['fromLocation', 'toLocation']);
-            if ($fromDate !== null) {
-                $query->where('transfer_date', '>=', $fromDate);
-            }
-            if ($toDate !== null) {
-                $query->where('transfer_date', '<=', $toDate);
-            }
+            $this->applyDateRange($query, 'transfer_date', $fromDate, $toDate);
             if ($locationId !== null) {
                 $query->where(function ($q) use ($locationId) {
                     $q->where('from_location_id', $locationId)
@@ -201,12 +198,7 @@ class TransactionReport implements ReportDefinition
 
         if ($wantsType(self::TYPE_ADJUSTMENT)) {
             $query = Adjustment::query()->forUser($user)->with('location');
-            if ($fromDate !== null) {
-                $query->where('adjustment_date', '>=', $fromDate);
-            }
-            if ($toDate !== null) {
-                $query->where('adjustment_date', '<=', $toDate);
-            }
+            $this->applyDateRange($query, 'adjustment_date', $fromDate, $toDate);
             if ($locationId !== null) {
                 $query->where('location_id', $locationId);
             }
@@ -231,12 +223,7 @@ class TransactionReport implements ReportDefinition
 
         if ($wantsType(self::TYPE_SALE)) {
             $query = Sale::query()->forUser($user)->with('location')->withSum('details', 'quantity');
-            if ($fromDate !== null) {
-                $query->where('sale_date', '>=', $fromDate);
-            }
-            if ($toDate !== null) {
-                $query->where('sale_date', '<=', $toDate);
-            }
+            $this->applyDateRange($query, 'sale_date', $fromDate, $toDate);
             if ($locationId !== null) {
                 $query->where('location_id', $locationId);
             }

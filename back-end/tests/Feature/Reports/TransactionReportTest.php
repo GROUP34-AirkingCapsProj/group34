@@ -222,11 +222,61 @@ class TransactionReportTest extends ReportTestCase
         $this->assertNotContains($unrelated->transfer_number, $refs, 'A transfer touching neither end of the user\'s location must not be visible.');
     }
 
+    /**
+     * Seeds one document of EACH of the five sources so this asserts the
+     * guarantee for all of them, not just Receiving with the rest inferred
+     * by code-tracing. If a future refactor of one source's query drops its
+     * forUser() call, this must fail — not just the code review that caught
+     * it this time.
+     */
     public function test_a_scoped_user_with_no_location_gets_zero_rows(): void
     {
         $location = $this->makeLocation();
+        $other    = $this->makeLocation();
+        $product  = $this->makeAppliance();
+
         $receiving = $this->makeReceiving($location->location_id);
         $receiving->update(['receiving_date' => '2026-08-10']);
+
+        $issuance = Issuance::create([
+            'location_id'   => $location->location_id,
+            'issuance_date' => '2026-08-11',
+        ]);
+        IssuanceDetail::create([
+            'issuance_id'     => $issuance->issuance_id,
+            'product_id'      => $product->product_id,
+            'quantity_issued' => 5,
+        ]);
+
+        Transfer::create([
+            'from_location_id'           => $location->location_id,
+            'to_location_id'             => $other->location_id,
+            'transfer_number'            => 'TRF-' . uniqid(),
+            'transfer_date'              => '2026-08-12',
+            'total_quantity_transferred' => 4,
+        ]);
+
+        Adjustment::create([
+            'location_id'             => $location->location_id,
+            'adjustment_number'       => 'ADJ-' . uniqid(),
+            'adjustment_date'         => '2026-08-13',
+            'total_variance_positive' => 2,
+            'total_variance_negative' => 0,
+        ]);
+
+        $sale = Sale::create([
+            'location_id'    => $location->location_id,
+            'invoice_number' => 'INV-' . uniqid(),
+            'sale_date'      => '2026-08-14',
+            'total_amount'   => 100.00,
+        ]);
+        SaleDetail::create([
+            'sales_id'   => $sale->sales_id,
+            'product_id' => $product->product_id,
+            'quantity'   => 1,
+            'unit_price' => 100.00,
+            'subtotal'   => 100.00,
+        ]);
 
         $homeless = $this->makeUserAt($location, 'branch_manager');
         $homeless->update(['location_id' => null]);
@@ -237,6 +287,6 @@ class TransactionReportTest extends ReportTestCase
         );
 
         $this->assertSame([], $dataset->rows,
-            'A scoped user with no assigned location must see nothing — never everything.');
+            'A scoped user with no assigned location must see nothing — never everything — across all five sources.');
     }
 }
