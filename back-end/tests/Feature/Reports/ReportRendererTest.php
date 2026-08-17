@@ -53,6 +53,61 @@ class ReportRendererTest extends ReportTestCase
         return $process->getOutput();
     }
 
+    /**
+     * A cell that starts with =, +, - or @ is a live formula when the file is
+     * opened in Excel or Sheets. Report cells are not all trusted: User
+     * Activity writes `username_attempt`, which is whatever string was typed
+     * at the login form, and product and location names are user-entered too.
+     * Neutralised with a leading apostrophe, which spreadsheets strip on
+     * display.
+     */
+    public function test_csv_neutralises_cells_that_would_execute_as_formulas(): void
+    {
+        $dataset = new ReportDataset(
+            columns: ['who' => 'User', 'note' => 'Note'],
+            rows: [
+                ['who' => '=HYPERLINK("http://evil.test","click")', 'note' => '+1-555-0100'],
+                ['who' => '@SUM(A1:A9)', 'note' => "-cmd|' /c calc'!A0"],
+            ],
+            summary: ['=TOTAL' => '=1+1'],
+            notes: ['=NOTE()'],
+        );
+
+        $csv = app(CsvReportRenderer::class)->render($dataset, '=Title', ['=Filter' => '=Value']);
+
+        $this->assertStringNotContainsString('"=HYPERLINK', $csv);
+        $this->assertStringContainsString("'=HYPERLINK", $csv);
+        $this->assertStringContainsString("'@SUM(A1:A9)", $csv);
+        $this->assertStringContainsString("'+1-555-0100", $csv);
+        $this->assertStringContainsString("'-cmd", $csv);
+
+        // The footer, the summary and the header labels are cells too.
+        $this->assertStringContainsString("'=Title", $csv);
+        $this->assertStringContainsString("'=Filter", $csv);
+        $this->assertStringContainsString("'=Value", $csv);
+        $this->assertStringContainsString("'=TOTAL", $csv);
+        $this->assertStringContainsString("'=NOTE()", $csv);
+    }
+
+    /**
+     * The neutralising must not reach the numbers. This file's whole contract
+     * is that a numeric column lands unquoted and summable, and a negative
+     * figure — a net adjustment, a remaining capacity — starts with '-'.
+     */
+    public function test_csv_leaves_negative_numbers_summable(): void
+    {
+        $dataset = new ReportDataset(
+            columns: ['location' => 'Location', 'net' => 'Net Adjustments', 'value' => 'Value'],
+            rows: [['location' => 'Main', 'net' => -5, 'value' => '-12.50']],
+        );
+
+        $csv = app(CsvReportRenderer::class)->render($dataset, 'Location Performance', []);
+
+        $this->assertStringContainsString('-5', $csv);
+        $this->assertStringNotContainsString("'-5", $csv);
+        $this->assertStringNotContainsString("'-12.50", $csv);
+    }
+
     public function test_csv_writes_a_header_row_then_the_data(): void
     {
         $csv = app(CsvReportRenderer::class)->render($this->dataset(), 'Inventory Summary', []);
