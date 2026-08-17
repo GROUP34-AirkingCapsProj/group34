@@ -198,11 +198,30 @@ class TransferController extends Controller
                 'details.*.quantity_transferred' => 'required_with:details|integer|min:1',
             ]);
 
+            // Line items may only be changed while this transfer has moved no
+            // stock. The check used to look at quantity_received alone, which
+            // is only set once the goods land at the destination — so a
+            // dispatched-but-unreceived transfer (quantity_transferred > 0,
+            // quantity_received = 0) slipped through while its stock was
+            // already deducted.
+            //
+            // That mattered because dispatch moves BOTH ledgers (it calls
+            // InventoryBatchService::deductFifo), while the reversal below
+            // only adds back to `inventory` — this controller never touches
+            // inventory_batches at all. Editing a dispatched transfer
+            // therefore left the two ledgers disagreeing, and since FIFO
+            // picking reads the batch ledger, the difference was stock that
+            // showed as on hand and could not be picked.
+            //
+            // Same rule updateRequest() already applies ("Pending has moved no
+            // stock, so lines can be swapped wholesale").
             if (array_key_exists('details', $validated)) {
                 foreach ($transfer->details as $oldDetail) {
-                    if ((int) ($oldDetail->quantity_received ?? 0) > 0) {
+                    if ((int) ($oldDetail->quantity_transferred ?? 0) > 0
+                        || (int) ($oldDetail->quantity_received ?? 0) > 0) {
                         return $this->error(
-                            'Cannot change line items after stock has been received at the destination.',
+                            'Cannot change line items once stock has been dispatched or received. '
+                            . 'Cancel this transfer and raise a new one instead.',
                             422
                         );
                     }
