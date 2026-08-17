@@ -159,17 +159,39 @@ Totals: SKU count, total units, total valuation from `products.cost_price`.
 
 ### 2. Transaction Report
 
-Parameters: date range (required), location, transaction type.
-Source: `transactions` (`branch_id`, `type`, `quantity`, `unit_price`,
-`total_amount`, `date`). Note that `branch_id` is a legacy column name that holds a
-`location_id` — `Transaction::branch()` already resolves it to `Location`. The column
-is left alone; only report-facing labels say "location".
+**Corrected 2026-08-17.** This report was originally specified against a `transactions`
+table. **That table does not exist** — not in any SQL dump, not in any migration, not
+anywhere in git history. `App\Models\Transaction` and `TransactionController` are
+vestigial: the model points at a table that was never created, and the controller is
+not wired into `routes/api.php`. The original spec mistook "zero `INSERT INTO
+\`transactions\`` statements" for a schema-only dump, when in fact the table was absent.
 
-Rows: date, transaction code, type, location, product, qty, unit price, total.
-Totals: count and value per type, grand total.
+The Transactions **page** (`TransactionManagement.jsx`) composes its view from four
+real sources — receivings, issuances, transfers, and adjustments. This report now reads
+the same real tables, plus sales.
 
-This is the report most likely to be large, which is why CSV streams rather than
-buffering.
+Parameters: date range (required), location, movement type.
+
+**Source: a union of five document-level sources**, each contributing one row per
+document:
+
+| Type | Table | Date | Reference | Units | Value |
+|---|---|---|---|---|---|
+| Receiving | `receivings` | `receiving_date` | `receiving_number` | `total_quantity_received` | — |
+| Issuance | `issuances` + details | `issuance_date` | `issuance_id` | `SUM(quantity_issued)` | — |
+| Transfer | `transfers` | `transfer_date` | `transfer_number` | `total_quantity_transferred` | — |
+| Adjustment | `adjustments` | `adjustment_date` | `adjustment_number` | `total_variance_positive` − `total_variance_negative` | — |
+| Sale | `sales` + details | `sale_date` | `invoice_number` | `SUM(quantity)` | `total_amount` |
+
+Rows: date, reference, type, location, units, value. Transfers show `from → to`; every
+other type has a single `location_id`.
+
+Totals: document count and units per type, grand total units, total sale value.
+
+Rows are document-level rather than line-level because the five sources have
+incompatible line shapes (`quantity_issued`, `quantity_transferred`, `add_quantity` /
+`deduct_quantity`, `quantity`). A line-level union would have to invent a common
+meaning for columns that genuinely differ.
 
 ### 3. Location Performance
 
@@ -185,14 +207,30 @@ no longer exists.
 
 Parameters: date range (required), location, location type.
 
-Per location: units in (receivings + transfers in), units out (issuances + transfers
-out), net adjustments, closing stock units, closing valuation. Each row also carries
-the location's type, so a warehouse and a showroom are never silently averaged
-together in a reader's head.
+Per location: units in, units out, net adjustments, closing stock units, closing
+valuation. Each row also carries the location's type, so a warehouse and a showroom are
+never silently averaged together in a reader's head.
 
-Movement comes from `material_movement_ledger` grouped by `from_location_id` /
-`to_location_id` and `transaction_type_id`. Valuation joins `inventory` to
-`products.cost_price`. No revenue section.
+**Corrected 2026-08-17.** Movement was originally specified as coming from
+`material_movement_ledger`. **That table does not exist either** — the model file is its
+only trace in the entire codebase, and nothing writes to it. Movement now comes from the
+same real tables the Transaction Report uses:
+
+- **Units in** = `receivings.total_quantity_received` where `location_id` matches, plus
+  `transfers.total_quantity_received` where `to_location_id` matches
+- **Units out** = `SUM(issuance_details.quantity_issued)` for issuances at the location,
+  plus `SUM(sales_details.quantity)` for sales at the location, plus
+  `transfers.total_quantity_transferred` where `from_location_id` matches
+- **Net adjustments** = `adjustments.total_variance_positive` −
+  `total_variance_negative`, reported separately from movement because a count
+  correction is not goods moving
+
+Valuation joins `inventory` to `products.cost_price`. No revenue section — sales value
+belongs to the Transaction Report.
+
+A welcome consequence of using the real tables: each source is unambiguously inbound or
+outbound, so the double-counting hazard that the ledger design needed a type-exclusion
+guard for does not arise here at all.
 
 ### 4. Low Stock
 
@@ -243,19 +281,30 @@ on-time percentage. Receipts whose PO has a null `expected_delivery_date` cannot
 judged and are excluded from that percentage, with the excluded count printed beside
 it — the same honesty rule as null capacity in Section A.
 
-**Section C — Transfers (period).** Units in (`to_location_id` = the location) and
-units out (`from_location_id` = the location), from `material_movement_ledger`
-restricted to `transaction_type_id` 3 (Transfer).
+**Corrected 2026-08-17.** Sections C and D originally read
+`material_movement_ledger`, which does not exist. They now read the real movement
+tables.
 
-**Section D — Goods out (period).** Units dispatched from the location, from
-`material_movement_ledger`: `transaction_type_id` 2 (Stock Out — issuing inventory for
-operations) and 6 (Sales). Type 5 (Return to Vendor) is goods leaving but is a reversal
-of inbound rather than fulfilment, so it is reported on its own line and excluded from
-the dispatch figure. Type 4 (Adjustment) is a count correction, not goods movement, and
-is excluded from throughput entirely.
+**Section C — Transfers (period).** Units in from `transfers.total_quantity_received`
+where `to_location_id` is the location; units out from
+`transfers.total_quantity_transferred` where `from_location_id` is the location,
+filtered on `transfer_date`.
 
-The `transaction_type_lookup` values are fixed and seeded: 1 Stock In, 2 Stock Out,
-3 Transfer, 4 Adjustment, 5 Return to Vendor, 6 Sales.
+**Section D — Goods out (period).** Units dispatched from the location:
+`SUM(issuance_details.quantity_issued)` for issuances at that location filtered on
+`issuance_date`, plus `SUM(sales_details.quantity)` for sales at that location filtered
+on `sale_date`.
+
+Count adjustments are excluded from throughput entirely — a correction is not goods
+moving. There is no "Return to Vendor" line: the `purchase_returns` table exists but is
+outside this report's scope, and inventing a line from a source not consulted would be
+the same mistake that produced the ledger design.
+
+**Double-counting is no longer a hazard.** The ledger design needed an explicit
+type-exclusion guard because receiving would have appeared both in Section B (from
+`receivings`) and again as a ledger row. Reading each movement from its own dedicated
+table means every source is unambiguously inbound or outbound and appears exactly once.
+The guard, and the test that pinned it, are dropped as unnecessary.
 
 **Throughput summary.** Total units handled (received + transferred in + transferred
 out + dispatched), and units handled per unit of capacity. That last figure is the
@@ -263,11 +312,9 @@ report's point: it expresses how many times over the period the warehouse worked
 through its own storage capacity, which is the "processes goods efficiently against
 available space" measure. Locations with null capacity show units handled but no ratio.
 
-**Double-counting.** Sections C and D read `material_movement_ledger`; Section B reads
-`receivings`. If receiving also writes ledger rows, a warehouse's inbound units would
-be counted twice in the throughput total. Sections C and D therefore exclude
-`transaction_type_id` 1 (Stock In), and a test asserts a received unit appears exactly
-once in the throughput total.
+**Double-counting.** Not a hazard under the corrected sources — see Section C/D above.
+Each movement is read from its own dedicated table, so a receipt appears only in
+Section B and a transfer only in Section C. No exclusion guard is needed.
 
 **CSV shape.** The four sections are natural in PDF but not in CSV. The CSV export
 emits one row per location with every metric as a column — occupancy, receiving,
@@ -369,8 +416,13 @@ Backend feature tests under `tests/Feature/Reports/`, matching the existing layo
 - Warehouse Utilization: a receipt whose PO has a null `expected_delivery_date` is
   excluded from the on-time percentage and reported in the excluded count.
 - Warehouse Utilization: a received unit is counted exactly once in the throughput
-  total — the double-counting guard between `receivings` and
-  `material_movement_ledger`.
+  total (each movement comes from its own table, so this is a regression guard rather
+  than a guard against an exclusion rule).
+- Transaction Report: each of the five sources contributes its documents, and a
+  transfer's `from → to` is reported without being counted twice.
+- Every report: a table named in a definition actually exists. The `transactions` and
+  `material_movement_ledger` models point at tables that were never created, and no
+  report may read them.
 - Warehouse Utilization: CSV emits one flat row per location; PDF emits four sections.
 - Empty dataset returns 422 and writes no `report_runs` row.
 - PDF row cap returns 422 above the limit.
