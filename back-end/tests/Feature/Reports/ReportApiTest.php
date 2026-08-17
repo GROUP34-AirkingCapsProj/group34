@@ -4,7 +4,6 @@ namespace Tests\Feature\Reports;
 
 use App\Models\ReportRun;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Sanctum\Sanctum;
 
 class ReportApiTest extends ReportTestCase
 {
@@ -20,27 +19,10 @@ class ReportApiTest extends ReportTestCase
         parent::tearDown();
     }
 
-    /**
-     * Sanctum::actingAs() authenticates with a Mockery double standing in for
-     * the PersonalAccessToken. Every route in this app's authenticated group
-     * runs ExtendSanctumTokenExpiration, which calls
-     * currentAccessToken()->forceFill(...)->save() on every request to slide
-     * the session — a real method the double has no expectation for. Give it
-     * one so the mock does not blow up on a call that has nothing to do with
-     * what these tests are actually checking.
-     */
-    private function actingAsUser($user): void
-    {
-        Sanctum::actingAs($user);
-
-        $user->currentAccessToken()->shouldReceive('forceFill')->andReturnSelf();
-        $user->currentAccessToken()->shouldReceive('save')->andReturnTrue();
-    }
-
     public function test_catalog_lists_reports_with_declared_parameters(): void
     {
         $admin = $this->makeUserAt($this->makeLocation(), 'admin');
-        $this->actingAsUser($admin);
+        $this->actingAs($admin, 'sanctum');
 
         $response = $this->getJson('/api/reports/catalog');
 
@@ -73,7 +55,7 @@ class ReportApiTest extends ReportTestCase
         $inventory = $this->setStock($location->location_id, $product->product_id, 1);
         $inventory->update(['reorder_level' => 5]);
 
-        $this->actingAsUser($admin);
+        $this->actingAs($admin, 'sanctum');
 
         $response = $this->postJson('/api/reports/generate', [
             'report_key' => 'low-stock',
@@ -96,7 +78,7 @@ class ReportApiTest extends ReportTestCase
         $location = $this->makeLocation();
         $admin    = $this->makeUserAt($location, 'admin');
 
-        $this->actingAsUser($admin);
+        $this->actingAs($admin, 'sanctum');
 
         $before = ReportRun::count();
 
@@ -114,7 +96,7 @@ class ReportApiTest extends ReportTestCase
     {
         // branch_manager holds neither report_viewing.read nor .create.
         $branchManager = $this->makeUserAt($this->makeLocation(), 'branch_manager');
-        $this->actingAsUser($branchManager);
+        $this->actingAs($branchManager, 'sanctum');
 
         $response = $this->postJson('/api/reports/generate', [
             'report_key' => 'low-stock',
@@ -130,7 +112,7 @@ class ReportApiTest extends ReportTestCase
         $branchManager = $this->makeUserAt($this->makeLocation(), 'branch_manager');
         $this->grantPermission($branchManager, 'report_viewing', 'read');
 
-        $this->actingAsUser($branchManager);
+        $this->actingAs($branchManager, 'sanctum');
 
         $response = $this->getJson('/api/reports/catalog');
         $response->assertOk();
@@ -167,7 +149,7 @@ class ReportApiTest extends ReportTestCase
             'file_pruned_at'  => now(),
         ]);
 
-        $this->actingAsUser($admin);
+        $this->actingAs($admin, 'sanctum');
 
         $response = $this->getJson("/api/reports/runs/{$run->report_run_id}/download");
 
@@ -178,7 +160,7 @@ class ReportApiTest extends ReportTestCase
     public function test_the_seven_dead_closures_are_gone(): void
     {
         $admin = $this->makeUserAt($this->makeLocation(), 'admin');
-        $this->actingAsUser($admin);
+        $this->actingAs($admin, 'sanctum');
 
         $response = $this->getJson('/api/reports/low-stock-report');
 
