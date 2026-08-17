@@ -203,9 +203,14 @@ class PermissionSeeder extends Seeder
             'inventory_monitoring' => [
                 'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
             ],
-            // Stock Transfers legacy admin page (/admin/transfers).
+            // Stock Transfers page (/admin/transfers). Every role that works
+            // stock reaches this page, so it is granted as widely as
+            // inventory_monitoring above — which is what the live database
+            // already holds, and what the frontend has been enforcing all
+            // along. Seeding it admin-only would lock four roles out of a
+            // page they use on a fresh install.
             'stock_transfers' => [
-                'read' => ['admin'],
+                'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
             ],
             'inventory_adjustments' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],

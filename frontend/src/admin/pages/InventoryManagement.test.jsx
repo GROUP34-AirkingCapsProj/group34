@@ -44,56 +44,53 @@ beforeEach(() => {
   transactionTypesAPI.getAll.mockResolvedValue({ data: [] });
 });
 
-// Regression test for the TDZ crash fixed in 9c66f2e: fetchWarehouseBatches
-// was declared (via useCallback) AFTER the `inventory-scan-applied` effect
-// that referenced it in both its handler body and dependency array. Because
-// const bindings stay in the temporal dead zone until their declaration line
-// runs, every render threw "Cannot access 'fetchWarehouseBatches' before
-// initialization" — crashing the whole page on mount.
-test('mounts without throwing and loads the Warehouse Map tab', async () => {
+/**
+ * Regression guard for the TDZ crash fixed in 9c66f2e: a useCallback was
+ * declared AFTER the `inventory-scan-applied` effect that referenced it in
+ * both its handler body and its dependency array. const bindings stay in the
+ * temporal dead zone until their declaration line runs, so every render threw
+ * "Cannot access ... before initialization" and the whole page died on mount.
+ *
+ * These originally drove that through the Warehouse Map tab and
+ * fetchWarehouseBatches. That tab has since moved off this page to
+ * BarcodeScan, so the assertions are retargeted at the effect as it stands
+ * now — it still closes over fetchInventory and fetchPoGroups, both declared
+ * with useCallback, which is the same shape that broke.
+ */
+test('mounts without throwing and loads the inventory list', async () => {
   render(
-    <MemoryRouter initialEntries={['/admin/inventory?tab=warehouse-map']}>
+    <MemoryRouter initialEntries={['/admin/inventory']}>
       <InventoryManagement />
     </MemoryRouter>
   );
 
   // If the TDZ bug were present, render() above would already have thrown
-  // synchronously. Confirm the page actually mounted and the warehouse-map
-  // tab's own effect ran (it also calls fetchWarehouseBatches).
-  await waitFor(() => expect(inventoryAPI.getWarehouseBatches).toHaveBeenCalled());
-  await waitFor(() =>
-    expect(screen.getByText(/no batches with remaining stock/i)).toBeInTheDocument()
-  );
+  // synchronously. Confirm the page mounted and its own effect ran.
+  await waitFor(() => expect(inventoryAPI.getAll).toHaveBeenCalled());
 });
 
-// Exercises the exact code path that crashed: the `inventory-scan-applied`
-// window event handler, which calls fetchWarehouseBatches() when the
-// Warehouse Map tab is active. Dispatching this event is what triggered the
-// ReferenceError before the fix, since the handler closed over a binding
-// that hadn't been initialized yet.
-test('handles an inventory-scan-applied event while Warehouse Map is active without crashing', async () => {
+test('handles an inventory-scan-applied event without crashing', async () => {
   render(
-    <MemoryRouter initialEntries={['/admin/inventory?tab=warehouse-map']}>
+    <MemoryRouter initialEntries={['/admin/inventory']}>
       <InventoryManagement />
     </MemoryRouter>
   );
 
-  await waitFor(() => expect(inventoryAPI.getWarehouseBatches).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(inventoryAPI.getAll).toHaveBeenCalled());
+  const callsBefore = inventoryAPI.getAll.mock.calls.length;
 
   await act(async () => {
     window.dispatchEvent(new Event('inventory-scan-applied'));
   });
 
-  // A second, re-triggered fetch confirms the handler ran fully (i.e. it
-  // reached and called fetchWarehouseBatches) rather than throwing partway
-  // through before ever reaching it.
-  await waitFor(() => expect(inventoryAPI.getWarehouseBatches).toHaveBeenCalledTimes(2));
+  // A re-triggered fetch confirms the handler ran to completion rather than
+  // throwing partway through on an uninitialised binding.
   await waitFor(() =>
-    expect(screen.getByText(/no batches with remaining stock/i)).toBeInTheDocument()
+    expect(inventoryAPI.getAll.mock.calls.length).toBeGreaterThan(callsBefore)
   );
 });
 
-test('switching to the Warehouse Map tab via the tab button does not crash', async () => {
+test('switching tabs does not crash', async () => {
   render(
     <MemoryRouter initialEntries={['/admin/inventory']}>
       <InventoryManagement />
@@ -102,10 +99,7 @@ test('switching to the Warehouse Map tab via the tab button does not crash', asy
 
   await waitFor(() => expect(inventoryAPI.getAll).toHaveBeenCalled());
 
-  fireEvent.click(screen.getByRole('button', { name: /warehouse map/i }));
+  fireEvent.click(screen.getByRole('button', { name: /activity/i }));
 
-  await waitFor(() => expect(inventoryAPI.getWarehouseBatches).toHaveBeenCalled());
-  await waitFor(() =>
-    expect(screen.getByText(/no batches with remaining stock/i)).toBeInTheDocument()
-  );
+  await waitFor(() => expect(scanEventsAPI.getAll).toHaveBeenCalled());
 });
