@@ -9,10 +9,12 @@ use App\Reports\EmptyReportException;
 use App\Reports\ReportRegistry;
 use App\Reports\ReportRunner;
 use App\Reports\RowCapExceededException;
+use App\Reports\UnsupportedFormatException;
 use App\Services\ReportRetentionService;
 use App\Traits\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +24,11 @@ class ReportController extends Controller
 
     /** Must match the disk ReportRunner writes files to. */
     private const DISK = 'local';
+
+    /** Retention pruning off a page load — see pruneOpportunistically(). */
+    private const PRUNE_MARKER = 'reports:pruned-at';
+    private const PRUNE_LOCK = 'reports:prune';
+    private const PRUNE_INTERVAL_MINUTES = 60;
 
     public function __construct(
         private readonly ReportRegistry $registry,
@@ -99,6 +106,11 @@ class ReportController extends Controller
             return $this->error($e->getMessage(), 422);
         } catch (AuthorizationException $e) {
             return $this->notFound('Report not found');
+        } catch (UnsupportedFormatException $e) {
+            // Caught BEFORE the \InvalidArgumentException below, which it
+            // extends: the report exists, so 404 would be a lie, and its
+            // message names the format the definition does not declare.
+            return $this->error($e->getMessage(), 422);
         } catch (\InvalidArgumentException $e) {
             return $this->notFound('Report not found');
         }
@@ -111,7 +123,7 @@ class ReportController extends Controller
      */
     public function runs(Request $request)
     {
-        $this->retention->prune();
+        $this->pruneOpportunistically();
 
         $user = $request->user();
 
@@ -130,6 +142,39 @@ class ReportController extends Controller
         );
 
         return $this->paginated($runs, 'Report runs retrieved successfully');
+    }
+
+    /**
+     * Enforce the retention window off the back of a page load.
+     *
+     * This app runs on XAMPP with no scheduler, so nothing else would call
+     * `reports:prune` and this really is what keeps the 90-day window. But
+     * pruning is a write path — row updates and file unlinks — hanging off an
+     * idempotent GET, so it is bounded twice over: at most once per interval,
+     * and never by two requests at once. Before, two concurrent page loads
+     * both entered the chunk loop, and the first list after a long idle
+     * period unlinked every expired file while the user waited.
+     *
+     * The lock is taken without blocking: if another request holds it, that
+     * request is already pruning and this one has nothing to wait for.
+     */
+    private function pruneOpportunistically(): void
+    {
+        if (Cache::get(self::PRUNE_MARKER) !== null) {
+            return;
+        }
+
+        Cache::lock(self::PRUNE_LOCK, 120)->get(function () {
+            // Re-checked inside the lock: a request can win it just as the
+            // previous holder finishes, and would otherwise prune again.
+            if (Cache::get(self::PRUNE_MARKER) !== null) {
+                return;
+            }
+
+            $this->retention->prune();
+
+            Cache::put(self::PRUNE_MARKER, true, now()->addMinutes(self::PRUNE_INTERVAL_MINUTES));
+        });
     }
 
     /**

@@ -3,6 +3,9 @@
 namespace Tests\Feature\Reports;
 
 use App\Models\ReportRun;
+use App\Reports\ReportRunner;
+use App\Reports\UnsupportedFormatException;
+use App\Services\ReportRetentionService;
 use Illuminate\Support\Facades\Storage;
 
 class ReportApiTest extends ReportTestCase
@@ -316,6 +319,78 @@ class ReportApiTest extends ReportTestCase
 
         $this->assertContains($run->report_run_id, $ids);
         $this->get("/api/reports/runs/{$run->report_run_id}/download")->assertOk();
+    }
+
+    /**
+     * ReportRunner threw a bare \InvalidArgumentException for two unrelated
+     * things — an unknown report key and a format the definition does not
+     * declare — and the controller answered both with 404 "Report not found",
+     * discarding the message that names the actual problem.
+     *
+     * No live request can reach this today: all six definitions declare both
+     * formats, and the controller's own validation already rejects anything
+     * outside pdf/csv. So the runner is stubbed to raise it. The guard is for
+     * the first definition that declares only one format — at which point a
+     * client asking it for the other would otherwise be told, wrongly, that
+     * the report does not exist.
+     */
+    public function test_an_undeclared_format_is_a_422_naming_the_format_not_a_404(): void
+    {
+        $admin = $this->makeUserAt($this->makeLocation(), 'admin');
+        $this->actingAs($admin, 'sanctum');
+
+        $this->mock(ReportRunner::class)
+            ->shouldReceive('run')
+            ->andThrow(new UnsupportedFormatException(
+                'The Low Stock Report report does not support the "pdf" format.'
+            ));
+
+        $response = $this->postJson('/api/reports/generate', [
+            'report_key' => 'low-stock',
+            'format'     => 'pdf',
+            'parameters' => [],
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson(['success' => false]);
+        $this->assertStringContainsString('does not support', $response->json('message'));
+        $this->assertStringContainsString('pdf', $response->json('message'));
+        $this->assertStringNotContainsString('Report not found', $response->json('message'));
+    }
+
+    public function test_an_unknown_report_key_is_still_a_404(): void
+    {
+        $admin = $this->makeUserAt($this->makeLocation(), 'admin');
+        $this->actingAs($admin, 'sanctum');
+
+        $this->postJson('/api/reports/generate', [
+            'report_key' => 'no-such-report',
+            'format'     => 'csv',
+            'parameters' => [],
+        ])->assertNotFound();
+    }
+
+    /**
+     * Retention pruning is a write path — row updates and file deletes — and
+     * it sat on an idempotent GET, unguarded. Two concurrent page loads both
+     * entered the loop, and the first list after a long idle period unlinked
+     * every expired file while the user waited. It still runs here (this app
+     * has no scheduler configured, so nothing else would), but at most once
+     * per interval and behind a lock.
+     */
+    public function test_listing_runs_prunes_at_most_once_per_interval(): void
+    {
+        $admin = $this->makeUserAt($this->makeLocation(), 'admin');
+        $this->actingAs($admin, 'sanctum');
+
+        $this->mock(ReportRetentionService::class)
+            ->shouldReceive('prune')
+            ->once()
+            ->andReturn(0);
+
+        $this->getJson('/api/reports/runs')->assertOk();
+        $this->getJson('/api/reports/runs')->assertOk();
+        $this->getJson('/api/reports/runs')->assertOk();
     }
 
     public function test_the_seven_dead_closures_are_gone(): void
