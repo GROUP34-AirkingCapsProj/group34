@@ -113,12 +113,56 @@ class ReportController extends Controller
     {
         $this->retention->prune();
 
+        $user = $request->user();
+
         $runs = ReportRun::query()
             ->with('generatedBy')
+            // A run the user could not download must not be listed as though
+            // they could — see mayAccess(). A location-scoped holder of
+            // report_viewing sees only their own; the SQL side of that is
+            // here, and the report-level check is applied per row below.
+            ->when(! $user->isCentralized(), fn ($q) => $q->where('generated_by', $user->user_id))
             ->orderByDesc('report_run_id')
             ->paginate(20);
 
+        $runs->setCollection(
+            $runs->getCollection()->filter(fn (ReportRun $run) => $this->mayAccess($run, $user))->values()
+        );
+
         return $this->paginated($runs, 'Report runs retrieved successfully');
+    }
+
+    /**
+     * Whether this user may read this stored run.
+     *
+     * The route permission only says the user may use the reports feature at
+     * all; it says nothing about one particular stored file. Two things it
+     * cannot answer on its own:
+     *
+     * - report_viewing.read lives in an editable role-permission table, so a
+     *   location-scoped role can be granted it. Such a user must not read a
+     *   run of a report whose own availableTo() excludes them — User Activity
+     *   returns isCentralized(), and that boundary has to survive to read time
+     *   or it only ever guarded generation.
+     * - A run made by a centralized user covers every location. Serving it to
+     *   a location-scoped user undoes the forUser() scoping their own reports
+     *   are built with, so they get only what they generated themselves.
+     *
+     * A run whose definition no longer exists is readable by its author alone:
+     * there is no availableTo() left to ask, and guessing "allow" would make
+     * deleting a definition a way to widen access to its old output.
+     */
+    private function mayAccess(ReportRun $run, $user): bool
+    {
+        if ((int) $run->generated_by === (int) $user->user_id) {
+            return true;
+        }
+
+        if (! $user->isCentralized()) {
+            return false;
+        }
+
+        return $this->registry->get($run->report_key)?->availableTo($user) ?? false;
     }
 
     public function download(Request $request, int $id)
@@ -126,6 +170,13 @@ class ReportController extends Controller
         $run = ReportRun::find($id);
 
         if (! $run) {
+            return $this->notFound('Report run not found');
+        }
+
+        // Reported as missing rather than forbidden, so this cannot be used to
+        // probe which run ids exist — same reasoning as generate()'s handling
+        // of an unavailable report.
+        if (! $this->mayAccess($run, $request->user())) {
             return $this->notFound('Report run not found');
         }
 
