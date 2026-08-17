@@ -77,7 +77,18 @@ class InventorySummaryReport implements ReportDefinition
 
         foreach ($query->get() as $inventory) {
             $product = $inventory->product;
-            $cost    = (float) ($product->cost_price ?? 0);
+
+            // Product uses SoftDeletes, so an archived product leaves its
+            // inventory rows behind with a null relation. Emitting one gives a
+            // row of '—' worth 0 whose quantity still lands in "Total units",
+            // so the valuation under-reports against its own unit count and
+            // against LocationPerformanceReport's closing value, which
+            // excludes deleted products. Skipped, as LowStockReport does.
+            if (! $product) {
+                continue;
+            }
+
+            $cost    = (float) $product->cost_price;
             $qty     = (int) $inventory->quantity_on_hand;
             $value   = $cost * $qty;
 
@@ -85,9 +96,9 @@ class InventorySummaryReport implements ReportDefinition
             $totalValue += $value;
 
             $rows[] = [
-                'product'            => $product?->product_name ?? '—',
-                'product_code'       => $product?->product_code ?? '—',
-                'category'           => $product?->category?->category_name ?? '—',
+                'product'            => $product->product_name,
+                'product_code'       => $product->product_code,
+                'category'           => $product->category?->category_name ?? '—',
                 'location'           => $inventory->location?->location_name ?? '—',
                 'quantity_on_hand'   => $qty,
                 'available_quantity' => (int) $inventory->available_quantity,

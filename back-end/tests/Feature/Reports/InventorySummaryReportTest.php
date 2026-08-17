@@ -35,6 +35,39 @@ class InventorySummaryReportTest extends ReportTestCase
         $this->assertSame(ReportDataset::FORMAT_MONEY, $dataset->columnFormats['cost_price']);
     }
 
+    /**
+     * Product uses SoftDeletes, so an archived product leaves its inventory
+     * rows behind with a null relation. Emitting one produces a row of '—'
+     * with a zero value that still adds its quantity to "Total units", so the
+     * valuation silently under-reports against the unit count — and against
+     * LocationPerformanceReport, which excludes deleted products from its own
+     * closing valuation. LowStockReport already skips these.
+     */
+    public function test_stock_of_an_archived_product_is_left_out_of_the_rows_and_the_totals(): void
+    {
+        $location = $this->makeLocation('ArchivedProdLoc');
+        $live     = $this->makeAppliance(cost: 1000);
+        $archived = $this->makeAppliance(cost: 500);
+
+        $this->setStock($location->location_id, $live->product_id, 2);
+        $this->setStock($location->location_id, $archived->product_id, 7);
+
+        $admin = $this->makeUserAt($location, 'admin');
+
+        $archived->delete();
+
+        $dataset = app(InventorySummaryReport::class)
+            ->build(new ReportParameters(['location_id' => $location->location_id]), $admin);
+
+        $this->assertCount(1, $dataset->rows, 'Only the live product may produce a row.');
+        $this->assertSame($live->product_name, $dataset->rows[0]['product']);
+
+        $this->assertSame(number_format(2), $dataset->summary['Total units'],
+            'Units of an archived product must not be counted while its value is not.');
+        $this->assertSame(number_format(2000.0, 2), $dataset->summary['Total valuation']);
+        $this->assertSame(number_format(1), $dataset->summary['Stock lines']);
+    }
+
     public function test_it_declares_no_date_range(): void
     {
         $types = collect(app(InventorySummaryReport::class)->parameters())->pluck('type')->all();
