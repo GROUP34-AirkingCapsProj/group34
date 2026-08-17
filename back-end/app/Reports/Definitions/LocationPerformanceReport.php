@@ -194,9 +194,14 @@ class LocationPerformanceReport implements ReportDefinition
             });
 
         // Closing stock/valuation: a live snapshot, not as of the range end.
+        // products is soft-deleted (Product uses SoftDeletes); a raw join
+        // bypasses Eloquent's global scope, so deleted_at is excluded
+        // explicitly to match how InventorySummaryReport values stock via
+        // the Eloquent product relation.
         DB::table('inventory')
             ->join('products', 'products.product_id', '=', 'inventory.product_id')
             ->whereIn('inventory.location_id', $locationIds)
+            ->whereNull('products.deleted_at')
             ->select(
                 'inventory.location_id as location_id',
                 DB::raw('SUM(inventory.quantity_on_hand) as qty'),
