@@ -223,3 +223,41 @@ Schedule::command('analytics:restock')
     ->dailyAt('06:00')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/analytics-restock.log'));
+
+/*
+|--------------------------------------------------------------------------
+| SCHEDULED MAINTENANCE
+|--------------------------------------------------------------------------
+| These three lived in app/Console/Kernel.php::schedule(), which Laravel 12
+| never calls: bootstrap/app.php's Application::configure() binds the console
+| kernel to Illuminate\Foundation\Console\Kernel, so an App\Console\Kernel
+| subclass is simply never resolved. `schedule:list` showed only the restock
+| job above. This file is the one the framework reads — define schedules here.
+*/
+
+// Auto-archive. Time and frequency are configurable in the Archive Settings UI.
+Schedule::command('archive:auto')
+    ->dailyAt('02:00')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/archive-auto.log'));
+
+// Warranty expiry: keeps the stored status_id in step with the calendar.
+//
+// Nothing DEPENDS on this running -- screens derive expiry from
+// warranty_end_date, so an install with no cron still reports every warranty
+// correctly. This exists so reporting and exports can trust the column, and so
+// the batch UPDATE that used to run inside the warranty list endpoint on every
+// page load has somewhere better to be.
+Schedule::command('warranties:expire')
+    ->dailyAt('01:00')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/warranties-expire.log'));
+
+// Retention cleanup: permanently deletes archived records past their retention.
+Schedule::command('archive:cleanup')
+    ->weeklyOn(0, '03:00')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/archive-cleanup.log'));
