@@ -15,6 +15,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Apache reverse-proxies /api from the public vhost to Laravel on
+        // 127.0.0.1:8081 (apache/airking.conf). Untrusted, that hop makes every
+        // request look like it came from 127.0.0.1 over http — so audit_trail /
+        // login_activities record the proxy's address instead of the operator's,
+        // and rate limiting keys every client to the same bucket. Only loopback
+        // is trusted; a header from a real client is still ignored.
+        $middleware->trustProxies(
+            at: ['127.0.0.1', '::1'],
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         // API-only app: treat every /api/* request as expecting JSON so auth and
         // validation failures always return proper JSON (not a redirect to `login`).
         $middleware->api(prepend: [
