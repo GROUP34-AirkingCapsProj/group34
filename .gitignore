@@ -56,3 +56,14 @@ back-end/.env.testing
 # Brainstorming companion scratch (mockups, session state)
 .superpowers/
 backups/
+
+# Database dumps — these carry real users, bcrypt hashes, Sanctum tokens and
+# session rows. Keep them on disk as the deploy baseline; never in the repo.
+/*.sql
+back-end/airking
+back-end/database/*.sqlite
+
+# One-off dev/debug scripts (seeders, token minters, phase test harnesses).
+# Not part of the app; back-end/scripts/phase5_tests.php held a live token.
+back-end/scripts/
+back-end/tinker_tmp.php
