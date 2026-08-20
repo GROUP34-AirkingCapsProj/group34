@@ -66,49 +66,6 @@ class AuthController extends Controller
     }
 
     /**
-     * Register new user
-     */
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'username' => 'required|unique:users,username|max:50',
-            'email' => 'required|email|unique:users,email|max:100',
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
-            'first_name' => 'required|max:50',
-            'last_name' => 'required|max:50',
-            'role_id' => 'required|exists:roles,role_id',
-        ]);
-
-        $user = User::create([
-            'username' => $validated['username'],
-            'email' => $validated['email'],
-            'password_hash' => Hash::make($validated['password']),
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'role_id' => $validated['role_id'],
-            'status_id' => 1,
-        ]);
-
-        $token = $this->issueAuthToken($user);
-
-        AuditTrail::create([
-            'user_id' => $user->user_id,
-            'action' => 'register',
-            'table_name' => 'users',
-            'record_id' => $user->user_id,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user->load('role', 'status'),
-            'token' => $token,
-            'session_timeout_minutes' => SystemSetting::sessionTimeoutMinutes(),
-        ], 201);
-    }
-
-    /**
      * CAPTCHA challenge for login (no auth required).
      */
     public function loginChallenge(LoginCaptchaService $captcha)

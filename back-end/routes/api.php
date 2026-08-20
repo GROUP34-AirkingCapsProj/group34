@@ -74,7 +74,11 @@ Route::get('/', function () {
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:12,1');
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:12,1');
 Route::get('/login/challenge', [AuthController::class, 'loginChallenge'])->middleware('throttle:30,1');
-Route::post('/register', [AuthController::class, 'register']);
+// NO PUBLIC REGISTRATION. Accounts are created only through
+// POST /users, gated on permission:user_account_management,create.
+// The old unauthenticated /register took `role_id` straight from the request
+// body and activated the account, so anyone who could reach the API could mint
+// themselves an admin token. The frontend never called it.
 
 Route::post('/password-reset/complete', [PasswordResetController::class, 'complete'])->middleware('throttle:12,1');
 
