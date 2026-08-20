@@ -27,10 +27,12 @@ return [
         '#^https?://192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$#',
         '#^https?://10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$#',
         '#^https?://172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}(:\d+)?$#',
-        // Hosted SPA (Vercel / Netlify previews) + tunnel frontends
-        '#^https://[a-z0-9.-]+\.vercel\.app$#',
-        '#^https://[a-z0-9.-]+\.netlify\.app$#',
-        '#^https?://[a-z0-9.-]+\.trycloudflare\.com(:\d+)?$#',
+        // NO wildcard patterns for shared public hosts here. `supports_credentials`
+        // is true below, so `#^https://[a-z0-9.-]+\.vercel\.app$#` (and the same
+        // for netlify.app / trycloudflare.com) let ANYONE who deploys to that
+        // shared domain make credentialed cross-origin calls to this API from a
+        // page they control. Add a hosted or tunnelled frontend by its exact
+        // origin in CORS_ALLOWED_ORIGINS instead.
     ],
 
     'allowed_headers' => ['*'],
