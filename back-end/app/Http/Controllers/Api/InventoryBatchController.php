@@ -61,6 +61,19 @@ class InventoryBatchController extends Controller
             'zone_label' => 'nullable|string|max:100',
         ]);
 
+        // Route-model binding resolves any batch id, so without this a
+        // location-scoped user could relabel a batch in a warehouse that
+        // index() will not even show them. 404, not 403: the same answer they
+        // get for a batch id that does not exist, so the endpoint does not
+        // confirm which ids are real in other locations.
+        $visible = InventoryBatch::forUser($request->user())
+            ->whereKey($batch->getKey())
+            ->exists();
+
+        if (! $visible) {
+            return $this->notFound('Batch not found');
+        }
+
         $batch->zone_label = $validated['zone_label'] ?? null;
         $batch->save();
 
