@@ -39,11 +39,15 @@ function buildSummary(action, oldValues, newValues, recordId) {
   if (action === 'delete') return recordId != null ? `Record #${recordId} removed` : 'Record removed';
   if (action === 'login') return 'User signed in';
   if (action === 'logout') return 'User signed out';
+  if (action === 'login_failed') {
+    return (newValues && newValues.reason) || 'Sign-in attempt failed';
+  }
   return action ? String(action).replace(/_/g, ' ') : '—';
 }
 
 function actionDisplayLabel(action) {
   if (action === 'unauthorized_access') return 'UNAUTHORIZED';
+  if (action === 'login_failed') return 'FAILED LOGIN';
   return action ? action.toUpperCase() : '—';
 }
 

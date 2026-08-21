@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\PasswordResetOtpMail;
 use App\Models\PasswordResetOtp;
 use App\Models\User;
+use App\Services\PasswordAuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -76,6 +77,12 @@ class ForgotPasswordOtpController extends Controller
                 'email' => ['Could not send the reset code by email. Please try again later.'],
             ]);
         }
+
+        app(PasswordAuditLogger::class)->log(
+            PasswordAuditLogger::RESET_REQUESTED,
+            $user,
+            ['delivery' => 'recovery_email', 'expires_in_minutes' => self::OTP_TTL_MINUTES],
+        );
 
         DB::transaction(function () use ($email, $plainOtp, $expiresAt) {
             // Replace any prior unused challenges for this email (single active OTP).
@@ -207,6 +214,12 @@ class ForgotPasswordOtpController extends Controller
             // Single-use: remove the challenge entirely after success.
             $row->delete();
         });
+
+        app(PasswordAuditLogger::class)->log(
+            PasswordAuditLogger::RESET_COMPLETED,
+            $user,
+            ['method' => 'email_otp'],
+        );
 
         return response()->json([
             'message' => 'Your password has been reset. You can sign in with your new password.',

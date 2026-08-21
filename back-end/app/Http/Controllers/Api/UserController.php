@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Models\User;
+use App\Services\PasswordAuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -212,6 +213,15 @@ class UserController extends Controller
                 'password_hash' => Hash::make($validated['new_password']),
                 'must_change_password' => ! $isSelf,
             ]);
+
+            app(PasswordAuditLogger::class)->log(
+                $isSelf ? PasswordAuditLogger::SELF_CHANGE : PasswordAuditLogger::ADMIN_CHANGE,
+                $user,
+                $isSelf
+                    ? ['method' => 'self_service']
+                    : ['method' => 'admin_set_temporary', 'must_change_password' => true],
+                $request->user(),
+            );
 
             return $this->success(null, 'Password changed successfully');
 

@@ -58,10 +58,38 @@ class AuthController extends Controller
             Log::warning('login_activity_log_failed', ['error' => $e->getMessage()]);
         }
 
-        // Only unrecognized emails (no matching user) are flagged unauthorized.
-        // Wrong passwords on existing accounts stay in login_activities only.
-        if (! $success && ! $user) {
+        if ($success) {
+            return;
+        }
+
+        // Two distinct records, because they answer different questions.
+        // An unrecognized email is a stranger probing the system: logged without
+        // the attempted address, by long-standing policy. A failure on a real
+        // account is attributable, so it lands in the audit trail against that
+        // account -- an admin reviewing "who has been failing to get in" needs
+        // to see these, not just the login_activities table.
+        if (! $user) {
             app(UnauthorizedAccessLogger::class)->logUnrecognizedAccount($request);
+
+            return;
+        }
+
+        try {
+            AuditTrail::create([
+                'user_id'    => $user->user_id,
+                'action'     => 'login_failed',
+                'table_name' => 'security',
+                'record_id'  => $user->user_id,
+                'old_values' => null,
+                'new_values' => [
+                    'account' => $user->email,
+                    'reason'  => $failureReason ? Str::limit($failureReason, 250, '') : 'Invalid credentials.',
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('login_failed_audit_log_failed', ['error' => $e->getMessage()]);
         }
     }
 
@@ -94,7 +122,12 @@ class AuthController extends Controller
         $maxAttempts = SystemSetting::maxLoginAttempts();
         if (RateLimiter::tooManyAttempts($credentialsKey, $maxAttempts)) {
             $seconds = RateLimiter::availableIn($credentialsKey);
-            $this->logLoginAttempt($request, null, false, 'Account temporarily locked (too many attempts).');
+            $this->logLoginAttempt(
+                $request,
+                User::where('email', $request->input('email'))->first(),
+                false,
+                'Account temporarily locked (too many attempts).'
+            );
 
             throw ValidationException::withMessages([
                 'email' => [
@@ -105,7 +138,15 @@ class AuthController extends Controller
 
         if (! $captcha->verify($request->input('captcha_token'), $request->input('captcha_answer'))) {
             RateLimiter::hit($captchaKey, self::LOGIN_DECAY_SECONDS);
-            $this->logLoginAttempt($request, null, false, 'Invalid CAPTCHA.');
+            // Resolve the account so a real user failing the bot check is filed
+            // against their own record rather than as an unrecognized stranger.
+            // An unknown email here still falls through to the anonymous path.
+            $this->logLoginAttempt(
+                $request,
+                User::where('email', $request->input('email'))->first(),
+                false,
+                'Invalid CAPTCHA.'
+            );
 
             throw ValidationException::withMessages([
                 'captcha_answer' => ['Security check failed. Refresh the challenge and try again.'],
