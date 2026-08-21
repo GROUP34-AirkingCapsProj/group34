@@ -165,7 +165,11 @@ class AccountController extends Controller
                 return $this->error('Current password is incorrect', 422);
             }
 
-            $user->update(['password_hash' => Hash::make($validated['new_password'])]);
+            $user->update([
+                'password_hash' => Hash::make($validated['new_password']),
+                // This endpoint is also what the forced-change screen posts to.
+                'must_change_password' => false,
+            ]);
 
             return $this->success(null, 'Password changed successfully');
         } catch (ValidationException $e) {
