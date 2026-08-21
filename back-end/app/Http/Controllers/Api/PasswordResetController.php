@@ -99,6 +99,11 @@ class PasswordResetController extends Controller
 
         $user->update([
             'password_hash' => Hash::make($validated['password']),
+            // The admin issues the code, but the employee chooses the password
+            // here — so this releases the gate, same as every other self-chosen
+            // password. Without this, CheckPasswordChange would immediately
+            // re-gate anyone who recovered through this flow.
+            'must_change_password' => false,
         ]);
 
         $row->forceFill(['used_at' => now()])->save();

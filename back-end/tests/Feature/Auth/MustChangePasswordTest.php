@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\PasswordResetCode;
 use App\Models\PasswordResetOtp;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -80,5 +81,32 @@ class MustChangePasswordTest extends TestCase
             ->assertStatus(200);
 
         $this->assertTrue($target->fresh()->must_change_password);
+    }
+
+    public function test_admin_issued_code_reset_clears_the_flag(): void
+    {
+        $user = $this->makeUser();
+
+        // The legacy admin-issued RST- flow: an admin hands the employee a
+        // one-time code and the EMPLOYEE chooses the new password. That is a
+        // self-chosen password, so it must release the gate like every other
+        // one — otherwise CheckPasswordChange re-gates them immediately.
+        $plain = 'RST-ABCD1234';
+        PasswordResetCode::create([
+            'user_id'    => $user->user_id,
+            'code_hash'  => Hash::make($plain),
+            'code_plain' => $plain,
+            'expires_at' => now()->addMinutes(60),
+            'used_at'    => null,
+        ]);
+
+        $this->postJson('/api/password-reset/complete', [
+            'email'                 => $user->email,
+            'code'                  => $plain,
+            'password'              => 'Brandnew123!',
+            'password_confirmation' => 'Brandnew123!',
+        ])->assertStatus(200);
+
+        $this->assertFalse($user->fresh()->must_change_password);
     }
 }
