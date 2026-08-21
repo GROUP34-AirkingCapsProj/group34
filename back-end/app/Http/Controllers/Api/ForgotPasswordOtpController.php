@@ -182,6 +182,8 @@ class ForgotPasswordOtpController extends Controller
         DB::transaction(function () use ($user, $row, $validated) {
             $user->update([
                 'password_hash' => Hash::make($validated['password']),
+                // The user has now chosen their own password; release the gate.
+                'must_change_password' => false,
             ]);
 
             // Single-use: remove the challenge entirely after success.

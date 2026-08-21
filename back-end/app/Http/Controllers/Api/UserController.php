@@ -197,8 +197,14 @@ class UserController extends Controller
                 }
             }
 
+            // Self-service change releases the gate. An admin setting someone
+            // else's password is issuing a temporary credential, so it re-arms
+            // the gate — same reasoning as a freshly created account.
+            $isSelf = $request->user()->user_id === $user->user_id;
+
             $user->update([
-                'password_hash' => Hash::make($validated['new_password'])
+                'password_hash' => Hash::make($validated['new_password']),
+                'must_change_password' => ! $isSelf,
             ]);
 
             return $this->success(null, 'Password changed successfully');
