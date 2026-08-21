@@ -35,11 +35,18 @@ class ForgotPasswordOtpController extends Controller
 
         $email = strtolower(trim($validated['email']));
 
+        // Uniform response whether or not the account exists. Returning a
+        // "no account found" error here would let anyone probe which addresses
+        // are real accounts. The success body below carries no hint of which
+        // inbox was used, or whether one was used at all.
+        $genericResponse = response()->json([
+            'message' => 'A reset link has been sent to your registered recovery email address.',
+            'expires_in_minutes' => self::OTP_TTL_MINUTES,
+        ]);
+
         $user = User::where('email', $email)->first();
         if (! $user) {
-            throw ValidationException::withMessages([
-                'email' => ['No account found with that email address.'],
-            ]);
+            return $genericResponse;
         }
 
         $plainOtp = (string) random_int(100000, 999999);
@@ -47,7 +54,7 @@ class ForgotPasswordOtpController extends Controller
 
         // Email first — do not keep an OTP row if delivery fails.
         try {
-            Mail::to($user->email)->send(new PasswordResetOtpMail($plainOtp));
+            Mail::to($user->reset_mail_address)->send(new PasswordResetOtpMail($plainOtp));
         } catch (\Throwable $e) {
             Log::error('password_reset_otp_mail_failed', [
                 'email' => $email,
@@ -71,10 +78,7 @@ class ForgotPasswordOtpController extends Controller
             ]);
         });
 
-        return response()->json([
-            'message' => 'A password reset code has been sent to your email.',
-            'expires_in_minutes' => self::OTP_TTL_MINUTES,
-        ]);
+        return $genericResponse;
     }
 
     /**
