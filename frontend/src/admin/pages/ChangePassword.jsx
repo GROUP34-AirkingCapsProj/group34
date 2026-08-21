@@ -37,11 +37,6 @@ const ChangePassword = () => {
         new_password: newPassword,
         new_password_confirmation: confirmation,
       });
-      // Re-read /me so must_change_password flips false before RoleRoute runs
-      // again — otherwise the guard bounces the user straight back here.
-      await refreshUser();
-      toast.success('Password updated. Welcome aboard.');
-      navigate('/admin/dashboard', { replace: true });
     } catch (err) {
       setError(
         err.errors?.new_password?.[0]
@@ -49,9 +44,25 @@ const ChangePassword = () => {
         || err.message
         || 'Could not change your password.'
       );
-    } finally {
       setLoading(false);
+      return;
     }
+
+    // The password IS changed at this point. Everything below is follow-up, so
+    // a failure here must not surface as "could not change your password" —
+    // that would tell the user the opposite of what just happened.
+    try {
+      // Re-read /me so must_change_password flips false before RoleRoute runs
+      // again — otherwise the guard bounces the user straight back here.
+      await refreshUser();
+    } catch {
+      // Ignored: the next authenticated request re-hydrates the user, and the
+      // server-side gate is already open.
+    }
+
+    setLoading(false);
+    toast.success('Password updated. Welcome aboard.');
+    navigate('/admin/dashboard', { replace: true });
   };
 
   return (
