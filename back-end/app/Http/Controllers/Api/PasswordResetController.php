@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PasswordResetCode;
 use App\Models\User;
+use App\Services\PasswordAuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -56,6 +57,15 @@ class PasswordResetController extends Controller
                 'expires_at' => $expiresAt,
             ]);
         });
+
+        // The code itself is deliberately not recorded: the trail says a code was
+        // handed out and to whom, never what it was.
+        app(PasswordAuditLogger::class)->log(
+            PasswordAuditLogger::CODE_ISSUED,
+            $user,
+            ['expires_at' => $expiresAt->toIso8601String()],
+            $request->user(),
+        );
 
         return response()->json([
             'message' => 'Reset code issued. Share it with the user through a secure channel.',
@@ -114,6 +124,12 @@ class PasswordResetController extends Controller
             ->where('id', '!=', $row->id)
             ->update(['used_at' => now()]);
 
+        app(PasswordAuditLogger::class)->log(
+            PasswordAuditLogger::RESET_COMPLETED,
+            $user,
+            ['method' => 'admin_authorization_code'],
+        );
+
         return response()->json([
             'message' => 'Your password has been reset. You can sign in with your new password.',
         ]);
@@ -166,6 +182,15 @@ class PasswordResetController extends Controller
         }
 
         $passwordResetCode->forceFill(['used_at' => now()])->save();
+
+        if ($subject = User::find($passwordResetCode->user_id)) {
+            app(PasswordAuditLogger::class)->log(
+                PasswordAuditLogger::CODE_REVOKED,
+                $subject,
+                [],
+                request()->user(),
+            );
+        }
 
         return response()->json(['message' => 'Code revoked.']);
     }

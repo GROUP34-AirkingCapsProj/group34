@@ -126,6 +126,25 @@
   color: #991b1b;
   border: 1px solid #fecaca;
 }
+/* A failed sign-in on a real account: notable, but not the same alarm as an
+   unrecognized account probing the system. */
+.at-action-badge--login_failed {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* Password-lifecycle events */
+.at-action-badge--password_changed,
+.at-action-badge--password_changed_by_admin,
+.at-action-badge--password_reset_requested,
+.at-action-badge--password_reset_completed,
+.at-action-badge--reset_code_issued,
+.at-action-badge--reset_code_revoked {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+}
 
 /* Unauthorized access rows */
 .at-table tbody tr.at-row--unauthorized {

@@ -25,6 +25,13 @@ class AuditTrailController extends Controller
         'inventory_adjustment' => 'Inventory Adjusted',
         'stock_transfer'       => 'Stock Transferred',
         'unauthorized_access'  => 'Unauthorized Access',
+        'login_failed'         => 'Failed Login',
+        'password_changed'         => 'Password Changed',
+        'password_changed_by_admin' => 'Password Set by Admin',
+        'password_reset_requested'  => 'Password Reset Requested',
+        'password_reset_completed'  => 'Password Reset Completed',
+        'reset_code_issued'         => 'Authorization Code Issued',
+        'reset_code_revoked'        => 'Authorization Code Revoked',
     ];
 
     private const TABLE_LABELS = [
@@ -57,6 +64,16 @@ class AuditTrailController extends Controller
     ];
 
     private const SKIP_FIELDS = ['created_at', 'updated_at', 'deleted_at'];
+
+    /** Password-lifecycle actions written by App\Services\PasswordAuditLogger. */
+    private const PASSWORD_ACTIONS = [
+        'self_change'  => 'password_changed',
+        'admin_change' => 'password_changed_by_admin',
+        'requested'    => 'password_reset_requested',
+        'completed'    => 'password_reset_completed',
+        'code_issued'  => 'reset_code_issued',
+        'code_revoked' => 'reset_code_revoked',
+    ];
 
     /**
      * Legacy paginated audit feed used by the Audit Trail page.
@@ -373,6 +390,39 @@ class AuditTrailController extends Controller
 
         if ($action === 'delete') {
             return $recordId ? 'Record #' . $recordId . ' permanently removed' : 'Record permanently removed';
+        }
+
+        if ($action === 'login_failed') {
+            return (string) ($newVals['reason'] ?? 'Sign-in attempt failed.');
+        }
+
+        if ($action === self::PASSWORD_ACTIONS['requested']) {
+            return 'Reset code sent to the registered recovery email';
+        }
+
+        if ($action === self::PASSWORD_ACTIONS['completed']) {
+            return ($newVals['method'] ?? null) === 'admin_authorization_code'
+                ? 'Password reset using an admin authorization code'
+                : 'Password reset using an emailed reset code';
+        }
+
+        if ($action === self::PASSWORD_ACTIONS['self_change']) {
+            return ($newVals['method'] ?? null) === 'forced_change_at_login'
+                ? 'Temporary password replaced at first login'
+                : 'User changed their own password';
+        }
+
+        if ($action === self::PASSWORD_ACTIONS['admin_change']) {
+            return 'Admin set a temporary password for this account';
+        }
+
+        if ($action === self::PASSWORD_ACTIONS['code_issued']) {
+            $exp = $newVals['expires_at'] ?? null;
+            return 'Admin issued an authorization code' . ($exp ? ' (expires ' . $exp . ')' : '');
+        }
+
+        if ($action === self::PASSWORD_ACTIONS['code_revoked']) {
+            return 'Admin revoked an authorization code';
         }
 
         if ($action === 'barcode_correction') {

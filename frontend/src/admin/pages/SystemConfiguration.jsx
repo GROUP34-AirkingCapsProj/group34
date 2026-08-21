@@ -54,12 +54,6 @@ const SaveIcon = () => (
   </svg>
 );
 
-const AvatarPersonIcon = () => (
-  <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
-  </svg>
-);
-
 const MailIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
@@ -75,12 +69,6 @@ const PhoneIcon = () => (
 const MapPinIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-  </svg>
-);
-
-const CheckCircleIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
   </svg>
 );
 
@@ -163,7 +151,6 @@ const SystemConfiguration = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [resetRequests, setResetRequests]  = useState([]);
   const [activeCodes, setActiveCodes]      = useState([]);
   const [activeCodesLoading, setActiveCodesLoading] = useState(false);
   const [manualUser, setManualUser]        = useState('');
@@ -359,26 +346,6 @@ const SystemConfiguration = () => {
     } finally {
       setCompanySaving(false);
     }
-  };
-
-  const handleGenerateCode = async (req) => {
-    if (!req?.user_id) {
-      toast.error('Invalid reset request.');
-      return;
-    }
-    try {
-      await passwordResetAPI.issue(Number(req.user_id));
-      setResetRequests((prev) => prev.filter((r) => r.id !== req.id));
-      toast.success(`Reset code generated for ${req.name || 'user'}.`);
-      await fetchActiveResetCodes();
-    } catch (err) {
-      toast.error(err.message || 'Failed to issue reset code.');
-    }
-  };
-
-  const handleDenyRequest = (id) => {
-    setResetRequests(prev => prev.filter(r => r.id !== id));
-    toast.success('Request denied.');
   };
 
   const handleRevoke = async (id) => {
@@ -620,39 +587,6 @@ const SystemConfiguration = () => {
           <div className="sc-tab-content">
             {/* User Management (shared panel) */}
             <UserManagementPanel />
-
-            {/* Password Reset Requests */}
-            <div className="sc-card">
-              <div className="sc-card-header">
-                <h3>Password Reset Requests</h3>
-                <p>Manage user password reset requests</p>
-              </div>
-              <div className="sc-card-body">
-                {resetRequests.length === 0 && (
-                  <p className="sc-placeholder" style={{ padding: '16px 0' }}>No pending reset requests.</p>
-                )}
-                {resetRequests.map(req => (
-                  <div key={req.id} className="sc-um-request-item">
-                    <div className="sc-um-request-avatar">
-                      <AvatarPersonIcon />
-                    </div>
-                    <div className="sc-um-request-info">
-                      <span className="sc-um-request-name">{req.name}</span>
-                      <span className="sc-um-request-email">{req.email}</span>
-                      <span className="sc-um-request-time">Requested: {req.requested}</span>
-                    </div>
-                    <div className="sc-um-request-actions">
-                      <button type="button" className="sc-um-btn-generate" onClick={() => handleGenerateCode(req)}>
-                        <CheckCircleIcon /> Generate Code
-                      </button>
-                      <button type="button" className="sc-um-btn-deny" onClick={() => handleDenyRequest(req.id)}>
-                        <XCircleIcon /> Deny
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
             {/* Active Reset Codes */}
             <div className="sc-card">
