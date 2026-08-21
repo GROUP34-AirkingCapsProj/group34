@@ -141,18 +141,21 @@ const ForgotPassword = () => {
             {mode === 'otp' && step === 1 && (
               <>
                 <p>
-                  Enter your account email. If an account exists, we'll send a
-                  6-digit reset code to the recovery email on file.
+                  Enter the recovery email registered on your account. The
+                  6-digit reset code is sent only to that address &mdash; it
+                  cannot be sent anywhere else. If no recovery email is on file
+                  for you, contact your administrator to have your password
+                  reset.
                 </p>
                 <form onSubmit={handleRequestOtp}>
                   <div className="form-group">
-                    <label htmlFor="forgot-email">Email</label>
+                    <label htmlFor="forgot-email">Recovery email</label>
                     <input
                       id="forgot-email"
                       name="email"
                       type="email"
                       autoComplete="email"
-                      placeholder="name@example.com"
+                      placeholder="your.personal@gmail.com"
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); clearError(); }}
                       maxLength={100}
@@ -170,7 +173,7 @@ const ForgotPassword = () => {
 
             {mode === 'otp' && step === 2 && (
               <>
-                <p>Enter the 6-digit code sent to your email.</p>
+                <p>Enter the 6-digit code sent to your recovery email.</p>
                 <form onSubmit={handleVerifyOtp}>
                   <div className="form-group">
                     <label htmlFor="forgot-otp">Reset code</label>
@@ -195,14 +198,6 @@ const ForgotPassword = () => {
                     {loading ? 'Verifying…' : 'Verify code'}
                   </button>
                   {error && <p className="error">{error}</p>}
-
-                  <button
-                    type="button"
-                    className="login-otp-back"
-                    onClick={() => { setStep(1); setOtp(''); setResetToken(''); clearError(); }}
-                  >
-                    Use a different email
-                  </button>
                 </form>
               </>
             )}

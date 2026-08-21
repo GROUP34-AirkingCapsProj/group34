@@ -81,16 +81,21 @@ origin than the API. Wildcard patterns for shared hosts (`*.vercel.app`,
 `config/cors.php` — with `supports_credentials` on, they let anyone who deploys
 to those domains make authenticated calls to your API. List exact origins here.
 
-### Email delivery (Resend)
+### Email delivery (Brevo SMTP)
 
-Password reset codes are delivered through Resend. Set `RESEND_API_KEY` in the
-production `.env` from the Resend dashboard.
+Password reset codes are delivered over Brevo's SMTP relay. In the production
+`.env` set `MAIL_USERNAME` to the Brevo SMTP login and `MAIL_PASSWORD` to the
+Brevo SMTP key (SMTP & API > SMTP keys) — the SMTP key is not the Brevo account
+password.
 
-Sending from `noreply@airking.com` requires the `airking.com` domain to be
-verified in Resend first: add the SPF and DKIM DNS records Resend generates for
-the domain and wait for verification to complete. Until then, the only sender
-Resend will accept is `onboarding@resend.dev` — set `MAIL_FROM_ADDRESS` to that
-value if you need to test delivery before DNS propagates.
+`MAIL_FROM_ADDRESS` must be an address verified under Brevo > Senders, Domains &
+Dedicated IPs. Until `airking.com` is owned and DNS-verified there (SPF + DKIM),
+use a single verified personal address as the sender; Brevo rejects unverified
+senders outright. Once the domain is verified, switch `MAIL_FROM_ADDRESS` to
+`noreply@airking.com`.
+
+Port 587 with `MAIL_SCHEME=smtp` uses STARTTLS. On Laravel 11 the transport is
+selected by `MAIL_SCHEME`, not `MAIL_ENCRYPTION`; keep `MAIL_SCHEME=smtp` set.
 
 Reset mail is addressed to each user's `recovery_email`, falling back to their
 login `email` when no recovery address is on file.

@@ -64,6 +64,38 @@ class RecoveryEmailValidationTest extends TestCase
             ->assertJsonPath('errors.recovery_email.0', fn ($m) => is_string($m));
     }
 
+    public function test_store_rejects_a_recovery_email_already_used_by_another_account(): void
+    {
+        $admin = $this->makeAdmin();
+        $taken = 'shared_' . uniqid() . '@gmail.com';
+
+        $first = $this->payload(['recovery_email' => $taken]);
+        $this->actingAs($admin, 'sanctum')->postJson('/api/users', $first)->assertStatus(201);
+
+        // A second account cannot claim the same recovery address: forgot-password
+        // resolves an account BY that address, so sharing it would be ambiguous.
+        $second = $this->payload(['recovery_email' => $taken]);
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $second)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.recovery_email.0', fn ($m) => is_string($m));
+    }
+
+    public function test_store_rejects_a_recovery_email_that_is_another_accounts_login_email(): void
+    {
+        $admin = $this->makeAdmin();
+        $existing = $this->makeAdmin();
+
+        // Otherwise a reset started from that address would resolve to the wrong
+        // account: the owner of the login email would reset somebody else.
+        $payload = $this->payload(['recovery_email' => $existing->email]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.recovery_email.0', fn ($m) => is_string($m));
+    }
+
     public function test_store_persists_recovery_email_and_forces_password_change(): void
     {
         $payload = $this->payload();

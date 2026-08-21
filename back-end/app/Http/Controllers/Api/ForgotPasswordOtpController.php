@@ -26,6 +26,13 @@ class ForgotPasswordOtpController extends Controller
     /**
      * POST /forgot-password
      * Generate a 6-digit OTP, hash + store (10 min), email it.
+     *
+     * The submitted address is the account's RECOVERY email, not its login
+     * email. Reset codes only ever go to the recovery address recorded in the
+     * system; there is no way to nominate a different destination here, and no
+     * fallback to the company inbox the employee is locked out of. Accounts
+     * with no recovery address on file cannot self-recover and must be reset
+     * by an admin through the authorization-code flow.
      */
     public function forgot(Request $request)
     {
@@ -35,18 +42,22 @@ class ForgotPasswordOtpController extends Controller
 
         $email = strtolower(trim($validated['email']));
 
-        // Uniform response whether or not the account exists. Returning a
-        // "no account found" error here would let anyone probe which addresses
-        // are real accounts. The success body below carries no hint of which
-        // inbox was used, or whether one was used at all.
-        $genericResponse = response()->json([
-            'message' => 'A reset link has been sent to your registered recovery email address.',
-            'expires_in_minutes' => self::OTP_TTL_MINUTES,
-        ]);
-
-        $user = User::where('email', $email)->first();
+        // Deliberate product decision: an unrecognised address is named as such
+        // rather than answered with a uniform "if it exists" message. This tells
+        // a user who mistyped straight away, at the cost of letting someone probe
+        // which personal inboxes belong to staff. The route's throttle (8/min,
+        // routes/api.php) is what limits bulk probing. Revert to a uniform
+        // response here if this system is ever exposed to the public internet.
+        $user = User::whereNotNull('recovery_email')
+            ->whereRaw('LOWER(recovery_email) = ?', [$email])
+            ->first();
         if (! $user) {
-            return $genericResponse;
+            throw ValidationException::withMessages([
+                'email' => [
+                    'That email is not registered as a recovery email. Check the address, '
+                    . 'or contact your administrator to have your password reset.',
+                ],
+            ]);
         }
 
         $plainOtp = (string) random_int(100000, 999999);
@@ -54,7 +65,7 @@ class ForgotPasswordOtpController extends Controller
 
         // Email first — do not keep an OTP row if delivery fails.
         try {
-            Mail::to($user->reset_mail_address)->send(new PasswordResetOtpMail($plainOtp));
+            Mail::to($user->recovery_email)->send(new PasswordResetOtpMail($plainOtp));
         } catch (\Throwable $e) {
             Log::error('password_reset_otp_mail_failed', [
                 'email' => $email,
@@ -78,7 +89,10 @@ class ForgotPasswordOtpController extends Controller
             ]);
         });
 
-        return $genericResponse;
+        return response()->json([
+            'message' => 'A 6-digit reset code has been sent to your recovery email address.',
+            'expires_in_minutes' => self::OTP_TTL_MINUTES,
+        ]);
     }
 
     /**
@@ -171,7 +185,11 @@ class ForgotPasswordOtpController extends Controller
             ]);
         }
 
-        $user = User::where('email', $email)->first();
+        // Keyed the same way forgot() issued it: the challenge row's email column
+        // holds the recovery address, so the account resolves through it too.
+        $user = User::whereNotNull('recovery_email')
+            ->whereRaw('LOWER(recovery_email) = ?', [$email])
+            ->first();
         if (! $user) {
             $row->delete();
             throw ValidationException::withMessages([

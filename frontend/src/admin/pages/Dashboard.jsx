@@ -38,6 +38,8 @@ ChartJS.register(
   Filler
 );
 
+const LOW_STOCK_PAGE_SIZE = 5;
+
 /* ─────────────────────────────────────────────
    Admin-only dashboard (hooks always called)
 ───────────────────────────────────────────── */
@@ -54,6 +56,7 @@ const AdminDashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
+  const [lowStockPage, setLowStockPage] = useState(1);
 
   // ── Chart filters ──
   const todayStr = () => new Date().toISOString().split('T')[0];
@@ -247,6 +250,10 @@ const AdminDashboard = () => {
   const stats = data?.stats ?? {};
   const pendingActions        = stats.pending_actions ?? 0;
   const lowStockItems         = data?.low_stock_items ?? [];
+  const lowStockPageCount     = Math.max(1, Math.ceil(lowStockItems.length / LOW_STOCK_PAGE_SIZE));
+  const currentLowStockPage   = Math.min(lowStockPage, lowStockPageCount);
+  const lowStockStart         = (currentLowStockPage - 1) * LOW_STOCK_PAGE_SIZE;
+  const paginatedLowStockItems = lowStockItems.slice(lowStockStart, lowStockStart + LOW_STOCK_PAGE_SIZE);
   const recentActivity        = data?.recent_activity ?? [];
   // Charts use filtered data when available, otherwise the initial batch data
   const cd = chartData;
@@ -381,7 +388,7 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {lowStockItems.map((item) => (
+                {paginatedLowStockItems.map((item) => (
                   <tr key={item.product_id}>
                     <td className="ls-td-name">{item.product_name}</td>
                     <td className="ls-td-cat">{item.category ?? '—'}</td>
@@ -398,6 +405,34 @@ const AdminDashboard = () => {
               </tbody>
             </table>
           </div>
+          {lowStockPageCount > 1 && (
+            <div className="low-stock-pagination pg-container">
+              <span className="pg-info">
+                Showing {lowStockStart + 1}–{Math.min(lowStockStart + LOW_STOCK_PAGE_SIZE, lowStockItems.length)} of {lowStockItems.length}
+              </span>
+              <div className="pg-controls" aria-label="Low stock alert pagination">
+                <button
+                  type="button"
+                  className="pg-btn"
+                  disabled={currentLowStockPage === 1}
+                  onClick={() => setLowStockPage(page => Math.max(1, page - 1))}
+                >
+                  Previous
+                </button>
+                <span className="low-stock-page-label" aria-live="polite">
+                  Page {currentLowStockPage} of {lowStockPageCount}
+                </span>
+                <button
+                  type="button"
+                  className="pg-btn"
+                  disabled={currentLowStockPage === lowStockPageCount}
+                  onClick={() => setLowStockPage(page => Math.min(lowStockPageCount, page + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       

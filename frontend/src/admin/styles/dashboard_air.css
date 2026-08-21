@@ -1972,6 +1972,19 @@
   color: #dc2626;
 }
 
+.low-stock-pagination {
+  padding: 12px 20px;
+  border-top: 1px solid #fef3c7;
+  background: #fffbeb;
+}
+
+.low-stock-page-label {
+  min-width: 92px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* ===============================
    PAGINATION (shared)
 ================================ */
