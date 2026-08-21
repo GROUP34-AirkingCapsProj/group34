@@ -109,4 +109,80 @@ class MustChangePasswordTest extends TestCase
 
         $this->assertFalse($user->fresh()->must_change_password);
     }
+
+    public function test_flagged_user_is_blocked_from_a_protected_route(): void
+    {
+        $user = $this->makeUser(['must_change_password' => true]);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/users')
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'password_change_required');
+    }
+
+    public function test_unflagged_user_passes_through(): void
+    {
+        $user = $this->makeUser(['must_change_password' => false]);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/users')
+            ->assertStatus(200);
+    }
+
+    public function test_flagged_user_can_still_reach_the_escape_hatch_routes(): void
+    {
+        $user = $this->makeUser(['must_change_password' => true]);
+
+        // Identity endpoint — the SPA needs this to know why it is being blocked.
+        $this->actingAs($user, 'sanctum')->getJson('/api/user')->assertStatus(200);
+
+        // Changing the password is the whole point of the gate.
+        $this->actingAs($user, 'sanctum')
+            ->putJson('/api/me/password', [
+                'current_password'          => 'Secret123!',
+                'new_password'              => 'Brandnew123!',
+                'new_password_confirmation' => 'Brandnew123!',
+            ])
+            ->assertStatus(200);
+    }
+
+    public function test_flagged_user_can_log_out(): void
+    {
+        $user = $this->makeUser(['must_change_password' => true]);
+
+        // AuthController::logout() calls $request->user()->currentAccessToken()->delete(),
+        // which is null under a bare actingAs($user, 'sanctum') (no token relation is
+        // populated). Issue a real personal access token and authenticate with it as a
+        // Bearer credential instead, so currentAccessToken() resolves to a real,
+        // deletable model — this exercises the actual logout path.
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->postJson('/api/logout')
+            ->assertStatus(200);
+    }
+
+    /**
+     * Production fidelity. `actingAs()` injects the in-memory model, and a user
+     * built with User::create() never loads the DB-supplied default for
+     * must_change_password — so the attribute reads null and the gate lets it
+     * past. A real bearer token reloads the user from the database the way the
+     * Sanctum guard does in production, which is the path that actually matters.
+     *
+     * Without this test the suite reports green while the gate is inert for
+     * every fixture that relies on the column default.
+     */
+    public function test_gate_fires_for_a_user_authenticated_by_a_real_token(): void
+    {
+        // No explicit must_change_password: it comes from the column default.
+        $user = $this->makeUser();
+        $user->forceFill(['must_change_password' => true])->save();
+
+        $token = $user->createToken('gate-test')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/users')
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'password_change_required');
+    }
 }
