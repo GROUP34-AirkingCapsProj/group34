@@ -35,7 +35,7 @@ const UserManagementPanel = () => {
   const debounceRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    first_name: '', last_name: '', username: '', email: '',
+    first_name: '', last_name: '', username: '', email: '', recovery_email: '',
     password: '', password_confirmation: '',
     phone: '', role_id: '', location_id: '', status_id: 1
   });
@@ -124,7 +124,7 @@ const UserManagementPanel = () => {
   const handleAdd = () => {
     setEditingUser(null);
     setFormData({
-      first_name: '', last_name: '', username: '', email: '',
+      first_name: '', last_name: '', username: '', email: '', recovery_email: '',
       password: '', password_confirmation: '',
       phone: '', role_id: '', location_id: '', status_id: 1
     });
@@ -140,6 +140,7 @@ const UserManagementPanel = () => {
       last_name: user.last_name || '',
       username: user.username || '',
       email: user.email || '',
+      recovery_email: user.recovery_email || '',
       password: '',
       password_confirmation: '',
       phone: user.phone || '',
@@ -195,6 +196,17 @@ const UserManagementPanel = () => {
     else if (!/\S+@\S+\.\S+/.test(formData.email)) errors.email = 'Invalid email format';
 
     if (!editingUser) {
+      if (!formData.recovery_email.trim()) errors.recovery_email = 'Recovery email is required';
+      else if (!/\S+@\S+\.\S+/.test(formData.recovery_email)) errors.recovery_email = 'Invalid email format';
+    }
+    if (
+      formData.recovery_email.trim()
+      && formData.recovery_email.trim().toLowerCase() === formData.email.trim().toLowerCase()
+    ) {
+      errors.recovery_email = 'Recovery email must be different from the login email';
+    }
+
+    if (!editingUser) {
       if (!formData.password) errors.password = 'Password is required';
       else if (formData.password.length < 8) errors.password = 'Password must be at least 8 characters';
       if (formData.password !== formData.password_confirmation) errors.password_confirmation = 'Passwords do not match';
@@ -223,6 +235,8 @@ const UserManagementPanel = () => {
           delete payload.password;
           delete payload.password_confirmation;
         }
+        payload.recovery_email = String(payload.recovery_email || '').trim();
+        if (!payload.recovery_email) delete payload.recovery_email;
         payload.role_id = Number(payload.role_id) || null;
         payload.location_id = Number(payload.location_id) || null;
         payload.status_id = Number(payload.status_id) || 1;
@@ -243,6 +257,7 @@ const UserManagementPanel = () => {
           last_name: String(formData.last_name || '').trim(),
           username: String(formData.username || '').trim(),
           email: String(formData.email || '').trim(),
+          recovery_email: String(formData.recovery_email || '').trim(),
           password: String(formData.password),
           password_confirmation: String(formData.password_confirmation || formData.password || ''),
           phone: (formData.phone && String(formData.phone).trim()) || null,
@@ -496,9 +511,18 @@ const UserManagementPanel = () => {
             <div className="form-row">
               <div className="form-group">
                 <label>Email Address <span className="required">*</span></label>
-                <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="user@example.com" />
+                <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="user@airking.com" />
+                <small className="um-field-hint">Used to sign in.</small>
                 {formErrors.email && <span className="um-field-error">{formErrors.email}</span>}
               </div>
+              <div className="form-group">
+                <label>Recovery Email <span className="required">*</span></label>
+                <input type="email" value={formData.recovery_email} onChange={(e) => setFormData({...formData, recovery_email: e.target.value})} placeholder="personal@gmail.com" />
+                <small className="um-field-hint">Personal inbox. Password reset codes are sent here.</small>
+                {formErrors.recovery_email && <span className="um-field-error">{formErrors.recovery_email}</span>}
+              </div>
+            </div>
+            <div className="form-row">
               <div className="form-group">
                 <label>Phone Number</label>
                 <input type="text" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} placeholder="e.g. 09171234567" />
