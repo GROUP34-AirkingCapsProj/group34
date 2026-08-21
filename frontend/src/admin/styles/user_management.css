@@ -669,6 +669,13 @@
   font-weight: 500;
 }
 
+.um-field-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 .required {
   color: #dc2626;
 }
