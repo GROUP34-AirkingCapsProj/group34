@@ -33,8 +33,10 @@ class User extends Authenticatable
         'first_name',
         'last_name',
         'email',
+        'recovery_email',
         'username',
         'password_hash',
+        'must_change_password',
         'phone',
         'avatar_path',
         'address',
@@ -54,7 +56,29 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'alerts_last_seen_at' => 'datetime',
+        'must_change_password' => 'boolean',
     ];
+
+    /**
+     * Where password-reset mail goes: the employee's personal inbox, not the
+     * company address they are locked out of. Falls back to the login email for
+     * users created before recovery_email existed.
+     */
+    public function getResetMailAddressAttribute(): string
+    {
+        return $this->recovery_email ?: $this->email;
+    }
+
+    /**
+     * Notification mail routing. Note that the reset flow does NOT go through
+     * this method — it sends a Mailable via Mail::to(), and Laravel consults
+     * notification routing only for Notifications. Kept so any future
+     * $user->notify() reaches the recovery address too.
+     */
+    public function routeNotificationForMail($notification)
+    {
+        return $this->recovery_email ?: $this->email;
+    }
 
     // avatar_url is appended to every User serialization (incl. /api/user, /api/login)
     // so the frontend header/sidebar can render the photo without extra endpoints.
