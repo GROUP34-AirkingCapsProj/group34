@@ -92,7 +92,7 @@ Route::post('/reset-password', [ForgotPasswordOtpController::class, 'reset'])->m
 // authorization is enforced in routes/channels.php via ChannelAccess.
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
-Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session'])->group(function () {
+Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session', 'password.changed'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------

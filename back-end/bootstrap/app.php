@@ -45,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'extend.sanctum.session' => \App\Http\Middleware\ExtendSanctumTokenExpiration::class,
             'auth.query.token'       => \App\Http\Middleware\AuthenticateFromQueryToken::class,
             'permission'             => \App\Http\Middleware\CheckPermission::class,
+            'password.changed'       => \App\Http\Middleware\CheckPasswordChange::class,
         ]);
 
         // Run authorization (role/auditor) BEFORE route-model binding, so a
