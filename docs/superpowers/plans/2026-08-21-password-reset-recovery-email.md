@@ -46,6 +46,17 @@
 **Test command:** `cd back-end && php artisan test --filter=<TestClass>`
 **Test database:** `airkingV5_test` on `127.0.0.1:3306` (see `phpunit.xml:26-30`). It must exist and be migrated before running tests.
 
+**Two environment gotchas discovered during Task 2 — read before running any artisan command:**
+
+1. `back-end/.env` sets `APP_ENV=production`. Every `migrate`, `migrate:rollback`, and `migrate:fresh` therefore prompts for confirmation and aborts non-interactively. Always pass `--force`.
+2. `php artisan migrate --env=testing` does **not** target the test database — there is no `.env.testing`, so it silently falls back to the main `.env` and reports "Nothing to migrate". To migrate `airkingV5_test`, pass the connection explicitly:
+
+   ```bash
+   cd back-end && DB_DATABASE=airkingV5_test DB_HOST=127.0.0.1 DB_PORT=3306 DB_USERNAME=root DB_PASSWORD= php artisan migrate --force
+   ```
+
+   Both databases already carry the Task 2 columns; this is for any later migration.
+
 ---
 
 ## Task 1: Install and configure the Resend mail driver
@@ -1386,10 +1397,12 @@ Expected: PASS.
 - [ ] **Step 3: Confirm the migration reverses cleanly**
 
 ```bash
-cd back-end && php artisan migrate:rollback --step=1 && php artisan migrate
+cd back-end && php artisan migrate:rollback --step=1 --force && php artisan migrate --force
 ```
 
 Expected: both columns drop and re-add without error.
+
+`--force` is required because this machine's `back-end/.env` sets `APP_ENV=production`, so artisan prompts for confirmation on any destructive command and a non-interactive run aborts.
 
 - [ ] **Step 4: Commit any test fixes**
 
