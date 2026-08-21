@@ -11,6 +11,11 @@ const RoleRoute = ({ children }) => {
 
   if (!user) return <Navigate to="/admin/login" replace />;
 
+  // Temporary password still in place — every other API route returns 403, so
+  // send the user to the one screen that can clear it. The middleware is the
+  // real enforcement; this just avoids rendering pages that cannot load data.
+  if (user.must_change_password) return <Navigate to="/admin/change-password" replace />;
+
   const bundle = NAV_BUNDLES.find((b) => b.routePath === location.pathname);
   if (bundle) {
     if (permissions == null) {

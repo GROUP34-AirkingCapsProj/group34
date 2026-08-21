@@ -140,7 +140,10 @@ const ForgotPassword = () => {
 
             {mode === 'otp' && step === 1 && (
               <>
-                <p>Enter your account email. We will send a 6-digit password reset code.</p>
+                <p>
+                  Enter your account email. If an account exists, we'll send a
+                  6-digit reset code to the recovery email on file.
+                </p>
                 <form onSubmit={handleRequestOtp}>
                   <div className="form-group">
                     <label htmlFor="forgot-email">Email</label>

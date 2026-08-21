@@ -11,6 +11,7 @@ import './App.css';
 // Core
 const Login = lazy(() => import('./admin/pages/Login'));
 const ForgotPassword = lazy(() => import('./admin/pages/ForgotPassword'));
+const ChangePassword = lazy(() => import('./admin/pages/ChangePassword'));
 const Dashboard = lazy(() => import('./admin/pages/Dashboard'));
 
 // System Setup
@@ -91,6 +92,9 @@ function App() {
           <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<Login />} />
           <Route path="/admin/forgot-password" element={<ForgotPassword />} />
+          {/* Outside RoleRoute: the guard inside RoleRoute redirects here, so
+              wrapping this route in it would loop. */}
+          <Route path="/admin/change-password" element={<ChangePassword />} />
 
           {/* Supabase PWA inventory (Vercel + Supabase; optional env) */}
           <Route path="/pwa/login" element={<PwaLogin />} />

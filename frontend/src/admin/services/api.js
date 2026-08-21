@@ -273,6 +273,13 @@ const apiRequest = async (endpoint, options = {}) => {
         window.location.href = '/admin/login';
       }
     }
+    // Server says the temporary password must be replaced. Can happen mid-session
+    // if an admin resets this user's password while they are logged in.
+    if (response.status === 403 && data.code === 'password_change_required') {
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/change-password')) {
+        window.location.href = '/admin/change-password';
+      }
+    }
     const err = new Error(data.message || 'API request failed');
     err.status = response.status;
     err.errors = data.errors || null;
