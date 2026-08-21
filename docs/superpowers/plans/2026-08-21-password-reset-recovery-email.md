@@ -1417,7 +1417,7 @@ git commit -m "test: align existing fixtures with the forced password change gat
 
 Per the spec, untouched by this plan:
 
-- The legacy `PasswordResetController` `RST-` admin-issued code flow and its routes.
+- The legacy `PasswordResetController` `RST-` admin-issued code flow and its routes — **with one exception applied during Task 5**: `complete()` now also sets `must_change_password => false`. That flow lets the *employee* choose their own password using an admin-issued code, so by the "any successful password change clears the flag" rule it must release the gate. Without it, `CheckPasswordChange` would re-gate anyone who recovered through that flow — a lockout loop this feature would have introduced. Covered by `test_admin_issued_code_reset_clears_the_flag`. Nothing else in that controller was touched.
 - The login 2FA OTP in `AuthController` (`users.otp_code`) — a separate mechanism from forgot-password.
 - The PWA / Supabase authentication path under `frontend/src/pwa`.
 - `database/factories/UserFactory.php`, which is stale but unused by any test.
