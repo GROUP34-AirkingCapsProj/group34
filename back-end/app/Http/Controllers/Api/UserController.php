@@ -53,6 +53,10 @@ class UserController extends Controller
                 'first_name' => 'required|string|max:50',
                 'last_name' => 'required|string|max:50',
                 'email' => 'required|email|unique:users|max:100',
+                // Personal inbox for password recovery. `different:email` stops an
+                // admin pasting the company address into both fields, which would
+                // silently defeat the whole mechanism.
+                'recovery_email' => 'required|email|max:100|different:email',
                 'username' => 'required|string|unique:users|max:50',
                 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
                 'phone' => 'nullable|string|max:20',
@@ -117,6 +121,7 @@ class UserController extends Controller
                 'first_name' => 'sometimes|required|string|max:50',
                 'last_name' => 'sometimes|required|string|max:50',
                 'email' => 'sometimes|required|email|unique:users,email,' . $user->user_id . ',user_id|max:100',
+                'recovery_email' => 'sometimes|email|max:100|different:email',
                 'username' => 'sometimes|required|string|unique:users,username,' . $user->user_id . ',user_id|max:50',
                 'phone' => 'nullable|string|max:20',
                 'role_id' => 'sometimes|required|exists:roles,role_id',
