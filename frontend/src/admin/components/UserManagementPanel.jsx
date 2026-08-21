@@ -516,7 +516,10 @@ const UserManagementPanel = () => {
                 {formErrors.email && <span className="um-field-error">{formErrors.email}</span>}
               </div>
               <div className="form-group">
-                <label>Recovery Email <span className="required">*</span></label>
+                {/* Required when creating; optional on edit, so legacy users
+                    without one can be saved without forcing a value. Mirrors the
+                    backend's required/sometimes split. */}
+                <label>Recovery Email {!editingUser && <span className="required">*</span>}</label>
                 <input type="email" value={formData.recovery_email} onChange={(e) => setFormData({...formData, recovery_email: e.target.value})} placeholder="personal@gmail.com" />
                 <small className="um-field-hint">Personal inbox. Password reset codes are sent here.</small>
                 {formErrors.recovery_email && <span className="um-field-error">{formErrors.recovery_email}</span>}
