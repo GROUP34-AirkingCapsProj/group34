@@ -51,15 +51,17 @@ class MustChangePasswordTest extends TestCase
         $user = $this->makeUser();
 
         $resetToken = Str::random(64);
+        // The challenge row is keyed on the recovery address, which is what the
+        // forgot-password flow now issues and resolves the account through.
         PasswordResetOtp::create([
-            'email'          => $user->email,
+            'email'          => $user->recovery_email,
             'otp_hash'       => Hash::make('123456'),
             'expires_at'     => now()->addMinutes(10),
             'verified_token' => $resetToken,
         ]);
 
         $this->postJson('/api/reset-password', [
-            'email'                 => $user->email,
+            'email'                 => $user->recovery_email,
             'reset_token'           => $resetToken,
             'password'              => 'Brandnew123!',
             'password_confirmation' => 'Brandnew123!',

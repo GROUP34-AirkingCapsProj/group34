@@ -51,49 +51,131 @@ class RecoveryEmailResetTest extends TestCase
         $this->assertTrue($user->fresh()->must_change_password);
     }
 
-    public function test_forgot_sends_otp_to_recovery_email(): void
+    public function test_forgot_sends_otp_to_the_submitted_recovery_email(): void
     {
         Mail::fake();
-        $user = $this->makeUser(['recovery_email' => 'personal@gmail.com']);
+        $recovery = 'personal_' . uniqid() . '@gmail.com';
+        $this->makeUser(['recovery_email' => $recovery]);
 
-        $this->postJson('/api/forgot-password', ['email' => $user->email])
+        $this->postJson('/api/forgot-password', ['email' => $recovery])
             ->assertStatus(200);
 
-        Mail::assertSent(PasswordResetOtpMail::class, function ($mail) {
-            return $mail->hasTo('personal@gmail.com');
+        Mail::assertSent(PasswordResetOtpMail::class, function ($mail) use ($recovery) {
+            return $mail->hasTo($recovery);
         });
     }
 
-    public function test_forgot_falls_back_to_login_email_when_no_recovery_address(): void
+    public function test_forgot_matches_the_recovery_email_case_insensitively(): void
+    {
+        Mail::fake();
+        $recovery = 'mixedcase_' . uniqid() . '@gmail.com';
+        $this->makeUser(['recovery_email' => $recovery]);
+
+        $this->postJson('/api/forgot-password', ['email' => strtoupper($recovery)])
+            ->assertStatus(200);
+
+        Mail::assertSent(PasswordResetOtpMail::class, function ($mail) use ($recovery) {
+            return $mail->hasTo($recovery);
+        });
+    }
+
+    public function test_forgot_refuses_the_login_email_as_the_identifier(): void
+    {
+        Mail::fake();
+        $user = $this->makeUser(['recovery_email' => 'personal_' . uniqid() . '@gmail.com']);
+
+        // Submitting the company address the employee is locked out of must not
+        // start a reset -- the recovery address is the only accepted identifier.
+        $this->postJson('/api/forgot-password', ['email' => $user->email])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', fn ($m) => is_string($m));
+
+        Mail::assertNothingSent();
+        $this->assertSame(0, PasswordResetOtp::where('email', $user->email)->count());
+    }
+
+    public function test_forgot_never_falls_back_to_the_login_inbox(): void
     {
         Mail::fake();
         $user = $this->makeUser(['recovery_email' => null]);
 
+        // No recovery address on file: this account cannot self-recover at all.
         $this->postJson('/api/forgot-password', ['email' => $user->email])
-            ->assertStatus(200);
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', fn ($m) => is_string($m));
 
-        Mail::assertSent(PasswordResetOtpMail::class, function ($mail) use ($user) {
-            return $mail->hasTo($user->email);
-        });
+        Mail::assertNothingSent();
+        $this->assertSame(0, PasswordResetOtp::where('email', $user->email)->count());
     }
 
-    public function test_forgot_does_not_reveal_whether_an_account_exists(): void
+    public function test_full_reset_flow_is_keyed_on_the_recovery_email(): void
+    {
+        Mail::fake();
+        $recovery = 'flow_' . uniqid() . '@gmail.com';
+        $user = $this->makeUser(['recovery_email' => $recovery]);
+
+        $this->postJson('/api/forgot-password', ['email' => $recovery])
+            ->assertStatus(200);
+
+        $otp = null;
+        Mail::assertSent(PasswordResetOtpMail::class, function ($mail) use (&$otp) {
+            $otp = $mail->otp;
+
+            return true;
+        });
+        $this->assertNotNull($otp);
+
+        $verify = $this->postJson('/api/verify-reset-otp', [
+            'email' => $recovery,
+            'otp' => $otp,
+        ])->assertStatus(200);
+
+        $token = $verify->json('reset_token');
+        $this->assertNotEmpty($token);
+
+        $this->postJson('/api/reset-password', [
+            'email' => $recovery,
+            'reset_token' => $token,
+            'password' => 'BrandNew123!',
+            'password_confirmation' => 'BrandNew123!',
+        ])->assertStatus(200);
+
+        $this->assertTrue(password_verify('BrandNew123!', $user->fresh()->password_hash));
+        $this->assertSame(0, PasswordResetOtp::where('email', $recovery)->count());
+    }
+
+    public function test_forgot_names_an_unregistered_address_as_unregistered(): void
     {
         Mail::fake();
 
-        $known = $this->makeUser(['recovery_email' => 'personal@gmail.com']);
+        $knownRecovery = 'personal_' . uniqid() . '@gmail.com';
+        $this->makeUser(['recovery_email' => $knownRecovery]);
         $unknownEmail = 'nobody_' . uniqid() . '@airking.com';
 
-        $hit = $this->postJson('/api/forgot-password', ['email' => $known->email]);
-        $miss = $this->postJson('/api/forgot-password', ['email' => $unknownEmail]);
+        $this->postJson('/api/forgot-password', ['email' => $knownRecovery])
+            ->assertStatus(200);
 
-        $hit->assertStatus(200);
-        $miss->assertStatus(200);
-        // Byte-identical bodies: nothing distinguishes a real account from a miss.
-        $this->assertSame($hit->json(), $miss->json());
+        // Product decision: a miss is named rather than hidden, so a user who
+        // mistyped finds out immediately. This intentionally makes account
+        // membership probeable -- see the note in ForgotPasswordOtpController.
+        $this->postJson('/api/forgot-password', ['email' => $unknownEmail])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', fn ($m) => is_string($m));
 
-        // And no challenge row is created for the address that does not exist.
+        // No challenge row for the address that does not exist, and only the
+        // real account was mailed.
         $this->assertSame(0, PasswordResetOtp::where('email', $unknownEmail)->count());
         Mail::assertSentCount(1);
+    }
+
+    public function test_forgot_rejects_a_malformed_address(): void
+    {
+        Mail::fake();
+
+        $this->postJson('/api/forgot-password', ['email' => 'not-an-email'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', fn ($m) => is_string($m));
+
+        Mail::assertNothingSent();
     }
 }
