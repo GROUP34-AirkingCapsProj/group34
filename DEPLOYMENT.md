@@ -71,7 +71,7 @@ Then **restart Apache** from the XAMPP Control Panel.
 | `CACHE_STORE` | `file` | |
 | `SESSION_SECURE_COOKIE` | `true` *(only once HTTPS works)* | Stops the session cookie going out over plain HTTP |
 | `DB_USERNAME` / `DB_PASSWORD` | a non-root user with a real password | `root` with an empty password + phpMyAdmin on the LAN is full database access for anyone on the Wi-Fi |
-| `MAIL_MAILER` + SMTP creds | real SMTP | **Not optional if you use forgot-password.** With `MAIL_MAILER=log`, reset OTPs are written in plaintext to `storage/logs/laravel.log` and never delivered |
+| `MAIL_MAILER` + SMTP creds | real SMTP | **Not optional.** Both forgot-password and account creation depend on it. With `MAIL_MAILER=log`, reset OTPs and new-account temporary passwords are written in plaintext to `storage/logs/laravel.log` and never delivered |
 | `REVERB_APP_KEY` / `REVERB_APP_SECRET` | freshly generated | The defaults are published in `.env.example`; anyone can use them to publish to your channels |
 | `REVERB_SCHEME` | `https` *(when the site is HTTPS)* | A `ws://` socket opened from an `https://` page is blocked as mixed content — the notification bell fails silently |
 
@@ -99,6 +99,15 @@ selected by `MAIL_SCHEME`, not `MAIL_ENCRYPTION`; keep `MAIL_SCHEME=smtp` set.
 
 Reset mail is addressed to each user's `recovery_email`, falling back to their
 login `email` when no recovery address is on file.
+
+**Account creation also depends on mail delivery.** Creating a user generates a
+temporary password and emails it to their `recovery_email` — the admin never
+sees it, so a broken `MAIL_*` config blocks onboarding entirely, not just
+password resets. Creation still succeeds when the send fails: the response
+carries `credentials_emailed: false` and the admin gets a "Resend" action on the
+user row, which mints a fresh password and tries again. Resend is deliberately
+limited to accounts that have never completed first login
+(`must_change_password` still true); everyone else uses forgot-password.
 
 #### 3b. Then run these, in order (from `back-end/`)
 
