@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,5 +36,23 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
+
+        // Login-code verification, limited by ACCOUNT first and address second.
+        //
+        // A plain throttle:12,1 on an unauthenticated route keys on the client
+        // IP -- the one variable an attacker controls. A six-digit code is a
+        // 900,000 keyspace living ten minutes, so a few hundred cheap proxies
+        // buy tens of thousands of guesses and a real chance of hitting it. The
+        // account-keyed limit is what actually caps that; the IP limit is a
+        // secondary courtesy against a single noisy source.
+        //
+        // Requests with no email land in one shared bucket, which is fine: they
+        // cannot pass validation anyway, and the IP limit still applies.
+        RateLimiter::for('verify-otp', function (Request $request) {
+            return [
+                Limit::perMinute(5)->by('otp:' . Str::lower((string) $request->input('email'))),
+                Limit::perMinute(12)->by('otp-ip:' . $request->ip()),
+            ];
+        });
     }
 }

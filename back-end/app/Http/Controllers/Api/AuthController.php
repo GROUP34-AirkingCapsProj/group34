@@ -24,6 +24,17 @@ class AuthController extends Controller
 {
     private const LOGIN_DECAY_SECONDS = 900;
 
+    /**
+     * Wrong guesses allowed against one issued login code before it is burned.
+     *
+     * A six-digit code is a 900,000 keyspace living for ten minutes. Per-IP
+     * throttling cannot cap that -- the attacker picks the IP, and a few hundred
+     * proxies buy enough guesses to make it a real chance. Capping attempts per
+     * issued code is source-address independent, so it holds however many
+     * addresses they rotate through.
+     */
+    private const MAX_OTP_ATTEMPTS = 5;
+
     private function issueAuthToken(User $user): string
     {
         $minutes = SystemSetting::sessionTimeoutMinutes();
@@ -241,12 +252,29 @@ class AuthController extends Controller
             && $user->otp_expires_at->isFuture();
 
         if (! $pending || ! Hash::check($otp, $user->otp_code)) {
+            if ($pending) {
+                // Only count guesses against a live code. Attempts on an
+                // already-burned or expired code must not accumulate, or the
+                // next legitimate code would start with a spent budget.
+                $attempts = (int) $user->otp_attempts + 1;
+
+                $user->fill([
+                    'otp_attempts' => $attempts,
+                    // Burn the code outright at the cap. Leaving it live but
+                    // refusing guesses would let an attacker simply wait out the
+                    // limiter; this is the defence that holds regardless of how
+                    // many source addresses they rotate through.
+                    'otp_code'     => $attempts >= self::MAX_OTP_ATTEMPTS ? null : $user->otp_code,
+                ])->save();
+            }
+
             // One message for every failure mode: a caller must not be able to
-            // tell "no such account" from "wrong code" from "expired".
+            // tell "no such account" from "wrong code" from "expired" from
+            // "burned".
             return response()->json(['message' => 'Invalid or expired OTP.'], 422);
         }
 
-        $user->update(['otp_code' => null, 'otp_expires_at' => null]);
+        $user->update(['otp_code' => null, 'otp_expires_at' => null, 'otp_attempts' => 0]);
 
         $token = $this->issueAuthToken($user);
         $this->logLoginAttempt($request, $user, true);

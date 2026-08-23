@@ -36,6 +36,9 @@ class LoginOtpIssuer
         $user->fill([
             'otp_code'       => Hash::make($code),
             'otp_expires_at' => now()->addMinutes(self::TTL_MINUTES),
+            // A new code is a new budget. Carrying failures across would leave a
+            // user who fumbled once permanently closer to a burned code.
+            'otp_attempts'   => 0,
         ])->save();
 
         try {

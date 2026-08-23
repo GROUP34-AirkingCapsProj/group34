@@ -293,4 +293,115 @@ class AdminTwoFactorTest extends TestCase
         $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '123456'])
             ->assertStatus(422);
     }
+
+    /**
+     * Five wrong guesses burn the code. This is the defence that does not care
+     * how many IP addresses the attacker has: a 6-digit code in a 900,000
+     * keyspace is guessable inside its 10-minute window from a cheap proxy
+     * pool, and per-IP throttling cannot stop that. Capping attempts per issued
+     * code can.
+     */
+    public function test_five_wrong_guesses_burn_the_code(): void
+    {
+        // The attempt counter is the subject here, and it lives in the database.
+        // The rate limiter would answer 429 before the fifth guess reached the
+        // controller, so the test would pass without the counter existing.
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])
+                ->assertStatus(422);
+        }
+
+        $this->assertNull($user->fresh()->otp_code, 'The code should be burned after 5 failures.');
+
+        // Even the REAL code no longer works -- the attacker cannot outlast the
+        // counter by eventually guessing right.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(422);
+    }
+
+    public function test_a_successful_verification_resets_the_attempt_counter(): void
+    {
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        // Two wrong, then right -- a fumbling honest user must not be punished.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])->assertStatus(422);
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '111111'])->assertStatus(422);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(200);
+
+        $this->assertSame(0, (int) $user->fresh()->otp_attempts);
+    }
+
+    public function test_issuing_a_fresh_code_clears_previous_failures(): void
+    {
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])->assertStatus(422);
+        $this->assertSame(1, (int) $user->fresh()->otp_attempts);
+
+        // A new code is a new budget, otherwise a user who fumbled once is
+        // permanently closer to being locked out.
+        app(LoginOtpIssuer::class)->issue($user->fresh());
+
+        $this->assertSame(0, (int) $user->fresh()->otp_attempts);
+    }
+
+    public function test_the_account_keyed_limiter_caps_guesses_from_rotating_addresses(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        // Every request from a DIFFERENT source address. Per-IP throttling would
+        // let all of these through; the account-keyed limit is what stops them.
+        $statuses = [];
+        for ($i = 0; $i < 8; $i++) {
+            $statuses[] = $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.' . $i])
+                ->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])
+                ->getStatusCode();
+        }
+
+        $this->assertContains(429, $statuses, 'Rotating IPs must not bypass the cap.');
+    }
+
+    /**
+     * The rate limiter writes to the cache, which DatabaseTransactions does not
+     * roll back. Under the array store each test gets a fresh application and so
+     * a fresh store, but this suite must not depend on the cache driver a runner
+     * happens to configure -- with a file or redis store the limiter test would
+     * otherwise leave 429s waiting for whatever runs next.
+     */
+    protected function tearDown(): void
+    {
+        $this->app?->make('cache')->store()->flush();
+
+        parent::tearDown();
+    }
 }

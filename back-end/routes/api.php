@@ -72,7 +72,9 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:12,1');
-Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:12,1');
+// throttle:verify-otp keys on the submitted email first, then the IP. A plain
+// per-IP limit caps nothing here: the attacker picks the address.
+Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:verify-otp');
 Route::get('/login/challenge', [AuthController::class, 'loginChallenge'])->middleware('throttle:30,1');
 // NO PUBLIC REGISTRATION. Accounts are created only through
 // POST /users, gated on permission:user_account_management,create.
