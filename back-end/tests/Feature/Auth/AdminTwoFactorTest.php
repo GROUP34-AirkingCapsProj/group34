@@ -232,4 +232,65 @@ class AdminTwoFactorTest extends TestCase
         // expose the same hash under some other label.
         $this->assertStringNotContainsString($fresh->getRawOriginal('otp_code'), $json);
     }
+
+    public function test_the_mailed_code_exchanges_for_a_token(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonStructure(['token']);
+
+        // Single use: the code is cleared once spent.
+        $this->assertNull($user->fresh()->otp_code);
+    }
+
+    public function test_a_wrong_code_is_refused(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])
+            ->assertStatus(422);
+
+        // The real code survives a single wrong guess -- a typo must not burn it.
+        $this->assertNotNull($user->fresh()->otp_code);
+    }
+
+    public function test_an_expired_code_is_refused(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        $user->fill(['otp_expires_at' => now()->subMinute()])->save();
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(422);
+    }
+
+    public function test_verify_is_refused_for_a_user_with_no_pending_code(): void
+    {
+        $user = $this->makeAdmin();
+
+        // otp_code is null. A null hash must never be treated as a match.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '123456'])
+            ->assertStatus(422);
+    }
 }

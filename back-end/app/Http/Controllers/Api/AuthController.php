@@ -231,12 +231,18 @@ class AuthController extends Controller
 
         $otp = (string) $request->input('otp');
 
-        $user = User::where('email', $request->email)
-            ->where('otp_code', $otp)
-            ->where('otp_expires_at', '>', now())
-            ->first();
+        // The stored value is a hash, so the code cannot be matched in the
+        // query any more. Resolve the account first, then compare in PHP.
+        $user = User::where('email', $request->email)->first();
 
-        if (! $user) {
+        $pending = $user
+            && filled($user->otp_code)
+            && $user->otp_expires_at
+            && $user->otp_expires_at->isFuture();
+
+        if (! $pending || ! Hash::check($otp, $user->otp_code)) {
+            // One message for every failure mode: a caller must not be able to
+            // tell "no such account" from "wrong code" from "expired".
             return response()->json(['message' => 'Invalid or expired OTP.'], 422);
         }
 
