@@ -36,6 +36,14 @@ cd back-end && php artisan test --filter=SomeTestClass
 
 **Backend — create:**
 - `back-end/app/Services/TemporaryCredentialIssuer.php` — generates the password, saves the hash, sends the mail, audits. The only place that knows how a temporary credential is made.
+
+> **Amended during execution (Task 3 review):** `issue()`'s signature is
+> `issue(User $user, User $actor): bool` — the actor is **required**, not
+> `?User $actor = null` as originally written below. Both call sites (Tasks 4
+> and 5) already pass `$request->user()`, so nothing downstream changes. See the
+> spec for the reasoning. Also: `issue()` must never be called inside a caller's
+> database transaction — a rollback would revoke a password already sitting in
+> the user's inbox.
 - `back-end/app/Mail/AccountCredentialsMail.php` — the Mailable.
 - `back-end/resources/views/emails/account_credentials.blade.php` — the message body.
 - `back-end/tests/Feature/Users/CredentialIssuanceTest.php` — the whole feature's tests.

@@ -37,8 +37,17 @@ first-login gate. The admin never sees or chooses the password.
 One new service owns the whole operation:
 
 ```php
-App\Services\TemporaryCredentialIssuer::issue(User $user, ?User $actor = null): bool
+App\Services\TemporaryCredentialIssuer::issue(User $user, User $actor): bool
 ```
+
+`$actor` is required, not nullable. `PasswordAuditLogger` supports a
+subject-as-actor fallback, but that exists for the *unauthenticated*
+forgot-password routes, where there genuinely is no session. Both callers here
+sit behind `permission:user_account_management` and always have
+`$request->user()`. Allowing the fallback would let a caller write an audit row
+saying user X reset user X's own password — indistinguishable, to an operator
+reading the trail, from the employee having done it themselves. A confidently
+wrong audit record is worse than a missing one.
 
 It generates the password, saves the hash with `must_change_password = true`,
 mails the plaintext to `recovery_email`, writes an audit entry, and returns
