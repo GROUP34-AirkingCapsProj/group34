@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class RecoveryEmailValidationTest extends TestCase
@@ -35,8 +36,6 @@ class RecoveryEmailValidationTest extends TestCase
             'username'              => 'hire_' . $uid,
             'email'                 => 'hire_' . $uid . '@airking.com',
             'recovery_email'        => 'hire_' . $uid . '@gmail.com',
-            'password'              => 'Secret123!',
-            'password_confirmation' => 'Secret123!',
             'role_id'               => 1,
             'status_id'             => 1,
         ], $overrides);
@@ -44,6 +43,7 @@ class RecoveryEmailValidationTest extends TestCase
 
     public function test_store_requires_recovery_email(): void
     {
+        Mail::fake();
         $payload = $this->payload();
         unset($payload['recovery_email']);
 
@@ -55,6 +55,7 @@ class RecoveryEmailValidationTest extends TestCase
 
     public function test_store_rejects_recovery_email_equal_to_login_email(): void
     {
+        Mail::fake();
         $payload = $this->payload();
         $payload['recovery_email'] = $payload['email'];
 
@@ -66,6 +67,7 @@ class RecoveryEmailValidationTest extends TestCase
 
     public function test_store_rejects_a_recovery_email_already_used_by_another_account(): void
     {
+        Mail::fake();
         $admin = $this->makeAdmin();
         $taken = 'shared_' . uniqid() . '@gmail.com';
 
@@ -83,6 +85,7 @@ class RecoveryEmailValidationTest extends TestCase
 
     public function test_store_rejects_a_recovery_email_that_is_another_accounts_login_email(): void
     {
+        Mail::fake();
         $admin = $this->makeAdmin();
         $existing = $this->makeAdmin();
 
@@ -98,6 +101,7 @@ class RecoveryEmailValidationTest extends TestCase
 
     public function test_store_persists_recovery_email_and_forces_password_change(): void
     {
+        Mail::fake();
         $payload = $this->payload();
 
         $this->actingAs($this->makeAdmin(), 'sanctum')

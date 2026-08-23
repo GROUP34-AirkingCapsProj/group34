@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Models\User;
 use App\Services\PasswordAuditLogger;
+use App\Services\TemporaryCredentialIssuer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -63,7 +64,6 @@ class UserController extends Controller
                 'recovery_email' => 'required|email|max:100|different:email'
                     . '|unique:users,recovery_email|unique:users,email',
                 'username' => 'required|string|unique:users|max:50',
-                'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
                 'phone' => 'nullable|string|max:20',
                 'role_id' => 'required|exists:roles,role_id',
                 'location_id' => 'nullable|exists:locations,location_id',
@@ -76,13 +76,14 @@ class UserController extends Controller
             $validated['role_id'] = (int) $validated['role_id'];
             $validated['status_id'] = (int) $validated['status_id'];
 
-            // Hash password
-            $validated['password_hash'] = Hash::make($validated['password']);
-            unset($validated['password']);
-            unset($validated['password_confirmation']);
-
             $locationIds = $validated['location_ids'] ?? null;
             unset($validated['location_ids']);
+
+            // A placeholder only. The row needs a non-null hash to be insertable;
+            // the issuer overwrites it a few lines down with the password that is
+            // actually mailed. Nobody can authenticate with this value -- it is a
+            // hash of random bytes that are immediately discarded.
+            $validated['password_hash'] = Hash::make(bin2hex(random_bytes(32)));
 
             $user = User::create($validated);
 
@@ -91,9 +92,16 @@ class UserController extends Controller
                 $user->locations()->sync($locationIds);
             }
 
+            $emailed = app(TemporaryCredentialIssuer::class)->issue($user, $request->user());
+
             return $this->success(
-                $user->load(['role', 'status', 'location', 'locations']),
-                'User created successfully',
+                [
+                    'user'                => $user->fresh()->load(['role', 'status', 'location', 'locations']),
+                    'credentials_emailed' => $emailed,
+                ],
+                $emailed
+                    ? 'User created. Login details have been emailed to their recovery address.'
+                    : 'User created, but the credentials email could not be sent. Use Resend to try again.',
                 201
             );
 

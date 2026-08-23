@@ -253,4 +253,101 @@ class CredentialIssuanceTest extends TestCase
         $this->assertStringContainsString('credentials_emailed', json_encode($entry->new_values));
         $this->assertStringNotContainsString($emailed, json_encode($entry->new_values));
     }
+
+    private function makeAdmin(): User
+    {
+        return $this->makeUser(['must_change_password' => false]);
+    }
+
+    private function createPayload(array $overrides = []): array
+    {
+        $uid = uniqid();
+
+        return array_merge([
+            'first_name'     => 'New',
+            'last_name'      => 'Hire',
+            'username'       => 'nh_' . $uid,
+            'email'          => 'nh_' . $uid . '@airking.com',
+            'recovery_email' => 'nh_' . $uid . '@gmail.com',
+            'role_id'        => 1,
+            'status_id'      => 1,
+        ], $overrides);
+    }
+
+    public function test_creating_a_user_emails_credentials_and_reports_delivery(): void
+    {
+        Mail::fake();
+        $payload = $this->createPayload();
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(201)
+            ->assertJsonPath('data.credentials_emailed', true);
+
+        $created = User::where('email', $payload['email'])->first();
+        $this->assertNotNull($created);
+        $this->assertTrue($created->must_change_password);
+
+        Mail::assertSent(AccountCredentialsMail::class, function ($mail) use ($payload) {
+            return $mail->hasTo($payload['recovery_email']);
+        });
+    }
+
+    public function test_the_emailed_password_actually_logs_the_new_user_in(): void
+    {
+        Mail::fake();
+        $payload = $this->createPayload();
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(201);
+
+        $emailed = null;
+        Mail::assertSent(AccountCredentialsMail::class, function ($mail) use (&$emailed) {
+            $emailed = $mail->plainPassword;
+            return true;
+        });
+
+        // End to end: what landed in the inbox opens the door. The login endpoint
+        // also gates on the stateless math CAPTCHA, so solve it the same way the
+        // real client does rather than bypassing the endpoint.
+        $challenge = $this->getJson('/api/login/challenge')->assertStatus(200)->json('data');
+
+        $this->postJson('/api/login', [
+            'email'          => $payload['email'],
+            'password'       => $emailed,
+            'captcha_token'  => $challenge['captcha_token'],
+            'captcha_answer' => (string) ($challenge['operand_a'] + $challenge['operand_b']),
+        ])->assertStatus(200);
+    }
+
+    public function test_store_ignores_an_admin_supplied_password(): void
+    {
+        Mail::fake();
+        $payload = $this->createPayload(['password' => 'Attacker123!', 'password_confirmation' => 'Attacker123!']);
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(201);
+
+        $created = User::where('email', $payload['email'])->first();
+
+        // An admin must not be able to set a password they know: the whole point
+        // is that only the account holder ever sees the credential.
+        $this->assertFalse(Hash::check('Attacker123!', $created->password_hash));
+    }
+
+    public function test_creation_survives_a_mail_failure_and_says_so(): void
+    {
+        $payload = $this->createPayload();
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(201)
+            ->assertJsonPath('data.credentials_emailed', false);
+
+        // The account is kept: a flaky mail server must not block onboarding.
+        $this->assertNotNull(User::where('email', $payload['email'])->first());
+    }
 }
