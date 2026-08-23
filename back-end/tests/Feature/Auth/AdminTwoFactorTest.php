@@ -2,10 +2,14 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Mail\LoginOtpMail;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\LoginOtpIssuer;
 use App\Services\TwoFactorPolicy;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AdminTwoFactorTest extends TestCase
@@ -92,5 +96,89 @@ class AdminTwoFactorTest extends TestCase
         // Non-admin with the toggle off needs no code, so no address either --
         // this must not gate users who are not being challenged.
         $this->assertFalse($policy->requiresRecoveryEmail($this->makeUser(['recovery_email' => null])));
+    }
+
+    public function test_the_code_goes_to_the_recovery_address_not_the_login_address(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+
+        $this->assertTrue(app(LoginOtpIssuer::class)->issue($user));
+
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use ($user) {
+            return $mail->hasTo($user->recovery_email) && ! $mail->hasTo($user->email);
+        });
+    }
+
+    /**
+     * The stored value must not be the code. A database read alone should not
+     * be enough to complete a login someone has stolen a password for -- which
+     * is exactly what plaintext storage allowed.
+     */
+    public function test_the_code_is_stored_hashed_and_still_verifies(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        $stored = $user->fresh()->otp_code;
+
+        $this->assertNotNull($mailed);
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $mailed);
+        $this->assertNotSame($mailed, $stored);
+        $this->assertTrue(Hash::check($mailed, $stored));
+    }
+
+    public function test_the_code_expires_ten_minutes_out_and_reads_back_as_a_date(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+
+        app(LoginOtpIssuer::class)->issue($user);
+
+        // The cast matters: verifyOtp compares this in PHP, not SQL.
+        $expiry = $user->fresh()->otp_expires_at;
+        $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $expiry);
+        $this->assertTrue($expiry->isFuture());
+    }
+
+    public function test_the_mail_names_the_account_the_code_is_for(): void
+    {
+        $user = $this->makeAdmin();
+
+        // The code now lands in a PERSONAL inbox that may receive codes for more
+        // than one system. A bare six digits does not tell the reader what they
+        // are approving.
+        $rendered = (new LoginOtpMail('123456', $user))->render();
+
+        $this->assertStringContainsString('123456', $rendered);
+        $this->assertStringContainsString($user->email, $rendered);
+    }
+
+    public function test_issue_returns_false_when_the_mail_cannot_be_sent(): void
+    {
+        $user = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->assertFalse(app(LoginOtpIssuer::class)->issue($user));
+    }
+
+    public function test_the_hashed_code_is_never_serialised_to_a_client(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $json = json_encode($user->fresh()->toArray());
+
+        $this->assertStringNotContainsString('otp_code', $json);
     }
 }

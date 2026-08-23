@@ -23,7 +23,8 @@
                     <tr>
                         <td style="padding: 16px 28px 8px;">
                             <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #3f3f46;">
-                                Use the code below to sign in. It will expire shortly for your security.
+                                Use the code below to sign in as
+                                <strong>{{ $user->email }}</strong>. It expires in 10 minutes.
                             </p>
                         </td>
                     </tr>
