@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Models\AuditTrail;
 use App\Models\SystemSetting;
 use App\Services\LoginCaptchaService;
+use App\Services\LoginOtpIssuer;
+use App\Services\TwoFactorPolicy;
 use App\Services\UnauthorizedAccessLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -50,6 +52,52 @@ class AuthController extends Controller
     private function loginCaptchaThrottleKey(Request $request): string
     {
         return 'login-captcha:' . sha1(strtolower((string) $request->input('email')) . '|' . $request->ip());
+    }
+
+    /**
+     * Record that a second-factor code was issued and the login is pending.
+     *
+     * Deliberately NOT logLoginAttempt(): that routes every unsuccessful call
+     * into an `login_failed` audit row, and issuing a code is not a failure.
+     * Using it here would stamp a bogus failed login on the audit trail for
+     * every successful admin sign-in, drowning the signal an admin reviewing
+     * "who has been failing to get in" actually needs.
+     *
+     * It still has to be recorded somewhere. Someone holding a stolen password
+     * can trigger codes at will, and that is the highest-signal event in an
+     * account-takeover investigation -- unlogged, it leaves no trace anywhere
+     * but the victim's inbox.
+     */
+    private function logOtpIssued(Request $request, User $user, bool $delivered): void
+    {
+        try {
+            LoginActivity::create([
+                'user_id' => $user->user_id,
+                'username_attempt' => Str::limit((string) $request->input('email'), 100, ''),
+                // Not a success: no token was issued and the login is unfinished.
+                'success' => false,
+                'failure_reason' => $delivered
+                    ? 'Login code issued; awaiting verification.'
+                    : 'Login code could not be delivered.',
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit((string) $request->userAgent(), 2000, ''),
+                'created_at' => now(),
+            ]);
+
+            AuditTrail::create([
+                'user_id'    => $user->user_id,
+                'action'     => $delivered ? 'login_code_issued' : 'login_code_undeliverable',
+                'table_name' => 'security',
+                'record_id'  => $user->user_id,
+                'old_values' => null,
+                'new_values' => ['account' => $user->email],
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
+            ]);
+        } catch (\Throwable $e) {
+            // A failed log must never block a legitimate login.
+            Log::warning('login_otp_issue_log_failed', ['error' => $e->getMessage()]);
+        }
     }
 
     private function logLoginAttempt(Request $request, ?User $user, bool $success, ?string $failureReason = null): void
@@ -194,22 +242,44 @@ class AuthController extends Controller
         RateLimiter::clear($credentialsKey);
         RateLimiter::clear($captchaKey);
 
-        if (SystemSetting::twoFactorAuthEnabled()) {
-            $otp = (string) random_int(100000, 999999);
+        $policy = app(TwoFactorPolicy::class);
 
-            $user->update([
-                'otp_code' => $otp,
-                'otp_expires_at' => now()->addMinutes(10),
+        if ($policy->requiresRecoveryEmail($user)) {
+            // The account must clear a second factor but has nowhere to receive
+            // it. Collect an address rather than mailing into the void -- for an
+            // admin, refusing here would lock the system's owner out of it with
+            // no self-service way back in.
+            return response()->json([
+                'requires_recovery_email' => true,
+                'email'   => $user->email,
+                'message' => 'Add a personal recovery email to continue signing in.',
             ]);
+        }
 
-            // Literal 10 to match the addMinutes(10) above. Task 4 replaces this
-            // whole block with LoginOtpIssuer, which owns the TTL properly.
-            Mail::to($user->email)->send(new LoginOtpMail($otp, $user, 10));
+        if ($policy->requiresOtp($user)) {
+            // Recorded whether or not delivery succeeds. Someone holding a
+            // stolen password can trigger codes at will, and that is the single
+            // highest-signal event in an account-takeover investigation --
+            // without this it would leave no trace but the victim's inbox.
+            // Logged as unsuccessful because the password was right but the
+            // login is not finished; calling it a success would make the
+            // activity log claim an authentication that never completed.
+            if (! app(LoginOtpIssuer::class)->issue($user)) {
+                $this->logOtpIssued($request, $user, false);
+
+                // Fail closed. No code was delivered, so no code can be entered.
+                return response()->json([
+                    'message' => 'We could not send your login code to '
+                        . $user->recovery_email . '. Contact your administrator.',
+                ], 503);
+            }
+
+            $this->logOtpIssued($request, $user, true);
 
             return response()->json([
                 'requires_otp' => true,
-                'email' => $user->email,
-                'message' => 'OTP has been sent to your email.',
+                'email'   => $user->email,
+                'message' => 'A login code has been sent to your recovery email.',
             ]);
         }
 

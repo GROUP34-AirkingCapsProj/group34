@@ -392,6 +392,150 @@ class AdminTwoFactorTest extends TestCase
     }
 
     /**
+     * POST /api/login gates on a stateless math CAPTCHA. Solve it the way the
+     * real client does rather than bypassing the endpoint, so these tests
+     * exercise the path a user actually takes.
+     */
+    private function login(User $user, string $password = 'Secret123!'): \Illuminate\Testing\TestResponse
+    {
+        $challenge = $this->getJson('/api/login/challenge')->assertStatus(200)->json('data');
+
+        return $this->postJson('/api/login', [
+            'email'          => $user->email,
+            'password'       => $password,
+            'captcha_token'  => $challenge['captcha_token'],
+            'captcha_answer' => (string) ($challenge['operand_a'] + $challenge['operand_b']),
+        ]);
+    }
+
+    /**
+     * The whole point of the feature: the admin UI can switch two-factor off,
+     * and before this the account with the most to lose could therefore disable
+     * its own protection.
+     */
+    public function test_an_admin_is_challenged_even_with_the_toggle_off(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin();
+
+        $this->login($admin)
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true)
+            ->assertJsonMissing(['token']);
+
+        Mail::assertSent(LoginOtpMail::class, fn ($m) => $m->hasTo($admin->recovery_email));
+    }
+
+    public function test_a_non_admin_is_not_challenged_with_the_toggle_off(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        $this->login($this->makeUser())
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', false)
+            ->assertJsonStructure(['token']);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_non_admin_is_challenged_with_the_toggle_on(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+
+        $this->login($this->makeUser())
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true);
+
+        Mail::assertSent(LoginOtpMail::class);
+    }
+
+    public function test_a_user_with_no_recovery_address_is_asked_for_one(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $this->login($admin)
+            ->assertStatus(200)
+            ->assertJsonPath('requires_recovery_email', true)
+            ->assertJsonMissing(['token']);
+
+        // Nothing written and nothing sent: this is a request for information,
+        // not a failed challenge.
+        Mail::assertNothingSent();
+        $this->assertNull($admin->fresh()->otp_code);
+    }
+
+    /**
+     * Fails closed. An authentication control that can be bypassed by breaking
+     * mail delivery is not a control.
+     */
+    public function test_login_is_refused_when_the_code_cannot_be_sent(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->login($admin)
+            ->assertStatus(503)
+            ->assertJsonMissing(['token']);
+    }
+
+    /**
+     * Without this, an attacker holding a stolen admin password could trigger
+     * codes indefinitely and leave no trace anywhere in the system except an
+     * email in the victim's inbox -- the highest-signal event in an
+     * account-takeover investigation, unrecorded.
+     */
+    public function test_issuing_a_code_is_recorded_as_a_login_attempt(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin();
+
+        $this->login($admin)->assertStatus(200);
+
+        $row = \App\Models\LoginActivity::where('user_id', $admin->user_id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($row, 'Triggering a login code must leave a trace.');
+        $this->assertStringContainsString('code', strtolower((string) $row->failure_reason));
+
+        $this->assertDatabaseHas('audit_trail', [
+            'user_id' => $admin->user_id,
+            'action'  => 'login_code_issued',
+        ]);
+    }
+
+    /**
+     * Issuing a code is not a failed login. Recording it as one would stamp a
+     * bogus failure on the audit trail for every successful admin sign-in,
+     * drowning the signal an admin reviewing "who has been failing to get in"
+     * actually needs.
+     */
+    public function test_issuing_a_code_is_not_recorded_as_a_failed_login(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin();
+
+        $before = \App\Models\AuditTrail::where('action', 'login_failed')->count();
+
+        $this->login($admin)->assertStatus(200);
+
+        $this->assertSame(
+            $before,
+            \App\Models\AuditTrail::where('action', 'login_failed')->count(),
+            'A 2FA challenge must not appear as a failed login.'
+        );
+    }
+
+    /**
      * The rate limiter writes to the cache, which DatabaseTransactions does not
      * roll back. Under the array store each test gets a fresh application and so
      * a fresh store, but this suite must not depend on the cache driver a runner
