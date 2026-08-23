@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Users;
 
+use App\Mail\AccountCredentialsMail;
+use App\Models\User;
 use App\Services\TemporaryCredentialIssuer;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
@@ -49,5 +51,28 @@ class CredentialIssuanceTest extends TestCase
         }
 
         $this->assertCount(50, array_unique($seen));
+    }
+
+    /**
+     * Renders the real Blade view. A template that references an undefined
+     * variable throws at render time, not at send time -- so a mailable that
+     * "sends fine" under Mail::fake() can still explode in production. This is
+     * the test that catches that.
+     */
+    public function test_mail_renders_the_login_email_username_and_password(): void
+    {
+        $user = new User([
+            'first_name' => 'New',
+            'last_name'  => 'Hire',
+            'username'   => 'new_hire',
+            'email'      => 'new_hire@airking.com',
+        ]);
+
+        $rendered = (new AccountCredentialsMail($user, 'Tmp!Pass9xYz'))->render();
+
+        $this->assertStringContainsString('new_hire@airking.com', $rendered);
+        $this->assertStringContainsString('new_hire', $rendered);
+        $this->assertStringContainsString('Tmp!Pass9xYz', $rendered);
+        $this->assertStringContainsString('New', $rendered);
     }
 }
