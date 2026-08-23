@@ -143,6 +143,9 @@ class RbacRouteMatrixTest extends TestCase
             'inventory scan-barcode'            => ['POST',  '/api/inventory/scan-barcode',          'warehouse_personnel', 'inventory_analyst'],
             // Feature: user_account_management.create
             'users store'                       => ['POST',  '/api/users',                           'admin',               'branch_manager'],
+            // Feature: user_account_management.update -- admin-only, same grant as
+            // the other user_account_management actions in PermissionSeeder::matrix().
+            'users resend-credentials'          => ['POST',  '/api/users/999999/resend-credentials', 'admin',               'branch_manager'],
             // Feature: user_account_management.read — admin-only since User Management
             // moved into System Configuration (auditor read access was removed).
             'users index'                       => ['GET',   '/api/users',                           'admin',               'auditor'],
