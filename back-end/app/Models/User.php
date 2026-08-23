@@ -51,12 +51,19 @@ class User extends Authenticatable
     protected $hidden = [
         'password_hash',
         'remember_token',
+        // Holds a hash of the live login code. Not a password, but there is no
+        // reason for any client to receive it, and it used to serialise freely.
+        'otp_code',
     ];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
         'alerts_last_seen_at' => 'datetime',
         'must_change_password' => 'boolean',
+        // verifyOtp() compares this in PHP now that the code is hashed and can
+        // no longer be matched in the query. Without the cast it reads back as
+        // a string and every comparison silently misbehaves.
+        'otp_expires_at' => 'datetime',
     ];
 
     /**

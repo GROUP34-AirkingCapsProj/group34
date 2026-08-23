@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 
-use App\Mail\SendOTPMail;
+use App\Mail\LoginOtpMail;
 use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\Controller;
 use App\Models\LoginActivity;
@@ -191,7 +191,7 @@ class AuthController extends Controller
                 'otp_expires_at' => now()->addMinutes(10),
             ]);
 
-            Mail::to($user->email)->send(new SendOTPMail($otp));
+            Mail::to($user->email)->send(new LoginOtpMail($otp, $user));
 
             return response()->json([
                 'requires_otp' => true,
