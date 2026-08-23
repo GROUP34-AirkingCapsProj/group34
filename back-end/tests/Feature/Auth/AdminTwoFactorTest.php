@@ -535,6 +535,95 @@ class AdminTwoFactorTest extends TestCase
         );
     }
 
+    public function test_the_bootstrap_saves_an_address_and_sends_the_code(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+        $address = 'bootstrap_' . uniqid() . '@gmail.com';
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => $address,
+        ])
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true);
+
+        $this->assertSame($address, $admin->fresh()->recovery_email);
+        Mail::assertSent(LoginOtpMail::class, fn ($m) => $m->hasTo($address));
+    }
+
+    /**
+     * The pending-login state is not a credential. Knowing an email address
+     * must never be enough to write a recovery address onto someone's account
+     * -- that would hand an attacker the second factor itself.
+     */
+    public function test_the_bootstrap_refuses_a_wrong_password(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'WrongPassword1!',
+            'recovery_email' => 'attacker_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+        Mail::assertNothingSent();
+    }
+
+    public function test_the_bootstrap_rejects_an_address_already_in_use(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $taken = $this->makeUser();
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => $taken->recovery_email,
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+    }
+
+    public function test_the_bootstrap_rejects_the_users_own_login_address(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        // Otherwise the "second factor" arrives at the address the attacker
+        // already used as a username.
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => $admin->email,
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+    }
+
+    public function test_the_bootstrap_refuses_an_inactive_account(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin(['recovery_email' => null, 'status_id' => 2]);
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => 'inactive_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+        Mail::assertNothingSent();
+    }
+
     /**
      * The rate limiter writes to the cache, which DatabaseTransactions does not
      * roll back. Under the array store each test gets a fresh application and so

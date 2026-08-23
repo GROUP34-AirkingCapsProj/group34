@@ -303,6 +303,63 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Collect a recovery address mid-login for an account that must clear a
+     * second factor but has none on file, then issue the code immediately.
+     *
+     * Re-verifies the password. The half-finished login state is not a
+     * credential, so knowing an email address must not be enough to write a
+     * recovery address -- that would let an attacker point the second factor at
+     * an inbox they control, which is the whole factor handed over.
+     */
+    public function submitRecoveryEmail(Request $request)
+    {
+        $validated = $request->validate([
+            'email'    => 'required|email|max:100',
+            'password' => 'required|string|max:255',
+            // The same rules UserController::store() applies, for the same
+            // reasons: forgot-password resolves accounts BY this address, so it
+            // must be unique across both columns and distinct from the login
+            // address.
+            'recovery_email' => 'required|email|max:100|different:email'
+                . '|unique:users,recovery_email|unique:users,email',
+        ]);
+
+        $user = User::where('email', $validated['email'])->first();
+
+        if (! $user || ! Hash::check($validated['password'], $user->password_hash)) {
+            $this->logLoginAttempt($request, $user, false, 'Invalid credentials (recovery email step).');
+
+            throw ValidationException::withMessages([
+                'email' => ['Invalid email or password.'],
+            ]);
+        }
+
+        if ($user->status_id !== 1) {
+            throw ValidationException::withMessages([
+                'email' => ['Your account is inactive. Please contact administrator.'],
+            ]);
+        }
+
+        $user->fill(['recovery_email' => $validated['recovery_email']])->save();
+
+        if (! app(LoginOtpIssuer::class)->issue($user)) {
+            $this->logOtpIssued($request, $user, false);
+
+            return response()->json([
+                'message' => 'Recovery email saved, but the login code could not be sent. Try signing in again.',
+            ], 503);
+        }
+
+        $this->logOtpIssued($request, $user, true);
+
+        return response()->json([
+            'requires_otp' => true,
+            'email'   => $user->email,
+            'message' => 'A login code has been sent to your recovery email.',
+        ]);
+    }
+
     public function verifyOtp(Request $request)
     {
         $request->validate([

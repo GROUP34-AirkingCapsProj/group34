@@ -72,6 +72,10 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:12,1');
+// Mid-login step for an account that must clear a second factor but has no
+// recovery address on file. Re-verifies the password, so it is throttled like
+// /login rather than more loosely.
+Route::post('/login/recovery-email', [AuthController::class, 'submitRecoveryEmail'])->middleware('throttle:12,1');
 // throttle:verify-otp keys on the submitted email first, then the IP. A plain
 // per-IP limit caps nothing here: the attacker picks the address.
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:verify-otp');
