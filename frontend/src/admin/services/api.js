@@ -368,6 +368,26 @@ export const authAPI = {
   },
 
   /**
+   * Mid-login step for an account that must clear a second factor but has no
+   * recovery address on file. The password is sent again because the server
+   * re-verifies it: a pending login is not a credential, so knowing an address
+   * must not be enough to point someone's second factor at another inbox.
+   *
+   * @param {string} email
+   * @param {string} password
+   * @param {string} recoveryEmail
+   */
+  submitRecoveryEmail: async (email, password, recoveryEmail) =>
+    apiRequest('/login/recovery-email', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+        password: String(password ?? ''),
+        recovery_email: String(recoveryEmail || '').trim(),
+      }),
+    }),
+
+  /**
    * @param {string} email
    * @param {string|number} otp
    */

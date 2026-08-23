@@ -33,6 +33,11 @@ const Login = () => {
   const [challengeLoading, setChallengeLoading] = useState(true);
   const [attemptsRemaining, setAttemptsRemaining] = useState(null);
   const [requiresOtp, setRequiresOtp] = useState(false);
+  const [requiresRecoveryEmail, setRequiresRecoveryEmail] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  // Held in memory only, never persisted. The bootstrap endpoint re-verifies it
+  // server-side; asking the user to retype it would be friction without gain.
+  const [pendingPassword, setPendingPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
 
   const expectedSum = useMemo(() => {
@@ -88,6 +93,35 @@ const Login = () => {
   };
 
   /** Step 2: POST /api/verify-otp (via authAPI.verifyOtp). */
+  const handleSubmitRecoveryEmail = async () => {
+    const address = String(recoveryEmail || '').trim();
+    if (!/\S+@\S+\.\S+/.test(address)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await authAPI.submitRecoveryEmail(email, pendingPassword, address);
+      setPendingPassword('');
+      setRequiresRecoveryEmail(false);
+      if (data.requires_otp === true) {
+        toast.success(data.message || 'Check your recovery email for the code.');
+        setRequiresOtp(true);
+        setOtpCode('');
+      }
+    } catch (err) {
+      setError(
+        err.errors?.recovery_email?.[0]
+        || err.errors?.email?.[0]
+        || err.message
+        || 'Could not save that address.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerifyOtp = async () => {
     const code = String(otpCode || '').replace(/\D/g, '');
     if (code.length !== 6) {
@@ -126,6 +160,14 @@ const Login = () => {
         captcha_token: captchaToken,
         captcha_answer: captchaAnswer,
       });
+      if (data.requires_recovery_email === true) {
+        setPendingPassword(password);
+        setRequiresRecoveryEmail(true);
+        setPassword('');
+        setCaptchaAnswer('');
+        await loadChallenge();
+        return;
+      }
       if (data.requires_otp === true && data.email) {
         toast.success(data.message || 'Check your email for the verification code.');
         setRequiresOtp(true);
@@ -166,6 +208,10 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setAttemptsRemaining(null);
+    if (requiresRecoveryEmail) {
+      await handleSubmitRecoveryEmail();
+      return;
+    }
     if (requiresOtp) {
       await handleVerifyOtp();
       return;
@@ -195,7 +241,31 @@ const Login = () => {
             <p>Please login to your account</p>
 
             <form onSubmit={handleFormSubmit}>
-              {requiresOtp ? (
+              {requiresRecoveryEmail ? (
+                <>
+                  <p className="login-otp-hint">
+                    Before you can sign in, <strong>{email}</strong> needs a
+                    personal email address to receive login codes.
+                  </p>
+                  <div className="form-group">
+                    <label htmlFor="login-recovery-email">Recovery email</label>
+                    <input
+                      id="login-recovery-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="personal@gmail.com"
+                      value={recoveryEmail}
+                      onChange={(e) => {
+                        setRecoveryEmail(e.target.value);
+                        setError('');
+                      }}
+                    />
+                    <small className="login-otp-hint">
+                      Use an inbox only you can read — not your work address.
+                    </small>
+                  </div>
+                </>
+              ) : requiresOtp ? (
                 <>
                   <p className="login-otp-hint">
                     Enter the 6-digit code sent to <strong>{email}</strong>
@@ -372,7 +442,11 @@ const Login = () => {
                 </>
               )}
 
-              {requiresOtp ? (
+              {requiresRecoveryEmail ? (
+                <button type="submit" className="login-btn" disabled={loading}>
+                  {loading ? 'Saving…' : 'Save and send code'}
+                </button>
+              ) : requiresOtp ? (
                 <button
                   type="button"
                   className="login-btn"

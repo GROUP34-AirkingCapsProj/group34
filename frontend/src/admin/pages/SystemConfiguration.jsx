@@ -499,8 +499,12 @@ const SystemConfiguration = () => {
                   </span>
                   <input type="checkbox" id="twoFactorAuth" checked={settings.twoFactorAuth} onChange={() => handleToggle('twoFactorAuth')} />
                   <label htmlFor="twoFactorAuth">
-                    <span className="sc-checkbox-label">Enable Two-Factor Authentication (2FA)</span>
-                    <span className="sc-checkbox-desc">Require a one-time code sent to the user&apos;s email at login</span>
+                    <span className="sc-checkbox-label">Require a login code for non-admin users</span>
+                    <span className="sc-checkbox-desc">
+                      Sends a one-time code to the user&apos;s recovery email at login.
+                      Administrators always receive one and are not affected by this
+                      setting.
+                    </span>
                   </label>
                 </div>
               </div>
