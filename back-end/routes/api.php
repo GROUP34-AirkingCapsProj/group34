@@ -154,7 +154,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:user_account_management,update')->group(function () {
         Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
         Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
-        Route::post('/users/{user}/resend-credentials', [UserController::class, 'resendCredentials']);
+        // Throttled like the neighbouring password-reset/issue route: every call
+        // mints a NEW password and invalidates the previous one, so a double-click
+        // or a stuck retry loop would both burn a credential an admin may have
+        // already read out and flood the user's personal inbox.
+        Route::post('/users/{user}/resend-credentials', [UserController::class, 'resendCredentials'])
+            ->middleware('throttle:30,1');
         Route::put('/users/{user}/status', [UserController::class, 'updateStatus']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
     });
