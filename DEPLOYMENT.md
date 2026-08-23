@@ -71,7 +71,7 @@ Then **restart Apache** from the XAMPP Control Panel.
 | `CACHE_STORE` | `file` | |
 | `SESSION_SECURE_COOKIE` | `true` *(only once HTTPS works)* | Stops the session cookie going out over plain HTTP |
 | `DB_USERNAME` / `DB_PASSWORD` | a non-root user with a real password | `root` with an empty password + phpMyAdmin on the LAN is full database access for anyone on the Wi-Fi |
-| `MAIL_MAILER` + SMTP creds | real SMTP | **Not optional.** Both forgot-password and account creation depend on it. With `MAIL_MAILER=log`, reset OTPs and new-account temporary passwords are written in plaintext to `storage/logs/laravel.log` and never delivered |
+| `MAIL_MAILER` + SMTP creds | real SMTP | **Not optional, and it now gates administrative access.** Forgot-password, account creation, and admin login all depend on it — admins cannot sign in at all without working mail. With `MAIL_MAILER=log`, reset OTPs, login codes, and new-account temporary passwords are written in plaintext to `storage/logs/laravel.log` and never delivered |
 | `REVERB_APP_KEY` / `REVERB_APP_SECRET` | freshly generated | The defaults are published in `.env.example`; anyone can use them to publish to your channels |
 | `REVERB_SCHEME` | `https` *(when the site is HTTPS)* | A `ws://` socket opened from an `https://` page is blocked as mixed content — the notification bell fails silently |
 
@@ -99,6 +99,22 @@ selected by `MAIL_SCHEME`, not `MAIL_ENCRYPTION`; keep `MAIL_SCHEME=smtp` set.
 
 Reset mail is addressed to each user's `recovery_email`, falling back to their
 login `email` when no recovery address is on file.
+
+**Administrative login depends on mail delivery.** Administrators always receive
+a one-time login code at their `recovery_email`, regardless of the "Require a
+login code for non-admin users" setting — that toggle governs other roles only,
+and an admin cannot switch it off for themselves. Login **fails closed** when the
+code cannot be sent, so a broken `MAIL_*` configuration locks out every admin,
+including whoever would fix it. Recovery then needs database or server console
+access.
+
+Two consequences worth planning for before you deploy this:
+
+- Verify mail delivery *first*, and keep a route to the database that does not
+  depend on the web UI.
+- An account with no `recovery_email` is asked for one mid-login, before any code
+  is sent, so nobody is stranded. `AdminUserSeeder` still creates its admin
+  without an address, so a fresh install will meet that screen on first sign-in.
 
 **Account creation also depends on mail delivery.** Creating a user generates a
 temporary password and emails it to their `recovery_email` — the admin never

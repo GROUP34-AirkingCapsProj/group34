@@ -713,6 +713,27 @@ class AdminTwoFactorTest extends TestCase
     }
 
     /**
+     * Prove who you are before you are allowed to change anything.
+     *
+     * This holds today because login() returns requires_otp INSTEAD of a token,
+     * so CheckPasswordChange -- which only runs on authenticated routes -- is
+     * never reached. Pinned so a refactor that issues a token earlier cannot
+     * quietly invert the order and let a forced password change happen on an
+     * unverified session.
+     */
+    public function test_the_code_challenge_precedes_the_forced_password_change(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin(['must_change_password' => true]);
+
+        $this->login($admin)
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true)
+            ->assertJsonMissing(['token']);
+    }
+
+    /**
      * The rate limiter writes to the cache, which DatabaseTransactions does not
      * roll back. Under the array store each test gets a fresh application and so
      * a fresh store, but this suite must not depend on the cache driver a runner
