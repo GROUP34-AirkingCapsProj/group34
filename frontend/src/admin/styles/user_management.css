@@ -402,6 +402,35 @@
   background: #dbeafe;
 }
 
+.um-btn-resend {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.um-btn-resend:hover:not(:disabled) {
+  background: #ede9fe;
+}
+
+.um-btn-resend:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.um-credentials-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #71717a;
+}
+
+
 .um-btn-deactivate {
   background: #ffffff;
   color: #dc2626;

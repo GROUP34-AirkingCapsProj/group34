@@ -30,6 +30,7 @@ const UserManagementPanel = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [deactivatingId, setDeactivatingId] = useState(null);
+  const [resendingId, setResendingId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const rowsPerPage = 8;
   const debounceRef = useRef(null);
@@ -186,6 +187,31 @@ const UserManagementPanel = () => {
     }
   };
 
+  const handleResendCredentials = async (user) => {
+    const id = user.user_id || user.id;
+    const ok = await confirmAction({
+      title: 'Resend login details?',
+      text: `A new temporary password will be generated and emailed to ${user.recovery_email || 'their recovery address'}. Their current temporary password will stop working.`,
+      confirmText: 'Resend',
+      tone: 'primary',
+    });
+    if (!ok) return;
+
+    setResendingId(id);
+    try {
+      const res = await usersAPI.resendCredentials(id);
+      if (res?.data?.credentials_emailed === false) {
+        toast.error('The email could not be sent. Check the mail configuration and try again.');
+      } else {
+        toast.success('New login details sent.');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to resend login details.');
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   const validateForm = () => {
     const errors = {};
 
@@ -206,11 +232,9 @@ const UserManagementPanel = () => {
       errors.recovery_email = 'Recovery email must be different from the login email';
     }
 
-    if (!editingUser) {
-      if (!formData.password) errors.password = 'Password is required';
-      else if (formData.password.length < 8) errors.password = 'Password must be at least 8 characters';
-      if (formData.password !== formData.password_confirmation) errors.password_confirmation = 'Passwords do not match';
-    } else {
+    // Create mode has no password field at all -- the backend generates one and
+    // emails it. Edit mode keeps the optional admin-set password unchanged.
+    if (editingUser) {
       if (formData.password && formData.password.length < 8) errors.password = 'Password must be at least 8 characters';
       if (formData.password && formData.password !== formData.password_confirmation) errors.password_confirmation = 'Passwords do not match';
     }
@@ -248,7 +272,7 @@ const UserManagementPanel = () => {
       } else {
         const roleId = Number(formData.role_id);
         const locationId = formData.location_id ? Number(formData.location_id) : null;
-        if (!roleId || !formData.password || formData.password.length < 8) {
+        if (!roleId) {
           setSubmitting(false);
           return;
         }
@@ -258,15 +282,19 @@ const UserManagementPanel = () => {
           username: String(formData.username || '').trim(),
           email: String(formData.email || '').trim(),
           recovery_email: String(formData.recovery_email || '').trim(),
-          password: String(formData.password),
-          password_confirmation: String(formData.password_confirmation || formData.password || ''),
           phone: (formData.phone && String(formData.phone).trim()) || null,
           role_id: roleId,
           location_id: locationId,
           status_id: 1,
         };
-        await usersAPI.create(payload);
-        toast.success('User created successfully and added to the database.');
+        const res = await usersAPI.create(payload);
+        if (res?.data?.credentials_emailed === false) {
+          // The account exists and has a working password -- it just did not
+          // reach the user. Resend is the recovery, so name it.
+          toast.error('User created, but the credentials email failed to send. Use Resend on their row to try again.');
+        } else {
+          toast.success(`User created. Login details emailed to ${payload.recovery_email}.`);
+        }
         setIsModalOpen(false);
         await fetchUsers(currentPage);
       }
@@ -435,6 +463,16 @@ const UserManagementPanel = () => {
                       <div className="um-actions">
                         <button className="um-btn-edit" onClick={() => handleEdit(user)} disabled={deactivatingId !== null}>Edit</button>
                         <button
+                          className="um-btn-resend"
+                          onClick={() => handleResendCredentials(user)}
+                          disabled={resendingId !== null || deactivatingId !== null || !user.must_change_password}
+                          title={user.must_change_password
+                            ? 'Email new login details to this user'
+                            : 'This user has already set their own password — they should use Forgot password'}
+                        >
+                          {resendingId === (user.user_id || user.id) ? 'Sending...' : 'Resend'}
+                        </button>
+                        <button
                           className={getUserStatus(user) === 'Active' ? 'um-btn-deactivate' : 'um-btn-activate'}
                           onClick={() => handleDeactivate(user)}
                           disabled={deactivatingId !== null || (currentUserId != null && Number(currentUserId) === Number(user.user_id || user.id))}
@@ -542,24 +580,34 @@ const UserManagementPanel = () => {
                 <input type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} placeholder="Enter username" />
                 {formErrors.username && <span className="um-field-error">{formErrors.username}</span>}
               </div>
-              <div className="form-group">
-                <label htmlFor="um-modal-password">{editingUser ? 'New Password (leave blank to keep current)' : 'Password'} {!editingUser && <span className="required">*</span>}</label>
-                <PasswordFieldWithToggle
-                  id="um-modal-password"
-                  name="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingUser ? 'Leave blank to keep current' : 'Minimum 8 characters'}
-                  autoComplete="new-password"
-                  required={!editingUser}
-                />
-                {formErrors.password && <span className="um-field-error">{formErrors.password}</span>}
-              </div>
+              {editingUser ? (
+                <div className="form-group">
+                  <label htmlFor="um-modal-password">New Password (leave blank to keep current)</label>
+                  <PasswordFieldWithToggle
+                    id="um-modal-password"
+                    name="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Leave blank to keep current"
+                    autoComplete="new-password"
+                  />
+                  {formErrors.password && <span className="um-field-error">{formErrors.password}</span>}
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label>Password</label>
+                  <p className="um-credentials-note">
+                    A temporary password is generated automatically and emailed to
+                    the recovery address above. The user must change it the first
+                    time they sign in.
+                  </p>
+                </div>
+              )}
             </div>
-            {(formData.password || !editingUser) && (
+            {editingUser && formData.password && (
               <div className="form-row">
                 <div className="form-group">
-                  <label htmlFor="um-modal-password-confirm">Confirm Password {!editingUser && <span className="required">*</span>}</label>
+                  <label htmlFor="um-modal-password-confirm">Confirm Password</label>
                   <PasswordFieldWithToggle
                     id="um-modal-password-confirm"
                     name="password_confirmation"
@@ -567,7 +615,6 @@ const UserManagementPanel = () => {
                     onChange={(e) => setFormData({ ...formData, password_confirmation: e.target.value })}
                     placeholder="Re-enter password"
                     autoComplete="new-password"
-                    required={!editingUser}
                   />
                   {formErrors.password_confirmation && <span className="um-field-error">{formErrors.password_confirmation}</span>}
                 </div>
