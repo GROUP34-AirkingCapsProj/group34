@@ -120,6 +120,9 @@ class User extends Authenticatable
      * The admin role reaches every feature in the system, so several places ask
      * this question. The string comparison was already duplicated across at
      * least five files; new code asks here instead of copying it a sixth time.
+     *
+     * Traverses the `role` relation, so callers on a hot path should eager-load
+     * it. Called once per login from TwoFactorPolicy.
      */
     public function isAdmin(): bool
     {

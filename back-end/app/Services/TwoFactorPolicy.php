@@ -19,6 +19,15 @@ class TwoFactorPolicy
 {
     public function requiresOtp(User $user): bool
     {
+        // Defence in depth. users.role_id is NOT NULL behind a foreign key to
+        // roles, so an unresolvable role should be impossible -- but this is the
+        // gate that decides whether an account gets a second factor, and the
+        // cost of being wrong is asymmetric. An anomalous account gets
+        // challenged rather than quietly taking the weaker path.
+        if ($user->role === null) {
+            return true;
+        }
+
         return $user->isAdmin() || SystemSetting::twoFactorAuthEnabled();
     }
 

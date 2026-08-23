@@ -65,6 +65,19 @@ class AdminTwoFactorTest extends TestCase
         $this->assertTrue($policy->requiresOtp($user));
     }
 
+    public function test_an_account_with_an_unresolvable_role_is_challenged(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        // The FK on users.role_id makes this unreachable via the database, so
+        // build the state directly. The point is that the gate fails closed if
+        // that guarantee ever weakens.
+        $user = new User(['email' => 'orphan@airking.com']);
+        $user->setRelation('role', null);
+
+        $this->assertTrue(app(TwoFactorPolicy::class)->requiresOtp($user));
+    }
+
     public function test_requires_recovery_email_only_when_a_code_is_needed_and_none_is_set(): void
     {
         SystemSetting::setTwoFactorAuthEnabled(false);
