@@ -177,6 +177,18 @@ class CredentialIssuanceTest extends TestCase
         // The hash was already rotated before the send -- it has to be, for the
         // emailed password to work. Resend is what clears this state.
         $this->assertFalse(Hash::check('Secret123!', $user->fresh()->password_hash));
+
+        // The audit is written outside the try/catch on purpose. An issued but
+        // undelivered credential is the case an operator most needs a record of,
+        // so a refactor that only audits successful sends must fail here.
+        $entry = AuditTrail::where('table_name', 'users')
+            ->where('record_id', $user->user_id)
+            ->where('action', PasswordAuditLogger::ADMIN_CHANGE)
+            ->latest('audit_id')
+            ->first();
+
+        $this->assertNotNull($entry, 'A failed send must still be audited.');
+        $this->assertFalse($entry->new_values['delivered']);
     }
 
     public function test_issue_audits_without_recording_the_password(): void
@@ -199,6 +211,7 @@ class CredentialIssuanceTest extends TestCase
             ->latest('audit_id')
             ->first();
 
+        $this->assertNotNull($emailed);
         $this->assertNotNull($entry);
         $this->assertSame($actor->user_id, $entry->user_id);
         $this->assertStringContainsString('credentials_emailed', json_encode($entry->new_values));
