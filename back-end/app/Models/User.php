@@ -117,6 +117,16 @@ class User extends Authenticatable
     }
 
     /**
+     * The admin role reaches every feature in the system, so several places ask
+     * this question. The string comparison was already duplicated across at
+     * least five files; new code asks here instead of copying it a sixth time.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role?->role_name === 'admin';
+    }
+
+    /**
      * Get the status of the user.
      */
     public function status(): BelongsTo
