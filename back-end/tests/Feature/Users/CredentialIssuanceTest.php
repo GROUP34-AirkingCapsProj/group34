@@ -75,4 +75,25 @@ class CredentialIssuanceTest extends TestCase
         $this->assertStringContainsString('Tmp!Pass9xYz', $rendered);
         $this->assertStringContainsString('New', $rendered);
     }
+
+    /**
+     * The generator's symbol alphabet includes `&`, so a real temporary password
+     * can contain HTML-special characters. Asserting on the ESCAPED form is what
+     * makes a future switch to {!! !!} -- an injection hole -- fail the suite.
+     * Mail clients decode the entity, so the user still sees the raw character.
+     */
+    public function test_mail_escapes_html_special_characters_in_the_password(): void
+    {
+        $user = new User([
+            'first_name' => 'New',
+            'last_name'  => 'Hire',
+            'username'   => 'new_hire',
+            'email'      => 'new_hire@airking.com',
+        ]);
+
+        $rendered = (new AccountCredentialsMail($user, 'a&b<c>d!9Z'))->render();
+
+        $this->assertStringContainsString('a&amp;b&lt;c&gt;d!9Z', $rendered);
+        $this->assertStringNotContainsString('a&b<c>d!9Z', $rendered);
+    }
 }
