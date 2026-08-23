@@ -141,25 +141,72 @@ class AdminTwoFactorTest extends TestCase
         Mail::fake();
         $user = $this->makeAdmin();
 
-        app(LoginOtpIssuer::class)->issue($user);
+        // Pinned against a frozen clock: the TTL is a security parameter, and an
+        // isFuture() check alone would pass just as happily for one second or
+        // ten hours.
+        \Illuminate\Support\Carbon::setTestNow('2026-08-24 12:00:00');
 
-        // The cast matters: verifyOtp compares this in PHP, not SQL.
-        $expiry = $user->fresh()->otp_expires_at;
-        $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $expiry);
-        $this->assertTrue($expiry->isFuture());
+        try {
+            app(LoginOtpIssuer::class)->issue($user);
+
+            // The cast matters: verifyOtp compares this in PHP, not SQL.
+            $expiry = $user->fresh()->otp_expires_at;
+            $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $expiry);
+            $this->assertSame('2026-08-24 12:10:00', $expiry->toDateTimeString());
+        } finally {
+            // In a finally so a failed assertion cannot leak a frozen clock into
+            // every test that runs after this one.
+            \Illuminate\Support\Carbon::setTestNow();
+        }
     }
 
-    public function test_the_mail_names_the_account_the_code_is_for(): void
+    public function test_the_mail_names_the_account_and_the_lifetime_of_the_code(): void
     {
         $user = $this->makeAdmin();
 
         // The code now lands in a PERSONAL inbox that may receive codes for more
         // than one system. A bare six digits does not tell the reader what they
-        // are approving.
-        $rendered = (new LoginOtpMail('123456', $user))->render();
+        // are approving. The TTL is rendered from the value the issuer used, so
+        // shortening it cannot leave the text promising the old lifetime.
+        $rendered = (new LoginOtpMail('123456', $user, 10))->render();
 
         $this->assertStringContainsString('123456', $rendered);
         $this->assertStringContainsString($user->email, $rendered);
+        $this->assertStringContainsString('10 minutes', $rendered);
+    }
+
+    /**
+     * Currently true by construction -- one column, overwritten. Asserted anyway
+     * because a plausible future change ("don't reissue while one is pending")
+     * would break it silently and leave two codes live at once.
+     */
+    public function test_issuing_a_new_code_invalidates_the_previous_one(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        $issuer = app(LoginOtpIssuer::class);
+
+        $codes = [];
+        $capture = function ($mail) use (&$codes) {
+            $codes[] = $mail->otp;
+            return true;
+        };
+
+        $issuer->issue($user);
+        $issuer->issue($user);
+
+        Mail::assertSent(LoginOtpMail::class, $capture);
+
+        $this->assertCount(2, $codes);
+        [$first, $second] = $codes;
+        // Two independent draws from 900k values collide about once in 900k
+        // runs, which would fail the assertions below for a reason that has
+        // nothing to do with invalidation. Cheap to rule out.
+        $this->assertNotSame($first, $second, 'Two draws collided; re-run.');
+
+        $stored = $user->fresh()->otp_code;
+        $this->assertFalse(Hash::check($first, $stored));
+        $this->assertTrue(Hash::check($second, $stored));
     }
 
     public function test_issue_returns_false_when_the_mail_cannot_be_sent(): void
@@ -177,8 +224,12 @@ class AdminTwoFactorTest extends TestCase
         $user = $this->makeAdmin();
         app(LoginOtpIssuer::class)->issue($user);
 
-        $json = json_encode($user->fresh()->toArray());
+        $fresh = $user->fresh();
+        $json = json_encode($fresh->toArray());
 
         $this->assertStringNotContainsString('otp_code', $json);
+        // The key name alone is not enough: an accessor or an API resource could
+        // expose the same hash under some other label.
+        $this->assertStringNotContainsString($fresh->getRawOriginal('otp_code'), $json);
     }
 }
