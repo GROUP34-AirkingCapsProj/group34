@@ -112,6 +112,43 @@ class UserController extends Controller
         }
     }
 
+    /**
+     * Re-issue and re-send the temporary credentials for an account that has
+     * never completed its first login.
+     *
+     * Restricted to `must_change_password` accounts on purpose. Resending mints
+     * a NEW password and invalidates the old one -- harmless for someone who
+     * never received the first email, but for a user who already chose their own
+     * password it would silently lock them out. Those accounts use the
+     * forgot-password flow, which is what it is for.
+     */
+    public function resendCredentials(Request $request, User $user)
+    {
+        try {
+            if ($user->trashed()) {
+                return $this->error('Cannot issue credentials for an archived account.', 422);
+            }
+
+            if (! $user->must_change_password) {
+                return $this->error(
+                    'This user has already set their own password. Ask them to use "Forgot password" instead.',
+                    422
+                );
+            }
+
+            $emailed = app(TemporaryCredentialIssuer::class)->issue($user, $request->user());
+
+            return $this->success(
+                ['credentials_emailed' => $emailed],
+                $emailed
+                    ? 'New login details have been emailed to their recovery address.'
+                    : 'The credentials email could not be sent. Check the mail configuration and try again.',
+            );
+        } catch (\Exception $e) {
+            return $this->error('Failed to resend credentials: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function show(User $user)
     {
         $user->load(['role', 'status', 'location', 'locations']);

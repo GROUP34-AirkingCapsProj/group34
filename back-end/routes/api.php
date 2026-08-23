@@ -154,6 +154,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:user_account_management,update')->group(function () {
         Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
         Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
+        Route::post('/users/{user}/resend-credentials', [UserController::class, 'resendCredentials']);
         Route::put('/users/{user}/status', [UserController::class, 'updateStatus']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
     });
