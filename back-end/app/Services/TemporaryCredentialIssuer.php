@@ -2,6 +2,12 @@
 
 namespace App\Services;
 
+use App\Mail\AccountCredentialsMail;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+
 /**
  * Issues the one-time password a newly created account logs in with.
  *
@@ -18,6 +24,52 @@ class TemporaryCredentialIssuer
     private const UPPER   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     private const DIGITS  = '23456789';
     private const SYMBOLS = '!@#$%^&*?-_=+';
+
+    /**
+     * Rotate the user's password to a fresh temporary one and mail it to their
+     * recovery address.
+     *
+     * The rotation is committed before the send, by necessity: the hash must be
+     * saved for the emailed password to work. So a failed send leaves a valid
+     * but undelivered credential -- which is exactly the state the resend
+     * endpoint exists to clear. Returns whether the mail actually went out so
+     * the caller can tell the admin.
+     *
+     * @param  User  $user  the account receiving the credential
+     * @param  User|null  $actor  the admin performing it; defaults to the user
+     */
+    public function issue(User $user, ?User $actor = null): bool
+    {
+        $plain = $this->generate();
+
+        $user->forceFill([
+            'password_hash'        => Hash::make($plain),
+            'must_change_password' => true,
+        ])->save();
+
+        $delivered = true;
+
+        try {
+            Mail::to($user->recovery_email)->send(new AccountCredentialsMail($user, $plain));
+        } catch (\Throwable $e) {
+            $delivered = false;
+            // Deliberately does not include $plain: this line goes to a log file
+            // that far more people can read than can read the user's inbox.
+            Log::warning('credential_mail_failed', [
+                'user_id' => $user->user_id,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+
+        app(PasswordAuditLogger::class)->log(
+            PasswordAuditLogger::ADMIN_CHANGE,
+            $user,
+            ['method' => 'credentials_emailed', 'delivered' => $delivered],
+            $actor,
+        );
+
+        return $delivered;
+    }
 
     /**
      * Test seam. The generator is private because nothing outside this class
