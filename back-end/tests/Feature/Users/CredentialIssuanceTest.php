@@ -9,6 +9,7 @@ use App\Services\PasswordAuditLogger;
 use App\Services\TemporaryCredentialIssuer;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
@@ -124,9 +125,10 @@ class CredentialIssuanceTest extends TestCase
     public function test_issue_mails_the_recovery_address_not_the_login_address(): void
     {
         Mail::fake();
-        $user = $this->makeUser();
+        $user  = $this->makeUser();
+        $actor = $this->makeUser();
 
-        $sent = app(TemporaryCredentialIssuer::class)->issue($user);
+        $sent = app(TemporaryCredentialIssuer::class)->issue($user, $actor);
 
         $this->assertTrue($sent);
         Mail::assertSent(AccountCredentialsMail::class, function ($mail) use ($user) {
@@ -138,9 +140,10 @@ class CredentialIssuanceTest extends TestCase
     public function test_issue_replaces_the_hash_with_the_emailed_password(): void
     {
         Mail::fake();
-        $user = $this->makeUser();
+        $user  = $this->makeUser();
+        $actor = $this->makeUser();
 
-        app(TemporaryCredentialIssuer::class)->issue($user);
+        app(TemporaryCredentialIssuer::class)->issue($user, $actor);
 
         $emailed = null;
         Mail::assertSent(AccountCredentialsMail::class, function ($mail) use (&$emailed) {
@@ -157,21 +160,36 @@ class CredentialIssuanceTest extends TestCase
     public function test_issue_arms_the_must_change_password_gate(): void
     {
         Mail::fake();
-        $user = $this->makeUser(['must_change_password' => false]);
+        $user  = $this->makeUser(['must_change_password' => false]);
+        $actor = $this->makeUser();
 
-        app(TemporaryCredentialIssuer::class)->issue($user);
+        app(TemporaryCredentialIssuer::class)->issue($user, $actor);
 
         $this->assertTrue($user->fresh()->must_change_password);
     }
 
     public function test_issue_returns_false_and_keeps_the_rotation_when_mail_fails(): void
     {
-        $user = $this->makeUser();
+        $user  = $this->makeUser();
+        $actor = $this->makeUser();
 
-        // Force the transport to throw the way a dead SMTP host would.
-        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+        // Fail at send() rather than at to(), the way a dead SMTP host would:
+        // the mailable is fully built and handed over before the transport dies.
+        // Injecting here also lets us capture the plaintext that was about to go
+        // out, which is what the log assertion below needs.
+        $emailed = null;
+        $pendingMail = \Mockery::mock();
+        $pendingMail->shouldReceive('send')
+            ->once()
+            ->andReturnUsing(function ($mailable) use (&$emailed) {
+                $emailed = $mailable->plainPassword;
+                throw new \RuntimeException('smtp down');
+            });
+        Mail::shouldReceive('to')->once()->with($user->recovery_email)->andReturn($pendingMail);
 
-        $sent = app(TemporaryCredentialIssuer::class)->issue($user);
+        Log::spy();
+
+        $sent = app(TemporaryCredentialIssuer::class)->issue($user, $actor);
 
         $this->assertFalse($sent);
         // The hash was already rotated before the send -- it has to be, for the
@@ -189,6 +207,24 @@ class CredentialIssuanceTest extends TestCase
 
         $this->assertNotNull($entry, 'A failed send must still be audited.');
         $this->assertFalse($entry->new_values['delivered']);
+
+        // The failure log must never carry the credential: it lands in a file far
+        // more people can read than can read the user's inbox. Asserting the exact
+        // key set is what keeps a future "add more context" edit from quietly
+        // putting the plaintext there.
+        $this->assertNotNull($emailed);
+        $logged = null;
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function ($message, $context) use (&$logged) {
+                $logged = $context;
+
+                return $message === 'credential_mail_failed';
+            });
+
+        $this->assertSame(['user_id', 'error', 'exception'], array_keys($logged));
+        $this->assertStringNotContainsString($emailed, json_encode($logged));
+        $this->assertSame(\RuntimeException::class, $logged['exception']);
     }
 
     public function test_issue_audits_without_recording_the_password(): void

@@ -35,14 +35,29 @@ class TemporaryCredentialIssuer
      * endpoint exists to clear. Returns whether the mail actually went out so
      * the caller can tell the admin.
      *
+     * Must NOT be called inside a caller's database transaction: the send is not
+     * transactional, so a rollback would revoke a password that has already
+     * landed in the user's inbox, turning a recoverable undelivered-credential
+     * state into a guaranteed lockout.
+     *
+     * $actor is required rather than defaulting to the subject. PasswordAuditLogger
+     * documents that fallback as existing for the unauthenticated forgot-password
+     * routes, where there is genuinely no session; that justification does not
+     * transfer here, since every caller of this method sits behind
+     * permission:user_account_management and has a request user. Defaulting would
+     * let a caller silently record "user X ran password_changed_by_admin on user
+     * X" -- indistinguishable, to an operator reading the trail during a dispute,
+     * from the employee having done it themselves. A confidently wrong audit
+     * record is worse than a missing one.
+     *
      * @param  User  $user  the account receiving the credential
-     * @param  User|null  $actor  the admin performing it; defaults to the user
+     * @param  User  $actor  the admin performing it
      */
-    public function issue(User $user, ?User $actor = null): bool
+    public function issue(User $user, User $actor): bool
     {
         $plain = $this->generate();
 
-        $user->forceFill([
+        $user->fill([
             'password_hash'        => Hash::make($plain),
             'must_change_password' => true,
         ])->save();
@@ -53,11 +68,21 @@ class TemporaryCredentialIssuer
             Mail::to($user->recovery_email)->send(new AccountCredentialsMail($user, $plain));
         } catch (\Throwable $e) {
             $delivered = false;
+
+            // Catching Throwable keeps a broken mailable from taking down account
+            // creation, but it also means a genuine bug (a TypeError in the
+            // mailable, a Blade compile error) reaches the admin as "mail failed".
+            // They retry, minting another live undeliverable credential each time.
+            // report() sends the real exception, with its trace, to the error
+            // handler so that case is distinguishable from a dead SMTP host.
+            report($e);
+
             // Deliberately does not include $plain: this line goes to a log file
             // that far more people can read than can read the user's inbox.
             Log::warning('credential_mail_failed', [
-                'user_id' => $user->user_id,
-                'error'   => $e->getMessage(),
+                'user_id'   => $user->user_id,
+                'error'     => $e->getMessage(),
+                'exception' => get_class($e),
             ]);
         }
 
