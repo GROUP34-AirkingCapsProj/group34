@@ -407,4 +407,50 @@ class CredentialIssuanceTest extends TestCase
             ->assertStatus(200)
             ->assertJsonPath('data.credentials_emailed', false);
     }
+
+    /**
+     * Seeded and legacy accounts predate `recovery_email` and can be null while
+     * still carrying the default `must_change_password = true` -- so they look
+     * eligible for a resend. `AdminUserSeeder` creates exactly such a row on
+     * every fresh install.
+     *
+     * Without the guard the issuer rotates the password first and only then
+     * fails on Mail::to(null), which reads as an ordinary delivery failure. The
+     * operator is told to check their mail configuration while the credential
+     * they were trying to re-send has already been destroyed.
+     */
+    public function test_resend_is_refused_when_the_account_has_no_recovery_email(): void
+    {
+        Mail::fake();
+        $user = $this->makeUser(['must_change_password' => true, 'recovery_email' => null]);
+        $before = $user->password_hash;
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users/' . $user->user_id . '/resend-credentials')
+            ->assertStatus(422);
+
+        $this->assertSame($before, $user->fresh()->password_hash);
+        Mail::assertNothingSent();
+    }
+
+    /**
+     * The controller guards this, but the destructive ordering inside issue()
+     * makes it worth a backstop: any future caller that forgets would otherwise
+     * destroy a credential before discovering it cannot deliver it.
+     */
+    public function test_issue_refuses_to_rotate_when_there_is_nowhere_to_send(): void
+    {
+        Mail::fake();
+        $user = $this->makeUser(['recovery_email' => null]);
+        $before = $user->password_hash;
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        try {
+            app(TemporaryCredentialIssuer::class)->issue($user, $this->makeAdmin());
+        } finally {
+            $this->assertSame($before, $user->fresh()->password_hash);
+            Mail::assertNothingSent();
+        }
+    }
 }

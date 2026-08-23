@@ -52,9 +52,23 @@ class TemporaryCredentialIssuer
      *
      * @param  User  $user  the account receiving the credential
      * @param  User  $actor  the admin performing it
+     *
+     * @throws \InvalidArgumentException when the account has no recovery address
      */
     public function issue(User $user, User $actor): bool
     {
+        // Checked BEFORE the rotation, not after. Mail::to(null) throws deep in
+        // Symfony's mime layer, which the catch below would report as an ordinary
+        // delivery failure -- so the credential would already be destroyed and the
+        // admin would be sent off debugging SMTP for a problem that is missing
+        // data. Callers guard this too; this is the backstop that makes the
+        // destructive ordering safe for any future caller that forgets.
+        if (! $user->recovery_email) {
+            throw new \InvalidArgumentException(
+                'Cannot issue credentials: user ' . $user->user_id . ' has no recovery email.'
+            );
+        }
+
         $plain = $this->generate();
 
         $user->fill([
