@@ -49,3 +49,45 @@ test('renders a profile photo when avatar_url is set, initials otherwise', async
   // Grace has no photo -> her initials are shown instead.
   expect(screen.getByText('GH')).toBeInTheDocument();
 });
+
+// The Resend button's disabled state mirrors two server-side guards. If it ever
+// drifts, the admin gets an opaque 422 instead of a tooltip explaining why --
+// or, worse, an enabled button on an account whose password Resend would
+// destroy without being able to deliver the replacement.
+describe('the Resend credentials button', () => {
+  const row = (overrides) => ({
+    user_id: 1,
+    first_name: 'New',
+    last_name: 'Hire',
+    username: 'new_hire',
+    email: 'new_hire@airking.com',
+    recovery_email: 'new_hire@gmail.com',
+    must_change_password: true,
+    ...overrides,
+  });
+
+  const renderWith = async (user) => {
+    usersAPI.getAll.mockResolvedValue({ data: [user], pagination: { total: 1, last_page: 1 } });
+    render(<UserManagementPanel />);
+    await waitFor(() => expect(screen.getByText('New Hire')).toBeInTheDocument());
+    return screen.getByRole('button', { name: /resend/i });
+  };
+
+  test('is enabled for a user who has never completed first login', async () => {
+    expect(await renderWith(row())).toBeEnabled();
+  });
+
+  test('is disabled once the user has set their own password', async () => {
+    const button = await renderWith(row({ must_change_password: false }));
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', expect.stringMatching(/forgot password/i));
+  });
+
+  test('is disabled when the account has no recovery email to send to', async () => {
+    // Seeded and legacy rows predate the recovery_email column but still carry
+    // the default must_change_password = true, so they look eligible.
+    const button = await renderWith(row({ recovery_email: null }));
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', expect.stringMatching(/no recovery email/i));
+  });
+});

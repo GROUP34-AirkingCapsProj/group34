@@ -430,7 +430,6 @@
   color: #71717a;
 }
 
-
 .um-btn-deactivate {
   background: #ffffff;
   color: #dc2626;
@@ -589,7 +588,8 @@
   margin-bottom: 14px;
 }
 
-.um-form .form-group label {
+.um-form .form-group label,
+.um-form .form-group .um-pseudo-label {
   display: block;
   font-size: 12px;
   font-weight: 600;

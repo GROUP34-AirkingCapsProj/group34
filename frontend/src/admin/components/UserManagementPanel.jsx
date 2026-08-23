@@ -465,10 +465,12 @@ const UserManagementPanel = () => {
                         <button
                           className="um-btn-resend"
                           onClick={() => handleResendCredentials(user)}
-                          disabled={resendingId !== null || deactivatingId !== null || !user.must_change_password}
-                          title={user.must_change_password
-                            ? 'Email new login details to this user'
-                            : 'This user has already set their own password — they should use Forgot password'}
+                          disabled={resendingId !== null || deactivatingId !== null || !user.must_change_password || !user.recovery_email}
+                          title={!user.must_change_password
+                            ? 'This user has already set their own password — they should use Forgot password'
+                            : !user.recovery_email
+                              ? 'This account has no recovery email on file — add one via Edit first'
+                              : 'Email new login details to this user'}
                         >
                           {resendingId === (user.user_id || user.id) ? 'Sending...' : 'Resend'}
                         </button>
@@ -595,7 +597,10 @@ const UserManagementPanel = () => {
                 </div>
               ) : (
                 <div className="form-group">
-                  <label>Password</label>
+                  {/* A span, not a label: there is no control to associate it
+                      with in create mode, and an orphan <label> is announced as
+                      one by screen readers. */}
+                  <span className="um-pseudo-label">Password</span>
                   <p className="um-credentials-note">
                     A temporary password is generated automatically and emailed to
                     the recovery address above. The user must change it the first

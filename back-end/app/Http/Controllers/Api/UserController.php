@@ -136,6 +136,20 @@ class UserController extends Controller
                 );
             }
 
+            // `recovery_email` is only required for accounts created through
+            // store(). Seeded and legacy rows predate the column and can be null
+            // while still carrying the default must_change_password = true, so
+            // they reach this point looking eligible. Without this check the
+            // issuer would rotate the password and only then discover there is
+            // nowhere to send it -- destroying a working credential and blaming
+            // the mail server for it.
+            if (! $user->recovery_email) {
+                return $this->error(
+                    'This account has no recovery email on file. Add one via Edit before resending credentials.',
+                    422
+                );
+            }
+
             $emailed = app(TemporaryCredentialIssuer::class)->issue($user, $request->user());
 
             return $this->success(
