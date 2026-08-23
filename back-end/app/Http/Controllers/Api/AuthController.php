@@ -191,7 +191,9 @@ class AuthController extends Controller
                 'otp_expires_at' => now()->addMinutes(10),
             ]);
 
-            Mail::to($user->email)->send(new LoginOtpMail($otp, $user));
+            // Literal 10 to match the addMinutes(10) above. Task 4 replaces this
+            // whole block with LoginOtpIssuer, which owns the TTL properly.
+            Mail::to($user->email)->send(new LoginOtpMail($otp, $user, 10));
 
             return response()->json([
                 'requires_otp' => true,

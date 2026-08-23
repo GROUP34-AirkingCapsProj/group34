@@ -31,13 +31,17 @@ class LoginOtpIssuer
     {
         $code = (string) random_int(100000, 999999);
 
-        $user->forceFill([
+        // Overwrites any code still outstanding for this user, which is what
+        // makes issuing a new one invalidate the old.
+        $user->fill([
             'otp_code'       => Hash::make($code),
             'otp_expires_at' => now()->addMinutes(self::TTL_MINUTES),
         ])->save();
 
         try {
-            Mail::to($user->recovery_email)->send(new LoginOtpMail($code, $user));
+            // The TTL travels with the message so the lifetime the user is told
+            // about cannot drift from the one just written above.
+            Mail::to($user->recovery_email)->send(new LoginOtpMail($code, $user, self::TTL_MINUTES));
         } catch (\Throwable $e) {
             // Never include $code: this line reaches a log file that far more
             // people can read than can read the user's inbox. report() sends the

@@ -16,16 +16,25 @@ use Illuminate\Queue\SerializesModels;
  * arrives at a personal inbox, where six unexplained digits give the reader no
  * way to tell what they are approving.
  *
- * Send synchronously. Do NOT queue it -- the code is short-lived and a queued
- * send would leave it sitting in the jobs table.
+ * Send synchronously. Do NOT queue it. SerializesModels would write $otp --
+ * the live plaintext code -- into the job payload, putting it at rest in a
+ * store whose access controls have nothing to do with the mail transport's:
+ * anyone who can read the jobs table, a failed_jobs row, or a queue backup can
+ * complete a login. Hashing the column is pointless if the plaintext is queued
+ * alongside it.
  */
 class LoginOtpMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * $ttlMinutes is carried rather than written into the template so the
+     * lifetime the user is promised is the lifetime the issuer actually set.
+     */
     public function __construct(
         public string $otp,
         public User $user,
+        public int $ttlMinutes,
     ) {
     }
 
