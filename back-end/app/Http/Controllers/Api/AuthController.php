@@ -314,20 +314,36 @@ class AuthController extends Controller
      */
     public function submitRecoveryEmail(Request $request)
     {
+        // Shape only. The uniqueness rules are deliberately NOT here: they
+        // answer "is this address already in the system?", and running them
+        // before the password is checked would turn this endpoint into a
+        // membership oracle any anonymous caller could query.
         $validated = $request->validate([
-            'email'    => 'required|email|max:100',
-            'password' => 'required|string|max:255',
-            // The same rules UserController::store() applies, for the same
-            // reasons: forgot-password resolves accounts BY this address, so it
-            // must be unique across both columns and distinct from the login
-            // address.
-            'recovery_email' => 'required|email|max:100|different:email'
-                . '|unique:users,recovery_email|unique:users,email',
+            'email'          => 'required|email|max:100',
+            'password'       => 'required|string|max:255',
+            'recovery_email' => 'required|email|max:100|different:email',
         ]);
+
+        // This endpoint verifies a password, so it must share /login's lockout.
+        // On its own budget it would be a CAPTCHA-free password oracle sitting
+        // beside the front door, and an attacker would simply use it instead.
+        $credentialsKey = $this->loginCredentialsThrottleKey($request);
+        $maxAttempts = SystemSetting::maxLoginAttempts();
+
+        if (RateLimiter::tooManyAttempts($credentialsKey, $maxAttempts)) {
+            $seconds = RateLimiter::availableIn($credentialsKey);
+
+            throw ValidationException::withMessages([
+                'email' => [
+                    'Too many login attempts. Try again in ' . ceil($seconds / 60) . ' minute(s).',
+                ],
+            ]);
+        }
 
         $user = User::where('email', $validated['email'])->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password_hash)) {
+            RateLimiter::hit($credentialsKey, self::LOGIN_DECAY_SECONDS);
             $this->logLoginAttempt($request, $user, false, 'Invalid credentials (recovery email step).');
 
             throw ValidationException::withMessages([
@@ -340,6 +356,28 @@ class AuthController extends Controller
                 'email' => ['Your account is inactive. Please contact administrator.'],
             ]);
         }
+
+        // Fill in a MISSING address only -- never change one that exists.
+        //
+        // Without this, anyone holding a stolen password could repoint the
+        // victim's recovery address at an inbox they control, and would then
+        // receive every future login code AND every password reset. That turns
+        // a stolen password into permanent ownership of the account and defeats
+        // the second factor entirely. Changing a recovery address belongs behind
+        // a full session, in account settings.
+        if (! app(TwoFactorPolicy::class)->requiresRecoveryEmail($user)) {
+            throw ValidationException::withMessages([
+                'recovery_email' => ['This account already has a recovery email. Sign in and change it in account settings.'],
+            ]);
+        }
+
+        // Only now, past the password check, is it safe to ask the database
+        // whether this address is already spoken for.
+        $request->validate([
+            'recovery_email' => 'unique:users,recovery_email|unique:users,email',
+        ]);
+
+        RateLimiter::clear($credentialsKey);
 
         $user->fill(['recovery_email' => $validated['recovery_email']])->save();
 

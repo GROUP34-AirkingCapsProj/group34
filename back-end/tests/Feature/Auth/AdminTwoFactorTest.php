@@ -625,6 +625,94 @@ class AdminTwoFactorTest extends TestCase
     }
 
     /**
+     * The gravest failure this endpoint could have. Someone holding a stolen
+     * password could otherwise repoint the victim's recovery address at an
+     * inbox they control -- collecting every future login code AND every
+     * password reset, converting a stolen password into permanent ownership of
+     * the account and defeating the entire second factor.
+     *
+     * The endpoint exists only to fill in a MISSING address, never to change
+     * one. Changing it belongs behind a full session in account settings.
+     */
+    public function test_the_bootstrap_cannot_overwrite_an_existing_recovery_address(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin();
+        $original = $admin->recovery_email;
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => 'attacker_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        $this->assertSame($original, $admin->fresh()->recovery_email);
+        Mail::assertNothingSent();
+    }
+
+    /**
+     * The uniqueness rules must not run before the password is checked. They
+     * answer "is this address already in the system?", and an unauthenticated
+     * caller must not be able to ask that -- it turns the endpoint into a
+     * membership oracle for arbitrary email addresses.
+     */
+    public function test_the_bootstrap_does_not_reveal_whether_an_address_is_registered(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $known = $this->makeUser();
+        $victim = $this->makeAdmin(['recovery_email' => null]);
+
+        $registered = $this->postJson('/api/login/recovery-email', [
+            'email'          => $victim->email,
+            'password'       => 'WrongPassword1!',
+            'recovery_email' => $known->recovery_email,
+        ])->assertStatus(422);
+
+        $unregistered = $this->postJson('/api/login/recovery-email', [
+            'email'          => $victim->email,
+            'password'       => 'WrongPassword1!',
+            'recovery_email' => 'definitely_unused_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        // Identical responses: a wrong password must look the same either way.
+        $this->assertSame(
+            $registered->json('errors'),
+            $unregistered->json('errors'),
+            'A bad password must not reveal whether the recovery address is known.'
+        );
+    }
+
+    /**
+     * /login carries a CAPTCHA and an account-scoped lockout. This endpoint
+     * verifies the same password, so without sharing that lockout it is a
+     * CAPTCHA-free password oracle sitting beside the front door.
+     */
+    public function test_the_bootstrap_shares_the_login_lockout(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $max = \App\Models\SystemSetting::maxLoginAttempts();
+
+        for ($i = 0; $i < $max + 1; $i++) {
+            $this->postJson('/api/login/recovery-email', [
+                'email'          => $admin->email,
+                'password'       => 'WrongPassword1!',
+                'recovery_email' => 'probe_' . $i . '_' . uniqid() . '@gmail.com',
+            ]);
+        }
+
+        // The shared lockout must now also bar the real login door, proving the
+        // two endpoints count against one budget rather than two.
+        $this->login($admin)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', fn ($m) => str_contains(strtolower((string) $m), 'too many'));
+    }
+
+    /**
      * The rate limiter writes to the cache, which DatabaseTransactions does not
      * roll back. Under the array store each test gets a fresh application and so
      * a fresh store, but this suite must not depend on the cache driver a runner
