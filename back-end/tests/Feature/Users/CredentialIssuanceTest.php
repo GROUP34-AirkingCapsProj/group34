@@ -350,4 +350,61 @@ class CredentialIssuanceTest extends TestCase
         // The account is kept: a flaky mail server must not block onboarding.
         $this->assertNotNull(User::where('email', $payload['email'])->first());
     }
+
+    public function test_resend_rotates_the_password_for_a_user_who_never_logged_in(): void
+    {
+        Mail::fake();
+        $user = $this->makeUser(['must_change_password' => true]);
+        $before = $user->password_hash;
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users/' . $user->user_id . '/resend-credentials')
+            ->assertStatus(200)
+            ->assertJsonPath('data.credentials_emailed', true);
+
+        $this->assertNotSame($before, $user->fresh()->password_hash);
+        Mail::assertSent(AccountCredentialsMail::class, fn ($mail) => $mail->hasTo($user->recovery_email));
+    }
+
+    public function test_resend_is_refused_once_the_user_has_set_their_own_password(): void
+    {
+        Mail::fake();
+        $user = $this->makeUser(['must_change_password' => false]);
+        $before = $user->password_hash;
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users/' . $user->user_id . '/resend-credentials')
+            ->assertStatus(422);
+
+        // Critical: an admin must not be able to silently blow away a working
+        // password. That account uses the forgot-password flow instead.
+        $this->assertSame($before, $user->fresh()->password_hash);
+        Mail::assertNothingSent();
+    }
+
+    public function test_resend_is_refused_for_an_archived_user(): void
+    {
+        Mail::fake();
+        $user = $this->makeUser(['must_change_password' => true]);
+        $user->delete();
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users/' . $user->user_id . '/resend-credentials')
+            ->assertStatus(404);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_resend_reports_a_failed_send(): void
+    {
+        $user = $this->makeUser(['must_change_password' => true]);
+        $admin = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users/' . $user->user_id . '/resend-credentials')
+            ->assertStatus(200)
+            ->assertJsonPath('data.credentials_emailed', false);
+    }
 }
