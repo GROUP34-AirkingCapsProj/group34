@@ -40,7 +40,7 @@ that is issued goes to the user's `recovery_email`.
 |---|---|---|
 | Mechanism | Keep email OTP | The flow already works end to end, frontend included. TOTP would be a stronger factor but is a separate feature: enrolment, secret storage, recovery codes, and a lost-phone lockout story. |
 | Delivery address | `recovery_email`, for everyone | Separates the factor from the login address an attacker already knows. |
-| Missing recovery address | Capture it mid-login | Requiring the address without a way to supply it would lock out the seeded admin, who has none. |
+| Missing recovery address | Capture it mid-login | Requiring an address with no way to supply it locks the account out. Three live non-admin accounts have none, and `AdminUserSeeder` still creates its admin without one — so a fresh install reproduces the admin case. |
 | Toggle scope | Non-admins only | Smallest blast radius that closes the hole. Admins are always covered; a separate "admin 2FA" setting would itself be switchable from the admin UI, reopening it. |
 | OTP storage | Hash it | `verifyOtp()` is being rewritten anyway. Removes a case where database read access alone completes a stolen-password login. |
 | Mail failure | Refuse the login | An auth control that can be bypassed by breaking mail delivery is not a control. Fails closed; see Risks. |
@@ -167,6 +167,27 @@ or console access to the server.
 `DEPLOYMENT.md` must record this beside the existing mail note. Operators need
 to know that `MAIL_*` configuration now gates administrative login, not only
 onboarding and password resets.
+
+## Current data
+
+Checked against the live database on 2026-08-23, since the design turns on who
+does and does not have a recovery address:
+
+- **Both admins have one.** Neither will meet the bootstrap screen on the first
+  login after this ships.
+- **Three non-admin accounts have none** — `branch@airking.com`,
+  `Awarehouse@airking.com`, `Bwarehouse@airking.com`. They are unaffected while
+  the toggle stays off, and will meet the bootstrap screen the first time it is
+  switched on.
+- **`AdminUserSeeder` still creates its admin with no recovery address**
+  (`AdminUserSeeder.php:33`). The live admin row was given one by hand
+  afterwards. A fresh install or `migrate:fresh --seed` therefore still produces
+  an admin who needs the bootstrap path — which is the case that makes it
+  load-bearing rather than merely defensive.
+
+Seeding a placeholder address would be worse than the bootstrap screen: at
+install time nobody knows the administrator's personal inbox, and a placeholder
+that looks valid would silently send every future code somewhere unread.
 
 ## Testing
 
