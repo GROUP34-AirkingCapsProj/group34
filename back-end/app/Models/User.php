@@ -45,6 +45,7 @@ class User extends Authenticatable
         'status_id',
         'otp_code',
         'otp_expires_at',
+        'otp_attempts',
         'alerts_last_seen_at',
     ];
 
