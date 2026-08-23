@@ -599,10 +599,39 @@ git commit -m "feat(auth): hash login codes and mail them to the recovery addres
 
 ---
 
-### Task 3: Rewrite `verifyOtp` for hashed codes
+### Task 3: Rewrite `verifyOtp` for hashed codes, and make the code brute-force resistant
+
+> **Scope added during execution, after the Task 2 quality review.** The
+> original Task 3 only rewrote the comparison. Review established that the
+> existing defences do not hold up:
+>
+> The keyspace is 900,000 and the code lives 10 minutes. `POST /api/verify-otp`
+> carries `throttle:12,1`, which for an unauthenticated route keys on
+> **`$request->ip()`** — the one variable an attacker controls. One IP gets 120
+> guesses per window (P ≈ 0.013%), but a 500-IP proxy pool gets 60,000
+> (**≈6.4%**) and 7,500 IPs gets **≈63%**. Pools that size cost single-digit
+> dollars.
+>
+> This matters precisely because the threat model for 2FA *is* "the attacker
+> already has the password" — which is exactly when they can trigger codes at
+> will. Note the asymmetry it creates: `login()` rate-limits the **first**
+> factor per account, while the **second** factor is limited only per IP. The
+> weaker gate guards the more valuable step.
+>
+> bcrypt is not a substitute. `BCRYPT_ROUNDS=12` is set in `.env`, and hashcat
+> on one RTX 4090 covers the full 900,000-candidate keyspace in roughly 10
+> minutes — the same order as the TTL itself.
+>
+> Task 3 therefore also adds an **account-keyed rate limit** and a **per-code
+> attempt counter**. The counter is the more valuable of the two because it is
+> IP-independent by construction: five wrong guesses burn the code, full stop.
 
 **Files:**
+- Create: `back-end/database/migrations/2026_08_24_000000_add_otp_attempts_to_users.php`
+- Modify: `back-end/app/Models/User.php` (`$fillable`)
+- Modify: `back-end/app/Services/LoginOtpIssuer.php` (reset the counter on issue)
 - Modify: `back-end/app/Http/Controllers/Api/AuthController.php` (`verifyOtp`)
+- Modify: `back-end/routes/api.php` (account-keyed limiter)
 - Test: `back-end/tests/Feature/Auth/AdminTwoFactorTest.php`
 
 - [ ] **Step 1: Write the failing tests**
@@ -724,13 +753,245 @@ unchanged — it already clears the code, issues a token, and audits.
 cd back-end && php artisan test --filter=AdminTwoFactorTest
 ```
 
-Expected: PASS, 14 tests.
+Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit the hashed comparison**
 
 ```bash
 git add back-end/app/Http/Controllers/Api/AuthController.php back-end/tests/Feature/Auth/AdminTwoFactorTest.php
 git commit -m "feat(auth): verify login codes against the stored hash"
+```
+
+- [ ] **Step 6: Write the failing tests for the attempt counter**
+
+Append to `AdminTwoFactorTest`:
+
+```php
+    /**
+     * Five wrong guesses burn the code. This is the defence that does not care
+     * how many IP addresses the attacker has: a 6-digit code in a 900,000
+     * keyspace is guessable inside its 10-minute window from a cheap proxy
+     * pool, and per-IP throttling cannot stop that. Capping attempts per issued
+     * code can.
+     */
+    public function test_five_wrong_guesses_burn_the_code(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])
+                ->assertStatus(422);
+        }
+
+        $this->assertNull($user->fresh()->otp_code, 'The code should be burned after 5 failures.');
+
+        // Even the REAL code no longer works -- the attacker cannot outlast the
+        // counter by eventually guessing right.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(422);
+    }
+
+    public function test_a_successful_verification_resets_the_attempt_counter(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        // Two wrong, then right -- a fumbling honest user must not be punished.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])->assertStatus(422);
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '111111'])->assertStatus(422);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(200);
+
+        $this->assertSame(0, (int) $user->fresh()->otp_attempts);
+    }
+
+    public function test_issuing_a_fresh_code_clears_previous_failures(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])->assertStatus(422);
+        $this->assertSame(1, (int) $user->fresh()->otp_attempts);
+
+        // A new code is a new budget, otherwise a user who fumbled once is
+        // permanently closer to being locked out.
+        app(LoginOtpIssuer::class)->issue($user->fresh());
+
+        $this->assertSame(0, (int) $user->fresh()->otp_attempts);
+    }
+```
+
+- [ ] **Step 7: Run to verify failure**
+
+```bash
+cd back-end && php artisan test --filter=AdminTwoFactorTest
+```
+
+Expected: FAIL — there is no `otp_attempts` column.
+
+- [ ] **Step 8: Add the migration**
+
+Create `back-end/database/migrations/2026_08_24_000000_add_otp_attempts_to_users.php`:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            // Wrong guesses against the CURRENT login code. Per-IP throttling
+            // cannot cap a 6-digit code against a proxy pool; capping attempts
+            // per issued code can, and does so regardless of source address.
+            $table->unsignedTinyInteger('otp_attempts')->default(0)->after('otp_expires_at');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('otp_attempts');
+        });
+    }
+};
+```
+
+Run it against both databases:
+
+```bash
+cd back-end && php artisan migrate
+cd back-end && php artisan migrate --env=testing
+```
+
+If the second command errors because there is no separate testing database, say so and report — `phpunit.xml` may point at the same schema, in which case one run is enough.
+
+- [ ] **Step 9: Add `otp_attempts` to `$fillable` and reset it on issue**
+
+In `back-end/app/Models/User.php`, add `'otp_attempts',` to `$fillable` beside `'otp_expires_at'`.
+
+In `back-end/app/Services/LoginOtpIssuer.php`, add the reset to the existing `fill()`:
+
+```php
+        $user->fill([
+            'otp_code'       => Hash::make($code),
+            'otp_expires_at' => now()->addMinutes(self::TTL_MINUTES),
+            // A new code is a new budget. Carrying failures across would leave a
+            // user who fumbled once permanently closer to a burned code.
+            'otp_attempts'   => 0,
+        ])->save();
+```
+
+- [ ] **Step 10: Enforce the cap in `verifyOtp`**
+
+In `verifyOtp()`, add the constant to the class:
+
+```php
+    private const MAX_OTP_ATTEMPTS = 5;
+```
+
+and replace the failure branch you wrote in Step 3 with:
+
+```php
+        if (! $pending || ! Hash::check($otp, $user->otp_code)) {
+            if ($pending) {
+                // Only count guesses against a live code. Attempts on an
+                // already-burned or expired code must not accumulate, or the
+                // next legitimate code starts with a spent budget.
+                $attempts = (int) $user->otp_attempts + 1;
+
+                $user->fill([
+                    'otp_attempts' => $attempts,
+                    // Burn the code outright at the cap. Leaving it live but
+                    // refusing guesses would let the attacker simply wait.
+                    'otp_code'     => $attempts >= self::MAX_OTP_ATTEMPTS ? null : $user->otp_code,
+                ])->save();
+            }
+
+            // One message for every failure mode: a caller must not be able to
+            // tell "no such account" from "wrong code" from "expired" from
+            // "burned".
+            return response()->json(['message' => 'Invalid or expired OTP.'], 422);
+        }
+```
+
+Confirm the success path further down already clears `otp_code` and
+`otp_expires_at`, and add `'otp_attempts' => 0` to that same update.
+
+- [ ] **Step 11: Add the account-keyed rate limiter**
+
+Per-IP throttling is the wrong key — the attacker chooses the IP. Add a named
+limiter that caps by **submitted email** as well.
+
+In `back-end/app/Providers/AppServiceProvider.php` (check whether the project
+defines limiters elsewhere first — search for `RateLimiter::for` and follow the
+local pattern), register:
+
+```php
+        RateLimiter::for('verify-otp', function (Request $request) {
+            return [
+                // The account-keyed limit is the one that actually caps the
+                // attack; the IP limit is a secondary courtesy.
+                Limit::perMinute(5)->by('otp:' . Str::lower((string) $request->input('email'))),
+                Limit::perMinute(12)->by($request->ip()),
+            ];
+        });
+```
+
+with imports `Illuminate\Cache\RateLimiting\Limit`, `Illuminate\Http\Request`,
+`Illuminate\Support\Facades\RateLimiter`, `Illuminate\Support\Str`.
+
+Then in `back-end/routes/api.php`, change the verify-otp route's middleware from
+`throttle:12,1` to `throttle:verify-otp`.
+
+> **The rate limiter uses the cache store, which `DatabaseTransactions` does NOT
+> roll back.** Tests that make five or more verify calls in a minute can trip it
+> and start returning 429 instead of 422. If that happens, call
+> `RateLimiter::clear()` for the relevant keys in the test, or add
+> `$this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class)`
+> where the test is about the attempt counter rather than the limiter — but keep
+> at least one test that exercises the limiter for real. Report which you did.
+
+- [ ] **Step 12: Run the tests**
+
+```bash
+cd back-end && php artisan test --filter=AdminTwoFactorTest
+```
+
+Expected: PASS.
+
+- [ ] **Step 13: Verify the cap actually bites**
+
+Temporarily raise `MAX_OTP_ATTEMPTS` to 500, re-run
+`test_five_wrong_guesses_burn_the_code`, and confirm it FAILS. Restore and
+confirm `git diff` is clean. Report both outputs.
+
+- [ ] **Step 14: Commit**
+
+```bash
+git add back-end/app back-end/database/migrations back-end/routes/api.php back-end/tests/Feature/Auth/AdminTwoFactorTest.php
+git commit -m "feat(auth): cap login code attempts and rate limit by account"
 ```
 
 ---
@@ -923,16 +1184,64 @@ cd back-end && php artisan test --filter=AdminTwoFactorTest
 
 Expected: PASS, 19 tests.
 
-- [ ] **Step 5: Confirm nothing else regressed**
+- [ ] **Step 5: Record that a code was issued**
+
+> **Added during execution, from the Task 2 quality review.** The existing
+> `login()` 2FA branch `return`s **without** calling `logLoginAttempt()`, and
+> `LoginOtpIssuer` writes no audit row. Net effect: an attacker holding a stolen
+> admin password who triggers codes but never completes verification leaves **no
+> trace anywhere in the system** except an email in the victim's inbox. That is
+> the highest-signal event in an account-takeover investigation and it is
+> currently the one that goes unrecorded.
+
+Write the failing test first:
+
+```php
+    public function test_issuing_a_code_is_recorded_as_a_login_attempt(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin();
+
+        $this->login($admin)->assertStatus(200);
+
+        $row = \App\Models\LoginActivity::where('user_id', $admin->user_id)
+            ->latest('login_id')
+            ->first();
+
+        $this->assertNotNull($row, 'Triggering a login code must leave a trace.');
+    }
+```
+
+> **Check `LoginActivity`'s primary key** in `back-end/app/Models/LoginActivity.php`
+> before running — the plan assumes `login_id`. Use whatever it actually is and
+> report what you found. Also read `logLoginAttempt()`'s signature in
+> `AuthController` (around line 47) rather than guessing at its arguments.
+
+Then, in the `requiresOtp` branch you added in Step 3, call it on both paths —
+before the 503 return and before the `requires_otp` return:
+
+```php
+            $this->logLoginAttempt($request, $user, false, 'Login code issued; awaiting verification.');
+```
+
+Pass `false` for `success`: the password was correct but the login is not
+complete. Recording it as a success would make the activity log claim an
+authentication that never finished.
+
+- [ ] **Step 6: Confirm nothing else regressed**
 
 ```bash
 cd back-end && php artisan test --filter=FailedLoginAuditTest
 cd back-end && php artisan test --filter=MustChangePasswordTest
 ```
 
-Expected: PASS. Report any failure verbatim before changing anything.
+Expected: PASS. `FailedLoginAuditTest` asserts on `LoginActivity` rows, so the
+new write may affect its expectations — read any failure carefully before
+changing anything, and report it verbatim rather than adjusting the existing
+test to fit.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add back-end/app/Http/Controllers/Api/AuthController.php back-end/tests/Feature/Auth/AdminTwoFactorTest.php
