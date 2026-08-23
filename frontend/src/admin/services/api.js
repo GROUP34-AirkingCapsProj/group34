@@ -1689,6 +1689,8 @@ export const usersAPI = {
   },
   restore: async (id) =>
     apiRequest(`/users/${id}/restore`, { method: 'POST' }),
+  resendCredentials: async (id) =>
+    apiRequest(`/users/${id}/resend-credentials`, { method: 'POST' }),
 };
 
 /* ======================
