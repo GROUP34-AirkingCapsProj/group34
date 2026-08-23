@@ -24,10 +24,20 @@ class TemporaryCredentialIssuer
      * should mint a password without also persisting and mailing it, but its
      * output must be verifiable against the app's password policy.
      *
+     * The runningUnitTests() guard below is what actually enforces that rule
+     * -- without it, this being merely public would let any production caller
+     * mint a live credential that is never stored or emailed.
+     *
      * @internal
      */
     public function generateForTesting(): string
     {
+        if (! app()->runningUnitTests()) {
+            throw new \LogicException(
+                'generateForTesting() is a test seam. Use issue() to mint a credential in production.'
+            );
+        }
+
         return $this->generate();
     }
 
@@ -37,8 +47,11 @@ class TemporaryCredentialIssuer
      * Password::min(8)->mixedCase()->numbers()->symbols() every time rather
      * than merely usually.
      *
-     * Visually ambiguous characters (l, I, 1, O, 0) are excluded from the
-     * alphabets: this password gets read off a screen and retyped by hand.
+     * Visually ambiguous characters are excluded, since this password gets
+     * read off a screen and retyped by hand: lowercase l, uppercase I and O,
+     * and digits 0 and 1 are all dropped from their respective alphabets
+     * (lowercase i is kept -- it isn't easily confused with any other
+     * character in these alphabets).
      */
     private function generate(): string
     {

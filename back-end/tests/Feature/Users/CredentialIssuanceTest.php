@@ -24,6 +24,9 @@ class CredentialIssuanceTest extends TestCase
         for ($i = 0; $i < 50; $i++) {
             $password = $issuer->generateForTesting();
 
+            $this->assertSame(16, strlen($password));
+            $this->assertMatchesRegularExpression('/^[^lIO01]+$/', $password);
+
             $validator = Validator::make(
                 ['password' => $password],
                 ['password' => [Password::min(8)->mixedCase()->numbers()->symbols()]]
