@@ -6,7 +6,8 @@ import Pagination from '../components/Pagination';
 import Modal from '../components/Modal';
 import {
   receivingsAPI, issuancesAPI, issuanceOrderAPI, transfersAPI,
-  adjustmentsAPI, customersAPI, companySettingsAPI, openApiFile,
+  adjustmentsAPI, customersAPI, companySettingsAPI, inventoryAPI,
+  incidentReportsAPI, openApiFile,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -40,12 +41,22 @@ const TransactionManagement = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sourceWarnings, setSourceWarnings] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [locations, setLocations] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState('ledger');
+  const [inventoryRows, setInventoryRows] = useState([]);
+  const [incidents, setIncidents] = useState([]);
+  const [logisticsLoading, setLogisticsLoading] = useState(true);
+  const [computationView, setComputationView] = useState(null);
+  const [datePeriod, setDatePeriod] = useState('today');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
 
   const navigate = useNavigate();
   // Issue-out detail modal state.
@@ -106,7 +117,12 @@ const TransactionManagement = () => {
       || (rid != null && rid !== '' ? `RCV-${rid}` : 'Receiving');
     let status = normalizeStatus(row.status?.status_name ?? row.status ?? row.receiving_status);
     /* API receivings often have no status_id — if lines were posted and qty > 0, stock was received. */
-    if (status === 'Pending' && qty > 0) status = 'Completed';
+    if (!row.status && !row.status_id && !row.receiving_status) status = 'Posted';
+    const lineItems = details.map((d, index) => {
+      const quantity = Number(d.quantity_amount ?? 0);
+      const cost = Number(d.prod_price ?? d.unit_cost ?? d.product?.cost_price ?? 0);
+      return { key: d.receiving_detail_id ?? index, product: d.product?.product_name || `Receiving item ${index + 1}`, quantity, unitCost: cost, value: quantity * cost, serial: d.scanned_barcode || null };
+    });
 
     return {
       id: `RCV-${rid ?? Math.random().toString(36).slice(2, 8)}`,
@@ -125,6 +141,7 @@ const TransactionManagement = () => {
       total,
       status,
       occurredAt: row.received_at || row.receiving_date || row.transaction_date || row.created_at,
+      lineItems,
     };
   };
 
@@ -133,7 +150,7 @@ const TransactionManagement = () => {
     const qtyFromLines = details.reduce((sum, d) => sum + Number(d.quantity_issued ?? 0), 0);
     const qty = Number(row.total_quantity ?? row.quantity ?? row.issued_qty ?? row.qty ?? 0) || qtyFromLines;
     const firstProduct = details[0]?.product;
-    const unitPrice = Number(row.unit_cost ?? row.unit_price ?? row.cost_price ?? firstProduct?.cost_price ?? 0);
+    const unitPrice = Number(row.unit_price_per_piece ?? row.unit_price ?? 0);
     const total = Number(row.total_amount ?? row.total ?? qty * unitPrice ?? 0);
     const location = row.location?.location_name || row.branch?.branch_name || row.source || row.location_name || 'N/A';
     const iid = row.issuance_id ?? row.id;
@@ -143,6 +160,11 @@ const TransactionManagement = () => {
       || row.reference_no
       || row.issue_no
       || (iid != null && iid !== '' ? `ISS-${iid}` : 'Issuance');
+    const lineItems = details.map((d, index) => {
+      const quantity = Number(d.quantity_in_pieces ?? d.quantity_issued ?? 0);
+      const price = Number(d.unit_price_per_piece ?? d.unit_price ?? 0);
+      return { key: d.issuance_detail_id ?? index, product: d.product?.product_name || `Issued item ${index + 1}`, quantity, unitCost: price, value: d.subtotal != null ? Number(d.subtotal) : quantity * price, serial: d.serial_number || null };
+    });
     return {
       id: `ISS-${iid ?? Math.random().toString(36).slice(2, 8)}`,
       entityId: iid ?? null,
@@ -161,6 +183,7 @@ const TransactionManagement = () => {
       total,
       status: normalizeStatus(row.status?.status_name ?? row.status ?? row.issuance_status),
       occurredAt: row.issued_at || row.issuance_date || row.transaction_date || row.created_at,
+      lineItems,
     };
   };
 
@@ -179,6 +202,11 @@ const TransactionManagement = () => {
       || row.reference_no
       || row.transfer_no
       || (tid != null && tid !== '' ? `TRF-${tid}` : 'Transfer');
+    const lineItems = details.map((d, index) => {
+      const quantity = Number(d.quantity_transferred ?? d.quantity_received ?? d.quantity ?? 0);
+      const cost = Number(d.unit_cost ?? d.product?.cost_price ?? 0);
+      return { key: d.transfer_detail_id ?? index, product: d.product?.product_name || `Transfer item ${index + 1}`, quantity, unitCost: cost, value: quantity * cost, serial: d.serial_number || d.barcode || null };
+    });
     return {
       id: `TRF-${tid ?? Math.random().toString(36).slice(2, 8)}`,
       entityId: tid ?? null,
@@ -190,12 +218,15 @@ const TransactionManagement = () => {
         || row.description
         || (details.length > 1 ? `Stock Transfer (${details.length} items)` : 'Stock Transfer'),
       location: `${fromLoc} -> ${toLoc}`,
+      fromLocation: fromLoc,
+      toLocation: toLoc,
       reference,
       qty,
       unitPrice,
       total,
       status: normalizeStatus(row.status?.status_name ?? row.status ?? row.transfer_status),
       occurredAt: row.transfer_date || row.transaction_date || row.created_at,
+      lineItems,
     };
   };
 
@@ -207,6 +238,11 @@ const TransactionManagement = () => {
     const unitPrice = Number(row.unit_cost ?? row.unit_price ?? row.cost_price ?? 0);
     const total = Number(row.total_amount ?? row.total ?? Math.abs(qty) * unitPrice ?? 0);
     const location = row.location?.location_name || row.branch?.branch_name || row.location_name || 'N/A';
+    const lineItems = details.map((d, index) => {
+      const quantity = Math.abs(Number(d.add_quantity || 0) - Number(d.deduct_quantity || 0));
+      const cost = Number(d.unit_cost ?? d.product?.cost_price ?? unitPrice ?? 0);
+      return { key: d.adjustment_detail_id ?? index, product: d.product?.product_name || row.product?.product_name || `Adjustment item ${index + 1}`, quantity, unitCost: cost, value: quantity * cost, serial: d.serial_number || null };
+    });
     return {
       id: `ADJ-${row.adjustment_id ?? row.id ?? Math.random().toString(36).slice(2, 8)}`,
       entityId: row.adjustment_id ?? row.id ?? null,
@@ -219,31 +255,48 @@ const TransactionManagement = () => {
       total,
       status: normalizeStatus(row.status || row.adjustment_status),
       occurredAt: row.adjustment_date || row.transaction_date || row.created_at,
+      lineItems,
     };
   };
 
   const fetchAllTransactions = useCallback(async () => {
       setLoading(true);
       setError(null);
+      setSourceWarnings([]);
       try {
+        const loadEveryPage = async (api, params = {}) => {
+          const first = await api.getAll({ ...params, page: 1, per_page: 100 });
+          const rows = Array.isArray(first?.data) ? [...first.data] : [];
+          const lastPage = Number(first?.pagination?.last_page || 1);
+          for (let page = 2; page <= lastPage; page += 1) {
+            const response = await api.getAll({ ...params, page, per_page: 100 });
+            if (Array.isArray(response?.data)) rows.push(...response.data);
+          }
+          return rows;
+        };
         const [receivingsRes, issuancesRes, transfersRes, adjustmentsRes] = await Promise.allSettled([
-          receivingsAPI.getAll({ per_page: 300 }),
-          issuancesAPI.getAll({ per_page: 300 }),
-          transfersAPI.getAll({ per_page: 300 }),
-          adjustmentsAPI.getAll({ per_page: 300 }),
+          loadEveryPage(receivingsAPI),
+          loadEveryPage(issuancesAPI),
+          loadEveryPage(transfersAPI),
+          loadEveryPage(adjustmentsAPI),
         ]);
 
-        const receivings = receivingsRes.status === 'fulfilled' && Array.isArray(receivingsRes.value?.data)
-          ? receivingsRes.value.data.map(mapReceiving)
+        const results = [receivingsRes, issuancesRes, transfersRes, adjustmentsRes];
+        const names = ['Receivings', 'Issuances', 'Transfers', 'Adjustments'];
+        const warnings = results.flatMap((result, index) => result.status === 'rejected' ? [`${names[index]} could not be loaded: ${result.reason?.message || 'request failed'}`] : []);
+        setSourceWarnings(warnings);
+
+        const receivings = receivingsRes.status === 'fulfilled'
+          ? receivingsRes.value.map(mapReceiving)
           : [];
-        const issuances = issuancesRes.status === 'fulfilled' && Array.isArray(issuancesRes.value?.data)
-          ? issuancesRes.value.data.map(mapIssuance)
+        const issuances = issuancesRes.status === 'fulfilled'
+          ? issuancesRes.value.map(mapIssuance)
           : [];
-        const transfers = transfersRes.status === 'fulfilled' && Array.isArray(transfersRes.value?.data)
-          ? transfersRes.value.data.map(mapTransfer)
+        const transfers = transfersRes.status === 'fulfilled'
+          ? transfersRes.value.map(mapTransfer)
           : [];
-        const adjustments = adjustmentsRes.status === 'fulfilled' && Array.isArray(adjustmentsRes.value?.data)
-          ? adjustmentsRes.value.data.map(mapAdjustment)
+        const adjustments = adjustmentsRes.status === 'fulfilled'
+          ? adjustmentsRes.value.map(mapAdjustment)
           : [];
 
         const allTransactions = [...receivings, ...issuances, ...transfers, ...adjustments].sort((a, b) => {
@@ -253,7 +306,8 @@ const TransactionManagement = () => {
         });
 
         setTransactions(allTransactions);
-        const uniqueLocations = [...new Set(allTransactions.map((txn) => txn.location).filter(Boolean))];
+        setLastUpdated(new Date());
+        const uniqueLocations = [...new Set(allTransactions.flatMap((txn) => txn.type === 'Transfer' ? [txn.fromLocation, txn.toLocation] : [txn.location]).filter(Boolean))];
         setLocations(uniqueLocations);
       } catch (err) {
         setError(err.message || 'Failed to load transactions.');
@@ -265,6 +319,17 @@ const TransactionManagement = () => {
 
   useEffect(() => {
     fetchAllTransactions();
+    Promise.allSettled([
+      inventoryAPI.getAll({ per_page: 1000 }),
+      incidentReportsAPI.list(),
+    ]).then(([inventoryRes, incidentRes]) => {
+      if (inventoryRes.status === 'fulfilled') {
+        setInventoryRows(Array.isArray(inventoryRes.value?.data) ? inventoryRes.value.data : []);
+      }
+      if (incidentRes.status === 'fulfilled') {
+        setIncidents(Array.isArray(incidentRes.value?.data) ? incidentRes.value.data : []);
+      }
+    }).finally(() => setLogisticsLoading(false));
     companySettingsAPI.get()
       .then((settings) => setPdfPaperSize(settings?.pdf_paper_size || 'a4'))
       .catch(() => {});
@@ -448,7 +513,7 @@ const TransactionManagement = () => {
   };
 
   const getStatusClass = (status) => {
-    if (status === 'Completed') return 'txn-status-completed';
+    if (status === 'Completed' || status === 'Posted') return 'txn-status-completed';
     if (status === 'Pending') return 'txn-status-pending';
     if (status === 'Draft') return 'txn-status-draft';
     if (status === 'Cancelled') return 'txn-status-cancelled';
@@ -463,17 +528,61 @@ const TransactionManagement = () => {
     return '';
   };
 
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const endOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+    if (datePeriod === 'all') return { from: null, to: null, label: 'All time' };
+    if (datePeriod === 'custom') {
+      const from = customFrom ? startOfDay(new Date(`${customFrom}T00:00:00`)) : null;
+      const to = customTo ? endOfDay(new Date(`${customTo}T00:00:00`)) : null;
+      return { from, to, label: from || to ? `${customFrom || 'Beginning'} – ${customTo || 'Today'}` : 'Custom range' };
+    }
+    let from = startOfDay(now);
+    let to = endOfDay(now);
+    if (datePeriod === 'yesterday') {
+      from.setDate(from.getDate() - 1);
+      to = endOfDay(from);
+    } else if (datePeriod === 'week') {
+      const mondayOffset = (from.getDay() + 6) % 7;
+      from.setDate(from.getDate() - mondayOffset);
+    } else if (datePeriod === 'month') {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (datePeriod === 'quarter') {
+      from = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    } else if (datePeriod === 'year') {
+      from = new Date(now.getFullYear(), 0, 1);
+    }
+    const labels = { today: 'Today', yesterday: 'Yesterday', week: 'This week', month: 'This month', quarter: 'This quarter', year: 'This year' };
+    return { from, to, label: labels[datePeriod] || 'Selected period' };
+  }, [datePeriod, customFrom, customTo]);
+
+  const isInDateRange = useCallback((value) => {
+    if (!dateRange.from && !dateRange.to) return true;
+    if (!value) return false;
+    const time = new Date(value).getTime();
+    if (Number.isNaN(time)) return false;
+    return (!dateRange.from || time >= dateRange.from.getTime()) && (!dateRange.to || time <= dateRange.to.getTime());
+  }, [dateRange]);
+
+  const periodTransactions = useMemo(
+    () => transactions.filter((txn) => isInDateRange(txn.occurredAt)),
+    [transactions, isInDateRange],
+  );
+
   const filteredTransactions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    return transactions.filter((txn) => {
+    return periodTransactions.filter((txn) => {
       if (typeFilter && txn.type !== typeFilter) return false;
       if (statusFilter && txn.status !== statusFilter) return false;
-      if (locationFilter && txn.location !== locationFilter) return false;
+      if (locationFilter && txn.location !== locationFilter && txn.fromLocation !== locationFilter && txn.toLocation !== locationFilter) return false;
       if (!q) return true;
-      const target = `${txn.itemName} ${txn.reference} ${txn.location} ${txn.id}`.toLowerCase();
+      const serials = (txn.lineItems || []).map((line) => line.serial).filter(Boolean).join(' ');
+      const products = (txn.lineItems || []).map((line) => line.product).filter(Boolean).join(' ');
+      const target = `${txn.itemName} ${products} ${serials} ${txn.reference} ${txn.location} ${txn.id}`.toLowerCase();
       return target.includes(q);
     });
-  }, [transactions, searchTerm, typeFilter, statusFilter, locationFilter]);
+  }, [periodTransactions, searchTerm, typeFilter, statusFilter, locationFilter]);
 
   const totalTransactions = filteredTransactions.length;
   const totalPages        = Math.ceil(totalTransactions / PAGE_SIZE) || 1;
@@ -481,6 +590,112 @@ const TransactionManagement = () => {
 
   // reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter, statusFilter, locationFilter]);
+
+  const overview = useMemo(() => {
+    const active = periodTransactions.filter((txn) => txn.status !== 'Cancelled' && txn.status !== 'Draft');
+    const rowsForType = (type) => active.filter((txn) => txn.type === type);
+    const sumType = (type) => rowsForType(type).reduce((sum, txn) => {
+      const lines = Array.isArray(txn.lineItems) ? txn.lineItems : [];
+      return sum + (lines.length ? lines.reduce((lineSum, line) => lineSum + Number(line.value || 0), 0) : Number(txn.total || 0));
+    }, 0);
+    const quantityType = (type) => rowsForType(type).reduce((sum, txn) => {
+      const lines = Array.isArray(txn.lineItems) ? txn.lineItems : [];
+      return sum + (lines.length ? lines.reduce((lineSum, line) => lineSum + Number(line.quantity || 0), 0) : Number(txn.qty || 0));
+    }, 0);
+    const stockUnits = inventoryRows.reduce((sum, row) => sum + Number(row.quantity_on_hand ?? row.quantity ?? 0), 0);
+    const stockValue = inventoryRows.reduce((sum, row) => {
+      const qty = Number(row.quantity_on_hand ?? row.quantity ?? 0);
+      const cost = Number(row.average_cost ?? row.unit_cost ?? row.product?.cost_price ?? 0);
+      return sum + (qty * cost);
+    }, 0);
+    const periodIncidents = incidents.filter((incident) => isInDateRange(incident.created_at || incident.reported_at));
+    const unresolved = periodIncidents.filter((incident) => {
+      const status = String(incident.status?.status_name ?? incident.status_name ?? incident.status ?? '').toLowerCase();
+      return !['resolved', 'closed', 'dismissed', 'cancelled'].some((name) => status.includes(name));
+    });
+    return {
+      total: periodTransactions.length,
+      completed: periodTransactions.filter((txn) => txn.status === 'Completed').length,
+      pending: periodTransactions.filter((txn) => ['Pending', 'Draft'].includes(txn.status)).length,
+      movementUnits: active.reduce((sum, txn) => sum + Math.abs(Number(txn.qty || 0)), 0),
+      stockUnits,
+      stockValue,
+      issuedUnits: quantityType('Issuance'),
+      issuedValue: sumType('Issuance'),
+      transferredUnits: quantityType('Transfer'),
+      transferredValue: sumType('Transfer'),
+      receivedUnits: quantityType('Receiving'),
+      openIncidents: unresolved.length,
+      incidentUnits: unresolved.reduce((sum, incident) => sum + Number(incident.quantity || 0), 0),
+    };
+  }, [periodTransactions, inventoryRows, incidents, isInDateRange]);
+
+  const computation = useMemo(() => {
+    if (!computationView) return null;
+    if (computationView === 'overall-actual') {
+      const rows = periodTransactions
+        .filter((txn) => !['Cancelled', 'Draft'].includes(txn.status))
+        .flatMap((txn) => {
+          const lines = txn.lineItems?.length ? txn.lineItems : [{ key: 'header', product: txn.itemName, quantity: txn.qty, unitCost: txn.unitPrice, value: txn.total }];
+          return lines.map((line, index) => ({
+            key: `${txn.id}-${line.key ?? index}`,
+            label: line.product,
+            detail: `${txn.type} | ${txn.reference} | ${formatDateTime(txn.occurredAt)} | ${txn.location} | ${txn.status}${line.serial ? ` | Serial: ${line.serial}` : ''}`,
+            type: txn.type,
+            reference: txn.reference,
+            occurredAt: txn.occurredAt,
+            location: txn.location,
+            status: txn.status,
+            serial: line.serial || null,
+            quantity: Number(line.quantity || 0),
+            unitCost: Number(line.unitCost || 0),
+            value: Number(line.value || 0),
+          }));
+        });
+      return {
+        title: `Overall transaction computation | ${dateRange.label}`,
+        formula: 'Actual line quantity x recorded unit price/cost = line value; sum of all line values = total transaction activity',
+        rows,
+        total: rows.reduce((sum, row) => sum + row.value, 0),
+        overall: true,
+      };
+    }
+    if (computationView === 'overall') {
+      return {
+        title: `Overall computation · ${dateRange.label}`,
+        formula: 'Current stock value + Issued-out value + Transfer activity value = Overall tracked value',
+        rows: [
+          { key: 'stock', label: 'Current inventory', detail: 'Live stock snapshot · quantity on hand × cost price', quantity: overview.stockUnits, unitCost: null, value: overview.stockValue },
+          { key: 'issued', label: 'Issued / sales out', detail: `${dateRange.label} · excludes cancelled and draft records`, quantity: overview.issuedUnits, unitCost: null, value: overview.issuedValue },
+          { key: 'transfer', label: 'Interbranch transfers', detail: `${dateRange.label} · movement value only; stock remains company-owned`, quantity: overview.transferredUnits, unitCost: null, value: overview.transferredValue },
+          { key: 'received', label: 'Received stock', detail: `${dateRange.label} · shown for operational unit reconciliation`, quantity: overview.receivedUnits, unitCost: null, value: null },
+          { key: 'incidents', label: 'Open incident reports', detail: `${overview.openIncidents.toLocaleString()} reports filed in ${dateRange.label.toLowerCase()}`, quantity: overview.incidentUnits, unitCost: null, value: null },
+        ],
+        total: overview.stockValue + overview.issuedValue + overview.transferredValue,
+        overall: true,
+      };
+    }
+    if (computationView === 'stock') {
+      return {
+        title: 'Current stock valuation',
+        formula: 'Quantity on hand × Product cost price = Stock value',
+        rows: inventoryRows.map((row, index) => {
+          const quantity = Number(row.quantity_on_hand ?? row.quantity ?? 0);
+          const unitCost = Number(row.average_cost ?? row.unit_cost ?? row.product?.cost_price ?? 0);
+          return { key: row.inventory_id ?? index, label: row.product?.product_name || `Inventory #${row.inventory_id ?? index + 1}`, detail: row.location?.location_name || 'Location not specified', quantity, unitCost, value: quantity * unitCost };
+        }),
+        total: overview.stockValue,
+      };
+    }
+    const type = computationView === 'issued' ? 'Issuance' : 'Transfer';
+    const rows = periodTransactions.filter((txn) => txn.type === type && !['Cancelled', 'Draft'].includes(txn.status));
+    return {
+      title: computationView === 'issued' ? 'Issued-out valuation' : 'Transfer valuation',
+      formula: 'Transaction quantity × Recorded unit cost = Movement value',
+      rows: rows.map((txn) => ({ key: txn.id, label: txn.itemName, detail: `${txn.reference} · ${txn.location}`, quantity: Number(txn.qty || 0), unitCost: Number(txn.unitPrice || 0), value: Number(txn.total || 0) })),
+      total: computationView === 'issued' ? overview.issuedValue : overview.transferredValue,
+    };
+  }, [computationView, inventoryRows, periodTransactions, overview, dateRange.label]);
 
   return (
     <AdminLayout>
@@ -497,13 +712,47 @@ const TransactionManagement = () => {
 
         {loading && <Loader label="Loading transactions" />}
         {error && <div className="ak-state ak-state--error">Error: {error}</div>}
+        {sourceWarnings.length > 0 && <div className="txn-source-warnings" role="alert"><strong>Ledger is incomplete.</strong>{sourceWarnings.map((warning) => <span key={warning}>{warning}</span>)}</div>}
 
-        <div className="ak-card txn-table-card">
+        <section className="txn-summary-grid" aria-label="Transaction summary">
+          <div className="txn-summary-card txn-summary-card--red"><span className="txn-summary-icon">#</span><div><span>All transactions</span><strong>{overview.total.toLocaleString()}</strong><small>{overview.movementUnits.toLocaleString()} units moved</small></div></div>
+          <div className="txn-summary-card txn-summary-card--green"><span className="txn-summary-icon">✓</span><div><span>Completed</span><strong>{overview.completed.toLocaleString()}</strong><small>Posted movements</small></div></div>
+          <div className="txn-summary-card txn-summary-card--amber"><span className="txn-summary-icon">◷</span><div><span>Needs attention</span><strong>{overview.pending.toLocaleString()}</strong><small>Pending or draft</small></div></div>
+          <div className="txn-summary-card txn-summary-card--blue"><span className="txn-summary-icon">↗</span><div><span>Issued out</span><strong>{overview.issuedUnits.toLocaleString()}</strong><small>{fmtMoney(overview.issuedValue)} value</small></div></div>
+        </section>
+
+        <div className="txn-tabs" role="tablist" aria-label="Transaction views">
+          <button className={activeTab === 'ledger' ? 'is-active' : ''} onClick={() => setActiveTab('ledger')} role="tab" aria-selected={activeTab === 'ledger'}>Transaction ledger</button>
+          <button className={activeTab === 'logistics' ? 'is-active' : ''} onClick={() => setActiveTab('logistics')} role="tab" aria-selected={activeTab === 'logistics'}>Sales &amp; logistics</button>
+        </div>
+
+        <section className="txn-period-bar" aria-label="Transaction date filter">
+          <div><span className="txn-period-label">PERIOD</span><strong>{dateRange.label}</strong></div>
+          <div className="txn-period-controls">
+            <select className="ak-select" value={datePeriod} onChange={(e) => setDatePeriod(e.target.value)}>
+              <option value="today">Today</option>
+              <option value="yesterday">Last day</option>
+              <option value="week">Weekly</option>
+              <option value="month">Monthly</option>
+              <option value="quarter">Quarterly</option>
+              <option value="year">Yearly</option>
+              <option value="custom">Custom range</option>
+              <option value="all">All time</option>
+            </select>
+            {datePeriod === 'custom' && <>
+              <label>From<input className="ak-input" type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} /></label>
+              <label>To<input className="ak-input" type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} /></label>
+            </>}
+          </div>
+        </section>
+
+        {activeTab === 'ledger' && <div className="ak-card txn-table-card">
           <div className="ak-card-head">
             <div>
               <h2 className="ak-card-title">All Transactions</h2>
-              <p className="ak-card-meta">{totalTransactions} total transactions</p>
+              <p className="ak-card-meta">{totalTransactions} transactions · {dateRange.label}</p>
             </div>
+            <div className="txn-refresh"><span>{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Not yet updated'}</span><button className="ak-btn ak-btn--ghost" onClick={fetchAllTransactions} disabled={loading}>Refresh</button></div>
           </div>
 
           <div className="ak-toolbar ak-toolbar--push">
@@ -511,7 +760,7 @@ const TransactionManagement = () => {
               <input
                 className="ak-input"
                 type="text"
-                placeholder="Search by item, reference, location..."
+                placeholder="Search item, reference, location, serial..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -526,6 +775,7 @@ const TransactionManagement = () => {
             <select className="ak-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">All Status</option>
               <option value="Completed">Completed</option>
+              <option value="Posted">Posted</option>
               <option value="Pending">Pending</option>
               <option value="Draft">Draft</option>
               <option value="Cancelled">Cancelled</option>
@@ -600,8 +850,45 @@ const TransactionManagement = () => {
             pageSize={PAGE_SIZE}
             label="transactions"
           />
-        </div>
+        </div>}
+
+        {activeTab === 'logistics' && (
+          <section className="txn-logistics" role="tabpanel">
+            {logisticsLoading && <Loader label="Calculating logistics valuation" />}
+            <div className="txn-logistics-grid">
+              <article className="txn-metric txn-metric--hero"><span className="txn-metric-kicker">CURRENT INVENTORY · LIVE SNAPSHOT</span><h3>{fmtMoney(overview.stockValue)}</h3><p>Estimated cost value of stock currently on hand</p><div className="txn-metric-foot"><span><strong>{overview.stockUnits.toLocaleString()}</strong> units across <strong>{inventoryRows.length.toLocaleString()}</strong> stock records</span><button onClick={() => setComputationView('stock')}>View computation</button></div></article>
+              <article className="txn-metric"><span className="txn-metric-kicker">ISSUED / SALES OUT</span><h3>{fmtMoney(overview.issuedValue)}</h3><p>{overview.issuedUnits.toLocaleString()} units issued from inventory</p><div className="txn-progress"><i style={{ width: `${Math.min(100, overview.movementUnits ? (overview.issuedUnits / overview.movementUnits) * 100 : 0)}%` }} /></div><button className="txn-compute-link" onClick={() => setComputationView('issued')}>View computation →</button></article>
+              <article className="txn-metric"><span className="txn-metric-kicker">INTERBRANCH TRANSFERS</span><h3>{fmtMoney(overview.transferredValue)}</h3><p>{overview.transferredUnits.toLocaleString()} units transferred between locations</p><div className="txn-progress txn-progress--blue"><i style={{ width: `${Math.min(100, overview.movementUnits ? (overview.transferredUnits / overview.movementUnits) * 100 : 0)}%` }} /></div><button className="txn-compute-link" onClick={() => setComputationView('transfer')}>View computation →</button></article>
+              <article className="txn-metric txn-metric--incident"><span className="txn-metric-kicker">INCIDENT REPORTS</span><h3>{overview.openIncidents.toLocaleString()} open</h3><p>{overview.incidentUnits.toLocaleString()} units currently involved</p><button onClick={() => navigate('/admin/incidents')}>Review incidents <span>→</span></button></article>
+            </div>
+            <div className="txn-flow-card">
+              <div><h3>Stock flow snapshot</h3><p>A simple operational view based on the loaded transaction ledger.</p><button className="txn-overall-button" onClick={() => setComputationView('overall-actual')}>View actual transaction computation →</button></div>
+              <div className="txn-flow-steps">
+                <div><span>Received</span><strong>{overview.receivedUnits.toLocaleString()}</strong><small>units in</small></div><b>→</b>
+                <div><span>Current stock</span><strong>{overview.stockUnits.toLocaleString()}</strong><small>units on hand</small></div><b>→</b>
+                <div><span>Issued</span><strong>{overview.issuedUnits.toLocaleString()}</strong><small>units out</small></div><b>+</b>
+                <div><span>Transferred</span><strong>{overview.transferredUnits.toLocaleString()}</strong><small>units moved</small></div>
+              </div>
+            </div>
+            <p className="txn-valuation-note">Valuations use the product cost price available on each record. Transfers show the value moved and do not reduce company-wide stock value.</p>
+          </section>
+        )}
       </div>
+
+      <Modal isOpen={computationView != null} onClose={() => setComputationView(null)} title={computation?.title || 'Valuation computation'} maxWidth={860}>
+        {computation && <div className="txn-computation">
+          <div className="txn-formula"><span>FORMULA</span><strong>{computation.formula}</strong>{computation.overall && <small>{computation.rows.length.toLocaleString()} actual line item{computation.rows.length === 1 ? '' : 's'} included</small>}</div>
+          <div className="txn-computation-table-wrap"><table className="txn-computation-table">
+            {computation.overall ? <thead><tr><th>Type</th><th>Reference / Date</th><th>Actual product</th><th>Location / Status</th><th className="num">Qty</th><th className="num">Unit cost</th><th className="num">Line value</th></tr></thead> : <thead><tr><th>Record</th><th className="num">Quantity</th><th className="num">Unit cost</th><th className="num">Computed value</th></tr></thead>}
+            <tbody>
+              {computation.rows.length === 0 && <tr><td colSpan={computation.overall ? 7 : 4} className="txn-computation-empty">No qualifying records found.</td></tr>}
+              {computation.rows.map((row) => computation.overall ? <tr key={row.key}><td><span className={`txn-type-badge ${getTypeClass(row.type)}`}>{row.type}</span></td><td><strong>{row.reference}</strong><small>{formatDateTime(row.occurredAt)}</small></td><td><strong>{row.label}</strong>{row.serial && <small>Serial / barcode: {row.serial}</small>}</td><td>{row.location}<small><span className={`txn-status-badge ${getStatusClass(row.status)}`}>{row.status}</span></small></td><td className="num">{row.quantity.toLocaleString()}</td><td className="num">{fmtMoney(row.unitCost)}</td><td className="num"><strong>{fmtMoney(row.value)}</strong></td></tr> : <tr key={row.key}><td><strong>{row.label}</strong><small>{row.detail}</small></td><td className="num">{row.quantity.toLocaleString()}</td><td className="num">{row.unitCost == null ? '—' : fmtMoney(row.unitCost)}</td><td className="num"><strong>{row.value == null ? 'Not valued' : fmtMoney(row.value)}</strong></td></tr>)}
+            </tbody>
+            <tfoot><tr><td colSpan={computation.overall ? 6 : 3}>{computation.overall ? 'TOTAL TRANSACTION ACTIVITY' : 'TOTAL VALUATION'}</td><td className="num">{fmtMoney(computation.total)}</td></tr></tfoot>
+          </table></div>
+          <p className="txn-computation-note">{computation.overall ? 'Overall tracked value is a visibility total, not accounting profit: transfer value measures internal activity and does not reduce company-wide inventory. Received and incident units are shown separately because mixing unpriced units into a peso total would be inaccurate.' : 'Cancelled and draft movements are excluded. A zero unit cost means no cost price was recorded for that entry.'}</p>
+        </div>}
+      </Modal>
 
       <Modal
         isOpen={activeIssuanceId != null}
