@@ -30,10 +30,10 @@ return new class extends Migration
      * behind it. receiving_details.po_detail_id is nullable, and both writers
      * leave it null on the scan-driven path:
      *
-     *   - InventoryScanTransactionController::store() resolves $poDetail only
+     *   - Api\InventoryScanTransactionController::store() resolves $poDetail only
      *     inside `if ($poId)`. A scan with no PO selected writes
      *     'po_detail_id' => $poDetail?->po_detail_id, i.e. null.
-     *   - ReceivingController::store() validates 'details.*.po_detail_id' as
+     *   - Api\ReceivingController::store() validates 'details.*.po_detail_id' as
      *     nullable and writes `$detail['po_detail_id'] ?? null`.
      *
      * Those PO-less receipts still need to group into aircon models, so the
