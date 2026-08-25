@@ -3409,6 +3409,38 @@ Walk the "Testing" section of `docs/superpowers/specs/2026-08-25-aircon-product-
 
 ## Found during implementation, not in this plan
 
+**The pending-product approval queue was completely broken.** Found while
+closing the Task 7 gap. `PendingProductController::approveConsumable()` and
+`approveAppliance()` both wrote `pending_products.created_product_id`, and
+`PendingProduct::$fillable` and its `createdProduct()` relation named the same
+column. **That column exists in neither `airkingv5` nor `airkingv5_test`** —
+the real column is `product_id`, with the FK and index already built on it.
+`pending_products` has no migration in `database/migrations/`, so nothing kept
+the model honest against the schema.
+
+Effect: every approval, appliance and consumable alike, threw
+`SQLSTATE[42S22] Unknown column 'created_product_id'` and rolled the whole
+transaction back — no product created, nothing marked approved. Fixed in
+`acd9567` by pointing all four references at `product_id`.
+
+It went unnoticed because `SELECT status, COUNT(*) FROM pending_products` on
+production returns zero rows: the queue has never been used.
+
+**Task 7's plan wired the wrong controller.** The plan assumed the product
+registration form posts to `ProductController`. It does not — it posts to
+`pendingProductsAPI.store`, and appliances reach the catalogue through the
+pending-product approval queue. Task 4 wired `ProductController` correctly, but
+that controller is not on the registration path, so the AC Type and Unit Role
+fields Task 7 added to the form were validated away by `storeAppliance()` and
+never written by `approveAppliance()`. Closed in `acd9567`.
+
+**Still outstanding on that path:** `approve()` accepts and validates
+`final_product_name` but never writes it to its column — the same class of
+model/schema drift as the `created_product_id` bug, left alone because nothing
+in this feature depends on it.
+
+
+
 **`/api/products` has a pre-existing N+1 unrelated to this work.** While proving
 the `acType` eager-load batched correctly, Task 4's implementer measured the
 product index endpoint at **10 queries for 2 appliance rows and 39 for 7** —
