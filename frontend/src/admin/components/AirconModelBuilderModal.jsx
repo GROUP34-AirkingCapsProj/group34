@@ -12,6 +12,17 @@ const ROLE_LABEL = {
   complete: 'complete',
 };
 
+/**
+ * First message from any `lines`-rooted validation key — `lines` itself
+ * (piece-count rule) or `lines.N.product_id` (duplicate product). Both describe
+ * the composition rather than a header field.
+ */
+const linesMessage = (fieldErrors) =>
+  Object.entries(fieldErrors || {})
+    .filter(([key]) => key === 'lines' || key.startsWith('lines.'))
+    .flatMap(([, messages]) => (Array.isArray(messages) ? messages : [messages]))
+    .find(Boolean);
+
 let lineSeq = 0;
 const newLine = () => ({
   key: `unit-${Date.now()}-${lineSeq++}`,
@@ -49,6 +60,7 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
   const [acTypes, setAcTypes] = useState([]);
   const [capacities, setCapacities] = useState([]);
   const [variants, setVariants] = useState([]);
+  const [productFilter, setProductFilter] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -105,6 +117,7 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
       setIsActive(true);
       setLines([newLine()]);
     }
+    setProductFilter('');
   }, [isOpen, initialModel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const productById = useMemo(() => {
@@ -120,7 +133,43 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
     [products]
   );
 
+  const filteredProducts = useMemo(() => {
+    const q = productFilter.trim().toLowerCase();
+    if (!q) return applianceProducts;
+    return applianceProducts.filter((p) =>
+      String(p.product_name || '').toLowerCase().includes(q) ||
+      String(p.product_code || '').toLowerCase().includes(q) ||
+      String(p.unit_role || '').toLowerCase().includes(q)
+    );
+  }, [applianceProducts, productFilter]);
+
   const roleOf = (line) => productById.get(line.product_id)?.unit_role ?? line._unit_role ?? '';
+
+  /**
+   * Options for one line's picker.
+   *
+   * Two things have to stay selectable that the plain list would drop: a
+   * product the current filter text excludes, and — the case the filter cannot
+   * fix — a member product archived after the model was composed, which
+   * productsAPI.getAll never returns at all. Without the synthetic entry the
+   * <select> falls back to its placeholder and the row reads as empty, which
+   * looks like data loss and invites the user to "repair" it by picking a
+   * different product.
+   */
+  const optionsForLine = (line) => {
+    if (!line.product_id) return filteredProducts;
+    if (filteredProducts.some((p) => String(p.product_id) === line.product_id)) return filteredProducts;
+
+    const loaded = productById.get(line.product_id);
+    if (loaded) return [loaded, ...filteredProducts];
+
+    return [{
+      product_id: line.product_id,
+      product_name: line._product_name || `Product #${line.product_id}`,
+      unit_role: line._unit_role,
+      __missing: true,
+    }, ...filteredProducts];
+  };
 
   const unitPriceOf = (line) => Number(productById.get(line.product_id)?.unit_price ?? line._unit_price ?? 0);
 
@@ -167,7 +216,15 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
     // Mirror of the composer's piece-count rule, so the user hears about it
     // without a round trip. The server still enforces it — this is a courtesy,
     // not the guarantee.
-    const roles = filledLines.map((l) => productById.get(l.product_id)?.unit_role).filter(Boolean);
+    //
+    // roleOf, NOT productById directly: productsAPI.getAll runs under the
+    // SoftDeletes scope, so a member product archived after the model was
+    // composed is absent from the loaded list. The server supports exactly that
+    // case (AirconModelUnit::product() uses withTrashed()), so reading the role
+    // off the product list alone would reject a save the composer accepts and
+    // leave the model permanently uneditable here. roleOf falls back to the
+    // role the model row already carried.
+    const roles = filledLines.map((l) => roleOf(l)).filter(Boolean);
 
     if (isTwoPiece && !(roles.includes('indoor') && roles.includes('outdoor'))) {
       toast.error('A two-piece aircon model needs at least one indoor and one outdoor unit.');
@@ -209,10 +266,15 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
       setErrors(fieldErrors);
       // The composer's 422s land on two different keys — `lines` for the
       // piece-count rule, `lines.0.product_id` for a duplicated product — and
-      // both messages are already written for the user. Show whichever came
-      // back rather than Laravel's generic "The given data was invalid."
-      const firstFieldMessage = Object.values(fieldErrors).flat().find(Boolean);
-      toast.error(firstFieldMessage || err.message || 'Failed to save the aircon model.');
+      // both messages are already written for the user. Prefer whichever of
+      // those came back over any header-field message: Laravel preserves rule
+      // order and validatePayload() declares model_name/brand_id/ac_type_id
+      // BEFORE the line rules, so a plain "first key wins" would show the
+      // header error and bury the composition problem — and the header errors
+      // already render inline beside their own field.
+      const message = linesMessage(fieldErrors)
+        || Object.values(fieldErrors).flat().find(Boolean);
+      toast.error(message || err.message || 'Failed to save the aircon model.');
     } finally {
       setSubmitting(false);
     }
@@ -331,7 +393,22 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
         </div>
 
         <div>
-          <label className="ak-label" style={{ display: 'block', marginBottom: '0.5rem' }}>Units</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <label className="ak-label" style={{ margin: 0 }}>Units</label>
+            {/* The appliance catalogue runs to a couple of hundred rows and
+                ProductController caps nothing, so every one of them lands in
+                each native <select>. Same filter SetBuilderModal offers, for
+                the same reason. */}
+            <div className="ak-search" style={{ minWidth: 220 }}>
+              <input
+                className="ak-input"
+                aria-label="Filter products"
+                placeholder="Filter products…"
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+              />
+            </div>
+          </div>
 
           <div className="ak-table-wrap">
             <table className="ak-table">
@@ -356,11 +433,12 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
                         disabled={!canSubmit || loadingProducts}
                       >
                         <option value="">{loadingProducts ? 'Loading products…' : 'Select appliance…'}</option>
-                        {applianceProducts.map((p) => (
+                        {optionsForLine(l).map((p) => (
                           <option key={p.product_id} value={String(p.product_id)}>
                             {p.product_name}
                             {p.unit_role ? ` — ${ROLE_LABEL[p.unit_role] || p.unit_role}` : ''}
                             {p.product_code ? ` (${p.product_code})` : ''}
+                            {p.__missing ? ' (archived)' : ''}
                           </option>
                         ))}
                       </select>
@@ -402,6 +480,16 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
               </tbody>
             </table>
           </div>
+
+          {/* The composer's rejection is about the composition as a whole, not
+              about one field, so it has no input to sit beside — it gets its
+              own line under the table. Header-field errors render next to
+              their own input; between the two, every key the server can
+              realistically return reaches the user somewhere other than a
+              toast that scrolls away. */}
+          {linesMessage(errors) && (
+            <p style={{ color: '#b91c1c', fontSize: '0.78rem', margin: '0.5rem 0 0' }}>{linesMessage(errors)}</p>
+          )}
 
           {canSubmit && (
             <button type="button" className="ak-btn ak-btn--sm" style={{ marginTop: '0.6rem' }} onClick={addLine}>

@@ -67,8 +67,10 @@ const renderModal = async (props = {}) => {
   );
   // Wait for the AC types and the product list to land.
   await waitFor(() => expect(screen.getByRole('option', { name: 'Split Type' })).toBeInTheDocument());
+  // getAllBy, not getBy: a model with two lines renders two product <select>s
+  // and therefore two copies of every option.
   await waitFor(() =>
-    expect(screen.getByRole('option', { name: /Indoor Unit A/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('option', { name: /Indoor Unit A/ }).length).toBeGreaterThan(0)
   );
   return utils;
 };
@@ -216,6 +218,92 @@ test('a duplicate-product 422 surfaces the lines.0.product_id message', async ()
       'Each product can appear only once — raise its quantity instead of adding a second line.'
     )
   );
+});
+
+/**
+ * Laravel preserves rule order and validatePayload() declares the header rules
+ * before the line rules, so "first key wins" would bury the composition error
+ * behind a header one. The header errors have an inline home beside their own
+ * input; the lines error does not, so it is the one the toast owes the user.
+ */
+test('a 422 naming both a header field and the lines prefers the lines message', async () => {
+  await renderModal();
+
+  const err = new Error('The given data was invalid.');
+  err.errors = {
+    model_name: ['The model name field is required.'],
+    lines: ['A two-piece model needs at least one indoor unit and one outdoor unit. Missing: outdoor.'],
+  };
+  airconModelsAPI.create.mockRejectedValue(err);
+
+  await userEvent.type(screen.getByLabelText(/model name/i), 'Split 1.5HP');
+  await userEvent.selectOptions(acTypeSelect(), '1');
+  await userEvent.selectOptions(productSelect(1), '100');
+  await userEvent.click(screen.getByRole('button', { name: /add unit/i }));
+  await userEvent.selectOptions(productSelect(2), '200');
+
+  await userEvent.click(submitButton());
+
+  await waitFor(() => expect(airconModelsAPI.create).toHaveBeenCalled());
+  expect(toast.error).toHaveBeenCalledWith(
+    'A two-piece model needs at least one indoor unit and one outdoor unit. Missing: outdoor.'
+  );
+  expect(toast.error).not.toHaveBeenCalledWith('The model name field is required.');
+});
+
+/**
+ * The server deliberately supports models whose member products were archived
+ * after composition: AirconModelUnit::product() uses withTrashed() and the
+ * composer reads unit_role straight off appliance_details. productsAPI.getAll
+ * is under the SoftDeletes scope, so that product is NOT in the loaded list —
+ * reading the role from the product list alone would make the model
+ * permanently uneditable through the UI.
+ */
+test('an archived member product does not block an otherwise valid two-piece save', async () => {
+  const model = {
+    aircon_model_id: 77,
+    model_name: 'Split 1.5HP',
+    brand_id: 20,
+    ac_type_id: 1,
+    capacity_rating: '1.5HP',
+    variant: 'Inverter',
+    is_two_piece: true,
+    is_active: true,
+    units: [
+      // Archived after composition: absent from productsAPI.getAll, but the
+      // model row still carries its role and price.
+      { aircon_model_unit_id: 1, product_id: 999, product_name: 'Retired Indoor Unit', unit_price: 9000, unit_role: 'indoor', quantity: 1, sort_order: 0, is_archived: true },
+      { aircon_model_unit_id: 2, product_id: 200, product_name: 'Outdoor Unit A', unit_price: 15000, unit_role: 'outdoor', quantity: 1, sort_order: 1, is_archived: false },
+    ],
+  };
+  await renderModal({ initialModel: model });
+
+  await userEvent.click(screen.getByRole('button', { name: /update model/i }));
+
+  await waitFor(() => expect(airconModelsAPI.update).toHaveBeenCalled());
+  expect(toast.error).not.toHaveBeenCalled();
+  expect(airconModelsAPI.update.mock.calls[0][1].lines).toEqual([
+    { product_id: 999, quantity: 1 },
+    { product_id: 200, quantity: 1 },
+  ]);
+});
+
+/** Same gap, price side: the running total must not silently drop the archived line. */
+test('an archived member product still counts toward the running total', async () => {
+  const model = {
+    aircon_model_id: 78,
+    model_name: 'Split 1.5HP',
+    is_two_piece: true,
+    is_active: true,
+    units: [
+      { aircon_model_unit_id: 1, product_id: 999, product_name: 'Retired Indoor Unit', unit_price: 9000, unit_role: 'indoor', quantity: 2, sort_order: 0, is_archived: true },
+      { aircon_model_unit_id: 2, product_id: 200, product_name: 'Outdoor Unit A', unit_price: 15000, unit_role: 'outdoor', quantity: 1, sort_order: 1, is_archived: false },
+    ],
+  };
+  await renderModal({ initialModel: model });
+
+  // 2 x 9,000 + 1 x 15,000
+  expect(screen.getByText('₱33,000.00')).toBeInTheDocument();
 });
 
 test('the product picker offers appliances only, labelled with their unit role', async () => {
