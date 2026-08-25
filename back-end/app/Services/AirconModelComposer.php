@@ -63,31 +63,62 @@ class AirconModelComposer
      */
     public function update(AirconModel $model, array $attributes, ?array $lines = null): AirconModel
     {
-        // The check runs against the combination that will be in force AFTER
-        // the update, not the one that arrived. Either half can change on its
-        // own: flipping is_two_piece to false while leaving two lines alone
-        // sends no lines at all, and validating the incoming payload would wave
-        // that through into an illegal state. So both halves fall back to what
-        // is already stored.
-        $effectiveTwoPiece = array_key_exists('is_two_piece', $attributes)
-            ? (bool) $attributes['is_two_piece']
-            : (bool) $model->is_two_piece;
-
-        $effectiveLines = $lines ?? $this->currentLines($model);
-
-        $this->assertPieceCount($effectiveTwoPiece, $effectiveLines);
-
         return DB::transaction(function () use ($model, $attributes, $lines) {
+            // Row lock BEFORE the read that feeds the check, and the check
+            // inside the transaction — otherwise two concurrent updates
+            // interleave and defeat the one invariant this service exists to
+            // hold. Reading the lines, validating, then opening a transaction
+            // leaves this window:
+            //
+            //   A: update(is_two_piece: true, [indoor, outdoor])  - validates OK
+            //   B: update(is_two_piece: false)                    - reads the
+            //      PRE-A lines (one complete unit), validates OK
+            //   A commits, then B commits -> is_two_piece = false against an
+            //   indoor+outdoor pair, and nothing ever raised.
+            //
+            // The lock is on the parent row only. That is enough: every writer
+            // reaches the unit lines through this method, so taking the parent
+            // lock first serialises them, and the unlocked read of
+            // aircon_model_units below happens under that mutual exclusion.
+            //
+            // findOrFail, not find: a model deleted out from under us must not
+            // be silently resurrected by a write. Note newQuery() carries the
+            // SoftDeletes scope, so an archived model raises here too.
+            $locked = $model->newQuery()->lockForUpdate()->findOrFail($model->getKey());
+
+            // The check runs against the combination that will be in force AFTER
+            // the update, not the one that arrived. Either half can change on its
+            // own: flipping is_two_piece to false while leaving two lines alone
+            // sends no lines at all, and validating the incoming payload would wave
+            // that through into an illegal state. So both halves fall back to what
+            // is stored — read here from the locked row, not from the caller's
+            // possibly stale instance.
+            $effectiveTwoPiece = array_key_exists('is_two_piece', $attributes)
+                ? (bool) $attributes['is_two_piece']
+                : (bool) $locked->is_two_piece;
+
+            $effectiveLines = $lines ?? $this->currentLines($locked);
+
+            $this->assertPieceCount($effectiveTwoPiece, $effectiveLines);
+
             // Authorship is not a caller-supplied attribute.
-            $model->fill(Arr::except($attributes, ['created_by', 'updated_by']));
-            $model->updated_by = Auth::id();
-            $model->save();
+            $locked->fill(Arr::except($attributes, ['created_by', 'updated_by']));
+            $locked->updated_by = Auth::id();
+            $locked->save();
 
             if ($lines !== null) {
-                $this->syncLines($model, $lines);
+                $this->syncLines($locked, $lines);
+
+                // A lines-only edit by the model's own last editor changes no
+                // column on aircon_models, so Eloquent short-circuits save()
+                // and updated_at keeps reporting the previous edit. The lines
+                // did change; "last modified" must say so.
+                if (! $locked->wasChanged()) {
+                    $locked->touch();
+                }
             }
 
-            return $model->fresh(['units.product', 'brand', 'acType']);
+            return $locked->fresh(['units.product', 'brand', 'acType']);
         });
     }
 
@@ -151,6 +182,27 @@ class AirconModelComposer
      */
     private function assertPieceCount(bool $isTwoPiece, array $lines): void
     {
+        // Before the role check, because rolesFor() dedupes the ids: without
+        // this, [indoor, outdoor, indoor] collapses to ['indoor','outdoor'],
+        // passes the rule, and then dies on the
+        // unique(aircon_model_id, product_id) index in syncLines() as a 500.
+        // "One line per product per model" — wanting a product twice means
+        // raising its quantity — is a composition constraint, so it belongs
+        // here with the rest of them rather than in one caller's validator.
+        $seen = [];
+        foreach ($lines as $line) {
+            $productId = (int) ($line['product_id'] ?? 0);
+
+            if (isset($seen[$productId])) {
+                $this->reject(sprintf(
+                    'Product %d is listed more than once. Raise its quantity instead of adding a second line.',
+                    $productId
+                ));
+            }
+
+            $seen[$productId] = true;
+        }
+
         if ($lines === []) {
             $this->reject($isTwoPiece
                 ? 'A two-piece model needs at least one indoor unit and one outdoor unit; no unit lines were given.'

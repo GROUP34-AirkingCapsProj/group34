@@ -5,6 +5,7 @@ namespace Tests\Feature\Aircon;
 use App\Models\AirconModel;
 use App\Models\AirconModelUnit;
 use App\Services\AirconModelComposer;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -88,11 +89,22 @@ class AirconModelComposerTest extends AirconTestCase
     {
         $indoor = $this->unitProduct('indoor');
 
-        $this->expectException(ValidationException::class);
-
-        $this->composer->create($this->attributes(), [
-            $this->line($indoor->product_id),
-        ]);
+        try {
+            $this->composer->create($this->attributes(), [
+                $this->line($indoor->product_id),
+            ]);
+            $this->fail('a two-piece model with no outdoor unit must be rejected');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('lines', $e->errors());
+            // 'Missing: outdoor', not bare 'outdoor' — the sentence explaining
+            // the rule names both sides, so matching the bare word would pass
+            // for the no-indoor message too.
+            $this->assertStringContainsString(
+                'Missing: outdoor',
+                $e->errors()['lines'][0],
+                'the message must name what is missing, not just refuse'
+            );
+        }
     }
 
     public function test_a_two_piece_model_without_an_indoor_line_is_rejected(): void
@@ -106,7 +118,7 @@ class AirconModelComposerTest extends AirconTestCase
             $this->fail('a two-piece model with no indoor unit must be rejected');
         } catch (ValidationException $e) {
             $this->assertArrayHasKey('lines', $e->errors());
-            $this->assertStringContainsString('indoor', $e->errors()['lines'][0]);
+            $this->assertStringContainsString('Missing: indoor', $e->errors()['lines'][0]);
         }
     }
 
@@ -144,12 +156,48 @@ class AirconModelComposerTest extends AirconTestCase
         $complete = $this->unitProduct('complete');
         $spare    = $this->unitProduct('complete');
 
-        $this->expectException(ValidationException::class);
+        try {
+            $this->composer->create(
+                $this->attributes(['is_two_piece' => false]),
+                [$this->line($complete->product_id), $this->line($spare->product_id)]
+            );
+            $this->fail('a one-piece model with two lines must be rejected');
+        } catch (ValidationException $e) {
+            // Rejected for the line COUNT — both products are complete units,
+            // so a bare expectException here would also pass if the composer
+            // refused for the wrong reason.
+            $this->assertStringContainsString(
+                'exactly one complete unit line; 2 were given',
+                $e->errors()['lines'][0]
+            );
+        }
+    }
 
-        $this->composer->create(
-            $this->attributes(['is_two_piece' => false]),
-            [$this->line($complete->product_id), $this->line($spare->product_id)]
-        );
+    public function test_the_same_product_cannot_be_listed_twice(): void
+    {
+        $indoor  = $this->unitProduct('indoor');
+        $outdoor = $this->unitProduct('outdoor');
+
+        // Deduping the ids before the role check would let this through — both
+        // roles are present — and syncLines() would then hit the
+        // unique(aircon_model_id, product_id) index and 500. "One line per
+        // product per model" is a composition constraint, so it is rejected
+        // here, as a 422, not by the storage engine.
+        try {
+            $this->composer->create($this->attributes(), [
+                $this->line($indoor->product_id),
+                $this->line($outdoor->product_id),
+                $this->line($indoor->product_id),
+            ]);
+            $this->fail('a product listed twice must be rejected');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('lines', $e->errors());
+            $this->assertStringContainsString(
+                (string) $indoor->product_id,
+                $e->errors()['lines'][0],
+                'the message must name the offending product'
+            );
+        }
     }
 
     public function test_a_rejected_composition_leaves_no_model_behind(): void
@@ -248,6 +296,117 @@ class AirconModelComposerTest extends AirconTestCase
         $updated = $this->composer->update($model, ['model_name' => 'Renamed ' . uniqid()]);
 
         $this->assertSame($expected, $updated->units->pluck('product_id')->all());
-        $this->assertSame(auth()->id(), (int) $updated->updated_by);
+    }
+
+    public function test_update_records_the_editor_not_the_author(): void
+    {
+        $model  = $this->split();
+        $author = (int) $model->created_by;
+
+        // A second user does the edit. Asserting updated_by === auth()->id()
+        // while still acting as the author proves nothing — it is already true
+        // from create() and would pass with the assignment deleted.
+        $editor = $this->actingAsAdmin();
+        $this->assertNotSame($author, $editor->user_id, 'the editor must be a different user');
+
+        $updated = $this->composer->update($model, ['variant' => 'Non-Inverter']);
+
+        $this->assertSame($editor->user_id, (int) $updated->updated_by);
+        $this->assertSame($author, (int) $updated->created_by, 'an edit must not rewrite authorship');
+    }
+
+    public function test_a_lines_only_edit_still_advances_updated_at(): void
+    {
+        $model = $this->split();
+
+        // Backdate without touching the model, so "advanced" is observable
+        // regardless of the column's one-second resolution.
+        AirconModel::whereKey($model->aircon_model_id)->update(['updated_at' => now()->subDay()]);
+
+        $before = $model->fresh()->updated_at;
+
+        // No attributes at all, and the same user who created it — so nothing
+        // on aircon_models is dirty and save() would otherwise fire no UPDATE,
+        // leaving "last modified" reporting the create time for a real edit.
+        $updated = $this->composer->update($model, [], [
+            $this->line($this->unitProduct('indoor')->product_id),
+            $this->line($this->unitProduct('outdoor')->product_id),
+        ]);
+
+        $this->assertTrue(
+            $updated->updated_at->greaterThan($before),
+            'replacing the lines is a modification; updated_at must say so'
+        );
+    }
+
+    public function test_update_locks_the_model_row_before_reading_its_lines(): void
+    {
+        $model = $this->split();
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $this->composer->update($model, ['variant' => 'Non-Inverter']);
+
+        $sql = array_map(fn (array $q) => strtolower($q['query']), DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $lockAt = $this->firstMatch($sql, fn (string $q) => str_contains($q, 'aircon_models')
+            && str_contains($q, 'for update'));
+        $linesAt = $this->firstMatch($sql, fn (string $q) => str_contains($q, 'select')
+            && str_contains($q, 'aircon_model_units'));
+
+        $this->assertNotNull($lockAt, 'update() must take a row lock — without it two updates interleave');
+        $this->assertNotNull($linesAt, 'the effective line set must be read from the database');
+        $this->assertLessThan(
+            $linesAt,
+            $lockAt,
+            'the lock must precede the read it protects, or the read is still unserialised'
+        );
+    }
+
+    /** @param list<string> $haystack */
+    private function firstMatch(array $haystack, callable $matches): ?int
+    {
+        foreach ($haystack as $i => $entry) {
+            if ($matches($entry)) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    // ----------------------------------------------------------- authorship
+
+    public function test_create_ignores_a_caller_supplied_author(): void
+    {
+        $model = $this->composer->create(
+            $this->attributes(['created_by' => 99999, 'updated_by' => 99999]),
+            [
+                $this->line($this->unitProduct('indoor')->product_id),
+                $this->line($this->unitProduct('outdoor')->product_id),
+            ]
+        );
+
+        $this->assertSame(auth()->id(), (int) $model->created_by, 'authorship must not be spoofable');
+        $this->assertSame(auth()->id(), (int) $model->updated_by);
+    }
+
+    public function test_update_ignores_a_caller_supplied_author(): void
+    {
+        $model  = $this->split();
+        $author = (int) $model->created_by;
+
+        $editor = $this->actingAsAdmin();
+
+        $updated = $this->composer->update($model, [
+            'variant'    => 'Non-Inverter',
+            'created_by' => 99999,
+            'updated_by' => 99999,
+        ]);
+
+        $this->assertSame($author, (int) $updated->created_by);
+        $this->assertSame($editor->user_id, (int) $updated->updated_by);
     }
 }
