@@ -75,7 +75,7 @@ Two alternatives were rejected:
 | Column | Type | Notes |
 | --- | --- | --- |
 | `ac_type_id` | bigint unsigned PK | |
-| `ac_type_name` | varchar(60), unique | Split Type, Window Type, Floor Standing, Cassette, Ducted, Portable |
+| `ac_type_name` | varchar(60), unique | Split Type, Window Type, Floor Standing, Cassette, Ducted, Portable, Ceiling Mounted |
 | `is_two_piece` | tinyint(1), default 1 | Default piece count for this type |
 | `created_at` / `updated_at` / `deleted_at` | timestamps | Soft deletes, matching the other lookups |
 
@@ -240,9 +240,27 @@ each is a **single row representing a complete aircon** with a single price;
 
 **Chosen migration path:** backfill and provide a conversion tool.
 
-1. A data migration sets `ac_type_id` on existing products by matching
-   `products.description` against `split-type`, `window-type`, and the other
-   seeded type names, and sets `unit_role = 'complete'` on all 208.
+1. A data migration sets `ac_type_id` on existing products, and sets
+   `unit_role = 'complete'` on all 208.
+
+   **It reads `appliance_details.variant` first and `products.description`
+   only as a fallback.** A description-only backfill was built and rejected in
+   review: it mistyped 51 of the 140 aircons. Nearly every non-window unit's
+   description says *"split-type air conditioner"* — because a ceiling
+   cassette and a floor-stander genuinely are split systems — so the
+   description cannot distinguish them. The form factor lives in `variant`
+   (`Ceiling Cassette Inverter`, `Floor Standing Non-Inverter`,
+   `Ceiling Mounted Inverter`), which is therefore the more specific and
+   higher-priority source.
+
+   This mattered because typing 51 units confidently wrong is the exact
+   failure the "leave it NULL" rule exists to prevent — an empty field invites
+   correction, a wrong one never gets re-checked.
+
+   Resulting distribution across the 208 rows, verified by running the
+   backfill against a copy of the live catalogue: Split Type 66, Window Type
+   23, Floor Standing 23, Cassette 15, Ceiling Mounted 13, and 68 left NULL
+   (the televisions, refrigerators, washing machines and water dispensers).
 2. New two-piece aircons are registered the new way, as two product rows and a
    model.
 3. Staff convert a legacy row when they next receive that model and have the
