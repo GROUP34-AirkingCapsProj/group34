@@ -1376,6 +1376,29 @@ export const acTypesAPI = {
 };
 
 /* ======================
+   AIRCON MODELS API
+====================== */
+export const airconModelsAPI = {
+  /** `active_only` defaults to true server-side; pass active_only:false to widen. */
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/aircon-models?${query}` : '/aircon-models');
+  },
+  /** Soft-deleted models only. Gated on read, not archive — an auditor may look. */
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/aircon-models/archived?${query}` : '/aircon-models/archived');
+  },
+  getById: async (id) => apiRequest(`/aircon-models/${id}`),
+  create: async (data) =>
+    apiRequest('/aircon-models', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/aircon-models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/aircon-models/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/aircon-models/${id}/restore`, { method: 'POST' }),
+};
+
+/* ======================
    STATUS LOOKUP API
 ====================== */
 export const statusAPI = {

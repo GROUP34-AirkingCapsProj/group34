@@ -22,6 +22,7 @@ const LookupManagement = lazy(() => import('./admin/pages/LookupManagement'));
 const ItemManagement = lazy(() => import('./admin/pages/ItemManagement'));
 const SupplierNetwork = lazy(() => import('./admin/pages/SupplierNetwork'));
 const SetManagementPage = lazy(() => import('./admin/pages/SetManagementPage'));
+const AirconModelsPage = lazy(() => import('./admin/pages/AirconModelsPage'));
 const IncidentReportsPage = lazy(() => import('./admin/pages/IncidentReportsPage'));
 const IncidentItemsRegisterPage = lazy(() => import('./admin/pages/IncidentItemsRegisterPage'));
 const IncidentInspectionPage = lazy(() => import('./admin/pages/IncidentInspectionPage'));
@@ -127,6 +128,7 @@ function App() {
           <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
           <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
           <Route path="/admin/sets" element={<RoleRoute><SetManagementPage /></RoleRoute>} />
+          <Route path="/admin/aircon-models" element={<RoleRoute><AirconModelsPage /></RoleRoute>} />
           <Route path="/admin/incidents" element={<RoleRoute><IncidentReportsPage /></RoleRoute>} />
           <Route path="/admin/incident-items" element={<RoleRoute><IncidentItemsRegisterPage /></RoleRoute>} />
           {/* Held Stock became a read-only register when the inspection took
