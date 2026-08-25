@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\BrandLookupController;
 use App\Http\Controllers\Api\CapacityLookupController;
 use App\Http\Controllers\Api\CategoryLookupController;
 use App\Http\Controllers\Api\VariantLookupController;
+use App\Http\Controllers\Api\AcTypeLookupController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
@@ -390,6 +391,31 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         ->post('/variants/{id}/restore', [VariantLookupController::class, 'restore']);
     Route::middleware('permission:lookup_management,archive')
         ->delete('/variants/{id}/force', [VariantLookupController::class, 'forceDestroy']);
+
+    /* ---------------------------------------------------------------
+     | AC Types (Item Lookups page - Appliance tab)
+     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     | Reads are deliberately ungated — see the comment above the
+     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
+     | mismatch). ProductRegisterModal reads this dropdown, so gating it
+     | would empty the picker for warehouse and branch users.
+     |
+     | No /merge route: merging folds two spellings of a string-valued
+     | lookup together, and ac_type_id is a foreign key.
+     * ------------------------------------------------------------- */
+    Route::get('/ac-types/archived', [AcTypeLookupController::class, 'archived']);
+    Route::get('/ac-types', [AcTypeLookupController::class, 'index']);
+    Route::get('/ac-types/{id}', [AcTypeLookupController::class, 'show']);
+    Route::middleware('permission:lookup_management,create')
+        ->post('/ac-types', [AcTypeLookupController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/ac-types/{id}', [AcTypeLookupController::class, 'update']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/ac-types/{id}', [AcTypeLookupController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/ac-types/{id}/restore', [AcTypeLookupController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/ac-types/{id}/force', [AcTypeLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
