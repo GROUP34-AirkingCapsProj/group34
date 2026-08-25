@@ -26,7 +26,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::with(['category', 'status'])
-            ->with(['applianceDetail' => fn($q) => $q->with(['brand'])])
+            ->with(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
             ->with(['consumableDetail' => fn($q) => $q->with('unit')])
             ->withSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -74,7 +74,7 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         $product->load(['category', 'status'])
-                ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
+                ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
                 ->load(['consumableDetail' => fn($q) => $q->with('unit')])
                 ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -137,6 +137,8 @@ class ProductController extends Controller
                 'description'        => 'nullable|string',
                 'barcode'            => 'nullable|string|max:100',
                 'category_id'        => 'nullable|exists:category_lookup,category_id',
+                'ac_type_id'         => 'nullable|exists:ac_type_lookup,ac_type_id',
+                'unit_role'          => 'nullable|in:indoor,outdoor,complete',
                 'unit_price'         => 'nullable|numeric|min:0',
                 'cost_price'         => 'nullable|numeric|min:0',
                 'recommended_stocks' => 'nullable|integer|min:0',
@@ -165,6 +167,8 @@ class ProductController extends Controller
                         'capacity_rating'        => $request->input('capacity_rating') ?: null,
                         'variant'                => $request->input('variant') ?: null,
                         'color'                  => $request->input('color') ?: null,
+                        'ac_type_id'             => $request->input('ac_type_id') ?: null,
+                        'unit_role'              => $request->input('unit_role') ?: null,
                         'warranty_value'         => $wValue,
                         'warranty_unit'          => $wUnit,
                         'warranty_period_months' => $wMonths,
@@ -190,7 +194,7 @@ class ProductController extends Controller
             });
 
             $product->load(['category', 'status'])
-                    ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
+                    ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
                     ->load(['consumableDetail' => fn($q) => $q->with('unit')]);
 
             $product->setAttribute('quantity', 0);
@@ -219,6 +223,8 @@ class ProductController extends Controller
                 'description'        => 'nullable|string',
                 'barcode'            => 'nullable|string|max:100',
                 'category_id'        => 'nullable|exists:category_lookup,category_id',
+                'ac_type_id'         => 'nullable|exists:ac_type_lookup,ac_type_id',
+                'unit_role'          => 'nullable|in:indoor,outdoor,complete',
                 'unit_price'         => 'nullable|numeric|min:0',
                 'cost_price'         => 'nullable|numeric|min:0',
                 'recommended_stocks' => 'nullable|integer|min:0',
@@ -246,6 +252,8 @@ class ProductController extends Controller
                             'capacity_rating'        => $request->input('capacity_rating') ?: null,
                             'variant'                => $request->input('variant') ?: null,
                             'color'                  => $request->input('color') ?: null,
+                            'ac_type_id'             => $request->input('ac_type_id') ?: null,
+                            'unit_role'              => $request->input('unit_role') ?: null,
                             'warranty_value'         => $wValue,
                             'warranty_unit'          => $wUnit,
                             'warranty_period_months' => $wMonths,
@@ -273,7 +281,7 @@ class ProductController extends Controller
 
             $fresh = $product->fresh();
             $fresh->load(['category', 'status'])
-                  ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
+                  ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
                   ->load(['consumableDetail' => fn($q) => $q->with('unit')])
                   ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
@@ -300,7 +308,7 @@ class ProductController extends Controller
     public function archived(Request $request)
     {
         $query = Product::onlyTrashed()
-            ->with(['category', 'applianceDetail.brand', 'consumableDetail.unit']);
+            ->with(['category', 'applianceDetail.brand', 'applianceDetail.acType', 'consumableDetail.unit']);
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -346,6 +354,7 @@ class ProductController extends Controller
             'category',
             'status',
             'applianceDetail.brand',
+            'applianceDetail.acType',
             'consumableDetail.unit',
         ])->orderBy('product_id')->get();
 
@@ -421,6 +430,9 @@ class ProductController extends Controller
             $p->setAttribute('capacity_rating',        $ad->capacity_rating);
             $p->setAttribute('variant',                $ad->variant);
             $p->setAttribute('color',                  $ad->color);
+            $p->setAttribute('ac_type_id',             $ad->ac_type_id);
+            $p->setAttribute('unit_role',              $ad->unit_role);
+            $p->setAttribute('ac_type_name',           $ad->acType?->ac_type_name);
             $p->setAttribute('warranty_period_months', $ad->warranty_period_months);
             $p->setAttribute('warranty_value',         $ad->warranty_value);
             $p->setAttribute('warranty_unit',          $ad->warranty_unit ?? 'month');
