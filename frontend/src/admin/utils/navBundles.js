@@ -14,6 +14,7 @@ export const NAV_BUNDLES = [
   { name: 'Item Master',           routePath: '/admin/items',            required: ['item_master_management.read'] },
   { name: 'Item Lookups',          routePath: '/admin/categories',       required: ['lookup_management.read'] },
   { name: 'Set Management',        routePath: '/admin/sets',             required: ['product_set_management.read'] },
+  { name: 'Aircon Models',         routePath: '/admin/aircon-models',    required: ['aircon_model_management.read'] },
   { name: 'Inventory Monitoring',  routePath: '/admin/inventory',        required: ['inventory_monitoring.read'] },
   { name: 'Transfer Requests',     routePath: '/admin/transfer-requests',required: ['inventory_transfers.read'] },
   { name: 'Stock Transfers',       routePath: '/admin/transfers',        required: ['stock_transfers.read'] },

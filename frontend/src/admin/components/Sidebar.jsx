@@ -74,6 +74,7 @@ const adminMenuSections = [
       { name: 'Item Master', path: '/admin/items', icon: 'items' },
       { name: 'Item Lookups', path: '/admin/categories', icon: 'category' },
       { name: 'Set Management', path: '/admin/sets', icon: 'sets' },
+      { name: 'Aircon Models', path: '/admin/aircon-models', icon: 'sets' },
     ],
   },
   {
