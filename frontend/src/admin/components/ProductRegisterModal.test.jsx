@@ -187,7 +187,7 @@ test('submitting sends both ac_type_id and unit_role', async () => {
   await waitFor(() => expect(pendingProductsAPI.store).toHaveBeenCalled());
   const payload = pendingProductsAPI.store.mock.calls[0][0];
   expect(payload.appliance).toEqual(
-    expect.objectContaining({ ac_type_id: '1', unit_role: 'outdoor' })
+    expect.objectContaining({ ac_type_id: 1, unit_role: 'outdoor' })
   );
 });
 

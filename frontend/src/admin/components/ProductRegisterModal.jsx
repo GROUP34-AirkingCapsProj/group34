@@ -299,7 +299,7 @@ export default function ProductRegisterModal({
             // rebuilds appliance_details with updateOrCreate on a full payload,
             // so an omitted field is nulled out -- sending one without the other
             // would silently wipe the other.
-            ac_type_id: app.ac_type_id || null,
+            ac_type_id: app.ac_type_id ? Number(app.ac_type_id) : null,
             unit_role: app.unit_role || null,
             category_id: Number(app.category_id),
             brand_id: Number(app.brand_id),

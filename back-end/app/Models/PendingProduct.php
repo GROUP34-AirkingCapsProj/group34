@@ -37,7 +37,7 @@ class PendingProduct extends Model
         'created_by',
         'approved_by',
         'approved_at',
-        'created_product_id',
+        'product_id',
     ];
 
     protected $casts = [
@@ -76,7 +76,7 @@ class PendingProduct extends Model
 
     public function createdProduct(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'created_product_id', 'product_id');
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
     }
 
     /**
