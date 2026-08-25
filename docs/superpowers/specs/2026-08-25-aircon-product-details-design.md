@@ -221,6 +221,15 @@ invalid — the header renders "2 complete, 1 indoor unpaired" with an imbalance
 marker. A stored parent quantity would have to either misreport the delivery or
 block it.
 
+**`unpaired` reports every stranded role, not just the binding one.** Take a
+3-indoor-to-1-outdoor multi-split with 5 indoor and 2 outdoor on the document.
+That makes one complete aircon, consuming 3 indoor and 1 outdoor — leaving
+**2 indoor and 1 outdoor** stranded, and both are reported. The temptation is
+to name only the side that limited the count, but the leftover outdoor carton
+is as unaccounted for as the indoor ones; a receiving clerk shown only half the
+imbalance will reconcile the wrong thing. The renderer may choose to display
+one side; the service must not lose the other.
+
 Mirroring the `issuance_sets` shape exactly — a parent table per document type
 with a stored `set_quantity` and `set_name_snapshot` — was considered and
 rejected for that reason, despite being more consistent with what exists. Its
