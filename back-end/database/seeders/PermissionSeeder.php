@@ -78,6 +78,15 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin'],
                 'archive' => ['admin'],
             ],
+            // Aircon model catalogue (/admin/aircon-models) — admin maintains;
+            // everyone who builds an order needs to read it so the picker can
+            // list models.
+            'aircon_model_management' => [
+                'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                'create'  => ['admin'],
+                'update'  => ['admin'],
+                'archive' => ['admin'],
+            ],
             // Incident Reports (/admin/incidents) — pickers file, IA and admin resolve.
             // Incident Reports (/admin/incidents) — pickers and anyone who spots a
             // problem file; IA and admin resolve. `auditor` stays read-only: filing
