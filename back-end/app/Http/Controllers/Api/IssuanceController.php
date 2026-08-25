@@ -15,11 +15,16 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
+use App\Services\AirconLineGrouper;
 use App\Services\InventoryBatchService;
 
 class IssuanceController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private readonly AirconLineGrouper $airconLineGrouper)
+    {
+    }
 
     public function index(Request $request)
     {
@@ -159,10 +164,56 @@ class IssuanceController extends Controller
     {
         try {
             $issuance = Issuance::with(['location', 'issuedToUser', 'issuedByUser', 'approvedBy', 'status', 'details.product'])->findOrFail($id);
-            return $this->success($issuance, 'Issuance retrieved successfully');
+
+            // array_merge over toArray() rather than setting an attribute on
+            // the model: response()->json() on a model serialises through the
+            // same toArray(), so every key the frontend already reads comes out
+            // byte for byte, and aircon_groups is a pure sibling addition.
+            return $this->success(
+                array_merge($issuance->toArray(), [
+                    'aircon_groups' => $this->airconGroups($issuance->details),
+                ]),
+                'Issuance retrieved successfully'
+            );
         } catch (\Exception $e) {
             return $this->error('Issuance not found', 404);
         }
+    }
+
+    /**
+     * Aircon groups for this issuance's lines, or [] when no line is tagged.
+     *
+     * The early return is the common path, not an optimisation for a rare one:
+     * every issuance written before aircon_model_id existed is untagged, and
+     * those must not start paying for the grouper's three queries. The grouper
+     * is called ONCE with every line — calling it per line would make a detail
+     * view N+1 in the document's line count.
+     *
+     * Extra keys in a line array pass through the grouper untouched into the
+     * group's `lines`, so issuance_detail_id rides along and the UI can match a
+     * group back to the rows it already rendered.
+     *
+     * @param  \Illuminate\Support\Collection<int,IssuanceDetail>  $details
+     * @return array<int,array<string,mixed>>
+     */
+    private function airconGroups($details): array
+    {
+        $lines  = [];
+        $tagged = false;
+
+        foreach ($details as $detail) {
+            $modelId = $detail->aircon_model_id === null ? null : (int) $detail->aircon_model_id;
+            $tagged  = $tagged || $modelId !== null;
+
+            $lines[] = [
+                'issuance_detail_id' => (int) $detail->issuance_detail_id,
+                'product_id'         => (int) $detail->product_id,
+                'quantity'           => (int) $detail->quantity_issued,
+                'aircon_model_id'    => $modelId,
+            ];
+        }
+
+        return $tagged ? $this->airconLineGrouper->group($lines) : [];
     }
 
     /**
