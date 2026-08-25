@@ -10,6 +10,7 @@ import {
   batchAPI,
   capacitiesAPI,
   variantsAPI,
+  acTypesAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
@@ -59,6 +60,8 @@ const emptyAppliance = (barcode) => ({
   model_code: '',
   capacity_rating: '',
   variant: '',
+  ac_type_id: '',
+  unit_role: '',
   category_id: '',
   brand_id: '',
   unit_id: '',
@@ -98,6 +101,7 @@ export default function ProductRegisterModal({
   const [locations, setLocations] = useState([]);
   const [capacities, setCapacities] = useState([]);
   const [variants, setVariants] = useState([]);
+  const [acTypes, setAcTypes] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [con, setCon] = useState(() => emptyConsumable(initialBarcode));
   const [app, setApp] = useState(() => emptyAppliance(initialBarcode));
@@ -107,27 +111,30 @@ export default function ProductRegisterModal({
       setLocations(Array.isArray(r?.data) ? r.data : []);
     }).catch(() => setLocations([]));
 
-    batchAPI.get({ include: ['categories', 'brands', 'units', 'capacities', 'variants'] }).then((res) => {
+    batchAPI.get({ include: ['categories', 'brands', 'units', 'capacities', 'variants', 'acTypes'] }).then((res) => {
       const d = res?.data || {};
       setCategories(Array.isArray(d.categories?.data) ? d.categories.data : []);
       setBrands(Array.isArray(d.brands?.data) ? d.brands.data : []);
       setUnits(Array.isArray(d.units?.data) ? d.units.data : []);
       setCapacities(Array.isArray(d.capacities?.data) ? d.capacities.data : []);
       setVariants(Array.isArray(d.variants?.data) ? d.variants.data : []);
+      setAcTypes(Array.isArray(d.acTypes?.data) ? d.acTypes.data : []);
     }).catch(async () => {
       try {
-        const [c, b, u, cap, v] = await Promise.all([
+        const [c, b, u, cap, v, ac] = await Promise.all([
           categoriesAPI.getAll(),
           brandsAPI.getAll(),
           unitsAPI.getAll(),
           capacitiesAPI.getAll(),
           variantsAPI.getAll(),
+          acTypesAPI.getAll(),
         ]);
         setCategories(Array.isArray(c?.data) ? c.data : []);
         setBrands(Array.isArray(b?.data) ? b.data : []);
         setUnits(Array.isArray(u?.data) ? u.data : []);
         setCapacities(Array.isArray(cap?.data) ? cap.data : []);
         setVariants(Array.isArray(v?.data) ? v.data : []);
+        setAcTypes(Array.isArray(ac?.data) ? ac.data : []);
       } catch {
         /* ignore */
       }
@@ -216,6 +223,23 @@ export default function ProductRegisterModal({
   const hasFilteredCapacities = filteredCapacities.some((c) => !c.__archived);
   const hasFilteredVariants = filteredVariants.some((v) => !v.__archived);
 
+  /**
+   * Changing the AC type re-applies that type's default unit role and
+   * DISCARDS any manual choice made before the change. Preserving the manual
+   * choice would silently leave a product marked 'complete' under a type that
+   * means two-piece -- the exact wrong state. The user can re-pick the side
+   * immediately; the field stays editable.
+   */
+  const handleAcTypeChange = (nextId) => {
+    const chosen = acTypes.find((t) => String(t.ac_type_id) === String(nextId));
+
+    setApp((a) => ({
+      ...a,
+      ac_type_id: nextId,
+      unit_role: chosen && !chosen.is_two_piece ? 'complete' : '',
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (editingItem) {
@@ -271,6 +295,12 @@ export default function ProductRegisterModal({
             model_code: app.model_code.trim() || null,
             capacity_rating: app.capacity_rating.trim() || null,
             variant: app.variant.trim() || null,
+            // Always sent together, even when empty: ProductController::update()
+            // rebuilds appliance_details with updateOrCreate on a full payload,
+            // so an omitted field is nulled out -- sending one without the other
+            // would silently wipe the other.
+            ac_type_id: app.ac_type_id || null,
+            unit_role: app.unit_role || null,
             category_id: Number(app.category_id),
             brand_id: Number(app.brand_id),
             unit_id: Number(app.unit_id),
@@ -551,6 +581,37 @@ export default function ProductRegisterModal({
               {!hasFilteredVariants && (
                 <p className="im-barcode-hint">No variants defined yet. Add them on the Item Lookups page.</p>
               )}
+            </div>
+            <div className="im-form-row">
+              <div className="im-form-field">
+                <label htmlFor="pr-ac-type">AC TYPE</label>
+                <select
+                  id="pr-ac-type"
+                  value={app.ac_type_id}
+                  onChange={(e) => handleAcTypeChange(e.target.value)}
+                >
+                  <option value="">Select AC type (optional)</option>
+                  {acTypes.map((t) => (
+                    <option key={t.ac_type_id} value={t.ac_type_id}>{t.ac_type_name}</option>
+                  ))}
+                </select>
+                {acTypes.length === 0 && (
+                  <p className="im-barcode-hint">No AC types defined yet. Add them on the Item Lookups page.</p>
+                )}
+              </div>
+              <div className="im-form-field">
+                <label htmlFor="pr-unit-role">UNIT ROLE</label>
+                <select
+                  id="pr-unit-role"
+                  value={app.unit_role}
+                  onChange={(e) => setApp((a) => ({ ...a, unit_role: e.target.value }))}
+                >
+                  <option value="">Select unit role</option>
+                  <option value="indoor">Indoor unit</option>
+                  <option value="outdoor">Outdoor unit</option>
+                  <option value="complete">Complete unit</option>
+                </select>
+              </div>
             </div>
             <div className="im-form-row">
               <div className="im-form-field">
