@@ -240,12 +240,26 @@ some are two — with a path off the old shape.
 Automatically splitting all 117 was rejected: it would have to invent a price
 split and two model codes that do not exist in the data.
 
-**Verify before implementing:** the dump read during design
-(`airkingv5.2.sql`) contains product and lookup seed data but **no rows** in
-`item_serial`, `inventory`, `issuance_details`, or `purchase_order_details`.
-The live database may hold transaction history against those 117 products.
-Confirm this before running the backfill; it does not change the chosen path,
-but it determines how much care the backfill needs.
+**Verified against the live database, 2026-08-25.** The dump read during
+design (`airkingv5.2.sql`) contained product and lookup seed data but no rows
+in `item_serial`, `inventory`, `issuance_details`, or `purchase_order_details`.
+The live `airkingv5` database does hold history:
+
+| Table | Rows total | Rows against a split-type product |
+| --- | --- | --- |
+| `item_serial` | 12 | 3 |
+| `inventory` | 5 | 1 |
+| `issuance_details` | 7 | 1 |
+| `purchase_order_details` | 6 | 2 |
+
+The product counts match the dump exactly: 117 split-type, 23 window-type,
+208 appliance rows.
+
+This settles the migration choice rather than merely informing it. Legacy
+split-type products **are** referenced by serials, stock, an issuance, and
+purchase order lines, so the rejected option 2 — automatically splitting all
+117 into new product rows — would have orphaned live records. The chosen path
+preserves each original `product_id`, so those references stay valid.
 
 ## Testing
 
