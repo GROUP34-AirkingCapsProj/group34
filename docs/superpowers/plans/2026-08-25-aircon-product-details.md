@@ -22,6 +22,23 @@ cd back-end && php artisan test
 
 The test database is `airkingV5_test` (see `back-end/phpunit.xml`). It must be migrated and seeded — `LookupTestCase::actingAsRole()` asserts the roles exist and fails with "role missing - seed the test database" if not.
 
+**Never run `php artisan migrate --env=testing`.** There is no `.env.testing`
+file in this project. Laravel falls back to `.env`, whose `DB_DATABASE` is
+`airkingV5` — the **live** database with real serials, stock, issuances and
+purchase orders in it. `--env=testing` would migrate production.
+
+`phpunit.xml` points the *test process* at `airkingV5_test` through its own
+`<env>` block, which is why `php artisan test` targets the right database while
+a bare `php artisan migrate` does not. To migrate or seed the test database,
+override the variable on the command itself:
+
+```bash
+DB_DATABASE=airkingV5_test php artisan migrate
+```
+
+Every migrate and seed step in this plan is already written that way. Do not
+"simplify" one back to `--env=testing`.
+
 **Verify the live data before Task 5.** The spec flags this: the dump read during design had the 208 products but no rows in `item_serial`, `inventory`, `issuance_details`, or `purchase_order_details`. Task 5 backfills 208 product rows. Run this first and record the answer in the commit message:
 
 ```bash
@@ -218,7 +235,7 @@ class AcTypeLookup extends Model
 - [ ] **Step 5: Migrate the test database and run the test**
 
 ```bash
-cd back-end && php artisan migrate --env=testing && php artisan test --filter=AcTypeLookupTest
+cd back-end && DB_DATABASE=airkingV5_test php artisan migrate && php artisan test --filter=AcTypeLookupTest
 ```
 
 Expected: PASS, 3 tests.
@@ -511,7 +528,7 @@ Then add the relation, after the existing `brand()` method at the end of the cla
 - [ ] **Step 3: Migrate and run the full AC type test**
 
 ```bash
-cd back-end && php artisan migrate --env=testing && php artisan test --filter=AcTypeLookupTest
+cd back-end && DB_DATABASE=airkingV5_test php artisan migrate && php artisan test --filter=AcTypeLookupTest
 ```
 
 Expected: PASS, 7 tests — the four endpoint tests from Task 2 now go green.
@@ -948,7 +965,7 @@ return new class extends Migration
 - [ ] **Step 5: Run the test to verify it passes**
 
 ```bash
-cd back-end && php artisan migrate --env=testing && php artisan test --filter=AcTypeBackfillTest
+cd back-end && DB_DATABASE=airkingV5_test php artisan migrate && php artisan test --filter=AcTypeBackfillTest
 ```
 
 Expected: PASS, 7 tests.
@@ -1714,7 +1731,7 @@ class AirconModelUnit extends Model
 - [ ] **Step 6: Run the test to verify it passes**
 
 ```bash
-cd back-end && php artisan migrate --env=testing && php artisan test --filter=AirconModelSchemaTest
+cd back-end && DB_DATABASE=airkingV5_test php artisan migrate && php artisan test --filter=AirconModelSchemaTest
 ```
 
 Expected: PASS, 4 tests.
@@ -2355,7 +2372,7 @@ In `back-end/database/seeders/NavBundleSeeder.php`, immediately after the `Set M
 - [ ] **Step 7: Re-seed and run the tests**
 
 ```bash
-cd back-end && php artisan db:seed --class=PermissionSeeder --env=testing && php artisan db:seed --class=NavBundleSeeder --env=testing && php artisan test --filter=AirconModelCrudTest
+cd back-end && DB_DATABASE=airkingV5_test php artisan db:seed --class=PermissionSeeder && DB_DATABASE=airkingV5_test php artisan db:seed --class=NavBundleSeeder && php artisan test --filter=AirconModelCrudTest
 ```
 
 Expected: PASS, 5 tests.
@@ -2569,7 +2586,7 @@ Add `'aircon_model_id',` to the `$fillable` array in each of:
 - [ ] **Step 3: Migrate and confirm nothing regressed**
 
 ```bash
-cd back-end && php artisan migrate --env=testing && php artisan test
+cd back-end && DB_DATABASE=airkingV5_test php artisan migrate && php artisan test
 ```
 
 Expected: PASS. A nullable column with no writer cannot change behaviour; if anything fails here it is a pre-existing problem surfacing, not this change.
