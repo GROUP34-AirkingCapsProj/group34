@@ -10,6 +10,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use App\Services\AirconLineGrouper;
 use App\Services\BudgetService;
 use App\Services\InventoryBatchService;
 use App\Support\RealtimeBroadcaster;
@@ -22,6 +23,10 @@ use Illuminate\Validation\ValidationException;
 class ReceivingController extends Controller
 {
     use ApiResponse, \App\Traits\NormalizesBarcode;
+
+    public function __construct(private readonly AirconLineGrouper $airconLineGrouper)
+    {
+    }
 
     public function index(Request $request)
     {
@@ -281,10 +286,56 @@ class ReceivingController extends Controller
     {
         try {
             $receiving = Receiving::with(['purchaseOrder.supplier', 'location', 'receivedBy', 'details.product'])->findOrFail($id);
-            return $this->success($receiving, 'Receiving retrieved successfully');
+
+            // array_merge over toArray() rather than setting an attribute on
+            // the model: response()->json() on a model serialises through the
+            // same toArray(), so every key the frontend already reads comes out
+            // byte for byte, and aircon_groups is a pure sibling addition.
+            return $this->success(
+                array_merge($receiving->toArray(), [
+                    'aircon_groups' => $this->airconGroups($receiving->details),
+                ]),
+                'Receiving retrieved successfully'
+            );
         } catch (\Exception $e) {
             return $this->error('Receiving not found', 404);
         }
+    }
+
+    /**
+     * Aircon groups for this receipt's lines, or [] when no line is tagged.
+     *
+     * The early return is the common path, not an optimisation for a rare one:
+     * every receipt written before aircon_model_id existed is untagged, and
+     * those must not start paying for the grouper's three queries. The grouper
+     * is called ONCE with every line — calling it per line would make a detail
+     * view N+1 in the document's line count.
+     *
+     * Extra keys in a line array pass through the grouper untouched into the
+     * group's `lines`, so receiving_detail_id rides along and the UI can match
+     * a group back to the rows it already rendered.
+     *
+     * @param  \Illuminate\Support\Collection<int,ReceivingDetail>  $details
+     * @return array<int,array<string,mixed>>
+     */
+    private function airconGroups($details): array
+    {
+        $lines  = [];
+        $tagged = false;
+
+        foreach ($details as $detail) {
+            $modelId = $detail->aircon_model_id === null ? null : (int) $detail->aircon_model_id;
+            $tagged  = $tagged || $modelId !== null;
+
+            $lines[] = [
+                'receiving_detail_id' => (int) $detail->receiving_detail_id,
+                'product_id'          => (int) $detail->product_id,
+                'quantity'            => (int) $detail->quantity_amount,
+                'aircon_model_id'     => $modelId,
+            ];
+        }
+
+        return $tagged ? $this->airconLineGrouper->group($lines) : [];
     }
 
     public function update(Request $request, $id)

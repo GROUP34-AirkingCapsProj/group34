@@ -7,6 +7,7 @@ use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
+use App\Services\AirconLineGrouper;
 use App\Services\BudgetService;
 use App\Services\History\RecordHistoryService;
 use Illuminate\Http\Request;
@@ -33,6 +34,10 @@ class PurchaseOrderController extends Controller
         'details.approvedBy',
         'details.location',
     ];
+
+    public function __construct(private readonly AirconLineGrouper $airconLineGrouper)
+    {
+    }
 
     public function index(Request $request)
     {
@@ -192,12 +197,60 @@ class PurchaseOrderController extends Controller
                 array_merge(self::WITH_RELATIONS, ['receivings', 'purchaseReturns'])
             )->findOrFail($id);
 
+            // Built from the Eloquent lines, BEFORE transform() replaces them
+            // with flat arrays.
+            $airconGroups = $this->airconGroups($po->details);
+
             $po->details->transform(fn ($d) => $this->transformPoDetail($d));
 
-            return $this->success($po, 'Purchase order retrieved successfully');
+            // array_merge over toArray() rather than setting an attribute on
+            // the model: the existing payload is reproduced byte for byte
+            // (response()->json() on a model calls the same toArray()), and
+            // nothing is bolted onto an instance that could later be saved.
+            return $this->success(
+                array_merge($po->toArray(), ['aircon_groups' => $airconGroups]),
+                'Purchase order retrieved successfully'
+            );
         } catch (\Exception $e) {
             return $this->error('Purchase order not found', 404);
         }
+    }
+
+    /**
+     * Aircon groups for this purchase order's lines, or [] when no line is
+     * tagged.
+     *
+     * The early return is the common path, not an optimisation for a rare one:
+     * every purchase order written before aircon_model_id existed is untagged,
+     * and those must not start paying for the grouper's three queries. The
+     * grouper is called ONCE with every line — calling it per line would make
+     * a detail view N+1 in the document's line count.
+     *
+     * Extra keys in a line array pass through the grouper untouched into the
+     * group's `lines`, so po_detail_id rides along and the UI can match a group
+     * back to the rows it already rendered.
+     *
+     * @param  \Illuminate\Support\Collection<int,PurchaseOrderDetail>  $details
+     * @return array<int,array<string,mixed>>
+     */
+    private function airconGroups($details): array
+    {
+        $lines  = [];
+        $tagged = false;
+
+        foreach ($details as $detail) {
+            $modelId = $detail->aircon_model_id === null ? null : (int) $detail->aircon_model_id;
+            $tagged  = $tagged || $modelId !== null;
+
+            $lines[] = [
+                'po_detail_id'    => (int) $detail->po_detail_id,
+                'product_id'      => (int) $detail->product_id,
+                'quantity'        => (int) $detail->quantity_ordered,
+                'aircon_model_id' => $modelId,
+            ];
+        }
+
+        return $tagged ? $this->airconLineGrouper->group($lines) : [];
     }
 
     /** Curated lifecycle timeline for one PO: audit milestones + receiving sessions. */
