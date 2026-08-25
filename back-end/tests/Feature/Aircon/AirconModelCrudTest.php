@@ -96,8 +96,12 @@ class AirconModelCrudTest extends AirconTestCase
 
     /**
      * The composer rejects duplicates too, but the request rule is what keeps
-     * this a clean 422 rather than a 500 out of the unique index — and it has
-     * to stay a 422, not a 500, whichever layer catches it.
+     * this a clean 422 rather than a 500 out of the unique index.
+     *
+     * Asserted against validation's key specifically, not "any key starting
+     * lines": `distinct` was a mandated constraint, and a looser assertion
+     * stays green if someone deletes the rule and lets the composer catch it
+     * instead. The composer-layer case is AirconModelComposerTest's to own.
      */
     public function test_a_duplicate_product_id_in_the_lines_is_rejected(): void
     {
@@ -112,14 +116,14 @@ class AirconModelCrudTest extends AirconTestCase
             ],
         ]));
 
-        $response->assertStatus(422);
-        // Validation's `distinct` reports per-line; the composer reports on
-        // `lines`. Either is a 422 naming the lines — assert on the shape both
-        // share rather than on which layer got there first.
-        $this->assertNotEmpty(array_filter(
-            array_keys($response->json('errors')),
-            fn (string $key) => str_starts_with($key, 'lines')
-        ));
+        $response->assertStatus(422)->assertJsonValidationErrors('lines.0.product_id');
+
+        // And the message is the composer's advice, not Laravel's default
+        // "field has a duplicate value" — the builder UI shows this verbatim.
+        $this->assertStringContainsString(
+            'raise its quantity',
+            $response->json('errors')['lines.0.product_id'][0]
+        );
     }
 
     // ----------------------------------------------------------------- index
@@ -145,6 +149,46 @@ class AirconModelCrudTest extends AirconTestCase
 
         $this->postJson("/api/aircon-models/{$id}/restore")->assertStatus(200);
         $this->assertContains($id, $this->listedIds());
+    }
+
+    /**
+     * The archived view is a distinct endpoint, not a flag on index(): the
+     * SoftDeletes global scope hides trashed rows whatever `active_only` says,
+     * so without this route the archived models — and the ids restore() needs —
+     * are unreachable through the API.
+     *
+     * Also pins the route ordering. /aircon-models/archived must be registered
+     * before /aircon-models/{airconModel}, or the implicit binding takes
+     * "archived" as a model key and 404s.
+     */
+    public function test_archived_models_are_listed_by_their_own_endpoint(): void
+    {
+        $this->actingAsAdmin();
+
+        $id = $this->createModel();
+
+        // Live: in index, absent from archived.
+        $this->assertContains($id, $this->listedIds());
+        $this->assertNotContains($id, $this->archivedIds());
+
+        $this->deleteJson("/api/aircon-models/{$id}")->assertStatus(200);
+
+        // Archived: the reverse, and the row still carries its lines and total
+        // so the archived view renders the same card the active one does.
+        $this->assertNotContains($id, $this->listedIds());
+
+        $archived = collect($this->getJson('/api/aircon-models/archived')->json('data'))
+            ->firstWhere('aircon_model_id', $id);
+
+        $this->assertNotNull($archived, '/aircon-models/archived did not return the archived model');
+        $this->assertCount(2, $archived['units']);
+        $this->assertNotNull($archived['deleted_at']);
+        $this->assertSame(20000.0, (float) $archived['total_price']);
+
+        $this->postJson("/api/aircon-models/{$id}/restore")->assertStatus(200);
+
+        $this->assertContains($id, $this->listedIds());
+        $this->assertNotContains($id, $this->archivedIds());
     }
 
     public function test_search_matches_on_model_name(): void
@@ -240,6 +284,15 @@ class AirconModelCrudTest extends AirconTestCase
     private function listedIds(array $query = []): array
     {
         $response = $this->getJson('/api/aircon-models?' . http_build_query($query));
+        $response->assertStatus(200);
+
+        return array_map('intval', array_column($response->json('data'), 'aircon_model_id'));
+    }
+
+    /** @return list<int> */
+    private function archivedIds(array $query = []): array
+    {
+        $response = $this->getJson('/api/aircon-models/archived?' . http_build_query($query));
         $response->assertStatus(200);
 
         return array_map('intval', array_column($response->json('data'), 'aircon_model_id'));

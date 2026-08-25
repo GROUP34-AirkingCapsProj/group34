@@ -619,6 +619,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
          ->get('/aircon-models', [\App\Http\Controllers\Api\AirconModelController::class, 'index']);
     Route::middleware('permission:aircon_model_management,create')
          ->post('/aircon-models', [\App\Http\Controllers\Api\AirconModelController::class, 'store']);
+    // Must be registered before /aircon-models/{airconModel} below, or
+    // "archived" is handed to the implicit binding as a model key and 404s.
+    Route::middleware('permission:aircon_model_management,read')
+         ->get('/aircon-models/archived', [\App\Http\Controllers\Api\AirconModelController::class, 'archived']);
     Route::middleware('permission:aircon_model_management,read')
          ->get('/aircon-models/{airconModel}', [\App\Http\Controllers\Api\AirconModelController::class, 'show']);
     Route::middleware('permission:aircon_model_management,update')
