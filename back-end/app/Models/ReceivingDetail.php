@@ -21,6 +21,7 @@ class ReceivingDetail extends Model
         'receiving_id',
         'po_detail_id',
         'product_id',
+        'aircon_model_id',
         'prod_price',
         'quantity_amount',
         'condition',
@@ -45,5 +46,15 @@ class ReceivingDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    /**
+     * The aircon model this line belongs to, or null for a standalone line.
+     * Carried here rather than read through po_detail_id because a scan-driven
+     * receipt has no purchase-order line behind it and still needs to group.
+     */
+    public function airconModel(): BelongsTo
+    {
+        return $this->belongsTo(AirconModel::class, 'aircon_model_id', 'aircon_model_id');
     }
 }

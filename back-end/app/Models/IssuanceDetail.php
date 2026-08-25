@@ -15,7 +15,7 @@ class IssuanceDetail extends Model
     protected $primaryKey = 'issuance_detail_id';
 
     protected $fillable = [
-        'issuance_id', 'product_id', 'serial_number', 'receiving_id',
+        'issuance_id', 'product_id', 'aircon_model_id', 'serial_number', 'receiving_id',
         'unit_price', 'quantity_issued', 'quantity_unit',
         'quantity_in_pieces', 'unit_price_per_piece', 'subtotal',
         'quantity_returned', 'condition_issued', 'condition_returned',
@@ -54,6 +54,15 @@ class IssuanceDetail extends Model
         return $this->belongsTo(Product::class, 'product_id', 'product_id')
                     ->withTrashed()
                     ->with(['applianceDetail.brand', 'consumableDetail.unit']);
+    }
+
+    /**
+     * The aircon model this line belongs to, or null for a standalone line.
+     * Lines sharing a model on the same issuance render as one grouped header.
+     */
+    public function airconModel(): BelongsTo
+    {
+        return $this->belongsTo(AirconModel::class, 'aircon_model_id', 'aircon_model_id');
     }
 
     public function warrantyRecord(): HasOne
