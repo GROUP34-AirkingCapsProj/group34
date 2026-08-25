@@ -96,4 +96,49 @@ class BatchIncludesTest extends LookupTestCase
         $this->assertTrue($rows->isNotEmpty());
         $this->assertArrayHasKey('usage_count', $rows->first());
     }
+
+    /**
+     * The acTypes include is what the product registration form uses to get
+     * the AC type list in the same round-trip as the other lookups. Pins that
+     * it returns the seven seeded kinds, and that is_two_piece survives as a
+     * real boolean (the form defaults its piece count from it, and a "0"/"1"
+     * string would be truthy on both branches).
+     */
+    public function test_batch_ac_types_include_returns_the_seeded_kinds(): void
+    {
+        $this->actingAsAdmin();
+
+        $response = $this->getJson('/api/batch?include=acTypes')
+            ->assertStatus(200)
+            ->assertJsonPath('data.acTypes.success', true);
+
+        $rows = collect($response->json('data.acTypes.data'));
+        $names = $rows->pluck('ac_type_name');
+
+        foreach ([
+            'Split Type', 'Window Type', 'Floor Standing', 'Cassette',
+            'Ducted', 'Portable', 'Ceiling Mounted',
+        ] as $expected) {
+            $this->assertTrue($names->contains($expected), "Missing AC type: {$expected}");
+        }
+
+        $this->assertArrayHasKey('usage_count', $rows->first());
+
+        $split = $rows->firstWhere('ac_type_name', 'Split Type');
+        $this->assertIsBool($split['is_two_piece']);
+        $this->assertTrue($split['is_two_piece']);
+
+        $portable = $rows->firstWhere('ac_type_name', 'Portable');
+        $this->assertIsBool($portable['is_two_piece']);
+        $this->assertFalse($portable['is_two_piece']);
+    }
+
+    public function test_a_warehouse_personnel_user_can_use_the_ac_types_include(): void
+    {
+        $this->actingAsRole('warehouse_personnel');
+
+        $this->getJson('/api/batch?include=acTypes')
+            ->assertStatus(200)
+            ->assertJsonPath('data.acTypes.success', true);
+    }
 }
