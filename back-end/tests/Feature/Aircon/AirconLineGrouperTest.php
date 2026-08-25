@@ -236,39 +236,84 @@ class AirconLineGrouperTest extends AirconTestCase
     // ------------------------------------------------------ the query guard
 
     /**
-     * Three models and a dozen lines must cost the same handful of queries as
-     * one model and two lines. Task 14 renders this on every purchase order,
+     * The query count must not grow with the line count.
+     *
+     * Asserted as an equality between a small document and a large one over
+     * the same models, rather than as a ceiling at one size: a ceiling only
+     * ever demonstrates "few enough queries at this one n", which is not the
+     * property the name claims. The equality pins independence from n
+     * directly, and stays honest if Task 14 later adds a constant batched
+     * lookup - both sides grow by the same one.
+     *
+     * This matters because Task 14 renders grouping on every purchase order,
      * issuance and receiving document, so a per-line lookup here is a per-line
      * lookup on three screens.
      */
-    public function test_grouping_batches_its_lookups_regardless_of_line_count(): void
+    public function test_grouping_costs_the_same_queries_however_many_lines(): void
     {
-        $lines = [];
+        [$modelA, $indoorA, $outdoorA] = $this->splitModel(1);
+        [$modelB, $indoorB, $outdoorB] = $this->splitModel(1);
 
+        $loose = $this->unitProduct('complete');
+
+        // Two documents over the SAME two models, so the only thing that
+        // differs between the measurements is how many lines they carry.
+        $small = [
+            $this->line($indoorA, 1, $modelA->aircon_model_id),
+            $this->line($outdoorA, 1, $modelA->aircon_model_id),
+        ];
+
+        $large = [];
         for ($i = 0; $i < 3; $i++) {
-            [$model, $indoor, $outdoor] = $this->splitModel(1);
-
-            $lines[] = $this->line($indoor, 3, $model->aircon_model_id);
-            $lines[] = $this->line($outdoor, 2, $model->aircon_model_id);
-            $lines[] = $this->line($this->unitProduct('complete'), 1, null);
+            $large[] = $this->line($indoorA, 1, $modelA->aircon_model_id);
+            $large[] = $this->line($outdoorA, 1, $modelA->aircon_model_id);
+            $large[] = $this->line($indoorB, 1, $modelB->aircon_model_id);
+            $large[] = $this->line($outdoorB, 1, $modelB->aircon_model_id);
         }
+        $large[] = $this->line($loose, 1, null);
 
-        // A dozen-odd lines, six of them behind three distinct models.
-        $this->assertGreaterThanOrEqual(9, count($lines));
+        $this->assertCount(2, $small);
+        $this->assertCount(13, $large);
 
-        DB::enableQueryLog();
-        $groups = $this->grouper->group($lines);
-        $queries = DB::getQueryLog();
-        DB::disableQueryLog();
+        $smallQueries = $this->queriesToGroup($small);
+        $largeQueries = $this->queriesToGroup($large);
 
-        $this->assertCount(6, $groups);
-
-        $this->assertLessThanOrEqual(
-            4,
-            count($queries),
-            'expected the grouper to resolve models and roles in batched queries - '
-            . 'one lookup per line is an N+1 on every document screen. Queries run: '
-            . implode(' | ', array_column($queries, 'query'))
+        $this->assertSame(
+            count($smallQueries),
+            count($largeQueries),
+            sprintf(
+                'grouping %d lines cost %d queries but grouping %d lines cost %d - '
+                . "the lookups are not batched (N+1). Large-document queries:\n%s",
+                count($small),
+                count($smallQueries),
+                count($large),
+                count($largeQueries),
+                implode("\n", $largeQueries)
+            )
         );
+
+        // A ceiling as well, so a constant-factor regression - say, dropping
+        // the units eager-load and reloading per model - is still caught.
+        $this->assertLessThanOrEqual(4, count($largeQueries), implode("\n", $largeQueries));
+    }
+
+    /**
+     * The SQL run while grouping these lines.
+     *
+     * @param  array<int,array<string,mixed>>  $lines
+     * @return list<string>
+     */
+    private function queriesToGroup(array $lines): array
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->grouper->group($lines);
+
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+
+        return array_values($queries);
     }
 }

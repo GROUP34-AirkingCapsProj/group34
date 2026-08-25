@@ -207,6 +207,12 @@ class AirconLineGrouper
     /**
      * What the document actually carries per role.
      *
+     * Line quantities are assumed non-negative. The detail tables' quantity
+     * columns are signed, so a negative is storable, but nothing writes one;
+     * were one to appear it would sum in raw here while completeCount() floors
+     * at zero, and the group would report as balanced rather than as the
+     * nonsense it is. Not guarded, only stated.
+     *
      * @param  array<int,array<string,mixed>>  $lines
      * @param  array<int,string|null>  $roleByProduct
      * @return array<string,int>
@@ -262,6 +268,12 @@ class AirconLineGrouper
      * would hide half the imbalance from the receiving clerk.
      *
      * Only positive remainders are kept.
+     *
+     * Key order is a deliberate guarantee, not an accident of iteration: the
+     * model's own required roles first, in composition order, then any extra
+     * role the document carries. Tests assert the array with assertSame, which
+     * is order-sensitive, so reordering this is a behaviour change even though
+     * the semantics would be identical.
      *
      * @param  array<string,int>  $required
      * @param  array<string,int>  $present
