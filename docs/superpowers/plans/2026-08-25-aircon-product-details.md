@@ -3391,6 +3391,20 @@ Walk the "Testing" section of `docs/superpowers/specs/2026-08-25-aircon-product-
 
 ---
 
+## Found during implementation, not in this plan
+
+**`/api/products` has a pre-existing N+1 unrelated to this work.** While proving
+the `acType` eager-load batched correctly, Task 4's implementer measured the
+product index endpoint at **10 queries for 2 appliance rows and 39 for 7** —
+query count scaling with row count, before any of this feature's changes.
+
+The suspected source is a per-row accessor such as the `pieces_per_package`
+`$appends` on `Product`, which reads `consumableDetail`, but this was not
+confirmed. It is not caused by this feature and was deliberately left alone.
+
+It matters because the live catalogue holds 336 products, 208 of them
+appliances. Worth its own investigation.
+
 ## Known follow-up, not in this plan
 
 **Warranty serial pairing.** `warranty_records` still cannot link an indoor serial to its partner outdoor serial, which servicing an installed pair requires. The spec calls this out as its own design with its own open questions — which side carries the warranty term, what happens when one side is replaced under warranty, how a claim against a pair is recorded. Do not improvise it while implementing this plan.
