@@ -744,6 +744,22 @@ git commit -m "feat(catalogue): carry AC type and unit role through the product 
 
 ## Task 5: Backfill the existing 208 appliances
 
+> **Superseded during implementation — read this before the steps below.**
+> The description-only backfill written here was built, reviewed, and found to
+> mistype **51 of the 140 live aircons**. Nearly every non-window unit's
+> description reads "split-type air conditioner", because a ceiling cassette
+> and a floor-stander genuinely are split systems. The form factor actually
+> lives in `appliance_details.variant`.
+>
+> The shipped implementation (commits `d916456` then `dd13121`) resolves in two
+> passes — `variant` first, `description` only as a fallback — and adds a
+> seventh AC type, **Ceiling Mounted**, for the 13 units that had no correct
+> bucket among the original six.
+>
+> The step-by-step code below is kept as the historical record of what was
+> planned. `back-end/app/Support/AcTypeBackfill.php` is the authority on what
+> was built.
+
 **Files:**
 - Create: `back-end/database/migrations/2026_08_25_000003_backfill_ac_types_from_descriptions.php`
 - Test: `back-end/tests/Feature/Lookups/AcTypeBackfillTest.php`
