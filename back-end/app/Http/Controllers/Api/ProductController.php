@@ -244,6 +244,11 @@ class ProductController extends Controller
                         ? $request->input('warranty_unit') : 'month';
                     $wMonths = $wUnit === 'year' ? $wValue * 12 : $wValue;
 
+                    // Every field here is rewritten on each call, so a caller
+                    // sending only one of them nulls the rest. Long-standing
+                    // behaviour for brand_id/model_code/capacity_rating; the
+                    // AC fields inherit it. Any client doing a partial edit
+                    // must resend the whole appliance-detail set.
                     $product->applianceDetail()->updateOrCreate(
                         ['product_id' => $product->product_id],
                         [
