@@ -35,7 +35,11 @@ const buildEmptyForm = (config) => {
   const obj = {};
   config.fields.forEach((f) => {
     if (f.type === 'checkbox') {
-      obj[f.name] = false;
+      // A checkbox honours its `default` like any other field — coerced to a
+      // real boolean so the payload never carries a truthy string. Checking
+      // `default` first matters: acTypes.is_two_piece defaults to true, and an
+      // unconditional `false` here would silently ignore that.
+      obj[f.name] = Object.prototype.hasOwnProperty.call(f, 'default') ? !!f.default : false;
     } else if (Object.prototype.hasOwnProperty.call(f, 'default')) {
       obj[f.name] = f.default;
     } else {

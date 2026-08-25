@@ -20,18 +20,19 @@ use App\Http\Controllers\Api\BrandLookupController;
 use App\Http\Controllers\Api\UnitLookupController;
 use App\Http\Controllers\Api\CapacityLookupController;
 use App\Http\Controllers\Api\VariantLookupController;
+use App\Http\Controllers\Api\AcTypeLookupController;
 use Illuminate\Http\Request;
 
 /**
  * Returns multiple resources in one request to reduce round-trips.
- * GET /api/batch?include=users,roles,branches,locations,items,inventory,transactions,sales,dashboard,categories,brands,units,capacities,variants
+ * GET /api/batch?include=users,roles,branches,locations,items,inventory,transactions,sales,dashboard,categories,brands,units,capacities,variants,acTypes
  *
  * NOTE: this endpoint carries no permission: route middleware, and every
  * include below calls its controller's index()/show() method directly in
  * PHP rather than dispatching through the router — so route-level
  * permission: middleware never runs for anything included here. That is
- * safe today only because all five item-master lookups (units, categories,
- * brands, capacities, variants) have deliberately
+ * safe today only because all six item-master lookups (units, categories,
+ * brands, capacities, variants, acTypes) have deliberately
  * ungated GETs (see routes/api.php). Do NOT add an include for a resource
  * whose GET route IS permission-gated without first adding an equivalent
  * check inside this method — the route gate will not protect it here.
@@ -280,12 +281,12 @@ class BatchController extends Controller
             }
         }
 
-        // capacities/variants deliberately get a fresh, empty Request rather
-        // than the live $request: a batch include always means "everything",
-        // so these includes take no query params at all. Passing $request
-        // through would couple them to whatever unrelated params happen to be
-        // on the /api/batch URL; any narrowing belongs on the dedicated
-        // /api/capacities and /api/variants endpoints, not here.
+        // capacities/variants/acTypes deliberately get a fresh, empty Request
+        // rather than the live $request: a batch include always means
+        // "everything", so these includes take no query params at all. Passing
+        // $request through would couple them to whatever unrelated params happen
+        // to be on the /api/batch URL; any narrowing belongs on the dedicated
+        // /api/capacities, /api/variants and /api/ac-types endpoints, not here.
         if (in_array('capacities', $parts)) {
             try {
                 $data['capacities'] = json_decode(
@@ -303,6 +304,16 @@ class BatchController extends Controller
                 );
             } catch (\Throwable $e) {
                 $data['variants'] = ['success' => false, 'message' => $e->getMessage()];
+            }
+        }
+
+        if (in_array('acTypes', $parts)) {
+            try {
+                $data['acTypes'] = json_decode(
+                    app(AcTypeLookupController::class)->index(new Request())->getContent(), true
+                );
+            } catch (\Throwable $e) {
+                $data['acTypes'] = ['success' => false, 'message' => $e->getMessage()];
             }
         }
 

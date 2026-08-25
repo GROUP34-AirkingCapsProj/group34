@@ -1355,6 +1355,27 @@ export const variantsAPI = {
 };
 
 /* ======================
+   AC TYPES API
+====================== */
+export const acTypesAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/ac-types?${query}` : '/ac-types');
+  },
+  getArchived: async () => apiRequest('/ac-types/archived'),
+  create: async (data) =>
+    apiRequest('/ac-types', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/ac-types/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/ac-types/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/ac-types/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/ac-types/${id}/force`, { method: 'DELETE' }),
+  // No `merge` here on purpose: the backend registers no merge route for this
+  // lookup. Merging exists to fold two spellings of a string-valued lookup
+  // together, and ac_type_id is a foreign key.
+};
+
+/* ======================
    STATUS LOOKUP API
 ====================== */
 export const statusAPI = {

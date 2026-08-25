@@ -10,8 +10,8 @@
  *                  (supported but not currently used by any config below)
  *   - 'number'    — numeric input
  *                  (supported but not currently used by any config below)
- *   - 'checkbox'  — boolean toggle (supported but not currently used by any
- *                  config below)
+ *   - 'checkbox'  — boolean toggle (used by acTypes.is_two_piece; honours
+ *                  `default`, and always submits a real boolean)
  *   - 'select'    — fixed-option dropdown (uses `options`)
  *   - 'unit'      — unit-of-measure picker (loads units, stores unit_id)
  *                  (supported but not currently used by any config below)
@@ -21,7 +21,7 @@
  * Column `format` values (optional; how the raw/derived value is displayed):
  *   - 'bool'     — render truthy/falsy as Yes/No (React renders true/false as
  *                  nothing, so any boolean column MUST set this)
- *                  (supported but not currently used by any config below)
+ *                  (used by acTypes.is_two_piece)
  *   - 'currency' — render as peso-formatted money
  *   - 'decimal'  — render a decimal(10,6)-sourced numeric string (e.g. "1.000000")
  *                  trimmed for display
@@ -35,8 +35,8 @@
  *     (supported but not currently used by any config below)
  *
  * Server-side search: `unitsAPI.getAll` accepts `?search=` (filters on
- * unit_name) and it is the only one of the five lookups with a server-side
- * filter. This config does not expose it — the panel filters all five lookups
+ * unit_name) and it is the only one of the lookups with a server-side
+ * filter. This config does not expose it — the panel filters every lookup
  * client-side uniformly, so the units `?search=` param is left unused by
  * design, not by oversight.
  *
@@ -51,6 +51,7 @@ import {
   unitsAPI,
   capacitiesAPI,
   variantsAPI,
+  acTypesAPI,
 } from '../services/api';
 
 export const LOOKUP_CONFIGS = {
@@ -184,13 +185,44 @@ export const LOOKUP_CONFIGS = {
       { key: 'variant_name', label: 'Name' },
     ],
   },
+
+  acTypes: {
+    label: 'AC Types',
+    singular: 'AC Type',
+    api: acTypesAPI,
+    idField: 'ac_type_id',
+    nameField: 'ac_type_name',
+    supportsMerge: false,
+    fields: [
+      {
+        name: 'ac_type_name',
+        label: 'AC type name',
+        type: 'text',
+        required: true,
+        maxLength: 60,
+      },
+      {
+        // First use of LookupPanel's 'checkbox' field type. This is the
+        // DEFAULT piece count for the kind, not a rule -- a product under a
+        // two-piece type may still be registered as a complete unit.
+        name: 'is_two_piece',
+        label: 'Two-piece (indoor + outdoor)',
+        type: 'checkbox',
+        default: true,
+      },
+    ],
+    columns: [
+      { key: 'ac_type_name', label: 'Name' },
+      { key: 'is_two_piece', label: 'Two-piece', format: 'bool' },
+    ],
+  },
 };
 
 export const LOOKUP_TABS = [
   {
     key: 'appliance',
     label: 'Appliance Lookup',
-    lookups: ['categories', 'brands', 'variants', 'capacities'],
+    lookups: ['categories', 'brands', 'variants', 'capacities', 'acTypes'],
   },
   {
     key: 'installation',

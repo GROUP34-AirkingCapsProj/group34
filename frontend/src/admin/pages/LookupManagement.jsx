@@ -121,8 +121,8 @@ const LookupManagement = () => {
               <p className="ak-eyebrow">Catalog · Classification</p>
               <h1 className="ak-title">Item Lookups</h1>
               <p className="ak-sub">
-                Manage the shared categories, brands, units, capacities, and variants
-                used across the item master.
+                Manage the shared categories, brands, units, capacities, variants,
+                and AC types used across the item master.
               </p>
             </div>
           </div>
