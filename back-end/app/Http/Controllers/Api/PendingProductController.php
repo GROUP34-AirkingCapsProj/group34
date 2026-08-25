@@ -157,6 +157,8 @@ class PendingProductController extends Controller
             'appliance.model_code'                         => 'nullable|string|max:100',
             'appliance.capacity_rating'                    => 'nullable|string|max:20',
             'appliance.variant'                            => 'nullable|string|max:255',
+            'appliance.ac_type_id'                         => 'nullable|exists:ac_type_lookup,ac_type_id',
+            'appliance.unit_role'                          => 'nullable|in:indoor,outdoor,complete',
             'appliance.category_id'                        => 'required|exists:category_lookup,category_id',
             'appliance.brand_id'                           => 'required|exists:brand_lookup,brand_id',
             'appliance.unit_id'                            => 'required|exists:unit_lookup,unit_id',
@@ -278,7 +280,7 @@ class PendingProductController extends Controller
             'status'             => 'approved',
             'approved_by'        => $uid,
             'approved_at'        => now(),
-            'created_product_id' => $product->product_id,
+            'product_id'         => $product->product_id,
         ]);
 
         return $product;
@@ -309,6 +311,8 @@ class PendingProductController extends Controller
             'model_code'             => $snap['model_code'] ?? null,
             'capacity_rating'        => $snap['capacity_rating'] ?? null,
             'variant'                => $snap['variant'] ?? null,
+            'ac_type_id'             => $snap['ac_type_id'] ?? null,
+            'unit_role'              => $snap['unit_role'] ?? null,
             'warranty_period_months' => isset($snap['warranty_period_months']) ? (int) $snap['warranty_period_months'] : 0,
             'is_serialized'          => 1,
         ]);
@@ -320,7 +324,7 @@ class PendingProductController extends Controller
             'status'             => 'approved',
             'approved_by'        => $uid,
             'approved_at'        => now(),
-            'created_product_id' => $product->product_id,
+            'product_id'         => $product->product_id,
         ]);
 
         return $product;
