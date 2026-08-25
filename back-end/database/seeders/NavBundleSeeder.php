@@ -34,6 +34,7 @@ class NavBundleSeeder extends Seeder
             ['Item Master',          '/admin/items',                'PROCUREMENT & PLANNING',  'items',              'item_master_management',  'read'],
             ['Item Lookups',          '/admin/categories',          'PROCUREMENT & PLANNING',  'category',           'lookup_management',       'read'],
             ['Set Management',       '/admin/sets',                 'PROCUREMENT & PLANNING',  'sets',               'product_set_management',  'read'],
+            ['Aircon Models',        '/admin/aircon-models',        'PROCUREMENT & PLANNING',  'sets',               'aircon_model_management', 'read'],
 
             // INVENTORY INTELLIGENCE
             ['Inventory Monitoring', '/admin/inventory',            'INVENTORY INTELLIGENCE',  'inventory',          'inventory_monitoring',    'read'],

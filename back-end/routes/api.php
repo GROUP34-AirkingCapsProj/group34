@@ -609,6 +609,27 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | Aircon Models (indoor + outdoor unit compositions)
+    |--------------------------------------------------------------------------
+    | {airconModel} is route-model bound, so its SoftDeletes scope 404s an
+    | archived model on show/update/destroy. restore takes a raw {id} — the
+    | binding would hide the very rows it needs.
+    */
+    Route::middleware('permission:aircon_model_management,read')
+         ->get('/aircon-models', [\App\Http\Controllers\Api\AirconModelController::class, 'index']);
+    Route::middleware('permission:aircon_model_management,create')
+         ->post('/aircon-models', [\App\Http\Controllers\Api\AirconModelController::class, 'store']);
+    Route::middleware('permission:aircon_model_management,read')
+         ->get('/aircon-models/{airconModel}', [\App\Http\Controllers\Api\AirconModelController::class, 'show']);
+    Route::middleware('permission:aircon_model_management,update')
+         ->put('/aircon-models/{airconModel}', [\App\Http\Controllers\Api\AirconModelController::class, 'update']);
+    Route::middleware('permission:aircon_model_management,archive')->group(function () {
+        Route::delete('/aircon-models/{airconModel}', [\App\Http\Controllers\Api\AirconModelController::class, 'destroy']);
+        Route::post('/aircon-models/{id}/restore', [\App\Http\Controllers\Api\AirconModelController::class, 'restore']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | Incident Reports (FIFO-violation overrides)
     |--------------------------------------------------------------------------
     */
