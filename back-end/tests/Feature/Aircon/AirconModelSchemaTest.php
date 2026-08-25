@@ -108,6 +108,34 @@ class AirconModelSchemaTest extends AirconTestCase
         $this->assertSame('12345.00', (string) $line->fresh()->product->unit_price);
     }
 
+    public function test_the_label_always_carries_the_model_name(): void
+    {
+        // Only model_name is NOT NULL, so this is a legal row. Every other
+        // label component is absent — if the name were filtered out with them
+        // the label would be an empty string and render as a blank row.
+        $model = AirconModel::create([
+            'model_name'   => 'Bare Model ' . uniqid(),
+            'is_two_piece' => true,
+        ]);
+
+        $this->assertSame($model->model_name, $model->fresh()->label());
+    }
+
+    public function test_the_label_joins_every_populated_component(): void
+    {
+        $brand = $this->brand();
+
+        $model = $this->model([
+            'model_name' => 'Full Model',
+            'brand_id'   => $brand->brand_id,
+        ]);
+
+        $this->assertSame(
+            "Full Model · {$brand->brand_name} · 2HP · Inverter · Split Type",
+            $model->fresh()->label()
+        );
+    }
+
     public function test_total_price_sums_quantity_times_member_price(): void
     {
         $model = $this->model();

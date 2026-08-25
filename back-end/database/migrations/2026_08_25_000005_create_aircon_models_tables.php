@@ -68,6 +68,17 @@ return new class extends Migration
             // means raising its quantity, not adding a second line.
             $table->unique(['aircon_model_id', 'product_id']);
 
+            // There is deliberately NO unit_role column here.
+            //
+            // A line points at a product, and that product's
+            // appliance_details.unit_role already records which side it is.
+            // Storing the role in both places would give two sources of truth
+            // that can disagree, and an invariant to police on every write. It
+            // also means a lone outdoor unit sitting in inventory with no
+            // model at all still reads correctly.
+            //
+            // AirconModelUnit::unitRole() reads it through the product.
+
             $table->foreign('aircon_model_id')
                 ->references('aircon_model_id')
                 ->on('aircon_models')
@@ -80,16 +91,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * There is deliberately no unit_role column on aircon_model_units.
-     *
-     * A unit line points at a product, and that product's
-     * appliance_details.unit_role already records which side it is. Storing
-     * the role in both places would give two sources of truth that can
-     * disagree, and then an invariant to police on every write. It also means
-     * a lone outdoor unit sitting in inventory with no model at all still
-     * reads correctly.
-     */
     public function down(): void
     {
         Schema::dropIfExists('aircon_model_units');
