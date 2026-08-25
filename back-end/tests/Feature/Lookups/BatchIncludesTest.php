@@ -100,9 +100,17 @@ class BatchIncludesTest extends LookupTestCase
     /**
      * The acTypes include is what the product registration form uses to get
      * the AC type list in the same round-trip as the other lookups. Pins that
-     * it returns the seven seeded kinds, and that is_two_piece survives as a
-     * real boolean (the form defaults its piece count from it, and a "0"/"1"
-     * string would be truthy on both branches).
+     * it returns the seven seeded kinds.
+     *
+     * The assertIsBool calls pin the JSON type, which is the model's
+     * 'is_two_piece' => 'boolean' cast doing its job: without it the raw MySQL
+     * tinyint serialises as integer 0/1 instead. Nothing downstream breaks
+     * today if that happened -- 0 is falsy in PHP and JS alike, and
+     * LookupPanel coerces with !! when populating the edit form and renders
+     * the column via a truthiness check -- so this guards the contract rather
+     * than a live failure. Consumers are entitled to a real boolean from a
+     * field named is_*, and losing the cast should be a deliberate change, not
+     * a silent one.
      */
     public function test_batch_ac_types_include_returns_the_seeded_kinds(): void
     {
