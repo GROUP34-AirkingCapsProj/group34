@@ -41,7 +41,11 @@ class AirconModelUnit extends Model
      *
      * Read from the member product, never stored on this row — the product's
      * appliance_details.unit_role is the single source of truth. See the
-     * create-tables migration's down() docblock for why.
+     * comment beside the unique() call in the create-tables migration.
+     *
+     * Both relations are lazy, so calling this across a list costs two queries
+     * per unit. A caller listing models must eager-load
+     * `units.product.applianceDetail`.
      */
     public function unitRole(): ?string
     {

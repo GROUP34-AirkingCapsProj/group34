@@ -51,12 +51,22 @@ class AirconModel extends Model
         return $this->belongsTo(AcTypeLookup::class, 'ac_type_id', 'ac_type_id');
     }
 
-    /** Derived display label, e.g. "TCL · 2HP · Inverter · Split Type". */
+    /**
+     * Derived display label, e.g. "TCL 2HP Split · TCL · 2HP · Inverter · Split Type".
+     *
+     * model_name leads and is never filtered out. Every other component is
+     * nullable, so a model carrying only its name — legal, since model_name is
+     * the one NOT NULL column — would otherwise render as an empty string and
+     * show up as a blank row. ProductSet::label() has no equivalent problem
+     * because product_sets has no name column and floors its brand list with
+     * "Any brand".
+     */
     public function label(): string
     {
         $this->loadMissing(['brand', 'acType']);
 
         return collect([
+            $this->model_name,
             $this->brand?->brand_name,
             $this->capacity_rating,
             $this->variant,
@@ -69,7 +79,17 @@ class AirconModel extends Model
      *
      * Callers listing many models should eager-load `units.product` on the
      * whole collection first; the loadMissing() here is a safety net for a
-     * single instance, not a substitute for batching.
+     * single instance, not a substitute for batching. Note that a listing
+     * which also reads AirconModelUnit::unitRole() needs
+     * `units.product.applianceDetail` — `units.product` alone still leaves the
+     * role lazy, costing a query per unit.
+     *
+     * Uses unit_price directly rather than ProductSet::totalPrice()'s
+     * getPricePerPiece(). Identical for appliances, since
+     * getPiecesPerPackage() returns 1 for anything that is not an
+     * installation_material — but nothing constrains a member to be an
+     * appliance, so a consumable member would price per package here and per
+     * piece in the set path.
      */
     public function totalPrice(): float
     {
