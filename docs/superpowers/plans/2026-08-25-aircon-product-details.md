@@ -3409,6 +3409,24 @@ Walk the "Testing" section of `docs/superpowers/specs/2026-08-25-aircon-product-
 
 ## Found during implementation, not in this plan
 
+**The issuance and receiving detail endpoints carry a per-line N+1.**
+`Product` appends `pieces_per_package`, whose accessor lazy-loads
+`consumableDetail`. Only `PurchaseOrderController` eager-loads it, so
+`GET /api/issuances/{id}` and `GET /api/receivings/{id}` issue one extra query
+per detail line. Measured while building Task 14a's query guard: a receiving
+went from 12 queries at two lines to 16 at six, entirely from this — the guard
+had to be written as a difference-of-differences to cancel it out. Unrelated to
+this feature and present before it. Two live screens pay it on every view.
+
+**`ReceivingReceipt.jsx` reads a key the API has never emitted.** `:54` reads
+`receiving.receivedBy?.first_name`, but `Model::$snakeAttributes` serialises
+the relation as `received_by`, so that lookup has always fallen through to a
+`received_by_name` key that does not exist. `TransactionManagement.jsx` handles
+both spellings; this one does not. Pre-existing, found while tracing Task 14a's
+consumers.
+
+
+
 **The pending-product approval queue was completely broken.** Found while
 closing the Task 7 gap. `PendingProductController::approveConsumable()` and
 `approveAppliance()` both wrote `pending_products.created_product_id`, and
