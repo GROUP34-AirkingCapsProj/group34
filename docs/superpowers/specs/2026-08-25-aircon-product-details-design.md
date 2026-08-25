@@ -93,9 +93,23 @@ therefore does not implement `cascadeTargets()` or `cascadeValueChange()`, and
 | Column | Type | Notes |
 | --- | --- | --- |
 | `ac_type_id` | bigint unsigned, nullable, FK → `ac_type_lookup`, null on delete | |
-| `unit_role` | enum(`indoor`, `outdoor`, `complete`), nullable | |
+| `unit_role` | varchar(20), nullable, commented `indoor \| outdoor \| complete` | Validated in the controller, not by the schema — see below |
 
 Both nullable: non-aircon appliances do not use them.
+
+`unit_role` is a plain string, not a DB enum. This codebase keeps constrained
+vocabularies as string codes and validates them in the controller — the closest
+parallel, `products.product_type`, is a varchar checked with
+`in:appliance,installation_material`. Only one `->enum(` call exists in the
+entire migration history. The convention was paid for:
+`2026_08_13_000002_widen_incident_item_status.php` is a postmortem for a
+"Data too long" failure thrown mid-transaction, and its docblock credits the
+string choice — *"The item statuses are plain string codes, not an enum, so
+widening is all that is needed"* — for making the fix a one-line `MODIFY`.
+
+The practical difference: adding a fourth role to an enum needs a schema
+migration deployed before any code can emit the new value; adding one to a
+string column is a change to a validation rule.
 
 ### `aircon_models` (new)
 

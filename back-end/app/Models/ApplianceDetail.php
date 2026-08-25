@@ -18,6 +18,8 @@ class ApplianceDetail extends Model
         'model_code',
         'capacity_rating',
         'variant',
+        'ac_type_id',
+        'unit_role',
         'color',
         'warranty_period_months',
         'warranty_value',
@@ -75,5 +77,10 @@ class ApplianceDetail extends Model
     public function brand(): BelongsTo
     {
         return $this->belongsTo(BrandLookup::class, 'brand_id', 'brand_id');
+    }
+
+    public function acType(): BelongsTo
+    {
+        return $this->belongsTo(AcTypeLookup::class, 'ac_type_id', 'ac_type_id');
     }
 }

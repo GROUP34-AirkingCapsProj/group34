@@ -471,12 +471,23 @@ return new class extends Migration
      * side it is; storing the role in both places would give two sources of
      * truth that can disagree. It also means a lone outdoor unit sitting in
      * inventory with no model still reads correctly.
+     *
+     * It is a string, not an enum, and should stay one. This codebase keeps
+     * constrained vocabularies as string codes validated in the controller
+     * (products.product_type, item_serial.serial_type). See
+     * 2026_08_13_000002_widen_incident_item_status — a postmortem for a
+     * "Data too long" thrown mid-transaction, which credits the string choice
+     * for making the fix a one-line MODIFY. An enum turns "add a fourth role"
+     * into a schema migration that must ship before the code using it.
      */
     public function up(): void
     {
         Schema::table('appliance_details', function (Blueprint $table) {
             $table->unsignedBigInteger('ac_type_id')->nullable()->after('variant');
-            $table->enum('unit_role', ['indoor', 'outdoor', 'complete'])->nullable()->after('ac_type_id');
+            $table->string('unit_role', 20)
+                ->nullable()
+                ->after('ac_type_id')
+                ->comment('indoor | outdoor | complete');
 
             $table->foreign('ac_type_id')
                 ->references('ac_type_id')
