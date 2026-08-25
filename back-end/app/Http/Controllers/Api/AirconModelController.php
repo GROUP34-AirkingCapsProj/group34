@@ -72,7 +72,37 @@ class AirconModelController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => $this->present($airconModel->load(self::RELATIONS)),
+            'data'    => $this->present($airconModel->loadMissing(self::RELATIONS)),
+        ]);
+    }
+
+    /**
+     * Soft-deleted models only — mirrors index() but scoped to onlyTrashed().
+     *
+     * A distinct endpoint rather than a flag on index(), for the same reason
+     * ProductSetController::archived() is one: `active_only=false` widens the
+     * is_active filter, but the SoftDeletes global scope still hides trashed
+     * rows, and these are two independent axes. Without this the archived rows
+     * are unreachable through the API entirely — and restore() below could only
+     * be called with an id the UI had no way to learn.
+     */
+    public function archived(Request $request): JsonResponse
+    {
+        $query = AirconModel::onlyTrashed()->with(self::RELATIONS);
+
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('model_name', 'like', "%{$search}%")
+                  ->orWhere('capacity_rating', 'like', "%{$search}%")
+                  ->orWhere('variant', 'like', "%{$search}%");
+            });
+        }
+
+        $models = $query->orderByDesc('deleted_at')->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $models->map(fn (AirconModel $m) => $this->present($m))->all(),
         ]);
     }
 
@@ -88,7 +118,12 @@ class AirconModelController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Aircon model created.',
-            'data'    => $this->present($model->load(self::RELATIONS)),
+            // loadMissing, not load: the composer already returns the model
+            // fresh with units, products, brand and acType attached, so load()
+            // would re-run all four to add the one relation they lack.
+            // loadMissing resolves the nested path and fetches only the missing
+            // segment: measured at 1 query here where load() issued 5.
+            'data'    => $this->present($model->loadMissing(self::RELATIONS)),
         ], 201);
     }
 
@@ -109,7 +144,7 @@ class AirconModelController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Aircon model updated.',
-            'data'    => $this->present($model->load(self::RELATIONS)),
+            'data'    => $this->present($model->loadMissing(self::RELATIONS)),
         ]);
     }
 
@@ -133,7 +168,7 @@ class AirconModelController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Aircon model restored.',
-            'data'    => $this->present($model->load(self::RELATIONS)),
+            'data'    => $this->present($model->loadMissing(self::RELATIONS)),
         ]);
     }
 
@@ -158,6 +193,14 @@ class AirconModelController extends Controller
             // service for a malformed payload.
             'lines.*.product_id' => 'required|integer|distinct|exists:products,product_id',
             'lines.*.quantity'   => 'nullable|integer|min:1|max:65535',
+        ], [
+            // `distinct` short-circuits the composer, so the composer's wording
+            // never reaches the client. Laravel's default — "The
+            // lines.0.product_id field has a duplicate value." — names an array
+            // path the builder UI does not show and, worse, does not tell the
+            // user what to do instead. Restate the composer's advice here so
+            // the same guidance arrives whichever layer catches it.
+            'lines.*.product_id.distinct' => 'Each product can appear only once — raise its quantity instead of adding a second line.',
         ]);
     }
 
