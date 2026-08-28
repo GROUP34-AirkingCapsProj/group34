@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
+import UnitRoleBadge from '../components/UnitRoleBadge';
 import { deliveryReceiptsAPI, salesAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -113,7 +114,14 @@ const DeliveryReceiptManagement = () => {
       <tr>
         <td class="tc">${d.quantity || ''}</td>
         <td class="tc">${d.unit || 'pcs'}</td>
-        <td>${d.product?.product_name || d.description || ''}</td>
+        <td>${[
+          // On paper there is no badge to lean on, so the half goes into the
+          // text. A delivery receipt naming only "TCL 2HP Aircon" cannot tell
+          // the person signing for it which carton actually arrived.
+          d.product?.unit_role === 'indoor' ? '[INDOOR]'
+            : d.product?.unit_role === 'outdoor' ? '[OUTDOOR]' : '',
+          d.product?.product_name || d.description || '',
+        ].filter(Boolean).join(' ')}</td>
         <td></td>
       </tr>`).join('') + Array(blankCount).fill(`<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>`).join('');
 
@@ -326,7 +334,13 @@ const DeliveryReceiptManagement = () => {
                 <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
                 <tbody>{viewingReceipt.sale.details.map((d, i) => (
                   <tr key={i}>
-                    <td>{d.product?.product_name || '—'}</td>
+                    <td>
+                      <UnitRoleBadge role={d.product?.unit_role} />
+                      {d.product?.product_name || '—'}
+                      {d.product?.ac_type_name && (
+                        <span style={{ color: '#6b7280', fontSize: 11 }}> · {d.product.ac_type_name}</span>
+                      )}
+                    </td>
                     <td>{d.quantity}</td>
                     <td>₱{parseFloat(d.unit_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                     <td>₱{parseFloat(d.subtotal || (d.quantity * d.unit_price) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>

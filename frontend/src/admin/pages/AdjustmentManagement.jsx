@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
+import UnitRoleBadge from '../components/UnitRoleBadge';
 import { adjustmentsAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -231,7 +232,13 @@ const AdjustmentManagement = () => {
                 <thead><tr><th>Product</th><th style={{ color: '#10b981' }}>Add Qty</th><th style={{ color: '#ef4444' }}>Deduct Qty</th></tr></thead>
                 <tbody>{viewingAdj.details.map((d, i) => (
                   <tr key={i}>
-                    <td>{d.product?.product_name || '—'}</td>
+                    <td>
+                      <UnitRoleBadge role={d.product?.unit_role} />
+                      {d.product?.product_name || '—'}
+                      {d.product?.ac_type_name && (
+                        <span style={{ color: '#6b7280', fontSize: 11 }}> · {d.product.ac_type_name}</span>
+                      )}
+                    </td>
                     <td style={{ color: '#10b981', fontWeight: 600 }}>+{d.add_quantity || 0}</td>
                     <td style={{ color: '#ef4444', fontWeight: 600 }}>-{d.deduct_quantity || 0}</td>
                   </tr>

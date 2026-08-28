@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
+import UnitRoleBadge from '../components/UnitRoleBadge';
 import { issuancesAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { getIssuanceDisplay, issuanceLineQty } from '../utils/moduleFeedStatus';
@@ -318,7 +319,16 @@ const IssuanceManagement = () => {
                     )}
                     {seg.rows.map((d, i) => (
                       <tr key={d.issuance_detail_id ?? `${seg.key}-${i}`}>
-                        <td style={seg.group ? { paddingLeft: 18 } : undefined}>{d.product?.product_name || '—'}</td>
+                        <td style={seg.group ? { paddingLeft: 18 } : undefined}>
+                          {/* The group header above names the model; this
+                              names which half each nested row is. Without it
+                              the two rows under a header read identically. */}
+                          <UnitRoleBadge role={d.product?.unit_role} />
+                          {d.product?.product_name || '—'}
+                          {d.product?.ac_type_name && (
+                            <span style={{ color: '#6b7280', fontSize: 11 }}> · {d.product.ac_type_name}</span>
+                          )}
+                        </td>
                         <td>{d.quantity_issued}</td>
                         <td>{d.condition_issued || '—'}</td>
                       </tr>
