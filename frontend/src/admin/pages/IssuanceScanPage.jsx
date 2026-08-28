@@ -565,10 +565,20 @@ export default function IssuanceScanPage() {
                             return (
                               <tr key={item.detail_id}>
                                 <td>
+                                  {/* Indoor and outdoor halves share a brand,
+                                      a capacity and a near-identical name, so
+                                      the role is the only thing telling the
+                                      two cartons apart here. 'complete' is
+                                      unbadged — it is the ordinary case. */}
+                                  {(item.unit_role === 'indoor' || item.unit_role === 'outdoor') && (
+                                    <span className={`ak-badge ak-role-${item.unit_role}`}>
+                                      {item.unit_role === 'indoor' ? 'INDOOR' : 'OUTDOOR'}
+                                    </span>
+                                  )}
                                   <strong>{item.product_name || `Product #${item.product_id}`}</strong>
-                                  {item.product_code && (
+                                  {(item.product_code || item.ac_type_name) && (
                                     <div className="ak-muted ak-mono" style={{ fontSize: 11 }}>
-                                      {item.product_code}
+                                      {[item.product_code, item.ac_type_name].filter(Boolean).join(' · ')}
                                     </div>
                                   )}
                                 </td>
