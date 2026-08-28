@@ -8,6 +8,8 @@ use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\Role;
+use App\Models\User;
 
 /**
  * The legacy-aircon conversion tool.
@@ -30,7 +32,7 @@ class AirconConversionTest extends AirconTestCase
      * A legacy aircon: one product carrying the whole machine, unit_role
      * 'complete', at the given price.
      */
-    private function legacyProduct(float $price = 50000.00): Product
+    private function legacyProduct(float $price = 50000.00, float $cost = 40000.00): Product
     {
         $product = Product::create([
             'product_code'       => 'LEG-' . uniqid(),
@@ -38,6 +40,7 @@ class AirconConversionTest extends AirconTestCase
             'product_type'       => 'appliance',
             'description'        => 'A whole aircon on one row.',
             'unit_price'         => $price,
+            'cost_price'         => $cost,
             'recommended_stocks' => 7,
             'safety_stock'       => 3,
             'max_stock_level'    => 25,
@@ -317,7 +320,12 @@ class AirconConversionTest extends AirconTestCase
         );
     }
 
-    public function test_the_model_name_defaults_to_the_product_name(): void
+    /**
+     * The default model name must not be byte-identical to the product name:
+     * the original product survives the conversion under its own name, so the
+     * two would sit side by side in the same UI reading the same.
+     */
+    public function test_the_default_model_name_is_distinguishable_from_the_product(): void
     {
         $this->actingAsAdmin();
 
@@ -326,7 +334,23 @@ class AirconConversionTest extends AirconTestCase
         $response = $this->convert($legacy);
         $response->assertStatus(201);
 
-        $this->assertSame($legacy->product_name, $response->json('data.model_name'));
+        $modelName = $response->json('data.model_name');
+
+        $this->assertNotSame($legacy->product_name, $modelName);
+        $this->assertStringContainsString($legacy->product_name, $modelName);
+        $this->assertStringContainsString('2HP', $modelName);
+        $this->assertStringContainsString('Inverter', $modelName);
+    }
+
+    public function test_an_explicit_model_name_is_used_verbatim(): void
+    {
+        $this->actingAsAdmin();
+
+        $legacy = $this->legacyProduct(50000.00);
+
+        $this->convert($legacy, ['model_name' => 'Chosen Name'])
+             ->assertStatus(201)
+             ->assertJsonPath('data.model_name', 'Chosen Name');
     }
 
     // ------------------------------------------------- THE ONE THAT MATTERS
@@ -370,9 +394,12 @@ class AirconConversionTest extends AirconTestCase
         $this->assertSame($originalId, (int) $serial->product_id);
         $this->assertSame($originalId, (int) $inventory->product_id);
 
-        // 2. That id still resolves to a live, untrashed product — an
-        //    archived original would leave both rows unusable, which is the
-        //    exact failure mode this design exists to prevent.
+        // 2. That id still resolves to a product at all. This is the
+        //    assertion that catches an archived original: the BelongsTo has
+        //    no withTrashed(), so a soft-deleted product reads back as null
+        //    here and the test stops on this line. (The trashed() checks
+        //    below are therefore belt-and-braces — they only run once the
+        //    product has already been shown to be live.)
         $this->assertNotNull($serial->product, 'the serial no longer resolves to a product');
         $this->assertNotNull($inventory->product, 'the inventory row no longer resolves to a product');
         $this->assertFalse($serial->product->trashed());
@@ -396,6 +423,199 @@ class AirconConversionTest extends AirconTestCase
             $model->units->pluck('product_id')->map(fn ($id) => (int) $id)->all(),
             'the referenced product is not a member of the composed model'
         );
+    }
+
+    // ---------------------------------------------------------- the cost
+
+    /**
+     * products.cost_price is NOT NULL DEFAULT 0.00, so a partner created
+     * without one is not left undecided — it is priced at a hard zero, and
+     * nothing downstream ever repairs it. Stock valuation, the inventory
+     * summary's unit cost, the dashboard's margin and warranty-claim
+     * valuation all read that column directly.
+     */
+    public function test_the_cost_is_split_by_the_same_ratio_as_the_price(): void
+    {
+        $this->actingAsAdmin();
+
+        $legacy = $this->legacyProduct(50000.00, 40000.00);
+
+        $response = $this->convert($legacy, [
+            'keep_as' => 'indoor',
+            'indoor'  => ['model_code' => 'IDU-100', 'unit_price' => 20000.00],
+            'outdoor' => ['model_code' => 'ODU-100', 'unit_price' => 30000.00],
+        ]);
+        $response->assertStatus(201);
+
+        $partnerId = (int) collect($response->json('data.units'))
+            ->firstWhere('unit_role', 'outdoor')['product_id'];
+
+        $indoorCost  = (float) Product::find($legacy->product_id)->cost_price;
+        $outdoorCost = (float) Product::find($partnerId)->cost_price;
+
+        // 20000/50000 of 40000 = 16000; the remainder is 24000.
+        $this->assertSame(16000.00, $indoorCost);
+        $this->assertSame(24000.00, $outdoorCost);
+
+        // Neither side is the silent zero.
+        $this->assertGreaterThan(0, $indoorCost, 'the indoor side was left costing nothing');
+        $this->assertGreaterThan(0, $outdoorCost, 'the outdoor side was left costing nothing');
+
+        // And together they are still what the single row cost — the
+        // original's own cost had to come down, or the pair double-counts it.
+        $this->assertSame(40000.00, round($indoorCost + $outdoorCost, 2));
+    }
+
+    public function test_an_uneven_cost_split_still_sums_to_the_original(): void
+    {
+        $this->actingAsAdmin();
+
+        // 33333.33/50000 of 40000.55 does not land on a whole centavo. The
+        // second side is taken as the remainder for exactly this case.
+        $legacy = $this->legacyProduct(50000.00, 40000.55);
+
+        $response = $this->convert($legacy, [
+            'indoor'  => ['model_code' => 'IDU-100', 'unit_price' => 33333.33],
+            'outdoor' => ['model_code' => 'ODU-100', 'unit_price' => 16666.67],
+        ]);
+        $response->assertStatus(201);
+
+        $partnerId = (int) collect($response->json('data.units'))
+            ->firstWhere('unit_role', 'outdoor')['product_id'];
+
+        $indoorCost  = (float) Product::find($legacy->product_id)->cost_price;
+        $outdoorCost = (float) Product::find($partnerId)->cost_price;
+
+        $this->assertSame(40000.55, round($indoorCost + $outdoorCost, 2));
+        $this->assertGreaterThan(0, $indoorCost);
+        $this->assertGreaterThan(0, $outdoorCost);
+    }
+
+    public function test_a_zero_priced_original_splits_its_cost_evenly(): void
+    {
+        $this->actingAsAdmin();
+
+        // No price ratio to read: both declared prices must be zero to pass
+        // the price guard, so there is nothing to divide the cost by.
+        $legacy = $this->legacyProduct(0.00, 1000.00);
+
+        $this->convert($legacy, [
+            'indoor'  => ['model_code' => 'IDU-100', 'unit_price' => 0],
+            'outdoor' => ['model_code' => 'ODU-100', 'unit_price' => 0],
+        ])->assertStatus(201);
+
+        $partner = Product::where('product_code', 'like', $legacy->product_code . '-%')->firstOrFail();
+
+        $this->assertSame(500.00, (float) $legacy->fresh()->cost_price);
+        $this->assertSame(500.00, (float) $partner->cost_price);
+    }
+
+    public function test_a_zero_cost_original_stays_at_zero_on_both_sides(): void
+    {
+        $this->actingAsAdmin();
+
+        // Nothing to split. The guard is about not INVENTING a zero, not
+        // about refusing one the catalogue already recorded.
+        $legacy = $this->legacyProduct(50000.00, 0.00);
+
+        $this->convert($legacy)->assertStatus(201);
+
+        $partner = Product::where('product_code', 'like', $legacy->product_code . '-%')->firstOrFail();
+
+        $this->assertSame(0.00, (float) $legacy->fresh()->cost_price);
+        $this->assertSame(0.00, (float) $partner->cost_price);
+    }
+
+    // ------------------------------------------------- existing membership
+
+    /**
+     * A product already composed into a model cannot be split.
+     *
+     * The piece-count rule reads unit_role live out of appliance_details and
+     * only runs on write, so flipping this product's role would leave the
+     * existing model permanently illegal with nothing to notice — and the
+     * next person to edit that model would get a 422 they did not cause.
+     */
+    public function test_a_product_already_in_a_model_cannot_be_converted(): void
+    {
+        $this->actingAsAdmin();
+
+        $legacy = $this->legacyProduct(50000.00);
+
+        $model = AirconModel::create([
+            'model_name'   => 'Existing One-Piece ' . uniqid(),
+            'ac_type_id'   => $this->splitType()->ac_type_id,
+            'is_two_piece' => false,
+        ]);
+        $model->units()->create([
+            'product_id' => $legacy->product_id,
+            'quantity'   => 1,
+            'sort_order' => 0,
+        ]);
+
+        $response = $this->convert($legacy);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('product');
+        $this->assertStringContainsString($model->model_name, $response->json('errors.product.0'));
+
+        // Nothing moved: the role the existing model depends on is intact,
+        // and no partner was created.
+        $this->assertSame('complete', ApplianceDetail::where('product_id', $legacy->product_id)->value('unit_role'));
+        $this->assertSame(50000.00, (float) $legacy->fresh()->unit_price);
+        $this->assertSame(0, Product::where('product_code', 'like', $legacy->product_code . '-%')->count());
+        $this->assertSame(1, $model->units()->count());
+    }
+
+    public function test_membership_of_an_archived_model_still_blocks_the_conversion(): void
+    {
+        $this->actingAsAdmin();
+
+        $legacy = $this->legacyProduct(50000.00);
+
+        $model = AirconModel::create([
+            'model_name'   => 'Archived One-Piece ' . uniqid(),
+            'ac_type_id'   => $this->splitType()->ac_type_id,
+            'is_two_piece' => false,
+        ]);
+        $model->units()->create([
+            'product_id' => $legacy->product_id,
+            'quantity'   => 1,
+            'sort_order' => 0,
+        ]);
+        // Archiving leaves the unit lines in place, and restore() revalidates
+        // nothing — so this is a broken composition waiting to come back.
+        $model->delete();
+
+        $response = $this->convert($legacy);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('product');
+        $this->assertStringContainsString('(archived)', $response->json('errors.product.0'));
+    }
+
+    // ---------------------------------------------------------- permission
+
+    public function test_a_user_without_the_permission_is_refused(): void
+    {
+        // The route is gated on aircon_model_management,create. Every other
+        // test here runs as an admin, so without this one the gate is
+        // asserted by the route file alone.
+        $roleId = Role::where('role_name', 'inventory_analyst')->value('role_id');
+        $this->assertNotNull($roleId, 'role missing - seed the test database: inventory_analyst');
+
+        $legacy = $this->legacyProduct(50000.00);
+
+        $this->actingAs(User::create([
+            'username'      => 'u_' . uniqid(),
+            'first_name'    => 'Test',
+            'last_name'     => 'Analyst',
+            'email'         => uniqid() . '@example.test',
+            'password_hash' => bcrypt('secret'),
+            'role_id'       => $roleId,
+        ]));
+
+        $this->convert($legacy)->assertStatus(403);
+
+        $this->assertSame('complete', ApplianceDetail::where('product_id', $legacy->product_id)->value('unit_role'));
     }
 
     // ----------------------------------------------------------- validation
