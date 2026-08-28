@@ -13,6 +13,8 @@ import {
   statusAPI,
   capacitiesAPI,
   variantsAPI,
+  acTypesAPI,
+  airconModelsAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useFocusTarget } from '../hooks/useFocusTarget';
@@ -32,6 +34,11 @@ const ItemManagement = () => {
   const canManageItems = roleKey === ROLES.ADMIN
     || (typeof can === 'function' && (can('item_master_management', 'create') || can('item_master_management', 'update')));
   const isViewOnly = !canManageItems;
+  // Splitting a legacy aircon composes an aircon model, so it is gated on that
+  // permission rather than on item-master editing. A user may well be allowed
+  // to edit products without being allowed to build the model catalogue.
+  const canConvertAircon = roleKey === ROLES.ADMIN
+    || (typeof can === 'function' && can('aircon_model_management', 'create'));
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -58,6 +65,18 @@ const ItemManagement = () => {
   const [statuses, setStatuses] = useState([]);
   const [capacities, setCapacities] = useState([]);
   const [variants, setVariants] = useState([]);
+  // AC types are fetched only to learn which ac_type_id values are two-piece:
+  // a window type has no second half, so it must not offer the split.
+  const [acTypes, setAcTypes] = useState([]);
+  const [convertingItem, setConvertingItem] = useState(null);
+  const [isConverting, setIsConverting] = useState(false);
+  const [convertForm, setConvertForm] = useState({
+    keep_as: 'indoor',
+    indoor_model_code: '',
+    indoor_unit_price: '',
+    outdoor_model_code: '',
+    outdoor_unit_price: '',
+  });
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddBrandOpen, setIsAddBrandOpen] = useState(false);
   const [isAddUnitOpen, setIsAddUnitOpen] = useState(false);
@@ -116,6 +135,15 @@ const ItemManagement = () => {
       } catch (fallbackErr) {
         console.error('Fallback fetch also failed:', fallbackErr);
       }
+    }
+    // AC types, in their own try: this list only gates one row action, so a
+    // failure here must not cost the page its categories and brands.
+    try {
+      const acTypeRes = await acTypesAPI.getAll();
+      setAcTypes(Array.isArray(acTypeRes?.data) ? acTypeRes.data : []);
+    } catch (acTypeErr) {
+      console.error('Failed to fetch AC types:', acTypeErr);
+      setAcTypes([]);
     }
     // Statuses — filter to product category only (3=Active, 4=Inactive)
     try {
@@ -472,6 +500,102 @@ const ItemManagement = () => {
   };
   const categoryCount = [...new Set(items.map(i => i.category_id || i.category?.category_id).filter(Boolean))].length;
 
+  // ---------------------------------------------------------------------
+  // Legacy aircon conversion (one 'complete' row -> an indoor/outdoor pair)
+  // ---------------------------------------------------------------------
+
+  /** ac_type_ids that describe a machine with two halves. */
+  const twoPieceTypeIds = useMemo(
+    () => new Set(acTypes.filter((t) => t.is_two_piece).map((t) => String(t.ac_type_id))),
+    [acTypes]
+  );
+
+  /**
+   * Only a complete unit of a two-piece type can be split.
+   *
+   * A row already carrying 'indoor' or 'outdoor' is half of a pair already,
+   * and a window type has no second half — offering the action on either
+   * would only produce a 422. A row with no ac_type_id at all is left out
+   * here even though the backend would accept it: without a type there is
+   * nothing to say the machine has two halves, and guessing is how a window
+   * unit ends up split.
+   */
+  const canConvertItem = (item) =>
+    canConvertAircon
+    && resolveType(item) === 'appliance'
+    && item.unit_role === 'complete'
+    && item.ac_type_id != null
+    && twoPieceTypeIds.has(String(item.ac_type_id));
+
+  /** Money compared in centavos — 0.1 + 0.2 is not 0.3 in a float. */
+  const toCentavos = (value) => Math.round(Number(value || 0) * 100);
+
+  const convertOriginalCentavos = toCentavos(convertingItem?.unit_price ?? convertingItem?.price ?? 0);
+  const convertSumCentavos =
+    toCentavos(convertForm.indoor_unit_price) + toCentavos(convertForm.outdoor_unit_price);
+  const convertPriceMatches = convertSumCentavos === convertOriginalCentavos;
+
+  const handleOpenConvert = (item) => {
+    const cents = toCentavos(item.unit_price ?? item.price ?? 0);
+    // Seed with an even split that already sums correctly, the odd centavo
+    // going to the outdoor side. The user is expected to change these; the
+    // point is that the form does not open already in the error state.
+    const indoorCents = Math.floor(cents / 2);
+    const code = item.model_code || item.model_name || '';
+
+    setConvertForm({
+      keep_as: 'indoor',
+      indoor_model_code: code,
+      indoor_unit_price: (indoorCents / 100).toFixed(2),
+      outdoor_model_code: code ? `${code}-ODU` : '',
+      outdoor_unit_price: ((cents - indoorCents) / 100).toFixed(2),
+    });
+    setConvertingItem(item);
+  };
+
+  const handleConvertSubmit = async (e) => {
+    e.preventDefault();
+    if (!convertingItem || isConverting) return;
+
+    // The backend rejects this too, and must — this check is only here so the
+    // user is not made to submit to find out.
+    if (!convertPriceMatches) {
+      toast.error('The two prices must add up to the current unit price.');
+      return;
+    }
+
+    setIsConverting(true);
+    try {
+      await airconModelsAPI.convert(convertingItem.product_id ?? convertingItem.id, {
+        keep_as: convertForm.keep_as,
+        indoor: {
+          model_code: convertForm.indoor_model_code,
+          unit_price: Number(convertForm.indoor_unit_price || 0),
+        },
+        outdoor: {
+          model_code: convertForm.outdoor_model_code,
+          unit_price: Number(convertForm.outdoor_unit_price || 0),
+        },
+      });
+      toast.success('Converted to a two-piece pair.');
+      setConvertingItem(null);
+      fetchItems(currentPage);
+    } catch (err) {
+      if (err.errors && typeof err.errors === 'object') {
+        toast.error(
+          Object.values(err.errors)
+            .map((msgs) => (Array.isArray(msgs) ? msgs.join(', ') : msgs))
+            .join('; ') || err.message || 'Failed to convert.'
+        );
+      } else {
+        toast.error(err.message || 'Failed to convert.');
+      }
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+
   const normalizeFilterValue = (value) => (value == null ? '' : String(value));
 
   /** Hide incomplete catalog rows: barcode always; appliances also need capacity. */
@@ -798,6 +922,22 @@ const ItemManagement = () => {
                                 </button>
                                 <ArchiveButton onArchive={() => handleArchive(item)} />
                               </>
+                            )}
+                            {/* Own gate: this composes an aircon model, which
+                                is a different permission from editing items. */}
+                            {canConvertItem(item) && (
+                              <button
+                                className="im-action-btn im-action-convert"
+                                onClick={() => handleOpenConvert(item)}
+                                title="Convert to two-piece"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                                  <path d="M16 3h5v5"></path>
+                                  <path d="M8 21H3v-5"></path>
+                                  <path d="M21 3l-7.5 7.5"></path>
+                                  <path d="M3 21l7.5-7.5"></path>
+                                </svg>
+                              </button>
                             )}
                           </div>
                         </td>
@@ -1559,6 +1699,116 @@ const ItemManagement = () => {
           </form>
         </div>
       </Modal>
+
+      {/* Convert a legacy aircon into an indoor/outdoor pair */}
+      {convertingItem && (
+        <Modal
+          isOpen={!!convertingItem}
+          onClose={() => setConvertingItem(null)}
+          title="Convert to Two-Piece"
+        >
+          <form onSubmit={handleConvertSubmit} className="im-add-simple-form">
+            <p className="im-convert-lead">
+              <strong>{convertingItem.product_name || convertingItem.name}</strong> is
+              recorded as one complete unit. Splitting it creates a partner product and
+              pairs the two into an aircon model.
+            </p>
+            <p className="im-convert-note">
+              This product keeps its own record, its stock and its serials — it becomes
+              the side you choose below. Only the other side is newly created.
+            </p>
+
+            <div className="im-form-field">
+              <label>This product becomes the</label>
+              <select
+                value={convertForm.keep_as}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, keep_as: e.target.value }))}
+              >
+                <option value="indoor">Indoor unit</option>
+                <option value="outdoor">Outdoor unit</option>
+              </select>
+            </div>
+
+            <div className="im-form-field">
+              <label>Indoor model code</label>
+              <input
+                type="text"
+                value={convertForm.indoor_model_code}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, indoor_model_code: e.target.value }))}
+                maxLength={100}
+                required
+              />
+            </div>
+            <div className="im-form-field">
+              <label>Indoor price</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={convertForm.indoor_unit_price}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, indoor_unit_price: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="im-form-field">
+              <label>Outdoor model code</label>
+              <input
+                type="text"
+                value={convertForm.outdoor_model_code}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, outdoor_model_code: e.target.value }))}
+                maxLength={100}
+                required
+              />
+            </div>
+            <div className="im-form-field">
+              <label>Outdoor price</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={convertForm.outdoor_unit_price}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, outdoor_unit_price: e.target.value }))}
+                required
+              />
+            </div>
+
+            {/* The running total, always visible. A mismatch is refused on
+                submit, so the user must be able to see it before then. */}
+            <div className={`im-convert-total${convertPriceMatches ? '' : ' im-convert-total--mismatch'}`}>
+              <div>
+                <span>Current unit price</span>
+                <strong>₱{(convertOriginalCentavos / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+              </div>
+              <div>
+                <span>Indoor + outdoor</span>
+                <strong>₱{(convertSumCentavos / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+              </div>
+              {!convertPriceMatches && (
+                <p role="alert" className="im-convert-warning">
+                  These do not match — off by ₱
+                  {(Math.abs(convertSumCentavos - convertOriginalCentavos) / 100)
+                    .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  . The split must preserve the price, so this cannot be saved yet.
+                </p>
+              )}
+            </div>
+
+            <div className="im-modal-footer">
+              <button type="button" className="im-modal-btn-cancel" onClick={() => setConvertingItem(null)}>
+                CANCEL
+              </button>
+              <button
+                type="submit"
+                className="im-modal-btn-confirm"
+                disabled={!convertPriceMatches || isConverting}
+              >
+                {isConverting ? 'CONVERTING…' : 'CONVERT'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Quick Add Category */}
       {isAddCategoryOpen && (

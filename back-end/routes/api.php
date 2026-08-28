@@ -634,6 +634,22 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | Legacy aircon conversion (one complete row -> an indoor/outdoor pair)
+    |--------------------------------------------------------------------------
+    | Lives beside the models block rather than with the product routes because
+    | what it produces is an aircon model, and it is gated on the same
+    | permission as composing one by hand.
+    |
+    | {product} is route-model bound, so an archived product 404s rather than
+    | being rewritten. The original product row keeps its product_id and
+    | becomes one side of the pair -- see AirconConversionController for why
+    | that is not negotiable.
+    */
+    Route::middleware('permission:aircon_model_management,create')
+         ->post('/products/{product}/convert-to-two-piece', [\App\Http\Controllers\Api\AirconConversionController::class, 'convert']);
+
+    /*
+    |--------------------------------------------------------------------------
     | Incident Reports (FIFO-violation overrides)
     |--------------------------------------------------------------------------
     */

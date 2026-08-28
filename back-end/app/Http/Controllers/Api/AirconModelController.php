@@ -58,7 +58,7 @@ class AirconModelController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $models->map(fn (AirconModel $m) => $this->present($m))->all(),
+            'data'    => $models->map(fn (AirconModel $m) => self::present($m))->all(),
         ]);
     }
 
@@ -72,7 +72,7 @@ class AirconModelController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => $this->present($airconModel->loadMissing(self::RELATIONS)),
+            'data'    => self::present($airconModel->loadMissing(self::RELATIONS)),
         ]);
     }
 
@@ -102,7 +102,7 @@ class AirconModelController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $models->map(fn (AirconModel $m) => $this->present($m))->all(),
+            'data'    => $models->map(fn (AirconModel $m) => self::present($m))->all(),
         ]);
     }
 
@@ -123,7 +123,7 @@ class AirconModelController extends Controller
             // would re-run all four to add the one relation they lack.
             // loadMissing resolves the nested path and fetches only the missing
             // segment: measured at 1 query here where load() issued 5.
-            'data'    => $this->present($model->loadMissing(self::RELATIONS)),
+            'data'    => self::present($model->loadMissing(self::RELATIONS)),
         ], 201);
     }
 
@@ -144,7 +144,7 @@ class AirconModelController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Aircon model updated.',
-            'data'    => $this->present($model->loadMissing(self::RELATIONS)),
+            'data'    => self::present($model->loadMissing(self::RELATIONS)),
         ]);
     }
 
@@ -168,7 +168,7 @@ class AirconModelController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Aircon model restored.',
-            'data'    => $this->present($model->loadMissing(self::RELATIONS)),
+            'data'    => self::present($model->loadMissing(self::RELATIONS)),
         ]);
     }
 
@@ -222,9 +222,15 @@ class AirconModelController extends Controller
     }
 
     /**
+     * The wire shape of one model.
+     *
+     * Static and public because AirconConversionController returns a composed
+     * model too, and the models page must not have to tell the two responses
+     * apart. Presentation reads nothing off $this.
+     *
      * @return array<string,mixed>
      */
-    private function present(AirconModel $model): array
+    public static function present(AirconModel $model): array
     {
         return [
             'aircon_model_id' => (int) $model->aircon_model_id,
