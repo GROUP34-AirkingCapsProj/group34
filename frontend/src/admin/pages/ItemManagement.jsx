@@ -865,9 +865,22 @@ const ItemManagement = () => {
                     const qty       = Number(item.quantity ?? 0);
                     const itemType  = resolveType(item);
 
+                    // Indoor and outdoor units are halves of one machine, and
+                    // the two look nearly identical in a list — same brand,
+                    // same capacity, often near-identical names. The role is
+                    // what tells them apart, so it gets a badge of its own
+                    // rather than being buried in the details text.
+                    // 'complete' is the unremarkable default every appliance
+                    // carries, so it is left unbadged; only a half is marked.
+                    const unitRole = itemType === 'appliance'
+                      && (item.unit_role === 'indoor' || item.unit_role === 'outdoor')
+                      ? item.unit_role
+                      : null;
+
                     // V5-aware Details cell
                     const detailsText = itemType === 'appliance'
-                      ? [item.brand_name, item.capacity_rating, item.variant].filter(Boolean).join(' ') || '—'
+                      ? [item.brand_name, item.capacity_rating, item.variant, item.ac_type_name]
+                          .filter(Boolean).join(' · ') || '—'
                       : (() => {
                           const unit = item.unit_name;
                           const ppp  = item.pieces_per_package;
@@ -893,7 +906,14 @@ const ItemManagement = () => {
                           </span>
                         </td>
                         <td className="im-cell-category">{item.category?.category_name || '—'}</td>
-                        <td className="im-cell-details">{detailsText}</td>
+                        <td className="im-cell-details">
+                          {unitRole && (
+                            <span className={`im-role-badge im-role-${unitRole}`}>
+                              {unitRole === 'indoor' ? 'Indoor' : 'Outdoor'}
+                            </span>
+                          )}
+                          {detailsText}
+                        </td>
                         <td className="im-cell-warranty">
                           {item.warranty_display && item.warranty_display !== 'No Warranty'
                             ? item.warranty_display
