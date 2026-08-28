@@ -6,6 +6,7 @@ import ArchiveButton from '../components/ArchiveButton';
 import { issuancesAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { getIssuanceDisplay, issuanceLineQty } from '../utils/moduleFeedStatus';
+import { layoutAirconGroups, airconGroupLabel, airconUnpairedLabel } from '../utils/airconGroups';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
 import '../styles/archive_management.css';
@@ -43,9 +44,23 @@ const IssuanceManagement = () => {
   const [statuses, setStatuses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingIssuance, setViewingIssuance] = useState(null);
+  // Split-aircon grouping for the open view modal. The feed rows come from the
+  // list endpoint, which has no aircon_groups — only the detail endpoint does.
+  const [viewingAirconGroups, setViewingAirconGroups] = useState([]);
   const [editingIssuance, setEditingIssuance] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(emptyForm());
+
+  useEffect(() => {
+    const id = viewingIssuance?.issuance_id;
+    if (!id) { setViewingAirconGroups([]); return undefined; }
+    let mounted = true;
+    setViewingAirconGroups([]);
+    issuancesAPI.getById(id)
+      .then((res) => { if (mounted) setViewingAirconGroups(Array.isArray(res?.data?.aircon_groups) ? res.data.aircon_groups : []); })
+      .catch(() => { if (mounted) setViewingAirconGroups([]); });
+    return () => { mounted = false; };
+  }, [viewingIssuance?.issuance_id]);
 
   const fetchDropdowns = useCallback(async () => {
     try {
@@ -287,8 +302,28 @@ const IssuanceManagement = () => {
               <h4 style={{ marginBottom: 8, color: '#374151' }}>Items Issued</h4>
               <table className="data-table">
                 <thead><tr><th>Product</th><th>Qty</th><th>Condition</th></tr></thead>
-                <tbody>{viewingIssuance.details.map((d, i) => (
-                  <tr key={i}><td>{d.product?.product_name || '—'}</td><td>{d.quantity_issued}</td><td>{d.condition_issued || '—'}</td></tr>
+                <tbody>{layoutAirconGroups(viewingIssuance.details, viewingAirconGroups, 'issuance_detail_id').map((seg) => (
+                  <React.Fragment key={seg.key}>
+                    {seg.group && (
+                      <tr>
+                        <td colSpan={3} style={{ background: '#f1f5f9', fontWeight: 700, fontSize: 12, color: '#334155' }}>
+                          {airconGroupLabel(seg.group)}
+                          {seg.group.is_unbalanced && airconUnpairedLabel(seg.group.unpaired) && (
+                            <span style={{ marginLeft: 8, fontWeight: 600, color: '#b45309' }}>
+                              ⚠ {airconUnpairedLabel(seg.group.unpaired)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    {seg.rows.map((d, i) => (
+                      <tr key={d.issuance_detail_id ?? `${seg.key}-${i}`}>
+                        <td style={seg.group ? { paddingLeft: 18 } : undefined}>{d.product?.product_name || '—'}</td>
+                        <td>{d.quantity_issued}</td>
+                        <td>{d.condition_issued || '—'}</td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))}</tbody>
               </table>
             </div>
