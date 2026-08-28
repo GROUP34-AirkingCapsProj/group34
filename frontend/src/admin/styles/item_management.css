@@ -406,6 +406,31 @@
   border: 1px solid #bfdbfe;
 }
 
+/* Indoor / outdoor half of a split aircon.
+   Only ever rendered for those two roles — a 'complete' unit is the ordinary
+   case and carries no badge, or every appliance row would wear one. */
+.im-role-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.im-role-indoor {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.im-role-outdoor {
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+}
+
 /* Action Buttons */
 .im-cell-actions {
   display: flex;
