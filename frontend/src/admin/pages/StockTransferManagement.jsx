@@ -147,7 +147,14 @@ const StockTransferManagement = () => {
     const itemRows = items.map((d) => `
       <tr>
         <td class="tc">${d.quantity_transferred || ''}</td>
-        <td>${d.product?.product_name || d.product?.applianceDetail?.model_code || ''}</td>
+        <td>${[
+          // Same reasoning as the delivery receipt: a printed transfer slip
+          // has no badge, so the half has to be in the text or the receiving
+          // branch cannot tell which carton the slip is for.
+          d.product?.unit_role === 'indoor' ? '[INDOOR]'
+            : d.product?.unit_role === 'outdoor' ? '[OUTDOOR]' : '',
+          d.product?.product_name || d.product?.applianceDetail?.model_code || '',
+        ].filter(Boolean).join(' ')}</td>
         <td></td>
       </tr>`).join('') + Array(blankCount).fill('<tr><td>&nbsp;</td><td></td><td></td></tr>').join('');
 
