@@ -526,6 +526,46 @@ class AirconConversionTest extends AirconTestCase
         $this->assertSame(0.00, (float) $partner->cost_price);
     }
 
+    /**
+     * A side declared at a price of zero takes a zero cost with it.
+     *
+     * Pinning this deliberately rather than flooring it. It looks like the
+     * defect the cost split was written to fix, and it is not: that zero was
+     * one nobody asked for, written because the column defaults to 0.00 when
+     * omitted. This one is the ratio the user typed. A shop that prices the
+     * whole set on the compressor and the indoor head at nothing has said
+     * what the indoor head is worth, and inventing a cost it did not declare
+     * would be the same class of mistake in the other direction.
+     *
+     * It is milder than the original defect too: the price is zero as well,
+     * so no false margin is reported against it.
+     */
+    public function test_a_side_declared_at_zero_takes_a_zero_cost_with_it(): void
+    {
+        $this->actingAsAdmin();
+
+        $legacy = $this->legacyProduct(50000.00, 40000.00);
+
+        $this->convert($legacy, [
+            'keep_as' => 'indoor',
+            'indoor'  => ['model_code' => 'IDU-100', 'unit_price' => 0],
+            'outdoor' => ['model_code' => 'ODU-100', 'unit_price' => 50000.00],
+        ])->assertStatus(201);
+
+        $partner = Product::where('product_code', 'like', $legacy->product_code . '-%')->firstOrFail();
+
+        $legacy->refresh();
+
+        // Zero price in, zero cost out - and the whole cost lands on the side
+        // that was declared to carry the value.
+        $this->assertSame(0.00, (float) $legacy->cost_price);
+        $this->assertSame(0.00, (float) $legacy->unit_price);
+        $this->assertSame(40000.00, (float) $partner->cost_price);
+
+        // The pair still totals what the single row cost.
+        $this->assertSame(40000.00, round((float) $legacy->cost_price + (float) $partner->cost_price, 2));
+    }
+
     // ------------------------------------------------- existing membership
 
     /**

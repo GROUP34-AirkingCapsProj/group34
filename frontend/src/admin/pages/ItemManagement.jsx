@@ -1716,6 +1716,12 @@ const ItemManagement = () => {
               This product keeps its own record, its stock and its serials — it becomes
               the side you choose below. Only the other side is newly created.
             </p>
+            <p className="im-convert-note">
+              Stock already on hand stays on this product and still counts whole
+              machines, but its recorded value follows the cost split below — so
+              reports will show that stock worth less straight after this runs. Count
+              the partner's units and adjust its stock separately.
+            </p>
             <p className="im-convert-warning-note" role="note">
               <strong>This cannot be undone.</strong> There is no way to merge the pair
               back into one product; reversing it means editing both records by hand.

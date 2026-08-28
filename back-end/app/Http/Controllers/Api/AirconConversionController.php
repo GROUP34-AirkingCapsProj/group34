@@ -56,6 +56,46 @@ use Illuminate\Validation\ValidationException;
  * price, and BOTH sides are written - the original's cost has to come down
  * too, or the pair together double-counts what the single row cost.
  *
+ * WHAT THAT DOES TO STOCK ALREADY ON HAND - READ THIS
+ * ---------------------------------------------------
+ * This conversion does not touch `inventory`, and that has a consequence
+ * worth stating outright rather than discovering from a report.
+ *
+ * Existing on-hand rows stay on the original product, and they still count
+ * WHOLE MACHINES - four of them means four complete aircons in that
+ * location. After the split that same quantity is valued at only one side's
+ * cost, and the partner holds no stock to make up the difference. So the
+ * valuation of stock that already existed drops, at the instant of
+ * conversion, with no physical movement behind it. Two consumers show it:
+ * LocationPerformanceReport (SUM(quantity_on_hand * cost_price)) and
+ * InventorySummaryReport (the unit-cost column). On live product 7, four
+ * units at 20,612.35 read as 82,449.40 before a 50/50 split and 41,224.72
+ * after.
+ *
+ * The double-count argument above therefore only holds for stock received
+ * AFTER the conversion, when each side is stocked on its own row. For stock
+ * that predates it, the old single-row figure happened to be the right
+ * total.
+ *
+ * Mirroring the inventory rows onto the partner would balance the report and
+ * was rejected anyway. Those rows record a physical count. Writing four
+ * outdoor rows would assert that four outdoor units are sitting in that
+ * location when nobody has counted them, and that claim does not stay in a
+ * report - it feeds availability and pick lists. Inventing stock to make a
+ * number look right is a worse failure than a valuation that is honestly
+ * wrong and visibly so. The remedy is a physical count of both sides, which
+ * is a warehouse operation, not something a catalogue tool may fabricate.
+ * The modal tells the user this before they commit.
+ *
+ * One consequence of following the declared ratio: a side declared at a
+ * price of zero takes a cost of zero with it. A shop pricing the whole set
+ * on the compressor and the indoor head at nothing gets an indoor unit
+ * costing nothing. That is not the defect this section is about - that one
+ * was a zero nobody asked for, written because the column defaults to it.
+ * This zero is the ratio the user typed, carried through faithfully, and
+ * flooring it would invent a cost the user did not declare. Pinned by
+ * test_a_side_declared_at_zero_takes_a_zero_cost_with_it.
+ *
  * The composed model goes through AirconModelComposer like every other
  * composition — the piece-count rule has exactly one home.
  */
@@ -153,7 +193,7 @@ class AirconConversionController extends Controller
 
             if ($memberOf !== null) {
                 $this->reject('product', sprintf(
-                    'This product is already part of the aircon model "%s"%s. Splitting it would leave that model built on a unit whose role changed underneath it. Remove it from that model first.',
+                    'This product is already part of the aircon model "%s"%s. Splitting it would leave that model built on a unit whose role changed underneath it. Point that model at a different unit first - replacing it rather than removing it, since a one-piece model cannot be left with no unit at all.',
                     $memberOf->model_name,
                     $memberOf->deleted_at !== null ? ' (archived)' : ''
                 ));
