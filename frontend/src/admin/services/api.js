@@ -1396,6 +1396,24 @@ export const airconModelsAPI = {
     apiRequest(`/aircon-models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/aircon-models/${id}`, { method: 'DELETE' }),
   restore: async (id) => apiRequest(`/aircon-models/${id}/restore`, { method: 'POST' }),
+  /**
+   * Splits a legacy single-row aircon into an indoor/outdoor pair and returns
+   * the composed model.
+   *
+   * Keyed on a PRODUCT id, not a model id — there is no model yet; that is
+   * what this call produces. It lives on airconModelsAPI rather than
+   * productsAPI because the route is gated on aircon_model_management and its
+   * result is a model in the same shape getAll() returns.
+   *
+   * The existing product row survives the conversion and keeps its
+   * product_id; only the partner side is newly created. Anything already
+   * holding that id stays valid.
+   */
+  convert: async (productId, data) =>
+    apiRequest(`/products/${productId}/convert-to-two-piece`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 /* ======================

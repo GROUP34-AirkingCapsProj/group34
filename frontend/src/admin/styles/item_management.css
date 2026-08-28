@@ -451,6 +451,64 @@
   color: #059669;
 }
 
+.im-action-convert svg {
+  color: #6b7280;
+}
+
+.im-action-convert:hover {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.im-action-convert:hover svg {
+  color: #ea580c;
+}
+
+/* Convert-to-two-piece modal */
+.im-convert-lead {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.im-convert-note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.im-convert-total {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #d1fae5;
+  background: #f0fdf4;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.im-convert-total > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  color: #374151;
+}
+
+.im-convert-total--mismatch {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.im-convert-warning {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b91c1c;
+  line-height: 1.5;
+}
+
 /* Pagination */
 .im-pagination {
   display: flex;
