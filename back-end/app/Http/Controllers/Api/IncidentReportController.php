@@ -67,6 +67,12 @@ class IncidentReportController extends Controller
                 // product and must serialize as null, like batch_id does below.
                 'product_id'              => $i->product_id !== null ? (int) $i->product_id : null,
                 'product_name'            => $i->product?->product_name,
+                // An incident is filed against one physical carton. For a split
+                // aircon the indoor and outdoor halves share a name, so a
+                // reviewer approving a write-off needs to know which half was
+                // damaged — the other one is still saleable.
+                'unit_role'               => $i->product?->unit_role,
+                'ac_type_name'            => $i->product?->ac_type_name,
                 // Packaging so the list, drawer and confirmation dialogs can show
                 // a pack breakdown. quantity is PIECES; a reviewer approving a
                 // write-off needs to see "25 pcs · 2 Box + 5 pcs", not a bare 25.
@@ -185,6 +191,11 @@ class IncidentReportController extends Controller
                     'product_name'       => $product->product_name,
                     'product_code'       => $product->product_code,
                     'barcode'            => $product->barcode,
+                    // See the list payload above — the filing form has to name
+                    // the half too, or the incident is raised against an
+                    // ambiguous product.
+                    'unit_role'          => $product->unit_role,
+                    'ac_type_name'       => $product->ac_type_name,
                     // Packaging, so the form can offer pack + loose-pieces entry
                     // instead of one unlabelled box. pieces_per_package is an
                     // appended accessor on Product (defaults to 1); package_unit
