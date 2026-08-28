@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
+import UnitRoleBadge from '../components/UnitRoleBadge';
 import { incidentItemsAPI, locationsAPI } from '../services/api';
 import { packageBreakdown } from '../utils/packageFormat';
 import { ITEM_STATUSES, itemStatusMeta, outcomeLabel, unitRoleLabel } from '../utils/incidentItems';
@@ -132,7 +133,13 @@ const IncidentItemsRegisterPage = () => {
                   return (
                     <tr key={item.item_id}>
                       <td><span className={`ak-badge ${status.badge}`}>{status.label}</span></td>
-                      <td>{item.product_name || `#${item.product_id}`}</td>
+                      <td>
+                        <UnitRoleBadge role={item.unit_role} />
+                        {item.product_name || `#${item.product_id}`}
+                        {item.ac_type_name && (
+                          <span style={{ color: '#6b7280', fontSize: 11 }}> · {item.ac_type_name}</span>
+                        )}
+                      </td>
                       <td>
                         {unitRoleLabel(item.unit_role)}
                         {item.model_code && (
