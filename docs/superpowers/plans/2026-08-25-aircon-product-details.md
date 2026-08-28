@@ -3418,12 +3418,23 @@ went from 12 queries at two lines to 16 at six, entirely from this — the guard
 had to be written as a difference-of-differences to cancel it out. Unrelated to
 this feature and present before it. Two live screens pay it on every view.
 
-**`ReceivingReceipt.jsx` reads a key the API has never emitted.** `:54` reads
-`receiving.receivedBy?.first_name`, but `Model::$snakeAttributes` serialises
-the relation as `received_by`, so that lookup has always fallen through to a
-`received_by_name` key that does not exist. `TransactionManagement.jsx` handles
-both spellings; this one does not. Pre-existing, found while tracing Task 14a's
-consumers.
+**The Goods Received Note renders a blank "received by".** Traced end to end.
+`ReceivingReceipt.jsx:53-54` tries `receiving.received_by_name` and falls back
+to `receiving.receivedBy?.first_name`. Both callers — `PurchaseOrderPage.jsx`
+and `BarcodeScan.jsx`, both via `openReceipt()` — populate it from
+`receivingsAPI.getById()`, i.e. `ReceivingController::show()`. That endpoint
+eager-loads `receivedBy` but `Model::$snakeAttributes` serialises it as
+**`received_by`**, and it never emits `received_by_name` at all (only
+`InventoryController` and `PoInventoryController` build that key, via raw
+selects, on different endpoints).
+
+So both lookups miss and the receiver's name is an empty string on every GRN.
+The component's docblock claims missing fields "degrade gracefully", which is
+how this stayed invisible — it degrades to blank rather than erroring.
+
+Fix is one word (`receivedBy` → `received_by`) or emitting `received_by_name`
+from `show()`. Pre-existing and unrelated to this feature; found while tracing
+Task 14a's consumers.
 
 
 
