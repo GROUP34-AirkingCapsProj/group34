@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AcTypeLookup;
+use App\Models\AirconModelUnit;
 use App\Models\ApplianceDetail;
 use App\Models\Product;
 use App\Services\AirconModelComposer;
@@ -39,6 +40,21 @@ use Illuminate\Validation\ValidationException;
  * A conversion that does not preserve the total is a silent repricing of the
  * catalogue. The two sides must sum, to the centavo, to what the single row
  * cost, or nothing happens. This is checked before any write.
+ *
+ * THE COST SPLIT
+ * --------------
+ * products.cost_price is NOT NULL DEFAULT 0.00, so leaving it out of the
+ * partner's create() does not leave it undecided - it writes a hard zero, and
+ * nothing in the system ever fills it in afterwards (only ProductController
+ * and PendingProductController write the column; receiving only reads it).
+ * A zero there is not cosmetic: LocationPerformanceReport values that stock
+ * at nil, InventorySummaryReport prints a zero unit cost,
+ * DashboardAnalyticsService reports a 100% margin on it, and a warranty claim
+ * against the unit is valued at nothing.
+ *
+ * So the cost is split by the same ratio the user just declared for the
+ * price, and BOTH sides are written - the original's cost has to come down
+ * too, or the pair together double-counts what the single row cost.
  *
  * The composed model goes through AirconModelComposer like every other
  * composition — the piece-count rule has exactly one home.
@@ -113,6 +129,36 @@ class AirconConversionController extends Controller
                 ));
             }
 
+            // A product already composed into a model must not be split.
+            //
+            // aircon_model_units is unique on (aircon_model_id, product_id),
+            // not on product_id, so nothing at the database level stops the
+            // same product belonging to two models. And the piece-count rule
+            // reads unit_role live out of appliance_details - it is never
+            // snapshotted onto the line, and it only runs on write. So
+            // flipping this product's role from 'complete' to 'indoor' would
+            // silently invalidate any one-piece model already built on it:
+            // the model stays in the catalogue violating the invariant, and
+            // the next person to edit it gets a 422 they did not cause.
+            //
+            // Refusing is the conservative reading and easy to relax later.
+            // Archived models count too: archiving leaves the unit lines in
+            // place and restore() re-validates nothing, so an archived model
+            // is a broken composition waiting to come back.
+            $memberOf = AirconModelUnit::query()
+                ->where('aircon_model_units.product_id', $original->product_id)
+                ->join('aircon_models', 'aircon_models.aircon_model_id', '=', 'aircon_model_units.aircon_model_id')
+                ->orderBy('aircon_models.aircon_model_id')
+                ->first(['aircon_models.model_name', 'aircon_models.deleted_at']);
+
+            if ($memberOf !== null) {
+                $this->reject('product', sprintf(
+                    'This product is already part of the aircon model "%s"%s. Splitting it would leave that model built on a unit whose role changed underneath it. Remove it from that model first.',
+                    $memberOf->model_name,
+                    $memberOf->deleted_at !== null ? ' (archived)' : ''
+                ));
+            }
+
             // ---- the price guard, before any write ----------------------
             $originalPrice = round((float) $original->unit_price, 2);
             $splitTotal    = round($prices['indoor'] + $prices['outdoor'], 2);
@@ -127,9 +173,20 @@ class AirconConversionController extends Controller
                 ));
             }
 
+            // ---- the cost split, by the declared price ratio -------------
+            // In centavos, with the second side taken as the REMAINDER rather
+            // than computed on its own: two independently rounded halves can
+            // each be right to the centavo and still fail to sum.
+            $costs = $this->splitCost(
+                (float) $original->cost_price,
+                $prices['indoor'],
+                $originalPrice
+            );
+
             // ---- the original becomes its side --------------------------
             // product_id is untouched, deliberately. See the class docblock.
             $original->unit_price = $prices[$keepAs];
+            $original->cost_price = $costs[$keepAs];
             $original->save();
 
             $detail->unit_role  = $keepAs;
@@ -144,6 +201,9 @@ class AirconConversionController extends Controller
                 'product_type'       => 'appliance',
                 'description'        => $original->description,
                 'unit_price'         => $prices[$partnerRole],
+                // Explicit, not omitted: the column is NOT NULL DEFAULT 0.00,
+                // so omitting it silently prices this unit's cost at nothing.
+                'cost_price'         => $costs[$partnerRole],
                 'status_id'          => $original->status_id,
                 'recommended_stocks' => $original->recommended_stocks,
                 'safety_stock'       => $original->safety_stock,
@@ -171,7 +231,7 @@ class AirconConversionController extends Controller
             // Through the composer, not around it: the piece-count rule has
             // one home, and this is the second entry point it was written for.
             return $this->composer->create([
-                'model_name'      => $validated['model_name'] ?? $original->product_name,
+                'model_name'      => $validated['model_name'] ?? $this->deriveModelName($original->product_name, $detail),
                 'brand_id'        => $detail->brand_id,
                 'ac_type_id'      => $detail->ac_type_id,
                 'capacity_rating' => $detail->capacity_rating,
@@ -193,6 +253,61 @@ class AirconConversionController extends Controller
                 $model->loadMissing(['units.product.applianceDetail', 'brand', 'acType'])
             ),
         ], 201);
+    }
+
+    /**
+     * Splits a cost between the two sides in the ratio the caller declared for
+     * the price, in centavos, so the halves sum to the original exactly.
+     *
+     * When the original price is zero there is no ratio to read - and the
+     * price guard has already established that both declared prices are zero
+     * too, since they have to sum to it. An even split is then the only
+     * division that treats the two sides alike and still sums, with the odd
+     * centavo going to the outdoor side. Carrying the whole cost on the kept
+     * side was the alternative and was rejected: which side is kept is a UI
+     * choice, and what a machine cost must not depend on it.
+     *
+     * @return array{indoor:float,outdoor:float}
+     */
+    private function splitCost(float $originalCost, float $indoorPrice, float $originalPrice): array
+    {
+        $costCentavos     = (int) round($originalCost * 100);
+        $priceCentavos    = (int) round($originalPrice * 100);
+        $indoorPriceCents = (int) round($indoorPrice * 100);
+
+        $indoorCentavos = $priceCentavos > 0
+            ? (int) round($costCentavos * $indoorPriceCents / $priceCentavos)
+            : intdiv($costCentavos, 2);
+
+        return [
+            'indoor'  => $indoorCentavos / 100,
+            'outdoor' => ($costCentavos - $indoorCentavos) / 100,
+        ];
+    }
+
+    /**
+     * A default name for the composed model.
+     *
+     * Not simply the product name. The original product keeps its own name -
+     * it appears on printed paperwork, so this tool does not get to change it
+     * - and a model carrying that same string would sit beside its own member
+     * product in the same UI reading identically. Capacity and variant are
+     * what distinguish the pair, and unlike the product name the model name is
+     * a brand-new record with no history to protect.
+     *
+     * Falls back to a "(Two-Piece)" suffix when there is no capacity or
+     * variant to add, so the default is never byte-identical to the product.
+     */
+    private function deriveModelName(?string $productName, ApplianceDetail $detail): string
+    {
+        $base  = $productName !== null && $productName !== '' ? $productName : 'Aircon';
+        $parts = array_values(array_filter([$detail->capacity_rating, $detail->variant]));
+
+        $name = $parts !== []
+            ? $base . ' ' . implode(' ', $parts)
+            : $base . ' (Two-Piece)';
+
+        return substr($name, 0, 191);
     }
 
     /**
