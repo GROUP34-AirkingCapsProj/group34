@@ -36,7 +36,15 @@ class Product extends Model
 
     // Serialize the pieces_per_package accessor so API responses always include it.
     // Reads from installation_material_details; returns 1 for appliances.
-    protected $appends = ['pieces_per_package'];
+    //
+    // unit_role and ac_type_name ride along for a specific operational reason:
+    // an indoor unit and its outdoor partner share a brand, a capacity and
+    // usually a near-identical name, so on a scanning or picking screen they
+    // are indistinguishable. Staff need to see WHICH HALF a row is before
+    // they scan it. Appending them here rather than in each controller means
+    // every screen that serialises a product — receiving, issuance, incident,
+    // transfers, adjustments — gets them without its own plumbing.
+    protected $appends = ['pieces_per_package', 'unit_role', 'ac_type_name'];
 
     protected $casts = [
         'cost_price'         => 'decimal:2',
@@ -177,6 +185,54 @@ class Product extends Model
      * Called automatically when code reads $product->pieces_per_package,
      * so existing scan/receiving code keeps working without changes.
      */
+    /**
+     * Which half of a split aircon this product is: indoor, outdoor, or
+     * complete. Null for anything that is not an appliance.
+     *
+     * Lazy-loads applianceDetail when it is not already there, matching
+     * pieces_per_package below. That is a deliberate choice over returning
+     * null when unloaded: this value is read on scanning and picking screens
+     * to tell two near-identical halves apart, and a silently absent badge
+     * would read as "not an aircon" rather than "not loaded" — the one
+     * failure mode that could put the wrong carton on a truck.
+     *
+     * The cost is one query per product row on any screen that does not
+     * eager-load. Callers listing products should eager-load
+     * `applianceDetail` (and `applianceDetail.acType` for the name below).
+     */
+    public function getUnitRoleAttribute(): ?string
+    {
+        if (! $this->isAppliance()) {
+            return null;
+        }
+
+        $detail = $this->relationLoaded('applianceDetail')
+            ? $this->applianceDetail
+            : $this->load('applianceDetail')->applianceDetail;
+
+        return $detail?->unit_role;
+    }
+
+    /**
+     * The AC kind's display name — "Split Type", "Cassette" — or null when
+     * the product is not an appliance or carries no type.
+     *
+     * See getUnitRoleAttribute() for why this lazy-loads rather than
+     * returning null when the relation is cold.
+     */
+    public function getAcTypeNameAttribute(): ?string
+    {
+        if (! $this->isAppliance()) {
+            return null;
+        }
+
+        $detail = $this->relationLoaded('applianceDetail')
+            ? $this->applianceDetail
+            : $this->load('applianceDetail')->applianceDetail;
+
+        return $detail?->acType?->ac_type_name;
+    }
+
     public function getPiecesPerPackageAttribute($value): int
     {
         if ($value !== null) return (int) $value;
