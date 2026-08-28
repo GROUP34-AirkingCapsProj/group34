@@ -100,6 +100,8 @@ const ItemManagement = () => {
     variant: '',
     color: '',
     capacity_rating: '',
+    ac_type_id: '',
+    unit_role: '',
     description: '',
     pieces_per_package: '',
     package_unit: '',
@@ -246,7 +248,8 @@ const ItemManagement = () => {
       name: '', code: '', barcode: '', category_id: '', brand_id: '', model_code: '', unit_id: '',
       unit_price: '', cost_price: '', warranty_value: 0, warranty_unit: 'month', status_id: '',
       variant: '', color: '',
-      capacity_rating: '', description: '', pieces_per_package: '', package_unit: '',
+      capacity_rating: '', ac_type_id: '', unit_role: '',
+      description: '', pieces_per_package: '', package_unit: '',
       recommended_stocks: '', safety_stock: '', max_stock_level: '',
     });
     setProductType('appliance');
@@ -309,6 +312,8 @@ const ItemManagement = () => {
       variant: item.variant || '',
       color: item.color || '',
       capacity_rating: item.capacity_rating || '',
+      ac_type_id: item.ac_type_id ?? '',
+      unit_role: item.unit_role || '',
       description: item.description || '',
       pieces_per_package: item.pieces_per_package ?? '',
       package_unit: item.package_unit || '',
@@ -452,6 +457,12 @@ const ItemManagement = () => {
         model_code:      formData.model_code || null,
         capacity_rating: formData.capacity_rating || null,
         variant:         formData.variant || null,
+        // Both AC fields go every time, even when empty. ProductController
+        // rewrites the whole appliance_details row via updateOrCreate, so a
+        // field left out of the payload is nulled rather than kept — sending
+        // one without the other would silently wipe it.
+        ac_type_id:      formData.ac_type_id ? Number(formData.ac_type_id) : null,
+        unit_role:       formData.unit_role || null,
         color:           formData.color || null,
         warranty_value:  Number(formData.warranty_value) || 0,
         warranty_unit:   formData.warranty_unit || 'month',
@@ -503,6 +514,26 @@ const ItemManagement = () => {
   // ---------------------------------------------------------------------
   // Legacy aircon conversion (one 'complete' row -> an indoor/outdoor pair)
   // ---------------------------------------------------------------------
+
+  /**
+   * Changing the AC type re-applies that type's default unit role and
+   * DISCARDS any manual choice made before the change. Preserving it would
+   * silently leave a product marked 'complete' under a type that means
+   * two-piece — the exact wrong state. The user can re-pick the side
+   * immediately; the field stays editable.
+   *
+   * Same rule as ProductRegisterModal's handleAcTypeChange. The two forms
+   * write the same column and must not disagree about the default.
+   */
+  const handleAcTypeChange = (nextId) => {
+    const chosen = acTypes.find((t) => String(t.ac_type_id) === String(nextId));
+
+    setFormData((f) => ({
+      ...f,
+      ac_type_id: nextId,
+      unit_role: chosen && !chosen.is_two_piece ? 'complete' : '',
+    }));
+  };
 
   /** ac_type_ids that describe a machine with two halves. */
   const twoPieceTypeIds = useMemo(
@@ -1061,6 +1092,22 @@ const ItemManagement = () => {
                 </div>
                 <div className="im-view-row">
                   <div className="im-view-field">
+                    <label>AC Type</label>
+                    <p>{viewingItem.ac_type_name || '—'}</p>
+                  </div>
+                  <div className="im-view-field">
+                    <label>Unit Role</label>
+                    <p>{viewingItem.unit_role
+                        ? (viewingItem.unit_role === 'complete'
+                            ? 'Complete unit'
+                            : <span className={`im-role-badge im-role-${viewingItem.unit_role}`}>
+                                {viewingItem.unit_role === 'indoor' ? 'Indoor' : 'Outdoor'}
+                              </span>)
+                        : '—'}</p>
+                  </div>
+                </div>
+                <div className="im-view-row">
+                  <div className="im-view-field">
                     <label>Warranty</label>
                     <p>{viewingItem.warranty_display && viewingItem.warranty_display !== 'No Warranty'
                         ? viewingItem.warranty_display
@@ -1342,6 +1389,37 @@ const ItemManagement = () => {
                       onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                       placeholder="e.g. White"
                     />
+                  </div>
+                </div>
+                <div className="im-form-row">
+                  <div className="im-form-field">
+                    <label htmlFor="im-ac-type">AC TYPE</label>
+                    <select
+                      id="im-ac-type"
+                      value={formData.ac_type_id}
+                      onChange={(e) => handleAcTypeChange(e.target.value)}
+                    >
+                      <option value="">Select AC type (optional)</option>
+                      {acTypes.map((t) => (
+                        <option key={t.ac_type_id} value={t.ac_type_id}>{t.ac_type_name}</option>
+                      ))}
+                    </select>
+                    {acTypes.length === 0 && (
+                      <p className="im-barcode-hint">No AC types defined yet. Add them on the Item Lookups page.</p>
+                    )}
+                  </div>
+                  <div className="im-form-field">
+                    <label htmlFor="im-unit-role">UNIT ROLE</label>
+                    <select
+                      id="im-unit-role"
+                      value={formData.unit_role}
+                      onChange={(e) => setFormData({ ...formData, unit_role: e.target.value })}
+                    >
+                      <option value="">Select unit role</option>
+                      <option value="indoor">Indoor unit</option>
+                      <option value="outdoor">Outdoor unit</option>
+                      <option value="complete">Complete unit</option>
+                    </select>
                   </div>
                 </div>
                 <div className="im-form-row">
