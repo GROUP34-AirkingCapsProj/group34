@@ -371,7 +371,7 @@ class ProductController extends Controller
 
         $columns = [
             'Product Code', 'Product Name', 'Type', 'Category', 'Status',
-            'Brand', 'Model', 'Capacity', 'Variant', 'Color', 'Warranty',
+            'Brand', 'Model', 'Capacity', 'Variant', 'AC Type', 'Unit Role', 'Color', 'Warranty',
             'Unit', 'Unit Abbreviation', 'Pieces/Package', 'Package Unit',
             'Cost Price', 'Unit Price',
             'Recommended Stock', 'Safety Stock', 'Max Stock Level',
@@ -397,6 +397,8 @@ class ProductController extends Controller
                     $ad?->model_code                            ?? '',
                     $ad?->capacity_rating                       ?? '',
                     $ad?->variant                               ?? '',
+                    $ad?->acType?->ac_type_name                 ?? '',
+                    $ad?->unit_role                             ?? '',
                     $ad?->color                                 ?? '',
                     $ad?->warranty_display ?? ($cd?->warranty_display ?? 'No Warranty'),
                     $cd?->unit?->unit_name                      ?? '',
