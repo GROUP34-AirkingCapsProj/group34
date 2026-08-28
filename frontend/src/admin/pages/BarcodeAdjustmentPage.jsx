@@ -275,6 +275,16 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', border: '1px solid #10b981', borderRadius: 8, background: '#f0fdf4' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {(selectedProduct.unit_role === 'indoor' || selectedProduct.unit_role === 'outdoor') && (
+                <span style={{
+                  display: 'inline-block', marginRight: 6, padding: '1px 6px',
+                  borderRadius: 4, fontSize: 10, fontWeight: 800, letterSpacing: '0.4px',
+                  color: '#fff',
+                  background: selectedProduct.unit_role === 'indoor' ? '#4338ca' : '#0f766e',
+                }}>
+                  {selectedProduct.unit_role === 'indoor' ? 'INDOOR' : 'OUTDOOR'}
+                </span>
+              )}
               {selectedProduct.product_name}
             </div>
             <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
@@ -369,7 +379,16 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
               const variant = p.appliance_detail?.variant;
               const unit = p.consumable_detail?.unit?.unit_name;
               const catName = categories.find(c => c.category_id === p.category_id)?.category_name;
-              const subtitle = [brand, capacity, variant].filter(Boolean).join(' · ') || unit || '';
+              // This picker exists to correct a mis-scan, so it is the one
+              // place a user is actively trying to tell two near-identical
+              // products apart. The AC kind joins the subtitle; the half gets
+              // a badge of its own below, since brand/capacity/variant are
+              // identical across an indoor and its outdoor partner.
+              const subtitle = [brand, capacity, variant, p.ac_type_name]
+                .filter(Boolean).join(' · ') || unit || '';
+              const half = p.unit_role === 'indoor' || p.unit_role === 'outdoor'
+                ? p.unit_role
+                : null;
 
               return (
                 <div
@@ -384,6 +403,15 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {half && (
+                        <span style={{
+                          display: 'inline-block', marginRight: 6, padding: '1px 6px',
+                          borderRadius: 4, fontSize: 10, fontWeight: 800, letterSpacing: '0.4px',
+                          color: '#fff', background: half === 'indoor' ? '#4338ca' : '#0f766e',
+                        }}>
+                          {half === 'indoor' ? 'INDOOR' : 'OUTDOOR'}
+                        </span>
+                      )}
                       {p.product_name}
                     </div>
                     {subtitle && (
