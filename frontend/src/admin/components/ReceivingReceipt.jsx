@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { companySettingsAPI, openApiFile } from '../services/api';
 import { toast } from '../utils/toast';
+import { layoutAirconGroups, airconGroupLabel, airconUnpairedLabel } from '../utils/airconGroups';
 
 /**
  * On-screen Goods Received Note for one receiving session, with Print + download
@@ -48,6 +49,14 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
     0,
   );
   const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // Split-aircon rows sit under one model header; an untagged receiving comes
+  // back with aircon_groups: [] and lays out exactly as it always did.
+  const detailSegments = layoutAirconGroups(
+    receiving.details || [],
+    receiving.aircon_groups,
+    'receiving_detail_id',
+  );
 
   const receiverName =
     receiving.received_by_name
@@ -101,18 +110,34 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
             </tr>
           </thead>
           <tbody>
-            {(receiving.details || []).map((d, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: 6 }}>
-                  <strong>{d.product?.product_name || `Product #${d.product_id}`}</strong>
-                  {d.product?.product_code ? ` · ${d.product.product_code}` : ''}
-                </td>
-                <td style={{ padding: 6, textAlign: 'center' }}>{orderedByProduct[d.product_id] ?? '—'}</td>
-                <td style={{ padding: 6, textAlign: 'center' }}>{Number(d.quantity_amount || 0)}</td>
-                <td style={{ padding: 6, textAlign: 'right' }}>{money(costFor(d))}</td>
-                <td style={{ padding: 6, textAlign: 'right' }}>{money(costFor(d) * Number(d.quantity_amount || 0))}</td>
-                <td style={{ padding: 6, textAlign: 'center' }}>{d.condition || 'Good'}</td>
-              </tr>
+            {detailSegments.map((seg) => (
+              <React.Fragment key={seg.key}>
+                {seg.group && (
+                  <tr style={{ background: '#f1f5f9' }}>
+                    <td colSpan={6} style={{ padding: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                      {airconGroupLabel(seg.group)}
+                      {seg.group.is_unbalanced && airconUnpairedLabel(seg.group.unpaired) && (
+                        <span style={{ marginLeft: 8, fontWeight: 600, color: '#b45309' }}>
+                          ⚠ {airconUnpairedLabel(seg.group.unpaired)}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                {seg.rows.map((d, i) => (
+                  <tr key={d.receiving_detail_id ?? `${seg.key}-${i}`} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: 6, paddingLeft: seg.group ? 18 : 6 }}>
+                      <strong>{d.product?.product_name || `Product #${d.product_id}`}</strong>
+                      {d.product?.product_code ? ` · ${d.product.product_code}` : ''}
+                    </td>
+                    <td style={{ padding: 6, textAlign: 'center' }}>{orderedByProduct[d.product_id] ?? '—'}</td>
+                    <td style={{ padding: 6, textAlign: 'center' }}>{Number(d.quantity_amount || 0)}</td>
+                    <td style={{ padding: 6, textAlign: 'right' }}>{money(costFor(d))}</td>
+                    <td style={{ padding: 6, textAlign: 'right' }}>{money(costFor(d) * Number(d.quantity_amount || 0))}</td>
+                    <td style={{ padding: 6, textAlign: 'center' }}>{d.condition || 'Good'}</td>
+                  </tr>
+                ))}
+              </React.Fragment>
             ))}
           </tbody>
         </table>

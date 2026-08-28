@@ -31,6 +31,7 @@ import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
 import { getStatusConfig } from '../utils/poStatus';
+import { layoutAirconGroups, airconGroupLabel, airconUnpairedLabel } from '../utils/airconGroups';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -189,15 +190,22 @@ const PurchaseOrderPage = () => {
   // Receiving sessions for the open PO detail modal + the receipt being shown
   const [poReceivings,     setPoReceivings]     = useState([]);
   const [receiptReceiving, setReceiptReceiving] = useState(null);
+  // Split-aircon grouping for the open PO detail modal: the list rows carry no
+  // aircon_groups, only the detail endpoint does.
+  const [poAirconGroups, setPoAirconGroups] = useState([]);
 
   useEffect(() => {
     const poId = selectedPO?.po_id;
-    if (!poId) { setPoReceivings([]); return; }
+    if (!poId) { setPoReceivings([]); setPoAirconGroups([]); return; }
     let mounted = true;
-    // getById eager-loads the PO's `receivings` sessions.
+    // getById eager-loads the PO's `receivings` sessions and its aircon groups.
     purchaseOrdersAPI.getById(poId)
-      .then((res) => { if (mounted) setPoReceivings(Array.isArray(res?.data?.receivings) ? res.data.receivings : []); })
-      .catch(() => { if (mounted) setPoReceivings([]); });
+      .then((res) => {
+        if (!mounted) return;
+        setPoReceivings(Array.isArray(res?.data?.receivings) ? res.data.receivings : []);
+        setPoAirconGroups(Array.isArray(res?.data?.aircon_groups) ? res.data.aircon_groups : []);
+      })
+      .catch(() => { if (mounted) { setPoReceivings([]); setPoAirconGroups([]); } });
     return () => { mounted = false; };
   }, [selectedPO?.po_id]);
 
@@ -1587,33 +1595,47 @@ const PurchaseOrderPage = () => {
                                   <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>₱{Number(grp.subtotal).toLocaleString('en-PH')}</span>
                                 </td>
                               </tr>
-                              {grp.rows.map((item) => {
-                                idx += 1;
-                                const ab = item.approvedBy || item.approved_by || null;
-                                const detailApprovedBy = ab ? `${ab.first_name || ''} ${ab.last_name || ''}`.trim() || ab.username || '—' : '—';
-                                const pType = item.product_type || item.product?.product_type || '';
-                                return (
-                                  <tr key={item.po_detail_id ?? idx}>
-                                    <td className="po-detail-table-idx">{idx}</td>
-                                    <td>
-                                      <div>{item.product_name || item.product?.product_name || `Item ${idx}`}</div>
-                                      {item.product?.applianceDetail?.model_code && (
-                                        <small style={{ color: '#94a3b8' }}>{item.product.applianceDetail.model_code}</small>
-                                      )}
-                                      {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
-                                    </td>
-                                    <td style={{ fontSize: 11 }}>
-                                      <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                                        {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
-                                      </span>
-                                    </td>
-                                    <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(item)}</td>
-                                    <td>{item.quantity_ordered}</td>
-                                    <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
-                                    <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
-                                  </tr>
-                                );
-                              })}
+                              {layoutAirconGroups(grp.rows, poAirconGroups, 'po_detail_id').map((seg) => (
+                                <React.Fragment key={seg.key}>
+                                  {seg.group && (
+                                    <tr>
+                                      <td colSpan={7} style={{ background: '#f8fafc', fontWeight: 700, fontSize: 11, color: '#334155', padding: '4px 10px' }}>
+                                        {airconGroupLabel(seg.group)}
+                                        {seg.group.is_unbalanced && airconUnpairedLabel(seg.group.unpaired) && (
+                                          <span style={{ marginLeft: 8, fontWeight: 600, color: '#b45309' }}>⚠ {airconUnpairedLabel(seg.group.unpaired)}</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {seg.rows.map((item) => {
+                                  idx += 1;
+                                  const ab = item.approvedBy || item.approved_by || null;
+                                  const detailApprovedBy = ab ? `${ab.first_name || ''} ${ab.last_name || ''}`.trim() || ab.username || '—' : '—';
+                                  const pType = item.product_type || item.product?.product_type || '';
+                                  return (
+                                    <tr key={item.po_detail_id ?? idx}>
+                                      <td className="po-detail-table-idx">{idx}</td>
+                                      <td style={seg.group ? { paddingLeft: 18 } : undefined}>
+                                        <div>{item.product_name || item.product?.product_name || `Item ${idx}`}</div>
+                                        {item.product?.applianceDetail?.model_code && (
+                                          <small style={{ color: '#94a3b8' }}>{item.product.applianceDetail.model_code}</small>
+                                        )}
+                                        {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
+                                      </td>
+                                      <td style={{ fontSize: 11 }}>
+                                        <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                          {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
+                                        </span>
+                                      </td>
+                                      <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(item)}</td>
+                                      <td>{item.quantity_ordered}</td>
+                                      <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
+                                      <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
+                                    </tr>
+                                  );
+                                  })}
+                                </React.Fragment>
+                              ))}
                             </React.Fragment>
                           ));
                         })()}
