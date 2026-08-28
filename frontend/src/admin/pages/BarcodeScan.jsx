@@ -3279,6 +3279,15 @@ const BarcodeScan = () => {
                             {prod.product_type === 'appliance'
                               ? <span className="bsr-serialized-badge">SERIAL</span>
                               : <span className="bsr-bulk-badge">BULK</span>}
+                            {/* Which half of a split aircon this line is.
+                                Picking the wrong line here means scanning
+                                cartons against the wrong half, and the two
+                                read almost identically by name alone. */}
+                            {(prod.unit_role === 'indoor' || prod.unit_role === 'outdoor') && (
+                              <span className={`bsr-role-badge bsr-role-${prod.unit_role}`}>
+                                {prod.unit_role === 'indoor' ? 'INDOOR' : 'OUTDOOR'}
+                              </span>
+                            )}
                             {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
                           </div>
                         </div>
@@ -3374,7 +3383,19 @@ const BarcodeScan = () => {
                     <span className="bsr-card-title">SCAN BARCODE</span>
                     {bsrActiveLine ? (
                       <p className="bsr-card-subtitle">
+                        {/* The last thing read before cartons start going
+                            through. If this is one half of a split aircon,
+                            say so here rather than only in the picker. */}
+                        {(bsrActiveLine.product?.unit_role === 'indoor'
+                          || bsrActiveLine.product?.unit_role === 'outdoor') && (
+                          <span className={`bsr-role-badge bsr-role-${bsrActiveLine.product.unit_role}`}>
+                            {bsrActiveLine.product.unit_role === 'indoor' ? 'INDOOR' : 'OUTDOOR'}
+                          </span>
+                        )}
                         <strong>{bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Selected Item'}</strong>
+                        {bsrActiveLine.product?.ac_type_name && (
+                          <span className="bsr-card-actype"> · {bsrActiveLine.product.ac_type_name}</span>
+                        )}
                       </p>
                     ) : (
                       <p className="bsr-card-subtitle bsr-card-subtitle--warn">Select an item from the left panel to begin</p>
