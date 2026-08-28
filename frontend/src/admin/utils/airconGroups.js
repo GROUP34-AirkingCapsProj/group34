@@ -72,7 +72,21 @@ export function layoutAirconGroups(details, groups, idKey) {
   return segments;
 }
 
-/** "TCL 2HP Split · 3 complete" — the header line for one grouped aircon model. */
+/**
+ * "TCL 2HP Split · 3 complete" — the header line for one grouped aircon model.
+ *
+ * KNOWN LIMITATION on the purchase order detail view, which bands its rows by
+ * warehouse before grouping. purchase_order_details.location_id is per line, so
+ * one model's indoor and outdoor rows CAN sit in different bands — in which
+ * case each band renders its own header showing the same complete_count, and a
+ * reader adding the headers up double-counts.
+ *
+ * The alternative — hoisting a model's rows out of their location band — was
+ * rejected because it would misreport which warehouse the units were ordered
+ * to, and that is the question the banding exists to answer. If this proves
+ * confusing in practice, the fix is to compute the count per band rather than
+ * to un-band the rows.
+ */
 export function airconGroupLabel(group) {
   const name = group?.model_name || 'Aircon model';
   const complete = Number(group?.complete_count || 0);
