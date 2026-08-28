@@ -564,6 +564,26 @@
   font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
   border: 1px solid #d8b4fe;
 }
+
+/* Which half of a split aircon a line is. Solid rather than tinted like the
+   badges above: this one decides whether the right carton goes through, so
+   it has to win the glance against SERIAL and SCANNING NOW sitting beside
+   it. Only indoor/outdoor are badged — 'complete' is the ordinary case. */
+.bsr-role-badge {
+  display: inline-block; width: fit-content;
+  padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+  color: #fff;
+}
+.bsr-role-indoor  { background: #4338ca; border: 1px solid #3730a3; }
+.bsr-role-outdoor { background: #0f766e; border: 1px solid #115e59; }
+
+/* AC kind beside the selected item's name — quieter than the role badge,
+   since it disambiguates rather than warns. */
+.bsr-card-actype {
+  font-weight: 600;
+  color: #64748b;
+}
 .bsr-item-progress-row {
   display: flex; align-items: center; justify-content: space-between;
 }
