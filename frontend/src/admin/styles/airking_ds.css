@@ -265,6 +265,13 @@
 .ak-badge--gray   { background: #eef1f6; color: #475569; }
 .ak-badge--violet { background: #f1edff; color: #5b21b6; }
 
+/* Which half of a split aircon a row is. Deliberately higher contrast than
+   the badges above: on a scanning screen this is the difference between the
+   right carton and the wrong one, so it has to survive a glance. Only ever
+   rendered for indoor/outdoor — a 'complete' unit is the ordinary case. */
+.ak-role-indoor  { background: #e0e7ff; color: #3730a3; margin-right: 6px; }
+.ak-role-outdoor { background: #ccfbf1; color: #115e59; margin-right: 6px; }
+
 .ak-pill {
   font-family: var(--ak-mono); font-size: 0.74rem; font-weight: 600;
   letter-spacing: 0.02em; color: var(--ak-amber);

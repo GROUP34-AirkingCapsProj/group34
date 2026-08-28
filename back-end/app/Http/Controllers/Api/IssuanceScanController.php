@@ -273,7 +273,7 @@ class IssuanceScanController extends Controller
         }
 
         if (! $product->relationLoaded('applianceDetail')) {
-            $product->load('applianceDetail', 'consumableDetail');
+            $product->load('applianceDetail.acType', 'consumableDetail');
         }
 
         $isSerialized     = $product->isSerialized();
@@ -390,6 +390,12 @@ class IssuanceScanController extends Controller
                     'model_code'      => $product->applianceDetail?->model_code,
                     'brand_name'      => $product->applianceDetail?->brand?->brand_name,
                     'capacity_rating' => $product->applianceDetail?->capacity_rating,
+                    // The picker has to see which half of a split aircon this
+                    // is: indoor and outdoor share a brand, a capacity and a
+                    // near-identical name, so the role is the only thing
+                    // telling the two cartons apart on the scan screen.
+                    'unit_role'       => $product->applianceDetail?->unit_role,
+                    'ac_type_name'    => $product->applianceDetail?->acType?->ac_type_name,
                     'variant'         => $product->applianceDetail?->variant,
                     'serial_number'   => $canonicalSerial,
                     'unit_price'      => $unitPrice,
@@ -646,7 +652,7 @@ class IssuanceScanController extends Controller
                 if (! $product) continue;
 
                 if (! $product->relationLoaded('applianceDetail')) {
-                    $product->load('applianceDetail');
+                    $product->load('applianceDetail.acType');
                 }
 
                 if ($product->isSerialized() && $detail->serial_number) {
@@ -868,7 +874,7 @@ class IssuanceScanController extends Controller
      */
     private function reverseIssuedDetail(IssuanceDetail $detail, Issuance $issuance): void
     {
-        $product = Product::with(['applianceDetail', 'consumableDetail'])
+        $product = Product::with(['applianceDetail.acType', 'consumableDetail'])
                    ->find($detail->product_id);
 
         if ($product) {
@@ -978,6 +984,11 @@ class IssuanceScanController extends Controller
                     'model_code'         => $ad?->model_code,
                     'product_type'       => $p?->product_type,
                     'brand_name'         => $ad?->brand?->brand_name,
+                    // See the pick payload above — the already-picked list has
+                    // to name the half too, or a reviewer cannot tell whether
+                    // the right carton was taken.
+                    'unit_role'          => $ad?->unit_role,
+                    'ac_type_name'       => $ad?->acType?->ac_type_name,
                     'capacity_rating'    => $ad?->capacity_rating,
                     'variant'            => $ad?->variant,
                     'unit_name'          => $cd?->unit?->unit_name,
