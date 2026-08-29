@@ -48,6 +48,14 @@ class TransferService
         return ($detail?->product?->product_type) === 'appliance';
     }
 
+    /** Pieces per package for a transfer line; 0 for serialized items, which have no package concept. */
+    private function piecesPerPackage(?TransferDetail $detail): int
+    {
+        return $this->isSerialized($detail)
+            ? 0
+            : (int) ($detail?->product?->getPiecesPerPackage() ?? 0);
+    }
+
     /**
      * FIFO pick suggestions for an approved transfer.
      * The ordering rule lives in FifoPickingService so issuance picking and
@@ -146,8 +154,7 @@ class TransferService
                     throw new RuntimeException("Only {$have} available at source for product {$detail->product_id}.");
                 }
 
-                $srcPpp = $this->isSerialized($detail) ? 0 : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
-                $src->setPieces((int) $src->quantity_on_hand - $shipped, $srcPpp);
+                $src->setPieces((int) $src->quantity_on_hand - $shipped, $this->piecesPerPackage($detail));
                 $src->save();
 
                 if ($this->isSerialized($detail)) {
@@ -392,8 +399,7 @@ class TransferService
 
                 if ($received > 0) {
                     $dst = $this->lockInventory($locked->to_location_id, $detail->product_id);
-                    $dstPpp = $this->isSerialized($detail) ? 0 : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
-                    $dst->setPieces((int) $dst->quantity_on_hand + $received, $dstPpp);
+                    $dst->setPieces((int) $dst->quantity_on_hand + $received, $this->piecesPerPackage($detail));
                     $dst->save();
 
                     if ($this->isSerialized($detail)) {
@@ -451,8 +457,20 @@ class TransferService
      *
      * Note: receive() intentionally leaves item_serial.transfer_id set, which is how
      * the serial reset below still matches destination-activated serials after receipt.
+     *
      * Destination decrements are floored at 0 on purpose: stock received earlier may have
-     * been legitimately consumed at the destination before this reversal runs.
+     * been legitimately consumed at the destination before this reversal runs. Because
+     * setPieces() is the single writer, that floor now also governs available_quantity:
+     * availability moves by the pieces that actually existed to be reversed (the clamped
+     * delta), not by the full amount the transfer claims to pull back. Where
+     * quantity_on_hand and available_quantity have drifted apart, reversing 100 pieces
+     * out of a destination holding only 30 drops availability by 30, not by 100 --
+     * deducting availability for stock that was never there would be double-counting a
+     * shortfall the destination already absorbed when the stock was consumed. The two
+     * columns only diverge here in an already-inconsistent state; reverse() preserves
+     * that divergence rather than silently absorbing it, which is what the old
+     * independent max(0, available - recv) clamp did by coincidence.
+     * This is deliberate -- see TransferMaintainsPackagesTest.
      */
     public function reverse(Transfer $ist): void
     {
@@ -484,19 +502,13 @@ class TransferService
                         ->lockForUpdate()
                         ->first();
                     if ($dst) {
-                        $dstPpp = $this->isSerialized($detail)
-                            ? 0
-                            : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
-                        $dst->setPieces((int) $dst->quantity_on_hand - $recv, $dstPpp);
+                        $dst->setPieces((int) $dst->quantity_on_hand - $recv, $this->piecesPerPackage($detail));
                         $dst->save();
                     }
                 }
 
                 $src = $this->lockInventory($locked->from_location_id, $detail->product_id);
-                $srcPpp = $this->isSerialized($detail)
-                    ? 0
-                    : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
-                $src->setPieces((int) $src->quantity_on_hand + $shipped, $srcPpp);
+                $src->setPieces((int) $src->quantity_on_hand + $shipped, $this->piecesPerPackage($detail));
                 $src->save();
 
                 if ($this->isSerialized($detail)) {

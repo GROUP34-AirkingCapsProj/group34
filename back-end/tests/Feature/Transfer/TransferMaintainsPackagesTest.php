@@ -86,6 +86,73 @@ class TransferMaintainsPackagesTest extends TransferTestCase
         $this->assertDerivedPackages($to->location_id, $product->product_id, 0, 50, 'after reverse (destination)');
     }
 
+    /**
+     * DELIBERATE BEHAVIOUR -- do not "fix" this back to a double max(0, ...) clamp.
+     *
+     * When a reversal pulls back more pieces than the destination still holds,
+     * setPieces() clamps the piece count at 0 and moves available_quantity by that
+     * clamped delta -- i.e. by the pieces that actually existed to be reversed, not by
+     * the amount the transfer claims. Here the destination received 120, then drifted to
+     * 30 on hand with 50 available (an already-inconsistent state: availability exceeds
+     * physical stock). Reversing 120 removes the 30 that were really there, leaving
+     * available at 50 - 30 = 20.
+     *
+     * The old code deducted the two columns independently -- max(0, 50 - 120) -- and
+     * would land on 0. That looks tidier only by accident: it charges availability for 120
+     * pieces when 30 existed, double-counting a shortfall the destination already absorbed
+     * when the stock was consumed. The divergence is pre-existing corruption; reverse()
+     * preserves it rather than papering over it, and repairing it belongs in a stock
+     * reconciliation, not in a transfer reversal.
+     */
+    public function test_reversing_more_than_remains_drops_availability_by_what_actually_existed(): void
+    {
+        $from = $this->makeLocation('PKG-UNDER-SRC');
+        $to   = $this->makeLocation('PKG-UNDER-DST');
+        $user = $this->makeUser();
+
+        $product = $this->makeConsumable();
+        ConsumableDetail::create([
+            'product_id' => $product->product_id, 'pieces_per_package' => 50,
+            'package_unit' => 'Roll', 'is_serialized' => 0,
+        ]);
+
+        Inventory::create([
+            'location_id' => $from->location_id, 'product_id' => $product->product_id,
+            'quantity_on_hand' => 500, 'packages_on_hand' => 10,
+            'available_quantity' => 500, 'reorder_level' => 0,
+        ]);
+
+        $svc = new TransferService();
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $product->product_id, 'quantity_requested' => 120, 'quantity_scanned' => 120],
+        ]);
+
+        $svc->dispatch($ist);
+        $ist->refresh()->load('details');
+        $svc->recordReceiveScan($ist, 'UNDER-BOX', (int) $ist->details->first()->transfer_detail_id, $user->user_id, 120);
+        $svc->receive($ist->fresh('details'), $user->user_id);
+
+        // Destination consumed most of the received stock before the reversal runs, and
+        // its two columns have drifted apart: 30 physically on hand, 50 marked available.
+        Inventory::where('location_id', $to->location_id)
+            ->where('product_id', $product->product_id)
+            ->update(['quantity_on_hand' => 30, 'available_quantity' => 50, 'packages_on_hand' => 0]);
+
+        $svc->reverse($ist->fresh('details'));
+
+        $dst = Inventory::where('location_id', $to->location_id)
+            ->where('product_id', $product->product_id)
+            ->first();
+
+        $this->assertSame(0, (int) $dst->quantity_on_hand, 'pieces clamp at zero, never negative');
+        $this->assertSame(
+            20,
+            (int) $dst->available_quantity,
+            'availability must move by the 30 pieces that existed, not the 120 requested'
+        );
+        $this->assertSame(0, (int) $dst->packages_on_hand, 'packages stay derived from the clamped piece count');
+    }
+
     /** Assert the row holds $expectedPieces and that packages_on_hand is exactly intdiv(pieces, ppp). */
     private function assertDerivedPackages(int $locationId, int $productId, int $expectedPieces, int $ppp, string $stage): void
     {
