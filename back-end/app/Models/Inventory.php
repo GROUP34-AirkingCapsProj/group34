@@ -37,9 +37,14 @@ class Inventory extends Model
      * moves by the DELTA rather than being assigned, because issuance, transfers and
      * warranty claims apply relative decrements clamped at zero — assigning parity
      * would restore phantom availability wherever the two columns had diverged.
+     * Stock can never go negative, so $pieces is clamped to zero before the delta is
+     * computed — that invariant is enforced centrally here rather than trusted to
+     * hold at every call site.
      */
     public function setPieces(int $pieces, int $piecesPerPackage): void
     {
+        $pieces = max(0, $pieces);
+
         $delta = $pieces - (int) $this->quantity_on_hand;
 
         $this->quantity_on_hand   = $pieces;

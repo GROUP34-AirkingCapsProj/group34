@@ -72,4 +72,26 @@ class InventorySetPiecesTest extends TestCase
         $this->assertSame(50, $inv->quantity_on_hand);
         $this->assertSame(0, $inv->packages_on_hand, 'must not divide by zero');
     }
+
+    public function test_it_clamps_a_negative_piece_count_to_zero(): void
+    {
+        $inv = $this->makeInventory(100, 100);
+
+        $inv->setPieces(-50, 100);
+
+        $this->assertSame(0, $inv->quantity_on_hand);
+        $this->assertSame(0, $inv->packages_on_hand);
+        $this->assertSame(0, $inv->available_quantity);
+    }
+
+    public function test_it_clamps_negative_pieces_before_computing_the_delta(): void
+    {
+        // 30 pieces reserved elsewhere: available sits below on-hand.
+        $inv = $this->makeInventory(100, 70);
+
+        $inv->setPieces(-20, 100);
+
+        $this->assertSame(0, $inv->quantity_on_hand);
+        $this->assertSame(0, $inv->available_quantity, 'clamp must happen before the delta is computed, not after');
+    }
 }
