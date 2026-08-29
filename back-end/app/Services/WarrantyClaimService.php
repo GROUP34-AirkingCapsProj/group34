@@ -243,12 +243,8 @@ class WarrantyClaimService
                 throw new WarrantyClaimException('Insufficient stock for this part.');
             }
 
-            $inv->quantity_on_hand   = max(0, $inv->quantity_on_hand - $pieces);
-            $inv->available_quantity = max(0, $inv->available_quantity - $pieces);
             $ppp = $product->getPiecesPerPackage();
-            if ($ppp > 0) {
-                $inv->packages_on_hand = (int) floor($inv->quantity_on_hand / $ppp);
-            }
+            $inv->setPieces((int) $inv->quantity_on_hand - $pieces, $ppp);
             $inv->save();
 
             // Consumable catalog cost is stored per package; claim quantities
@@ -392,14 +388,8 @@ class WarrantyClaimService
                 ->where('location_id', $claim->location_id)->lockForUpdate()->first();
 
             if ($inv) {
-                $inv->quantity_on_hand   += $issuedPieces;
-                $inv->available_quantity += $issuedPieces;
-                if ($product && ! $product->isSerialized()) {
-                    $ppp = $product->getPiecesPerPackage();
-                    if ($ppp > 0) {
-                        $inv->packages_on_hand = (int) floor($inv->quantity_on_hand / $ppp);
-                    }
-                }
+                $ppp = ($product && ! $product->isSerialized()) ? $product->getPiecesPerPackage() : 0;
+                $inv->setPieces((int) $inv->quantity_on_hand + $issuedPieces, $ppp);
                 $inv->save();
             }
 

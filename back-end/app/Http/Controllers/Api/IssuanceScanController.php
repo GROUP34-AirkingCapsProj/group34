@@ -473,11 +473,7 @@ class IssuanceScanController extends Controller
             }
 
             $stockBefore = (int) $inv->quantity_on_hand;
-            $inv->quantity_on_hand   = max(0, $inv->quantity_on_hand - $quantityInPieces);
-            $inv->available_quantity = max(0, $inv->available_quantity - $quantityInPieces);
-            if ($piecesPerPackage > 0) {
-                $inv->packages_on_hand = (int) floor($inv->quantity_on_hand / $piecesPerPackage);
-            }
+            $inv->setPieces((int) $inv->quantity_on_hand - $quantityInPieces, $piecesPerPackage);
             $inv->save();
 
             $touched = app(InventoryBatchService::class)
@@ -883,14 +879,8 @@ class IssuanceScanController extends Controller
                 ->lockForUpdate()->first();
 
             if ($inv) {
-                $inv->quantity_on_hand   += $detail->quantity_in_pieces;
-                $inv->available_quantity += $detail->quantity_in_pieces;
-                if (! $product->isSerialized()) {
-                    $pcs = $product->getPiecesPerPackage();
-                    if ($pcs > 0) {
-                        $inv->packages_on_hand = (int) floor($inv->quantity_on_hand / $pcs);
-                    }
-                }
+                $pcs = $product->isSerialized() ? 0 : $product->getPiecesPerPackage();
+                $inv->setPieces((int) $inv->quantity_on_hand + (int) $detail->quantity_in_pieces, $pcs);
                 $inv->save();
 
                 app(InventoryBatchService::class)->restoreFifo(

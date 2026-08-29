@@ -317,11 +317,8 @@ class BarcodeAdjustmentController extends Controller
                     ->first();
 
                 if ($invOrig) {
-                    $invOrig->quantity_on_hand    = max(0, $invOrig->quantity_on_hand - $originalQty);
-                    $invOrig->available_quantity  = max(0, $invOrig->available_quantity - $originalQty);
-                    if (! $originalProduct->isSerialized()) {
-                        $invOrig->packages_on_hand = max(0, ($invOrig->packages_on_hand ?? 0) - 1);
-                    }
+                    $origPpp = $originalProduct->isSerialized() ? 0 : $originalProduct->getPiecesPerPackage();
+                    $invOrig->setPieces((int) $invOrig->quantity_on_hand - $originalQty, $origPpp);
                     $invOrig->save();
                 }
             }
@@ -358,11 +355,8 @@ class BarcodeAdjustmentController extends Controller
                     'reorder_level'      => 0,
                 ]
             );
-            $invCorr->quantity_on_hand   += $correctedQty;
-            $invCorr->available_quantity += $correctedQty;
-            if (! $correctedProduct->isSerialized()) {
-                $invCorr->packages_on_hand = ($invCorr->packages_on_hand ?? 0) + 1;
-            }
+            $corrPpp = $correctedProduct->isSerialized() ? 0 : $correctedProduct->getPiecesPerPackage();
+            $invCorr->setPieces((int) $invCorr->quantity_on_hand + $correctedQty, $corrPpp);
             $invCorr->save();
 
             // ── 10. Create serial record if corrected product is appliance ───
