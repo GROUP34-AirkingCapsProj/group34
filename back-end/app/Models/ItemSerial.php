@@ -20,8 +20,10 @@ class ItemSerial extends Model
         'product_id',
         'location_id',
         'receiving_id',
+        'batch_id',
         'scanned_by',
         'serial_number',
+        'supplier_barcode',
         'serial_type',
         'transfer_id',
         'status_id',
@@ -40,6 +42,11 @@ class ItemSerial extends Model
     public function receiving(): BelongsTo
     {
         return $this->belongsTo(Receiving::class, 'receiving_id', 'receiving_id');
+    }
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(InventoryBatch::class, 'batch_id', 'batch_id');
     }
 
     public function scannedBy(): BelongsTo
