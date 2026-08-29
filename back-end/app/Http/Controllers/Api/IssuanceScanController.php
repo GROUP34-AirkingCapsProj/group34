@@ -321,8 +321,7 @@ class IssuanceScanController extends Controller
                 }
 
                 $stockBefore = (int) $inv->quantity_on_hand;
-                $inv->quantity_on_hand   = max(0, $inv->quantity_on_hand - 1);
-                $inv->available_quantity = max(0, $inv->available_quantity - 1);
+                $inv->setPieces((int) $inv->quantity_on_hand - 1, 0);
                 $inv->save();
 
                 app(InventoryBatchService::class)->deductFromReceiving(
