@@ -91,7 +91,7 @@ class TransferService
     {
         Inventory::firstOrCreate(
             ['location_id' => $locationId, 'product_id' => $productId],
-            ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
+            ['quantity_on_hand' => 0, 'packages_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
         );
 
         return Inventory::where('location_id', $locationId)
@@ -484,15 +484,19 @@ class TransferService
                         ->lockForUpdate()
                         ->first();
                     if ($dst) {
-                        $dst->quantity_on_hand   = max(0, (int) $dst->quantity_on_hand - $recv);
-                        $dst->available_quantity = max(0, (int) $dst->available_quantity - $recv);
+                        $dstPpp = $this->isSerialized($detail)
+                            ? 0
+                            : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
+                        $dst->setPieces((int) $dst->quantity_on_hand - $recv, $dstPpp);
                         $dst->save();
                     }
                 }
 
                 $src = $this->lockInventory($locked->from_location_id, $detail->product_id);
-                $src->quantity_on_hand   = (int) $src->quantity_on_hand + $shipped;
-                $src->available_quantity = (int) $src->available_quantity + $shipped;
+                $srcPpp = $this->isSerialized($detail)
+                    ? 0
+                    : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
+                $src->setPieces((int) $src->quantity_on_hand + $shipped, $srcPpp);
                 $src->save();
 
                 if ($this->isSerialized($detail)) {
