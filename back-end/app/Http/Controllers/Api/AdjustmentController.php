@@ -67,6 +67,13 @@ class AdjustmentController extends Controller
 
             $adjustment = Adjustment::create(Arr::except($validated, ['details']));
 
+            // Preloaded outside the loop: packaging comes off the product and
+            // resolving it per iteration would be an N+1 across the detail lines.
+            $products = Product::with(['consumableDetail', 'applianceDetail'])
+                ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
+                ->get()
+                ->keyBy('product_id');
+
             foreach ($validated['details'] as $detail) {
                 $detail['add_quantity']    = $detail['add_quantity'] ?? 0;
                 $detail['deduct_quantity'] = $detail['deduct_quantity'] ?? 0;
@@ -95,8 +102,11 @@ class AdjustmentController extends Controller
                     }
                 }
 
-                $inventory->quantity_on_hand = max(0, (int) $inventory->quantity_on_hand + $net);
-                $inventory->available_quantity = max(0, (int) $inventory->available_quantity + $net);
+                $adjProduct = $products->get($detail['product_id']);
+                $adjPpp = ($adjProduct && ! $adjProduct->isSerialized())
+                    ? $adjProduct->getPiecesPerPackage()
+                    : 0;
+                $inventory->setPieces((int) $inventory->quantity_on_hand + $net, $adjPpp);
                 $inventory->save();
             }
 

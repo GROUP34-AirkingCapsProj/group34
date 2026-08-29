@@ -199,8 +199,8 @@ class ReceivingController extends Controller
                 // Update inventory at receiving location — lock the row before mutating it
                 // and before calling InventoryBatchService, per its documented contract.
                 $inventory = $this->lockInventory($locationId, $productId);
-                $inventory->quantity_on_hand   = max(0, (int) $inventory->quantity_on_hand + $qty);
-                $inventory->available_quantity = max(0, (int) $inventory->available_quantity + $qty);
+                $rcvPpp = ($product && ! $isSerialized) ? $product->getPiecesPerPackage() : 0;
+                $inventory->setPieces((int) $inventory->quantity_on_hand + $qty, $rcvPpp);
                 $inventory->save();
 
                 app(InventoryBatchService::class)->createBatch(

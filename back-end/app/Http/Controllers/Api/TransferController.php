@@ -236,6 +236,7 @@ class TransferController extends Controller
             // If details are being changed, reverse previous inventory movement first,
             // then apply the new details. This keeps inventory consistent.
             if (array_key_exists('details', $validated)) {
+                $transfer->loadMissing('details.product.consumableDetail', 'details.product.applianceDetail');
                 foreach ($transfer->details as $oldDetail) {
                     $qtyTrans = (int) ($oldDetail->quantity_transferred ?? 0);
                     $qtyRecv = (int) ($oldDetail->quantity_received ?? 0);
@@ -247,8 +248,8 @@ class TransferController extends Controller
                         ['location_id' => $transfer->from_location_id, 'product_id' => $oldDetail->product_id],
                         ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
                     );
-                    $srcInv->quantity_on_hand = (int) $srcInv->quantity_on_hand + $qtyTrans;
-                    $srcInv->available_quantity = (int) $srcInv->available_quantity + $qtyTrans;
+                    $oldPpp = $this->piecesPerPackageFor($oldDetail->product);
+                    $srcInv->setPieces((int) $srcInv->quantity_on_hand + $qtyTrans, $oldPpp);
                     $srcInv->save();
 
                     if ($qtyRecv > 0) {
@@ -256,8 +257,7 @@ class TransferController extends Controller
                             ->where('product_id', $oldDetail->product_id)
                             ->first();
                         if ($dstInv) {
-                            $dstInv->quantity_on_hand = max(0, (int) $dstInv->quantity_on_hand - $qtyRecv);
-                            $dstInv->available_quantity = max(0, (int) $dstInv->available_quantity - $qtyRecv);
+                            $dstInv->setPieces((int) $dstInv->quantity_on_hand - $qtyRecv, $oldPpp);
                             $dstInv->save();
                         }
                     }
@@ -268,6 +268,13 @@ class TransferController extends Controller
                 $mergedStatusId = isset($validated['status_id']) ? (int) $validated['status_id'] : (int) $transfer->status_id;
                 $inTransitId = $this->transferStatusId('In Transit');
                 $awaiting = $inTransitId && $mergedStatusId === (int) $inTransitId;
+
+                // Preloaded outside the loop: packaging comes off the product and
+                // resolving it per iteration would be an N+1 across the detail lines.
+                $lineProducts = Product::with(['consumableDetail', 'applianceDetail'])
+                    ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
+                    ->get()
+                    ->keyBy('product_id');
 
                 $total = 0;
                 $totalReceived = 0;
@@ -290,8 +297,8 @@ class TransferController extends Controller
                     if ($available < $qty) {
                         throw new \RuntimeException("Insufficient stock for transfer product_id {$detail['product_id']}.");
                     }
-                    $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $qty);
-                    $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $qty);
+                    $linePpp = $this->piecesPerPackageFor($lineProducts->get($detail['product_id']));
+                    $fromInventory->setPieces((int) $fromInventory->quantity_on_hand - $qty, $linePpp);
                     $fromInventory->save();
 
                     if (!$awaiting) {
@@ -299,8 +306,7 @@ class TransferController extends Controller
                             ['location_id' => $toId, 'product_id' => $detail['product_id']],
                             ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
                         );
-                        $toInventory->quantity_on_hand = (int) $toInventory->quantity_on_hand + $qty;
-                        $toInventory->available_quantity = (int) $toInventory->available_quantity + $qty;
+                        $toInventory->setPieces((int) $toInventory->quantity_on_hand + $qty, $linePpp);
                         $toInventory->save();
                         $totalReceived += $qty;
                     }
@@ -459,8 +465,9 @@ class TransferController extends Controller
                     'reorder_level' => 0,
                 ]
             );
-            $toInventory->quantity_on_hand = (int) $toInventory->quantity_on_hand + $add;
-            $toInventory->available_quantity = (int) $toInventory->available_quantity + $add;
+            $detail->loadMissing('product.consumableDetail', 'product.applianceDetail');
+            $recvPpp = $this->piecesPerPackageFor($detail->product);
+            $toInventory->setPieces((int) $toInventory->quantity_on_hand + $add, $recvPpp);
             $toInventory->save();
 
             $detail->quantity_received = $already + $add;
@@ -1113,5 +1120,13 @@ class TransferController extends Controller
         } catch (\Exception $e) {
             return $this->error('Failed to add tracking: ' . $e->getMessage(), 500);
         }
+    }
+
+    /** Pieces per package for a product; 0 for serialized items, which have no package concept. */
+    private function piecesPerPackageFor(?Product $product): int
+    {
+        return ($product && ! $product->isSerialized())
+            ? $product->getPiecesPerPackage()
+            : 0;
     }
 }

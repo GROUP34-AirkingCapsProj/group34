@@ -92,6 +92,13 @@ class IssuanceController extends Controller
 
             $issuance = Issuance::create(Arr::except($validated, ['details']));
 
+            // Preloaded outside the loop: packaging comes off the product and
+            // resolving it per iteration would be an N+1 across the detail lines.
+            $issuedProducts = Product::with(['consumableDetail', 'applianceDetail'])
+                ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
+                ->get()
+                ->keyBy('product_id');
+
             foreach ($validated['details'] as $detail) {
                 $issuance->details()->create($detail);
 
@@ -123,8 +130,11 @@ class IssuanceController extends Controller
                     throw new \RuntimeException("Insufficient stock for product_id {$detail['product_id']}.");
                 }
 
-                $inventory->quantity_on_hand = max(0, (int) $inventory->quantity_on_hand - $qty);
-                $inventory->available_quantity = max(0, (int) $inventory->available_quantity - $qty);
+                $issuedProduct = $issuedProducts->get($detail['product_id']);
+                $issuedPpp = ($issuedProduct && ! $issuedProduct->isSerialized())
+                    ? $issuedProduct->getPiecesPerPackage()
+                    : 0;
+                $inventory->setPieces((int) $inventory->quantity_on_hand - $qty, $issuedPpp);
                 $inventory->save();
 
                 $touched = app(InventoryBatchService::class)->deductFifo(
