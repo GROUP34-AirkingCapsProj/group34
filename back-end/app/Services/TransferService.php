@@ -146,8 +146,8 @@ class TransferService
                     throw new RuntimeException("Only {$have} available at source for product {$detail->product_id}.");
                 }
 
-                $src->quantity_on_hand   = (int) $src->quantity_on_hand - $shipped;
-                $src->available_quantity = (int) $src->available_quantity - $shipped;
+                $srcPpp = $this->isSerialized($detail) ? 0 : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
+                $src->setPieces((int) $src->quantity_on_hand - $shipped, $srcPpp);
                 $src->save();
 
                 if ($this->isSerialized($detail)) {
@@ -392,8 +392,8 @@ class TransferService
 
                 if ($received > 0) {
                     $dst = $this->lockInventory($locked->to_location_id, $detail->product_id);
-                    $dst->quantity_on_hand   = (int) $dst->quantity_on_hand + $received;
-                    $dst->available_quantity = (int) $dst->available_quantity + $received;
+                    $dstPpp = $this->isSerialized($detail) ? 0 : (int) ($detail->product?->getPiecesPerPackage() ?? 0);
+                    $dst->setPieces((int) $dst->quantity_on_hand + $received, $dstPpp);
                     $dst->save();
 
                     if ($this->isSerialized($detail)) {
