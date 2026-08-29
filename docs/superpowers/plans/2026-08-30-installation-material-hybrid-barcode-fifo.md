@@ -18,6 +18,17 @@
 - Tests use `use DatabaseTransactions;` — **not** `RefreshDatabase`. The suite runs against a real MySQL database (`airkingV5_test`), configured in `phpunit.xml`.
 - Models are created inline in tests with `uniqid()` for unique codes. There are no factories for these tables.
 - Run a single test with: `cd back-end && php artisan test --filter=TestClassName`
+- **Migrations must be applied to TWO databases.** `php artisan migrate` targets the dev
+  database named in `.env`; the test suite reads `airkingV5_test` from `phpunit.xml`. After
+  writing a migration, run both:
+
+  ```bash
+  cd back-end && php artisan migrate --force
+  cd back-end && DB_DATABASE=airkingV5_test php artisan migrate --force
+  ```
+
+  Skipping the second produces the confusing failure mode of a migration reporting `DONE`
+  while its tests fail with `Unknown column`. This bit Task 4/5 during execution.
 - Data-writing migrations use `DB::table(...)`, never Eloquent models — the `Auditable` trait fires boot hooks that must not run during migration.
 - Status IDs are hardcoded integers: 8 = Approved, 10 = Authorized, 11 = Completed, 12 = Partially Received, 26 = the status used for received serials.
 
