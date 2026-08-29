@@ -17,6 +17,7 @@ class ConsumableDetail extends Model
         'unit_id',
         'pieces_per_package',
         'package_unit',
+        'count_unit',
         'is_serialized',
         'warranty_value',
         'warranty_unit',
