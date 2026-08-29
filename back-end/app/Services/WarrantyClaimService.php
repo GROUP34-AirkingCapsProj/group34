@@ -342,8 +342,7 @@ class WarrantyClaimService
             if (! $inv || $inv->quantity_on_hand < 1) {
                 throw new WarrantyClaimException('Insufficient stock for the replacement unit.');
             }
-            $inv->quantity_on_hand   = max(0, $inv->quantity_on_hand - 1);
-            $inv->available_quantity = max(0, $inv->available_quantity - 1);
+            $inv->setPieces((int) $inv->quantity_on_hand - 1, 0);
             $inv->save();
 
             $canonicalSerial = $serial->serial_number;
