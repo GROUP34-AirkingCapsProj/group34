@@ -346,14 +346,14 @@ class InventoryScanTransactionController extends Controller
 
             if ($isSerialized) {
                 // Serialized: 1 scan = 1 unit; package concept does not apply.
-                $inv->quantity_on_hand   = (int) $inv->quantity_on_hand + 1;
-                $inv->available_quantity = (int) $inv->available_quantity + 1;
+                $inv->setPieces((int) $inv->quantity_on_hand + 1, 0);
             } else {
-                // Consumable: 1 scan = 1 physical package.
-                // packages_on_hand is the authoritative count; quantity_on_hand is derived.
-                $inv->packages_on_hand   = (int) $inv->packages_on_hand + $packagesReceived;
-                $inv->quantity_on_hand   = $inv->packages_on_hand * $piecesPerPackage;
-                $inv->available_quantity = $inv->quantity_on_hand;
+                // Consumable: 1 scan = 1 physical package. Pieces are authoritative;
+                // packages_on_hand is derived by setPieces().
+                $inv->setPieces(
+                    (int) $inv->quantity_on_hand + ($packagesReceived * $piecesPerPackage),
+                    $piecesPerPackage
+                );
             }
             $inv->save();
 
