@@ -592,8 +592,8 @@ class InventoryScanTransactionController extends Controller
                 ], 'Rejected');
             }
 
-            $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $quantity);
-            $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $quantity);
+            $scanPpp = $this->piecesPerPackageFor($product);
+            $fromInventory->setPieces((int) $fromInventory->quantity_on_hand - $quantity, $scanPpp);
             $fromInventory->save();
 
             $toInventory = Inventory::firstOrCreate(
@@ -607,8 +607,7 @@ class InventoryScanTransactionController extends Controller
                     'reorder_level'      => 0,
                 ]
             );
-            $toInventory->quantity_on_hand = (int) $toInventory->quantity_on_hand + $quantity;
-            $toInventory->available_quantity = (int) $toInventory->available_quantity + $quantity;
+            $toInventory->setPieces((int) $toInventory->quantity_on_hand + $quantity, $scanPpp);
             $toInventory->save();
 
             $transferNumber = 'TR-SCAN-'.str_replace('.', '', uniqid('', true));
@@ -840,8 +839,10 @@ class InventoryScanTransactionController extends Controller
                 ], 'Rejected');
             }
 
-            $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $quantity);
-            $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $quantity);
+            $fromInventory->setPieces(
+                (int) $fromInventory->quantity_on_hand - $quantity,
+                $this->piecesPerPackageFor($product)
+            );
             $fromInventory->save();
 
             // Update item_serial to reflect the issuance
@@ -999,5 +1000,13 @@ class InventoryScanTransactionController extends Controller
             // No items received yet — still stamp received_by on the PO.
             PurchaseOrder::where('po_id', $poId)->update(['received_by' => $userId]);
         }
+    }
+
+    /** Pieces per package for a product; 0 for serialized items, which have no package concept. */
+    private function piecesPerPackageFor(?Product $product): int
+    {
+        return ($product && ! $product->isSerialized())
+            ? $product->getPiecesPerPackage()
+            : 0;
     }
 }

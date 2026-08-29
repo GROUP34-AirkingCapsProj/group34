@@ -344,8 +344,11 @@ class PendingProductController extends Controller
             ]
         );
 
-        $inv->quantity_on_hand = (int) $inv->quantity_on_hand + $qty;
-        $inv->available_quantity = (int) $inv->available_quantity + $qty;
+        $openingProduct = Product::with(['consumableDetail', 'applianceDetail'])->find($productId);
+        $openingPpp = ($openingProduct && ! $openingProduct->isSerialized())
+            ? $openingProduct->getPiecesPerPackage()
+            : 0;
+        $inv->setPieces((int) $inv->quantity_on_hand + $qty, $openingPpp);
         $inv->save();
     }
 
