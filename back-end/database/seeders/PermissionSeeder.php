@@ -199,6 +199,12 @@ class PermissionSeeder extends Seeder
                 'create'      => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'update'      => ['admin', 'warehouse_personnel'],
                 'archive'     => ['admin'],
+                // Accept a FIFO violation at issuance with a written reason.
+                // Granted to exactly the roles that hold 'update': an override is
+                // a stronger form of committing a pick, so nobody who cannot pick
+                // should be able to authorise a deviation. Also added by
+                // 2026_08_30_000006 for already-deployed databases.
+                'fifo_override' => ['admin', 'warehouse_personnel'],
                 'read'        => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
                 'view_margin' => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
             ],

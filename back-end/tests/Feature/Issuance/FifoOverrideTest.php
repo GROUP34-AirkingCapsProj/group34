@@ -51,10 +51,12 @@ class FifoOverrideTest extends SetTestCase
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
         $p    = $this->makeConsumable(barcode: $barcode);
         $this->setStock($loc->location_id, $p->product_id, 20);
-        $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
-        $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDay(),  'zone_label' => 'Zone 2']);
+        // Distinct remaining quantities so a wrong-batch deduction cannot hide
+        // behind two rows that happen to look alike.
+        $old = $this->makeBatch($p, $loc, ['quantity_remaining' => 7, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
+        $new = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDay(),  'zone_label' => 'Zone 2']);
 
-        return [$loc, $user, $p, $this->confirmedOrder($loc, [[$p, 2]])];
+        return [$loc, $user, $p, $this->confirmedOrder($loc, [[$p, 2]]), $old, $new];
     }
 
     private function permissionId(): ?int
@@ -214,5 +216,60 @@ class FifoOverrideTest extends SetTestCase
         $res->assertStatus(422);
         $this->assertSame('WRONG_PRODUCT', $res->json('scan_result.status'));
         $this->assertSame(0, $this->issuedQty($issuance));
+    }
+
+    /**
+     * The bug this guards: deductFifo() drains oldest-first regardless of what
+     * was scanned, so an authorised override used to take the picker's Zone 2
+     * goods off Zone 1's books - overstating Zone 1 as depleted while its stock
+     * sat untouched, and poisoning every later FIFO decision for the product.
+     */
+    public function test_override_deducts_from_the_scanned_batch_not_the_oldest(): void
+    {
+        [, $user, , $issuance, $oldBatch, $newBatch] = $this->twoBatchScenario('BC-OV-LEDGER');
+
+        $this->setOverrideFor($user, true);
+
+        $this->actingAs($user, 'sanctum')->postJson(self::SCAN_URL, [
+            'issuance_id'          => $issuance->issuance_id,
+            'barcode'              => 'BC-OV-LEDGER',
+            'quantity'             => 2,
+            'confirmed_zone'       => 'Zone 2',
+            'accept_fifo_override' => true,
+            'override_reason'      => 'Zone 1 aisle is blocked by a pallet jack today',
+        ])->assertOk();
+
+        $remaining = fn ($batch) => (int) DB::table('inventory_batches')
+            ->where('batch_id', $batch->batch_id)
+            ->value('quantity_remaining');
+
+        $this->assertSame(3, $remaining($newBatch), 'the scanned (newer) batch should have been deducted');
+        $this->assertSame(7, $remaining($oldBatch), 'the oldest batch must be left untouched by an override');
+    }
+
+    public function test_override_line_records_the_scanned_batch(): void
+    {
+        [, $user, $p, $issuance, $oldBatch, $newBatch] = $this->twoBatchScenario('BC-OV-BATCHID');
+
+        $this->setOverrideFor($user, true);
+
+        $this->actingAs($user, 'sanctum')->postJson(self::SCAN_URL, [
+            'issuance_id'          => $issuance->issuance_id,
+            'barcode'              => 'BC-OV-BATCHID',
+            'quantity'             => 1,
+            'confirmed_zone'       => 'Zone 2',
+            'accept_fifo_override' => true,
+            'override_reason'      => 'Customer collecting now; Zone 1 is behind the transfer cage',
+        ])->assertOk();
+
+        $line = DB::table('issuance_details')
+            ->where('issuance_id', $issuance->issuance_id)
+            ->where('product_id', $p->product_id)
+            ->where('quantity_issued', '>', 0)
+            ->first();
+
+        $this->assertSame((int) $newBatch->batch_id, (int) $line->batch_id);
+        $this->assertNotSame((int) $oldBatch->batch_id, (int) $line->batch_id);
+        $this->assertSame('Zone 2', $line->zone_label);
     }
 }

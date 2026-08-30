@@ -475,7 +475,7 @@ class IssuanceScanController extends Controller
             $issuance, $product, $requestedQty, $quantityUnit,
             $quantityInPieces, $packagePrice, $pricePerPiece,
             $lineSubtotal, $locationId, $piecesPerPackage,
-            $baseUnitName, $baseUnitAbbr, $fifoOverrideReason
+            $baseUnitName, $baseUnitAbbr, $fifoOverrideReason, $verdict
         ) {
             // Serialize scans for this order and re-check the unpicked quantity
             // inside the transaction. Two fast scanner/manual submissions must
@@ -511,8 +511,17 @@ class IssuanceScanController extends Controller
             $inv->setPieces((int) $inv->quantity_on_hand - $quantityInPieces, $piecesPerPackage);
             $inv->save();
 
-            $touched = app(InventoryBatchService::class)
-                ->deductFifo($product->product_id, $locationId, $quantityInPieces);
+            // An authorised override means the picker physically took the batch
+            // they scanned, so the ledger must follow the goods. Deducting FIFO
+            // here would drain the oldest batch on paper while its stock sits
+            // untouched on the shelf, and every later FIFO decision for this
+            // product would be computed from wrong remaining quantities.
+            $touched = ($fifoOverrideReason !== null && $verdict->batchId !== null)
+                ? app(InventoryBatchService::class)->deductFromBatch(
+                    (int) $verdict->batchId, $quantityInPieces, (int) $product->product_id, $locationId
+                )
+                : app(InventoryBatchService::class)
+                    ->deductFifo($product->product_id, $locationId, $quantityInPieces);
             $batchId = array_key_first($touched);
             $batch = $batchId
                 ? \App\Models\InventoryBatch::find($batchId)
