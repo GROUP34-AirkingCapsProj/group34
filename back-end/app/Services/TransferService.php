@@ -795,7 +795,13 @@ class TransferService
                 throw new RuntimeException('This transfer line is already fully scanned.');
             }
 
-            $step = min(max(1, $qty), $remaining);
+            // Surplus is refused, never silently clamped: a count that overshoots is
+            // real information about a miscount and must reach the clerk. Mirrors the
+            // non-packages branch of recordDispatchScan, message included.
+            $step = max(1, $qty);
+            if ($step > $remaining) {
+                throw new RuntimeException("Only {$remaining} more unit(s) needed for this product.");
+            }
 
             $detail->quantity_scanned = $current + $step;
             $detail->save();
@@ -856,7 +862,13 @@ class TransferService
                 throw new RuntimeException('This transfer line is already fully received.');
             }
 
-            $step = min(max(1, $qty), $remaining);
+            // Over-receipt is refused, never clamped — receive() logs shipped-vs-received
+            // discrepancies precisely because they matter. Mirrors the non-packages
+            // branch of recordReceiveScan, message included.
+            $step = max(1, $qty);
+            if ($step > $remaining) {
+                throw new RuntimeException("Only {$remaining} more unit(s) can be received on this line.");
+            }
 
             $scan = BarcodeScan::create([
                 'user_id'     => $userId,
