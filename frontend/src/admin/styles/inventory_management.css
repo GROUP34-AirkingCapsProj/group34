@@ -1212,3 +1212,48 @@ button.po-slot-tag:hover .po-slot-tag-pencil { opacity: 1; }
 }
 .po-section-totals span { white-space: nowrap; }
 .po-search { max-width: 320px; width: 100%; }
+
+/* ── Serial Numbers tab: digital tag sheet ────────────────────────────────
+   Installation materials carry tags we minted (MaterialTagSheet renders the
+   scannable CODE128). The sheet is revealed on demand so the table stays the
+   default view. */
+.invd-tag-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.invd-tag-toggle-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #9810FA;
+  background: #9810FA;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.invd-tag-toggle-btn:hover { background: #7e0edb; }
+
+.invd-tag-hint { font-size: 12px; color: #6b7280; }
+
+.invd-tag-sheet-wrap { margin-bottom: 16px; }
+
+/* Printing from inside the detail modal: paper gets the tag sheet only, not
+   the dashboard behind it. The class is added for the duration of the print
+   dialog by printMaterialTags() in InventoryManagement.jsx. */
+@media print {
+  body.invd-printing-tags * { visibility: hidden; }
+  body.invd-printing-tags .invd-tag-sheet-wrap,
+  body.invd-printing-tags .invd-tag-sheet-wrap * { visibility: visible; }
+  body.invd-printing-tags .invd-tag-sheet-wrap {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  body.invd-printing-tags .no-print { display: none !important; }
+}

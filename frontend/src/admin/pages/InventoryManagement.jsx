@@ -4,8 +4,13 @@ import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { useLocation } from 'react-router-dom';
 import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
+import MaterialTagSheet from '../components/tags/MaterialTagSheet';
 import '../styles/dashboard_air.css';
 import '../styles/inventory_management.css';
+// The tag sheet's own styles (.bsr-tag-*) live with the receiving screen it was
+// built for. Every selector in that file is page-prefixed, so importing it here
+// only brings the tag-card rules into play — nothing on this page is restyled.
+import '../styles/po_receiving.css';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
@@ -112,6 +117,7 @@ const InventoryManagement = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [detailTab, setDetailTab] = useState('overview');
+  const [showTagSheet, setShowTagSheet] = useState(false);
   const focusInvId = useFocusTarget('inv');
   const focusHandledRef = useRef(false);
   const [invPulse, fireInvPulse] = useFocusPulse();
@@ -298,6 +304,7 @@ const InventoryManagement = () => {
       setViewingItem(item);
       setHistoryData(null);
       setDetailTab('overview');
+      setShowTagSheet(false);
       loadInventoryHistory(item.inventory_id);
       fireInvPulse();
     } else {
@@ -440,6 +447,23 @@ const InventoryManagement = () => {
   const overstockCount = inventory.filter((i) => getItemQty(i) >= getItemMax(i)).length;
   const stockOutHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Stock Out');
   const transferHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Transfer');
+
+  /* Digital tags we minted ourselves (installation materials only). An
+     appliance's serial is the manufacturer's own — we never re-encode it as
+     one of our tags, so no barcode affordance is offered for those. */
+  const materialTags = (historyData?.serial_records || []).filter((s) => s.is_material_tag);
+
+  /* Print just the tag sheet. window.print() inside a modal would otherwise
+     put the whole dashboard on paper; the body class flips the print-only
+     rules in inventory_management.css for the duration of the dialog. */
+  const printMaterialTags = () => {
+    document.body.classList.add('invd-printing-tags');
+    try {
+      window.print();
+    } finally {
+      document.body.classList.remove('invd-printing-tags');
+    }
+  };
 
   return (
     <AdminLayout>
@@ -899,7 +923,7 @@ const InventoryManagement = () => {
                             </td>
                             <td>
                               <div className="inv-cell-actions">
-                                <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); loadInventoryHistory(item.inventory_id); }}>View</button>
+                                <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); setShowTagSheet(false); loadInventoryHistory(item.inventory_id); }}>View</button>
                               </div>
                             </td>
                           </tr>
@@ -1239,7 +1263,7 @@ const InventoryManagement = () => {
         {viewingItem && (
           <Modal
             isOpen={!!viewingItem}
-            onClose={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); }}
+            onClose={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); setShowTagSheet(false); }}
             title={getItemName(viewingItem)}
             maxWidth={920}
           >
@@ -1585,6 +1609,29 @@ const InventoryManagement = () => {
                       <span className="invd-move-value">{historyData.summary.current_available ?? historyData.inventory?.available_quantity ?? 0}</span>
                     </div>
                   </div>
+                  {materialTags.length > 0 && (
+                    <div className="invd-tag-actions no-print">
+                      <button
+                        type="button"
+                        className="invd-tag-toggle-btn"
+                        onClick={() => setShowTagSheet((v) => !v)}
+                      >
+                        {showTagSheet ? 'Hide tags' : `View / print tags (${materialTags.length})`}
+                      </button>
+                      <span className="invd-tag-hint">
+                        Scan or reprint a tag when the physical label is missing or damaged.
+                      </span>
+                    </div>
+                  )}
+                  {showTagSheet && materialTags.length > 0 && (
+                    <div className="invd-tag-sheet-wrap">
+                      <MaterialTagSheet
+                        tags={materialTags}
+                        productName={historyData?.product?.product_name ?? getItemName(viewingItem)}
+                        onPrint={printMaterialTags}
+                      />
+                    </div>
+                  )}
                   {!historyData.serial_records || historyData.serial_records.length === 0 ? (
                     <div className="invd-empty">No serial numbers recorded for this product at this location.</div>
                   ) : (
@@ -1611,7 +1658,14 @@ const InventoryManagement = () => {
                           {historyData.serial_records.map((s, index) => (
                             <tr key={s.serial_id ?? index}>
                               <td className="invd-cell-num">{index + 1}</td>
-                              <td><span className="invd-mono invd-bold">{s.serial_number}</span></td>
+                              <td>
+                                <span className="invd-mono invd-bold">{s.serial_number}</span>
+                                {/* Reference only — a supplier code repeats across
+                                    every box, so it is never the scannable value. */}
+                                {s.is_material_tag && s.supplier_barcode && (
+                                  <div className="invd-small invd-muted">Supplier: {s.supplier_barcode}</div>
+                                )}
+                              </td>
                               <td>
                                 <span className={`invd-status-pill${
                                   s.serial_status === 'In Stock' ? ' invd-pill-green'
@@ -1621,7 +1675,10 @@ const InventoryManagement = () => {
                                   {s.serial_status ?? 'Active'}
                                 </span>
                               </td>
-                              <td className="invd-mono">{s.row_quantity_received ?? s.row_stock_in ?? 0}</td>
+                              {/* A material tag names a package or a lot; it carries no
+                                  quantity of its own, so the backend sends null and the
+                                  cell stays blank rather than reading as a zero receipt. */}
+                              <td className="invd-mono">{s.row_quantity_received ?? s.row_stock_in ?? '—'}</td>
                               <td className="invd-mono">{s.row_stock_in ?? '—'}</td>
                               <td className="invd-mono">{s.row_stock_out ?? '—'}</td>
                               <td className="invd-mono">{s.row_transfer ?? '—'}</td>
@@ -1687,7 +1744,7 @@ const InventoryManagement = () => {
               )}
 
               <div className="inv-modal-footer">
-                <button className="inv-modal-btn-cancel" onClick={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); }}>Close</button>
+                <button className="inv-modal-btn-cancel" onClick={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); setShowTagSheet(false); }}>Close</button>
               </div>
             </div>
           </Modal>
