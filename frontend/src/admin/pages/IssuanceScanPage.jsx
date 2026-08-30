@@ -47,6 +47,9 @@ export default function IssuanceScanPage() {
   const roleKey = getRoleKey(user || {});
   const isAdmin = roleKey === ROLES.ADMIN;
   const canIssue = isAdmin || (typeof can === 'function' && can('inventory_issuance', 'create'));
+  // Authorised FIFO override. The server refuses the override without this
+  // permission, so the control is hidden outright rather than shown-and-refused.
+  const canOverrideFifo = isAdmin || (typeof can === 'function' && can('inventory_issuance', 'fifo_override'));
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -245,7 +248,11 @@ export default function IssuanceScanPage() {
   // Recovers the scan verdict from BOTH rejection shapes and normalizes an
   // accepted apply to an ACCEPTED scan_result (the scan endpoint returns
   // {success,action:'applied'} on accept, with no scan_result of its own).
-  const handleScan = useCallback(async (barcode, confirmedZone, quantity = 1) => {
+  // `opts` optionally carries { acceptFifoOverride, overrideReason } — the
+  // authorised FIFO override PickScanner requests after a FIFO_VIOLATION. The
+  // override keys are only spread in when actually requested, so an ordinary
+  // scan posts the exact payload it always did.
+  const handleScan = useCallback(async (barcode, confirmedZone, quantity = 1, opts = null) => {
     const payload = {
       issuance_id: issuanceId,
       barcode,
@@ -253,6 +260,9 @@ export default function IssuanceScanPage() {
       quantity_unit: 'piece',
       confirmed_zone: confirmedZone ?? null,
       location_id: quote?.location_id ?? null,
+      ...(opts?.acceptFifoOverride
+        ? { accept_fifo_override: true, override_reason: opts.overrideReason }
+        : {}),
     };
     let body;
     try {
@@ -346,10 +356,10 @@ export default function IssuanceScanPage() {
   const scanBusyWrapped = scanBusy || planLoading;
 
   // Wrap onScan to drive the busy flag while a scan is in flight.
-  const onScan = useCallback(async (barcode, confirmedZone, quantity) => {
+  const onScan = useCallback(async (barcode, confirmedZone, quantity, opts) => {
     setScanBusy(true);
     try {
-      return await handleScan(barcode, confirmedZone, quantity);
+      return await handleScan(barcode, confirmedZone, quantity, opts);
     } finally {
       setScanBusy(false);
     }
@@ -532,6 +542,7 @@ export default function IssuanceScanPage() {
                     onScan={onScan}
                     onIncident={handleIncident}
                     busy={scanBusyWrapped}
+                    canOverrideFifo={canOverrideFifo}
                     camera
                   />
                 )}
