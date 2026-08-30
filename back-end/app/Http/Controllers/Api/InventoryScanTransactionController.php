@@ -417,6 +417,10 @@ class InventoryScanTransactionController extends Controller
                 'pieces_per_package' => $piecesPerPackage,
                 'is_serialized'      => $isSerialized,
                 'serial_number'      => $scannedBarcode ?: null,
+                'tags' => collect($result['tags'] ?? [])->map(fn ($t) => [
+                    'serial_number'    => $t->serial_number,
+                    'supplier_barcode' => $t->supplier_barcode,
+                ])->values()->all(),
             ];
 
             if ($poId && $remaining !== null) {

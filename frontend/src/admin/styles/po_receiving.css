@@ -1224,3 +1224,84 @@
 @media (max-width: 720px) {
   .bsr-overage-actions { flex-direction: column; }
 }
+
+/* ── Material tag sheet (digital tags minted on receiving) ──────────────── */
+.bsr-tag-sheet {
+  margin: 12px 0;
+  padding: 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+.bsr-tag-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.bsr-tag-sheet-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+.bsr-tag-sheet-print-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #9810FA;
+  background: #9810FA;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bsr-tag-sheet-print-btn:hover { background: #7e0edb; }
+
+.bsr-tag-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.bsr-tag-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  text-align: center;
+}
+.bsr-tag-card-product {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  word-break: break-word;
+}
+.bsr-tag-card-supplier {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+@media print {
+  .no-print { display: none !important; }
+
+  .bsr-tag-sheet {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    border: none;
+  }
+  .bsr-tag-sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  .bsr-tag-card {
+    border: 1px solid #000000;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
