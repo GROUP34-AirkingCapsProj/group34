@@ -32,6 +32,19 @@
 - Data-writing migrations use `DB::table(...)`, never Eloquent models — the `Auditable` trait fires boot hooks that must not run during migration.
 - Status IDs are hardcoded integers: 8 = Approved, 10 = Authorized, 11 = Completed, 12 = Partially Received, 26 = the status used for received serials.
 
+## Verified API names (the plan originally guessed several of these wrong)
+
+- **Permission check:** `App\Support\PermissionResolver::canUser(int $userId, string $feature, string $action): bool`.
+  There is **no** `User::hasPermission()` and no `App\Services\PermissionResolver`. Call it as
+  `app(\App\Support\PermissionResolver::class)->canUser((int) $request->user()->user_id, 'inventory_issuance', 'fifo_override')`.
+- **Transfer scan methods:** `recordDispatchScan()` / `recordReceiveScan()`, not `scanShip()` / `scanReceive()`.
+- **Transfer receive completion:** `receive(Transfer $ist, int $userId)`, not `completeReceive()`.
+- **Scan removal:** `removeDispatchScan(Transfer, int $scanId)` / `removeReceiveScan(Transfer, int $scanId)` already
+  key on scan id, not barcode — the re-keying this plan called for was unnecessary.
+- **Quarantine status constant:** `IncidentItem::STATUS_QUARANTINED` (value `'quarantined'`).
+- **`permissions` table:** columns are `permission_id`, `feature`, `action`, `description`, with a unique key on
+  `(feature, action)`.
+
 ## Correction to the spec
 
 The spec flags "verify `syncPoReceivingStatus()` doesn't compare with `==`". **It is verified: line 981 uses `($totalReceived >= $totalOrdered)`, so over-receipt already reaches Completed correctly.** No fix needed. Task 7 adds a regression test to keep it that way.
