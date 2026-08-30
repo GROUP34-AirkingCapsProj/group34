@@ -26,6 +26,7 @@ class ReceivingDetail extends Model
         'quantity_amount',
         'condition',
         'scanned_barcode',
+        'entry_mode',
     ];
 
     protected $casts = [
