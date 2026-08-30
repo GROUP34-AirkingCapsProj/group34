@@ -133,7 +133,7 @@ class CountedTransferFlowTest extends TransferTestCase
         );
     }
 
-    public function test_over_receive_is_clamped_to_what_was_shipped(): void
+    public function test_over_count_is_refused_at_both_ends(): void
     {
         $from = $this->makeLocation('CNT-OVR-SRC');
         $to   = $this->makeLocation('CNT-OVR-DST');
@@ -148,18 +148,41 @@ class CountedTransferFlowTest extends TransferTestCase
         ]);
         $detailId = (int) $ist->details->first()->transfer_detail_id;
 
+        // Dispatch side: counting more than the line asks for is refused outright,
+        // never quietly reduced to the remainder.
+        try {
+            $svc->countDispatchScan($ist, $detailId, 250, $user->user_id);
+            $this->fail('countDispatchScan must refuse a count above the line remainder');
+        } catch (RuntimeException $e) {
+            $this->assertSame('Only 100 more unit(s) needed for this product.', $e->getMessage());
+        }
+        $this->assertSame(
+            0,
+            (int) $ist->details->first()->fresh()->quantity_scanned,
+            'a refused count must leave quantity_scanned untouched'
+        );
+
         $svc->countDispatchScan($ist, $detailId, 100, $user->user_id);
         $svc->dispatch($ist->fresh('details.product'), $user->user_id);
 
+        // Receive side: same rule. The surplus is a real discrepancy and must surface
+        // to the clerk rather than being swallowed by a clamp.
         $ist = $ist->fresh('details.product');
-        $res = $svc->countReceiveScan($ist, $detailId, 500, $user->user_id);
+        try {
+            $svc->countReceiveScan($ist, $detailId, 500, $user->user_id);
+            $this->fail('countReceiveScan must refuse a count above what was shipped');
+        } catch (RuntimeException $e) {
+            $this->assertSame('Only 100 more unit(s) can be received on this line.', $e->getMessage());
+        }
 
-        $this->assertSame(100, $res['quantity_received']);
         $line = $ist->details->first()->fresh();
-        $this->assertSame(100, (int) $line->quantity_received);
+        $this->assertSame(0, (int) $line->quantity_received, 'a refused count must not move quantity_received');
         $this->assertLessThanOrEqual((int) $line->quantity_transferred, (int) $line->quantity_received);
 
-        // A further count on a fully received line is refused outright.
+        // The exact shipped amount still goes through, and a further count then refuses.
+        $svc->countReceiveScan($ist->fresh('details.product'), $detailId, 100, $user->user_id);
+        $this->assertSame(100, (int) $ist->details->first()->fresh()->quantity_received);
+
         $this->expectException(RuntimeException::class);
         $svc->countReceiveScan($ist->fresh('details.product'), $detailId, 1, $user->user_id);
     }
