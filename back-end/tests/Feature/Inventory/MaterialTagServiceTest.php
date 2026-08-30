@@ -187,4 +187,31 @@ class MaterialTagServiceTest extends TestCase
         $remainingSerials = ItemSerial::where('batch_id', $batch->batch_id)->pluck('serial_number')->all();
         $this->assertSame(count($remainingSerials), count(array_unique($remainingSerials)));
     }
+
+    public function test_reference_label_with_like_metacharacters_does_not_inflate_the_count(): void
+    {
+        // '_' is a single-character SQL LIKE wildcard. If nextSequence() ever
+        // uses a raw LIKE against an unescaped prefix, a reference label of
+        // 'PO_2401' would also match rows minted under 'POX2401' (or any
+        // other single character in that position), inflating the count and
+        // skipping sequence numbers. Prove it does not.
+        $location = $this->makeLocation();
+        $product  = $this->makeProduct('package');
+        $batch    = $this->makeBatch($product, $location);
+
+        $service = app(MaterialTagService::class);
+
+        // Mint under a reference label the unescaped wildcard would wrongly
+        // match against 'PO_2401' ('_' matching 'X').
+        $service->mintForCount($product, $batch, $location->location_id, 5, 'POX2401');
+
+        $tags = $service->mintForCount($product, $batch, $location->location_id, 1, 'PO_2401');
+
+        $this->assertCount(1, $tags);
+        $this->assertSame(
+            "INT-PO_2401-{$product->product_id}-01",
+            $tags[0]->serial_number,
+            'The unrelated POX2401 rows must not inflate the PO_2401 sequence count.'
+        );
+    }
 }

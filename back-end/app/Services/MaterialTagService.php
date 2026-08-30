@@ -144,9 +144,15 @@ class MaterialTagService
      * This is still only a best-effort starting point — the actual
      * uniqueness guarantee is the DB constraint, enforced via retry with a
      * strictly-increasing offset in createTag().
+     *
+     * Uses LOCATE(...) = 1 rather than a LIKE pattern: the prefix embeds the
+     * caller-supplied referenceLabel (a PO number or receipt form), and
+     * LIKE's '%'/'_' wildcards are not escaped by query bindings. LOCATE
+     * treats the prefix as a plain literal, so a reference label such as
+     * 'PO_2401' cannot accidentally match unrelated rows like 'POX2401'.
      */
     private function nextSequence(string $prefix): int
     {
-        return ItemSerial::where('serial_number', 'like', $prefix . '%')->count() + 1;
+        return ItemSerial::whereRaw('LOCATE(?, serial_number) = 1', [$prefix])->count() + 1;
     }
 }
