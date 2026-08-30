@@ -1093,3 +1093,64 @@
   color: #9810FA;
   border-bottom-color: #9810FA;
 }
+
+/* ── Count-entry panel (hand-counted, un-barcoded receiving) ─────────── */
+.bsr-count-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+}
+.bsr-count-product { font-size: 14px; font-weight: 700; color: #111827; }
+.bsr-count-remaining {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.bsr-count-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+.bsr-count-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 15px;
+  color: #111827;
+}
+.bsr-count-input:focus {
+  outline: none;
+  border-color: #9810FA;
+  box-shadow: 0 0 0 3px rgba(152, 16, 250, 0.12);
+}
+.bsr-count-input:disabled { background: #f3f4f6; color: #9ca3af; }
+.bsr-count-conversion {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.bsr-count-overage-warning {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d97706;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.bsr-count-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.bsr-count-actions .bsr-btn-cancel,
+.bsr-count-actions .bsr-btn-complete {
+  flex: 1;
+}
+.bsr-count-actions .bsr-btn-complete:disabled {
+  background: #d1d5db; color: #9ca3af; cursor: not-allowed;
+}
+.bsr-count-actions .bsr-btn-complete:disabled:hover { background: #d1d5db; }
+.bsr-count-actions .bsr-btn-cancel:disabled { opacity: 0.6; cursor: not-allowed; }

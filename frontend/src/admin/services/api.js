@@ -764,6 +764,22 @@ export const inventoryAPI = {
     }),
   getHistory: async (inventoryId) =>
     apiRequest(`/inventory/${inventoryId}/history`),
+  /**
+   * Receive un-barcoded material by hand count. body: { po_detail_id, location_id?,
+   * quantity, zone_label?, accept_overage? }. Check `data.action` on the response —
+   * it is not always 'applied':
+   *   - 'applied'      posted; also returns quantity_received, units_entered,
+   *                    count_unit, receiving_number, batch_id, tags[].
+   *   - 'over_receipt' refused pending confirmation; returns ordered_pieces,
+   *                    already_received, remaining, counted, overage. Re-post
+   *                    with accept_overage: true to proceed.
+   *   - 'rejected'     refused outright; see data.reason.
+   */
+  receiveCount: async (data) =>
+    apiRequest('/inventory/receive-count', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
 };
 
 /* ======================
@@ -1051,6 +1067,14 @@ export const transfersAPI = {
 
   removeReceiveScan: async (id, scanId) =>
     apiRequest(`/transfers/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
+
+  /** Record one dispatch hand count (no barcode). body: { transfer_detail_id, quantity } */
+  countScan: async (id, data) =>
+    apiRequest(`/transfers/${id}/count-scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  /** Record one receive hand count (no barcode). body: { transfer_detail_id, quantity } */
+  countReceiveScan: async (id, data) =>
+    apiRequest(`/transfers/${id}/count-receive-scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
 
   /** Confirm receipt (-> Received). body: {} (backend infers receive location from user). */
   receiveConfirm: async (id, data) =>
