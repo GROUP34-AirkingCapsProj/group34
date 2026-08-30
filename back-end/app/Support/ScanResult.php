@@ -30,7 +30,13 @@ class ScanResult
         return $this->status === self::ACCEPTED;
     }
 
-    /** Only a FIFO violation may be overridden, and only by filing an incident. */
+    /**
+     * Only a FIFO violation may be overridden — never an unknown barcode, a
+     * wrong product or an over-pick. Two routes exist for a violation: an
+     * authorised override (the `inventory_issuance.fifo_override` permission
+     * plus a recorded reason, which posts the pick against the scanned batch),
+     * or filing an incident report, which any picker may do.
+     */
     public function overridable(): bool
     {
         return $this->status === self::FIFO_VIOLATION;

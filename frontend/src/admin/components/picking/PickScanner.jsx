@@ -30,7 +30,7 @@ import CameraScanner from '../CameraScanner';
  *          transfers, TransferService::pickList(). Issuance pick-plan omits the
  *          packaging fields; both are handled defensively.
  *
- *   onScan(barcode, confirmedZone) → Promise<serverResponse>
+ *   onScan(barcode, confirmedZone, quantity, options) → Promise<serverResponse>
  *          Called on every Enter. `confirmedZone` is the zone string the picker
  *          confirmed for a CONSUMABLE step; it is null for serialized steps (the
  *          serial identifies the batch on its own). Must resolve to the server's
@@ -56,6 +56,9 @@ import CameraScanner from '../CameraScanner';
  *          `scan_result` on a 422. The parent is responsible for catching the 422
  *          and resolving the full body so PickScanner can read `scan_result`.
  *          The parent should refetch the plan after an ACCEPTED verdict.
+ *          `options` is optional and only present on an authorised FIFO
+ *          override: { acceptFifoOverride: true, overrideReason: string }. A
+ *          parent that ignores the 4th argument keeps its existing behaviour.
  *
  *   onIncident(context) → void
  *          Called when the picker clicks "File Incident Report" on an overridable
@@ -68,7 +71,17 @@ import CameraScanner from '../CameraScanner';
  *          before opening IncidentModal.
  *
  *   busy   boolean — disables the input/buttons while a scan is in flight.
+ *
+ *   canOverrideFifo boolean — whether the signed-in user holds the
+ *          `inventory_issuance.fifo_override` permission. When false the
+ *          authorised-override control is not rendered at all (the server would
+ *          refuse it, and a control that never works trains pickers to distrust
+ *          the UI). "File Incident Report" is NEVER gated on this — it is the
+ *          unprivileged escape hatch every picker keeps.
  */
+
+/** The server requires an override reason of at least this many characters. */
+const OVERRIDE_REASON_MIN = 10;
 
 const STATUS_TONE = {
   ACCEPTED: 'green',
@@ -101,12 +114,17 @@ function extractVerdict(response) {
   return response.scan_result || response.data?.scan_result || response;
 }
 
-export default function PickScanner({ plan = [], onScan, onIncident, busy = false, camera = false }) {
+export default function PickScanner({ plan = [], onScan, onIncident, busy = false, camera = false, canOverrideFifo = false }) {
   const [barcode, setBarcode] = useState('');
   const [verdict, setVerdict] = useState(null);
   const [flash, setFlash] = useState(false); // brief green pulse on ACCEPTED
   const [confirmedZone, setConfirmedZone] = useState('');
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
   const inputRef = useRef(null);
+  // The last barcode/zone actually attempted, so an authorised override can
+  // re-issue the SAME scan through onScan instead of opening a second path.
+  const lastAttemptRef = useRef(null);
   const mountedRef = useRef(true);
   const flashTimer = useRef(null);
 
@@ -160,13 +178,17 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   // The single scan-submit path. The manual field (Enter) and the optional camera
   // both call this, so a camera decode is FIFO-checked and its verdict handled
   // exactly like a manual scan.
-  const submitScan = async (code, cz) => {
+  const submitScan = async (code, cz, opts = null) => {
     const clean = String(code || '').trim();
     if (!clean || busy || !onScan) return;
     // Clear the input after EVERY attempt, regardless of outcome.
     setBarcode('');
+    lastAttemptRef.current = { code: clean, zone: cz };
+    // A fresh attempt retires any half-typed override from the previous verdict.
+    setOverrideOpen(false);
+    setOverrideReason('');
     try {
-      const response = await onScan(clean, cz, scanQuantity);
+      const response = await onScan(clean, cz, scanQuantity, opts);
       if (!mountedRef.current) return;
       const v = extractVerdict(response);
       setVerdict(v);
@@ -206,6 +228,19 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
       expected_zone: verdict.expected_zone_label ?? suggestedZone ?? null,
       actual_zone: verdict.zone_label ?? null,
       quantity: currentStep?.needed ?? 1,
+    });
+  };
+
+  // Re-issue the SAME scan with the override flag. No second network path — the
+  // parent's onScan carries the override options straight to the scan endpoint.
+  const overrideReasonValid = overrideReason.trim().length >= OVERRIDE_REASON_MIN;
+
+  const confirmOverride = () => {
+    const attempt = lastAttemptRef.current;
+    if (!attempt || busy || !overrideReasonValid) return;
+    submitScan(attempt.code, attempt.zone, {
+      acceptFifoOverride: true,
+      overrideReason: overrideReason.trim(),
     });
   };
 
@@ -383,17 +418,81 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
             </div>
           )}
           {/* Incident button is gated on the SERVER's overridable flag, never on a
-              status string — the server decides what may be overridden. */}
+              status string — the server decides what may be overridden. It is the
+              unprivileged escape hatch, so it is NEVER gated on canOverrideFifo. */}
           {verdict.overridable && (
-            <button
-              type="button"
-              className="ak-btn ak-btn--primary"
-              style={{ marginTop: '0.7rem' }}
-              onClick={openIncident}
-              disabled={busy}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.7rem' }}>
+              <button
+                type="button"
+                className="ak-btn ak-btn--primary"
+                onClick={openIncident}
+                disabled={busy}
+              >
+                File Incident Report
+              </button>
+              {/* Secondary, and permission-gated: it reveals a reason field rather
+                  than acting, so it never becomes the obvious first click. */}
+              {canOverrideFifo && !overrideOpen && (
+                <button
+                  type="button"
+                  className="ak-btn"
+                  onClick={() => setOverrideOpen(true)}
+                  disabled={busy}
+                >
+                  Override…
+                </button>
+              )}
+            </div>
+          )}
+
+          {verdict.overridable && canOverrideFifo && overrideOpen && (
+            <div
+              className="ak-field"
+              style={{
+                marginTop: '0.7rem',
+                padding: '0.75rem',
+                borderRadius: 8,
+                background: 'rgba(255,255,255,0.6)',
+                border: `1px dashed ${banner.border}`,
+                gap: '0.4rem',
+              }}
             >
-              File Incident Report
-            </button>
+              <label className="ak-label" htmlFor="pick-override-reason">
+                Reason for overriding FIFO
+              </label>
+              <input
+                id="pick-override-reason"
+                className="ak-input"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                maxLength={255}
+                placeholder="e.g. Older batch physically damaged"
+                disabled={busy}
+              />
+              <div style={{ fontSize: '0.78rem' }}>
+                This reason is recorded on the issuance line and in the audit trail.
+                Stock is deducted from the batch you scanned, not the oldest one.
+                Minimum {OVERRIDE_REASON_MIN} characters.
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="ak-btn ak-btn--primary"
+                  onClick={confirmOverride}
+                  disabled={busy || !overrideReasonValid}
+                >
+                  Confirm override
+                </button>
+                <button
+                  type="button"
+                  className="ak-btn"
+                  onClick={() => { setOverrideOpen(false); setOverrideReason(''); }}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
