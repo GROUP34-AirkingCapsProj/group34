@@ -812,6 +812,80 @@ class TransferController extends Controller
     }
 
     /**
+     * Count-entry dispatch for unbarcoded materials. Quantity is in PIECES.
+     */
+    public function countScan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'transfer_detail_id' => 'required|integer',
+                'quantity'           => 'required|integer|min:1',
+            ]);
+
+            $approvedId = $this->statusId('Approved');
+            $ist = Transfer::with(['details.product'])
+                ->where('status_id', $approvedId)
+                ->findOrFail($id);
+
+            $result = $service->countDispatchScan(
+                $ist,
+                (int) $validated['transfer_detail_id'],
+                (int) $validated['quantity'],
+                $request->user()?->user_id
+            );
+
+            $ist->load('details');
+            $fullyScanned = $ist->details->every(
+                fn ($d) => (int) $d->quantity_scanned >= (int) $d->quantity_requested
+            );
+
+            return $this->success(array_merge($result, [
+                'ist_fully_scanned' => $fullyScanned,
+            ]), 'Count recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Count failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Count-entry receiving for unbarcoded materials. Quantity is in PIECES.
+     */
+    public function countReceiveScan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'transfer_detail_id' => 'required|integer',
+                'quantity'           => 'required|integer|min:1',
+            ]);
+
+            $ist = Transfer::findOrFail($id);
+
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+
+            $result = $service->countReceiveScan(
+                $ist,
+                (int) $validated['transfer_detail_id'],
+                (int) $validated['quantity'],
+                $request->user()?->user_id
+            );
+
+            return $this->success($result, 'Receive count recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Receive count failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Remove a single scan — decrements quantity_scanned and deletes the barcode_scans row.
      */
     public function removeScan(Request $request, $id, $scanId, TransferService $service)

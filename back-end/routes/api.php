@@ -947,11 +947,13 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::get('/transfers/{id}/receipt', [TransferController::class, 'receipt']);
     Route::middleware('permission:inventory_transfers,create')->group(function () {
         Route::post('/transfers/{id}/scan', [TransferController::class, 'scan']);
+        Route::post('/transfers/{id}/count-scan', [TransferController::class, 'countScan']);
         Route::delete('/transfers/{id}/scan/{scanId}', [TransferController::class, 'removeScan']);
         Route::post('/transfers/{id}/confirm-dispatch', [TransferController::class, 'confirmDispatch']);
     });
     Route::middleware('permission:inventory_transfers,update')->group(function () {
         Route::post('/transfers/{id}/receive-scan', [TransferController::class, 'receiveScan']);
+        Route::post('/transfers/{id}/count-receive-scan', [TransferController::class, 'countReceiveScan']);
         Route::delete('/transfers/{id}/receive-scan/{scanId}', [TransferController::class, 'removeReceiveScan']);
         Route::post('/transfers/{id}/receive-confirm', [TransferController::class, 'receiveStore']);
     });
