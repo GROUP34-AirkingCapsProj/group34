@@ -1,0 +1,152 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\InventoryBatch;
+use App\Models\ItemSerial;
+use App\Models\Product;
+use Illuminate\Database\QueryException;
+use RuntimeException;
+
+/**
+ * Mints digital tags (ItemSerial rows) for received installation materials.
+ *
+ * A tag identifies a physical thing (a package, a lot, or a scanned item) and
+ * resolves to exactly one inventory batch. It carries no quantity of its own —
+ * quantity lives in inventory_batches.quantity_remaining, which this service
+ * never touches. Callers are responsible for adjusting stock levels (via
+ * Inventory::setPieces()) separately.
+ *
+ * TRANSACTION CONTRACT: every method here must be invoked inside the
+ * caller's own DB transaction. This service never opens or commits a
+ * transaction itself, so that a rolled-back receipt leaves no orphan tags.
+ *
+ * UNIQUENESS: item_serial.serial_number carries a global UNIQUE constraint.
+ * That constraint — not a PHP-side existence check — is the real guarantee
+ * against collisions under concurrent receiving. This service computes a
+ * candidate sequence number, attempts the insert, and on a unique-key
+ * violation (MySQL error 1062) recounts and retries, up to a small cap.
+ */
+class MaterialTagService
+{
+    /** Maximum attempts to find a free sequence number before giving up. */
+    private const MAX_RETRIES = 25;
+
+    /**
+     * Mint tags for materials received by count. Granularity follows the
+     * product's count_unit:
+     *  - 'package' -> one tag per package (quantityInUnits tags minted).
+     *  - 'piece'   -> one tag for the whole lot, regardless of quantity.
+     *
+     * @return ItemSerial[]
+     */
+    public function mintForCount(
+        Product $product,
+        InventoryBatch $batch,
+        int $locationId,
+        int $quantityInUnits,
+        string $referenceLabel,
+        ?int $userId = null
+    ): array {
+        $countUnit = $product->consumableDetail?->count_unit ?? 'package';
+        $tagCount  = $countUnit === 'piece' ? 1 : max(1, $quantityInUnits);
+
+        $tags = [];
+        for ($i = 0; $i < $tagCount; $i++) {
+            $tags[] = $this->createTag($product, $batch, $locationId, null, $referenceLabel, $userId);
+        }
+
+        return $tags;
+    }
+
+    /**
+     * Mint exactly one tag for a single scanned item, always — regardless of
+     * the product's count_unit. The scanned supplier barcode is stored
+     * alongside the newly generated serial so both identifiers travel on the
+     * same row.
+     */
+    public function mintForScan(
+        Product $product,
+        InventoryBatch $batch,
+        int $locationId,
+        ?string $supplierBarcode,
+        string $referenceLabel,
+        ?int $userId = null
+    ): ItemSerial {
+        return $this->createTag($product, $batch, $locationId, $supplierBarcode, $referenceLabel, $userId);
+    }
+
+    /**
+     * Create a single ItemSerial tag row, retrying the sequence number on a
+     * unique-key collision (MySQL 1062) rather than pre-checking existence.
+     */
+    private function createTag(
+        Product $product,
+        InventoryBatch $batch,
+        int $locationId,
+        ?string $supplierBarcode,
+        string $referenceLabel,
+        ?int $userId
+    ): ItemSerial {
+        $attempts = 0;
+        $offset   = 0;
+        $prefix   = sprintf('INT-%s-%d-', $referenceLabel, $product->product_id);
+
+        while (true) {
+            $attempts++;
+            $seq = $this->nextSequence($prefix) + $offset;
+            $serialNumber = sprintf('%s%02d', $prefix, $seq);
+
+            try {
+                return ItemSerial::create([
+                    'product_id'       => $product->product_id,
+                    'location_id'      => $locationId,
+                    'batch_id'         => $batch->batch_id,
+                    'receiving_id'     => $batch->receiving_id,
+                    'serial_number'    => $serialNumber,
+                    'supplier_barcode' => $supplierBarcode,
+                    'serial_type'      => 'received',
+                    'scanned_by'       => $userId,
+                    'status_id'        => ItemSerial::IN_STOCK_STATUS_ID,
+                ]);
+            } catch (QueryException $e) {
+                $isDuplicate = (int) ($e->errorInfo[1] ?? 0) === 1062;
+
+                if (!$isDuplicate || $attempts >= self::MAX_RETRIES) {
+                    throw new RuntimeException(
+                        "MaterialTagService: unable to mint a unique tag for product {$product->product_id} "
+                        . "on batch {$batch->batch_id} after {$attempts} attempt(s).",
+                        0,
+                        $e
+                    );
+                }
+
+                // Duplicate serial_number: another row already claimed this
+                // sequence number (either a concurrent insert, or a gap-free
+                // scan of the prefix landing on an existing serial). Bump the
+                // local offset so the next candidate is strictly higher and
+                // the loop is guaranteed to converge, then recount and retry.
+                $offset++;
+                continue;
+            }
+        }
+    }
+
+    /**
+     * Next candidate sequence number for a given serial prefix: one more
+     * than the number of tags already minted under that prefix. The prefix
+     * (INT-{referenceLabel}-{product_id}-) is exactly the scope the unique
+     * constraint on serial_number enforces, so counting must match it —
+     * counting by batch_id instead would under-count whenever two batches
+     * share a product_id and referenceLabel (e.g. one PO received into two
+     * locations), producing colliding candidates that never resolve.
+     *
+     * This is still only a best-effort starting point — the actual
+     * uniqueness guarantee is the DB constraint, enforced via retry with a
+     * strictly-increasing offset in createTag().
+     */
+    private function nextSequence(string $prefix): int
+    {
+        return ItemSerial::where('serial_number', 'like', $prefix . '%')->count() + 1;
+    }
+}
