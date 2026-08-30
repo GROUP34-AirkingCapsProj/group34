@@ -158,6 +158,34 @@ class IncidentItem extends Model
             ->all();
     }
 
+    /**
+     * Quarantined pieces keyed by BATCH, not product.
+     *
+     * FIFO enforcement needs to know whether a specific batch is quarantined — if the
+     * oldest batch sits under an unsettled incident it must be skipped, or it blocks
+     * every newer batch behind it forever. quarantinedQuantities() aggregates that
+     * detail away.
+     *
+     * Same inbound exclusion as quarantinedQuantities(), for the same reason: arriving
+     * goods were never on the shelf, so they cannot be shielding a shelf batch.
+     *
+     * @return array<int,int> batch_id => pieces
+     */
+    public static function quarantinedByBatch(int $locationId): array
+    {
+        return DB::table('incident_items as ii')
+            ->join('incident_reports as ir', 'ir.incident_id', '=', 'ii.incident_id')
+            ->where('ir.location_id', $locationId)
+            ->where('ii.status', self::STATUS_QUARANTINED)
+            ->where('ii.is_inbound', false)
+            ->whereNotNull('ii.batch_id')
+            ->groupBy('ii.batch_id')
+            ->selectRaw('ii.batch_id, SUM(ii.quantity) as pieces')
+            ->pluck('pieces', 'batch_id')
+            ->map(fn ($pieces) => (int) $pieces)
+            ->all();
+    }
+
     public function incident(): BelongsTo
     {
         return $this->belongsTo(IncidentReport::class, 'incident_id', 'incident_id');
