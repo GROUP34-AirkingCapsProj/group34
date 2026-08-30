@@ -65,7 +65,7 @@ class ScanPathTagsTest extends TestCase
         $this->assertNotNull($batch, 'Expected a batch for the scanned receipt.');
 
         $tags = ItemSerial::where('batch_id', $batch->batch_id)->get();
-        $this->assertCount(1, $tags, 'One scan must mint exactly one tag, regardless of count_unit.');
+        $this->assertCount(1, $tags, 'One scan of a count_unit=piece product must mint exactly one tag.');
 
         $tag = $tags->first();
         $this->assertSame($barcode, $tag->supplier_barcode);

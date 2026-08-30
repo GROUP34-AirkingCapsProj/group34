@@ -194,10 +194,14 @@ trait NormalizesBarcode
         // receiving barcode — letting that pass win would shadow the serial lookup
         // for precisely the not-in-stock units incidents are about.
         //
-        // The product_barcode pass must keep its precedence: the same controller
-        // creates an item_serial row for consumables with serial_number set to the
-        // product barcode, so trying serials first would turn every consumable
-        // barcode scan into a bogus "specific unit" match.
+        // The product_barcode pass must keep its precedence. Consumables do get an
+        // item_serial row, but since the receiving work its serial_number holds a
+        // minted INT-… tag and the scanned supplier code lives in the separate
+        // supplier_barcode column. The any-state pass below keys on serial_number
+        // alone, so a scanned supplier barcode identifies a product, never one
+        // specific unit — running product_barcode first is what keeps it resolving
+        // that way instead of falling through to a unit-level lookup that cannot
+        // legitimately match it.
         if ($strict['matched_by'] === 'serial' || $strict['matched_by'] === 'product_barcode') {
             return $strict;
         }
