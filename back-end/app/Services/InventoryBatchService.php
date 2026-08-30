@@ -108,6 +108,51 @@ class InventoryBatchService
     }
 
     /**
+     * Exact-batch deduction when the caller already knows which batch the stock
+     * physically came from - an authorised FIFO override, where the picker took
+     * newer stock on purpose and the ledger must follow the goods rather than
+     * the FIFO order.
+     *
+     * Keyed on the batch itself rather than on receiving_id, unlike
+     * deductFromReceiving(): a transfer-created batch has a null receiving_id
+     * and would silently fall through to legacyBatch(), which is a different
+     * wrong answer.
+     *
+     * If the batch id does not resolve, falls back to deductFifo() rather than
+     * throwing. A pick that has already been authorised should not be blocked by
+     * a batch row that vanished between the scan and the commit; deducting
+     * oldest-first is the pre-existing behaviour and stays correct in aggregate.
+     * That fallback needs the product and location, which cannot be read off a
+     * batch row that is not there - hence the two optional arguments. Without
+     * them an unresolvable batch deducts nothing, and says so in the log.
+     *
+     * @return array<int,int> batch_id => qty_deducted, matching deductFifo()'s shape
+     */
+    public function deductFromBatch(int $batchId, int $qty, ?int $productId = null, ?int $locationId = null): array
+    {
+        $batch = InventoryBatch::whereKey($batchId)->lockForUpdate()->first();
+
+        if (! $batch) {
+            Log::warning('InventoryBatchService: deductFromBatch could not resolve the batch, falling back to FIFO', [
+                'batch_id'    => $batchId,
+                'quantity'    => $qty,
+                'product_id'  => $productId,
+                'location_id' => $locationId,
+            ]);
+
+            return ($productId !== null && $locationId !== null)
+                ? $this->deductFifo($productId, $locationId, $qty)
+                : [];
+        }
+
+        $before = (int) $batch->quantity_remaining;
+        $batch->quantity_remaining = max(0, $before - $qty);
+        $batch->save();
+
+        return [(int) $batch->batch_id => $before - (int) $batch->quantity_remaining];
+    }
+
+    /**
      * Restore $qty to a specific batch (up to its remaining capacity), spilling any
      * excess into the legacy batch. If $receivingId is null, everything goes to legacy.
      */
