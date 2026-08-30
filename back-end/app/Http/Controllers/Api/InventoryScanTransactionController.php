@@ -16,6 +16,7 @@ use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Models\Transfer;
 use App\Services\InventoryBatchService;
+use App\Services\ReceivingPostingService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,7 @@ class InventoryScanTransactionController extends Controller
                 'po_id'              => 'nullable|exists:purchase_orders,po_id',
                 'po_detail_id'       => 'nullable|exists:purchase_order_details,po_detail_id',
                 'zone_label'         => 'nullable|string|max:100',
+                'accept_overage'     => 'nullable|boolean',
             ]);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
@@ -306,8 +308,6 @@ class InventoryScanTransactionController extends Controller
                     'reason' => "All {$label} already received for this line item.",
                 ], 'Rejected');
             }
-
-            $quantity = min($quantity, $remaining);
         }
 
         $scannedBarcode = $this->canonicalSerial((string) $validated['barcode']);
@@ -329,128 +329,36 @@ class InventoryScanTransactionController extends Controller
             }
         }
 
+        $overage = $poDetail
+            ? app(ReceivingPostingService::class)->checkOverage($poDetail, $product, $quantity)
+            : null;
+        if ($overage !== null && ! $request->boolean('accept_overage')) {
+            return $this->success($overage, 'Over-receipt requires confirmation');
+        }
+
         DB::beginTransaction();
         try {
-            $inv = Inventory::firstOrCreate(
-                [
-                    'location_id' => $locationId,
-                    'product_id'  => $product->product_id,
-                ],
-                [
-                    'quantity_on_hand'   => 0,
-                    'packages_on_hand'   => 0,
-                    'available_quantity' => 0,
-                    'reorder_level'      => 0,
-                ]
+            Inventory::where('location_id', $locationId)
+                ->where('product_id', $product->product_id)
+                ->lockForUpdate()
+                ->first();
+
+            $result = app(ReceivingPostingService::class)->post(
+                product: $product,
+                locationId: $locationId,
+                pieces: $quantity,
+                entryMode: 'scanned',
+                poDetail: $poDetail,
+                supplierBarcode: $scannedBarcode ?: null,
+                zoneLabel: $validated['zone_label'] ?? null,
+                userId: $request->user()?->user_id,
+                unitsEntered: 1,
             );
 
-            if ($isSerialized) {
-                // Serialized: 1 scan = 1 unit; package concept does not apply.
-                $inv->setPieces((int) $inv->quantity_on_hand + 1, 0);
-            } else {
-                // Consumable: 1 scan = 1 physical package. Pieces are authoritative;
-                // packages_on_hand is derived by setPieces().
-                $inv->setPieces(
-                    (int) $inv->quantity_on_hand + ($packagesReceived * $piecesPerPackage),
-                    $piecesPerPackage
-                );
-            }
-            $inv->save();
-
-            // BUG 4: Find or create the receivings header row
-            if ($poId) {
-                $receiving = Receiving::where('po_id', $poId)
-                    ->where('location_id', $locationId)
-                    ->first();
-            } else {
-                $receiving = Receiving::whereNull('po_id')
-                    ->where('location_id', $locationId)
-                    ->whereDate('created_at', now()->toDateString())
-                    ->first();
-            }
-
-            if (! $receiving) {
-                $receiving = new Receiving();
-                $receiving->receiving_number        = 'PENDING-' . str_replace('.', '', uniqid('', true));
-                $receiving->receiving_date          = now()->toDateString();
-                $receiving->received_by             = $request->user()?->user_id;
-                $receiving->total_quantity_received = 0;
-                $receiving->total_quantity_damaged  = 0;
-                $receiving->location_id             = $locationId;
-                if ($poId) {
-                    $receiving->po_id = $poId;
-                }
-                $receiving->save();
-                $receiving->assignReadableNumber();
-            }
-
-            $receiving->increment('total_quantity_received', $quantity);
-
-            // Create receiving_details row, storing po_detail_id
-            $receiving->details()->create([
-                'product_id'      => $product->product_id,
-                'po_detail_id'    => $poDetail?->po_detail_id,
-                'quantity_amount' => $quantity,
-                'prod_price'      => $product->cost_price ?? 0,
-                'condition'       => 'Good',
-                'scanned_barcode' => $scannedBarcode ?: null,
-            ]);
-
-            // Batch/zone tracking: accumulate repeated scans against the same receiving
-            // header into one batch row (rather than one tiny batch per scan), so the
-            // Warehouse Map/drill-down show one coherent lot per receiving event.
-            $zoneLabel = $validated['zone_label'] ?? null;
-            $existingBatch = InventoryBatch::where('receiving_id', $receiving->receiving_id)
+            $receiving = $result['receiving'];
+            $inv       = Inventory::where('location_id', $locationId)
                 ->where('product_id', $product->product_id)
-                ->where('location_id', $locationId)
                 ->first();
-            if ($existingBatch) {
-                $existingBatch->quantity_received  = (int) $existingBatch->quantity_received + $quantity;
-                $existingBatch->quantity_remaining = (int) $existingBatch->quantity_remaining + $quantity;
-                if ($zoneLabel !== null) {
-                    $existingBatch->zone_label = $zoneLabel;
-                }
-                $existingBatch->save();
-            } else {
-                app(InventoryBatchService::class)->createBatch(
-                    $product->product_id,
-                    $locationId,
-                    $receiving->receiving_id,
-                    $quantity,
-                    $receiving->receiving_date ?? now(),
-                    $zoneLabel
-                );
-            }
-
-            // Register serial number for all product types that have a scanned barcode
-            if ($scannedBarcode !== '') {
-                if ($isSerialized) {
-                    ItemSerial::create([
-                        'product_id'    => $product->product_id,
-                        'location_id'   => $locationId,
-                        'receiving_id'  => $receiving->receiving_id,
-                        'scanned_by'    => $request->user()?->user_id,
-                        'serial_number' => $scannedBarcode,
-                        'serial_type'   => 'received',
-                        'status_id'     => 26,
-                    ]);
-                } else {
-                    // Consumables: one row per barcode+location (idempotent on re-receive)
-                    ItemSerial::firstOrCreate(
-                        [
-                            'product_id'    => $product->product_id,
-                            'location_id'   => $locationId,
-                            'serial_number' => $scannedBarcode,
-                        ],
-                        [
-                            'receiving_id' => $receiving->receiving_id,
-                            'scanned_by'   => $request->user()?->user_id,
-                            'serial_type'  => 'received',
-                            'status_id'    => 26,
-                        ]
-                    );
-                }
-            }
 
             // Sync PO status (Partially Received / Completed) and received_by
             // inside the transaction so both writes are atomic.
