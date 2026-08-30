@@ -26,6 +26,7 @@ import ReceivingReceipt from '../components/ReceivingReceipt';
 import RecordHistoryModal from '../components/RecordHistoryModal';
 import ReceivingHistoryLog from '../components/ReceivingHistoryLog';
 import CountEntryPanel from '../components/receiving/CountEntryPanel';
+import MaterialTagSheet from '../components/tags/MaterialTagSheet';
 import { getStatusConfig } from '../utils/poStatus';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
@@ -788,6 +789,10 @@ const BarcodeScan = () => {
   const [bsrActiveLine, setBsrActiveLine] = useState(null);
   const [bsrScanSuccess, setBsrScanSuccess] = useState(null);
   const [bsrAlertModal, setBsrAlertModal] = useState(null);
+  // Digital tags minted for the material just received (INT-... serials).
+  // null/empty when the last receipt was a serialized appliance — the scanned
+  // serial itself is the identifier there, not a generated tag.
+  const [bsrLastTags, setBsrLastTags] = useState(null);
   /** Set of lowercase-trimmed scanned_barcode values already in the DB for the active PO. */
   const [bsrPoReceivedBarcodes, setBsrPoReceivedBarcodes] = useState(new Set());
   const [bsrPoStatusLoading, setBsrPoStatusLoading] = useState(false);
@@ -1958,6 +1963,8 @@ const BarcodeScan = () => {
     // A count in progress belongs to the line it was opened for.
     setBsrCountMode(false);
     setBsrPendingOverage(null);
+    // Tags belong to the receipt that minted them, not the line in general.
+    setBsrLastTags(null);
   }, [bsrActiveLine?.po_detail_id]);
 
   const handleBsrScan = useCallback(async (raw, acceptOverage = false) => {
@@ -2079,6 +2086,13 @@ const BarcodeScan = () => {
       setBsrPendingOverage(null);
       const qtyReceived       = data?.quantity_received ?? (isSerialized ? 1 : pkgs * pcs);
       const packageUnitLabel  = data?.packages_unit_label ?? 'pkg';
+      // Digital tags minted for this receipt — empty for serialized appliances,
+      // where the scanned serial itself is the identifier.
+      setBsrLastTags(
+        Array.isArray(data?.tags) && data.tags.length > 0
+          ? { tags: data.tags, productName: bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product' }
+          : null,
+      );
       const remainingPackages = data?.remaining_packages ?? null;
       const productName = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
       const productId   = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
@@ -2221,6 +2235,13 @@ const BarcodeScan = () => {
 
       setBsrPendingOverage(null);
       setBsrCountMode(false);
+      // Digital tags minted for this receipt — empty for serialized appliances,
+      // where the scanned serial itself is the identifier.
+      setBsrLastTags(
+        Array.isArray(data?.tags) && data.tags.length > 0
+          ? { tags: data.tags, productName }
+          : null,
+      );
 
       setBsrScannedItems((prev) => [
         {
@@ -3494,6 +3515,13 @@ const BarcodeScan = () => {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {bsrLastTags && (
+                <MaterialTagSheet
+                  tags={bsrLastTags.tags}
+                  productName={bsrLastTags.productName}
+                />
               )}
 
               <div className="bsr-card">

@@ -76,5 +76,9 @@ class ScanPathTagsTest extends TestCase
             ->where('product_id', $product->product_id)
             ->value('entry_mode');
         $this->assertSame('scanned', $entryMode);
+
+        $res->assertJsonCount(1, 'data.tags');
+        $res->assertJsonPath('data.tags.0.supplier_barcode', $barcode);
+        $this->assertStringStartsWith('INT-', (string) $res->json('data.tags.0.serial_number'));
     }
 }
