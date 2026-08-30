@@ -14,6 +14,8 @@ use App\Models\Product;
 use App\Models\WarrantyRecord;
 use App\Services\InventoryBatchService;
 use App\Support\IssuanceStatus;
+use App\Support\PermissionResolver;
+use App\Support\ScanResult;
 use App\Traits\ApiResponse;
 use App\Traits\NormalizesBarcode;
 use Illuminate\Http\JsonResponse;
@@ -200,6 +202,10 @@ class IssuanceScanController extends Controller
             ])],
             'location_id'   => 'nullable|integer|exists:locations,location_id',
             'confirmed_zone' => 'nullable|string|max:100',
+            // FIFO override: an explicit, permissioned acceptance of picking
+            // out of order, carrying the reason that justifies it.
+            'accept_fifo_override' => 'nullable|boolean',
+            'override_reason'      => 'nullable|string|min:10|max:255',
         ]);
 
         $issuance = Issuance::with('details')->find($validated['issuance_id']);
@@ -251,13 +257,42 @@ class IssuanceScanController extends Controller
             app(\App\Services\IncidentService::class)->excludedBatchIds($locationId)
         );
 
+        // Only a FIFO violation may be overridden. Guarding on the status
+        // rather than on ! accepted() is deliberate: an override means "I know
+        // this is not the oldest stock and here is why", never "let me scan the
+        // wrong item" — UNKNOWN_BARCODE, WRONG_PRODUCT and OVER_PICK stay hard
+        // rejections no matter what the client sends.
+        $fifoOverrideReason = null;
+
         if (! $verdict->accepted()) {
-            return response()->json([
-                'success'     => false,
-                'action'      => 'rejected',
-                'reason'      => $verdict->message,
-                'scan_result' => $verdict->toArray(),
-            ], 422);
+            $wantsOverride = $verdict->status === ScanResult::FIFO_VIOLATION
+                && $request->boolean('accept_fifo_override');
+
+            $rejection = null;
+
+            if (! $wantsOverride) {
+                $rejection = $verdict->message;
+            } else {
+                $reason = trim((string) ($validated['override_reason'] ?? ''));
+
+                if (mb_strlen($reason) < 10) {
+                    $rejection = 'A FIFO override needs a written reason of at least 10 characters.';
+                } elseif (! app(PermissionResolver::class)
+                    ->canUser((int) auth()->id(), 'inventory_issuance', 'fifo_override')) {
+                    $rejection = 'You do not have permission to override FIFO. Ask a supervisor, or file an Incident Report to pick from elsewhere.';
+                } else {
+                    $fifoOverrideReason = $reason;
+                }
+            }
+
+            if ($rejection !== null) {
+                return response()->json([
+                    'success'     => false,
+                    'action'      => 'rejected',
+                    'reason'      => $rejection,
+                    'scan_result' => $verdict->toArray(),
+                ], 422);
+            }
         }
 
         $resolved     = $this->resolveScan($raw, $locationId);
@@ -306,7 +341,7 @@ class IssuanceScanController extends Controller
 
             return DB::transaction(function () use (
                 $issuance, $product, $serialRecord, $canonicalSerial,
-                $unitPrice, $lineSubtotal, $locationId
+                $unitPrice, $lineSubtotal, $locationId, $fifoOverrideReason
             ) {
                 $inv = Inventory::where('product_id', $product->product_id)
                     ->where('location_id', $locationId)
@@ -342,6 +377,7 @@ class IssuanceScanController extends Controller
                     'receiving_id'         => $serialReceivingId,
                     'batch_id'             => $serialBatch?->batch_id,
                     'zone_label'           => $serialBatch?->zone_label,
+                    'fifo_override_reason' => $fifoOverrideReason,
                     'stock_before'         => $stockBefore,
                     'quantity_deducted'    => 1,
                     'stock_after'          => (int) $inv->quantity_on_hand,
@@ -439,7 +475,7 @@ class IssuanceScanController extends Controller
             $issuance, $product, $requestedQty, $quantityUnit,
             $quantityInPieces, $packagePrice, $pricePerPiece,
             $lineSubtotal, $locationId, $piecesPerPackage,
-            $baseUnitName, $baseUnitAbbr
+            $baseUnitName, $baseUnitAbbr, $fifoOverrideReason
         ) {
             // Serialize scans for this order and re-check the unpicked quantity
             // inside the transaction. Two fast scanner/manual submissions must
@@ -489,6 +525,7 @@ class IssuanceScanController extends Controller
                 'receiving_id'         => $batch?->receiving_id,
                 'batch_id'             => $batchId,
                 'zone_label'           => $batch?->zone_label,
+                'fifo_override_reason' => $fifoOverrideReason,
                 'stock_before'         => $stockBefore,
                 'quantity_deducted'    => $quantityInPieces,
                 'stock_after'          => (int) $inv->quantity_on_hand,
