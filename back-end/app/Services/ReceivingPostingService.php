@@ -220,8 +220,20 @@ class ReceivingPostingService
             // prefix. Warranty lookup, incident reports and the rest of the
             // appliance side resolve units by this exact serial, so minting
             // a generated lot tag here instead would break them silently.
+            //
+            // An appliance must never enter stock without a barcode. Callers
+            // already prevent it — the count endpoint rejects serialized
+            // products outright, and the scan endpoint requires a barcode that
+            // Laravel's `required` rule trims before checking, so whitespace is
+            // refused. This throw is the invariant's last line of defence: it
+            // belongs to the code that owns the rule rather than to a
+            // validation rule a future caller might bypass. Throwing inside the
+            // caller's transaction rolls the receipt back, so no stock moves.
             if (! $supplierBarcode) {
-                return [];
+                throw new \RuntimeException(
+                    "Refusing to receive serialized product {$product->product_id} without a serial number. "
+                    . 'Appliances must be scanned individually.'
+                );
             }
 
             $serial = ItemSerial::create([
