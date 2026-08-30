@@ -271,8 +271,13 @@ class InventoryController extends Controller
 
         // ── Serial records ───────────────────────────────────────────────
         // Appliances (serialized): unit-level records from item_serial.
-        // Consumables/bulk (not serialized): the barcode scanned per receiving
-        // event is already captured on receiving_details — surface that instead.
+        // Installation materials (not serialized): receiving now mints a
+        // digital tag (an item_serial row carrying a generated INT- serial)
+        // per package / per counted lot / per scanned item, so those tags are
+        // the unit-level records here too. Receipts booked before tagging
+        // existed — and any other path that writes receiving_details without
+        // minting — have no tags, so those receiving events still fall back to
+        // one row per receiving_detail, keyed off the barcode scanned then.
         $serials = collect();
         if ($isSerialized) {
             $inStockSerials = ItemSerial::query()
@@ -343,6 +348,64 @@ class InventoryController extends Controller
             $serials = $inStockSerials->concat($issuedSerials)
                 ->sortBy('scanned_at')->values();
         } else {
+            // Digital tags minted for this material at this location. A tag is
+            // an identifier for one physical thing (a package, a counted lot,
+            // or a scanned item); MaterialTagService is explicit that it
+            // carries no quantity of its own — quantity lives on the batch —
+            // so the per-row quantity columns stay null rather than guessing.
+            $materialTags = ItemSerial::query()
+                ->where('item_serial.product_id', $productId)
+                ->where('item_serial.location_id', $locationId)
+                ->leftJoin('users as scanner', 'scanner.user_id', '=', 'item_serial.scanned_by')
+                ->leftJoin('receivings', 'receivings.receiving_id', '=', 'item_serial.receiving_id')
+                ->leftJoin('transfers', 'transfers.transfer_id', '=', 'item_serial.transfer_id')
+                ->leftJoin('purchase_orders', 'purchase_orders.po_id', '=', 'receivings.po_id')
+                ->leftJoin('suppliers', 'suppliers.supplier_id', '=', 'purchase_orders.supplier_id')
+                ->leftJoin('status_lookup', 'status_lookup.status_id', '=', 'item_serial.status_id')
+                ->select([
+                    'item_serial.serial_id',
+                    'item_serial.serial_number',
+                    'item_serial.supplier_barcode',
+                    'item_serial.receiving_id',
+                    'item_serial.serial_type',
+                    'item_serial.created_at as scanned_at',
+                    'receivings.created_at as received_at_exact',
+                    'transfers.updated_at as transferred_at',
+                    DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
+                    'status_lookup.status_name as serial_status',
+                    'receivings.receiving_number',
+                    'receivings.receiving_date',
+                    'purchase_orders.po_number',
+                    'purchase_orders.order_date as po_date',
+                    'suppliers.supplier_name',
+                ])
+                ->orderBy('item_serial.created_at', 'asc')
+                ->orderBy('item_serial.serial_id', 'asc')
+                ->get()
+                ->map(function ($s) {
+                    // A tag names a thing, it does not measure one. One tag can
+                    // stand for a whole lot whose pieces drain over time, and
+                    // several tags can share a batch, so neither 1 nor the
+                    // batch quantity would be true here. Blank beats a number
+                    // nobody can reconcile against.
+                    $s->row_quantity_received = null;
+                    $s->row_stock_in    = null;
+                    $s->row_stock_out   = null;
+                    $s->row_transfer    = null;
+                    $s->received_at     = $s->received_at_exact ?? $s->scanned_at;
+                    $s->stock_out_at    = null;
+                    $s->is_material_tag = true;
+                    return $s;
+                });
+
+            // Material issuance picks by batch, not by tag: FifoPickingService
+            // writes serial_number => null on every consumable pick, so
+            // issuance_details holds no per-tag serial to union in the way the
+            // serialized branch does. Issued material tags are therefore not
+            // listed; the Stock-Out history tab remains the record of what left.
+            $taggedReceivingIds = $materialTags->pluck('receiving_id')
+                ->filter()->unique()->all();
+
             // Pieces sold per receiving batch (issuance_details link a sale to its batch).
             $soldByReceiving = DB::table('issuance_details')
                 ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
@@ -398,7 +461,7 @@ class InventoryController extends Controller
                 ->whereRaw('COALESCE(d.receiving_id, b.receiving_id) IS NULL')
                 ->max('d.created_at');
 
-            $serials = $receivingDetails
+            $untaggedReceivingRows = $receivingDetails
                 // received_at is receiving_details.created_at, a whole-second
                 // `timestamp`, and the query underneath has no ORDER BY. Two
                 // receivings booked in the same second therefore TIE, sortBy is
@@ -407,6 +470,9 @@ class InventoryController extends Controller
                 // the batches in a different order on a refresh. The row id is
                 // the insertion order, which is the order a reader expects.
                 ->sortBy([['received_at', 'asc'], ['receiving_detail_id', 'asc']])
+                // Receipts that minted tags are represented by those tags
+                // above; listing the receiving row too would double them.
+                ->reject(fn($rd) => in_array($rd->receiving_id, $taggedReceivingIds))
                 ->map(function ($rd) use ($soldByReceiving, $stockOutAtByReceiving, $unlinkedStockOutAt) {
                     $received = (int) $rd->quantity_amount;
                     $stockOut = (int) ($soldByReceiving[$rd->receiving_id] ?? 0);
@@ -431,9 +497,14 @@ class InventoryController extends Controller
                     'row_stock_in'    => max(0, $received - $stockOut),
                     'row_stock_out'   => $stockOut,
                     'row_transfer'    => null, // transfers are not batch-linked → not attributable per row
+                    'supplier_barcode'=> $rd->scanned_barcode,
+                    'is_material_tag' => false,
                     ];
                 })
                 ->values();
+
+            $serials = $materialTags->concat($untaggedReceivingRows)
+                ->sortBy('received_at')->values();
         }
 
         // ── Summary stats ─────────────────────────────────────────────────
