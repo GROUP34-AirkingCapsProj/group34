@@ -20,7 +20,7 @@ class IssuanceDetail extends Model
         'quantity_in_pieces', 'unit_price_per_piece', 'subtotal',
         'quantity_returned', 'condition_issued', 'condition_returned',
         'issuance_set_id', 'batch_id', 'zone_label',
-        'stock_before', 'quantity_deducted', 'stock_after',
+        'stock_before', 'quantity_deducted', 'stock_after', 'fifo_override_reason',
         'cost_price_at_issue', 'quantity_requested', 'quantity_short',
     ];
 
