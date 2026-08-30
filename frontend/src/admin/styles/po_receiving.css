@@ -1154,3 +1154,73 @@
 }
 .bsr-count-actions .bsr-btn-complete:disabled:hover { background: #d1d5db; }
 .bsr-count-actions .bsr-btn-cancel:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Count-entry escape hatch ───────────────────────────────────────────── */
+.bsr-count-toggle {
+  display: block;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 9px 14px;
+  background: #ffffff;
+  border: 1px dashed #9810FA;
+  border-radius: 8px;
+  color: #9810FA;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bsr-count-toggle:hover { background: #faf5ff; }
+.bsr-count-toggle:disabled {
+  border-color: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  background: #f9fafb;
+}
+
+/* ── Over-receipt confirmation ──────────────────────────────────────────── */
+.bsr-overage-confirm {
+  margin: 12px 0 4px;
+  padding: 14px;
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 10px;
+}
+.bsr-overage-text {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+  line-height: 1.5;
+}
+.bsr-overage-actions {
+  display: flex;
+  gap: 10px;
+}
+.bsr-overage-confirm-btn,
+.bsr-overage-cancel-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bsr-overage-confirm-btn {
+  background: #d97706;
+  border: 1px solid #d97706;
+  color: #ffffff;
+}
+.bsr-overage-confirm-btn:hover { background: #b45309; }
+.bsr-overage-cancel-btn {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+.bsr-overage-cancel-btn:hover { background: #f3f4f6; }
+.bsr-overage-confirm-btn:disabled,
+.bsr-overage-cancel-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  .bsr-overage-actions { flex-direction: column; }
+}
