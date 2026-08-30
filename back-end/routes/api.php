@@ -1101,6 +1101,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:barcode_inventory_processing,create')->group(function () {
         Route::post('/inventory/scan-barcode', [InventoryController::class, 'scanBarcode']);
         Route::post('/inventory/scan-transaction', [InventoryScanTransactionController::class, 'store']);
+        Route::post('/inventory/receive-count', \App\Http\Controllers\Api\ReceiveCountController::class);
         Route::post('/barcode/scan', [BarcodeScanController::class, 'scanLookup']);
         Route::get('/barcode-scans', [BarcodeScanController::class, 'index']);
         Route::post('/barcode-scans', [BarcodeScanController::class, 'store']);
