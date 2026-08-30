@@ -1997,7 +1997,7 @@ const BarcodeScan = () => {
     const inSession = bsrScannedItems.some(
       (item) => item.barcode && item.barcode.trim().toLowerCase() === normalizedCode,
     );
-    if (inSession && istActiveLine.product?.product_type === 'appliance') {
+    if (inSession && isSerialized) {
       bsrProcessingRef.current = true;
       setBsrAlertModal({
         type: 'error',
