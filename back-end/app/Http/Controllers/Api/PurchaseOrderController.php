@@ -716,6 +716,11 @@ class PurchaseOrderController extends Controller
             'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
             'pieces_per_package' => $cd?->pieces_per_package,
             'package_unit'       => $cd?->package_unit,
+            // Whether this line is counted by the package or by the piece.
+            // The receiving screen's count-entry panel prompts and converts on
+            // this; defaulted here so the payload is self-describing rather
+            // than relying on a client-side fallback.
+            'count_unit'         => $cd?->count_unit ?? 'package',
             // Nested product object — required by BSR scan page (bsrActiveLine.product.X)
             'product'            => $p ? [
                 'product_id'         => $p->product_id,
@@ -726,6 +731,7 @@ class PurchaseOrderController extends Controller
                 'is_serialized'      => $p->isSerialized(),
                 'pieces_per_package' => $cd?->pieces_per_package ?? 1,
                 'package_unit'       => $cd?->package_unit,
+                'count_unit'         => $cd?->count_unit ?? 'package',
                 'brand_name'         => $ad?->brand?->brand_name,
                 'capacity_rating'    => $ad?->capacity_rating,
                 'variant'            => $ad?->variant,
