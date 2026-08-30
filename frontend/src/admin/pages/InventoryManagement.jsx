@@ -450,8 +450,15 @@ const InventoryManagement = () => {
 
   /* Digital tags we minted ourselves (installation materials only). An
      appliance's serial is the manufacturer's own — we never re-encode it as
-     one of our tags, so no barcode affordance is offered for those. */
-  const materialTags = (historyData?.serial_records || []).filter((s) => s.is_material_tag);
+     one of our tags, so no barcode affordance is offered for those.
+
+     Retired tags (serial_type 'issued' — their batch is spent) are excluded
+     from the printable sheet. The sheet exists so a picker can reprint a label
+     for stock sitting on the shelf; handing them a label for stock that is
+     gone would put a scannable tag on nothing. They stay listed in the Serial
+     Numbers table below, marked Issued, so the receiving trail is not lost. */
+  const materialTags = (historyData?.serial_records || [])
+    .filter((s) => s.is_material_tag && s.serial_type !== 'issued');
 
   /* Print just the tag sheet. window.print() inside a modal would otherwise
      put the whole dashboard on paper; the body class flips the print-only
