@@ -372,7 +372,12 @@ class InventoryController extends Controller
                     'receivings.created_at as received_at_exact',
                     'transfers.updated_at as transferred_at',
                     DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
-                    'status_lookup.status_name as serial_status',
+                    // A retired tag keeps its status_id (there is no "Issued"
+                    // row in status_lookup's inventory category), so the label
+                    // is fabricated from serial_type here - the same trick the
+                    // appliance union above uses for its issued rows. Without
+                    // it a spent tag would keep reading "In Stock".
+                    DB::raw("CASE WHEN item_serial.serial_type = 'issued' THEN 'Issued' ELSE status_lookup.status_name END as serial_status"),
                     'receivings.receiving_number',
                     'receivings.receiving_date',
                     'purchase_orders.po_number',

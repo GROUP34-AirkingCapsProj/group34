@@ -17,6 +17,13 @@ use Illuminate\Support\Facades\DB;
  * from filing until confirmation. Stock moves once, in applyOutcomes(), inside
  * one transaction — a partial confirm (stock gone, report unconfirmed, or the
  * reverse) is undetectable without a physical count.
+ *
+ * That is also why filing a report never retires a material's digital tags:
+ * quarantine touches no batch, so there is no quantity change to reconcile.
+ * Quarantined stock is made unpickable by IncidentItem::quarantinedBatchIds()
+ * excluding the batch from FIFO, not by draining it, and the goods are still on
+ * the shelf. Tags retire only in deduct(), i.e. only for the outcomes where the
+ * goods physically leave the building, and come back in returnToStock().
  */
 class IncidentItemService
 {
@@ -306,6 +313,11 @@ class IncidentItemService
             // permanently over-full and refuse later restorations.
             $batch->quantity_received = max((int) $batch->quantity_received, (int) $batch->quantity_remaining);
             $batch->save();
+
+            // Saved first, then reconciled: reconcileTagsForBatch() re-reads the
+            // row, so acting on the in-memory mutation above would see the old
+            // quantity and leave the revived batch's tags retired.
+            app(InventoryBatchService::class)->reconcileTagsForBatch((int) $batch->batch_id);
         }
 
         if ($inventory !== null) {
@@ -348,6 +360,11 @@ class IncidentItemService
                 // vanishing 7 units no batch ever lost.
                 $quantity = min($quantity, (int) $batch->quantity_remaining);
                 $batch->decrement('quantity_remaining', $quantity);
+
+                // Keyed off the id, not off $batch: decrement() writes straight
+                // to the database and leaves the model holding the pre-decrement
+                // value, so passing the stale row would misjudge exhaustion.
+                app(InventoryBatchService::class)->reconcileTagsForBatch((int) $batch->batch_id);
             }
         }
 

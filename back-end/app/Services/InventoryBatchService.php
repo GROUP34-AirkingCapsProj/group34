@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\InventoryBatch;
+use App\Models\ItemSerial;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -85,6 +86,10 @@ class InventoryBatchService
             }
         }
 
+        foreach (array_keys($touched) as $touchedBatchId) {
+            $this->reconcileTagsForBatch((int) $touchedBatchId);
+        }
+
         return $touched;
     }
 
@@ -99,12 +104,20 @@ class InventoryBatchService
                 ->first()
             : null;
 
+        $isLegacy = false;
         if (! $batch) {
             $batch = $this->legacyBatch($productId, $locationId);
+            $isLegacy = true;
         }
 
         $batch->quantity_remaining = max(0, $batch->quantity_remaining - $qty);
         $batch->save();
+
+        // The legacy catch-all batch never has tags of its own (nothing mints
+        // against it), so reconciling it would be a query with no rows to find.
+        if (! $isLegacy) {
+            $this->reconcileTagsForBatch((int) $batch->batch_id);
+        }
     }
 
     /**
@@ -149,6 +162,8 @@ class InventoryBatchService
         $batch->quantity_remaining = max(0, $before - $qty);
         $batch->save();
 
+        $this->reconcileTagsForBatch((int) $batch->batch_id);
+
         return [(int) $batch->batch_id => $before - (int) $batch->quantity_remaining];
     }
 
@@ -159,6 +174,7 @@ class InventoryBatchService
     public function restoreFifo(int $productId, int $locationId, int $qty, ?int $receivingId = null): void
     {
         $remaining = $qty;
+        $touched   = [];
 
         if ($receivingId) {
             $batch = InventoryBatch::where('receiving_id', $receivingId)
@@ -174,6 +190,7 @@ class InventoryBatchService
                     $batch->quantity_remaining += $restore;
                     $batch->save();
                     $remaining -= $restore;
+                    $touched[(int) $batch->batch_id] = true;
                 }
             }
         }
@@ -198,6 +215,7 @@ class InventoryBatchService
                 $batch->quantity_remaining += $restore;
                 $batch->save();
                 $remaining -= $restore;
+                $touched[(int) $batch->batch_id] = true;
             }
 
             if ($remaining > 0) {
@@ -210,6 +228,60 @@ class InventoryBatchService
                 $legacy->save();
             }
         }
+
+        // The legacy batch is deliberately absent from $touched: nothing mints
+        // tags against it, so there is never anything there to revive.
+        foreach (array_keys($touched) as $touchedBatchId) {
+            $this->reconcileTagsForBatch((int) $touchedBatchId);
+        }
+    }
+
+    /**
+     * Keep a batch's tags honest about whether stock is left.
+     *
+     * A tag names a physical package or lot; the batch owns the quantity. When a
+     * batch is exhausted its tags are spent, so they stop being pickable and stop
+     * reading as In Stock. Restoring stock revives them.
+     *
+     * Retirement is batch-level on purpose. Retiring tags one at a time as pieces
+     * drain would mislabel real packages - the picker took one box, but we cannot
+     * know which, so retiring "the oldest" would kill the tag on a box still
+     * sitting on the shelf.
+     *
+     * Only generated material tags are touched. An appliance's item_serial row is
+     * linked to a batch too, but its lifecycle is the hard-delete/recreate one in
+     * IssuanceScanController; flipping its serial_type here would corrupt that
+     * flow. The scope below mirrors Product::isSerialized() - a tag belongs to
+     * this feature exactly when its product is an installation material that is
+     * not serialized, which is the same fork ReceivingPostingService::mintTags()
+     * takes when it decides to mint an INT- tag at all. Matching on intent rather
+     * than on the "INT-" string keeps this correct if the serial format changes.
+     *
+     * A 'transferred' tag is never touched in either direction: it is out on a
+     * transfer and TransferService::receive() owns putting it back.
+     */
+    public function reconcileTagsForBatch(int $batchId): void
+    {
+        $batch = InventoryBatch::whereKey($batchId)->first();
+
+        if (! $batch) {
+            return;
+        }
+
+        $exhausted = (int) $batch->quantity_remaining <= 0;
+        $from      = $exhausted ? 'received' : 'issued';
+        $to        = $exhausted ? 'issued' : 'received';
+
+        ItemSerial::where('batch_id', $batch->batch_id)
+            ->where('serial_type', $from)
+            ->whereIn('product_id', function ($q) {
+                $q->select('p.product_id')
+                    ->from('products as p')
+                    ->leftJoin('installation_material_details as d', 'd.product_id', '=', 'p.product_id')
+                    ->where('p.product_type', 'installation_material')
+                    ->whereRaw('COALESCE(d.is_serialized, 0) = 0');
+            })
+            ->update(['serial_type' => $to]);
     }
 
     /** Batches for the monitoring UI drill-down: PO-linked batches oldest-first, legacy batch (if any) last. */
