@@ -63,7 +63,8 @@ class FifoEnforcementService
     /**
      * The batch the picker should have taken from, or null when nothing qualifies.
      *
-     * Three exclusions, each of which would otherwise name a batch no scan can satisfy:
+     * Three exclusions, each of which would otherwise name a batch the picker cannot
+     * legally act on:
      *
      * - receiving_id null is the legacy catch-all row from
      *   InventoryBatchService::legacyBatch(). Its received_at is null too, and MySQL
@@ -71,8 +72,14 @@ class FifoEnforcementService
      *   point at it. deductFifo() excludes it for the same reason.
      * - quantity_remaining 0 means the batch is gone; an empty older batch must not
      *   block the one behind it.
-     * - quarantined pieces are physically present and still counted, but unissuable.
-     *   A batch qualifies only while some of it is actually pickable.
+     * - quarantined batches are excluded WHOLESALE, via the same
+     *   IncidentItem::quarantinedBatchIds() list that FifoPickingService::suggest()
+     *   subtracts from its suggestions. This must stay identical to picking's rule
+     *   rather than something finer. Enforcement naming a batch picking will not offer
+     *   leaves the picker with no legal move but an override — and an override they are
+     *   forced into every time is one they stop reading. A partially quarantined batch
+     *   (100 remaining, 40 held) is exactly that case: still pickable on paper, already
+     *   absent from the suggestions.
      *
      * The batch_id tie-break is not cosmetic: two batches received in the same second
      * order non-deterministically, so "the oldest" flips between queries and the picker
@@ -80,25 +87,16 @@ class FifoEnforcementService
      */
     private function oldestEligibleBatch(int $productId, int $locationId): ?InventoryBatch
     {
-        $quarantined = IncidentItem::quarantinedByBatch($locationId);
+        $excluded = IncidentItem::quarantinedBatchIds($locationId);
 
-        $batches = InventoryBatch::where('product_id', $productId)
+        return InventoryBatch::where('product_id', $productId)
             ->where('location_id', $locationId)
             ->whereNotNull('receiving_id')
             ->where('quantity_remaining', '>', 0)
+            ->when($excluded !== [], fn ($q) => $q->whereNotIn('batch_id', $excluded))
             ->orderBy('received_at')
             ->orderBy('batch_id')
-            ->get();
-
-        foreach ($batches as $batch) {
-            $held = $quarantined[(int) $batch->batch_id] ?? 0;
-
-            if ((int) $batch->quantity_remaining - $held > 0) {
-                return $batch;
-            }
-        }
-
-        return null;
+            ->first();
     }
 
     /** The PO the batch arrived against, or null when it has no receiving to trace. */

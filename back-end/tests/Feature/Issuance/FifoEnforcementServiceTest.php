@@ -149,16 +149,22 @@ class FifoEnforcementServiceTest extends TestCase
         );
     }
 
-    public function test_a_partially_quarantined_oldest_batch_still_blocks(): void
+    public function test_a_partially_quarantined_batch_is_skipped_to_match_picking(): void
     {
         $old = $this->batch('2026-03-01', 100);
         $new = $this->batch('2026-04-01', 100);
         $this->quarantine($old, 40);
 
-        $violation = $this->check((int) $new->batch_id);
-
-        $this->assertIsArray($violation, '60 of the 100 are still pickable, so the older batch is still the FIFO pick.');
-        $this->assertSame((int) $old->batch_id, $violation['expected_batch']['batch_id']);
+        // 60 of the 100 are arguably still pickable, but that is NOT the rule, because
+        // it is not the rule FifoPickingService uses. quarantinedBatchIds() drops a
+        // batch wholesale the moment any item on it is quarantined, so picking never
+        // offers this batch at all. If enforcement applied the finer quantity rule it
+        // would demand the one batch the picker cannot be given — no legal move except
+        // an override, every single time, which is how staff learn to override blind.
+        $this->assertNull(
+            $this->check((int) $new->batch_id),
+            'Enforcement must never demand a batch FifoPickingService excludes from its suggestions.'
+        );
     }
 
     public function test_tied_timestamps_resolve_deterministically(): void
