@@ -759,6 +759,130 @@ class TransferService
         });
     }
 
+    /**
+     * Count-based dispatch for unbarcoded installation materials.
+     * Mirrors recordDispatchScan (same status gate, same 'transfer' scan_mode,
+     * same return shape) but takes a piece count instead of a barcode. The
+     * barcode_scans row is written with a NULL barcode so removeDispatchScan()
+     * can still reverse the exact amount by scan id.
+     *
+     * $qty is always PIECES — the count UI has no package multiplier.
+     */
+    public function countDispatchScan(Transfer $ist, int $transferDetailId, int $qty, ?int $userId = null): array
+    {
+        if ((int) $ist->status_id !== $this->statusId('Approved')) {
+            throw new RuntimeException('Only an approved IST can be scanned for dispatch.');
+        }
+
+        return DB::transaction(function () use ($ist, $transferDetailId, $qty, $userId) {
+            $detail = TransferDetail::where('transfer_detail_id', $transferDetailId)
+                ->where('transfer_id', $ist->transfer_id)
+                ->with('product')
+                ->lockForUpdate()
+                ->first();
+            if (!$detail) {
+                throw new RuntimeException('Line item does not belong to this transfer.');
+            }
+
+            if ($this->isSerialized($detail)) {
+                throw new RuntimeException('Serialized items must be scanned individually.');
+            }
+
+            $target  = (int) $detail->quantity_requested;
+            $current = (int) $detail->quantity_scanned;
+            $remaining = $target - $current;
+            if ($remaining < 1) {
+                throw new RuntimeException('This transfer line is already fully scanned.');
+            }
+
+            $step = min(max(1, $qty), $remaining);
+
+            $detail->quantity_scanned = $current + $step;
+            $detail->save();
+
+            $scan = BarcodeScan::create([
+                'user_id'     => $userId,
+                'product_id'  => $detail->product_id,
+                'transfer_id' => $ist->transfer_id,
+                'barcode'     => null,
+                'scan_mode'   => 'transfer',
+                'quantity'    => $step,
+                'scanned_at'  => now(),
+            ]);
+
+            return [
+                'scan_id'            => $scan->id,
+                'transfer_detail_id' => (int) $detail->transfer_detail_id,
+                'product_name'       => $detail->product?->product_name ?? "Product #{$detail->product_id}",
+                'total_scanned'      => (int) $detail->quantity_scanned,
+                'quantity_requested' => $target,
+                'remaining'          => $target - (int) $detail->quantity_scanned,
+                'quantity'           => $step,
+                'pieces_per_package' => $this->piecesPerPackage($detail),
+            ];
+        });
+    }
+
+    /**
+     * Count-based receiving for unbarcoded installation materials.
+     * Mirrors recordReceiveScan (In Transit gate, 'receive' scan_mode, same
+     * return shape) with a NULL barcode so removeReceiveScan() can undo it.
+     *
+     * $qty is always PIECES.
+     */
+    public function countReceiveScan(Transfer $ist, int $transferDetailId, int $qty, ?int $userId = null): array
+    {
+        if ((int) $ist->status_id !== $this->statusId('In Transit')) {
+            throw new RuntimeException('Only an In Transit IST can be received.');
+        }
+
+        return DB::transaction(function () use ($ist, $transferDetailId, $qty, $userId) {
+            $detail = TransferDetail::where('transfer_detail_id', $transferDetailId)
+                ->where('transfer_id', $ist->transfer_id)
+                ->with('product')
+                ->lockForUpdate()
+                ->first();
+            if (!$detail) {
+                throw new RuntimeException('Line item does not belong to this transfer.');
+            }
+
+            if ($this->isSerialized($detail)) {
+                throw new RuntimeException('Serialized items must be scanned individually.');
+            }
+
+            $shipped   = (int) $detail->quantity_transferred;
+            $remaining = $shipped - (int) $detail->quantity_received;
+            if ($remaining < 1) {
+                throw new RuntimeException('This transfer line is already fully received.');
+            }
+
+            $step = min(max(1, $qty), $remaining);
+
+            $scan = BarcodeScan::create([
+                'user_id'     => $userId,
+                'product_id'  => $detail->product_id,
+                'transfer_id' => $ist->transfer_id,
+                'barcode'     => null,
+                'scan_mode'   => 'receive',
+                'quantity'    => $step,
+                'scanned_at'  => now(),
+            ]);
+
+            $detail->quantity_received = (int) $detail->quantity_received + $step;
+            $detail->save();
+
+            return [
+                'scan_id'            => $scan->id,
+                'transfer_detail_id' => (int) $detail->transfer_detail_id,
+                'quantity_received'  => (int) $detail->quantity_received,
+                'quantity_shipped'   => $shipped,
+                'remaining'          => $shipped - (int) $detail->quantity_received,
+                'quantity'           => $step,
+                'pieces_per_package' => $this->piecesPerPackage($detail),
+            ];
+        });
+    }
+
     /** Undo a dispatch scan before confirmation: decrement the line and free the serial. */
     public function removeDispatchScan(Transfer $ist, int $scanId): void
     {
@@ -785,9 +909,12 @@ class TransferService
                 $detail->save();
             }
 
-            ItemSerial::where('transfer_id', $ist->transfer_id)
-                ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($scan->barcode)])
-                ->update(['transfer_id' => null]);
+            // Counted moves carry no barcode; only barcoded rows can free a serial.
+            if ($scan->barcode !== null && $scan->barcode !== '') {
+                ItemSerial::where('transfer_id', $ist->transfer_id)
+                    ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($scan->barcode)])
+                    ->update(['transfer_id' => null]);
+            }
 
             $scan->delete();
         });
