@@ -16,8 +16,14 @@ import {
 jest.mock('../components/AdminLayout', () => ({ children }) => <div>{children}</div>);
 
 // react-barcode draws a canvas/SVG that jsdom cannot rasterise; the value it is
-// handed is the only thing this page is responsible for.
-jest.mock('react-barcode', () => (props) => <div data-testid="barcode">{props.value}</div>);
+// handed is the only thing this page is responsible for. `displayValue` is
+// honoured so the inline table barcodes stay text-free here exactly as they are
+// in a browser — otherwise every serial would appear twice in the DOM.
+jest.mock('react-barcode', () => (props) => (
+  <div data-testid="barcode" data-value={props.value}>
+    {props.displayValue === false ? null : props.value}
+  </div>
+));
 
 jest.mock('../services/api', () => ({
   inventoryAPI: {
@@ -172,15 +178,55 @@ test('lists the generated material tags instead of the empty-state message', asy
   expect(screen.getByText(/Supplier: 1234/i)).toBeInTheDocument();
 });
 
-test('reveals a scannable barcode per tag and prints only the sheet', async () => {
+test('renders each tag row own scannable barcode inline, beside the serial', async () => {
+  await openSerialsTab();
+
+  await screen.findByText('INT-PO-20260828-ZIW7-237-01');
+
+  // No sheet opened: the barcodes are in the table itself, one per tag row.
+  const rows = screen.getAllByRole('row').filter((r) => r.textContent.includes('INT-PO-'));
+  expect(rows).toHaveLength(2);
+  rows.forEach((row, i) => {
+    const codes = row.querySelectorAll('[data-testid="barcode"]');
+    expect(codes).toHaveLength(1);
+    expect(codes[0].getAttribute('data-value')).toBe(`INT-PO-20260828-ZIW7-237-0${i + 1}`);
+  });
+
+  // Never the supplier code — it repeats across every box.
+  const values = screen.getAllByTestId('barcode').map((el) => el.getAttribute('data-value'));
+  expect(values).not.toContain('1234');
+});
+
+test('prints one tag from its own row without dragging the rest onto paper', async () => {
+  await openSerialsTab();
+
+  await screen.findByText('INT-PO-20260828-ZIW7-237-02');
+  const printButtons = screen.getAllByRole('button', { name: /print tag$/i });
+  expect(printButtons).toHaveLength(2);
+
+  let printedValues = [];
+  const printSpy = jest.spyOn(window, 'print').mockImplementation(() => {
+    expect(document.body.classList.contains('invd-printing-tags')).toBe(true);
+    printedValues = Array.from(document.querySelectorAll('.invd-tag-print-surface [data-testid="barcode"]'))
+      .map((el) => el.getAttribute('data-value'));
+  });
+
+  fireEvent.click(printButtons[1]);
+
+  expect(printSpy).toHaveBeenCalledTimes(1);
+  expect(printedValues).toEqual(['INT-PO-20260828-ZIW7-237-02']);
+  expect(document.body.classList.contains('invd-printing-tags')).toBe(false);
+  printSpy.mockRestore();
+});
+
+test('still offers the bulk sheet for printing every live tag at once', async () => {
   await openSerialsTab();
 
   fireEvent.click(await screen.findByRole('button', { name: /view \/ print tags \(2\)/i }));
 
-  const barcodes = screen.getAllByTestId('barcode').map((el) => el.textContent);
-  expect(barcodes).toEqual(['INT-PO-20260828-ZIW7-237-01', 'INT-PO-20260828-ZIW7-237-02']);
-  // Never the supplier code — it repeats across every box.
-  expect(barcodes).not.toContain('1234');
+  const sheetBarcodes = document.querySelectorAll('.invd-tag-sheet-wrap [data-testid="barcode"]');
+  expect(Array.from(sheetBarcodes).map((el) => el.getAttribute('data-value')))
+    .toEqual(['INT-PO-20260828-ZIW7-237-01', 'INT-PO-20260828-ZIW7-237-02']);
 
   const printSpy = jest.spyOn(window, 'print').mockImplementation(() => {
     // The print-only stylesheet keys off this class; it must be on the body
@@ -193,6 +239,67 @@ test('reveals a scannable barcode per tag and prints only the sheet', async () =
   expect(printSpy).toHaveBeenCalled();
   expect(document.body.classList.contains('invd-printing-tags')).toBe(false);
   printSpy.mockRestore();
+});
+
+/* ── Stock-In History tab: a counted line must not read as empty ──────────
+   The reported bug: with one scanned box and two counted ones, only the
+   scanned row showed anything, because the column rendered scanned_barcode
+   alone and a counted line has none. */
+
+const openStockInTab = async (receivingHistory) => {
+  inventoryAPI.getAll.mockResolvedValue({ data: [materialInventoryRow], pagination: { total: 1, last_page: 1 } });
+  inventoryAPI.getHistory.mockResolvedValue({
+    ...materialHistory,
+    data: { ...materialHistory.data, receiving_history: receivingHistory },
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/admin/inventory?focus=inv:77']}>
+      <InventoryManagement />
+    </MemoryRouter>
+  );
+
+  await waitFor(() => expect(inventoryAPI.getHistory).toHaveBeenCalledWith(77));
+  fireEvent.click(await screen.findByRole('button', { name: /stock-in history/i }));
+};
+
+test('a counted stock-in row shows the tags minted for it, not a blank cell', async () => {
+  await openStockInTab([
+    {
+      receiving_detail_id: 1, receiving_number: 'RCV-1', received_at: '2026-08-28 09:00:00',
+      scanned_barcode: null, quantity_amount: 20, prod_price: 5, condition: 'Good',
+      generated_tags: ['INT-PO-20260828-ZIW7-237-01', 'INT-PO-20260828-ZIW7-237-02'],
+      generated_tag_count: 2, tag_attribution: 'exact', tag_line_count: 1,
+    },
+    {
+      receiving_detail_id: 2, receiving_number: 'RCV-1', received_at: '2026-08-28 09:05:00',
+      scanned_barcode: 'SUP-9911', quantity_amount: 10, prod_price: 5, condition: 'Good',
+      generated_tags: ['INT-PO-20260828-ZIW7-237-03'],
+      generated_tag_count: 1, tag_attribution: 'exact', tag_line_count: 1,
+    },
+  ]);
+
+  expect(await screen.findByText('INT-PO-20260828-ZIW7-237-01')).toBeInTheDocument();
+  expect(screen.getByText('INT-PO-20260828-ZIW7-237-02')).toBeInTheDocument();
+  expect(screen.getByText('INT-PO-20260828-ZIW7-237-03')).toBeInTheDocument();
+  expect(screen.getByText('SUP-9911')).toBeInTheDocument();
+  expect(screen.getByText(/No supplier barcode \(counted\)/i)).toBeInTheDocument();
+  expect(screen.queryByText(/Shared across/i)).not.toBeInTheDocument();
+});
+
+test('a stock-in row whose tags cannot be pinned to one line says so', async () => {
+  await openStockInTab([
+    {
+      receiving_detail_id: 1, receiving_number: 'RCV-1', received_at: '2026-08-28 09:00:00',
+      scanned_barcode: null, quantity_amount: 20, prod_price: 5, condition: 'Good',
+      generated_tags: ['INT-A-01', 'INT-A-02', 'INT-A-03'],
+      generated_tag_count: 3, tag_attribution: 'shared', tag_line_count: 2,
+    },
+  ]);
+
+  // Three tags collapse behind a disclosure so the row stays one line high.
+  expect(await screen.findByText('3 generated tags')).toBeInTheDocument();
+  expect(screen.getByText(/Shared across 2 lines of this receipt/i)).toBeInTheDocument();
 });
 
 test("offers no tag barcode for an appliance whose serial is the manufacturer own", async () => {

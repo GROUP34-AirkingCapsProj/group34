@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import { useLocation } from 'react-router-dom';
 import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
 import MaterialTagSheet from '../components/tags/MaterialTagSheet';
+import Barcode from 'react-barcode';
 import '../styles/dashboard_air.css';
 import '../styles/inventory_management.css';
 // The tag sheet's own styles (.bsr-tag-*) live with the receiving screen it was
@@ -97,6 +98,53 @@ const TrendChart = ({ data, loading }) => {
   );
 };
 
+/* ── Stock-in identifiers cell ────────────────────────────────────────────
+   One stock-in row's identifiers. A line that arrived with a supplier barcode
+   shows it; a line received by counting has none, and used to render blank —
+   which read as though nothing had been recorded. The tags minted for that
+   line carry the identity instead.
+
+   `tag_attribution === 'shared'` means the receipt holds several lines for the
+   same product that the data cannot tell apart (item_serial links a tag to a
+   receiving and a batch, never to one receiving_details row). The tags are
+   then listed once with that caveat spelled out, rather than repeated as if
+   each line owned them. */
+const StockInIdentifiers = ({ row }) => {
+  const tags = row.generated_tags || [];
+  const shared = row.tag_attribution === 'shared';
+
+  return (
+    <div className="invd-ident">
+      {row.scanned_barcode
+        ? <span className="invd-mono">{row.scanned_barcode}</span>
+        : <span className="invd-muted invd-small">No supplier barcode (counted)</span>}
+
+      {tags.length > 0 && (
+        tags.length <= 2 ? (
+          <div className="invd-ident-tags">
+            {tags.map((tag) => (
+              <span className="invd-mono invd-small invd-ident-tag" key={tag}>{tag}</span>
+            ))}
+          </div>
+        ) : (
+          <details className="invd-ident-tags">
+            <summary className="invd-ident-summary">{tags.length} generated tags</summary>
+            {tags.map((tag) => (
+              <span className="invd-mono invd-small invd-ident-tag" key={tag}>{tag}</span>
+            ))}
+          </details>
+        )
+      )}
+
+      {shared && tags.length > 0 && (
+        <span className="invd-sub">
+          Shared across {row.tag_line_count} lines of this receipt
+        </span>
+      )}
+    </div>
+  );
+};
+
 /* ── Main component ──────────────────────────────────────────────────── */
 
 const InventoryManagement = () => {
@@ -118,6 +166,7 @@ const InventoryManagement = () => {
   const [historyError, setHistoryError] = useState(null);
   const [detailTab, setDetailTab] = useState('overview');
   const [showTagSheet, setShowTagSheet] = useState(false);
+  const [tagsToPrint, setTagsToPrint] = useState([]);
   const focusInvId = useFocusTarget('inv');
   const focusHandledRef = useRef(false);
   const [invPulse, fireInvPulse] = useFocusPulse();
@@ -460,17 +509,36 @@ const InventoryManagement = () => {
   const materialTags = (historyData?.serial_records || [])
     .filter((s) => s.is_material_tag && s.serial_type !== 'issued');
 
-  /* Print just the tag sheet. window.print() inside a modal would otherwise
-     put the whole dashboard on paper; the body class flips the print-only
-     rules in inventory_management.css for the duration of the dialog. */
-  const printMaterialTags = () => {
+  /* Printing goes through one surface, whatever triggered it: the bulk "Print
+     tags" button hands over every live tag, a table row hands over just its
+     own. Both land in `tagsToPrint`, which is the only thing the print-only
+     stylesheet makes visible — so per-row and bulk printing can never both
+     claim the paper.
+
+     A tag is printable only while its stock is on the shelf: a retired tag
+     (serial_type 'issued', batch spent) would put a scannable label on
+     nothing. */
+  const isPrintableTag = (s) => Boolean(s?.is_material_tag) && s?.serial_type !== 'issued';
+
+  const printTags = (tags) => {
+    if (!tags || tags.length === 0) return;
+    setTagsToPrint(tags);
+  };
+
+  /* window.print() inside a modal would otherwise put the whole dashboard on
+     paper; the body class flips the print-only rules in
+     inventory_management.css for the duration of the dialog. Running after
+     the render guarantees the cards are in the DOM before the dialog opens. */
+  useEffect(() => {
+    if (tagsToPrint.length === 0) return;
     document.body.classList.add('invd-printing-tags');
     try {
       window.print();
     } finally {
       document.body.classList.remove('invd-printing-tags');
+      setTagsToPrint([]);
     }
-  };
+  }, [tagsToPrint]);
 
   return (
     <AdminLayout>
@@ -1492,7 +1560,7 @@ const InventoryManagement = () => {
                           <tr>
                             <th>#</th>
                             <th>Date Received</th>
-                            <th>Barcode / Package</th>
+                            <th>Barcode / Tags</th>
                             <th>Qty</th>
                             <th>Cost Price</th>
                             <th>Received By</th>
@@ -1516,11 +1584,7 @@ const InventoryManagement = () => {
                                 </span>
                                 {rd.receiving_number && <span className="invd-sub">{rd.receiving_number}</span>}
                               </td>
-                              <td>
-                                {rd.scanned_barcode
-                                  ? <span className="invd-mono">{rd.scanned_barcode}</span>
-                                  : <span className="invd-muted">—</span>}
-                              </td>
+                              <td><StockInIdentifiers row={rd} /></td>
                               <td className="invd-cell-num invd-bold">{rd.quantity_amount}</td>
                               <td className="invd-cell-currency">
                                 ₱{parseFloat(rd.prod_price).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
@@ -1635,7 +1699,19 @@ const InventoryManagement = () => {
                       <MaterialTagSheet
                         tags={materialTags}
                         productName={historyData?.product?.product_name ?? getItemName(viewingItem)}
-                        onPrint={printMaterialTags}
+                        onPrint={() => printTags(materialTags)}
+                      />
+                    </div>
+                  )}
+                  {/* The one surface the print stylesheet reveals. It is parked
+                      off-screen and holds exactly the tags the last print
+                      request asked for — one row's, or the whole sheet's. */}
+                  {tagsToPrint.length > 0 && (
+                    <div className="invd-tag-print-surface">
+                      <MaterialTagSheet
+                        tags={tagsToPrint}
+                        productName={historyData?.product?.product_name ?? getItemName(viewingItem)}
+                        showHeader={false}
                       />
                     </div>
                   )}
@@ -1648,6 +1724,8 @@ const InventoryManagement = () => {
                           <tr>
                             <th>#</th>
                             <th>Serial Number</th>
+                            <th>Digital Barcode</th>
+                            <th>Printable</th>
                             <th>Status</th>
                             <th>Received</th>
                             <th>Stock In</th>
@@ -1663,7 +1741,15 @@ const InventoryManagement = () => {
                         </thead>
                         <tbody>
                           {historyData.serial_records.map((s, index) => (
-                            <tr key={s.serial_id ?? index}>
+                            /* serial_id alone is not unique across this list:
+                               the backend unions item_serial rows with rows
+                               keyed by issuance_detail_id (appliances) or
+                               receiving_detail_id (untagged materials), and
+                               those sequences overlap. Two rows sharing a key
+                               is the one shape that could make React reuse a
+                               row and show a serial where it does not belong,
+                               so the key carries the serial number too. */
+                            <tr key={`${s.serial_type ?? 'row'}-${s.serial_id ?? index}-${s.serial_number}`}>
                               <td className="invd-cell-num">{index + 1}</td>
                               <td>
                                 <span className="invd-mono invd-bold">{s.serial_number}</span>
@@ -1672,6 +1758,37 @@ const InventoryManagement = () => {
                                 {s.is_material_tag && s.supplier_barcode && (
                                   <div className="invd-small invd-muted">Supplier: {s.supplier_barcode}</div>
                                 )}
+                              </td>
+                              {/* The tag sits beside its row, scannable straight
+                                  off the screen. An appliance's serial is the
+                                  manufacturer's own — there is no tag of ours to
+                                  encode — and a retired tag would point at stock
+                                  that is gone, so both get a dash. */}
+                              <td className="invd-cell-barcode">
+                                {isPrintableTag(s) ? (
+                                  <Barcode
+                                    value={s.serial_number}
+                                    format="CODE128"
+                                    height={26}
+                                    width={1.1}
+                                    fontSize={9}
+                                    margin={0}
+                                    displayValue={false}
+                                  />
+                                ) : <span className="invd-muted">—</span>}
+                              </td>
+                              <td className="no-print">
+                                {isPrintableTag(s) ? (
+                                  <button
+                                    type="button"
+                                    className="invd-tag-print-row-btn"
+                                    onClick={() => printTags([s])}
+                                  >
+                                    Print tag
+                                  </button>
+                                ) : s.is_material_tag
+                                  ? <span className="invd-muted invd-small">Retired</span>
+                                  : <span className="invd-muted">—</span>}
                               </td>
                               <td>
                                 <span className={`invd-status-pill${
@@ -1834,7 +1951,7 @@ const InventoryManagement = () => {
                       ) : (
                         <div className="invd-table-wrap">
                           <table className="invd-table">
-                            <thead><tr><th>Receiving #</th><th>Date</th><th>Received By</th><th>Product</th><th>Qty</th><th>Barcode</th></tr></thead>
+                            <thead><tr><th>Receiving #</th><th>Date</th><th>Received By</th><th>Product</th><th>Qty</th><th>Barcode / Tags</th></tr></thead>
                             <tbody>
                               {poGroupDetail.data.receiving_history.map((r, i) => (
                                 <tr key={i}>
@@ -1843,7 +1960,7 @@ const InventoryManagement = () => {
                                   <td>{r.received_by_name?.trim() || '—'}</td>
                                   <td>{r.product_name}</td>
                                   <td>{r.quantity_amount}</td>
-                                  <td className="invd-mono invd-small">{r.scanned_barcode || '—'}</td>
+                                  <td><StockInIdentifiers row={r} /></td>
                                 </tr>
                               ))}
                             </tbody>

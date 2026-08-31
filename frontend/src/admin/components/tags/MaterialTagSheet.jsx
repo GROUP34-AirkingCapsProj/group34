@@ -11,7 +11,7 @@ import Barcode from 'react-barcode';
  * repeats across every box of a product and must never be fed to a scanner
  * as if it were unique.
  */
-export default function MaterialTagSheet({ tags, productName, onPrint }) {
+export default function MaterialTagSheet({ tags, productName, onPrint, showHeader = true }) {
   if (!tags || tags.length === 0) {
     return null;
   }
@@ -26,19 +26,24 @@ export default function MaterialTagSheet({ tags, productName, onPrint }) {
 
   return (
     <div className="bsr-tag-sheet">
-      <div className="bsr-tag-sheet-header no-print">
-        <span className="bsr-tag-sheet-count">
-          {tags.length} tag{tags.length === 1 ? '' : 's'}
-          {productName ? ` for ${productName}` : ''}
-        </span>
-        <button
-          type="button"
-          className="bsr-tag-sheet-print-btn"
-          onClick={handlePrint}
-        >
-          Print tags
-        </button>
-      </div>
+      {/* A caller that drives printing itself — one tag at a time from a
+          table row, say — renders the cards without this header so there is
+          exactly one "Print tags" control on the page. */}
+      {showHeader && (
+        <div className="bsr-tag-sheet-header no-print">
+          <span className="bsr-tag-sheet-count">
+            {tags.length} tag{tags.length === 1 ? '' : 's'}
+            {productName ? ` for ${productName}` : ''}
+          </span>
+          <button
+            type="button"
+            className="bsr-tag-sheet-print-btn"
+            onClick={handlePrint}
+          >
+            Print tags
+          </button>
+        </div>
+      )}
 
       <div className="bsr-tag-sheet-grid">
         {tags.map((tag) => (

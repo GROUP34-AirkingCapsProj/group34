@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AttachesGeneratedTags;
 use App\Traits\ApiResponse;
 use App\Models\Inventory;
 use App\Models\Product;
@@ -16,6 +17,7 @@ use Illuminate\Validation\ValidationException;
 class InventoryController extends Controller
 {
     use ApiResponse;
+    use AttachesGeneratedTags;
 
     public function index(Request $request)
     {
@@ -250,6 +252,7 @@ class InventoryController extends Controller
             ->select([
                 'receiving_details.receiving_detail_id',
                 'receiving_details.receiving_id',
+                'receiving_details.product_id',
                 'receiving_details.scanned_barcode',
                 'receiving_details.quantity_amount',
                 'receiving_details.prod_price',
@@ -268,6 +271,13 @@ class InventoryController extends Controller
             ])
             ->orderBy('receiving_details.created_at', 'asc')
             ->get();
+
+        // A counted line has no supplier barcode, so the identifier column in
+        // the Stock-In History tab used to render blank for it. Attach the
+        // generated tags minted for that line so the row shows what was
+        // actually recorded — see AttachesGeneratedTags for what the linkage
+        // can and cannot prove.
+        $this->attachGeneratedTags($receivingDetails);
 
         // ── Serial records ───────────────────────────────────────────────
         // Appliances (serialized): unit-level records from item_serial.
