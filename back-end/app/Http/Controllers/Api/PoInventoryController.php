@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AttachesGeneratedTags;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Traits\ApiResponse;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 class PoInventoryController extends Controller
 {
     use ApiResponse;
+    use AttachesGeneratedTags;
 
     /**
      * GET /api/po-inventory-groups
@@ -149,9 +151,16 @@ class PoInventoryController extends Controller
                 'receivings.receiving_date as received_at',
                 DB::raw("CONCAT(users.first_name, ' ', users.last_name) AS received_by_name"),
                 'products.product_name',
+                'receiving_details.receiving_id',
+                'receiving_details.product_id',
                 'receiving_details.quantity_amount',
                 'receiving_details.scanned_barcode',
             ]);
+
+        // Same fix as the per-SKU detail modal: a counted line carries no
+        // supplier barcode, so without its generated tags the identifier
+        // column renders empty.
+        $this->attachGeneratedTags($receivingHistory);
 
         // Serials scoped to this PO + warehouse, as a flat FIFO list with per-serial
         // metadata (mirrors the per-SKU detail modal's serial table).
