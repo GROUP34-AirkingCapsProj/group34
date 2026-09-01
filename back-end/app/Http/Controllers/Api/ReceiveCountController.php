@@ -98,7 +98,9 @@ class ReceiveCountController extends Controller
                 : $piecesExpected;
         }
 
-        $overage = $posting->checkOverage($poDetail, $product, $pieces);
+        // A piece-counted line has no package concept, so it passes null and
+        // is bounded by pieces alone, exactly as it always was.
+        $overage = $posting->checkOverage($poDetail, $product, $pieces, $packagesReceived);
         if ($overage !== null && ! $request->boolean('accept_overage')) {
             return $this->success($overage, 'Over-receipt requires confirmation');
         }

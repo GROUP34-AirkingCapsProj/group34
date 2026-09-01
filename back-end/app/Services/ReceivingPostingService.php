@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The single shared write path for receiving stock, regardless of whether the
@@ -106,9 +107,43 @@ class ReceivingPostingService
      *
      * Returns null when $pieces fits within what remains on the PO line, or
      * a description of the overage otherwise.
+     *
+     * Two ceilings bound receiving, and $packages (null when the caller has
+     * no package concept, e.g. a piece-counted line) opts into the second.
+     * The package ceiling is checked first: when both would fire, "the order
+     * has no room for another carton" is the fact the clerk can act on,
+     * whereas a piece overage invites them to shave the count down to fit —
+     * a correction that does not address the extra box on the floor.
      */
-    public function checkOverage(PurchaseOrderDetail $poDetail, Product $product, int $pieces): ?array
-    {
+    public function checkOverage(
+        PurchaseOrderDetail $poDetail,
+        Product $product,
+        int $pieces,
+        ?int $packages = null
+    ): ?array {
+        // Short-filled boxes decoupled the two ceilings. Before piece
+        // verification every package posted exactly ppp pieces, so bounding
+        // pieces implicitly bounded packages. Now three half-full boxes consume
+        // half the piece budget and leave room for a fourth carton the order
+        // never asked for.
+        if ($packages !== null && ! $product->isSerialized()) {
+            $orderedPackages  = (int) $poDetail->quantity_ordered;
+            $receivedPackages = (int) ReceivingDetail::where('po_detail_id', $poDetail->po_detail_id)
+                ->sum(DB::raw('COALESCE(packages_received, 0)'));
+
+            if ($receivedPackages + $packages > $orderedPackages) {
+                return [
+                    'action'             => 'over_receipt',
+                    'limit'              => 'packages',
+                    'ordered_packages'   => $orderedPackages,
+                    'received_packages'  => $receivedPackages,
+                    'remaining_packages' => max(0, $orderedPackages - $receivedPackages),
+                    'counted_packages'   => $packages,
+                    'overage_packages'   => ($receivedPackages + $packages) - $orderedPackages,
+                ];
+            }
+        }
+
         $piecesPerPackage = $product->isSerialized() ? 1 : $product->getPiecesPerPackage();
         $orderedPieces    = $product->isSerialized()
             ? (int) $poDetail->quantity_ordered
@@ -123,6 +158,7 @@ class ReceivingPostingService
 
         return [
             'action'           => 'over_receipt',
+            'limit'            => 'pieces',
             'ordered_pieces'   => $orderedPieces,
             'already_received' => $alreadyReceived,
             'remaining'        => $remaining,
