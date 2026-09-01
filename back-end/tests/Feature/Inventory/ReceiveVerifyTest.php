@@ -132,6 +132,69 @@ class ReceiveVerifyTest extends TestCase
             ->orderByDesc('receiving_detail_id')->first();
         $this->assertSame(2, (int) $row->packages_received);
         $this->assertSame(100, (int) $row->pieces_expected);
+
+        // The receiving header is incremented on every scan, so it too has to
+        // follow the correction or it diverges from both the line sum and the
+        // batch it funded — and it labels the receiving picker.
+        $this->assertSame(
+            97,
+            (int) DB::table('receivings')->where('receiving_id', $row->receiving_id)
+                ->value('total_quantity_received'),
+            'The header must not keep reporting the pre-reconciliation figure.'
+        );
+    }
+
+    /**
+     * A shortfall larger than any single scan row still has to leave the line's
+     * SUM(quantity_amount) exact, because that sum — not the inventory table —
+     * is what checkOverage() reads as `already_received` and what
+     * PoReceivingStatusService::sync() reads as `totalReceived`. A sum left
+     * overstated lets a genuine over-receipt through undetected and can flip the
+     * PO to Completed, firing the committed-to-spent budget transition, when
+     * almost none of the order actually arrived.
+     */
+    public function test_a_shortfall_larger_than_one_scan_row_keeps_the_line_sum_exact(): void
+    {
+        [$location, $product, $user, $po, $d] = $this->scaffold();
+        $this->scanBoxes($user, $location, $po, $d, 6);          // six rows, 300 pieces posted
+
+        $res = $this->actingAs($user)->postJson('/api/inventory/receive-verify', [
+            'po_detail_id'  => $d->po_detail_id,
+            'location_id'   => $location->location_id,
+            'packages'      => 6,
+            'actual_pieces' => 20,
+        ]);
+
+        $res->assertOk()->assertJsonPath('data.action', 'applied');
+
+        $onHand = Inventory::where('product_id', $product->product_id)->first()->quantity_on_hand;
+        $sum    = (int) DB::table('receiving_details')
+            ->where('po_detail_id', $d->po_detail_id)->sum('quantity_amount');
+
+        $this->assertSame(20, $onHand);
+        $this->assertSame(
+            $onHand,
+            $sum,
+            'The line total and the ledger must agree. A delta of -280 cannot fit inside the single '
+            . 'most recent row of 50, and clamping it there would strand the difference across the '
+            . 'other five rows — exactly the drift this project eliminated between quantity_on_hand '
+            . 'and packages_on_hand, relocated into receiving_details.'
+        );
+
+        // No row may go negative: BarcodeAdjustmentController subtracts a single
+        // row's quantity_amount from stock when voiding a scan, so a negative
+        // row there would ADD stock rather than remove it.
+        $this->assertSame(
+            0,
+            (int) DB::table('receiving_details')
+                ->where('po_detail_id', $d->po_detail_id)
+                ->where('quantity_amount', '<', 0)->count(),
+            'A receiving_details row is a physical count and must never be negative.'
+        );
+
+        $batch = InventoryBatch::where('product_id', $product->product_id)->first();
+        $this->assertSame(20, (int) $batch->quantity_received);
+        $this->assertSame(20, (int) $batch->quantity_remaining);
     }
 
     public function test_a_matching_count_leaves_stock_alone(): void
@@ -251,11 +314,25 @@ class ReceiveVerifyTest extends TestCase
         $res = $this->actingAs($user)->postJson('/api/inventory/receive-verify', $payload);
         $res->assertOk()->assertJsonPath('data.action', 'over_receipt');
 
+        // The guard returns before beginTransaction(), so nothing can have
+        // moved. Assert all three writable surfaces rather than just stock, so
+        // a refactor that moves the check inside the transaction fails loudly
+        // instead of leaving a half-applied over-receipt behind.
         $this->assertSame(
             100,
             Inventory::where('product_id', $product->product_id)->first()->quantity_on_hand,
             'An unconfirmed over-receipt must leave everything exactly as it was.'
         );
+
+        $untouchedBatch = InventoryBatch::where('product_id', $product->product_id)->first();
+        $this->assertSame(100, (int) $untouchedBatch->quantity_received);
+        $this->assertSame(100, (int) $untouchedBatch->quantity_remaining);
+
+        $untouchedRow = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)
+            ->orderByDesc('receiving_detail_id')->first();
+        $this->assertSame(50, (int) $untouchedRow->quantity_amount);
+        $this->assertNull($untouchedRow->packages_received, 'An unconfirmed verification must not stamp the row.');
+        $this->assertNull($untouchedRow->pieces_expected);
 
         $res = $this->actingAs($user)->postJson(
             '/api/inventory/receive-verify',
