@@ -123,7 +123,11 @@ class ReceiveCountController extends Controller
                 $request->user()?->user_id,
                 $unitsEntered,
                 $packagesReceived,
-                $piecesExpected
+                $piecesExpected,
+                // Counting IS the verification: the clerk typed the number of
+                // pieces they physically had in front of them, so there is
+                // nothing left for anyone to open and check.
+                contentsVerified: true
             );
 
             if ($po) {
