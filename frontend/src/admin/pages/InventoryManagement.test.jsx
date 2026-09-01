@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import InventoryManagement from './InventoryManagement';
 import {
@@ -138,14 +138,19 @@ const materialHistory = {
     product: { product_id: 237, product_name: 'PE Foam 1/2', product_type: 'installation_material', is_serialized: false, pieces_per_package: 10 },
     receiving_history: [],
     movement_history: [],
+    // Row 1 is a generated tag (no supplier code of its own) — scannable and
+    // printable. Row 2 is a scanned material: its item_serial row holds the
+    // supplier's own code in both serial_number and supplier_barcode, per the
+    // decision that a scanned material is scannable (that code is the
+    // identifier) but not printable (the supplier already printed it).
     serial_records: [
       {
-        serial_id: 1, serial_number: 'INT-PO-20260828-ZIW7-237-01', supplier_barcode: '1234',
+        serial_id: 1, serial_number: 'INT-PO-20260828-ZIW7-237-01', supplier_barcode: null,
         serial_status: 'In Stock', is_material_tag: true, received_at: '2026-08-28 09:00:00',
         row_quantity_received: null, row_stock_in: null, row_stock_out: null, row_transfer: null,
       },
       {
-        serial_id: 2, serial_number: 'INT-PO-20260828-ZIW7-237-02', supplier_barcode: null,
+        serial_id: 2, serial_number: 'SUP-9911', supplier_barcode: 'SUP-9911',
         serial_status: 'In Stock', is_material_tag: true, received_at: '2026-08-28 09:00:00',
         row_quantity_received: null, row_stock_in: null, row_stock_out: null, row_transfer: null,
       },
@@ -172,10 +177,8 @@ test('lists the generated material tags instead of the empty-state message', asy
   await openSerialsTab();
 
   expect(await screen.findByText('INT-PO-20260828-ZIW7-237-01')).toBeInTheDocument();
-  expect(screen.getByText('INT-PO-20260828-ZIW7-237-02')).toBeInTheDocument();
+  expect(screen.getByText('SUP-9911')).toBeInTheDocument();
   expect(screen.queryByText(/No serial numbers recorded/i)).not.toBeInTheDocument();
-  // The supplier code rides along as reference text only.
-  expect(screen.getByText(/Supplier: 1234/i)).toBeInTheDocument();
 });
 
 test('renders each tag row own scannable barcode inline, beside the serial', async () => {
@@ -183,26 +186,41 @@ test('renders each tag row own scannable barcode inline, beside the serial', asy
 
   await screen.findByText('INT-PO-20260828-ZIW7-237-01');
 
-  // No sheet opened: the barcodes are in the table itself, one per tag row.
-  const rows = screen.getAllByRole('row').filter((r) => r.textContent.includes('INT-PO-'));
-  expect(rows).toHaveLength(2);
-  rows.forEach((row, i) => {
-    const codes = row.querySelectorAll('[data-testid="barcode"]');
-    expect(codes).toHaveLength(1);
-    expect(codes[0].getAttribute('data-value')).toBe(`INT-PO-20260828-ZIW7-237-0${i + 1}`);
-  });
-
-  // Never the supplier code — it repeats across every box.
+  // No sheet opened: the barcodes are in the table itself, one per tag row —
+  // scannable whether the value is a generated tag or the supplier's own code.
   const values = screen.getAllByTestId('barcode').map((el) => el.getAttribute('data-value'));
-  expect(values).not.toContain('1234');
+  expect(values).toEqual(expect.arrayContaining(['INT-PO-20260828-ZIW7-237-01', 'SUP-9911']));
+  expect(values).toHaveLength(2);
+});
+
+/*
+ * A scanned material (supplier_barcode populated) is still scannable — its
+ * supplier code is the identifier — but it is not printable: the supplier
+ * already printed that code, and reprinting it in our own format would put
+ * two labels of differing provenance on one box. A generated tag has no
+ * supplier code and stays both scannable and printable. Gated on
+ * `supplier_barcode === null`, not an `INT-` prefix match.
+ */
+test('a scanned material is scannable but not printable; a generated tag is both', async () => {
+  await openSerialsTab();
+
+  const generatedRow = (await screen.findByText('INT-PO-20260828-ZIW7-237-01')).closest('tr');
+  const scannedRow   = (await screen.findByText('SUP-9911')).closest('tr');
+
+  expect(generatedRow.querySelectorAll('[data-testid="barcode"]')).toHaveLength(1);
+  expect(scannedRow.querySelectorAll('[data-testid="barcode"]')).toHaveLength(1);
+
+  expect(within(generatedRow).getByRole('button', { name: /print tag$/i })).toBeInTheDocument();
+  expect(within(scannedRow).queryByRole('button', { name: /print tag$/i })).not.toBeInTheDocument();
 });
 
 test('prints one tag from its own row without dragging the rest onto paper', async () => {
   await openSerialsTab();
 
-  await screen.findByText('INT-PO-20260828-ZIW7-237-02');
+  await screen.findByText('INT-PO-20260828-ZIW7-237-01');
+  // Only the generated tag is printable — the scanned material has no print button.
   const printButtons = screen.getAllByRole('button', { name: /print tag$/i });
-  expect(printButtons).toHaveLength(2);
+  expect(printButtons).toHaveLength(1);
 
   let printedValues = [];
   const printSpy = jest.spyOn(window, 'print').mockImplementation(() => {
@@ -211,10 +229,10 @@ test('prints one tag from its own row without dragging the rest onto paper', asy
       .map((el) => el.getAttribute('data-value'));
   });
 
-  fireEvent.click(printButtons[1]);
+  fireEvent.click(printButtons[0]);
 
   expect(printSpy).toHaveBeenCalledTimes(1);
-  expect(printedValues).toEqual(['INT-PO-20260828-ZIW7-237-02']);
+  expect(printedValues).toEqual(['INT-PO-20260828-ZIW7-237-01']);
   expect(document.body.classList.contains('invd-printing-tags')).toBe(false);
   printSpy.mockRestore();
 });
@@ -222,11 +240,13 @@ test('prints one tag from its own row without dragging the rest onto paper', asy
 test('still offers the bulk sheet for printing every live tag at once', async () => {
   await openSerialsTab();
 
-  fireEvent.click(await screen.findByRole('button', { name: /view \/ print tags \(2\)/i }));
+  // The scanned material is excluded from the printable count — only the
+  // generated tag can go on the bulk sheet.
+  fireEvent.click(await screen.findByRole('button', { name: /view \/ print tags \(1\)/i }));
 
   const sheetBarcodes = document.querySelectorAll('.invd-tag-sheet-wrap [data-testid="barcode"]');
   expect(Array.from(sheetBarcodes).map((el) => el.getAttribute('data-value')))
-    .toEqual(['INT-PO-20260828-ZIW7-237-01', 'INT-PO-20260828-ZIW7-237-02']);
+    .toEqual(['INT-PO-20260828-ZIW7-237-01']);
 
   const printSpy = jest.spyOn(window, 'print').mockImplementation(() => {
     // The print-only stylesheet keys off this class; it must be on the body
@@ -298,8 +318,77 @@ test('a stock-in row whose tags cannot be pinned to one line says so', async () 
   ]);
 
   // Three tags collapse behind a disclosure so the row stays one line high.
-  expect(await screen.findByText('3 generated tags')).toBeInTheDocument();
+  // Labelled "tags", not "generated tags": the field can carry a scanned
+  // material's own supplier code as easily as one this system minted, and
+  // that value echoed back as "generated" would be actively misleading.
+  expect(await screen.findByText('3 tags')).toBeInTheDocument();
   expect(screen.getByText(/Shared across 2 lines of this receipt/i)).toBeInTheDocument();
+});
+
+/* ── Stock-In History tab: package shortfall sub-line ─────────────────────
+   A box marked 50 that only held 47 used to post 50 and the shortfall
+   vanished. pieces_expected (packages x pieces-per-package, frozen at
+   receipt) versus quantity_amount (what actually posted) is what finally
+   distinguishes a short-filled box from one that simply never arrived. */
+
+test('shows a shortfall sub-line when pieces_expected and quantity_amount disagree', async () => {
+  await openStockInTab([
+    {
+      receiving_detail_id: 1, receiving_number: 'RCV-1', received_at: '2026-08-28 09:00:00',
+      scanned_barcode: null, quantity_amount: 297, prod_price: 5, condition: 'Good',
+      packages_received: 6, pieces_expected: 300,
+      generated_tags: [], generated_tag_count: 0, tag_attribution: 'exact', tag_line_count: 1,
+    },
+  ]);
+
+  expect(await screen.findByText('297')).toBeInTheDocument();
+  expect(screen.getByText(/300 expected/i)).toBeInTheDocument();
+  expect(screen.getByText(/3 short/i)).toBeInTheDocument();
+});
+
+test('shows "over" rather than "short" when more posted than expected', async () => {
+  await openStockInTab([
+    {
+      receiving_detail_id: 1, receiving_number: 'RCV-1', received_at: '2026-08-28 09:00:00',
+      scanned_barcode: null, quantity_amount: 305, prod_price: 5, condition: 'Good',
+      packages_received: 6, pieces_expected: 300,
+      generated_tags: [], generated_tag_count: 0, tag_attribution: 'exact', tag_line_count: 1,
+    },
+  ]);
+
+  expect(await screen.findByText('305')).toBeInTheDocument();
+  expect(screen.getByText(/300 expected/i)).toBeInTheDocument();
+  expect(screen.getByText(/5 over/i)).toBeInTheDocument();
+});
+
+test('renders no sub-line when pieces_expected matches quantity_amount', async () => {
+  await openStockInTab([
+    {
+      receiving_detail_id: 1, receiving_number: 'RCV-1', received_at: '2026-08-28 09:00:00',
+      scanned_barcode: null, quantity_amount: 300, prod_price: 5, condition: 'Good',
+      packages_received: 6, pieces_expected: 300,
+      generated_tags: [], generated_tag_count: 0, tag_attribution: 'exact', tag_line_count: 1,
+    },
+  ]);
+
+  expect(await screen.findByText('300')).toBeInTheDocument();
+  expect(screen.queryByText(/expected/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/short/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/\bover\b/i)).not.toBeInTheDocument();
+});
+
+test('renders no sub-line when pieces_expected is null (piece-counted / appliance line)', async () => {
+  await openStockInTab([
+    {
+      receiving_detail_id: 1, receiving_number: 'RCV-1', received_at: '2026-08-28 09:00:00',
+      scanned_barcode: null, quantity_amount: 473, prod_price: 5, condition: 'Good',
+      packages_received: null, pieces_expected: null,
+      generated_tags: [], generated_tag_count: 0, tag_attribution: 'exact', tag_line_count: 1,
+    },
+  ]);
+
+  expect(await screen.findByText('473')).toBeInTheDocument();
+  expect(screen.queryByText(/expected/i)).not.toBeInTheDocument();
 });
 
 test("offers no tag barcode for an appliance whose serial is the manufacturer own", async () => {
