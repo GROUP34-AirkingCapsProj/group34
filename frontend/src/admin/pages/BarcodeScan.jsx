@@ -779,6 +779,10 @@ const BarcodeScan = () => {
   const [bsrPoLoading, setBsrPoLoading] = useState(false);
   const [bsrSelectedPo, setBsrSelectedPo] = useState(null);
   const [bsrProductProgress, setBsrProductProgress] = useState({});
+  // Packages received per PO line, counted rather than derived from pieces.
+  // Piece verification lets a package post fewer pieces than its nominal size,
+  // so pieces / pieces_per_package floors a genuine 2 packs down to 1.
+  const [bsrPackageProgress, setBsrPackageProgress] = useState({});
   const [bsrPoSearchQ, setBsrPoSearchQ] = useState('');
   const [bsrScannedItems, setBsrScannedItems] = useState([]);
   const [bsrLocationId, setBsrLocationId] = useState('');
@@ -1030,6 +1034,7 @@ const BarcodeScan = () => {
       setBsrSelectedPo(null);
       setBsrScannedItems([]);
       setBsrProductProgress({});
+      setBsrPackageProgress({});
       setBsrPoSearchQ('');
       return;
     }
@@ -1843,6 +1848,7 @@ const BarcodeScan = () => {
     setBsrSelectedPo(null);
     setBsrScannedItems([]);
     setBsrProductProgress({});
+    setBsrPackageProgress({});
     setBsrPoSearchQ('');
     setBsrScanInput('');
     setBsrActiveLine(null);
@@ -1880,6 +1886,7 @@ const BarcodeScan = () => {
       if (d.po_detail_id) prog[d.po_detail_id] = 0;
     });
     setBsrProductProgress(prog);
+    setBsrPackageProgress({ ...prog });
 
     // Load existing receiving data for this PO from the database so that:
     // 1. Progress bars start at actual received quantities, not zero.
@@ -1894,15 +1901,20 @@ const BarcodeScan = () => {
 
         const receivedBarcodes = new Set();
         const updatedProg = { ...prog };
+        const updatedPkgProg = { ...prog };
         lines.forEach((line) => {
           if (line.po_detail_id != null && line.already_received > 0) {
             updatedProg[line.po_detail_id] = line.already_received;
+          }
+          if (line.po_detail_id != null && line.already_received_packages > 0) {
+            updatedPkgProg[line.po_detail_id] = line.already_received_packages;
           }
           (line.scanned_barcodes || []).forEach((bc) => {
             if (bc) receivedBarcodes.add(bc.trim().toLowerCase());
           });
         });
         setBsrProductProgress(updatedProg);
+        setBsrPackageProgress(updatedPkgProg);
         setBsrPoReceivedBarcodes(receivedBarcodes);
 
         // Restore the scanned-items list from the DB history (newest first), scoped to this
@@ -2128,6 +2140,10 @@ const BarcodeScan = () => {
         ...prev,
       ]);
       setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+      // One scan is exactly one package. Appliances have no package count.
+      if (!isSerialized) {
+        setBsrPackageProgress((prev) => ({ ...prev, [poDetailId]: (prev[poDetailId] || 0) + 1 }));
+      }
       // Keep the local received-barcodes set in sync so subsequent scans of the
       // same barcode in this session are caught by the pre-check above.
       setBsrPoReceivedBarcodes((prev) => new Set([...prev, normalizedCode]));
@@ -2272,6 +2288,11 @@ const BarcodeScan = () => {
         ...prev,
       ]);
       setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+      // The clerk entered `units` packages; that is the package count regardless
+      // of how many pieces the boxes actually held.
+      if (!isSerialized) {
+        setBsrPackageProgress((prev) => ({ ...prev, [poDetailId]: (prev[poDetailId] || 0) + Number(units || 0) }));
+      }
 
       if (data?.po_status) {
         const activePoId = bsrSelectedPo?.po_id ?? bsrSelectedPo?.id;
@@ -2358,6 +2379,8 @@ const BarcodeScan = () => {
       setBsrPendingOverage(null);
       setBsrVerifyMode(false);
       setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+      // bsrPackageProgress is deliberately untouched: verification corrects how
+      // many PIECES were in the boxes, not how many boxes arrived.
 
       window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
         detail: {
@@ -3377,7 +3400,7 @@ const BarcodeScan = () => {
       const hasScans = Object.values(bsrProductProgress).some((v) => v > 0);
       const doExit = () => {
         void stopCamera();
-        setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({});
+        setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({});
         setBsrScanInput(''); setBsrActiveLine(null);
       };
       if (hasScans) {
@@ -3496,6 +3519,12 @@ const BarcodeScan = () => {
                     const pps = Number(prod.pieces_per_package) || 1;
                     const orderedPcs = isSerial ? ordered : ordered * pps;
                     const received = bsrProductProgress[detailId] || 0;
+                    // Counted, not derived — see bsrPackageProgress. Legacy rows
+                    // predate packages_received and report 0 packages against real
+                    // stock, so those alone fall back to the old division rather
+                    // than claiming nothing arrived.
+                    const receivedPkgs = bsrPackageProgress[detailId]
+                      || (received > 0 ? Math.floor(received / pps) : 0);
                     const pct = orderedPcs > 0 ? Math.min(100, (received / orderedPcs) * 100) : 0;
                     const done = received >= orderedPcs && orderedPcs > 0;
                     const isActive = bsrActiveLine?.po_detail_id === detailId;
@@ -3530,7 +3559,7 @@ const BarcodeScan = () => {
                           <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>
                             {isSerial
                               ? `${received} / ${ordered} units`
-                              : `${Math.floor(received / pps)} / ${ordered} pkg`}
+                              : `${receivedPkgs} / ${ordered} pkg`}
                           </span>
                         </div>
                         <div className="bsr-progress-bar-wrap">
@@ -3791,10 +3820,14 @@ const BarcodeScan = () => {
                     bsrActiveLine.pieces_per_package ?? bsrActiveLine.product?.pieces_per_package,
                   ) || 1);
                   const received  = bsrProductProgress[bsrActiveLine.po_detail_id] || 0;
-                  // Packages the scans put in, derived from the pieces posted.
-                  // Rounded, not floored: a line already reconciled to 97 of
-                  // 100 must still read as the 2 packages that were scanned.
-                  const packages  = Math.max(1, Math.round(received / pcs) || 1);
+                  // Packages the scans put in, as counted by the rows themselves.
+                  // Legacy lines received before packages_received existed report
+                  // 0, so those alone fall back to rounding the pieces posted —
+                  // rounded, not floored, so a line reconciled to 97 of 100 still
+                  // reads as the 2 packages that were scanned. This panel only
+                  // opens for non-serialized lines, so packages always apply.
+                  const packages  = bsrPackageProgress[bsrActiveLine.po_detail_id]
+                    || Math.max(1, Math.round(received / pcs) || 1);
                   const expected  = packages * pcs;
                   const display   = bsrVerifyPieces === null ? String(expected) : bsrVerifyPieces;
                   const actual    = display !== '' && Number.isFinite(Number(display)) ? Number(display) : null;
@@ -4043,7 +4076,7 @@ const BarcodeScan = () => {
                         title: 'Receiving Complete',
                         message: `All ordered items for ${poNum} have been received.${receiptDownloaded ? ' The receipt was opened and downloaded as a PDF.' : ''}`,
                         onDismiss: () => {
-                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrScanInput('');
                         },
                       });
                     } else {
@@ -4053,7 +4086,7 @@ const BarcodeScan = () => {
                         title: 'Partial Receiving Saved',
                         message: `${count} item(s) recorded for ${poNum}. This PO remains "Partially Received".${receiptDownloaded ? ' A partial receipt was opened and downloaded as a PDF.' : ''} You can resume scanning at any time.`,
                         onDismiss: () => {
-                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrScanInput('');
                         },
                       });
                     }

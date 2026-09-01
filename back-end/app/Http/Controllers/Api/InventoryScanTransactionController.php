@@ -353,6 +353,14 @@ class InventoryScanTransactionController extends Controller
                 zoneLabel: $validated['zone_label'] ?? null,
                 userId: $request->user()?->user_id,
                 unitsEntered: 1,
+                // One scan is exactly one package (see the note at the top of this
+                // method), so the row records that directly. Package progress is
+                // then summed from the rows instead of being derived by dividing
+                // pieces by pieces_per_package — a division that under-reports as
+                // soon as piece verification lets a package post short.
+                // An appliance has no package concept, so both stay null.
+                packagesReceived: $isSerialized ? null : $packagesReceived,
+                piecesExpected:   $isSerialized ? null : $piecesPerPackage,
             );
 
             $receiving = $result['receiving'];

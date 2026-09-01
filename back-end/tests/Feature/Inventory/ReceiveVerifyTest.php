@@ -439,8 +439,13 @@ class ReceiveVerifyTest extends TestCase
         $untouchedRow = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)
             ->orderByDesc('receiving_detail_id')->first();
         $this->assertSame(50, (int) $untouchedRow->quantity_amount);
-        $this->assertNull($untouchedRow->packages_received, 'An unconfirmed verification must not stamp the row.');
-        $this->assertNull($untouchedRow->pieces_expected);
+        // The scan path now stamps these itself — one scan is one package of
+        // pieces_per_package — so "still NULL" no longer distinguishes a row
+        // verification skipped. What must hold is that the row still reads
+        // exactly what the SCAN wrote, untouched by the refused verification.
+        $this->assertSame(1, (int) $untouchedRow->packages_received,
+            'An unconfirmed verification must leave the row as the scan wrote it.');
+        $this->assertSame(50, (int) $untouchedRow->pieces_expected);
 
         $res = $this->actingAs($user)->postJson(
             '/api/inventory/receive-verify',
