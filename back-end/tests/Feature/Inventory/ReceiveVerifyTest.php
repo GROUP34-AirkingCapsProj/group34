@@ -120,6 +120,13 @@ class ReceiveVerifyTest extends TestCase
 
         $batch = InventoryBatch::where('product_id', $product->product_id)->first();
         $this->assertSame(97, (int) $batch->quantity_remaining);
+        $this->assertSame(
+            97,
+            (int) $batch->quantity_received,
+            'Pieces that were never in the box were never received either. A batch still claiming '
+            . '100 received would make the PO group overstate the delivery, and would read as three '
+            . 'pieces having been consumed rather than never arriving.'
+        );
 
         $row = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)
             ->orderByDesc('receiving_detail_id')->first();
@@ -260,9 +267,12 @@ class ReceiveVerifyTest extends TestCase
             110,
             Inventory::where('product_id', $product->product_id)->first()->quantity_on_hand
         );
+        $batch = InventoryBatch::where('product_id', $product->product_id)->first();
+        $this->assertSame(110, (int) $batch->quantity_remaining);
         $this->assertSame(
             110,
-            (int) InventoryBatch::where('product_id', $product->product_id)->first()->quantity_remaining
+            (int) $batch->quantity_received,
+            'Extra pieces found in the boxes did arrive, so the batch must record them as received.'
         );
     }
 }
