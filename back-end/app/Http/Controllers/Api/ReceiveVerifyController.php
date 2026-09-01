@@ -149,12 +149,27 @@ class ReceiveVerifyController extends Controller
                 // The batch is found exactly as ReceivingPostingService::
                 // accumulateBatch() finds it, so the delta lands on the same
                 // batch the scans accumulated into.
+                //
+                // This relies on scans accumulating into ONE batch per
+                // receiving header + product + location, which is what
+                // accumulateBatch() guarantees today — so a line's delta always
+                // has exactly one batch to land on. If a line ever spans
+                // several batches, this needs a rule for distributing the delta
+                // between them; there is no such rule yet.
                 $batch = InventoryBatch::where('receiving_id', $row->receiving_id)
                     ->where('product_id', $product->product_id)
                     ->where('location_id', $locationId)
                     ->first();
 
                 if ($batch) {
+                    // Both columns move by the same delta. Verification
+                    // corrects what ARRIVED, not what was consumed: pieces that
+                    // were never in the box were never received either. Moving
+                    // only quantity_remaining would leave the batch reading
+                    // "100 received, 97 remaining" — indistinguishable from
+                    // three pieces having been issued, and enough to make the
+                    // PO group's total_received overstate the delivery.
+                    $batch->quantity_received  = max(0, (int) $batch->quantity_received + $delta);
                     $batch->quantity_remaining = max(0, (int) $batch->quantity_remaining + $delta);
                     $batch->save();
                 }
