@@ -7,12 +7,21 @@ import Barcode from 'react-barcode';
  * damaged, or unreadable. Printing is a secondary option.
  *
  * The scannable value is always `serial_number` (the generated INT- tag).
- * `supplier_barcode`, when present, is shown as reference text only — it
- * repeats across every box of a product and must never be fed to a scanner
- * as if it were unique.
+ *
+ * A material that arrived WITH a supplier barcode has no generated tag —
+ * `serial_number` and `supplier_barcode` both hold the supplier's own code.
+ * This sheet is a print sheet: printing a second, our-own-format label for a
+ * box the supplier already labelled would put two identifiers of differing
+ * provenance on one box. Those tags are filtered out here rather than left
+ * to each caller to remember, so a scanned material can never reach this
+ * grid regardless of what list a caller hands in. Gated on
+ * `supplier_barcode === null` — a generated tag has none — not an `INT-`
+ * prefix match against a format this codebase controls and could change.
  */
 export default function MaterialTagSheet({ tags, productName, onPrint, showHeader = true }) {
-  if (!tags || tags.length === 0) {
+  const printableTags = (tags || []).filter((tag) => tag?.supplier_barcode == null);
+
+  if (printableTags.length === 0) {
     return null;
   }
 
@@ -32,7 +41,7 @@ export default function MaterialTagSheet({ tags, productName, onPrint, showHeade
       {showHeader && (
         <div className="bsr-tag-sheet-header no-print">
           <span className="bsr-tag-sheet-count">
-            {tags.length} tag{tags.length === 1 ? '' : 's'}
+            {printableTags.length} tag{printableTags.length === 1 ? '' : 's'}
             {productName ? ` for ${productName}` : ''}
           </span>
           <button
@@ -46,7 +55,7 @@ export default function MaterialTagSheet({ tags, productName, onPrint, showHeade
       )}
 
       <div className="bsr-tag-sheet-grid">
-        {tags.map((tag) => (
+        {printableTags.map((tag) => (
           <div className="bsr-tag-card" key={tag.serial_number}>
             {productName && (
               <div className="bsr-tag-card-product">{productName}</div>
@@ -58,11 +67,6 @@ export default function MaterialTagSheet({ tags, productName, onPrint, showHeade
               fontSize={12}
               displayValue
             />
-            {tag.supplier_barcode && (
-              <div className="bsr-tag-card-supplier">
-                Supplier: {tag.supplier_barcode}
-              </div>
-            )}
           </div>
         ))}
       </div>

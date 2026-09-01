@@ -137,12 +137,10 @@ class ReceiveVerifyController extends Controller
             $inventory->setPieces($onHand + $delta, $piecesPerPackage);
             $inventory->save();
 
-            // The line's most recent receiving_details row carries the
-            // correction. The verification itself is stamped on the newest row
-            // — the one the clerk just finished scanning, and the one the
-            // verification panel is showing.
+            // The line's most recent receiving_details row carries the batch
+            // correction.
             //
-            // The delta, however, is DISTRIBUTED across the line's rows newest
+            // The delta is DISTRIBUTED across the line's rows newest
             // first, draining each to zero before moving to the next, because a
             // shortfall can be larger than any single row: six scans of 50
             // reconciled to 20 is a delta of -280 against a newest row of 50.
@@ -205,8 +203,37 @@ class ReceiveVerifyController extends Controller
                     $batch->save();
                 }
 
-                $row->packages_received = $packages;
-                $row->pieces_expected   = $expected;
+                // The expectation columns are ROW-scoped, exactly as the count
+                // path writes them: each row states what its OWN entry should
+                // have held. Every row of the line is stamped, not only the
+                // ones the delta happens to drain, because a row that reads
+                // 50 expected against 50 actual is the statement "this box was
+                // full" — and a NULL there is no statement at all.
+                //
+                // One package per row is exact on the scan path:
+                // InventoryScanTransactionController::processReceiving() posts
+                // `$quantity = $isSerialized ? 1 : $piecesPerPackage` and
+                // deliberately ignores the request's quantity field, so a
+                // non-serialized scan can never post a partial package.
+                //
+                // Stamping the clerk's line-wide $packages/$expected on the
+                // newest row instead — as this did before — contradicts the
+                // distribution below, which spreads the shortfall over several
+                // rows. Two boxes of 50 verified to 97 left the newest row
+                // reading 100 expected against 47 actual: a 53-piece shortfall
+                // that never happened, on the very screen that compares those
+                // two columns per row.
+                //
+                // Rows written by the count path already carry their own
+                // row-scoped figures for an entry that was never one package,
+                // so they are left as they are.
+                foreach ($rows as $r) {
+                    if ($r->entry_mode === 'counted') {
+                        continue;
+                    }
+                    $r->packages_received = 1;
+                    $r->pieces_expected   = $piecesPerPackage;
+                }
 
                 // How much each receiving header's rows moved, so the header
                 // totals can follow by exactly the amount taken from them.
@@ -231,14 +258,16 @@ class ReceiveVerifyController extends Controller
                         $r->quantity_amount = (int) $r->quantity_amount - $take;
                         $shortfall -= $take;
                         $headerDeltas[$r->receiving_id] = ($headerDeltas[$r->receiving_id] ?? 0) - $take;
-                        $r->save();
                     }
                 }
 
-                // Saved unconditionally: when the delta is zero the loop above
-                // never runs, and the newest row still carries the verification
-                // stamp that records the line as checked.
-                $row->save();
+                // Every row is saved, not only the ones the delta moved: when
+                // the delta is zero the loop above never runs, and each row
+                // still carries the verification stamp that records it as
+                // checked and full.
+                foreach ($rows as $r) {
+                    $r->save();
+                }
 
                 // The header is incremented by every scan, so it has to follow
                 // the correction or it drifts from both SUM(quantity_amount)
@@ -271,6 +300,12 @@ class ReceiveVerifyController extends Controller
             return $this->error('Failed to verify receipt: ' . $e->getMessage(), 500);
         }
 
+        // These two are LINE-wide on purpose, and deliberately differ from the
+        // per-row columns written above. They echo back what the clerk just
+        // entered — "2 packages, 100 expected" — so the panel can confirm the
+        // verification it performed. The rows answer a different question:
+        // what each individual scan should have held. Two boxes of 50 leave
+        // packages_received = 2 here and 1 on every row, and both are correct.
         return $this->success([
             'action'            => 'applied',
             'posted_before'     => $posted,

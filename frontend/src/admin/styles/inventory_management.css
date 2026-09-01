@@ -570,6 +570,11 @@
 }
 .invd-date     { font-size: 13px; color: #374151; }
 
+/* Package shortfall sub-line beneath a stock-in row's quantity. Warm/amber
+   rather than the neutral .invd-sub gray — a discrepancy between what was
+   expected and what posted is meant to catch the eye, not blend in. */
+.invd-shortfall { color: #c2410c; font-weight: 600; }
+
 /* Scrollable table wrapper */
 .invd-table-wrap {
   overflow-x: auto;

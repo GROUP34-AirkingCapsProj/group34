@@ -128,10 +128,13 @@ class ReceiveVerifyTest extends TestCase
             . 'pieces having been consumed rather than never arriving.'
         );
 
+        // The stamp is row-scoped: one scan is one package, whatever the
+        // clerk's line-wide figures were. See
+        // test_row_expectations_are_row_scoped_not_line_scoped.
         $row = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)
             ->orderByDesc('receiving_detail_id')->first();
-        $this->assertSame(2, (int) $row->packages_received);
-        $this->assertSame(100, (int) $row->pieces_expected);
+        $this->assertSame(1, (int) $row->packages_received);
+        $this->assertSame(50, (int) $row->pieces_expected);
 
         // The receiving header is incremented on every scan, so it too has to
         // follow the correction or it diverges from both the line sum and the
@@ -217,13 +220,118 @@ class ReceiveVerifyTest extends TestCase
         $batch = InventoryBatch::where('product_id', $product->product_id)->first();
         $this->assertSame(100, (int) $batch->quantity_remaining);
 
-        // A clean count is still a verification event — the expectation and the
-        // package count must be recorded so the line reads as checked, not
-        // merely untouched.
-        $row = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)
-            ->orderByDesc('receiving_detail_id')->first();
-        $this->assertSame(2, (int) $row->packages_received);
-        $this->assertSame(100, (int) $row->pieces_expected);
+        // A clean count is still a verification event — every row's expectation
+        // and package count must be recorded so the line reads as checked, not
+        // merely untouched. A row reading 50 expected against 50 actual is the
+        // statement "this box was full"; a NULL is no statement at all.
+        $rows = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)->get();
+        $this->assertCount(2, $rows);
+        foreach ($rows as $row) {
+            $this->assertSame(1, (int) $row->packages_received);
+            $this->assertSame(50, (int) $row->pieces_expected);
+            $this->assertSame(50, (int) $row->quantity_amount);
+        }
+    }
+
+    /**
+     * The expectation columns are ROW-scoped, exactly as the count path writes
+     * them: each row states what its own entry should have held. On the scan
+     * path one row is one scan is one package, so every row of the line expects
+     * one package of 50 — including the rows the delta never touched.
+     *
+     * Stamping the line-wide figures on the newest row instead is a lie once
+     * the shortfall has been distributed: the drained row would read "100
+     * expected" against its 47 actual, and the Stock-In History sub-line that
+     * compares those two columns on a single row would report 53 pieces short
+     * on a delivery that was 3 short.
+     */
+    public function test_row_expectations_are_row_scoped_not_line_scoped(): void
+    {
+        [$location, , $user, $po, $d] = $this->scaffold();
+        $this->scanBoxes($user, $location, $po, $d, 2);          // two rows, 100 pieces posted
+
+        $this->actingAs($user)->postJson('/api/inventory/receive-verify', [
+            'po_detail_id'  => $d->po_detail_id,
+            'location_id'   => $location->location_id,
+            'packages'      => 2,
+            'actual_pieces' => 97,
+        ])->assertOk()->assertJsonPath('data.action', 'applied');
+
+        $rows = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)
+            ->orderBy('receiving_detail_id')->get();
+
+        $this->assertCount(2, $rows);
+
+        foreach ($rows as $row) {
+            $this->assertSame(
+                1,
+                (int) $row->packages_received,
+                'One scan is one package, so a scan row can only ever represent one package.'
+            );
+            $this->assertSame(
+                50,
+                (int) $row->pieces_expected,
+                'Every row of the line carries its own expectation — not only the ones the delta drained.'
+            );
+        }
+
+        $short = $rows->filter(fn ($r) => (int) $r->pieces_expected !== (int) $r->quantity_amount)->values();
+        $this->assertCount(1, $short, 'Only the row the shortfall was taken from may read short.');
+        $this->assertSame(47, (int) $short[0]->quantity_amount);
+        $this->assertSame(
+            3,
+            (int) $short[0]->pieces_expected - (int) $short[0]->quantity_amount,
+            'The row must report the 3 pieces that were actually missing, not the whole line expectation.'
+        );
+    }
+
+    /**
+     * Attributing the shortfall to one row must not lose it at line level: the
+     * two columns still have to sum to the label figure and the verified figure
+     * respectively, so the line-wide shortfall stays recoverable by subtraction.
+     */
+    public function test_row_scoped_expectations_still_sum_to_the_line_figures(): void
+    {
+        [$location, , $user, $po, $d] = $this->scaffold();
+        $this->scanBoxes($user, $location, $po, $d, 2);
+
+        $this->actingAs($user)->postJson('/api/inventory/receive-verify', [
+            'po_detail_id'  => $d->po_detail_id,
+            'location_id'   => $location->location_id,
+            'packages'      => 2,
+            'actual_pieces' => 97,
+        ])->assertOk()->assertJsonPath('data.action', 'applied');
+
+        $line = DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id);
+
+        $this->assertSame(100, (int) $line->sum('pieces_expected'), 'Two packages of 50 were expected.');
+        $this->assertSame(
+            97,
+            (int) DB::table('receiving_details')->where('po_detail_id', $d->po_detail_id)->sum('quantity_amount'),
+            'The line total must still equal what was verified.'
+        );
+    }
+
+    /**
+     * The response echoes back what the CLERK entered — a line-wide package
+     * count and its derived expectation — which is a different question from
+     * what each row records about its own scan. The two legitimately differ.
+     */
+    public function test_the_response_still_reports_the_line_wide_figures(): void
+    {
+        [$location, , $user, $po, $d] = $this->scaffold();
+        $this->scanBoxes($user, $location, $po, $d, 2);
+
+        $res = $this->actingAs($user)->postJson('/api/inventory/receive-verify', [
+            'po_detail_id'  => $d->po_detail_id,
+            'location_id'   => $location->location_id,
+            'packages'      => 2,
+            'actual_pieces' => 97,
+        ]);
+
+        $res->assertOk()
+            ->assertJsonPath('data.packages_received', 2)
+            ->assertJsonPath('data.pieces_expected', 100);
     }
 
     public function test_it_refuses_a_line_with_nothing_posted(): void

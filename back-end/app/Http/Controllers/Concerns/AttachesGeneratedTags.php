@@ -34,6 +34,13 @@ use Illuminate\Support\Collection;
  * 'shared' means "these tags belong to this group of lines, and the data
  * cannot say which line each one came from". The UI must say so too rather
  * than repeating the list as if each line owned it.
+ *
+ * The field names predate the scanned-material change: a material that
+ * arrives WITH a supplier barcode gets no `INT-` serial (see
+ * MaterialTagService::mintForScan), so `generated_tags` on a scanned line's
+ * row holds that supplier code, not anything this system minted. Nothing
+ * downstream should describe it as "generated" — a UI label doing so would
+ * be actively misleading, since nothing was.
  */
 trait AttachesGeneratedTags
 {

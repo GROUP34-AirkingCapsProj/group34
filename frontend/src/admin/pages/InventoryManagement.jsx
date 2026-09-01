@@ -101,8 +101,15 @@ const TrendChart = ({ data, loading }) => {
 /* ── Stock-in identifiers cell ────────────────────────────────────────────
    One stock-in row's identifiers. A line that arrived with a supplier barcode
    shows it; a line received by counting has none, and used to render blank —
-   which read as though nothing had been recorded. The tags minted for that
-   line carry the identity instead.
+   which read as though nothing had been recorded. The tags carried by
+   `row.generated_tags` fill in the identity for that line instead.
+
+   That field name is a holdover from when every such tag was one this system
+   minted. Since a scanned material's item_serial row now holds the supplier's
+   own code rather than an `INT-` serial, the values it can carry are no
+   longer always "generated" — so the label below reads "tags", not
+   "generated tags": a scanned line's own code, echoed back under that
+   heading, would otherwise look like something invented that wasn't.
 
    `tag_attribution === 'shared'` means the receipt holds several lines for the
    same product that the data cannot tell apart (item_serial links a tag to a
@@ -128,7 +135,7 @@ const StockInIdentifiers = ({ row }) => {
           </div>
         ) : (
           <details className="invd-ident-tags">
-            <summary className="invd-ident-summary">{tags.length} generated tags</summary>
+            <summary className="invd-ident-summary">{tags.length} tags</summary>
             {tags.map((tag) => (
               <span className="invd-mono invd-small invd-ident-tag" key={tag}>{tag}</span>
             ))}
@@ -141,6 +148,29 @@ const StockInIdentifiers = ({ row }) => {
           Shared across {row.tag_line_count} lines of this receipt
         </span>
       )}
+    </div>
+  );
+};
+
+/* ── Package shortfall sub-line ───────────────────────────────────────────
+   quantity_amount is what actually posted; pieces_expected is packages ×
+   pieces-per-package, frozen at receipt. They only mean something for a
+   package-counted line, so pieces_expected is null for a piece-counted or
+   appliance line and nothing renders. When they match, the receipt was
+   clean and nothing renders either — only a mismatch is worth a clerk's
+   attention, and `· 0 short` would just be noise on every clean row. */
+const PackageShortfall = ({ row }) => {
+  if (row.pieces_expected === null || row.pieces_expected === undefined) return null;
+
+  const expected = Number(row.pieces_expected);
+  const actual   = Number(row.quantity_amount);
+  const diff     = expected - actual;
+
+  if (diff === 0) return null;
+
+  return (
+    <div className="invd-sub invd-shortfall">
+      {expected} expected · {diff > 0 ? `${diff} short` : `${Math.abs(diff)} over`}
     </div>
   );
 };
@@ -497,6 +527,26 @@ const InventoryManagement = () => {
   const stockOutHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Stock Out');
   const transferHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Transfer');
 
+  /* A material row is scannable whenever it carries a barcode of ours to show
+     — whether we generated it or it is the supplier's own code copied onto
+     the row. An appliance's serial has no tag to render, and a retired tag
+     points at stock that is gone, so both get a dash instead. */
+  const isScannableTag = (s) => Boolean(s?.is_material_tag) && s?.serial_type !== 'issued';
+
+  /* Printing goes through one surface, whatever triggered it: the bulk "Print
+     tags" button hands over every live tag, a table row hands over just its
+     own. Both land in `tagsToPrint`, which is the only thing the print-only
+     stylesheet makes visible — so per-row and bulk printing can never both
+     claim the paper.
+
+     A tag is printable only while it is both scannable and ours to reprint:
+     `supplier_barcode === null` is the honest test for "we generated this",
+     not an `INT-` prefix match against a format we control and could change.
+     A supplier's own code (supplier_barcode populated) is scannable but not
+     printable — reprinting someone else's barcode puts two labels of
+     differing provenance on one box. */
+  const isPrintableTag = (s) => isScannableTag(s) && s?.supplier_barcode == null;
+
   /* Digital tags we minted ourselves (installation materials only). An
      appliance's serial is the manufacturer's own — we never re-encode it as
      one of our tags, so no barcode affordance is offered for those.
@@ -505,20 +555,13 @@ const InventoryManagement = () => {
      from the printable sheet. The sheet exists so a picker can reprint a label
      for stock sitting on the shelf; handing them a label for stock that is
      gone would put a scannable tag on nothing. They stay listed in the Serial
-     Numbers table below, marked Issued, so the receiving trail is not lost. */
+     Numbers table below, marked Issued, so the receiving trail is not lost.
+
+     A scanned material (supplier_barcode populated) is excluded here too: the
+     supplier already printed that code, and putting a second, our-own-format
+     label on the same box would carry two identifiers of differing provenance. */
   const materialTags = (historyData?.serial_records || [])
-    .filter((s) => s.is_material_tag && s.serial_type !== 'issued');
-
-  /* Printing goes through one surface, whatever triggered it: the bulk "Print
-     tags" button hands over every live tag, a table row hands over just its
-     own. Both land in `tagsToPrint`, which is the only thing the print-only
-     stylesheet makes visible — so per-row and bulk printing can never both
-     claim the paper.
-
-     A tag is printable only while its stock is on the shelf: a retired tag
-     (serial_type 'issued', batch spent) would put a scannable label on
-     nothing. */
-  const isPrintableTag = (s) => Boolean(s?.is_material_tag) && s?.serial_type !== 'issued';
+    .filter((s) => isPrintableTag(s));
 
   const printTags = (tags) => {
     if (!tags || tags.length === 0) return;
@@ -1585,7 +1628,10 @@ const InventoryManagement = () => {
                                 {rd.receiving_number && <span className="invd-sub">{rd.receiving_number}</span>}
                               </td>
                               <td><StockInIdentifiers row={rd} /></td>
-                              <td className="invd-cell-num invd-bold">{rd.quantity_amount}</td>
+                              <td className="invd-cell-num invd-bold">
+                                {rd.quantity_amount}
+                                <PackageShortfall row={rd} />
+                              </td>
                               <td className="invd-cell-currency">
                                 ₱{parseFloat(rd.prod_price).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                               </td>
@@ -1760,12 +1806,13 @@ const InventoryManagement = () => {
                                 )}
                               </td>
                               {/* The tag sits beside its row, scannable straight
-                                  off the screen. An appliance's serial is the
-                                  manufacturer's own — there is no tag of ours to
-                                  encode — and a retired tag would point at stock
-                                  that is gone, so both get a dash. */}
+                                  off the screen — whether the code is one we
+                                  generated or the supplier's own. An appliance's
+                                  serial is the manufacturer's own — there is no
+                                  tag of ours to encode — and a retired tag would
+                                  point at stock that is gone, so both get a dash. */}
                               <td className="invd-cell-barcode">
-                                {isPrintableTag(s) ? (
+                                {isScannableTag(s) ? (
                                   <Barcode
                                     value={s.serial_number}
                                     format="CODE128"
@@ -1786,7 +1833,7 @@ const InventoryManagement = () => {
                                   >
                                     Print tag
                                   </button>
-                                ) : s.is_material_tag
+                                ) : s.is_material_tag && s.serial_type === 'issued'
                                   ? <span className="invd-muted invd-small">Retired</span>
                                   : <span className="invd-muted">—</span>}
                               </td>
@@ -1959,7 +2006,10 @@ const InventoryManagement = () => {
                                   <td>{r.received_at ? new Date(r.received_at).toLocaleDateString('en-PH') : '—'}</td>
                                   <td>{r.received_by_name?.trim() || '—'}</td>
                                   <td>{r.product_name}</td>
-                                  <td>{r.quantity_amount}</td>
+                                  <td>
+                                    {r.quantity_amount}
+                                    <PackageShortfall row={r} />
+                                  </td>
                                   <td><StockInIdentifiers row={r} /></td>
                                 </tr>
                               ))}

@@ -154,6 +154,8 @@ class PoInventoryController extends Controller
                 'receiving_details.receiving_id',
                 'receiving_details.product_id',
                 'receiving_details.quantity_amount',
+                'receiving_details.packages_received',
+                'receiving_details.pieces_expected',
                 'receiving_details.scanned_barcode',
             ]);
 
