@@ -395,6 +395,16 @@ class ReceivingController extends Controller
                 ->selectRaw('po_detail_id, SUM(quantity_amount) as total_received')
                 ->pluck('total_received', 'po_detail_id');
 
+            // Packages are summed from what each row recorded, never derived from
+            // pieces: piece verification lets a package post fewer pieces than its
+            // nominal size, so dividing would floor a genuine 2 packs down to 1.
+            // Rows predating the column contribute 0 (COALESCE), which is also the
+            // right answer for appliances, where a package means nothing.
+            $receivedPackageSums = ReceivingDetail::whereIn('po_detail_id', $detailIds)
+                ->groupBy('po_detail_id')
+                ->selectRaw('po_detail_id, SUM(COALESCE(packages_received, 0)) as total_packages')
+                ->pluck('total_packages', 'po_detail_id');
+
             $scannedByLine = ReceivingDetail::whereIn('po_detail_id', $detailIds)
                 ->whereNotNull('scanned_barcode')
                 ->where('scanned_barcode', '!=', '')
@@ -406,8 +416,9 @@ class ReceivingController extends Controller
             $lines = $details->map(fn($d) => [
                 'po_detail_id'     => $d->po_detail_id,
                 'product_id'       => $d->product_id,
-                'already_received' => (int) ($receivedSums[$d->po_detail_id] ?? 0),
-                'scanned_barcodes' => $scannedByLine[$d->po_detail_id] ?? [],
+                'already_received'          => (int) ($receivedSums[$d->po_detail_id] ?? 0),
+                'already_received_packages' => (int) ($receivedPackageSums[$d->po_detail_id] ?? 0),
+                'scanned_barcodes'          => $scannedByLine[$d->po_detail_id] ?? [],
             ])->all();
 
             $productInfo = $details->keyBy('product_id')->map(fn($d) => [
