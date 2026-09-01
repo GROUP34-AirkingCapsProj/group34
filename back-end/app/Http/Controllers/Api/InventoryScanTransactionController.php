@@ -330,7 +330,15 @@ class InventoryScanTransactionController extends Controller
         }
 
         $overage = $poDetail
-            ? app(ReceivingPostingService::class)->checkOverage($poDetail, $product, $quantity)
+            // One scan is exactly one package for a consumable (see the note
+            // at the top of this method), so the package ceiling applies. A
+            // serialized appliance has no package concept and passes null.
+            ? app(ReceivingPostingService::class)->checkOverage(
+                $poDetail,
+                $product,
+                $quantity,
+                $isSerialized ? null : $packagesReceived
+            )
             : null;
         if ($overage !== null && ! $request->boolean('accept_overage')) {
             return $this->success($overage, 'Over-receipt requires confirmation');
