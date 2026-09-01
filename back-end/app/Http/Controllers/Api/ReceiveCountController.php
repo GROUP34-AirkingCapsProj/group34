@@ -27,6 +27,7 @@ class ReceiveCountController extends Controller
             'po_detail_id'   => 'required|integer|exists:purchase_order_details,po_detail_id',
             'location_id'    => 'nullable|exists:locations,location_id',
             'quantity'       => 'required|integer|min:1',
+            'actual_pieces'  => 'nullable|integer|min:0',
             'zone_label'     => 'nullable|string|max:100',
             'accept_overage' => 'nullable|boolean',
         ]);
@@ -81,9 +82,21 @@ class ReceiveCountController extends Controller
 
         $unitsEntered = (int) $validated['quantity'];
         $countUnit    = $product->consumableDetail?->count_unit ?? 'package';
-        $pieces       = $countUnit === 'piece'
-            ? $unitsEntered
-            : $unitsEntered * $product->getPiecesPerPackage();
+
+        if ($countUnit === 'piece') {
+            // The clerk counted pieces directly — expected and actual are the
+            // same thing, so there is nothing to verify and nothing to record.
+            $pieces           = $unitsEntered;
+            $packagesReceived = null;
+            $piecesExpected   = null;
+        } else {
+            // The expectation comes from the item master, never from the clerk.
+            $piecesExpected   = $unitsEntered * $product->getPiecesPerPackage();
+            $packagesReceived = $unitsEntered;
+            $pieces           = isset($validated['actual_pieces'])
+                ? (int) $validated['actual_pieces']
+                : $piecesExpected;
+        }
 
         $overage = $posting->checkOverage($poDetail, $product, $pieces);
         if ($overage !== null && ! $request->boolean('accept_overage')) {
@@ -106,7 +119,9 @@ class ReceiveCountController extends Controller
                 null,
                 $validated['zone_label'] ?? null,
                 $request->user()?->user_id,
-                $unitsEntered
+                $unitsEntered,
+                $packagesReceived,
+                $piecesExpected
             );
 
             if ($po) {
@@ -125,6 +140,8 @@ class ReceiveCountController extends Controller
             'quantity_received' => $result['pieces'],
             'units_entered'     => $unitsEntered,
             'count_unit'        => $countUnit,
+            'packages_received' => $packagesReceived,
+            'pieces_expected'   => $piecesExpected,
             'receiving_number'  => $result['receiving']->receiving_number,
             'batch_id'          => $result['batch']->batch_id,
             'tags'              => collect($result['tags'])->map(fn ($t) => [

@@ -82,6 +82,13 @@ class MaterialTagService
             // No code to adopt — fall back to a generated tag so the goods are
             // still identifiable. Reachable only if a caller bypasses the scan
             // endpoint's `required` barcode rule.
+            //
+            // This deliberately does NOT throw, unlike the serialized-appliance
+            // guard in ReceivingPostingService::mintTags(). An appliance with no
+            // serial is untraceable and must be refused outright. A material with
+            // no barcode is the normal case this generated tag exists to serve —
+            // materials are fungible by design, so a lot tag is a legitimate
+            // identity for them, not a workaround.
             return $this->createTag($product, $batch, $locationId, null, $referenceLabel, $userId);
         }
 

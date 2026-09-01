@@ -41,7 +41,9 @@ class ReceivingPostingService
         ?string $supplierBarcode = null,
         ?string $zoneLabel = null,
         ?int $userId = null,
-        int $unitsEntered = 1
+        int $unitsEntered = 1,
+        ?int $packagesReceived = null,
+        ?int $piecesExpected = null
     ): array {
         $piecesPerPackage = $product->isSerialized() ? 0 : $product->getPiecesPerPackage();
 
@@ -63,14 +65,16 @@ class ReceivingPostingService
         $batch = $this->accumulateBatch($receiving, $product, $locationId, $pieces, $zoneLabel);
 
         ReceivingDetail::create([
-            'receiving_id'    => $receiving->receiving_id,
-            'product_id'      => $product->product_id,
-            'po_detail_id'    => $poDetail?->po_detail_id,
-            'quantity_amount' => $pieces,
-            'prod_price'      => $product->cost_price ?? 0,
-            'condition'       => 'Good',
-            'scanned_barcode' => $supplierBarcode ?: null,
-            'entry_mode'      => $entryMode,
+            'receiving_id'      => $receiving->receiving_id,
+            'product_id'        => $product->product_id,
+            'po_detail_id'      => $poDetail?->po_detail_id,
+            'quantity_amount'   => $pieces,
+            'packages_received' => $packagesReceived,
+            'pieces_expected'   => $piecesExpected,
+            'prod_price'        => $product->cost_price ?? 0,
+            'condition'         => 'Good',
+            'scanned_barcode'   => $supplierBarcode ?: null,
+            'entry_mode'        => $entryMode,
         ]);
 
         $reference = $poDetail?->purchaseOrder?->po_number ?? 'RCV' . $receiving->receiving_number;
