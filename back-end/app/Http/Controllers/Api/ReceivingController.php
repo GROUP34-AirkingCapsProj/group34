@@ -405,6 +405,20 @@ class ReceivingController extends Controller
                 ->selectRaw('po_detail_id, SUM(COALESCE(packages_received, 0)) as total_packages')
                 ->pluck('total_packages', 'po_detail_id');
 
+            // A barcode proves a carton arrived; it says nothing about what was
+            // inside. A line counts as contents-verified only when NO row on it
+            // is still waiting to be opened and checked.
+            //
+            // NULL here means exactly one thing — an unopened carton. Rows
+            // predating the column were grandfathered by its migration rather
+            // than left NULL, so no cutoff date is needed to keep historical
+            // lines from nagging about receipts nobody can now check.
+            $unverifiedCounts = ReceivingDetail::whereIn('po_detail_id', $detailIds)
+                ->whereNull('contents_verified_at')
+                ->groupBy('po_detail_id')
+                ->selectRaw('po_detail_id, COUNT(*) as unverified')
+                ->pluck('unverified', 'po_detail_id');
+
             $scannedByLine = ReceivingDetail::whereIn('po_detail_id', $detailIds)
                 ->whereNotNull('scanned_barcode')
                 ->where('scanned_barcode', '!=', '')
@@ -419,6 +433,14 @@ class ReceivingController extends Controller
                 'already_received'          => (int) ($receivedSums[$d->po_detail_id] ?? 0),
                 'already_received_packages' => (int) ($receivedPackageSums[$d->po_detail_id] ?? 0),
                 'scanned_barcodes'          => $scannedByLine[$d->po_detail_id] ?? [],
+                // Serialized lines are exempt: an appliance is one unit carrying
+                // one serial, with no package contents anyone could check, so
+                // asking for verification would be a demand with no way to
+                // satisfy it. A line with nothing received yet is vacuously
+                // true — there is no unopened box on it.
+                'contents_verified'         => $d->product?->isSerialized()
+                    ? true
+                    : (int) ($unverifiedCounts[$d->po_detail_id] ?? 0) === 0,
             ])->all();
 
             $productInfo = $details->keyBy('product_id')->map(fn($d) => [

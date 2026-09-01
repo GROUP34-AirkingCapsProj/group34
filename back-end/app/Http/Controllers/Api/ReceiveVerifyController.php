@@ -227,7 +227,18 @@ class ReceiveVerifyController extends Controller
                 // Rows written by the count path already carry their own
                 // row-scoped figures for an entry that was never one package,
                 // so they are left as they are.
+                $verifiedAt = now();
+
                 foreach ($rows as $r) {
+                    // Verification is LINE-scoped: the clerk opened the boxes
+                    // for this line and reconciled all of them at once, so
+                    // every row it covers is stamped — including a counted row
+                    // that was already verified at entry, and a row the delta
+                    // happened to drain to zero. A row left NULL here would
+                    // read as "still unopened" and keep the line nagging after
+                    // the very check that answered it.
+                    $r->contents_verified_at = $verifiedAt;
+
                     if ($r->entry_mode === 'counted') {
                         continue;
                     }

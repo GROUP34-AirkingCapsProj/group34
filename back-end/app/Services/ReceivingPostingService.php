@@ -31,6 +31,10 @@ class ReceivingPostingService
 
     /**
      * @param  string  $entryMode  'scanned' | 'counted'
+     * @param  ?bool  $contentsVerified  True when a human confirmed what was
+     *         physically inside — which a hand count does by definition, and a
+     *         barcode scan never does. Threaded through here rather than
+     *         written by a controller so the single write path stays single.
      * @return array{receiving: Receiving, batch: InventoryBatch, pieces: int, tags: ItemSerial[]}
      */
     public function post(
@@ -44,7 +48,8 @@ class ReceivingPostingService
         ?int $userId = null,
         int $unitsEntered = 1,
         ?int $packagesReceived = null,
-        ?int $piecesExpected = null
+        ?int $piecesExpected = null,
+        ?bool $contentsVerified = null
     ): array {
         $piecesPerPackage = $product->isSerialized() ? 0 : $product->getPiecesPerPackage();
 
@@ -72,6 +77,10 @@ class ReceivingPostingService
             'quantity_amount'   => $pieces,
             'packages_received' => $packagesReceived,
             'pieces_expected'   => $piecesExpected,
+            // Stamped only when the caller states the contents were confirmed.
+            // Anything else — a scan, or a caller with no opinion — leaves NULL,
+            // which is the honest reading: the box has not been opened.
+            'contents_verified_at' => $contentsVerified ? now() : null,
             'prod_price'        => $product->cost_price ?? 0,
             'condition'         => 'Good',
             'scanned_barcode'   => $supplierBarcode ?: null,

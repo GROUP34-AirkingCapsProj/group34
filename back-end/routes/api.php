@@ -1105,6 +1105,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/inventory/scan-transaction', [InventoryScanTransactionController::class, 'store']);
         Route::post('/inventory/receive-count', \App\Http\Controllers\Api\ReceiveCountController::class);
         Route::post('/inventory/receive-verify', \App\Http\Controllers\Api\ReceiveVerifyController::class);
+        Route::post('/inventory/receive-topup', \App\Http\Controllers\Api\ReceiveTopUpController::class);
         Route::post('/barcode/scan', [BarcodeScanController::class, 'scanLookup']);
         Route::get('/barcode-scans', [BarcodeScanController::class, 'index']);
         Route::post('/barcode-scans', [BarcodeScanController::class, 'store']);

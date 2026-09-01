@@ -29,12 +29,21 @@ class ReceivingDetail extends Model
         'entry_mode',
         'packages_received',
         'pieces_expected',
+        'contents_verified_at',
     ];
 
     protected $casts = [
-        'prod_price'      => 'decimal:2',
-        'quantity_amount' => 'integer',
+        'prod_price'           => 'decimal:2',
+        'quantity_amount'      => 'integer',
+        'contents_verified_at' => 'datetime',
     ];
+
+    /**
+     * `contents_verified_at` has exactly one meaning: NULL is a package whose
+     * contents nobody has checked yet. Rows predating the column were
+     * backfilled by its migration rather than left NULL, so no reader needs a
+     * cutoff date to tell legacy data from a genuine unverified receipt.
+     */
 
     public function receiving(): BelongsTo
     {
