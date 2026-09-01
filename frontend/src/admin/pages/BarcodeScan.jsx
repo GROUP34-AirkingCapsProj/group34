@@ -798,9 +798,21 @@ const BarcodeScan = () => {
   const [bsrPoStatusLoading, setBsrPoStatusLoading] = useState(false);
   /** Count-entry escape hatch: material that arrives with no barcode to scan. */
   const [bsrCountMode, setBsrCountMode] = useState(false);
-  /** Pending over-receipt confirmation. Carries `viaScan` when it came from a scan. */
+  /**
+   * Pending over-receipt confirmation. Carries `viaScan` when it came from a
+   * scan and `viaVerify` when it came from the contents-verification panel, so
+   * the confirm button re-issues against the endpoint that raised it.
+   */
   const [bsrPendingOverage, setBsrPendingOverage] = useState(null);
   const [bsrCountBusy, setBsrCountBusy] = useState(false);
+  /**
+   * Contents verification for a line that was already SCANNED. Scanning posts
+   * each box at its printed contents; this reconciles the line once the boxes
+   * have actually been opened and counted.
+   */
+  const [bsrVerifyMode, setBsrVerifyMode] = useState(false);
+  /** Typed pieces; null means untouched, so the field shows the expectation. */
+  const [bsrVerifyPieces, setBsrVerifyPieces] = useState(null);
 
   // Receive PO: "Select PO" vs "History" tab, and the shared PO History modal.
   const [bsrTab, setBsrTab] = useState('select'); // 'select' | 'history'
@@ -1962,6 +1974,8 @@ const BarcodeScan = () => {
     lastTimeRef.current = 0;
     // A count in progress belongs to the line it was opened for.
     setBsrCountMode(false);
+    setBsrVerifyMode(false);
+    setBsrVerifyPieces(null);
     setBsrPendingOverage(null);
     // Tags belong to the receipt that minted them, not the line in general.
     setBsrLastTags(null);
@@ -2191,7 +2205,7 @@ const BarcodeScan = () => {
    * The lock matters more here than on the scan path: the count endpoint has no
    * barcode to dedupe on, so a double-submit genuinely posts twice.
    */
-  const bsrPostCount = useCallback(async (units, acceptOverage = false) => {
+  const bsrPostCount = useCallback(async ({ units, actualPieces = null }, acceptOverage = false) => {
     if (!bsrActiveLine || bsrProcessingRef.current) return;
     if (!bsrLocationId) {
       setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
@@ -2205,13 +2219,19 @@ const BarcodeScan = () => {
         location_id:  bsrLocationId,
         quantity:     units,
         zone_label:   bsrZoneLabel || null,
+        // Omitted entirely for a piece-counted line, where the units entered
+        // ARE the pieces and there is nothing separate to verify — that line
+        // must keep sending exactly the payload it always sent.
+        ...(actualPieces !== null && actualPieces !== undefined ? { actual_pieces: actualPieces } : {}),
         ...(acceptOverage ? { accept_overage: true } : {}),
       });
       const data   = res?.data ?? res;
       const action = data?.action ?? data?.status;
 
       if (action === 'over_receipt') {
-        setBsrPendingOverage({ ...data, units });
+        // Both figures are remembered: confirming must re-post the COUNTED
+        // pieces, not the per-package expectation the count was derived from.
+        setBsrPendingOverage({ ...data, units, actualPieces });
         return;
       }
       if (action === 'rejected') {
@@ -2288,6 +2308,79 @@ const BarcodeScan = () => {
       setBsrCountBusy(false);
     }
   }, [bsrActiveLine, bsrLocationId, bsrZoneLabel, bsrProductProgress, bsrSelectedPo]);
+
+  /**
+   * Reconcile an already-SCANNED line to the piece count the clerk verified
+   * after opening the packages. Scanning posts each box at its printed
+   * contents, so this applies the delta rather than posting a fresh receipt —
+   * which is why it must never be routed through receiveCount.
+   */
+  const bsrPostVerify = useCallback(async (packages, actualPieces, acceptOverage = false) => {
+    if (!bsrActiveLine || bsrProcessingRef.current) return;
+    if (!bsrLocationId) {
+      setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
+      return;
+    }
+    bsrProcessingRef.current = true; // lock — set before any await
+    setBsrCountBusy(true);
+    try {
+      const res = await inventoryAPI.receiveVerify({
+        po_detail_id:   bsrActiveLine.po_detail_id,
+        location_id:    bsrLocationId,
+        packages:       packages,
+        actual_pieces:  actualPieces,
+        ...(acceptOverage ? { accept_overage: true } : {}),
+      });
+      const data   = res?.data ?? res;
+      const action = data?.action ?? data?.status;
+
+      if (action === 'over_receipt') {
+        // `viaVerify` sends the confirmation back to receive-verify. Falling
+        // through to the count endpoint would post a fresh receipt on top of
+        // the boxes already scanned — double-receiving the goods.
+        setBsrPendingOverage({ ...data, packages, actualPieces, viaVerify: true });
+        return;
+      }
+      if (action === 'rejected') {
+        setBsrAlertModal({ type: 'error', title: 'Verification Rejected', message: data?.reason || 'Verification rejected.' });
+        return;
+      }
+
+      // applied — the endpoint returns the line's ABSOLUTE posted total, so
+      // progress is replaced rather than incremented.
+      const productName  = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
+      const productId    = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
+      const poDetailId   = bsrActiveLine.po_detail_id;
+      const pcs          = Number(bsrActiveLine.product?.pieces_per_package) || 1;
+      const orderedPcs   = Number(bsrActiveLine.quantity_ordered || 0) * pcs;
+      const newReceived  = Number(data?.posted_after ?? actualPieces) || 0;
+
+      setBsrPendingOverage(null);
+      setBsrVerifyMode(false);
+      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+
+      window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
+        detail: {
+          transaction_type: 'receiving',
+          po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
+          product_id: productId,
+        },
+      }));
+
+      const delta = Number(data?.delta ?? 0);
+      setBsrAlertModal({
+        type: 'success',
+        title: 'Contents Verified',
+        message: `${productName}: ${newReceived} pcs recorded${orderedPcs > 0 ? ` of ${orderedPcs} pcs on this line` : ''}`
+          + `${delta === 0 ? ' — count matched.' : delta < 0 ? ` — ${Math.abs(delta)} pcs short of what was scanned.` : ` — ${delta} pcs more than was scanned.`}`,
+      });
+    } catch (err) {
+      setBsrAlertModal({ type: 'error', title: 'Verification Failed', message: err?.message || 'Failed to verify contents.' });
+    } finally {
+      bsrProcessingRef.current = false;
+      setBsrCountBusy(false);
+    }
+  }, [bsrActiveLine, bsrLocationId, bsrSelectedPo]);
 
   const handleBsrScanSuccessDone = useCallback(() => {
     const result = bsrScanSuccess;
@@ -3643,13 +3736,13 @@ const BarcodeScan = () => {
                     onChange={handleBsrInputChange}
                     onKeyDown={handleBsrKeyDown}
                     autoComplete="off"
-                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || !!bsrPendingOverage}
+                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || !!bsrPendingOverage}
                   />
                   <button
                     type="button"
                     className="bsr-capture-btn"
                     onClick={handleBsrCaptureClick}
-                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || !!bsrPendingOverage || bsrScanInput.trim().length < 4}
+                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || !!bsrPendingOverage || bsrScanInput.trim().length < 4}
                     aria-label="Submit barcode"
                   >
                     {bsrScanning ? 'Scanning…' : 'Submit'}
@@ -3660,7 +3753,7 @@ const BarcodeScan = () => {
                     Hidden for serialized products — appliances must keep their
                     per-unit serial trail, which warranty lookup and incident
                     reports depend on. The backend rejects it too. */}
-                {bsrActiveLine && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine)) && !bsrCountMode && !bsrPendingOverage && (
+                {bsrActiveLine && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine)) && !bsrCountMode && !bsrVerifyMode && !bsrPendingOverage && (
                   <button
                     type="button"
                     className="bsr-count-toggle"
@@ -3670,6 +3763,113 @@ const BarcodeScan = () => {
                     Enter count instead
                   </button>
                 )}
+
+                {/* Contents verification for a line that has ALREADY been
+                    scanned: the boxes went in at their printed contents, and
+                    this reconciles the line to what the clerk actually found.
+                    Hidden until something has been scanned (there is no delta
+                    to apply otherwise) and hidden for serialized products —
+                    an appliance is one unit with a serial and has no package
+                    contents to verify. The backend rejects it too, but an
+                    always-failing control teaches pickers to distrust the UI. */}
+                {bsrActiveLine
+                  && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine))
+                  && (bsrProductProgress[bsrActiveLine.po_detail_id] || 0) > 0
+                  && !bsrCountMode && !bsrVerifyMode && !bsrPendingOverage && (
+                  <button
+                    type="button"
+                    className="bsr-verify-toggle"
+                    onClick={() => { setBsrVerifyPieces(null); setBsrVerifyMode(true); }}
+                    disabled={bsrScanning || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
+                  >
+                    Verify contents
+                  </button>
+                )}
+
+                {bsrVerifyMode && bsrActiveLine && !bsrPendingOverage && (() => {
+                  const pcs = Math.max(1, Number(
+                    bsrActiveLine.pieces_per_package ?? bsrActiveLine.product?.pieces_per_package,
+                  ) || 1);
+                  const received  = bsrProductProgress[bsrActiveLine.po_detail_id] || 0;
+                  // Packages the scans put in, derived from the pieces posted.
+                  // Rounded, not floored: a line already reconciled to 97 of
+                  // 100 must still read as the 2 packages that were scanned.
+                  const packages  = Math.max(1, Math.round(received / pcs) || 1);
+                  const expected  = packages * pcs;
+                  const display   = bsrVerifyPieces === null ? String(expected) : bsrVerifyPieces;
+                  const actual    = display !== '' && Number.isFinite(Number(display)) ? Number(display) : null;
+                  const diff      = actual === null ? 0 : actual - expected;
+                  const productName = bsrActiveLine.product?.product_name ?? bsrActiveLine.product?.name ?? 'Unknown Product';
+                  return (
+                    <form
+                      className="bsr-count-panel bsr-verify-panel"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (actual === null || bsrCountBusy) return;
+                        bsrPostVerify(packages, actual);
+                      }}
+                    >
+                      <div className="bsr-count-product">{productName}</div>
+                      <div className="bsr-count-remaining">
+                        {received} pcs posted from scanning — confirm what was really in the boxes
+                      </div>
+
+                      <label className="bsr-count-label" htmlFor="bsr-verify-packages">
+                        Packages scanned
+                      </label>
+                      <input
+                        id="bsr-verify-packages"
+                        type="number"
+                        className="bsr-count-input"
+                        value={packages}
+                        readOnly
+                        disabled
+                      />
+
+                      <label className="bsr-count-label" htmlFor="bsr-verify-pieces">
+                        Actual pieces received
+                      </label>
+                      <input
+                        id="bsr-verify-pieces"
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        className="bsr-count-input"
+                        value={display}
+                        disabled={bsrCountBusy}
+                        onChange={(e) => setBsrVerifyPieces(e.target.value)}
+                        autoFocus
+                      />
+
+                      {diff !== 0 && (
+                        <div className="bsr-count-pieces-diff" role="alert">
+                          {diff < 0
+                            ? `${Math.abs(diff)} pcs short of ${expected} expected`
+                            : `${diff} pcs more than expected`}
+                        </div>
+                      )}
+
+                      <div className="bsr-count-actions">
+                        <button
+                          type="button"
+                          className="bsr-btn-cancel"
+                          onClick={() => { setBsrVerifyMode(false); setBsrVerifyPieces(null); setBsrPendingOverage(null); }}
+                          disabled={bsrCountBusy}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="bsr-btn-complete"
+                          disabled={actual === null || bsrCountBusy}
+                        >
+                          {bsrCountBusy ? 'Verifying…' : 'Verify'}
+                        </button>
+                      </div>
+                    </form>
+                  );
+                })()}
 
                 {bsrCountMode && bsrActiveLine && !bsrPendingOverage && (
                   <CountEntryPanel
@@ -3687,7 +3887,7 @@ const BarcodeScan = () => {
                       already_received:   bsrProductProgress[bsrActiveLine.po_detail_id] || 0,
                     }}
                     busy={bsrCountBusy}
-                    onSubmit={(units) => bsrPostCount(units)}
+                    onSubmit={({ units, actualPieces }) => bsrPostCount({ units, actualPieces })}
                     onCancel={() => { setBsrCountMode(false); setBsrPendingOverage(null); }}
                   />
                 )}
@@ -3709,8 +3909,19 @@ const BarcodeScan = () => {
                           // record a hand count instead of the barcode receipt.
                           if (bsrPendingOverage.viaScan) {
                             handleBsrScan(bsrPendingOverage.barcode, true);
+                          } else if (bsrPendingOverage.viaVerify) {
+                            // A verify-originated overage reconciles a line that
+                            // is already in stock. Posting it as a count would
+                            // receive the goods a second time.
+                            bsrPostVerify(bsrPendingOverage.packages, bsrPendingOverage.actualPieces, true);
                           } else {
-                            bsrPostCount(bsrPendingOverage.units, true);
+                            // Re-sends the COUNTED pieces alongside the units —
+                            // dropping actualPieces here would post the
+                            // per-package expectation instead.
+                            bsrPostCount(
+                              { units: bsrPendingOverage.units, actualPieces: bsrPendingOverage.actualPieces ?? null },
+                              true,
+                            );
                           }
                         }}
                       >
@@ -3722,7 +3933,7 @@ const BarcodeScan = () => {
                         disabled={bsrCountBusy || bsrScanning}
                         onClick={() => setBsrPendingOverage(null)}
                       >
-                        {bsrPendingOverage.viaScan ? 'Cancel' : 'Re-count'}
+                        {bsrPendingOverage.viaScan || bsrPendingOverage.viaVerify ? 'Cancel' : 'Re-count'}
                       </button>
                     </div>
                   </div>

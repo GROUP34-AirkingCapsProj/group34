@@ -1178,6 +1178,39 @@
   background: #f9fafb;
 }
 
+/* ── Verify package contents (already-scanned line) ─────────────────────── */
+.bsr-verify-toggle {
+  display: block;
+  width: 100%;
+  margin: 6px 0 4px;
+  padding: 9px 14px;
+  background: #ffffff;
+  border: 1px dashed #0891b2;
+  border-radius: 8px;
+  color: #0891b2;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bsr-verify-toggle:hover { background: #ecfeff; }
+.bsr-verify-toggle:disabled {
+  border-color: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  background: #f9fafb;
+}
+.bsr-verify-panel {
+  margin: 10px 0 4px;
+  background: #f0fdff;
+  border: 1px solid #0891b2;
+  border-radius: 10px;
+}
+.bsr-verify-panel .bsr-count-input:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 /* ── Over-receipt confirmation ──────────────────────────────────────────── */
 .bsr-overage-confirm {
   margin: 12px 0 4px;
