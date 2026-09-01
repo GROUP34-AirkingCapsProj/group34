@@ -60,10 +60,15 @@ class MaterialTagService
     }
 
     /**
-     * Mint exactly one tag for a single scanned item, always — regardless of
-     * the product's count_unit. The scanned supplier barcode is stored
-     * alongside the newly generated serial so both identifiers travel on the
-     * same row.
+     * A material that arrived WITH a supplier barcode keeps that code as its
+     * identifier. No INT- serial is generated: a generated barcode exists only
+     * because an item arrived without one, and minting a second identifier for
+     * a labelled box is noise the warehouse has to reconcile.
+     *
+     * supplier_barcode is populated as well as serial_number, deliberately. It
+     * makes `supplier_barcode IS NOT NULL` the honest test for "this identity
+     * came from the supplier", instead of string-matching an INT- prefix whose
+     * format we control and could change.
      */
     public function mintForScan(
         Product $product,
@@ -73,7 +78,28 @@ class MaterialTagService
         string $referenceLabel,
         ?int $userId = null
     ): ItemSerial {
-        return $this->createTag($product, $batch, $locationId, $supplierBarcode, $referenceLabel, $userId);
+        if (! $supplierBarcode) {
+            // No code to adopt — fall back to a generated tag so the goods are
+            // still identifiable. Reachable only if a caller bypasses the scan
+            // endpoint's `required` barcode rule.
+            return $this->createTag($product, $batch, $locationId, null, $referenceLabel, $userId);
+        }
+
+        return ItemSerial::firstOrCreate(
+            [
+                'product_id'    => $product->product_id,
+                'location_id'   => $locationId,
+                'serial_number' => $supplierBarcode,
+            ],
+            [
+                'batch_id'         => $batch->batch_id,
+                'receiving_id'     => $batch->receiving_id,
+                'supplier_barcode' => $supplierBarcode,
+                'serial_type'      => 'received',
+                'scanned_by'       => $userId,
+                'status_id'        => ItemSerial::IN_STOCK_STATUS_ID,
+            ]
+        );
     }
 
     /**

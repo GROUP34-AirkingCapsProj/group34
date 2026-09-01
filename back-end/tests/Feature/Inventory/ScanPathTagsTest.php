@@ -69,7 +69,11 @@ class ScanPathTagsTest extends TestCase
 
         $tag = $tags->first();
         $this->assertSame($barcode, $tag->supplier_barcode);
-        $this->assertStringStartsWith('INT-', (string) $tag->serial_number);
+        // Design change: a generated barcode exists only because an item
+        // arrived without one. A scanned supplier code IS the identifier now,
+        // so serial_number carries the scanned code verbatim instead of a
+        // separately-minted INT- tag.
+        $this->assertSame($barcode, (string) $tag->serial_number);
 
         $entryMode = DB::table('receiving_details')
             ->where('receiving_id', $batch->receiving_id)
@@ -79,6 +83,6 @@ class ScanPathTagsTest extends TestCase
 
         $res->assertJsonCount(1, 'data.tags');
         $res->assertJsonPath('data.tags.0.supplier_barcode', $barcode);
-        $this->assertStringStartsWith('INT-', (string) $res->json('data.tags.0.serial_number'));
+        $this->assertSame($barcode, (string) $res->json('data.tags.0.serial_number'));
     }
 }
