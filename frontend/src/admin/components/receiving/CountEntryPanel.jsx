@@ -21,13 +21,19 @@ function pluralizeUnit(unit) {
  * endpoints, since the same shape of confirm-and-retry-with-accept_overage
  * flow differs by caller.
  *
- * `onSubmit` is called with the raw units entered (a number), matching
- * `count_unit` on `line` -- never the piece-converted total, since the
- * backend does that conversion itself and would double-convert package
- * counts otherwise.
+ * `onSubmit` is called with `{ units, actualPieces }`. `units` is the raw
+ * count entered, matching `count_unit` on `line` -- never the piece-converted
+ * total, since the backend does that conversion itself and would
+ * double-convert package counts otherwise. `actualPieces` is the clerk's
+ * verified piece count for a package-counted line (defaulting to the
+ * computed expectation until they edit it), or `null` for a piece-counted
+ * line, where the units entered already *are* the piece count and there is
+ * nothing separate to verify.
  */
 export default function CountEntryPanel({ line, onSubmit, onCancel, busy = false }) {
   const [value, setValue] = useState('');
+  const [piecesValue, setPiecesValue] = useState('');
+  const [piecesTouched, setPiecesTouched] = useState(false);
 
   const {
     product_name: productName,
@@ -71,9 +77,32 @@ export default function CountEntryPanel({ line, onSubmit, onCancel, busy = false
     ? `How many ${pluralizeUnit(packageUnit)}?`
     : 'How many pieces?';
 
+  // Expected pieces for a package-counted line is the package count times the
+  // per-package ratio -- the pre-fill the clerk is verifying against.
+  const expectedPieces = isPackage && convertedPieces !== null ? convertedPieces : null;
+
+  const piecesDisplayValue = isPackage
+    ? piecesTouched
+      ? piecesValue
+      : expectedPieces !== null
+        ? String(expectedPieces)
+        : ''
+    : '';
+
+  const actualPieces = useMemo(() => {
+    if (!isPackage) return null;
+    const n = Number(piecesDisplayValue);
+    return piecesDisplayValue !== '' && Number.isFinite(n) ? n : null;
+  }, [isPackage, piecesDisplayValue]);
+
+  const piecesDiff =
+    isPackage && expectedPieces !== null && actualPieces !== null
+      ? actualPieces - expectedPieces
+      : 0;
+
   const submit = () => {
     if (!isValid || busy) return;
-    onSubmit(enteredUnits);
+    onSubmit({ units: enteredUnits, actualPieces: isPackage ? actualPieces : null });
   };
 
   const handleFormSubmit = (e) => {
@@ -107,6 +136,36 @@ export default function CountEntryPanel({ line, onSubmit, onCancel, busy = false
 
       {isValid && convertedPieces !== null && (
         <div className="bsr-count-conversion">= {convertedPieces} pcs</div>
+      )}
+
+      {isPackage && (
+        <>
+          <label className="bsr-count-label" htmlFor="count-entry-pieces">
+            Actual pieces received
+          </label>
+          <input
+            id="count-entry-pieces"
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            className="bsr-count-input"
+            value={piecesDisplayValue}
+            disabled={busy}
+            onChange={(e) => {
+              setPiecesTouched(true);
+              setPiecesValue(e.target.value);
+            }}
+          />
+
+          {piecesDiff !== 0 && (
+            <div className="bsr-count-pieces-diff" role="alert">
+              {piecesDiff < 0
+                ? `${Math.abs(piecesDiff)} pcs short of ${expectedPieces} expected`
+                : `${piecesDiff} pcs more than expected`}
+            </div>
+          )}
+        </>
       )}
 
       {overage > 0 && (

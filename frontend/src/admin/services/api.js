@@ -780,6 +780,19 @@ export const inventoryAPI = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
+
+  /**
+   * Reconcile an already-scanned PO line to the piece count the clerk verified.
+   * Scanning posts each box at its expected contents, so this applies the delta
+   * once the boxes have actually been counted.
+   * body: { po_detail_id, location_id, packages, actual_pieces, accept_overage }.
+   * Returns { action: 'applied' | 'over_receipt' | 'rejected', ... }.
+   */
+  receiveVerify: async (data) =>
+    apiRequest('/inventory/receive-verify', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
 };
 
 /* ======================

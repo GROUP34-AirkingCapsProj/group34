@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CountEntryPanel from './CountEntryPanel';
 
@@ -57,8 +57,9 @@ test('onSubmit receives the units entered, not the converted piece total', async
   await userEvent.type(screen.getByLabelText(/how many boxes\?/i), '6');
   await userEvent.click(screen.getByRole('button', { name: /submit/i }));
 
-  // 6 boxes converts to 300 pcs -- onSubmit must see 6, not 300.
-  expect(onSubmit).toHaveBeenCalledWith(6);
+  // 6 boxes converts to 300 pcs -- onSubmit must see 6, not 300, as units,
+  // plus the verified actual piece count.
+  expect(onSubmit).toHaveBeenCalledWith({ units: 6, actualPieces: 300 });
 });
 
 test('an empty or zero count does not call onSubmit', async () => {
@@ -89,7 +90,7 @@ test('an over-count shows a warning but still allows submission', async () => {
   expect(submitBtn).not.toBeDisabled();
 
   await userEvent.click(submitBtn);
-  expect(onSubmit).toHaveBeenCalledWith(7);
+  expect(onSubmit).toHaveBeenCalledWith({ units: 7, actualPieces: 350 });
 });
 
 test('busy disables the submit control so a slow post cannot be double-submitted', () => {
@@ -98,6 +99,77 @@ test('busy disables the submit control so a slow post cannot be double-submitted
 
   expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
   expect(screen.getByLabelText(/how many boxes\?/i)).toBeDisabled();
+  expect(screen.getByLabelText(/actual pieces/i)).toBeDisabled();
+});
+
+describe('piece verification field', () => {
+  test('a package-counted line shows a pre-filled pieces field that follows the package count until edited', async () => {
+    render(<CountEntryPanel line={packageLine} onSubmit={jest.fn()} />);
+
+    const packagesInput = screen.getByLabelText(/how many boxes\?/i);
+    const piecesInput = screen.getByLabelText(/actual pieces/i);
+    expect(piecesInput).toHaveAttribute('id', 'count-entry-pieces');
+
+    await userEvent.type(packagesInput, '6');
+    expect(piecesInput).toHaveValue(300);
+
+    fireEvent.change(packagesInput, { target: { value: '4' } });
+    expect(piecesInput).toHaveValue(200);
+
+    // Now the clerk edits the pieces value directly -- it must stick even as
+    // the package count keeps changing.
+    fireEvent.change(piecesInput, { target: { value: '197' } });
+    expect(piecesInput).toHaveValue(197);
+
+    fireEvent.change(packagesInput, { target: { value: '5' } });
+    expect(piecesInput).toHaveValue(197);
+  });
+
+  test('editing below the expectation shows a shortfall', async () => {
+    render(<CountEntryPanel line={packageLine} onSubmit={jest.fn()} />);
+
+    const packagesInput = screen.getByLabelText(/how many boxes\?/i);
+    const piecesInput = screen.getByLabelText(/actual pieces/i);
+
+    fireEvent.change(packagesInput, { target: { value: '6' } });
+    fireEvent.change(piecesInput, { target: { value: '297' } });
+
+    expect(screen.getByText(/3 pcs short of 300 expected/i)).toBeInTheDocument();
+  });
+
+  test('editing above the expectation shows a surplus', async () => {
+    render(<CountEntryPanel line={packageLine} onSubmit={jest.fn()} />);
+
+    const packagesInput = screen.getByLabelText(/how many boxes\?/i);
+    const piecesInput = screen.getByLabelText(/actual pieces/i);
+
+    fireEvent.change(packagesInput, { target: { value: '6' } });
+    fireEvent.change(piecesInput, { target: { value: '305' } });
+
+    expect(screen.getByText(/5 pcs more than expected/i)).toBeInTheDocument();
+  });
+
+  test('onSubmit receives both the units and the verified actual piece count', async () => {
+    const onSubmit = jest.fn();
+    render(<CountEntryPanel line={packageLine} onSubmit={onSubmit} />);
+
+    const packagesInput = screen.getByLabelText(/how many boxes\?/i);
+    const piecesInput = screen.getByLabelText(/actual pieces/i);
+
+    fireEvent.change(packagesInput, { target: { value: '6' } });
+    fireEvent.change(piecesInput, { target: { value: '297' } });
+
+    await userEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith({ units: 6, actualPieces: 297 });
+  });
+
+  test('a piece-counted line shows no second field', () => {
+    render(<CountEntryPanel line={pieceLine} onSubmit={jest.fn()} />);
+
+    expect(screen.queryByLabelText(/actual pieces/i)).not.toBeInTheDocument();
+    expect(document.getElementById('count-entry-pieces')).toBeNull();
+  });
 });
 
 describe('package unit pluralization', () => {
@@ -123,7 +195,7 @@ describe('pieces_per_package floors at 1, matching Product::getPiecesPerPackage 
     expect(screen.getByText('= 6 pcs')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /submit/i }));
-    expect(onSubmit).toHaveBeenCalledWith(6);
+    expect(onSubmit).toHaveBeenCalledWith({ units: 6, actualPieces: 6 });
   });
 
   test('pieces_per_package of 0: entering 6 shows 6 pcs, not 0', async () => {
@@ -136,6 +208,6 @@ describe('pieces_per_package floors at 1, matching Product::getPiecesPerPackage 
     expect(screen.getByText('= 6 pcs')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /submit/i }));
-    expect(onSubmit).toHaveBeenCalledWith(6);
+    expect(onSubmit).toHaveBeenCalledWith({ units: 6, actualPieces: 6 });
   });
 });
