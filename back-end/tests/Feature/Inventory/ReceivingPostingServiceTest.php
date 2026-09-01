@@ -152,7 +152,7 @@ class ReceivingPostingServiceTest extends TestCase
         $this->assertSame(150, $second['batch']->fresh()->quantity_remaining);
     }
 
-    public function test_scan_path_mints_one_tag_carrying_the_supplier_barcode(): void
+    public function test_scan_path_records_one_row_keyed_by_the_supplier_code(): void
     {
         [$product, $location, , $poDetail] = $this->makeMaterialSetup(100, 10);
 
@@ -163,7 +163,11 @@ class ReceivingPostingServiceTest extends TestCase
         $this->assertCount(1, $result['tags']);
         $tag = $result['tags'][0];
         $this->assertSame('SUPPLIER-BC-999', $tag->supplier_barcode);
-        $this->assertStringStartsWith('INT-', $tag->serial_number);
+        // Design change: a generated barcode exists only because an item
+        // arrived without one. A scanned supplier code IS the identifier now,
+        // so serial_number carries the scanned code verbatim instead of a
+        // separately-minted INT- tag.
+        $this->assertSame('SUPPLIER-BC-999', $tag->serial_number);
     }
 
     public function test_serialized_product_keeps_its_scanned_serial(): void

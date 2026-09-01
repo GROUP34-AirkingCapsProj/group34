@@ -93,7 +93,11 @@ class MaterialTagServiceTest extends TestCase
         $tag = $service->mintForScan($product, $batch, $location->location_id, 'SUPPLIER-BC-123', 'RCV-001');
 
         $this->assertSame('SUPPLIER-BC-123', $tag->supplier_barcode);
-        $this->assertStringStartsWith('INT-', $tag->serial_number);
+        // Design change: a generated barcode exists only because an item
+        // arrived without one. A scanned supplier code IS the identifier now,
+        // so serial_number carries the scanned code verbatim instead of a
+        // separately-minted INT- tag.
+        $this->assertSame('SUPPLIER-BC-123', $tag->serial_number);
         $this->assertSame($batch->batch_id, $tag->batch_id);
     }
 

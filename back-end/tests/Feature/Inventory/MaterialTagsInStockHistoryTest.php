@@ -125,7 +125,7 @@ class MaterialTagsInStockHistoryTest extends TestCase
         }
     }
 
-    public function test_scanned_material_tag_carries_its_supplier_barcode(): void
+    public function test_scan_path_records_one_row_keyed_by_the_supplier_code(): void
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
@@ -144,7 +144,11 @@ class MaterialTagsInStockHistoryTest extends TestCase
         $records = $this->historyFor($user, $location, $product)['serial_records'];
 
         $this->assertCount(1, $records);
-        $this->assertStringStartsWith('INT-', $records[0]['serial_number']);
+        // Design change: a generated barcode exists only because an item
+        // arrived without one. A scanned supplier code IS the identifier now,
+        // so serial_number carries the scanned code verbatim instead of a
+        // separately-minted INT- tag.
+        $this->assertSame($barcode, $records[0]['serial_number']);
         $this->assertSame($barcode, $records[0]['supplier_barcode']);
         $this->assertTrue($records[0]['is_material_tag']);
     }
