@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\PurchaseOrderDetail;
+use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Services\PoReceivingStatusService;
 use App\Services\ReceivingPostingService;
@@ -137,13 +138,43 @@ class ReceiveVerifyController extends Controller
             $inventory->save();
 
             // The line's most recent receiving_details row carries the
-            // correction. A line scanned six times has six rows and the delta
-            // has to land on exactly one of them: the latest row is the one the
-            // clerk just finished scanning, and it is the row the verification
-            // panel is showing.
-            $row = ReceivingDetail::where('po_detail_id', $poDetail->po_detail_id)
+            // correction. The verification itself is stamped on the newest row
+            // — the one the clerk just finished scanning, and the one the
+            // verification panel is showing.
+            //
+            // The delta, however, is DISTRIBUTED across the line's rows newest
+            // first, draining each to zero before moving to the next, because a
+            // shortfall can be larger than any single row: six scans of 50
+            // reconciled to 20 is a delta of -280 against a newest row of 50.
+            // Clamping that at zero would leave SUM(quantity_amount) reading
+            // 250 while the ledger reads 20 — and that sum is not cosmetic.
+            // checkOverage() reads it as `already_received`, so the next scan
+            // would wave a genuine over-receipt through; PoReceivingStatusService
+            // reads it as `totalReceived` and could flip the PO to Completed,
+            // firing the committed-to-spent budget transition, on a delivery
+            // that barely arrived. BudgetService and reporting read it too.
+            //
+            // Letting the one row go negative would also make the sum exact and
+            // is less code, but quantity_amount is consumed elsewhere as a
+            // PHYSICAL count, not a signed correction: BarcodeAdjustmentController
+            // subtracts a single row's value from stock when voiding a scan
+            // (so a negative row would ADD stock), writes it into
+            // AdjustmentDetail::deduct_quantity, and InventoryController
+            // publishes it as a "Stock In" movement quantity. Distributing keeps
+            // every row a non-negative count, which is what those consumers
+            // already assume. The cost is that a drained row no longer
+            // corresponds to its own scan — acceptable, since verification is
+            // once per line rather than per box, so that correspondence was
+            // already only as strong as the arbitrary choice of newest row.
+            //
+            // The shortfall can never exceed the sum of the rows, because
+            // $posted IS that sum — so the distribution always absorbs the
+            // delta exactly and the loop cannot exit with a remainder.
+            $rows = ReceivingDetail::where('po_detail_id', $poDetail->po_detail_id)
                 ->orderByDesc('receiving_detail_id')
-                ->first();
+                ->get();
+
+            $row = $rows->first();
 
             if ($row) {
                 // The batch is found exactly as ReceivingPostingService::
@@ -176,8 +207,57 @@ class ReceiveVerifyController extends Controller
 
                 $row->packages_received = $packages;
                 $row->pieces_expected   = $expected;
-                $row->quantity_amount   = max(0, (int) $row->quantity_amount + $delta);
+
+                // How much each receiving header's rows moved, so the header
+                // totals can follow by exactly the amount taken from them.
+                $headerDeltas = [];
+
+                if ($delta >= 0) {
+                    // Extra pieces found in the boxes all belong to the newest
+                    // row; there is no floor to run into on the way up.
+                    $row->quantity_amount = (int) $row->quantity_amount + $delta;
+                    $headerDeltas[$row->receiving_id] = $delta;
+                } else {
+                    $shortfall = -$delta;
+
+                    foreach ($rows as $r) {
+                        if ($shortfall <= 0) {
+                            break;
+                        }
+                        $take = min($shortfall, (int) $r->quantity_amount);
+                        if ($take <= 0) {
+                            continue;
+                        }
+                        $r->quantity_amount = (int) $r->quantity_amount - $take;
+                        $shortfall -= $take;
+                        $headerDeltas[$r->receiving_id] = ($headerDeltas[$r->receiving_id] ?? 0) - $take;
+                        $r->save();
+                    }
+                }
+
+                // Saved unconditionally: when the delta is zero the loop above
+                // never runs, and the newest row still carries the verification
+                // stamp that records the line as checked.
                 $row->save();
+
+                // The header is incremented by every scan, so it has to follow
+                // the correction or it drifts from both SUM(quantity_amount)
+                // and the batch it funded. It feeds the receiving picker label
+                // and several reports. Floored at zero — it is a physical
+                // running total, like the batch columns.
+                foreach ($headerDeltas as $receivingId => $headerDelta) {
+                    if ($headerDelta === 0) {
+                        continue;
+                    }
+                    $receiving = Receiving::find($receivingId);
+                    if ($receiving) {
+                        $receiving->total_quantity_received = max(
+                            0,
+                            (int) $receiving->total_quantity_received + $headerDelta
+                        );
+                        $receiving->save();
+                    }
+                }
             }
 
             if ($po) {
