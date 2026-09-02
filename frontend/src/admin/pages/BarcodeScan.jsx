@@ -817,6 +817,17 @@ const BarcodeScan = () => {
   const [bsrVerifyMode, setBsrVerifyMode] = useState(false);
   /** Typed pieces; null means untouched, so the field shows the expectation. */
   const [bsrVerifyPieces, setBsrVerifyPieces] = useState(null);
+  /**
+   * Whether a line's contents have been verified, keyed by po_detail_id.
+   * Seeded from `contents_verified` on scan-status; set true locally after a
+   * successful verify or count (counting a line IS verifying it). A line with
+   * zero receipts reports this true vacuously (no box has been opened yet), so
+   * callers must gate the "unverified" prompt on receipts > 0.
+   */
+  const [bsrContentsVerified, setBsrContentsVerified] = useState({});
+  /** Top-up mode: entering loose pieces to complete a short package on a line. */
+  const [bsrTopUpMode, setBsrTopUpMode] = useState(false);
+  const [bsrTopUpPieces, setBsrTopUpPieces] = useState(null);
 
   // Receive PO: "Select PO" vs "History" tab, and the shared PO History modal.
   const [bsrTab, setBsrTab] = useState('select'); // 'select' | 'history'
@@ -1035,6 +1046,7 @@ const BarcodeScan = () => {
       setBsrScannedItems([]);
       setBsrProductProgress({});
       setBsrPackageProgress({});
+      setBsrContentsVerified({});
       setBsrPoSearchQ('');
       return;
     }
@@ -1849,6 +1861,7 @@ const BarcodeScan = () => {
     setBsrScannedItems([]);
     setBsrProductProgress({});
     setBsrPackageProgress({});
+    setBsrContentsVerified({});
     setBsrPoSearchQ('');
     setBsrScanInput('');
     setBsrActiveLine(null);
@@ -1882,11 +1895,17 @@ const BarcodeScan = () => {
     const receivableDetailIds = new Set(receivableLines.map((d) => d.po_detail_id).filter(Boolean));
 
     const prog = {};
+    const verifiedSeed = {};
     receivableLines.forEach((d) => {
-      if (d.po_detail_id) prog[d.po_detail_id] = 0;
+      if (d.po_detail_id) {
+        prog[d.po_detail_id] = 0;
+        // Nothing received yet, so there is no unopened box to flag.
+        verifiedSeed[d.po_detail_id] = true;
+      }
     });
     setBsrProductProgress(prog);
     setBsrPackageProgress({ ...prog });
+    setBsrContentsVerified(verifiedSeed);
 
     // Load existing receiving data for this PO from the database so that:
     // 1. Progress bars start at actual received quantities, not zero.
@@ -1902,6 +1921,7 @@ const BarcodeScan = () => {
         const receivedBarcodes = new Set();
         const updatedProg = { ...prog };
         const updatedPkgProg = { ...prog };
+        const updatedVerified = { ...verifiedSeed };
         lines.forEach((line) => {
           if (line.po_detail_id != null && line.already_received > 0) {
             updatedProg[line.po_detail_id] = line.already_received;
@@ -1909,12 +1929,16 @@ const BarcodeScan = () => {
           if (line.po_detail_id != null && line.already_received_packages > 0) {
             updatedPkgProg[line.po_detail_id] = line.already_received_packages;
           }
+          if (line.po_detail_id != null) {
+            updatedVerified[line.po_detail_id] = !!line.contents_verified;
+          }
           (line.scanned_barcodes || []).forEach((bc) => {
             if (bc) receivedBarcodes.add(bc.trim().toLowerCase());
           });
         });
         setBsrProductProgress(updatedProg);
         setBsrPackageProgress(updatedPkgProg);
+        setBsrContentsVerified(updatedVerified);
         setBsrPoReceivedBarcodes(receivedBarcodes);
 
         // Restore the scanned-items list from the DB history (newest first), scoped to this
@@ -2143,6 +2167,9 @@ const BarcodeScan = () => {
       // One scan is exactly one package. Appliances have no package count.
       if (!isSerialized) {
         setBsrPackageProgress((prev) => ({ ...prev, [poDetailId]: (prev[poDetailId] || 0) + 1 }));
+        // A freshly-scanned box is posted at its printed contents, not opened
+        // and counted — the line is unverified again until someone checks it.
+        setBsrContentsVerified((prev) => ({ ...prev, [poDetailId]: false }));
       }
       // Keep the local received-barcodes set in sync so subsequent scans of the
       // same barcode in this session are caught by the pre-check above.
@@ -2293,6 +2320,9 @@ const BarcodeScan = () => {
       if (!isSerialized) {
         setBsrPackageProgress((prev) => ({ ...prev, [poDetailId]: (prev[poDetailId] || 0) + Number(units || 0) }));
       }
+      // A hand count is a direct piece-by-piece tally — counting a line IS
+      // verifying it, so it never needs the separate verify step afterward.
+      setBsrContentsVerified((prev) => ({ ...prev, [poDetailId]: true }));
 
       if (data?.po_status) {
         const activePoId = bsrSelectedPo?.po_id ?? bsrSelectedPo?.id;
@@ -2381,6 +2411,7 @@ const BarcodeScan = () => {
       setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
       // bsrPackageProgress is deliberately untouched: verification corrects how
       // many PIECES were in the boxes, not how many boxes arrived.
+      setBsrContentsVerified((prev) => ({ ...prev, [poDetailId]: true }));
 
       window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
         detail: {
@@ -2404,6 +2435,79 @@ const BarcodeScan = () => {
       setBsrCountBusy(false);
     }
   }, [bsrActiveLine, bsrLocationId, bsrSelectedPo]);
+
+  /**
+   * Post loose pieces that complete a short package — e.g. a carton nominally
+   * holding 82 pieces that only had 68 inside. Posts with packages_received = 0
+   * on the backend, so it tops up the piece count without claiming another
+   * package against the PO's package budget.
+   */
+  const bsrPostTopUp = useCallback(async (pieces, acceptOverage = false) => {
+    if (!bsrActiveLine || bsrProcessingRef.current) return;
+    if (!bsrLocationId) {
+      setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
+      return;
+    }
+    bsrProcessingRef.current = true; // lock — set before any await
+    setBsrCountBusy(true);
+    try {
+      const res = await inventoryAPI.receiveTopUp({
+        po_detail_id: bsrActiveLine.po_detail_id,
+        location_id:  bsrLocationId,
+        pieces:       pieces,
+        ...(acceptOverage ? { accept_overage: true } : {}),
+      });
+      const data   = res?.data ?? res;
+      const action = data?.action ?? data?.status;
+
+      if (action === 'over_receipt') {
+        // `viaTopUp` routes the confirm button back to receiveTopUp — never to
+        // receiveCount, which would claim a package and reintroduce the bug
+        // where a short-package top-up silently counted as a whole new box.
+        setBsrPendingOverage({ ...data, pieces, viaTopUp: true });
+        return;
+      }
+      if (action === 'rejected') {
+        setBsrAlertModal({ type: 'error', title: 'Top-Up Rejected', message: data?.reason || 'Top-up rejected.' });
+        return;
+      }
+
+      // applied — loose pieces added on top of whatever was already posted;
+      // packages_received stayed 0 server-side so bsrPackageProgress is untouched.
+      const productName  = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
+      const productId    = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
+      const poDetailId   = bsrActiveLine.po_detail_id;
+      const pcs          = Number(bsrActiveLine.product?.pieces_per_package) || 1;
+      const orderedPcs   = Number(bsrActiveLine.quantity_ordered || 0) * pcs;
+      const qtyReceived  = data?.quantity_received ?? Number(pieces || 0);
+      const prevReceived = bsrProductProgress[poDetailId] || 0;
+      const newReceived  = prevReceived + qtyReceived;
+
+      setBsrPendingOverage(null);
+      setBsrTopUpMode(false);
+      setBsrTopUpPieces(null);
+      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+
+      window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
+        detail: {
+          transaction_type: 'receiving',
+          po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
+          product_id: productId,
+        },
+      }));
+
+      setBsrAlertModal({
+        type: 'success',
+        title: 'Missing Pieces Added',
+        message: `${qtyReceived} pcs of ${productName} added${orderedPcs > 0 ? ` — ${newReceived} of ${orderedPcs} pcs on this line` : ''}.`,
+      });
+    } catch (err) {
+      setBsrAlertModal({ type: 'error', title: 'Top-Up Failed', message: err?.message || 'Failed to add missing pieces.' });
+    } finally {
+      bsrProcessingRef.current = false;
+      setBsrCountBusy(false);
+    }
+  }, [bsrActiveLine, bsrLocationId, bsrProductProgress, bsrSelectedPo]);
 
   const handleBsrScanSuccessDone = useCallback(() => {
     const result = bsrScanSuccess;
@@ -3400,7 +3504,7 @@ const BarcodeScan = () => {
       const hasScans = Object.values(bsrProductProgress).some((v) => v > 0);
       const doExit = () => {
         void stopCamera();
-        setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({});
+        setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrContentsVerified({});
         setBsrScanInput(''); setBsrActiveLine(null);
       };
       if (hasScans) {
@@ -3526,8 +3630,34 @@ const BarcodeScan = () => {
                     const receivedPkgs = bsrPackageProgress[detailId]
                       || (received > 0 ? Math.floor(received / pps) : 0);
                     const pct = orderedPcs > 0 ? Math.min(100, (received / orderedPcs) * 100) : 0;
-                    const done = received >= orderedPcs && orderedPcs > 0;
+                    // A line with zero receipts reports contents_verified true
+                    // vacuously (there is no unopened box on it yet) — treat an
+                    // undefined flag the same way so an unseeded row stays quiet.
+                    const verified = bsrContentsVerified[detailId] !== false;
+                    // The packages counted claim more pieces than actually posted:
+                    // a "complete package" that arrived short inside.
+                    const shortfallPcs = (!isSerial && received > 0) ? (receivedPkgs * pps) - received : 0;
+                    const quantitiesMet = received >= orderedPcs && orderedPcs > 0;
+                    // Fully-received-but-unverified must NOT read as done — the
+                    // clerk still has to confirm what was actually inside.
+                    const done = quantitiesMet && (isSerial || verified);
+                    const showUnverifiedPrompt = !isSerial && received > 0 && !verified;
                     const isActive = bsrActiveLine?.po_detail_id === detailId;
+                    const openLineFor = (mode) => (e) => {
+                      e.stopPropagation();
+                      setBsrActiveLine(d);
+                      setBsrCountMode(false);
+                      setBsrPendingOverage(null);
+                      if (mode === 'topup') {
+                        setBsrVerifyMode(false);
+                        setBsrTopUpPieces(null);
+                        setBsrTopUpMode(true);
+                      } else if (mode === 'verify') {
+                        setBsrTopUpMode(false);
+                        setBsrVerifyPieces(null);
+                        setBsrVerifyMode(true);
+                      }
+                    };
                     return (
                       <div
                         key={detailId || pid || i}
@@ -3559,12 +3689,30 @@ const BarcodeScan = () => {
                           <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>
                             {isSerial
                               ? `${received} / ${ordered} units`
-                              : `${receivedPkgs} / ${ordered} pkg`}
+                              : `${receivedPkgs} / ${ordered} pkg  ·  ${received} / ${orderedPcs} pcs`}
                           </span>
                         </div>
                         <div className="bsr-progress-bar-wrap">
                           <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%` }}/>
                         </div>
+                        {shortfallPcs > 0 && (
+                          <button
+                            type="button"
+                            className="bsr-shortfall-btn"
+                            onClick={openLineFor('topup')}
+                          >
+                            {shortfallPcs} pcs short — add missing pieces
+                          </button>
+                        )}
+                        {showUnverifiedPrompt && (
+                          <button
+                            type="button"
+                            className="bsr-unverified-btn"
+                            onClick={openLineFor('verify')}
+                          >
+                            Contents not verified — confirm what was inside
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -3765,13 +3913,13 @@ const BarcodeScan = () => {
                     onChange={handleBsrInputChange}
                     onKeyDown={handleBsrKeyDown}
                     autoComplete="off"
-                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || !!bsrPendingOverage}
+                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || bsrTopUpMode || !!bsrPendingOverage}
                   />
                   <button
                     type="button"
                     className="bsr-capture-btn"
                     onClick={handleBsrCaptureClick}
-                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || !!bsrPendingOverage || bsrScanInput.trim().length < 4}
+                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || bsrTopUpMode || !!bsrPendingOverage || bsrScanInput.trim().length < 4}
                     aria-label="Submit barcode"
                   >
                     {bsrScanning ? 'Scanning…' : 'Submit'}
@@ -3782,11 +3930,11 @@ const BarcodeScan = () => {
                     Hidden for serialized products — appliances must keep their
                     per-unit serial trail, which warranty lookup and incident
                     reports depend on. The backend rejects it too. */}
-                {bsrActiveLine && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine)) && !bsrCountMode && !bsrVerifyMode && !bsrPendingOverage && (
+                {bsrActiveLine && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine)) && !bsrCountMode && !bsrVerifyMode && !bsrTopUpMode && !bsrPendingOverage && (
                   <button
                     type="button"
                     className="bsr-count-toggle"
-                    onClick={() => setBsrCountMode(true)}
+                    onClick={() => { setBsrTopUpMode(false); setBsrVerifyMode(false); setBsrCountMode(true); }}
                     disabled={bsrScanning || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
                   >
                     Enter count instead
@@ -3804,11 +3952,11 @@ const BarcodeScan = () => {
                 {bsrActiveLine
                   && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine))
                   && (bsrProductProgress[bsrActiveLine.po_detail_id] || 0) > 0
-                  && !bsrCountMode && !bsrVerifyMode && !bsrPendingOverage && (
+                  && !bsrCountMode && !bsrVerifyMode && !bsrTopUpMode && !bsrPendingOverage && (
                   <button
                     type="button"
                     className="bsr-verify-toggle"
-                    onClick={() => { setBsrVerifyPieces(null); setBsrVerifyMode(true); }}
+                    onClick={() => { setBsrTopUpMode(false); setBsrVerifyPieces(null); setBsrVerifyMode(true); }}
                     disabled={bsrScanning || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
                   >
                     Verify contents
@@ -3925,11 +4073,87 @@ const BarcodeScan = () => {
                   />
                 )}
 
+                {/* Top-up: loose pieces that complete a short package, entered
+                    directly from the shortfall line in the item list. Posts
+                    with packages_received = 0 so the package budget the clerk
+                    already reported is left untouched. */}
+                {bsrTopUpMode && bsrActiveLine && !bsrPendingOverage && (() => {
+                  const productName = bsrActiveLine.product?.product_name ?? bsrActiveLine.product?.name ?? 'Unknown Product';
+                  const pcs = Math.max(1, Number(
+                    bsrActiveLine.pieces_per_package ?? bsrActiveLine.product?.pieces_per_package,
+                  ) || 1);
+                  const received = bsrProductProgress[bsrActiveLine.po_detail_id] || 0;
+                  const packages = bsrPackageProgress[bsrActiveLine.po_detail_id] || 0;
+                  const shortfall = Math.max(0, (packages * pcs) - received);
+                  const display = bsrTopUpPieces === null ? String(shortfall || '') : bsrTopUpPieces;
+                  const pieces = display !== '' && Number.isFinite(Number(display)) ? Number(display) : null;
+                  return (
+                    <form
+                      className="bsr-count-panel bsr-topup-panel"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (pieces === null || pieces <= 0 || bsrCountBusy) return;
+                        bsrPostTopUp(pieces);
+                      }}
+                    >
+                      <div className="bsr-count-product">{productName}</div>
+                      <div className="bsr-count-remaining">
+                        {packages} package(s) received but only {received} pcs posted — add the pieces that were missing inside.
+                      </div>
+
+                      <label className="bsr-count-label" htmlFor="bsr-topup-pieces">
+                        Missing pieces to add
+                      </label>
+                      <input
+                        id="bsr-topup-pieces"
+                        type="number"
+                        min="1"
+                        step="1"
+                        inputMode="numeric"
+                        className="bsr-count-input"
+                        value={display}
+                        disabled={bsrCountBusy}
+                        onChange={(e) => setBsrTopUpPieces(e.target.value)}
+                        autoFocus
+                      />
+
+                      <div className="bsr-count-actions">
+                        <button
+                          type="button"
+                          className="bsr-btn-cancel"
+                          onClick={() => { setBsrTopUpMode(false); setBsrTopUpPieces(null); setBsrPendingOverage(null); }}
+                          disabled={bsrCountBusy}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="bsr-btn-complete"
+                          disabled={pieces === null || pieces <= 0 || bsrCountBusy}
+                        >
+                          {bsrCountBusy ? 'Adding…' : 'Add Pieces'}
+                        </button>
+                      </div>
+                    </form>
+                  );
+                })()}
+
                 {bsrPendingOverage && (
                   <div className="bsr-overage-confirm" role="alertdialog" aria-label="Confirm over-receipt">
                     <p className="bsr-overage-text">
-                      You counted {bsrPendingOverage.counted} pcs but only {bsrPendingOverage.remaining} pcs
-                      remain on this line ({bsrPendingOverage.overage} pcs over).
+                      {bsrPendingOverage.limit === 'packages'
+                        // Package ceiling: no piece keys on this payload — reading
+                        // ordered_pieces/remaining here would render blanks.
+                        ? (() => {
+                            const ordered = Number(bsrPendingOverage.ordered_packages || 0);
+                            const nth = Number(bsrPendingOverage.received_packages ?? ordered) + 1;
+                            const suffix = nth % 10 === 1 && nth % 100 !== 11 ? 'st'
+                              : nth % 10 === 2 && nth % 100 !== 12 ? 'nd'
+                              : nth % 10 === 3 && nth % 100 !== 13 ? 'rd' : 'th';
+                            return `You have received all ${ordered} packages for this line. Confirm to receive a ${nth}${suffix}?`;
+                          })()
+                        : `You counted ${bsrPendingOverage.counted} pcs but only ${bsrPendingOverage.remaining} pcs
+                      remain on this line (${bsrPendingOverage.overage} pcs over).`}
                     </p>
                     <div className="bsr-overage-actions">
                       <button
@@ -3947,6 +4171,12 @@ const BarcodeScan = () => {
                             // is already in stock. Posting it as a count would
                             // receive the goods a second time.
                             bsrPostVerify(bsrPendingOverage.packages, bsrPendingOverage.actualPieces, true);
+                          } else if (bsrPendingOverage.viaTopUp) {
+                            // A top-up overage must be re-posted through the TOP-UP
+                            // endpoint — routing it through receiveCount would claim
+                            // a whole package and reintroduce the "extra order"
+                            // over-count bug this feature exists to fix.
+                            bsrPostTopUp(bsrPendingOverage.pieces, true);
                           } else {
                             // Re-sends the COUNTED pieces alongside the units —
                             // dropping actualPieces here would post the
@@ -3966,7 +4196,7 @@ const BarcodeScan = () => {
                         disabled={bsrCountBusy || bsrScanning}
                         onClick={() => setBsrPendingOverage(null)}
                       >
-                        {bsrPendingOverage.viaScan || bsrPendingOverage.viaVerify ? 'Cancel' : 'Re-count'}
+                        {bsrPendingOverage.viaScan || bsrPendingOverage.viaVerify || bsrPendingOverage.viaTopUp ? 'Cancel' : 'Re-count'}
                       </button>
                     </div>
                   </div>
@@ -4076,7 +4306,7 @@ const BarcodeScan = () => {
                         title: 'Receiving Complete',
                         message: `All ordered items for ${poNum} have been received.${receiptDownloaded ? ' The receipt was opened and downloaded as a PDF.' : ''}`,
                         onDismiss: () => {
-                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrScanInput('');
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrContentsVerified({}); setBsrScanInput('');
                         },
                       });
                     } else {
@@ -4086,7 +4316,7 @@ const BarcodeScan = () => {
                         title: 'Partial Receiving Saved',
                         message: `${count} item(s) recorded for ${poNum}. This PO remains "Partially Received".${receiptDownloaded ? ' A partial receipt was opened and downloaded as a PDF.' : ''} You can resume scanning at any time.`,
                         onDismiss: () => {
-                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrScanInput('');
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrContentsVerified({}); setBsrScanInput('');
                         },
                       });
                     }
