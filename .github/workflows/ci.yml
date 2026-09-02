@@ -1,9 +1,14 @@
 # Verifies the repo builds on every push/PR so GitHub shows a green check before deploy.
 name: CI
 
+# Push runs on EVERY branch, not just the long-lived ones. Feature work here
+# lives on branches like backupV4 for weeks at a time, and restricting pushes to
+# main/master/develop meant 54 commits of receiving work — six migrations and
+# four new endpoints — landed with no CI run at all. A green check that only
+# appears after merge is a check that arrives too late to be worth having.
 on:
   push:
-    branches: [main, master, develop]
+    branches: ["**"]
   pull_request:
     branches: [main, master, develop]
 
