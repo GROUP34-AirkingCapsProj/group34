@@ -43,13 +43,22 @@ jobs:
     name: Backend (Composer + tests)
     runs-on: ubuntu-latest
 
-    # This project's schema is a phpMyAdmin SQL dump (airkingv5.sql at the repo
-    # root), NOT a migration chain. database/migrations holds only ALTER-style
-    # migrations that assume the base tables already exist — there has never
-    # been a create_locations_table, so `php artisan migrate` on an empty
-    # database fails on the very first migration. CI therefore stands up a
-    # MariaDB matching local dev and imports the dump, exactly like a developer
-    # workstation does.
+    # This project's schema is an SQL dump, NOT a migration chain.
+    # database/migrations holds only ALTER-style migrations that assume the base
+    # tables already exist — there has never been a create_locations_table, so
+    # `php artisan migrate` on an empty database fails on the very first
+    # migration. CI therefore stands up a MariaDB matching local dev and imports
+    # the dump, exactly like a developer workstation does.
+    #
+    # The dump it imports is back-end/database/ci-schema.sql, which is COMMITTED.
+    # This job used to import ../airkingv5.sql from the repo root and had never
+    # once succeeded: .gitignore line 62 is `/*.sql`, so every root-level dump is
+    # excluded from the repo and the runner only ever saw
+    # "../airkingv5.sql: No such file or directory".
+    #
+    # ci-schema.sql is schema plus lookup rows only — 82 tables and 16 INSERTs
+    # covering roles, permissions, statuses, units and locations. It carries no
+    # users, customers or suppliers, so no production data lives in the repo.
     services:
       mariadb:
         image: mariadb:10.4
@@ -130,17 +139,26 @@ jobs:
       - name: Import schema dump
         # phpunit.xml points the test suite at airkingV5_test on 127.0.0.1 as
         # root with an empty password, which is what the service provides.
-        run: mysql -h 127.0.0.1 -P 3306 -u root airkingV5_test < ../airkingv5.sql
+        #
+        # Path is relative to back-end/ (this job's working-directory), so this
+        # resolves to back-end/database/ci-schema.sql — a committed file, unlike
+        # the root-level dumps .gitignore excludes.
+        run: mysql -h 127.0.0.1 -P 3306 -u root airkingV5_test < database/ci-schema.sql
 
-      # The dump is a point-in-time snapshot and lags the code — it carries
-      # neither the incident_items/incident_evidence tables nor any of the
-      # 2026_08_* migrations in its `migrations` table. Importing it alone
-      # leaves ~150 incident tests failing against a schema three days old.
+      # The dump is a point-in-time snapshot and lags the code. Its `migrations`
+      # table records everything up to 2026_08_25; each migration added since
+      # then runs here for the first time against a clean base, which is exactly
+      # the check worth having — a migration that only ever ran against a
+      # developer's already-patched database has not really been tested.
       #
       # `migrate` works here even though it fails on an EMPTY database: the
       # dump supplies the base tables the ALTER-style migrations assume, and
       # every migration this repo adds on top is either a CREATE for a new
       # table or an ALTER on one the dump already has.
+      #
+      # When this dump is refreshed, regenerate it schema-only plus lookup rows
+      # (no users, customers or suppliers) so the repo stays free of production
+      # data.
       - name: Apply migrations added since the dump
         run: php artisan migrate --force --no-interaction
 
