@@ -1211,6 +1211,54 @@
   color: #6b7280;
 }
 
+/* ── Top-up (missing pieces on a short package) ──────────────────────────── */
+.bsr-topup-panel {
+  margin: 10px 0 4px;
+  background: #fff7ed;
+  border: 1px solid #ea580c;
+  border-radius: 10px;
+}
+.bsr-topup-panel .bsr-count-input:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* ── Package/pieces shortfall — the entry point into the top-up panel ───── */
+.bsr-shortfall-btn {
+  display: block;
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 7px 12px;
+  background: #fff7ed;
+  border: 1px solid #ea580c;
+  border-radius: 8px;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.bsr-shortfall-btn:hover { background: #ffedd5; }
+
+/* ── Unverified-contents nag on a line that otherwise reads as complete ──── */
+.bsr-unverified-btn {
+  display: block;
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 7px 12px;
+  background: #fef2f2;
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.bsr-unverified-btn:hover { background: #fee2e2; }
+
 /* ── Over-receipt confirmation ──────────────────────────────────────────── */
 .bsr-overage-confirm {
   margin: 12px 0 4px;

@@ -793,6 +793,13 @@ export const inventoryAPI = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
+
+  /**
+   * Record pieces that arrived after a short delivery — loose stock, not a new
+   * carton. Posts with packages_received = 0 so the package budget is untouched.
+   */
+  receiveTopUp: (data) =>
+    apiRequest('/inventory/receive-topup', { method: 'POST', body: JSON.stringify(data ?? {}) }),
 };
 
 /* ======================
