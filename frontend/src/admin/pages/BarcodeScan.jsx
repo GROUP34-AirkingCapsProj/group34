@@ -790,6 +790,9 @@ const BarcodeScan = () => {
   const [bsrDraft, setBsrDraft] = useState(null);
   const [bsrSubmitting, setBsrSubmitting] = useState(false);
   const [bsrSubmitFailures, setBsrSubmitFailures] = useState([]);
+  // Bumped after a submit to make the draft-open effect re-run when the PO and
+  // warehouse are unchanged but the previous draft has been posted and closed.
+  const [bsrDraftReloadKey, setBsrDraftReloadKey] = useState(0);
   const [bsrLocationId, setBsrLocationId] = useState('');
   const [bsrZoneLabel, setBsrZoneLabel] = useState('');
   const [bsrExistingZoneLabels, setBsrExistingZoneLabels] = useState([]);
@@ -1971,32 +1974,55 @@ const BarcodeScan = () => {
       }
     }
 
-    // Open or resume the staged delivery for this PO at this warehouse. A
-    // second clerk on the same truck lands on the same list rather than
-    // starting a rival one.
-    if (poId && bsrLocationId) {
-      try {
-        const draftRes = await receivingDraftsAPI.open({
-          po_id: poId,
-          location_id: bsrLocationId,
-        });
-        if (draftRes?.data?.action === 'rejected') {
+    setTimeout(() => bsrInputRef.current?.focus(), 100);
+  };
+
+  /**
+   * Open or resume the staged delivery for this PO at this warehouse.
+   *
+   * This has to be an effect rather than a step inside handleBsrSelectPo,
+   * because the warehouse is chosen AFTER the purchase order: only
+   * strict-location roles have bsrLocationId pre-filled, so for an admin or
+   * centralized user it is still empty when the PO is picked. Opening the
+   * draft there left bsrDraft null and every scan hit the "no delivery is
+   * open" guard.
+   *
+   * bsrDraftReloadKey is what re-runs this after a submit, when the PO and
+   * location have not changed but the old draft has been posted and closed.
+   */
+  useEffect(() => {
+    if (scanMode?.key !== 'receive-po' || !bsrSelectedPo || !bsrLocationId) {
+      setBsrDraft(null);
+      return;
+    }
+
+    const poId = bsrSelectedPo?.po_id ?? bsrSelectedPo?.id;
+    if (!poId) {
+      setBsrDraft(null);
+      return;
+    }
+
+    let cancelled = false;
+    receivingDraftsAPI.open({ po_id: poId, location_id: bsrLocationId })
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.data?.action === 'rejected') {
+          setBsrDraft(null);
           setBsrAlertModal({
             type: 'error',
             title: 'Cannot Receive',
-            message: draftRes.data.reason,
+            message: res.data.reason,
           });
-          setBsrDraft(null);
-        } else {
-          setBsrDraft(draftRes?.data ?? null);
+          return;
         }
-      } catch {
-        setBsrDraft(null);
-      }
-    }
+        setBsrDraft(res?.data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setBsrDraft(null);
+      });
 
-    setTimeout(() => bsrInputRef.current?.focus(), 100);
-  };
+    return () => { cancelled = true; };
+  }, [scanMode?.key, bsrSelectedPo, bsrLocationId, bsrDraftReloadKey]);
 
   useEffect(() => {
     if (scanMode?.key !== 'receive-po' || !bsrSelectedPo || !bsrLocationId) {
@@ -2464,8 +2490,11 @@ const BarcodeScan = () => {
       setBsrDraft(null);
       toast.success(`Posted ${payload.items_posted} item(s) — ${payload.receiving_number}`);
 
-      // Posted progress has moved, so re-read it and open a fresh delivery.
+      // Posted progress has moved, so re-read it. Bumping the reload key opens
+      // the next delivery — handleBsrSelectPo no longer does that itself, and
+      // the effect's other deps are unchanged by a submit.
       await handleBsrSelectPo(bsrSelectedPo);
+      setBsrDraftReloadKey((k) => k + 1);
     } catch {
       toast.error('Submit failed');
     } finally {
