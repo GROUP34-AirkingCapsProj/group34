@@ -13,7 +13,7 @@ class PoApproveReserveTest extends BudgetTestCase
         return (int) (DB::table('products')->value('product_id')
             ?? DB::table('products')->insertGetId([
                 'product_name' => 'P ' . uniqid(), 'product_code' => 'P-' . strtoupper(substr(uniqid(), -6)),
-                'product_type' => 'consumable', 'created_at' => now(), 'updated_at' => now(),
+                'product_type' => 'installation_material', 'created_at' => now(), 'updated_at' => now(),
             ], 'product_id'));
     }
 

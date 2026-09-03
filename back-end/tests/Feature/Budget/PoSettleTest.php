@@ -23,7 +23,7 @@ class PoSettleTest extends BudgetTestCase
             ?? DB::table('products')->insertGetId([
                 'product_name' => 'Budget Test Product ' . uniqid(),
                 'product_code' => 'BTP-' . strtoupper(substr(uniqid(), -6)),
-                'product_type' => 'consumable',
+                'product_type' => 'installation_material',
                 'created_at'   => now(),
                 'updated_at'   => now(),
             ], 'product_id'));
