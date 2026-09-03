@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * The domain rows the test suite reads rather than creates.
@@ -71,7 +72,11 @@ class TestBaselineSeeder extends Seeder
                 // empty rather than as wrong.
                 'location_id'          => null,
                 'status_id'            => $statusId,
-                'password_hash'        => Hash::make('test-admin-password'),
+                // Random, and never recorded anywhere: the tests reach this
+                // account through actingAs(), so no caller needs the password,
+                // and a fixed one committed to a public repo would be an admin
+                // login waiting for whoever runs this seeder off-target.
+                'password_hash'        => Hash::make(Str::random(48)),
                 'must_change_password' => 0,
                 'created_at'           => now(),
                 'updated_at'           => now(),
