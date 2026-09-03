@@ -276,4 +276,28 @@ class ReceivingDraftStagingTest extends TestCase
         // The barcode is free again, so the goods can be re-received.
         $this->assertNull(ReceivingDraft::openFor((int) $poDetail->po_id, (int) $location->location_id));
     }
+
+    public function test_po_scan_status_reports_an_open_draft(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeConsumable(50);
+        $poDetail = $this->makePoLine($product, $location, 10);
+
+        $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
+            'po_id' => $poDetail->po_id, 'location_id' => $location->location_id,
+        ])->json('data.draft_id');
+
+        $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", [
+            'po_detail_id' => $poDetail->po_detail_id,
+            'entry_mode'   => 'scanned',
+            'barcode'      => 'BOX-BADGE',
+        ])->assertOk();
+
+        $res = $this->actingAs($user)->getJson("/api/receivings/po-scan-status/{$poDetail->po_id}");
+
+        $res->assertOk();
+        $this->assertSame(1, (int) $res->json('data.open_draft.staged_count'));
+        $this->assertSame(50, (int) $res->json('data.open_draft.staged_pieces'));
+    }
 }

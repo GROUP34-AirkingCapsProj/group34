@@ -1407,3 +1407,13 @@
 .bsr-btn-submit-draft:disabled { background: #9ca3af; cursor: not-allowed; }
 .bsr-btn-accept-overage { width: 100%; margin-top: 0.4rem; padding: 0.5rem; border: 1px solid #b45309; border-radius: 6px; background: #fff; color: #b45309; cursor: pointer; }
 .bsr-line-staged { font-size: 0.8rem; color: #b45309; font-style: italic; margin-left: 0.4rem; }
+
+.bsr-draft-badge {
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.82rem;
+  color: #92400e;
+  margin: 0.5rem 0;
+}

@@ -10,6 +10,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use App\Models\ReceivingDraft;
 use App\Services\AirconLineGrouper;
 use App\Services\BudgetService;
 use App\Services\InventoryBatchService;
@@ -470,7 +471,27 @@ class ReceivingController extends Controller
                 })
                 ->all();
 
-            return $this->success(['lines' => $lines, 'scan_history' => $scanHistory], 'PO scan status retrieved');
+            // An open draft means goods are physically on the floor but not in
+            // inventory. Surfaced here, not acted on: the receiving screen shows a
+            // badge so the clerk resumes rather than starting over, and a human
+            // always decides whether it posts or is discarded.
+            $openDraft = ReceivingDraft::where('po_id', $poId)
+                ->where('status', 'open')
+                ->withCount('items')
+                ->first();
+
+            $openDraftPayload = $openDraft ? [
+                'draft_id'      => (int) $openDraft->draft_id,
+                'location_id'   => (int) $openDraft->location_id,
+                'staged_count'  => (int) $openDraft->items_count,
+                'staged_pieces' => $openDraft->stagedPieces(),
+                'opened_at'     => $openDraft->created_at?->toIso8601String(),
+            ] : null;
+
+            return $this->success(
+                ['lines' => $lines, 'scan_history' => $scanHistory, 'open_draft' => $openDraftPayload],
+                'PO scan status retrieved'
+            );
         } catch (\Exception $e) {
             return $this->error('Failed to retrieve PO scan status: ' . $e->getMessage(), 500);
         }
