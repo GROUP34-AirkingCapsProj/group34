@@ -2856,8 +2856,10 @@ Expected: PASS. `CountEntryPanel.test.jsx` and `poReceivingTotals.test.js` must 
 
 - [ ] **Step 3: Confirm the untouched files really are untouched**
 
+Compare against **`253785f`** — the plan commit, the last commit before Task 1 — **not** against `main`. This branch (`backupV4`) already carries substantial earlier receiving work: `ReceivingPostingService.php` and `CountEntryPanel.jsx` do not exist on `main` at all, so diffing against `main` reports ~726 changed lines that have nothing to do with this feature and makes the check useless.
+
 ```bash
-git diff main --stat -- back-end/app/Services/ReceivingPostingService.php back-end/app/Http/Controllers/Api/ReceiveCountController.php back-end/app/Http/Controllers/Api/ReceiveVerifyController.php back-end/app/Http/Controllers/Api/ReceiveTopUpController.php back-end/app/Http/Controllers/Api/InventoryScanTransactionController.php frontend/src/admin/components/receiving/CountEntryPanel.jsx
+git diff 253785f --stat -- back-end/app/Services/ReceivingPostingService.php back-end/app/Http/Controllers/Api/ReceiveCountController.php back-end/app/Http/Controllers/Api/ReceiveVerifyController.php back-end/app/Http/Controllers/Api/ReceiveTopUpController.php back-end/app/Http/Controllers/Api/InventoryScanTransactionController.php frontend/src/admin/components/receiving/CountEntryPanel.jsx
 ```
 
 Expected: **empty output**. The design's central claim is that the code moving stock did not change. If any of these files appear, the replay approach was abandoned somewhere and the plan needs revisiting before merge.
