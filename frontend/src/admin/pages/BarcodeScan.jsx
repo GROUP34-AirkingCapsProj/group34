@@ -2409,6 +2409,70 @@ const BarcodeScan = () => {
     setTimeout(() => bsrInputRef.current?.focus(), 80);
   }, []);
 
+  /** Remove a staged row. This is the fix for a mis-selected line. */
+  const handleBsrRemoveStaged = useCallback(async (itemId) => {
+    if (!bsrDraft) return;
+    try {
+      const res = await receivingDraftsAPI.removeItem(bsrDraft.draft_id, itemId);
+      setBsrDraft(res?.data?.draft ?? null);
+      setBsrSubmitFailures((prev) => prev.filter((f) => f.draft_item_id !== itemId));
+    } catch {
+      toast.error('Could not remove that row');
+    }
+  }, [bsrDraft]);
+
+  /** Correct the pieces on a staged row after opening a short box. */
+  const handleBsrAdjustStaged = useCallback(async (itemId, actualPieces) => {
+    if (!bsrDraft) return;
+    try {
+      const res = await receivingDraftsAPI.updateItem(bsrDraft.draft_id, itemId, {
+        actual_pieces: actualPieces,
+      });
+      setBsrDraft(res?.data?.draft ?? null);
+    } catch {
+      toast.error('Could not update that row');
+    }
+  }, [bsrDraft]);
+
+  /**
+   * The only action that moves stock. All-or-nothing: a blocked submit leaves
+   * the draft exactly as it was, with the offending rows flagged.
+   */
+  const handleBsrSubmitDraft = useCallback(async (acceptOverage = false) => {
+    if (!bsrDraft || bsrSubmitting) return;
+    setBsrSubmitting(true);
+    setBsrSubmitFailures([]);
+    try {
+      const res = await receivingDraftsAPI.submit(bsrDraft.draft_id, acceptOverage);
+      const payload = res?.data;
+
+      if (payload?.action === 'failed') {
+        setBsrSubmitFailures(payload.failures || []);
+        setBsrAlertModal({
+          type: 'error',
+          title: 'Nothing Was Posted',
+          message: payload.message || 'Fix the flagged rows and submit again.',
+        });
+        return;
+      }
+
+      setBsrLastTags(
+        Array.isArray(payload?.tags) && payload.tags.length > 0
+          ? { tags: payload.tags, productName: 'This delivery' }
+          : null,
+      );
+      setBsrDraft(null);
+      toast.success(`Posted ${payload.items_posted} item(s) — ${payload.receiving_number}`);
+
+      // Posted progress has moved, so re-read it and open a fresh delivery.
+      await handleBsrSelectPo(bsrSelectedPo);
+    } catch {
+      toast.error('Submit failed');
+    } finally {
+      setBsrSubmitting(false);
+    }
+  }, [bsrDraft, bsrSubmitting, bsrSelectedPo]);
+
   const handleBsrInputChange = (e) => {
     setBsrScanInput(e.target.value);
   };
@@ -3362,7 +3426,7 @@ const BarcodeScan = () => {
   ───────────────────────────────────────────── */
   if (scanMode?.key === 'receive-po' && bsrSelectedPo) {
     const poDetails = bsrLinesForLocation(bsrSelectedPo, myLocationId);
-    const totalScanned = bsrScannedItems.length;
+    const totalScanned = bsrDraft?.staged_count ?? 0;
 
     // True only when every ordered line has been fully received.
     const isFullyReceived = poDetails.length > 0 && poDetails.every((d) => {
@@ -3516,6 +3580,12 @@ const BarcodeScan = () => {
                     // clerk still has to confirm what was actually inside.
                     const done = quantitiesMet && (isSerial || verified);
                     const showUnverifiedPrompt = !isSerial && received > 0 && !verified;
+                    // Staged (not yet posted) is a separate fact from received
+                    // (already posted) — shown side by side so the two are never
+                    // mistaken for one another.
+                    const staged = (bsrDraft?.items || [])
+                      .filter((it) => it.po_detail_id === detailId)
+                      .reduce((sum, it) => sum + it.quantity_amount, 0);
                     const isActive = bsrActiveLine?.po_detail_id === detailId;
                     const openLineFor = (mode) => (e) => {
                       e.stopPropagation();
@@ -3565,6 +3635,7 @@ const BarcodeScan = () => {
                               ? `${received} / ${ordered} units`
                               : `${receivedPkgs} / ${ordered} pkg  ·  ${received} / ${orderedPcs} pcs`}
                           </span>
+                          {staged > 0 && <span className="bsr-line-staged">+{staged} staged</span>}
                         </div>
                         <div className="bsr-progress-bar-wrap">
                           <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%` }}/>
@@ -4109,41 +4180,103 @@ const BarcodeScan = () => {
               <div className="bsr-card">
                 <div className="bsr-card-head">
                   <div className="bsr-card-icon bsr-card-icon--cart"><BsrCartIcon size={18} /></div>
-                  <span className="bsr-card-title">SCANNED ITEMS</span>
-                  <span className="bsr-scanned-count">{totalScanned} {totalScanned === 1 ? 'item' : 'items'}</span>
+                  <span className="bsr-card-title">STAGED FOR THIS DELIVERY</span>
+                  <span className="bsr-scanned-count">{bsrDraft?.staged_count ?? 0} {(bsrDraft?.staged_count ?? 0) === 1 ? 'item' : 'items'}</span>
                 </div>
-                {bsrScannedItems.length === 0 ? (
+                {!bsrDraft || (bsrDraft.items || []).length === 0 ? (
                   <div className="bsr-scanned-empty">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
                       <rect x="2" y="5" width="3" height="14" rx="1"/><rect x="7" y="5" width="1.5" height="14" rx="0.5"/>
                       <rect x="10" y="5" width="3" height="14" rx="1"/><rect x="15" y="5" width="1.5" height="14" rx="0.5"/>
                       <rect x="18" y="5" width="3" height="14" rx="1"/>
                     </svg>
-                    <p>No items scanned yet</p>
+                    <p>Nothing staged yet</p>
                   </div>
                 ) : (
-                  <div className="bsr-scanned-list">
-                    {bsrScannedItems.map((item) => (
-                      <div key={item.id} className="bsr-scanned-item">
-                        <div className="bsr-scanned-item-info">
-                          <span className="bsr-scanned-item-name">{item.productName}</span>
-                          {item.serial && (
-                            <span className="bsr-scanned-item-serial">
-                              Serial No.: <strong>{item.serial}</strong>
+                  <div className="bsr-staged">
+                    <div className="bsr-staged-note">
+                      Nothing below is in inventory yet — check the list, then submit.
+                    </div>
+
+                    {(bsrDraft.items || []).map((item) => {
+                      const failure = bsrSubmitFailures.find((f) => f.draft_item_id === item.draft_item_id);
+                      return (
+                        <div
+                          key={item.draft_item_id}
+                          className={`bsr-staged-row${failure ? ' bsr-staged-row-failed' : ''}`}
+                        >
+                          <div className="bsr-staged-main">
+                            <span className="bsr-staged-product">{item.product_name}</span>
+                            <span className="bsr-staged-qty">
+                              {item.packages_received != null
+                                ? `${item.packages_received} pkg · ${item.quantity_amount} pcs`
+                                : `${item.quantity_amount} pc(s)`}
                             </span>
+                            {item.scanned_barcode && (
+                              <span className="bsr-staged-code">{item.scanned_barcode}</span>
+                            )}
+                          </div>
+
+                          {item.pieces_expected != null && item.quantity_amount !== item.pieces_expected && (
+                            <div className="bsr-staged-short">
+                              {item.pieces_expected - item.quantity_amount} pcs short of {item.pieces_expected} expected
+                            </div>
                           )}
-                          {item.packages != null && item.qty != null && (
-                            <span className="bsr-scanned-item-serial">
-                              {`${item.packages} pkg${item.packages !== 1 ? 's' : ''} × ${item.qty / item.packages} pcs = ${item.qty} pcs`}
-                            </span>
+
+                          {failure && (
+                            <div className="bsr-staged-failure" role="alert">{failure.reason}</div>
                           )}
-                          {!item.serial && item.packages == null && item.qty != null && (
-                            <span className="bsr-scanned-item-serial">{item.qty} pcs</span>
-                          )}
+
+                          <div className="bsr-staged-actions">
+                            {item.packages_received != null && (
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                className="bsr-staged-pieces"
+                                defaultValue={item.quantity_amount}
+                                aria-label={`Actual pieces for ${item.product_name}`}
+                                onBlur={(e) => {
+                                  const next = Number(e.target.value);
+                                  if (Number.isFinite(next) && next !== item.quantity_amount) {
+                                    handleBsrAdjustStaged(item.draft_item_id, next);
+                                  }
+                                }}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              className="bsr-btn-remove"
+                              onClick={() => handleBsrRemoveStaged(item.draft_item_id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
-                        <span className="bsr-scanned-item-time">{item.at}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      className="bsr-btn-submit-draft"
+                      disabled={bsrSubmitting}
+                      onClick={() => handleBsrSubmitDraft(false)}
+                    >
+                      {bsrSubmitting
+                        ? 'Submitting…'
+                        : `Submit ${bsrDraft.staged_count} item(s) to inventory`}
+                    </button>
+
+                    {bsrSubmitFailures.some((f) => f.detail?.action === 'over_receipt') && (
+                      <button
+                        type="button"
+                        className="bsr-btn-accept-overage"
+                        disabled={bsrSubmitting}
+                        onClick={() => handleBsrSubmitDraft(true)}
+                      >
+                        Accept the overage and submit anyway
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -4763,7 +4896,7 @@ const BarcodeScan = () => {
                       : scanResult.transactionEngineApplied
                         ? 'Stock for this scan was already updated on the server. You do not need to post again.'
                         : mode.key === 'receive-po'
-                          ? 'Each accepted scan posts receiving on the server. Execute is not required for normal receiving.'
+                          ? 'Scans and counts are staged for review. Nothing reaches inventory until you press Submit.'
                           : 'Post transaction using scanned barcode'}
                 </span>
               </div>
