@@ -123,4 +123,157 @@ class ReceivingDraftStagingTest extends TestCase
 
         $this->assertSame(0, ReceivingDraftItem::where('draft_id', $draftId)->count());
     }
+
+    public function test_opening_a_draft_twice_resumes_the_same_one(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeConsumable();
+        $poDetail = $this->makePoLine($product, $location);
+
+        $payload = ['po_id' => $poDetail->po_id, 'location_id' => $location->location_id];
+
+        $first  = $this->actingAs($user)->postJson('/api/receiving-drafts', $payload);
+        $first->assertOk();
+        $firstId = $first->json('data.draft_id');
+
+        $second = $this->actingAs($user)->postJson('/api/receiving-drafts', $payload);
+        $second->assertOk();
+
+        $this->assertSame($firstId, $second->json('data.draft_id'), 'A second clerk must resume the open draft, not start a rival list.');
+    }
+
+    public function test_staging_a_scan_records_a_row_and_moves_no_stock(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeConsumable(50);
+        $poDetail = $this->makePoLine($product, $location, 10);
+
+        $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
+            'po_id' => $poDetail->po_id, 'location_id' => $location->location_id,
+        ])->json('data.draft_id');
+
+        $res = $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", [
+            'po_detail_id' => $poDetail->po_detail_id,
+            'entry_mode'   => 'scanned',
+            'barcode'      => 'BOX-A',
+        ]);
+
+        $res->assertOk();
+        $res->assertJsonPath('data.action', 'staged');
+        $this->assertSame(50, (int) $res->json('data.item.quantity_amount'));
+        $this->assertSame(1, (int) $res->json('data.item.packages_received'));
+
+        $this->assertNull(
+            \App\Models\Inventory::where('location_id', $location->location_id)
+                ->where('product_id', $product->product_id)->first()
+        );
+    }
+
+    public function test_staging_a_count_marks_contents_verified(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeConsumable(50);
+        $poDetail = $this->makePoLine($product, $location, 10);
+
+        $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
+            'po_id' => $poDetail->po_id, 'location_id' => $location->location_id,
+        ])->json('data.draft_id');
+
+        $res = $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", [
+            'po_detail_id'  => $poDetail->po_detail_id,
+            'entry_mode'    => 'counted',
+            'quantity'      => 2,
+            'actual_pieces' => 95,
+        ]);
+
+        $res->assertOk();
+        // Counting IS the verification — the clerk had the pieces in hand.
+        $this->assertTrue((bool) $res->json('data.item.contents_verified'));
+        $this->assertSame(95, (int) $res->json('data.item.quantity_amount'));
+        $this->assertSame(100, (int) $res->json('data.item.pieces_expected'));
+        $this->assertSame(2, (int) $res->json('data.item.packages_received'));
+    }
+
+    public function test_a_staged_row_can_be_adjusted_and_removed(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeConsumable(50);
+        $poDetail = $this->makePoLine($product, $location, 10);
+
+        $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
+            'po_id' => $poDetail->po_id, 'location_id' => $location->location_id,
+        ])->json('data.draft_id');
+
+        $itemId = $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", [
+            'po_detail_id' => $poDetail->po_detail_id,
+            'entry_mode'   => 'scanned',
+            'barcode'      => 'BOX-B',
+        ])->json('data.item.draft_item_id');
+
+        $patch = $this->actingAs($user)->patchJson("/api/receiving-drafts/{$draft}/items/{$itemId}", [
+            'actual_pieces' => 47,
+        ]);
+        $patch->assertOk();
+        $this->assertSame(47, (int) $patch->json('data.item.quantity_amount'));
+        // The expectation must NOT move — the shortfall is the whole point.
+        $this->assertSame(50, (int) $patch->json('data.item.pieces_expected'));
+
+        $delete = $this->actingAs($user)->deleteJson("/api/receiving-drafts/{$draft}/items/{$itemId}");
+        $delete->assertOk();
+        $this->assertSame(0, ReceivingDraftItem::where('draft_id', $draft)->count());
+    }
+
+    public function test_a_duplicate_barcode_is_rejected_at_stage_time(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeConsumable(50);
+        $poDetail = $this->makePoLine($product, $location, 10);
+
+        $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
+            'po_id' => $poDetail->po_id, 'location_id' => $location->location_id,
+        ])->json('data.draft_id');
+
+        $body = [
+            'po_detail_id' => $poDetail->po_detail_id,
+            'entry_mode'   => 'scanned',
+            'barcode'      => 'BOX-SAME',
+        ];
+
+        $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", $body)->assertOk();
+        $second = $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", $body);
+
+        $second->assertOk();
+        $second->assertJsonPath('data.action', 'rejected');
+        $this->assertSame(1, ReceivingDraftItem::where('draft_id', $draft)->count());
+    }
+
+    public function test_discarding_a_draft_removes_its_rows(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeConsumable(50);
+        $poDetail = $this->makePoLine($product, $location, 10);
+
+        $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
+            'po_id' => $poDetail->po_id, 'location_id' => $location->location_id,
+        ])->json('data.draft_id');
+
+        $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", [
+            'po_detail_id' => $poDetail->po_detail_id,
+            'entry_mode'   => 'scanned',
+            'barcode'      => 'BOX-C',
+        ])->assertOk();
+
+        $this->actingAs($user)->deleteJson("/api/receiving-drafts/{$draft}")->assertOk();
+
+        $this->assertSame('discarded', ReceivingDraft::find($draft)->status);
+        $this->assertSame(0, ReceivingDraftItem::where('draft_id', $draft)->count());
+        // The barcode is free again, so the goods can be re-received.
+        $this->assertNull(ReceivingDraft::openFor((int) $poDetail->po_id, (int) $location->location_id));
+    }
 }
