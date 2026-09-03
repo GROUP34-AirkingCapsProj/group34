@@ -3476,6 +3476,12 @@ const BarcodeScan = () => {
               </div>
             </div>
           </header>
+          {bsrDraft && bsrDraft.staged_count > 0 && (
+            <div className="bsr-draft-badge" role="status">
+              Unsubmitted delivery — {bsrDraft.staged_count} item(s) staged,
+              {' '}{bsrDraft.staged_pieces} pcs not yet in inventory.
+            </div>
+          )}
           {/* ── Alert / validation modal (centered, blocks all input) ── */}
           {bsrAlertModal && (
             <div className="bsr-alert-overlay" role="dialog" aria-modal="true">
