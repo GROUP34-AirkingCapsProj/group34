@@ -1386,3 +1386,24 @@
     page-break-inside: avoid;
   }
 }
+
+/* Staged delivery — rows that have NOT moved stock yet. The muted treatment
+   against the posted-progress figures is doing real work: a clerk must be able
+   to tell at a glance what is committed and what is still only a claim. */
+.bsr-staged { padding: 0.25rem 0; }
+.bsr-staged-note { font-size: 0.8rem; color: #6b7280; margin-bottom: 0.6rem; }
+.bsr-staged-row { border-top: 1px solid #eef1f5; padding: 0.5rem 0; }
+.bsr-staged-row-failed { background: #fef2f2; border-left: 3px solid #dc2626; padding-left: 0.5rem; }
+.bsr-staged-main { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.bsr-staged-product { font-weight: 600; }
+.bsr-staged-qty { font-size: 0.85rem; color: #374151; }
+.bsr-staged-code { font-size: 0.75rem; color: #6b7280; font-family: ui-monospace, monospace; }
+.bsr-staged-short { font-size: 0.8rem; color: #b45309; margin-top: 0.2rem; }
+.bsr-staged-failure { font-size: 0.8rem; color: #b91c1c; margin-top: 0.2rem; }
+.bsr-staged-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.35rem; }
+.bsr-staged-pieces { width: 6rem; padding: 0.25rem 0.4rem; border: 1px solid #d1d5db; border-radius: 4px; }
+.bsr-btn-remove { background: none; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.25rem 0.6rem; cursor: pointer; color: #b91c1c; }
+.bsr-btn-submit-draft { width: 100%; margin-top: 0.75rem; padding: 0.6rem; border: none; border-radius: 6px; background: #047857; color: #fff; font-weight: 600; cursor: pointer; }
+.bsr-btn-submit-draft:disabled { background: #9ca3af; cursor: not-allowed; }
+.bsr-btn-accept-overage { width: 100%; margin-top: 0.4rem; padding: 0.5rem; border: 1px solid #b45309; border-radius: 6px; background: #fff; color: #b45309; cursor: pointer; }
+.bsr-line-staged { font-size: 0.8rem; color: #b45309; font-style: italic; margin-left: 0.4rem; }
