@@ -173,4 +173,15 @@ jobs:
           php artisan db:seed --class=RolePermissionsSeeder --force
           php artisan db:seed --class=NavBundleSeeder --force
 
+      # A large family of tests does not CREATE an actor or a product, it reads
+      # whichever one is already there — User::query()->firstOrFail(),
+      # Product::where('product_type','appliance')->first(), and so on. That
+      # holds on a developer's machine, whose test database is a copy of a
+      # working install, and fails here: the dump above is schema plus lookups
+      # only, by design, so those lookups returned null and 162 tests failed on
+      # a ModelNotFoundException, a null assertion, or an insert the users
+      # foreign key refused. This supplies that baseline and nothing else.
+      - name: Seed the baseline rows the tests read rather than create
+        run: php artisan db:seed --class=TestBaselineSeeder --force
+
       - run: php artisan test
