@@ -952,6 +952,55 @@ export const receivingsAPI = {
 };
 
 /* ======================
+   RECEIVING DRAFTS API
+====================== */
+/**
+ * Staged PO receiving. Scans and counts land in a server-side draft that the
+ * clerk reviews and corrects; only `submit` moves stock.
+ */
+export const receivingDraftsAPI = {
+  /** The open draft for this PO+warehouse, or `data: null` when there is none. */
+  getOpen: async (poId, locationId) => {
+    const query = new URLSearchParams({ po_id: poId, location_id: locationId }).toString();
+    return apiRequest(`/receiving-drafts?${query}`);
+  },
+
+  /** Opens a draft, or resumes the one already open for this PO+warehouse. */
+  open: async (payload) =>
+    apiRequest('/receiving-drafts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** payload: { po_detail_id, entry_mode, barcode?, quantity?, actual_pieces? } */
+  stageItem: async (draftId, payload) =>
+    apiRequest(`/receiving-drafts/${draftId}/items`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** payload: { actual_pieces?, packages? } */
+  updateItem: async (draftId, itemId, payload) =>
+    apiRequest(`/receiving-drafts/${draftId}/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  removeItem: async (draftId, itemId) =>
+    apiRequest(`/receiving-drafts/${draftId}/items/${itemId}`, { method: 'DELETE' }),
+
+  discard: async (draftId) =>
+    apiRequest(`/receiving-drafts/${draftId}`, { method: 'DELETE' }),
+
+  /** The only call that posts to inventory. */
+  submit: async (draftId, acceptOverage = false) =>
+    apiRequest(`/receiving-drafts/${draftId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ accept_overage: acceptOverage }),
+    }),
+};
+
+/* ======================
    SERIALS API
 ====================== */
 export const serialsAPI = {
