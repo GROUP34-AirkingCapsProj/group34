@@ -16,7 +16,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
   itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI,
   receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI, barcodeScanAPI, locationsAPI, purchaseOrdersAPI,
-  istAPI, openApiFile,
+  istAPI, openApiFile, receivingDraftsAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth, useUserLocation } from '../context/AuthContext';
@@ -785,6 +785,11 @@ const BarcodeScan = () => {
   const [bsrPackageProgress, setBsrPackageProgress] = useState({});
   const [bsrPoSearchQ, setBsrPoSearchQ] = useState('');
   const [bsrScannedItems, setBsrScannedItems] = useState([]);
+  // The staged delivery. Null until a PO+location is chosen. `items` are staged
+  // rows that have NOT moved stock — only Submit does that.
+  const [bsrDraft, setBsrDraft] = useState(null);
+  const [bsrSubmitting, setBsrSubmitting] = useState(false);
+  const [bsrSubmitFailures, setBsrSubmitFailures] = useState([]);
   const [bsrLocationId, setBsrLocationId] = useState('');
   const [bsrZoneLabel, setBsrZoneLabel] = useState('');
   const [bsrExistingZoneLabels, setBsrExistingZoneLabels] = useState([]);
@@ -1966,6 +1971,30 @@ const BarcodeScan = () => {
       }
     }
 
+    // Open or resume the staged delivery for this PO at this warehouse. A
+    // second clerk on the same truck lands on the same list rather than
+    // starting a rival one.
+    if (poId && bsrLocationId) {
+      try {
+        const draftRes = await receivingDraftsAPI.open({
+          po_id: poId,
+          location_id: bsrLocationId,
+        });
+        if (draftRes?.data?.action === 'rejected') {
+          setBsrAlertModal({
+            type: 'error',
+            title: 'Cannot Receive',
+            message: draftRes.data.reason,
+          });
+          setBsrDraft(null);
+        } else {
+          setBsrDraft(draftRes?.data ?? null);
+        }
+      } catch {
+        setBsrDraft(null);
+      }
+    }
+
     setTimeout(() => bsrInputRef.current?.focus(), 100);
   };
 
@@ -2034,13 +2063,18 @@ const BarcodeScan = () => {
       setBsrScanInput('');
       return;
     }
+    if (!bsrDraft) {
+      bsrProcessingRef.current = true;
+      setBsrAlertModal({ type: 'error', title: 'No Delivery Open', message: 'No delivery is open. Re-select the purchase order.' });
+      setBsrScanInput('');
+      return;
+    }
     // Cancel any pending debounce so the timer can't fire a second time.
     if (bsrScanTimerRef.current) { clearTimeout(bsrScanTimerRef.current); bsrScanTimerRef.current = null; }
 
     const isSerialized = bsrIsSerialized(bsrActiveLine);
-    // Pre-compute here so they are available for both pre-checks and the scan body.
+    // Pre-compute here so it is available for both pre-checks and the scan body.
     const pcs = Number(bsrActiveLine.product?.pieces_per_package) || 1;
-    const pkgs = 1;
 
     // ── Duplicate / already-received pre-checks (all run before any API call) ──
 
@@ -2101,144 +2135,47 @@ const BarcodeScan = () => {
     setBsrScanInput('');
     setBsrScanning(true);
     try {
-      const res = await inventoryAPI.scanTransaction({
-        barcode: raw.trim(),
-        transaction_type: 'receiving',
-        location_id: bsrLocationId,
-        po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
+      const res = await receivingDraftsAPI.stageItem(bsrDraft.draft_id, {
         po_detail_id: bsrActiveLine.po_detail_id,
-        quantity: pkgs,
-        zone_label: bsrZoneLabel || null,
-        ...(acceptOverage ? { accept_overage: true } : {}),
+        entry_mode: 'scanned',
+        barcode: raw.trim(),
       });
-      const data = res?.data ?? res;
-      const action = data?.action ?? data?.status;
-      if (action === 'rejected') {
-        // Match both "already received" and "already been recorded as received / Duplicate prevented"
-        const isAlreadyReceived = /already.*received|duplicate.*prevented/i.test(data?.reason || '');
+
+      const payload = res?.data;
+
+      if (payload?.action === 'rejected') {
         setBsrAlertModal({
           type: 'error',
-          title: isAlreadyReceived ? 'Barcode Already Received' : 'Scan Rejected',
-          message: data?.reason || 'Scan rejected.',
+          title: 'Cannot Stage This Item',
+          message: payload.reason,
         });
         return;
       }
-      if (action === 'over_receipt') {
-        // The server refused to post; nothing was stored. Park the figures and
-        // ask for confirmation. `viaScan` tells the confirm button to re-issue
-        // THIS scan with accept_overage rather than posting a hand count.
-        // Release the lock so the confirm can re-enter handleBsrScan — the
-        // overage dialog itself blocks the scan input while it is open.
-        bsrProcessingRef.current = false;
-        setBsrPendingOverage({ ...data, units: pkgs, viaScan: true, barcode: raw.trim() });
-        return;
-      }
-      setBsrPendingOverage(null);
-      const qtyReceived       = data?.quantity_received ?? (isSerialized ? 1 : pkgs * pcs);
-      const packageUnitLabel  = data?.packages_unit_label ?? 'pkg';
-      // Digital tags minted for this receipt — empty for serialized appliances,
-      // where the scanned serial itself is the identifier.
-      setBsrLastTags(
-        Array.isArray(data?.tags) && data.tags.length > 0
-          ? { tags: data.tags, productName: bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product' }
-          : null,
-      );
-      const remainingPackages = data?.remaining_packages ?? null;
-      const productName = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
-      const productId   = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
-      const poDetailId  = bsrActiveLine.po_detail_id;
-      const ordered     = Number(bsrActiveLine.quantity_ordered || 0);
-      // quantity_ordered is in packages for consumables; convert to pieces for progress tracking
-      const orderedPcs  = isSerialized ? ordered : ordered * pcs;
-      const prevReceived = bsrProductProgress[poDetailId] || 0;
-      const newReceived  = prevReceived + qtyReceived;
 
-      setBsrScannedItems((prev) => [
-        {
-          id: Date.now(), barcode: raw.trim(), productName,
-          serial: data?.serial_number || raw.trim(),
-          packages: isSerialized ? null : pkgs,
-          qty: isSerialized ? null : qtyReceived,
-          productId, poDetailId, at: new Date().toLocaleTimeString(),
-        },
-        ...prev,
-      ]);
-      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
-      // One scan is exactly one package. Appliances have no package count.
-      if (!isSerialized) {
-        setBsrPackageProgress((prev) => ({ ...prev, [poDetailId]: (prev[poDetailId] || 0) + 1 }));
-        // A freshly-scanned box is posted at its printed contents, not opened
-        // and counted — the line is unverified again until someone checks it.
-        setBsrContentsVerified((prev) => ({ ...prev, [poDetailId]: false }));
-      }
-      // Keep the local received-barcodes set in sync so subsequent scans of the
-      // same barcode in this session are caught by the pre-check above.
-      setBsrPoReceivedBarcodes((prev) => new Set([...prev, normalizedCode]));
-
-      // Immediately reflect the updated PO status (Partially Received / Completed)
-      // in both the BSR list and the selected PO, using the value the server just
-      // persisted — no second network request needed.
-      if (data?.po_status) {
-        const activePo = bsrSelectedPo;
-        const activePoId = activePo?.po_id ?? activePo?.id;
-        setBsrPoList((prev) => prev.map((po) =>
-          (po.po_id ?? po.id) === activePoId
-            ? { ...po, status: { ...(po.status || {}), status_name: data.po_status } }
-            : po,
-        ));
-        setBsrSelectedPo((prev) => prev
-          ? { ...prev, status: { ...(prev.status || {}), status_name: data.po_status } }
-          : prev,
+      // An overage is shown, never blocked. The clerk has to be able to stage
+      // what is physically on the floor before deciding what to do about it.
+      if (payload?.warning) {
+        toast.warning(
+          payload.warning.limit === 'packages'
+            ? `Staged — this is ${payload.warning.overage_packages} package(s) more than ordered.`
+            : `Staged — this is ${payload.warning.overage} piece(s) more than ordered.`,
         );
       }
 
-      // Broadcast to ApprovalQueue and InventoryManagement so they re-fetch instantly.
-      window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
-        detail: {
-          transaction_type: 'receiving',
-          po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
-          product_id: productId,
-        },
-      }));
-
-      const lineComplete = orderedPcs > 0 && newReceived >= orderedPcs;
-      let nextLine = null;
-      if (lineComplete) {
-        const updatedProgress = { ...bsrProductProgress, [poDetailId]: newReceived };
-        nextLine = bsrLinesForLocation(bsrSelectedPo, myLocationId).find((d) => {
-          if (d.po_detail_id === poDetailId) return false;
-          const dOrdered = Number(d.quantity_ordered || 0);
-          const dPps = Number(d.product?.pieces_per_package) || 1;
-          const dIsSerialized = d.product?.product_type === 'appliance';
-          const dOrderedPcs = dIsSerialized ? dOrdered : dOrdered * dPps;
-          return dOrderedPcs > 0 && (updatedProgress[d.po_detail_id] || 0) < dOrderedPcs;
-        }) || null;
-      }
-
-      // Show success modal — scanning is blocked until user clicks Done.
-      setBsrScanSuccess({
-        productName,
-        barcode: raw.trim(),
-        isSerialized,
-        pkgs,
-        pcs,
-        qtyReceived,
-        newReceived,
-        ordered,
-        orderedPcs,
-        lineComplete,
-        nextLine,
-        packageUnitLabel,
-        remainingPackages,
-      });
+      setBsrDraft(payload.draft);
+      // No blocking success modal in the staging flow (the staged list below is
+      // the feedback), so release the lock here rather than on a modal dismiss.
+      bsrProcessingRef.current = false;
+      setTimeout(() => bsrInputRef.current?.focus(), 80);
     } catch (e) {
       setBsrAlertModal({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
     } finally {
       setBsrScanning(false);
-      // Do NOT release bsrProcessingRef here — it stays locked until the modal
-      // is dismissed, so no duplicate scan can slip through.
+      // On rejection, bsrProcessingRef stays locked until the error modal is
+      // dismissed (handleBsrAlertDismiss releases it), so no duplicate scan can
+      // slip through while the clerk is reading the message.
     }
-  }, [bsrLocationId, bsrZoneLabel, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, myLocationId]);
+  }, [bsrLocationId, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, bsrDraft]);
 
   /**
    * Post a hand count for the active PO line (material that arrived with no
@@ -2248,117 +2185,54 @@ const BarcodeScan = () => {
    * The lock matters more here than on the scan path: the count endpoint has no
    * barcode to dedupe on, so a double-submit genuinely posts twice.
    */
-  const bsrPostCount = useCallback(async ({ units, actualPieces = null }, acceptOverage = false) => {
+  const bsrPostCount = useCallback(async ({ units, actualPieces = null }) => {
     if (!bsrActiveLine || bsrProcessingRef.current) return;
     if (!bsrLocationId) {
       setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
       return;
     }
+    if (!bsrDraft) {
+      setBsrAlertModal({ type: 'error', title: 'No Delivery Open', message: 'No delivery is open. Re-select the purchase order.' });
+      return;
+    }
     bsrProcessingRef.current = true; // lock — set before any await
     setBsrCountBusy(true);
     try {
-      const res = await inventoryAPI.receiveCount({
+      const res = await receivingDraftsAPI.stageItem(bsrDraft.draft_id, {
         po_detail_id: bsrActiveLine.po_detail_id,
-        location_id:  bsrLocationId,
-        quantity:     units,
-        zone_label:   bsrZoneLabel || null,
-        // Omitted entirely for a piece-counted line, where the units entered
-        // ARE the pieces and there is nothing separate to verify — that line
-        // must keep sending exactly the payload it always sent.
-        ...(actualPieces !== null && actualPieces !== undefined ? { actual_pieces: actualPieces } : {}),
-        ...(acceptOverage ? { accept_overage: true } : {}),
+        entry_mode: 'counted',
+        quantity: units,
+        actual_pieces: actualPieces,
       });
-      const data   = res?.data ?? res;
-      const action = data?.action ?? data?.status;
 
-      if (action === 'over_receipt') {
-        // Both figures are remembered: confirming must re-post the COUNTED
-        // pieces, not the per-package expectation the count was derived from.
-        setBsrPendingOverage({ ...data, units, actualPieces });
+      const payload = res?.data;
+
+      if (payload?.action === 'rejected') {
+        setBsrAlertModal({
+          type: 'error',
+          title: 'Cannot Stage This Count',
+          message: payload.reason,
+        });
         return;
       }
-      if (action === 'rejected') {
-        setBsrAlertModal({ type: 'error', title: 'Count Rejected', message: data?.reason || 'Count rejected.' });
-        return;
-      }
 
-      // applied — same bookkeeping the scan handler performs on success.
-      const isSerialized = bsrIsSerialized(bsrActiveLine);
-      const pcs          = Number(bsrActiveLine.product?.pieces_per_package) || 1;
-      // quantity_received is the piece count the server actually posted; only
-      // fall back to a local conversion if the payload omits it.
-      const qtyReceived  = data?.quantity_received ?? (isSerialized ? units : units * pcs);
-      const productName  = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
-      const productId    = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
-      const poDetailId   = bsrActiveLine.po_detail_id;
-      const ordered      = Number(bsrActiveLine.quantity_ordered || 0);
-      const orderedPcs   = isSerialized ? ordered : ordered * pcs;
-      const prevReceived = bsrProductProgress[poDetailId] || 0;
-      const newReceived  = prevReceived + qtyReceived;
-
-      setBsrPendingOverage(null);
-      setBsrCountMode(false);
-      // Digital tags minted for this receipt — empty for serialized appliances,
-      // where the scanned serial itself is the identifier.
-      setBsrLastTags(
-        Array.isArray(data?.tags) && data.tags.length > 0
-          ? { tags: data.tags, productName }
-          : null,
-      );
-
-      setBsrScannedItems((prev) => [
-        {
-          id: Date.now(), barcode: null, productName,
-          serial: null, packages: null, qty: qtyReceived,
-          productId, poDetailId, at: new Date().toLocaleTimeString(),
-        },
-        ...prev,
-      ]);
-      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
-      // The clerk entered `units` packages; that is the package count regardless
-      // of how many pieces the boxes actually held.
-      if (!isSerialized) {
-        setBsrPackageProgress((prev) => ({ ...prev, [poDetailId]: (prev[poDetailId] || 0) + Number(units || 0) }));
-      }
-      // A hand count is a direct piece-by-piece tally — counting a line IS
-      // verifying it, so it never needs the separate verify step afterward.
-      setBsrContentsVerified((prev) => ({ ...prev, [poDetailId]: true }));
-
-      if (data?.po_status) {
-        const activePoId = bsrSelectedPo?.po_id ?? bsrSelectedPo?.id;
-        setBsrPoList((prev) => prev.map((po) =>
-          (po.po_id ?? po.id) === activePoId
-            ? { ...po, status: { ...(po.status || {}), status_name: data.po_status } }
-            : po,
-        ));
-        setBsrSelectedPo((prev) => prev
-          ? { ...prev, status: { ...(prev.status || {}), status_name: data.po_status } }
-          : prev,
+      if (payload?.warning) {
+        toast.warning(
+          payload.warning.limit === 'packages'
+            ? `Staged — this is ${payload.warning.overage_packages} package(s) more than ordered.`
+            : `Staged — this is ${payload.warning.overage} piece(s) more than ordered.`,
         );
       }
 
-      window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
-        detail: {
-          transaction_type: 'receiving',
-          po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
-          product_id: productId,
-        },
-      }));
-
-      const lineComplete = orderedPcs > 0 && newReceived >= orderedPcs;
-      setBsrAlertModal({
-        type: 'success',
-        title: 'Count Recorded',
-        message: `${qtyReceived} pcs of ${productName} received${orderedPcs > 0 ? ` — ${newReceived} of ${orderedPcs} pcs on this line` : ''}.`,
-        onDismiss: lineComplete ? () => setBsrActiveLine(null) : undefined,
-      });
+      setBsrDraft(payload.draft);
+      setBsrCountMode(false);
     } catch (err) {
       setBsrAlertModal({ type: 'error', title: 'Count Failed', message: err?.message || 'Failed to post count.' });
     } finally {
       bsrProcessingRef.current = false;
       setBsrCountBusy(false);
     }
-  }, [bsrActiveLine, bsrLocationId, bsrZoneLabel, bsrProductProgress, bsrSelectedPo]);
+  }, [bsrActiveLine, bsrLocationId, bsrDraft]);
 
   /**
    * Reconcile an already-SCANNED line to the piece count the clerk verified
