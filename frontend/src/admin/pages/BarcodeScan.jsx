@@ -3467,6 +3467,14 @@ const BarcodeScan = () => {
       return dOrdPcs === 0 || (bsrProductProgress[d.po_detail_id] || 0) >= dOrdPcs;
     });
 
+    // Whether anything has actually been POSTED against this PO — which is what
+    // the GRN reports. Deliberately not the staged count: staged rows are not on
+    // the receipt, and the staged count resets to zero after every submit, so
+    // keying the Done button off it left a partial receipt unable to print its
+    // own GRN. A partial delivery needs its paperwork as much as a complete one.
+    const hasPostedReceipts = Object.values(bsrProductProgress).some((v) => v > 0);
+    const canPrintGrn = hasPostedReceipts || isFullyReceived;
+
     const handleBsrSaveExit = () => {
       const hasScans = Object.values(bsrProductProgress).some((v) => v > 0);
       const doExit = () => {
@@ -4317,10 +4325,25 @@ const BarcodeScan = () => {
               </div>
               <div className="bsr-action-btns">
                 <button type="button"
-                  className={`bsr-btn-complete${(!isFullyReceived && totalScanned === 0) ? ' bsr-btn-complete--disabled' : ''}`}
+                  className={`bsr-btn-complete${!canPrintGrn ? ' bsr-btn-complete--disabled' : ''}`}
                   onClick={async () => {
-                    if (totalScanned === 0 && !isFullyReceived) {
-                      setBsrAlertModal({ type: 'error', title: 'Nothing Scanned', message: 'No items have been scanned yet.' });
+                    if (!canPrintGrn) {
+                      // Distinguish "you have not received anything" from "you
+                      // have staged things but not submitted them" — the second
+                      // is a clerk one button away from success, and telling
+                      // them "nothing received" while they can see their rows
+                      // on screen would read as the system losing their work.
+                      setBsrAlertModal(totalScanned > 0
+                        ? {
+                          type: 'error',
+                          title: 'Not Submitted Yet',
+                          message: `You have ${totalScanned} item(s) staged but not yet in inventory. Press Submit first — the receipt can only report what has been posted.`,
+                        }
+                        : {
+                          type: 'error',
+                          title: 'Nothing Received',
+                          message: 'Nothing has been received against this purchase order yet.',
+                        });
                       return;
                     }
                     const poNum = bsrSelectedPo?.po_number;
@@ -4363,7 +4386,7 @@ const BarcodeScan = () => {
                       });
                     }
                   }}
-                  disabled={!canScan || (totalScanned === 0 && !isFullyReceived)}
+                  disabled={!canScan || !canPrintGrn}
                 ><BsrCheckIcon /> Done</button>
               </div>
             </div>
