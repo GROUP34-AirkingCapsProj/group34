@@ -3623,12 +3623,29 @@ const BarcodeScan = () => {
                     // clerk still has to confirm what was actually inside.
                     const done = quantitiesMet && (isSerial || verified);
                     const showUnverifiedPrompt = !isSerial && received > 0 && !verified;
-                    // Staged (not yet posted) is a separate fact from received
-                    // (already posted) — shown side by side so the two are never
-                    // mistaken for one another.
-                    const staged = (bsrDraft?.items || [])
-                      .filter((it) => it.po_detail_id === detailId)
-                      .reduce((sum, it) => sum + it.quantity_amount, 0);
+                    // Staged rows count toward the progress the clerk reads: they
+                    // are boxes already accounted for on the floor, and a line
+                    // that ignored them would tell someone to go on scanning
+                    // stock they have already handled. Because these are derived
+                    // from bsrDraft, removing a staged row makes the figure fall
+                    // again immediately.
+                    //
+                    // Staged stays visually distinct from posted rather than
+                    // being silently added in, because only posted stock exists
+                    // in inventory — and `done`, the shortfall prompt and the
+                    // GRN all still key off posted alone, further down.
+                    const stagedRows = (bsrDraft?.items || [])
+                      .filter((it) => it.po_detail_id === detailId);
+                    const staged = stagedRows.reduce((sum, it) => sum + it.quantity_amount, 0);
+                    const stagedPkgs = stagedRows.reduce((sum, it) => sum + (it.packages_received || 0), 0);
+                    const totalPcs  = received + staged;
+                    const totalPkgs = receivedPkgs + stagedPkgs;
+                    // The staged segment continues from the posted one and the
+                    // pair is clamped, so a staged over-receipt cannot push the
+                    // bar past its track.
+                    const stagedPct = orderedPcs > 0
+                      ? Math.min((staged / orderedPcs) * 100, 100 - pct)
+                      : 0;
                     const isActive = bsrActiveLine?.po_detail_id === detailId;
                     const openLineFor = (mode) => (e) => {
                       e.stopPropagation();
@@ -3675,13 +3692,20 @@ const BarcodeScan = () => {
                           <span className="bsr-item-progress-label">Progress:</span>
                           <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>
                             {isSerial
-                              ? `${received} / ${ordered} units`
-                              : `${receivedPkgs} / ${ordered} pkg  ·  ${received} / ${orderedPcs} pcs`}
+                              ? `${totalPcs} / ${ordered} units`
+                              : `${totalPkgs} / ${ordered} pkg  ·  ${totalPcs} / ${orderedPcs} pcs`}
                           </span>
-                          {staged > 0 && <span className="bsr-line-staged">+{staged} staged</span>}
+                          {staged > 0 && (
+                            <span className="bsr-line-staged">
+                              incl. {staged} staged — not yet in inventory
+                            </span>
+                          )}
                         </div>
                         <div className="bsr-progress-bar-wrap">
                           <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%` }}/>
+                          {stagedPct > 0 && (
+                            <div className="bsr-progress-bar-staged" style={{ width: `${stagedPct}%` }} />
+                          )}
                         </div>
                         {shortfallPcs > 0 && (
                           <button
