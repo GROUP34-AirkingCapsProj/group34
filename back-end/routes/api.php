@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SerialController;
+use App\Http\Controllers\Api\LabelPrintController;
 use App\Http\Controllers\Api\AnalyticsDashboardController;
 // ERD-aligned controllers
 use App\Http\Controllers\Api\LocationController;
@@ -485,6 +486,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:barcode_assignment,create')->post('/serials', [SerialController::class, 'store']);
     Route::middleware('permission:barcode_assignment,update')->put('/serials/{serial}', [SerialController::class, 'update']);
     Route::middleware('permission:barcode_assignment,archive')->delete('/serials/{serial}', [SerialController::class, 'destroy']);
+
+    /* Barcode stickers straight to the Zebra. The browser can only ever build
+       a PDF and open a print dialog, so direct printing runs through here. */
+    Route::get('/barcode-labels/status', [LabelPrintController::class, 'status']);
+    Route::post('/barcode-labels/print', [LabelPrintController::class, 'print']);
 
     /*
     |--------------------------------------------------------------------------

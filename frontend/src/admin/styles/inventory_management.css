@@ -581,6 +581,12 @@
   border: 1px solid #f3f4f6;
   border-radius: 10px;
 }
+/* The serial listing carries the most columns of any table on this page and
+   its wrapper already scrolls sideways, so headers keep to one line rather
+   than wrapping into two-word stacks that misalign every column. */
+.invd-serial-table th {
+  white-space: nowrap;
+}
 .invd-table {
   width: 100%;
   border-collapse: collapse;
@@ -1266,15 +1272,6 @@ button.po-slot-tag:hover .po-slot-tag-pencil { opacity: 1; }
    height/width props; this only stops it stretching the row. */
 .invd-cell-barcode svg { display: block; max-width: 180px; height: auto; }
 
-/* The single print surface. Parked off-screen so it never disturbs the
-   layout, and moved into place only while the print dialog is open. */
-.invd-tag-print-surface {
-  position: absolute;
-  left: -10000px;
-  top: 0;
-  width: 760px;
-}
-
 /* Stock-In History identifier cell: supplier barcode plus the tags minted
    for that line. */
 .invd-ident { display: flex; flex-direction: column; gap: 2px; }
@@ -1282,19 +1279,5 @@ button.po-slot-tag:hover .po-slot-tag-pencil { opacity: 1; }
 .invd-ident-tag { color: #4b5563; }
 .invd-ident-summary { cursor: pointer; font-size: 12px; color: #6b21a8; font-weight: 600; }
 
-/* Printing from inside the detail modal: paper gets the requested tags only,
-   not the dashboard behind it and not the browsing sheet. The class is added
-   for the duration of the print dialog by the print effect in
-   InventoryManagement.jsx. */
-@media print {
-  body.invd-printing-tags * { visibility: hidden; }
-  body.invd-printing-tags .invd-tag-print-surface,
-  body.invd-printing-tags .invd-tag-print-surface * { visibility: visible; }
-  body.invd-printing-tags .invd-tag-print-surface {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-  }
-  body.invd-printing-tags .no-print { display: none !important; }
-}
+/* Stickers do not print from this page any more: they are built into their
+   own PDF, whose page size is the sticker. See printBarcodeLabels. */

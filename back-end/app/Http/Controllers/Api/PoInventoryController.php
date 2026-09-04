@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AttachesGeneratedTags;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
+use App\Models\Product;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -164,60 +165,135 @@ class PoInventoryController extends Controller
         // column renders empty.
         $this->attachGeneratedTags($receivingHistory);
 
-        // Serials scoped to this PO + warehouse, as a flat FIFO list with per-serial
-        // metadata (mirrors the per-SKU detail modal's serial table).
+        // Serials scoped to this PO + warehouse, as a flat FIFO list carrying
+        // the same per-serial metadata the per-SKU detail modal renders, so
+        // both screens can share one table: digital tag, print affordance,
+        // batch linkage and tag granularity included.
         $receivingIds = DB::table('receivings')
             ->where('po_id', $poId)->where('location_id', $locationId)
             ->pluck('receiving_id')->all();
 
         $serials = collect();
         if (! empty($receivingIds)) {
-            // Appliances: unit-level rows from item_serial.
-            $appliance = ItemSerial::query()
+            // Every unit-level record for this PO. Appliances mint one row per
+            // unit; installation materials mint a digital tag per package or
+            // per lot (MaterialTagService), so both live in item_serial and
+            // neither needs a separate branch here.
+            $serialRows = ItemSerial::query()
                 ->whereIn('item_serial.receiving_id', $receivingIds)
                 ->where('item_serial.location_id', $locationId)
-                ->where('item_serial.serial_type', 'received')
                 ->join('products', 'products.product_id', '=', 'item_serial.product_id')
                 ->leftJoin('users as scanner', 'scanner.user_id', '=', 'item_serial.scanned_by')
                 ->leftJoin('status_lookup', 'status_lookup.status_id', '=', 'item_serial.status_id')
+                ->leftJoin('receivings', 'receivings.receiving_id', '=', 'item_serial.receiving_id')
+                ->leftJoin('inventory_batches', 'inventory_batches.batch_id', '=', 'item_serial.batch_id')
                 ->orderBy('item_serial.created_at', 'asc')
+                ->orderBy('item_serial.serial_id', 'asc')
                 ->get([
+                    'item_serial.serial_id',
                     'item_serial.serial_number',
+                    'item_serial.supplier_barcode',
                     'item_serial.product_id',
+                    'item_serial.serial_type',
+                    'item_serial.batch_id',
                     'products.product_name',
                     'item_serial.created_at as scanned_at',
+                    'receivings.created_at as received_at',
+                    'receivings.receiving_number',
+                    'inventory_batches.quantity_received as batch_quantity_received',
+                    'inventory_batches.quantity_remaining as batch_quantity_remaining',
                     DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
-                    'status_lookup.status_name as serial_status',
+                    // A retired tag keeps its stock status_id, so the label is
+                    // fabricated from serial_type - the same rule the per-SKU
+                    // modal uses. Without it a spent tag reads "In Stock".
+                    DB::raw("CASE WHEN item_serial.serial_type = 'issued' THEN 'Issued' ELSE status_lookup.status_name END as serial_status"),
                 ]);
 
-            // Consumables: scanned barcodes from receiving_details, excluding products that
-            // already produced item_serial rows (appliances also carry a scanned_barcode).
-            $applianceProductIds = $appliance->pluck('product_id')->unique()->all();
-            $consumable = DB::table('receiving_details')
+            // Whether a product is serialized decides what the row means: an
+            // appliance serial is the manufacturer's, a material tag is ours
+            // (scannable, and reprintable when we generated it).
+            $productIds = $serialRows->pluck('product_id')->unique()->all();
+            $products   = Product::with(['applianceDetail', 'consumableDetail'])
+                ->whereIn('product_id', $productIds)->get()->keyBy('product_id');
+
+            // Legacy receipts that predate tagging still carry their scanned
+            // barcode on receiving_details and have no item_serial row to show;
+            // list those so the PO's identifiers are not silently short.
+            $legacy = DB::table('receiving_details')
                 ->join('products', 'products.product_id', '=', 'receiving_details.product_id')
                 ->join('receivings', 'receivings.receiving_id', '=', 'receiving_details.receiving_id')
                 ->leftJoin('users as scanner', 'scanner.user_id', '=', 'receivings.received_by')
                 ->whereIn('receiving_details.receiving_id', $receivingIds)
                 ->whereNotNull('receiving_details.scanned_barcode')
-                ->when(! empty($applianceProductIds), fn ($q) => $q->whereNotIn('receiving_details.product_id', $applianceProductIds))
+                ->when(! empty($productIds), fn ($q) => $q->whereNotIn('receiving_details.product_id', $productIds))
                 ->orderBy('receiving_details.created_at', 'asc')
                 ->get([
+                    'receiving_details.receiving_detail_id as serial_id',
                     'receiving_details.scanned_barcode as serial_number',
+                    'receiving_details.scanned_barcode as supplier_barcode',
+                    'receiving_details.product_id',
+                    'receiving_details.quantity_amount',
                     'products.product_name',
                     'receiving_details.created_at as scanned_at',
+                    'receivings.created_at as received_at',
+                    'receivings.receiving_number',
                     DB::raw("CONCAT(scanner.first_name, ' ', scanner.last_name) AS scanned_by_name"),
+                    DB::raw("'received' as serial_type"),
                     DB::raw("'Received' as serial_status"),
                 ]);
 
-            $serials = $appliance->concat($consumable)
+            $serials = $serialRows
+                ->map(function ($s) use ($products) {
+                    $product      = $products[$s->product_id] ?? null;
+                    $isSerialized = $product?->isSerialized() ?? false;
+
+                    return [
+                        'serial_id'                => $s->serial_id,
+                        'serial_number'            => $s->serial_number,
+                        'supplier_barcode'         => $s->supplier_barcode,
+                        'product_id'               => $s->product_id,
+                        'product_name'             => $s->product_name,
+                        'serial_type'              => $s->serial_type,
+                        'serial_status'            => $s->serial_status ?? 'In Stock',
+                        'scanned_by_name'          => trim((string) ($s->scanned_by_name ?? '')) ?: null,
+                        'scanned_at'               => $s->scanned_at,
+                        'received_at'              => $s->received_at ?? $s->scanned_at,
+                        'receiving_number'         => $s->receiving_number,
+                        'batch_id'                 => $s->batch_id,
+                        'batch_quantity_received'  => $s->batch_quantity_received,
+                        'batch_quantity_remaining' => $s->batch_quantity_remaining,
+                        // An appliance row is one unit. A material tag measures
+                        // nothing of its own - quantity lives on the batch - so
+                        // it reports no per-row quantity at all.
+                        'row_quantity_received'    => $isSerialized ? 1 : null,
+                        'is_material_tag'          => ! $isSerialized,
+                        'count_unit'               => $isSerialized ? null : ($product?->consumableDetail?->count_unit ?? 'package'),
+                        'pieces_per_package'       => $isSerialized ? null : $product?->getPiecesPerPackage(),
+                    ];
+                })
+                ->concat($legacy->map(fn ($s) => [
+                    'serial_id'                => $s->serial_id,
+                    'serial_number'            => $s->serial_number,
+                    'supplier_barcode'         => $s->supplier_barcode,
+                    'product_id'               => $s->product_id,
+                    'product_name'             => $s->product_name,
+                    'serial_type'              => $s->serial_type,
+                    'serial_status'            => $s->serial_status,
+                    'scanned_by_name'          => trim((string) ($s->scanned_by_name ?? '')) ?: null,
+                    'scanned_at'               => $s->scanned_at,
+                    'received_at'              => $s->received_at ?? $s->scanned_at,
+                    'receiving_number'         => $s->receiving_number,
+                    'batch_id'                 => null,
+                    'batch_quantity_received'  => null,
+                    'batch_quantity_remaining' => null,
+                    'row_quantity_received'    => (int) $s->quantity_amount,
+                    // No tag of ours was ever minted for these, so there is
+                    // nothing here to scan off the screen or to reprint.
+                    'is_material_tag'          => false,
+                    'count_unit'               => null,
+                    'pieces_per_package'       => null,
+                ]))
                 ->sortBy('scanned_at')
-                ->map(fn ($s) => [
-                    'serial_number'   => $s->serial_number,
-                    'product_name'    => $s->product_name,
-                    'serial_status'   => $s->serial_status ?? 'In Stock',
-                    'scanned_by_name' => trim((string) ($s->scanned_by_name ?? '')) ?: null,
-                    'scanned_at'      => $s->scanned_at,
-                ])
                 ->values();
         }
 

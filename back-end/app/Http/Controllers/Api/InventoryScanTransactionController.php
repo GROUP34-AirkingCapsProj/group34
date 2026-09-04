@@ -434,6 +434,7 @@ class InventoryScanTransactionController extends Controller
                 'is_serialized'      => $isSerialized,
                 'serial_number'      => $scannedBarcode ?: null,
                 'tags' => collect($result['tags'] ?? [])->map(fn ($t) => [
+                    'serial_id'        => $t->serial_id,
                     'serial_number'    => $t->serial_number,
                     'supplier_barcode' => $t->supplier_barcode,
                 ])->values()->all(),

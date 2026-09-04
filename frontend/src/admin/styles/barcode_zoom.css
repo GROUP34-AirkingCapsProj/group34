@@ -1,0 +1,139 @@
+/* ── Barcode at scanning size ─────────────────────────────────────────────
+   Read as the tag itself enlarged, not as a dialog about a tag: a white
+   plate, the bars, then the value under a hairline exactly where a printed
+   material tag carries it. Everything else stays quiet — contrast around the
+   symbol is what a handheld reads, so nothing tinted or shadowed goes near
+   the bars. */
+.bcz-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10010;   /* above the shared Modal (10000) it can open from */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  box-sizing: border-box;
+  background: rgba(17, 24, 39, 0.72);
+}
+
+/* The plate is the tag, enlarged — white, squared off, the value under a
+   hairline exactly where a printed material tag carries it. */
+.bcz-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 20px 28px 22px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.bcz-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+.bcz-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #6b7280;
+  overflow-wrap: anywhere;
+}
+.bcz-close {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.bcz-close:hover { background: #e5e7eb; color: #111827; }
+.bcz-close:focus-visible { outline: 2px solid #9810FA; outline-offset: 2px; }
+
+/* Pure white under the symbol regardless of the surface behind it, and never
+   scaled after render — react-barcode draws SVG, so the bars stay crisp. */
+.bcz-stage {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 18px 0;
+  background: #ffffff;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.bcz-stage svg { display: block; shape-rendering: crispEdges; }
+
+.bcz-value {
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+.bcz-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .bcz-value { font-size: 18px; }
+}
+
+/* ── The affordance on a tag card ──────────────────────────────────────── */
+.bsr-tag-card-zoom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: zoom-in;
+  transition: background 0.15s;
+}
+.bsr-tag-card-zoom:hover { background: #faf5ff; }
+.bsr-tag-card-zoom:focus-visible { outline: 2px solid #9810FA; outline-offset: 2px; }
+.bsr-tag-card-zoom svg { max-width: 100%; height: auto; }
+.bsr-tag-card-enlarge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #9810FA;
+}
+
+/* Same trigger in a table cell: it wraps the tag, so it sizes to the tag
+   rather than stretching the column it sits in. */
+.invd-barcode-zoom {
+  width: auto;
+  align-items: flex-start;
+  padding: 4px 6px;
+}
+
+@media print {
+  .bsr-tag-card-enlarge { display: none !important; }
+  .bsr-tag-card-zoom { padding: 0; background: none !important; }
+}

@@ -1,6 +1,8 @@
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import InventoryManagement from './InventoryManagement';
+import { toast } from '../utils/toast';
+
 import {
   inventoryAPI,
   locationsAPI,
@@ -14,6 +16,18 @@ import {
 // Keep the parent isolated from the layout chrome (sidebar, auth context, etc.)
 // — this test is only concerned with InventoryManagement's own hooks/effects.
 jest.mock('../components/AdminLayout', () => ({ children }) => <div>{children}</div>);
+
+// The toast helper drives sweetalert2, which needs a real document to open in.
+// Only the message matters here.
+// Where a sticker goes is useLabelPrinter's call and is covered by its own
+// tests. What matters here is which tags this page hands over.
+jest.mock('../hooks/useLabelPrinter', () => ({
+  useLabelPrinter: () => global.__labelPrinter,
+}));
+
+jest.mock('../utils/toast', () => ({
+  toast: { success: jest.fn(), error: jest.fn(), info: jest.fn(), warning: jest.fn() },
+}));
 
 // react-barcode draws a canvas/SVG that jsdom cannot rasterise; the value it is
 // handed is the only thing this page is responsible for. `displayValue` is
@@ -32,6 +46,8 @@ jest.mock('../services/api', () => ({
     getBatches: jest.fn(),
     getWarehouseBatches: jest.fn(),
     updateBatchZone: jest.fn(),
+    getPoGroups: jest.fn(),
+    getPoGroupDetail: jest.fn(),
   },
   locationsAPI: { getAll: jest.fn() },
   categoriesAPI: { getAll: jest.fn() },
@@ -44,8 +60,16 @@ jest.mock('../services/api', () => ({
 // CRA's Jest config uses resetMocks: true, which clears any implementation set
 // at module-definition time before each test — so configure the mocks here.
 beforeEach(() => {
+  global.__labelPrinter = {
+    printerReady: true,
+    sending: false,
+    sendToPrinter: jest.fn(),
+    savePdf: jest.fn(),
+  };
   inventoryAPI.getAll.mockResolvedValue({ data: [], pagination: { total: 0, last_page: 1 } });
   inventoryAPI.getWarehouseBatches.mockResolvedValue({ data: [] });
+  inventoryAPI.getPoGroups.mockResolvedValue({ data: [] });
+  inventoryAPI.getPoGroupDetail.mockResolvedValue({ data: null });
   batchAPI.get.mockResolvedValue({ data: { locations: { data: [] }, categories: { data: [] } } });
   locationsAPI.getAll.mockResolvedValue({ data: [] });
   categoriesAPI.getAll.mockResolvedValue({ data: [] });
@@ -148,11 +172,15 @@ const materialHistory = {
         serial_id: 1, serial_number: 'INT-PO-20260828-ZIW7-237-01', supplier_barcode: null,
         serial_status: 'In Stock', is_material_tag: true, received_at: '2026-08-28 09:00:00',
         row_quantity_received: null, row_stock_in: null, row_stock_out: null, row_transfer: null,
+        batch_id: 35, batch_quantity_received: 40, batch_quantity_remaining: 32,
+        count_unit: 'package', pieces_per_package: 10, scanned_by_name: 'Marichu Contado',
       },
       {
         serial_id: 2, serial_number: 'SUP-9911', supplier_barcode: 'SUP-9911',
         serial_status: 'In Stock', is_material_tag: true, received_at: '2026-08-28 09:00:00',
         row_quantity_received: null, row_stock_in: null, row_stock_out: null, row_transfer: null,
+        batch_id: 35, batch_quantity_received: 40, batch_quantity_remaining: 32,
+        count_unit: 'package', pieces_per_package: 10, scanned_by_name: 'Marichu Contado',
       },
     ],
     summary: { total_receive_events: 1, serial_count: 2, stock_in: 40, stock_out: 0, transferred: 0, current_on_hand: 40, current_available: 40 },
@@ -214,6 +242,12 @@ test('a scanned material is scannable but not printable; a generated tag is both
   expect(within(scannedRow).queryByRole('button', { name: /print tag$/i })).not.toBeInTheDocument();
 });
 
+/* Stickers go to a PDF of their own, not to this page. The old approach
+   printed the dashboard with everything but the labels hidden, which is how a
+   sticker ended up in the middle of a document-sized sheet. */
+const printedValues = () =>
+  global.__labelPrinter.sendToPrinter.mock.calls.at(-1)[0].map((tag) => tag.serial_number);
+
 test('prints one tag from its own row without dragging the rest onto paper', async () => {
   await openSerialsTab();
 
@@ -222,19 +256,23 @@ test('prints one tag from its own row without dragging the rest onto paper', asy
   const printButtons = screen.getAllByRole('button', { name: /print tag$/i });
   expect(printButtons).toHaveLength(1);
 
-  let printedValues = [];
-  const printSpy = jest.spyOn(window, 'print').mockImplementation(() => {
-    expect(document.body.classList.contains('invd-printing-tags')).toBe(true);
-    printedValues = Array.from(document.querySelectorAll('.invd-tag-print-surface [data-testid="barcode"]'))
-      .map((el) => el.getAttribute('data-value'));
-  });
-
   fireEvent.click(printButtons[0]);
 
-  expect(printSpy).toHaveBeenCalledTimes(1);
-  expect(printedValues).toEqual(['INT-PO-20260828-ZIW7-237-01']);
-  expect(document.body.classList.contains('invd-printing-tags')).toBe(false);
-  printSpy.mockRestore();
+  expect(global.__labelPrinter.sendToPrinter).toHaveBeenCalledTimes(1);
+  expect(printedValues()).toEqual(['INT-PO-20260828-ZIW7-237-01']);
+});
+
+test('falls back to a PDF when no label printer is set up', async () => {
+  global.__labelPrinter.printerReady = false;
+  await openSerialsTab();
+  await screen.findByText('INT-PO-20260828-ZIW7-237-01');
+
+  fireEvent.click(screen.getAllByRole('button', { name: /print tag$/i })[0]);
+
+  expect(global.__labelPrinter.sendToPrinter).not.toHaveBeenCalled();
+  expect(global.__labelPrinter.savePdf).toHaveBeenCalledTimes(1);
+  // The sticker still names the product it belongs to.
+  expect(global.__labelPrinter.savePdf.mock.calls[0][1]).toBeTruthy();
 });
 
 test('still offers the bulk sheet for printing every live tag at once', async () => {
@@ -248,17 +286,13 @@ test('still offers the bulk sheet for printing every live tag at once', async ()
   expect(Array.from(sheetBarcodes).map((el) => el.getAttribute('data-value')))
     .toEqual(['INT-PO-20260828-ZIW7-237-01']);
 
-  const printSpy = jest.spyOn(window, 'print').mockImplementation(() => {
-    // The print-only stylesheet keys off this class; it must be on the body
-    // while the dialog is open, or the whole dashboard goes to paper.
-    expect(document.body.classList.contains('invd-printing-tags')).toBe(true);
-  });
+  // The sheet drives its own bulk printing now; this page only supplies the
+  // tags it may print.
+  const sheetBarcodeValues = Array.from(
+    document.querySelectorAll('.invd-tag-sheet-wrap [data-testid="barcode"]'),
+  ).map((el) => el.getAttribute('data-value'));
 
-  fireEvent.click(screen.getByRole('button', { name: /print tags/i }));
-
-  expect(printSpy).toHaveBeenCalled();
-  expect(document.body.classList.contains('invd-printing-tags')).toBe(false);
-  printSpy.mockRestore();
+  expect(sheetBarcodeValues).toEqual(['INT-PO-20260828-ZIW7-237-01']);
 });
 
 /* ── Stock-In History tab: a counted line must not read as empty ──────────
@@ -422,4 +456,150 @@ test("offers no tag barcode for an appliance whose serial is the manufacturer ow
   expect(await screen.findByText('SN-REAL-0001')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /print tags/i })).not.toBeInTheDocument();
   expect(screen.queryAllByTestId('barcode')).toHaveLength(0);
+});
+
+
+/* ── Serial Numbers table: no column that is blank on every row ──────────
+ *
+ * A material tag carries no quantity of its own, so Received / Stock In /
+ * Stock Out / Transfer used to render as a run of dashes on every row while
+ * the batch the tag resolves to — and what one tag physically stands for —
+ * were not shown at all. The table now picks its columns from the data.
+ */
+test('drops the per-unit quantity columns a material tag can never fill', async () => {
+  await openSerialsTab();
+  await screen.findByText('INT-PO-20260828-ZIW7-237-01');
+
+  const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
+  expect(headers).not.toContain('Stock In');
+  expect(headers).not.toContain('Stock Out');
+  expect(headers).not.toContain('Transfer');
+  expect(headers).not.toContain('Stocked Out At');
+  expect(headers).not.toContain('Transferred At');
+});
+
+test('shows the batch a material tag resolves to, and what the tag covers', async () => {
+  await openSerialsTab();
+
+  const row = (await screen.findByText('INT-PO-20260828-ZIW7-237-01')).closest('tr');
+
+  expect(within(row).getByText('#35')).toBeInTheDocument();
+  expect(within(row).getByText('32 / 40')).toBeInTheDocument();
+  // One tag per package for a package-counted product. The piece count is
+  // deliberately absent: the last package of a lot can be a partial one.
+  expect(within(row).getByText('1 package')).toBeInTheDocument();
+});
+
+test('keeps the per-unit columns for an appliance, which does fill them', async () => {
+  inventoryAPI.getAll.mockResolvedValue({
+    data: [{
+      inventory_id: 88, quantity_on_hand: 1, available_quantity: 1, reorder_level: 1,
+      product: { product_id: 500, product_name: 'Split Type 1.5HP', product_type: 'appliance' },
+    }],
+    pagination: { total: 1, last_page: 1 },
+  });
+  inventoryAPI.getHistory.mockResolvedValue({
+    success: true,
+    data: {
+      inventory: { inventory_id: 88, location_name: 'Main Warehouse', quantity_on_hand: 1 },
+      product: { product_id: 500, product_name: 'Split Type 1.5HP', product_type: 'appliance', is_serialized: true },
+      receiving_history: [], movement_history: [],
+      serial_records: [{
+        serial_id: 9, serial_number: 'SN-APPLIANCE-1', serial_status: 'In Stock',
+        received_at: '2026-08-28 09:00:00',
+        row_quantity_received: 1, row_stock_in: 1, row_stock_out: 0, row_transfer: 0,
+      }],
+      summary: { total_receive_events: 1, serial_count: 1, stock_in: 1, stock_out: 0, transferred: 0, current_on_hand: 1, current_available: 1 },
+    },
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/admin/inventory?focus=inv:88']}>
+      <InventoryManagement />
+    </MemoryRouter>
+  );
+  await waitFor(() => expect(inventoryAPI.getHistory).toHaveBeenCalledWith(88));
+  fireEvent.click(await screen.findByRole('button', { name: /serial numbers/i }));
+
+  await screen.findByText('SN-APPLIANCE-1');
+  const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
+  expect(headers).toEqual(expect.arrayContaining(['Stock In', 'Stock Out', 'Transfer']));
+  // Nothing minted a tag of ours for a manufacturer's serial, so the columns
+  // that only exist to carry one stay off the table.
+  expect(headers).not.toContain('Digital Barcode');
+  expect(headers).not.toContain('Tag Covers');
+});
+
+/* ── Inventory Batch modal shares the same table ─────────────────────── */
+
+const poGroup = {
+  group_key: '76-1', po_id: 76, po_number: 'PO-20260901-5YOK',
+  warehouse_id: 1, warehouse_name: 'Main Warehouse', warehouse_type: 'warehouse',
+  supplier_name: 'Supplier A', order_date: '2026-09-01', first_received_at: '2026-09-01',
+  location_label: 'Location 1', item_count: 1, total_received: 40, total_remaining: 32,
+  batches: [],
+};
+
+const poGroupDetail = {
+  data: {
+    overview: {
+      po_number: 'PO-20260901-5YOK', supplier_name: 'Supplier A', order_date: '2026-09-01',
+      warehouse_name: 'Main Warehouse', location_label: 'Location 1',
+      totals: { item_count: 1, total_received: 40, total_remaining: 32 },
+      products: [{ product_id: 237, product_name: 'PE Foam 1/2', quantity_received: 40, quantity_remaining: 32 }],
+    },
+    receiving_history: [], stock_out_history: [], transfer_history: [],
+    serials: [{
+      serial_id: 1, serial_number: 'INT-PO-20260901-5YOK-237-01', supplier_barcode: null,
+      product_id: 237, product_name: 'PE Foam 1/2', serial_type: 'received',
+      serial_status: 'In Stock', scanned_by_name: 'Marichu Contado',
+      scanned_at: '2026-09-01 18:02:26', received_at: '2026-09-01 18:02:26',
+      receiving_number: 'GRN-20260901-000054',
+      batch_id: 35, batch_quantity_received: 40, batch_quantity_remaining: 32,
+      row_quantity_received: null, is_material_tag: true,
+      count_unit: 'package', pieces_per_package: 10,
+    }],
+  },
+};
+
+const openPoGroupSerials = async () => {
+  inventoryAPI.getPoGroups.mockResolvedValue({ data: [poGroup] });
+  inventoryAPI.getPoGroupDetail.mockResolvedValue(poGroupDetail);
+
+  render(
+    <MemoryRouter initialEntries={['/admin/inventory?tab=inventory']}>
+      <InventoryManagement />
+    </MemoryRouter>
+  );
+
+  await waitFor(() => expect(inventoryAPI.getPoGroups).toHaveBeenCalled());
+  fireEvent.click(await screen.findByRole('button', { name: /^View/ }));
+  await waitFor(() => expect(inventoryAPI.getPoGroupDetail).toHaveBeenCalledWith(76, 1));
+  fireEvent.click(await screen.findByRole('button', { name: /^Serial Numbers$/ }));
+};
+
+test('the Inventory Batch serials tab renders the same detailed table', async () => {
+  await openPoGroupSerials();
+
+  const row = (await screen.findByText('INT-PO-20260901-5YOK-237-01')).closest('tr');
+
+  // The four-column list it used to be carried none of this.
+  expect(within(row).getByTestId('barcode')).toHaveAttribute('data-value', 'INT-PO-20260901-5YOK-237-01');
+  expect(within(row).getByRole('button', { name: /print tag/i })).toBeInTheDocument();
+  expect(within(row).getByText('PE Foam 1/2')).toBeInTheDocument();
+  expect(within(row).getByText('#35')).toBeInTheDocument();
+  expect(within(row).getByText('32 / 40')).toBeInTheDocument();
+  expect(within(row).getByText('1 package')).toBeInTheDocument();
+  expect(within(row).getByText('GRN-20260901-000054')).toBeInTheDocument();
+});
+
+test('printing a tag from the Inventory Batch modal sends that one tag', async () => {
+  await openPoGroupSerials();
+
+  const row = (await screen.findByText('INT-PO-20260901-5YOK-237-01')).closest('tr');
+  fireEvent.click(within(row).getByRole('button', { name: /print tag/i }));
+
+  expect(global.__labelPrinter.sendToPrinter).toHaveBeenCalledTimes(1);
+  const [sent] = global.__labelPrinter.sendToPrinter.mock.calls[0];
+  expect(sent.map((t) => t.serial_number)).toEqual(['INT-PO-20260901-5YOK-237-01']);
 });

@@ -797,6 +797,7 @@ const BarcodeScan = () => {
   const [bsrZoneLabel, setBsrZoneLabel] = useState('');
   const [bsrExistingZoneLabels, setBsrExistingZoneLabels] = useState([]);
   const [bsrScanInput, setBsrScanInput] = useState('');
+  const [bsrCaptureArmed, setBsrCaptureArmed] = useState(false);
   const [bsrScanning, setBsrScanning] = useState(false);
   const [bsrActiveLine, setBsrActiveLine] = useState(null);
   const [bsrScanSuccess, setBsrScanSuccess] = useState(null);
@@ -1008,9 +1009,10 @@ const BarcodeScan = () => {
   const issuancePreviewKeyRef = useRef('');
   const bsrInputRef = useRef(null);
   const bsrScanTimerRef = useRef(null);
+  const bsrCaptureArmedRef = useRef(false);
   const bsrProcessingRef = useRef(false); // synchronous lock — prevents double-fire
-  // True while a PO is selected in BSR mode — used by applyDecodedBarcode to block
-  // continuous camera auto-scan; only the manual Scan (circular) button fires scans.
+  // True while a PO is selected in BSR mode; automatic camera reads use the
+  // receiving handler's synchronous request lock.
   const bsrModeActiveRef = useRef(false);
 
   /* ── hydrate location enforcement fields ── */
@@ -1630,15 +1632,23 @@ const BarcodeScan = () => {
   }, []);
 
   const applyDecodedBarcode = useCallback((decodedText) => {
-    if (scanningRef.current) return;
     // In BSR mode the circular Scan button is the only trigger — block auto-scan.
-    if (bsrModeActiveRef.current) return;
     const code = String(decodedText || '').replace(/\s+/g, '').trim();
     if (!code) return;
+    if (bsrModeActiveRef.current && !bsrCaptureArmedRef.current) return;
+    if (bsrModeActiveRef.current && bsrProcessingRef.current) {
+      if (code === lastCodeRef.current) lastTimeRef.current = Date.now();
+      return;
+    }
+    if (scanningRef.current) return;
     const now = Date.now();
     if (code === lastCodeRef.current && now - lastTimeRef.current < CAMERA_SAME_CODE_MS) return;
     lastCodeRef.current = code;
     lastTimeRef.current = now;
+    if (bsrModeActiveRef.current) {
+      bsrCaptureArmedRef.current = false;
+      setBsrCaptureArmed(false);
+    }
     setLastDecoded(code);
     setBarcodeInput(code);
     handleScanRef.current?.(code);
@@ -1780,6 +1790,8 @@ const BarcodeScan = () => {
   };
 
   const stopCamera = async () => {
+    bsrCaptureArmedRef.current = false;
+    setBsrCaptureArmed(false);
     await stopReaderAndTracks();
     setCameraActive(false);
   };
@@ -1794,6 +1806,15 @@ const BarcodeScan = () => {
     }
     // In BSR mode block the circular button while a scan or modal is already active.
     if (bsrModeActiveRef.current && bsrProcessingRef.current) return;
+    if (bsrModeActiveRef.current) {
+      if (bsrCaptureArmedRef.current) {
+        bsrCaptureArmedRef.current = false;
+        setBsrCaptureArmed(false);
+        return;
+      }
+      bsrCaptureArmedRef.current = true;
+      setBsrCaptureArmed(true);
+    }
     if (scanningRef.current) {
       toast.info('Still processing the previous scan — try again in a moment.');
       return;
@@ -1811,12 +1832,17 @@ const BarcodeScan = () => {
     }
     if (!code) code = tryDecodeVideoCenterCropZxing(v);
     if (!code || code.length < 2) {
+      if (bsrModeActiveRef.current) return;
       toast.warning('No barcode found. Center the code in the frame, add light, and tap Scan again.');
       return;
     }
     const now = Date.now();
     lastCodeRef.current = code;
     lastTimeRef.current = now;
+    if (bsrModeActiveRef.current) {
+      bsrCaptureArmedRef.current = false;
+      setBsrCaptureArmed(false);
+    }
     setLastDecoded(code);
     setBarcodeInput(code);
     handleScanRef.current?.(code);
@@ -3865,6 +3891,16 @@ const BarcodeScan = () => {
                   </p>
                 </div>
 
+                {cameraActive && (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="bs-cam-hint"
+                    style={{ margin: '0 0 8px', color: bsrCaptureArmed ? '#15803d' : '#374151' }}
+                  >
+                    <strong>Status: {bsrCaptureArmed ? 'Scanning...' : 'Ready to scan'}</strong>
+                  </p>
+                )}
                 <div className="bs-camera-box" style={{ marginBottom: 12 }}>
                   <div
                     id={HTML5_QR_MOUNT_ID}
@@ -3884,12 +3920,18 @@ const BarcodeScan = () => {
                   <div className="bs-bracket bs-bl"/><div className="bs-bracket bs-br"/>
                   {cameraActive && <div className="bs-scan-line"/>}
                   {cameraActive && (
-                    <p className="bs-cam-hint">Position the barcode in the frame and tap <strong>Scan</strong> — auto-capture is disabled; only the button triggers a scan.</p>
+                    <>
+                      <p className="bs-cam-hint">
+                        {bsrCaptureArmed
+                          ? <>Searching for a barcode. Tap <strong>Stop scanning</strong> to cancel.</>
+                          : <>Position the barcode in the frame, then tap <strong>Capture now</strong>. It keeps looking until one barcode is read, then stops.</>}
+                      </p>
+                    </>
                   )}
                   {cameraError && <p className="bs-cam-err">{cameraError}</p>}
                   {cameraActive && canScan && (
-                    <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Scan barcode from current camera frame">
-                      <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">Scan</span>
+                    <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Capture barcode from current camera frame">
+                      <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">{bsrCaptureArmed ? 'Stop scanning' : 'Capture now'}</span>
                     </button>
                   )}
                   {cameraActive
@@ -4258,6 +4300,7 @@ const BarcodeScan = () => {
                       <rect x="18" y="5" width="3" height="14" rx="1"/>
                     </svg>
                     <p>Nothing staged yet</p>
+                    <p className="bsr-scanned-empty-hint">Pick an item on the left, then scan its barcode or enter a count.</p>
                   </div>
                 ) : (
                   <div className="bsr-staged">
@@ -4265,85 +4308,101 @@ const BarcodeScan = () => {
                       Nothing below is in inventory yet — check the list, then submit.
                     </div>
 
-                    {(bsrDraft.items || []).map((item) => {
-                      const failure = bsrSubmitFailures.find((f) => f.draft_item_id === item.draft_item_id);
-                      return (
-                        <div
-                          key={item.draft_item_id}
-                          className={`bsr-staged-row${failure ? ' bsr-staged-row-failed' : ''}`}
-                        >
-                          <div className="bsr-staged-main">
-                            <span className="bsr-staged-product">{item.product_name}</span>
-                            <span className="bsr-staged-qty">
-                              {item.packages_received != null
-                                ? `${item.packages_received} pkg · ${item.quantity_amount} pcs`
-                                : `${item.quantity_amount} pc(s)`}
-                            </span>
-                            {item.scanned_barcode && (
-                              <span className="bsr-staged-code">{item.scanned_barcode}</span>
-                            )}
-                          </div>
-
-                          {item.pieces_expected != null && item.quantity_amount !== item.pieces_expected && (
-                            <div className="bsr-staged-short">
-                              {item.pieces_expected - item.quantity_amount} pcs short of {item.pieces_expected} expected
+                    <div className="bsr-staged-list">
+                      {(bsrDraft.items || []).map((item) => {
+                        const failure = bsrSubmitFailures.find((f) => f.draft_item_id === item.draft_item_id);
+                        return (
+                          <div
+                            key={item.draft_item_id}
+                            className={`bsr-staged-row${failure ? ' bsr-staged-row-failed' : ''}`}
+                          >
+                            <div className="bsr-staged-main">
+                              <span className="bsr-staged-product">{item.product_name}</span>
+                              {item.scanned_barcode && (
+                                <span className="bsr-staged-code">{item.scanned_barcode}</span>
+                              )}
                             </div>
-                          )}
 
-                          {failure && (
-                            <div className="bsr-staged-failure" role="alert">{failure.reason}</div>
-                          )}
+                            <span className="bsr-staged-qty">
+                              {item.packages_received != null ? (
+                                <>
+                                  <b>{item.packages_received}</b> pkg
+                                  <span className="bsr-staged-qty-sep">·</span>
+                                  <b>{item.quantity_amount}</b> pcs
+                                </>
+                              ) : (
+                                <><b>{item.quantity_amount}</b> pcs</>
+                              )}
+                            </span>
 
-                          <div className="bsr-staged-actions">
-                            {item.packages_received != null && (
-                              <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                className="bsr-staged-pieces"
-                                defaultValue={item.quantity_amount}
-                                aria-label={`Actual pieces for ${item.product_name}`}
-                                onBlur={(e) => {
-                                  const next = Number(e.target.value);
-                                  if (Number.isFinite(next) && next !== item.quantity_amount) {
-                                    handleBsrAdjustStaged(item.draft_item_id, next);
-                                  }
-                                }}
-                              />
+                            {item.pieces_expected != null && item.quantity_amount !== item.pieces_expected && (
+                              <div className="bsr-staged-short">
+                                {item.pieces_expected - item.quantity_amount} pcs short of {item.pieces_expected} expected
+                              </div>
                             )}
-                            <button
-                              type="button"
-                              className="bsr-btn-remove"
-                              onClick={() => handleBsrRemoveStaged(item.draft_item_id)}
-                            >
-                              Remove
-                            </button>
+
+                            {failure && (
+                              <div className="bsr-staged-failure" role="alert">{failure.reason}</div>
+                            )}
+
+                            <div className="bsr-staged-actions">
+                              {item.packages_received != null && (
+                                <label className="bsr-staged-field">
+                                  <span className="bsr-staged-field-label">Actual pcs</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    className="bsr-staged-pieces"
+                                    defaultValue={item.quantity_amount}
+                                    aria-label={`Actual pieces for ${item.product_name}`}
+                                    onBlur={(e) => {
+                                      const next = Number(e.target.value);
+                                      if (Number.isFinite(next) && next !== item.quantity_amount) {
+                                        handleBsrAdjustStaged(item.draft_item_id, next);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                              <button
+                                type="button"
+                                className="bsr-btn-remove"
+                                onClick={() => handleBsrRemoveStaged(item.draft_item_id)}
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
 
-                    <button
-                      type="button"
-                      className="bsr-btn-submit-draft"
-                      disabled={bsrSubmitting}
-                      onClick={() => handleBsrSubmitDraft(false)}
-                    >
-                      {bsrSubmitting
-                        ? 'Submitting…'
-                        : `Submit ${bsrDraft.staged_count} item(s) to inventory`}
-                    </button>
-
-                    {bsrSubmitFailures.some((f) => f.detail?.action === 'over_receipt') && (
+                    <div className="bsr-staged-foot">
+                      <span className="bsr-staged-total">
+                        <b>{bsrDraft.staged_count}</b> {bsrDraft.staged_count === 1 ? 'item' : 'items'}
+                        {bsrDraft.staged_pieces != null && (<> · <b>{bsrDraft.staged_pieces}</b> pcs</>)} waiting to be posted
+                      </span>
                       <button
                         type="button"
-                        className="bsr-btn-accept-overage"
+                        className="bsr-btn-submit-draft"
                         disabled={bsrSubmitting}
-                        onClick={() => handleBsrSubmitDraft(true)}
+                        onClick={() => handleBsrSubmitDraft(false)}
                       >
-                        Accept the overage and submit anyway
+                        {bsrSubmitting ? 'Submitting…' : 'Submit to inventory'}
                       </button>
-                    )}
+
+                      {bsrSubmitFailures.some((f) => f.detail?.action === 'over_receipt') && (
+                        <button
+                          type="button"
+                          className="bsr-btn-accept-overage"
+                          disabled={bsrSubmitting}
+                          onClick={() => handleBsrSubmitDraft(true)}
+                        >
+                          Accept the overage and submit anyway
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

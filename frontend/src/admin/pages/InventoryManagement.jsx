@@ -5,7 +5,9 @@ import Modal from '../components/Modal';
 import { useLocation } from 'react-router-dom';
 import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
 import MaterialTagSheet from '../components/tags/MaterialTagSheet';
-import Barcode from 'react-barcode';
+import BarcodeZoom from '../components/tags/BarcodeZoom';
+import SerialRecordsTable, { isPrintableTag } from '../components/inventory/SerialRecordsTable';
+import { useLabelPrinter } from '../hooks/useLabelPrinter';
 import '../styles/dashboard_air.css';
 import '../styles/inventory_management.css';
 // The tag sheet's own styles (.bsr-tag-*) live with the receiving screen it was
@@ -196,11 +198,14 @@ const InventoryManagement = () => {
   const [historyError, setHistoryError] = useState(null);
   const [detailTab, setDetailTab] = useState('overview');
   const [showTagSheet, setShowTagSheet] = useState(false);
-  const [tagsToPrint, setTagsToPrint] = useState([]);
   const focusInvId = useFocusTarget('inv');
   const focusHandledRef = useRef(false);
   const [invPulse, fireInvPulse] = useFocusPulse();
   const [serialModalBatch, setSerialModalBatch] = useState(null);
+  /* The tag drawn in a table cell is a reference, not something a handheld can
+     read off the screen. Opening it at scanning size is what makes it one. */
+  const [zoomedSerial, setZoomedSerial] = useState(null);
+  const labelPrinter = useLabelPrinter();
   const [searchTerm, setSearchTerm] = useState('');
   const [stockLocationFilter, setStockLocationFilter] = useState('');
   const [stockCategoryFilter, setStockCategoryFilter] = useState('');
@@ -527,26 +532,6 @@ const InventoryManagement = () => {
   const stockOutHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Stock Out');
   const transferHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Transfer');
 
-  /* A material row is scannable whenever it carries a barcode of ours to show
-     — whether we generated it or it is the supplier's own code copied onto
-     the row. An appliance's serial has no tag to render, and a retired tag
-     points at stock that is gone, so both get a dash instead. */
-  const isScannableTag = (s) => Boolean(s?.is_material_tag) && s?.serial_type !== 'issued';
-
-  /* Printing goes through one surface, whatever triggered it: the bulk "Print
-     tags" button hands over every live tag, a table row hands over just its
-     own. Both land in `tagsToPrint`, which is the only thing the print-only
-     stylesheet makes visible — so per-row and bulk printing can never both
-     claim the paper.
-
-     A tag is printable only while it is both scannable and ours to reprint:
-     `supplier_barcode === null` is the honest test for "we generated this",
-     not an `INT-` prefix match against a format we control and could change.
-     A supplier's own code (supplier_barcode populated) is scannable but not
-     printable — reprinting someone else's barcode puts two labels of
-     differing provenance on one box. */
-  const isPrintableTag = (s) => isScannableTag(s) && s?.supplier_barcode == null;
-
   /* Digital tags we minted ourselves (installation materials only). An
      appliance's serial is the manufacturer's own — we never re-encode it as
      one of our tags, so no barcode affordance is offered for those.
@@ -563,25 +548,22 @@ const InventoryManagement = () => {
   const materialTags = (historyData?.serial_records || [])
     .filter((s) => isPrintableTag(s));
 
-  const printTags = (tags) => {
-    if (!tags || tags.length === 0) return;
-    setTagsToPrint(tags);
-  };
+  /* The row control prints one tag. Where it goes — the Zebra, or a PDF when
+     no printer is wired up — is useLabelPrinter's call, the same one the tag
+     sheet's bulk buttons make. */
+  const printTags = (tags) => (labelPrinter.printerReady
+    ? labelPrinter.sendToPrinter(tags)
+    : labelPrinter.savePdf(
+      tags,
+      historyData?.product?.product_name ?? (viewingItem ? getItemName(viewingItem) : null),
+    ));
 
-  /* window.print() inside a modal would otherwise put the whole dashboard on
-     paper; the body class flips the print-only rules in
-     inventory_management.css for the duration of the dialog. Running after
-     the render guarantees the cards are in the DOM before the dialog opens. */
-  useEffect(() => {
-    if (tagsToPrint.length === 0) return;
-    document.body.classList.add('invd-printing-tags');
-    try {
-      window.print();
-    } finally {
-      document.body.classList.remove('invd-printing-tags');
-      setTagsToPrint([]);
-    }
-  }, [tagsToPrint]);
+  /* The PO group modal lists tags for several products at once, so the PDF
+     fallback is titled with the row's own product rather than the one SKU the
+     per-SKU modal is scoped to. */
+  const printPoGroupTags = (tags) => (labelPrinter.printerReady
+    ? labelPrinter.sendToPrinter(tags)
+    : labelPrinter.savePdf(tags, tags[0]?.product_name ?? null));
 
   return (
     <AdminLayout>
@@ -1745,142 +1727,18 @@ const InventoryManagement = () => {
                       <MaterialTagSheet
                         tags={materialTags}
                         productName={historyData?.product?.product_name ?? getItemName(viewingItem)}
-                        onPrint={() => printTags(materialTags)}
-                      />
-                    </div>
-                  )}
-                  {/* The one surface the print stylesheet reveals. It is parked
-                      off-screen and holds exactly the tags the last print
-                      request asked for — one row's, or the whole sheet's. */}
-                  {tagsToPrint.length > 0 && (
-                    <div className="invd-tag-print-surface">
-                      <MaterialTagSheet
-                        tags={tagsToPrint}
-                        productName={historyData?.product?.product_name ?? getItemName(viewingItem)}
-                        showHeader={false}
                       />
                     </div>
                   )}
                   {!historyData.serial_records || historyData.serial_records.length === 0 ? (
                     <div className="invd-empty">No serial numbers recorded for this product at this location.</div>
                   ) : (
-                    <div className="invd-table-wrap">
-                      <table className="invd-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Serial Number</th>
-                            <th>Digital Barcode</th>
-                            <th>Printable</th>
-                            <th>Status</th>
-                            <th>Received</th>
-                            <th>Stock In</th>
-                            <th>Stock Out</th>
-                            <th>Transfer</th>
-                            <th>Scanned By</th>
-                            <th>Received At</th>
-                            <th>Stocked Out At</th>
-                            <th>Transferred At</th>
-                            <th>PO Number</th>
-                            <th>Supplier</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {historyData.serial_records.map((s, index) => (
-                            /* serial_id alone is not unique across this list:
-                               the backend unions item_serial rows with rows
-                               keyed by issuance_detail_id (appliances) or
-                               receiving_detail_id (untagged materials), and
-                               those sequences overlap. Two rows sharing a key
-                               is the one shape that could make React reuse a
-                               row and show a serial where it does not belong,
-                               so the key carries the serial number too. */
-                            <tr key={`${s.serial_type ?? 'row'}-${s.serial_id ?? index}-${s.serial_number}`}>
-                              <td className="invd-cell-num">{index + 1}</td>
-                              <td>
-                                <span className="invd-mono invd-bold">{s.serial_number}</span>
-                                {/* Reference only — a supplier code repeats across
-                                    every box, so it is never the scannable value. */}
-                                {s.is_material_tag && s.supplier_barcode && (
-                                  <div className="invd-small invd-muted">Supplier: {s.supplier_barcode}</div>
-                                )}
-                              </td>
-                              {/* The tag sits beside its row, scannable straight
-                                  off the screen — whether the code is one we
-                                  generated or the supplier's own. An appliance's
-                                  serial is the manufacturer's own — there is no
-                                  tag of ours to encode — and a retired tag would
-                                  point at stock that is gone, so both get a dash. */}
-                              <td className="invd-cell-barcode">
-                                {isScannableTag(s) ? (
-                                  <Barcode
-                                    value={s.serial_number}
-                                    format="CODE128"
-                                    height={26}
-                                    width={1.1}
-                                    fontSize={9}
-                                    margin={0}
-                                    displayValue={false}
-                                  />
-                                ) : <span className="invd-muted">—</span>}
-                              </td>
-                              <td className="no-print">
-                                {isPrintableTag(s) ? (
-                                  <button
-                                    type="button"
-                                    className="invd-tag-print-row-btn"
-                                    onClick={() => printTags([s])}
-                                  >
-                                    Print tag
-                                  </button>
-                                ) : s.is_material_tag && s.serial_type === 'issued'
-                                  ? <span className="invd-muted invd-small">Retired</span>
-                                  : <span className="invd-muted">—</span>}
-                              </td>
-                              <td>
-                                <span className={`invd-status-pill${
-                                  s.serial_status === 'In Stock' ? ' invd-pill-green'
-                                  : s.serial_status === 'Issued' ? ' invd-pill-orange'
-                                  : ' invd-pill-gray'
-                                }`}>
-                                  {s.serial_status ?? 'Active'}
-                                </span>
-                              </td>
-                              {/* A material tag names a package or a lot; it carries no
-                                  quantity of its own, so the backend sends null and the
-                                  cell stays blank rather than reading as a zero receipt. */}
-                              <td className="invd-mono">{s.row_quantity_received ?? s.row_stock_in ?? '—'}</td>
-                              <td className="invd-mono">{s.row_stock_in ?? '—'}</td>
-                              <td className="invd-mono">{s.row_stock_out ?? '—'}</td>
-                              <td className="invd-mono">{s.row_transfer ?? '—'}</td>
-                              <td>{s.scanned_by_name ?? '—'}</td>
-                              <td>
-                                {s.received_at
-                                  ? new Date(s.received_at).toLocaleString('en-PH', {
-                                      year: 'numeric', month: 'short', day: 'numeric',
-                                      hour: '2-digit', minute: '2-digit',
-                                    })
-                                  : '—'}
-                              </td>
-                              <td>{s.stock_out_at ? new Date(s.stock_out_at).toLocaleString('en-PH', {
-                                year: 'numeric', month: 'short', day: 'numeric',
-                                hour: '2-digit', minute: '2-digit',
-                              }) : '—'}</td>
-                              <td>{s.transferred_at ? new Date(s.transferred_at).toLocaleString('en-PH', {
-                                year: 'numeric', month: 'short', day: 'numeric',
-                                hour: '2-digit', minute: '2-digit',
-                              }) : '—'}</td>
-                              <td>
-                                {s.po_number
-                                  ? <span className="invd-mono invd-small">{s.po_number}</span>
-                                  : '—'}
-                              </td>
-                              <td>{s.supplier_name ?? '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <SerialRecordsTable
+                      records={historyData.serial_records}
+                      showPo
+                      onZoom={setZoomedSerial}
+                      onPrint={printTags}
+                    />
                   )}
                   {historyData.movement_history?.length > 0 && (
                     <div className="invd-table-wrap" style={{ marginTop: 24 }}>
@@ -2025,47 +1883,12 @@ const InventoryManagement = () => {
                       {poGroupDetail.data.serials.length === 0 ? (
                         <div className="invd-empty">No serial numbers recorded for this PO at this location.</div>
                       ) : (
-                        <div className="invd-table-wrap">
-                          <table className="invd-table">
-                            <thead>
-                              <tr>
-                                <th>#</th>
-                                <th>Serial Number</th>
-                                <th>Product</th>
-                                <th>Status</th>
-                                <th>Scanned By</th>
-                                <th>Date Scanned</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {poGroupDetail.data.serials.map((s, index) => (
-                                <tr key={index}>
-                                  <td className="invd-cell-num">{index + 1}</td>
-                                  <td><span className="invd-mono invd-bold">{s.serial_number}</span></td>
-                                  <td>{s.product_name}</td>
-                                  <td>
-                                    <span className={`invd-status-pill${
-                                      s.serial_status === 'In Stock' ? ' invd-pill-green'
-                                      : s.serial_status === 'Issued' ? ' invd-pill-orange'
-                                      : ' invd-pill-gray'
-                                    }`}>
-                                      {s.serial_status ?? 'Active'}
-                                    </span>
-                                  </td>
-                                  <td>{s.scanned_by_name ?? '—'}</td>
-                                  <td>
-                                    {s.scanned_at
-                                      ? new Date(s.scanned_at).toLocaleString('en-PH', {
-                                          year: 'numeric', month: 'short', day: 'numeric',
-                                          hour: '2-digit', minute: '2-digit',
-                                        })
-                                      : '—'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                        <SerialRecordsTable
+                          records={poGroupDetail.data.serials}
+                          showProduct
+                          onZoom={setZoomedSerial}
+                          onPrint={printPoGroupTags}
+                        />
                       )}
                     </div>
                   )}
@@ -2106,6 +1929,18 @@ const InventoryManagement = () => {
               )}
             </div>
           </Modal>
+        )}
+
+        {zoomedSerial && (
+          <BarcodeZoom
+            value={zoomedSerial.serial_number}
+            /* The PO group modal zooms tags from several products, so the row's
+               own product name wins over the SKU the per-SKU modal is scoped to. */
+            label={zoomedSerial.product_name
+              ?? historyData?.product?.product_name
+              ?? (viewingItem ? getItemName(viewingItem) : null)}
+            onClose={() => setZoomedSerial(null)}
+          />
         )}
       </div>
     </AdminLayout>

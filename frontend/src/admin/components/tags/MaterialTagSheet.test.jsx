@@ -1,13 +1,34 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MaterialTagSheet from './MaterialTagSheet';
+import { barcodeLabelsAPI } from '../../services/api';
+import { printBarcodeLabels } from '../../utils/printBarcodeLabels';
+import { resetLabelPrinterStatus } from '../../hooks/useLabelPrinter';
 
 jest.mock('react-barcode', () => (props) => <div data-testid="barcode">{props.value}</div>);
 
+jest.mock('../../services/api', () => ({
+  barcodeLabelsAPI: { status: jest.fn(), print: jest.fn() },
+}));
+
+// The PDF itself is verified in printBarcodeLabels.test.js.
+jest.mock('../../utils/printBarcodeLabels', () => ({ printBarcodeLabels: jest.fn() }));
+
+jest.mock('../../utils/toast', () => ({
+  toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() },
+}));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  resetLabelPrinterStatus();
+  barcodeLabelsAPI.status.mockResolvedValue({ data: { configured: true } });
+  barcodeLabelsAPI.print.mockResolvedValue({ message: 'Sticker sent to the printer.' });
+});
+
 const tags = [
-  { serial_number: 'INT-PO-2401-4471-01', supplier_barcode: null },
-  { serial_number: 'INT-PO-2401-4471-02', supplier_barcode: null },
+  { serial_id: 1, serial_number: 'INT-PO-2401-4471-01', supplier_barcode: null },
+  { serial_id: 2, serial_number: 'INT-PO-2401-4471-02', supplier_barcode: null },
 ];
 
 test('renders one barcode per tag', () => {
@@ -54,9 +75,46 @@ test('renders nothing when tags is missing', () => {
   expect(container).toBeEmptyDOMElement();
 });
 
-test('print button calls onPrint when provided', () => {
-  const onPrint = jest.fn();
-  render(<MaterialTagSheet tags={tags} productName="PE Foam" onPrint={onPrint} />);
-  userEvent.click(screen.getByRole('button', { name: /print tags/i }));
-  expect(onPrint).toHaveBeenCalledTimes(1);
+/* Two ways out, and they are not interchangeable: the Zebra prints a sticker,
+   the PDF is a file. Offering the printer button when no printer is configured
+   would be a control that always fails. */
+
+/* One button, one name, whatever is plugged in. Where the tags come out is
+   the system's problem: with a printer configured they go to it, without one
+   they go to the print dialog. */
+
+test('print tags goes to the label printer when there is one', async () => {
+  render(<MaterialTagSheet tags={tags} productName="PE Foam" />);
+
+  userEvent.click(await screen.findByRole('button', { name: /^print tags$/i }));
+
+  await waitFor(() => expect(barcodeLabelsAPI.print).toHaveBeenCalledTimes(1));
+  expect(printBarcodeLabels).not.toHaveBeenCalled();
+});
+
+test('print tags still prints when no printer is set up', async () => {
+  barcodeLabelsAPI.status.mockResolvedValue({ data: { configured: false } });
+  render(<MaterialTagSheet tags={tags} productName="PE Foam" />);
+
+  // Same control, same words — the clerk is not asked to know what is wired up.
+  userEvent.click(await screen.findByRole('button', { name: /^print tags$/i }));
+
+  await waitFor(() => expect(printBarcodeLabels).toHaveBeenCalledTimes(1));
+  expect(printBarcodeLabels.mock.calls[0][1]).toBe('PE Foam');
+  expect(barcodeLabelsAPI.print).not.toHaveBeenCalled();
+});
+
+test('the PDF is a second control only once a printer exists', async () => {
+  barcodeLabelsAPI.status.mockResolvedValue({ data: { configured: false } });
+  const { unmount } = render(<MaterialTagSheet tags={tags} productName="PE Foam" />);
+
+  await screen.findByRole('button', { name: /^print tags$/i });
+  expect(screen.queryByRole('button', { name: /pdf/i })).not.toBeInTheDocument();
+
+  unmount();
+  resetLabelPrinterStatus();
+  barcodeLabelsAPI.status.mockResolvedValue({ data: { configured: true } });
+  render(<MaterialTagSheet tags={tags} productName="PE Foam" />);
+
+  expect(await screen.findByRole('button', { name: /print as pdf/i })).toBeInTheDocument();
 });
