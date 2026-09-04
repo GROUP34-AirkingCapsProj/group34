@@ -118,6 +118,7 @@ class ReceivingDraftSubmitService
                 'receiving_number' => $receiving?->receiving_number,
                 'items_posted'     => count($posted),
                 'tags'             => collect($tags)->map(fn ($t) => [
+                    'serial_id'        => $t->serial_id,
                     'serial_number'    => $t->serial_number,
                     'supplier_barcode' => $t->supplier_barcode,
                 ])->values()->all(),

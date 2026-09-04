@@ -240,6 +240,9 @@ class InventoryController extends Controller
 
         $isSerialized     = $product?->isSerialized()        ?? false;
         $piecesPerPackage = $product?->getPiecesPerPackage() ?? 1;
+        // Counting granularity decides what one material tag stands for; see
+        // MaterialTagService::mintForCount.
+        $countUnit        = $product?->consumableDetail?->count_unit ?? 'package';
 
         // ── Receiving history ─────────────────────────────────────────────
         $receivingDetails = ReceivingDetail::query()
@@ -374,11 +377,15 @@ class InventoryController extends Controller
                 ->leftJoin('purchase_orders', 'purchase_orders.po_id', '=', 'receivings.po_id')
                 ->leftJoin('suppliers', 'suppliers.supplier_id', '=', 'purchase_orders.supplier_id')
                 ->leftJoin('status_lookup', 'status_lookup.status_id', '=', 'item_serial.status_id')
+                ->leftJoin('inventory_batches', 'inventory_batches.batch_id', '=', 'item_serial.batch_id')
                 ->select([
                     'item_serial.serial_id',
                     'item_serial.serial_number',
                     'item_serial.supplier_barcode',
                     'item_serial.receiving_id',
+                    'item_serial.batch_id',
+                    'inventory_batches.quantity_received as batch_quantity_received',
+                    'inventory_batches.quantity_remaining as batch_quantity_remaining',
                     'item_serial.serial_type',
                     'item_serial.created_at as scanned_at',
                     'receivings.created_at as received_at_exact',
@@ -399,7 +406,7 @@ class InventoryController extends Controller
                 ->orderBy('item_serial.created_at', 'asc')
                 ->orderBy('item_serial.serial_id', 'asc')
                 ->get()
-                ->map(function ($s) {
+                ->map(function ($s) use ($countUnit, $piecesPerPackage) {
                     // A tag names a thing, it does not measure one. One tag can
                     // stand for a whole lot whose pieces drain over time, and
                     // several tags can share a batch, so neither 1 nor the
@@ -412,8 +419,47 @@ class InventoryController extends Controller
                     $s->received_at     = $s->received_at_exact ?? $s->scanned_at;
                     $s->stock_out_at    = null;
                     $s->is_material_tag = true;
+                    // What one tag physically stands for. MaterialTagService
+                    // mints one tag per package when the product is counted by
+                    // package, and a single tag for the whole lot when it is
+                    // counted by piece - so the granularity is knowable even
+                    // though the tag itself stores no number.
+                    $s->count_unit         = $countUnit;
+                    $s->pieces_per_package = $piecesPerPackage;
                     return $s;
                 });
+
+            // Tags minted before item_serial.batch_id existed carry no batch
+            // link. A receipt books one batch per product per location, so the
+            // batch is still recoverable from the receiving - but only when
+            // that lookup is unambiguous. Two batches for one receiving line
+            // would make the choice a guess, so those rows keep their blank.
+            $orphanReceivingIds = $materialTags
+                ->filter(fn ($s) => $s->batch_id === null && $s->receiving_id !== null)
+                ->pluck('receiving_id')->unique()->values()->all();
+
+            if (! empty($orphanReceivingIds)) {
+                $batchByReceiving = DB::table('inventory_batches')
+                    ->where('product_id', $productId)
+                    ->where('location_id', $locationId)
+                    ->whereIn('receiving_id', $orphanReceivingIds)
+                    ->get(['receiving_id', 'batch_id', 'quantity_received', 'quantity_remaining'])
+                    ->groupBy('receiving_id')
+                    ->map(fn ($rows) => $rows->count() === 1 ? $rows->first() : null);
+
+                $materialTags->each(function ($s) use ($batchByReceiving) {
+                    if ($s->batch_id !== null) {
+                        return;
+                    }
+                    $batch = $batchByReceiving[$s->receiving_id] ?? null;
+                    if (! $batch) {
+                        return;
+                    }
+                    $s->batch_id                 = $batch->batch_id;
+                    $s->batch_quantity_received  = $batch->quantity_received;
+                    $s->batch_quantity_remaining = $batch->quantity_remaining;
+                });
+            }
 
             // Material issuance picks by batch, not by tag: FifoPickingService
             // writes serial_number => null on every consumable pick, so

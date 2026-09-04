@@ -1543,6 +1543,21 @@ export const scanEventsAPI = {
 };
 
 /* ======================
+   BARCODE LABEL PRINTING API
+   Stickers sent straight to the Zebra. A browser cannot choose a printer or
+   skip the print dialog, so direct printing runs through the server; the PDF
+   path in printBarcodeLabels.js is the fallback when no printer is wired up.
+====================== */
+export const barcodeLabelsAPI = {
+  status: async () => apiRequest('/barcode-labels/status'),
+  print: async (serialIds) =>
+    apiRequest('/barcode-labels/print', {
+      method: 'POST',
+      body: JSON.stringify({ serial_ids: serialIds }),
+    }),
+};
+
+/* ======================
    SUPPLIERS API
 ====================== */
 export const suppliersAPI = {
