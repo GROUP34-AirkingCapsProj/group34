@@ -63,7 +63,7 @@ export default function BarcodePrintingPage() {
   /* LocationSelector fetches nothing — without this list it degrades to a
      bare number box, which is a worse filter than none. */
   const { allowedLocations } = useUserLocation();
-  const { printerReady, sending, sendToPrinter, savePdfSheet } = useLabelPrinter();
+  const { printerReady, sending, sendToPrinter, savePdf } = useLabelPrinter();
   const selection = useTagSelection();
 
   useEffect(() => {
@@ -178,7 +178,7 @@ export default function BarcodePrintingPage() {
           onSelectAll={handleSelectAll}
           onClear={handleClear}
           onSend={handleSend}
-          onSavePdf={() => savePdfSheet(rows.filter((row) => selection.isSelected(row.serial_id)))}
+          onSavePdf={() => savePdf(rows.filter((row) => selection.isSelected(row.serial_id)))}
         />
 
         {loading && <p className="bpp-status">Loading tags…</p>}

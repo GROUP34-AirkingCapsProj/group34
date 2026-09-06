@@ -32,7 +32,7 @@ import {
  */
 export default function MaterialTagSheet({ tags, productName, showHeader = true }) {
   const [zoomedTag, setZoomedTag] = useState(null);
-  const { printerReady, sending, sendToPrinter, savePdf, savePdfSheet } = useLabelPrinter();
+  const { printerReady, sending, sendToPrinter, savePdf } = useLabelPrinter();
   const printableTags = (tags || []).filter((tag) => tag?.supplier_barcode == null);
 
   if (printableTags.length === 0) {
@@ -73,16 +73,13 @@ export default function MaterialTagSheet({ tags, productName, showHeader = true 
               {sending ? 'Printing…' : 'Print tags'}
             </button>
 
-            {/* Only worth a second control once there IS a printer: the same
-                labels on paper for when it is out of stock or somewhere else.
-                Tiled on A4 rather than one per sheet — the label-sized PDF
-                above is for feeding label stock through the print dialog,
-                which is a different job. */}
+            {/* Only worth a second control once there IS a printer: a copy of
+                the labels for when it is out of paper or somewhere else. */}
             {printerReady && (
               <button
                 type="button"
                 className="bsr-tag-sheet-pdf-btn"
-                onClick={() => savePdfSheet(printableTags, productName)}
+                onClick={() => savePdf(printableTags, productName)}
               >
                 Print as PDF
               </button>
