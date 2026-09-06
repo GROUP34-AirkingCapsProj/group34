@@ -267,3 +267,33 @@ test('clearing a picked product drops the filter from the query', async () => {
     expect(barcodeLabelsAPI.queue.mock.calls.at(-1)[0]).not.toHaveProperty('product_id');
   });
 });
+
+test('one control clears every filter at once', async () => {
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  fireEvent.focus(screen.getByPlaceholderText(/search product/i));
+  fireEvent.click(await screen.findByText('Copper Tube', { selector: 'span' }));
+  fireEvent.change(screen.getByLabelText(/product type/i), { target: { value: 'appliance' } });
+
+  await waitFor(() => {
+    const sent = barcodeLabelsAPI.queue.mock.calls.at(-1)[0];
+    expect(sent).toHaveProperty('product_id', '5');
+    expect(sent).toHaveProperty('product_type', 'appliance');
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.queue.mock.calls.at(-1)[0]).toEqual({});
+  });
+});
+
+/* Nothing to clear, nothing to offer — a permanently visible control that
+   usually does nothing trains people to ignore it. */
+test('the clear control is absent until something is filtered', async () => {
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  expect(screen.queryByRole('button', { name: /clear filters/i })).not.toBeInTheDocument();
+});

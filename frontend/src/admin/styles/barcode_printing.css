@@ -141,3 +141,27 @@
 .bpp-filter .prod-search input {
   min-width: 0;
 }
+
+/* Counts on the left, the way out on the right. */
+.bpp-filter-footer {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bpp-filter-clear {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 5px 12px;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bpp-filter-clear:hover {
+  background: #f1f5f9;
+}

@@ -130,3 +130,67 @@ test('without a clearLabel the menu holds only the items', () => {
 
   expect(screen.getAllByRole('button')).toHaveLength(items.length);
 });
+
+/* Emptying a search box is how everyone clears a search box. The menu row is
+   not enough on its own: the control looks like a text input, so deleting its
+   contents has to mean what it looks like it means. */
+test('emptying the box clears the value when the picker is clearable', () => {
+  const onChange = jest.fn();
+  render(
+    <SearchSelect items={items} value="a" onChange={onChange}
+                  placeholder="Search…" clearLabel="All products" />,
+  );
+  openMenu();
+
+  fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: '' } });
+
+  expect(onChange).toHaveBeenCalledWith('');
+});
+
+/* Focus blanks the query so you can type over a selection. That is not the
+   user clearing anything, and dropping the filter on focus would mean the
+   value could not survive being looked at. */
+test('merely focusing the box changes nothing', () => {
+  const onChange = jest.fn();
+  render(
+    <SearchSelect items={items} value="a" onChange={onChange}
+                  placeholder="Search…" clearLabel="All products" />,
+  );
+  openMenu();
+
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+/* A picker whose value is required — the issuance line item — has no empty
+   state to fall back to, so an empty box is a query, not a clearing. */
+test('emptying the box leaves a required picker alone', () => {
+  const onChange = jest.fn();
+  render(<SearchSelect items={items} value="a" onChange={onChange} placeholder="Search…" />);
+  openMenu();
+
+  fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: '' } });
+
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+/* The original bug in one line. Focusing used to blank the box, so a filter
+   that was still applied looked cleared — and clicking away brought the label
+   back, which is what "I cleared it and it did not clear" was. */
+test('focusing a picker keeps showing what is filtered', () => {
+  render(
+    <SearchSelect items={items} value="a" onChange={jest.fn()}
+                  placeholder="Search…" clearLabel="All products" />,
+  );
+  openMenu();
+
+  expect(screen.getByDisplayValue('Copper Tube')).toBeInTheDocument();
+});
+
+/* ...and the menu still offers everything, so showing the selection does not
+   cost you the ability to browse to another one. */
+test('the open menu lists every item even while the box shows a selection', () => {
+  render(<SearchSelect items={items} value="a" onChange={jest.fn()} placeholder="Search…" />);
+  openMenu();
+
+  expect(screen.getByText('Split Type AC')).toBeInTheDocument();
+});

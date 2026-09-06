@@ -17,6 +17,11 @@ import SearchSelect from '../SearchSelect';
 export default function TagFilterBar({ filters, onChange, counts, options }) {
   const set = (key) => (value) => onChange({ ...filters, [key]: value });
 
+  /* The page only ever puts set filters in here — it builds the object from
+     the query string, skipping empties — so its keys are exactly what is
+     currently narrowing the list. */
+  const activeCount = Object.keys(filters).length;
+
   const products = (options?.products || []).map((p) => ({
     id: String(p.product_id),
     label: p.product_name,
@@ -129,11 +134,21 @@ export default function TagFilterBar({ filters, onChange, counts, options }) {
         </select>
       </div>
 
-      {counts && (
-        <p className="bpp-filter-counts" role="status">
-          {counts.total} tag{counts.total === 1 ? '' : 's'} · {counts.unsent} not yet sent
-        </p>
-      )}
+      <div className="bpp-filter-footer">
+        {counts && (
+          <p className="bpp-filter-counts" role="status">
+            {counts.total} tag{counts.total === 1 ? '' : 's'} · {counts.unsent} not yet sent
+          </p>
+        )}
+
+        {/* Offered only when there is something to clear: a control that
+            usually does nothing teaches people to stop seeing it. */}
+        {activeCount > 0 && (
+          <button type="button" className="bpp-filter-clear" onClick={() => onChange({})}>
+            Clear filters ({activeCount})
+          </button>
+        )}
+      </div>
     </div>
   );
 }

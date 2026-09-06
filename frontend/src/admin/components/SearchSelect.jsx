@@ -22,8 +22,10 @@ import { createPortal } from 'react-dom';
 //   placeholder — shown when nothing is typed or selected
 //   emptyText   — shown when the query matches nothing
 //   clearLabel  — text for the row that returns to no selection, e.g.
-//                 "All products". Omit it and no such row is offered, which
-//                 is right for a picker whose value is required.
+//                 "All products". Passing it also declares the value
+//                 OPTIONAL, so emptying the box clears it too. Omit it for a
+//                 picker whose value is required, where an empty box is a
+//                 query rather than a clearing.
 //   facets      — optional node rendered above the input
 //   className   — class for the input; defaults to the app's po-select
 //   disabled
@@ -39,7 +41,11 @@ const SearchSelect = ({
   disabled,
 }) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  /* null means "not typing" — the box is showing the selection rather than a
+     search. Blanking it on focus instead would make a set filter look
+     cleared while it was still applied, and there would be nothing to delete
+     for anyone who tried to clear it the obvious way. */
+  const [query, setQuery] = useState(null);
   const [menuRect, setMenuRect] = useState(null);
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
@@ -47,13 +53,13 @@ const SearchSelect = ({
 
   const selected = useMemo(() => items.find((i) => i.id === value), [items, value]);
 
-  // When closed, show what is selected; when typing, show the query.
-  const inputText = open
+  // Typing shows the query; otherwise the box shows what is selected.
+  const inputText = query !== null
     ? query
     : (selected ? (selected.selectedLabel || selected.label || '') : '');
 
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = (query || '').trim().toLowerCase();
     return items
       .filter((i) => !q || String(i.searchText || i.label || '').toLowerCase().includes(q))
       .slice(0, 50); // cap for perf
@@ -85,6 +91,7 @@ const SearchSelect = ({
       if (wrapRef.current && wrapRef.current.contains(e.target)) return;
       if (menuRef.current && menuRef.current.contains(e.target)) return;
       setOpen(false);
+      setQuery(null); // back to showing the selection, not an abandoned search
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -102,8 +109,20 @@ const SearchSelect = ({
         disabled={disabled}
         value={inputText}
         placeholder={placeholder}
-        onChange={(e) => { setQuery(e.target.value); if (!open) { setOpen(true); } positionMenu(); }}
-        onFocus={() => { setOpen(true); setQuery(''); positionMenu(); }}
+        onChange={(e) => {
+          const next = e.target.value;
+          setQuery(next);
+          if (!open) { setOpen(true); }
+          /* Emptying the box is how anyone clears a search box, and this
+             looks like one. Only a typed edit reaches here, so a value is
+             never dropped merely by looking at the box. */
+          if (clearLabel && next === '' && value) { onChange(''); }
+          positionMenu();
+        }}
+        /* The text is selected rather than blanked, so typing still replaces
+           it in one keystroke while the box keeps telling the truth about
+           what is filtered. */
+        onFocus={(e) => { setOpen(true); setQuery(null); e.target.select(); positionMenu(); }}
       />
 
       {open && !disabled && menuRect && createPortal(
@@ -125,7 +144,7 @@ const SearchSelect = ({
               type="button"
               className="prod-search-item prod-search-item--clear"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { onChange(''); setOpen(false); setQuery(''); }}
+              onClick={() => { onChange(''); setOpen(false); setQuery(null); }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
                 border: 'none', borderBottom: '1px solid #e2e8f0', background: '#f8fafc',
@@ -144,7 +163,7 @@ const SearchSelect = ({
               key={item.id}
               className="prod-search-item"
               onMouseDown={(e) => e.preventDefault()} // keep input focus; fire before blur
-              onClick={() => { onChange(item.id); setOpen(false); setQuery(''); }}
+              onClick={() => { onChange(item.id); setOpen(false); setQuery(null); }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none',
                 borderBottom: '1px solid #f1f5f9',
