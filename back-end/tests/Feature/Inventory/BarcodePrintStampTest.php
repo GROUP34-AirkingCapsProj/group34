@@ -27,6 +27,27 @@ class BarcodePrintStampTest extends TestCase
 {
     use DatabaseTransactions;
 
+    private string $spoolFile;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        /* A file stands in for the printer share: the service writes the job
+           as bytes either way, so this exercises the real transport. */
+        $this->spoolFile = tempnam(sys_get_temp_dir(), 'zpl');
+        config([
+            'labelprinter.transport' => 'share',
+            'labelprinter.share'     => $this->spoolFile,
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        @unlink($this->spoolFile);
+        parent::tearDown();
+    }
+
     private function user(): User
     {
         $roleId = (int) (DB::table('roles')->min('role_id') ?? 1);
@@ -133,5 +154,80 @@ class BarcodePrintStampTest extends TestCase
         $this->assertNotNull($row, 'the tag itself must survive the user being deleted');
         $this->assertNull($row->last_printed_by);
         $this->assertSame(3, (int) $row->print_count);
+    }
+
+    public function test_a_successful_send_stamps_the_tag(): void
+    {
+        $tag  = $this->materialTag();
+        $user = $this->user();
+
+        $this->actingAs($user)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertOk();
+
+        $tag->refresh();
+
+        $this->assertSame(1, (int) $tag->print_count);
+        $this->assertNotNull($tag->first_printed_at);
+        $this->assertNotNull($tag->last_printed_at);
+        $this->assertSame($user->user_id, (int) $tag->last_printed_by);
+    }
+
+    /* first_printed_at is evidence of when a label first existed. A reprint
+       is a new event, not a correction of that one. */
+    public function test_a_reprint_counts_up_but_never_moves_the_first_date(): void
+    {
+        $tag  = $this->materialTag();
+        $user = $this->user();
+
+        $this->actingAs($user)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertOk();
+
+        $firstDate = $tag->refresh()->first_printed_at;
+
+        $this->travel(2)->minutes();
+
+        $this->actingAs($user)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertOk();
+
+        $tag->refresh();
+
+        $this->assertSame(2, (int) $tag->print_count);
+        $this->assertEquals($firstDate, $tag->first_printed_at, 'the first send owns that date');
+        $this->assertTrue($tag->last_printed_at->greaterThan($firstDate));
+    }
+
+    /* The stamp means "the job left for the printer". A job that never left
+       must leave no trace, or the queue's "not yet sent" filter starts hiding
+       labels nobody ever printed. */
+    public function test_a_dead_printer_stamps_nothing(): void
+    {
+        config(['labelprinter.transport' => null, 'labelprinter.share' => null]);
+        $tag = $this->materialTag();
+
+        $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertStatus(503);
+
+        $tag->refresh();
+
+        $this->assertSame(0, (int) $tag->print_count);
+        $this->assertNull($tag->first_printed_at);
+        $this->assertNull($tag->last_printed_at);
+    }
+
+    /* A refused tag never reached the builder, so it must not be counted
+       among what was sent. */
+    public function test_a_refused_tag_is_not_stamped(): void
+    {
+        $tag = $this->materialTag(['supplier_barcode' => 'SUP-9911']);
+
+        $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, (int) $tag->refresh()->print_count);
     }
 }
