@@ -27,6 +27,19 @@ class TagPrintPolicy
      * so testing the barcode first would classify a manufacturer's serial as
      * one of our own tags, and bulk printing would then run off duplicates of
      * a serial we did not issue and cannot reissue.
+     *
+     * Caller must eager-load product.applianceDetail and
+     * product.consumableDetail before iterating a collection.
+     * Product::isSerialized() lazy-loads whichever detail it needs, and a
+     * queue page of up to a hundred rows would otherwise cost a couple of
+     * hundred extra queries — one detail lookup per row instead of one
+     * eager-loaded batch.
+     *
+     * Assumes $serial->product is not null. printable() checks that before
+     * ever reaching tier(); a caller that calls tier() directly on a
+     * product-less row will get TIER_MINTED, the most permissive tier. The
+     * product_id foreign key makes that row unreachable today, so this is a
+     * documented assumption, not a guard.
      */
     public function tier(ItemSerial $serial): string
     {

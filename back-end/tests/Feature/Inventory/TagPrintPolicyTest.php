@@ -80,6 +80,59 @@ class TagPrintPolicyTest extends TestCase
         return $serial->load('product.applianceDetail');
     }
 
+    /**
+     * A durable appliance that Airking still batches — e.g. a stock of
+     * identical remote controls — rather than tracking unit by unit.
+     * isAppliance() is true but isSerialized() is false, so tier() falls
+     * through past the manufacturer branch to the same barcode/minted
+     * checks a consumable would hit.
+     */
+    private function nonSerializedApplianceTag(array $overrides = []): ItemSerial
+    {
+        $product = Product::create([
+            'product_code' => 'APP-' . uniqid(), 'product_name' => 'Remote Control',
+            'product_type' => 'appliance',
+        ]);
+        ApplianceDetail::create(['product_id' => $product->product_id, 'is_serialized' => 0]);
+
+        $serial = ItemSerial::create(array_merge([
+            'product_id'    => $product->product_id,
+            'location_id'   => $this->location()->location_id,
+            'serial_number' => 'INT-TEST-' . uniqid(),
+            'serial_type'   => 'received',
+            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
+        ], $overrides));
+
+        return $serial->load('product.applianceDetail');
+    }
+
+    /**
+     * A material that is nonetheless individually serialized by its
+     * manufacturer — e.g. a compressor unit sold as installation material.
+     * Product::isSerialized() supports this combination for consumables too.
+     */
+    private function serializedConsumableTag(): ItemSerial
+    {
+        $product = Product::create([
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Compressor Unit',
+            'product_type' => 'installation_material',
+        ]);
+        ConsumableDetail::create([
+            'product_id' => $product->product_id, 'pieces_per_package' => 1,
+            'package_unit' => 'Unit', 'is_serialized' => 1, 'count_unit' => 'piece',
+        ]);
+
+        $serial = ItemSerial::create([
+            'product_id'    => $product->product_id,
+            'location_id'   => $this->location()->location_id,
+            'serial_number' => 'MFG-' . uniqid(),
+            'serial_type'   => 'received',
+            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
+        ]);
+
+        return $serial->load('product.consumableDetail');
+    }
+
     public function test_it_names_each_tier(): void
     {
         $this->assertSame('minted', $this->policy->tier($this->materialTag()));
@@ -131,5 +184,29 @@ class TagPrintPolicyTest extends TestCase
         $orphan->setRelation('product', null);
 
         $this->assertFalse($this->policy->printable($orphan, 'single'));
+    }
+
+    public function test_a_non_serialized_appliance_tiers_as_minted(): void
+    {
+        $tag = $this->nonSerializedApplianceTag();
+
+        $this->assertSame('minted', $this->policy->tier($tag));
+        $this->assertTrue($this->policy->printable($tag, 'bulk'));
+    }
+
+    /**
+     * The serial came from the manufacturer, not from us, even though the
+     * product happens to be classed as material rather than as an
+     * appliance. It is not ours to run off by the roll, so it tiers as
+     * manufacturer and bulk must refuse it just as it would for a serialized
+     * appliance.
+     */
+    public function test_a_serialized_consumable_tiers_as_manufacturer(): void
+    {
+        $tag = $this->serializedConsumableTag();
+
+        $this->assertSame('manufacturer', $this->policy->tier($tag));
+        $this->assertFalse($this->policy->printable($tag, 'bulk'));
+        $this->assertTrue($this->policy->printable($tag, 'single'));
     }
 }
