@@ -39,8 +39,9 @@ class BarcodeLabelPrintTest extends TestCase
            as bytes either way, so this exercises the real transport.
 
            One location for the whole file, with one printer: a job now goes
-           to the printer where its tags are, so tags scattered across a
-           location each would be refused as a mixed batch. */
+           to the printer where its tags are, so a helper that gave each tag
+           its own location would have every multi-tag case refused as a
+           mixed batch. */
         $this->spoolFile       = tempnam(sys_get_temp_dir(), 'zpl');
         $this->printerLocation = $this->location();
 

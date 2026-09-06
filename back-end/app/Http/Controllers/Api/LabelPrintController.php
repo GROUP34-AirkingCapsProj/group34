@@ -6,6 +6,7 @@ use App\Exceptions\LabelPrinterException;
 use App\Http\Controllers\Controller;
 use App\Models\ItemSerial;
 use App\Models\Location;
+use App\Models\SystemSetting;
 use App\Services\LabelPrinterService;
 use App\Services\TagPrintPolicy;
 use App\Services\ZplLabelBuilder;
@@ -34,23 +35,31 @@ class LabelPrintController extends Controller
      * Whether the UI should offer a direct-print button at all, and which
      * locations have a printer.
      *
-     * Scoped the way everything else here is: a branch user is told about
-     * their own location, a centralized one about all of them. `configured`
-     * is the summary the button is drawn from — at least one printer among
-     * the locations whose tags this user can print.
+     * Scoped the way everything else here is — literally: forUser() is the
+     * same scope print() applies to the tags themselves, so a branch user is
+     * told about their own location and a centralized one about all of them.
+     * Closed locations are left out; a branch nobody works at does not need a
+     * printer offered for it. `configured` is the summary the button is drawn
+     * from — at least one printer among the locations this user can print at.
      */
     public function status(Request $request)
     {
-        $user = $request->user();
+        /* The whole map in one read. isConfigured() would be a settings query
+           per location, and this endpoint is polled on page load. */
+        $printers = SystemSetting::labelPrinters();
+        $defaults = SystemSetting::labelPrinterDefaults();
 
         $locations = Location::query()
-            ->when(! $user->isCentralized(), fn ($q) => $q->where('location_id', $user->scopedLocationId() ?? 0))
+            ->forUser($request->user())
+            ->where('is_active', 1)
             ->orderBy('location_name')
             ->get(['location_id', 'location_name'])
             ->map(fn (Location $location) => [
                 'location_id'   => $location->location_id,
                 'location_name' => $location->location_name,
-                'configured'    => $this->printer->isConfigured($location->location_id),
+                'configured'    => $this->printer->isConfiguredFor(
+                    $printers[$location->location_id] ?? $defaults
+                ),
             ]);
 
         return $this->success([
@@ -94,6 +103,18 @@ class LabelPrintController extends Controller
 
         if ($printable->isEmpty()) {
             return $this->error('None of those tags can be reprinted.', 422);
+        }
+
+        /* item_serial.location_id is nullable, and a null would cast to 0 and
+           send staff off to set up a printer for a location the tag does not
+           have. Name the real problem instead: the tag needs a location
+           before it can be routed anywhere. */
+        if ($printable->contains(fn (ItemSerial $serial) => $serial->location_id === null)) {
+            return $this->error(
+                'Some of those tags have no location recorded, so there is no printer to send them to. '
+                . 'Set the location on the tag and print again.',
+                422,
+            );
         }
 
         /* Which printer this goes to is decided by where the tags are, not by

@@ -8,16 +8,40 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\LabelPrinterService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
  * A printer per location, set by an admin rather than by a developer.
+ *
+ * Two halves: storing the map on SystemSetting, and the rule that decides
+ * which of those printers a given job goes to. They belong together because
+ * the second is the only reason the first is worth having — a job goes to the
+ * printer at the location of the tags being printed, since a label exists to
+ * be stuck on a box and the box is at that location.
  */
 class LabelPrinterSettingsTest extends TestCase
 {
     use DatabaseTransactions;
+
+    /** @var list<string> every spool file handed out, cleaned up together. */
+    private array $spoolFiles = [];
+
+    protected function tearDown(): void
+    {
+        /* In tearDown rather than at the end of each test: an assertion that
+           fails ends the test body early, and a leaked temp file per failing
+           run is a slow mess nobody attributes to this file. */
+        foreach ($this->spoolFiles as $file) {
+            @unlink($file);
+        }
+
+        $this->spoolFiles = [];
+
+        parent::tearDown();
+    }
 
     private function location(string $name = 'Warehouse A'): Location
     {
@@ -26,6 +50,50 @@ class LabelPrinterSettingsTest extends TestCase
             'location_name' => $name,
             'location_type' => 'warehouse',
         ]);
+    }
+
+    private function user(): User
+    {
+        $roleId = (int) (DB::table('roles')->min('role_id') ?? 1);
+
+        return User::create([
+            'username' => 't_' . uniqid(), 'first_name' => 'T', 'last_name' => 'U',
+            'email' => uniqid() . '@e.test', 'password_hash' => bcrypt('x'), 'role_id' => $roleId,
+        ]);
+    }
+
+    private function tagAt(Location $location): ItemSerial
+    {
+        $product = Product::create([
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Tube',
+            'product_type' => 'installation_material',
+        ]);
+        ConsumableDetail::create([
+            'product_id' => $product->product_id, 'pieces_per_package' => 50,
+            'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
+        ]);
+
+        return ItemSerial::create([
+            'product_id'    => $product->product_id,
+            'location_id'   => $location->location_id,
+            'serial_number' => 'INT-TEST-' . uniqid(),
+            'serial_type'   => 'received',
+            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
+        ]);
+    }
+
+    /** A file stands in for a printer share: the transport writes bytes either way. */
+    private function spoolFor(Location $location): string
+    {
+        $file = tempnam(sys_get_temp_dir(), 'zpl');
+
+        $this->spoolFiles[] = $file;
+
+        SystemSetting::setLabelPrinter($location->location_id, [
+            'transport' => 'share', 'share' => $file,
+        ]);
+
+        return $file;
     }
 
     public function test_a_location_with_nothing_stored_reads_as_unset(): void
@@ -106,48 +174,6 @@ class LabelPrinterSettingsTest extends TestCase
         $this->assertSame(5, SystemSetting::labelPrinter($location->location_id)['timeout']);
     }
 
-    private function user(): User
-    {
-        $roleId = (int) (DB::table('roles')->min('role_id') ?? 1);
-
-        return User::create([
-            'username' => 't_' . uniqid(), 'first_name' => 'T', 'last_name' => 'U',
-            'email' => uniqid() . '@e.test', 'password_hash' => bcrypt('x'), 'role_id' => $roleId,
-        ]);
-    }
-
-    private function tagAt(Location $location): ItemSerial
-    {
-        $product = Product::create([
-            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Tube',
-            'product_type' => 'installation_material',
-        ]);
-        ConsumableDetail::create([
-            'product_id' => $product->product_id, 'pieces_per_package' => 50,
-            'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
-        ]);
-
-        return ItemSerial::create([
-            'product_id'    => $product->product_id,
-            'location_id'   => $location->location_id,
-            'serial_number' => 'INT-TEST-' . uniqid(),
-            'serial_type'   => 'received',
-            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
-        ]);
-    }
-
-    /** A file stands in for a printer share: the transport writes bytes either way. */
-    private function spoolFor(Location $location): string
-    {
-        $file = tempnam(sys_get_temp_dir(), 'zpl');
-
-        SystemSetting::setLabelPrinter($location->location_id, [
-            'transport' => 'share', 'share' => $file,
-        ]);
-
-        return $file;
-    }
-
     /* THE test for this feature. A resolver that read the user's location, or
        simply took the first configured printer, passes every other case in
        this file and fails only here — with labels coming out in a building
@@ -171,8 +197,6 @@ class LabelPrinterSettingsTest extends TestCase
         $this->assertSame('', file_get_contents($spoolA), 'Warehouse A must not have printed');
         $this->assertStringContainsString($tag->serial_number, file_get_contents($spoolB));
 
-        @unlink($spoolA);
-        @unlink($spoolB);
     }
 
     public function test_a_batch_spanning_two_locations_is_refused(): void
@@ -197,8 +221,6 @@ class LabelPrinterSettingsTest extends TestCase
         $this->assertSame('', file_get_contents($spoolA));
         $this->assertSame(0, (int) $here->fresh()->print_count);
         $this->assertNull($here->fresh()->last_printed_at);
-
-        @unlink($spoolA);
     }
 
     public function test_a_location_with_no_printer_says_which_one(): void
@@ -236,8 +258,29 @@ class LabelPrinterSettingsTest extends TestCase
 
         $res->assertOk();
         $this->assertStringContainsString($mine->serial_number, file_get_contents($spoolA));
+    }
 
-        @unlink($spoolA);
+    /* item_serial.location_id is nullable. A null would cast to location 0 and
+       send staff off to configure a printer for a location the tag does not
+       have — a dead end. The tag is what needs fixing, so say that. */
+    public function test_a_tag_with_no_location_says_the_tag_is_the_problem(): void
+    {
+        $a   = $this->location('Warehouse A');
+        $tag = $this->tagAt($a);
+
+        $this->spoolFor($a);
+
+        /* Written past the model: location_id is guarded, and the point is a
+           row that exists this way in the schema, not one Eloquent allows. */
+        DB::table('item_serial')->where('serial_id', $tag->serial_id)->update(['location_id' => null]);
+
+        $res = $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ]);
+
+        $res->assertStatus(422);
+        $this->assertStringContainsString('no location recorded', $res->json('message'));
+        $this->assertSame(0, (int) $tag->fresh()->print_count);
     }
 
     public function test_configured_is_answered_per_location(): void
@@ -245,13 +288,11 @@ class LabelPrinterSettingsTest extends TestCase
         $a = $this->location('Warehouse A');
         $b = $this->location('Warehouse B');
 
-        $spool = $this->spoolFor($a);
+        $this->spoolFor($a);
 
-        $printer = app(\App\Services\LabelPrinterService::class);
+        $printer = app(LabelPrinterService::class);
 
         $this->assertTrue($printer->isConfigured($a->location_id));
         $this->assertFalse($printer->isConfigured($b->location_id));
-
-        @unlink($spool);
     }
 }
