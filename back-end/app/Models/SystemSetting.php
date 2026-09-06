@@ -20,6 +20,7 @@ class SystemSetting extends Model
     public const KEY_ARCHIVE_NOTIFICATIONS   = 'archive_notifications';
     public const KEY_ARCHIVE_LAST_RUN        = 'archive_last_run';
     public const KEY_ACCOUNT_POLICY          = 'account_self_service_policy';
+    public const KEY_LABEL_PRINTERS          = 'label_printers';
 
     protected $fillable = ['key', 'value'];
 
@@ -66,6 +67,59 @@ class SystemSetting extends Model
         $all            = static::getValue(self::KEY_ARCHIVE_CONFIG, []);
         $all[$module]   = array_merge($all[$module] ?? [], $config);
         static::setValue(self::KEY_ARCHIVE_CONFIG, $all);
+    }
+
+    // ── Label printers, one per location ──────────────────────
+
+    /** Every field a connection has, with the values a location starts from. */
+    public static function labelPrinterDefaults(): array
+    {
+        return ['transport' => '', 'host' => '', 'port' => 9100, 'share' => '', 'timeout' => 5];
+    }
+
+    /** The whole map, for a settings screen that lists every location. */
+    public static function labelPrinters(): array
+    {
+        $all = static::getValue(self::KEY_LABEL_PRINTERS, []);
+
+        return is_array($all) ? $all : [];
+    }
+
+    /**
+     * One location's printer, merged over the defaults so a caller never has
+     * to check whether a key is present. A location nobody has configured
+     * reads as an empty transport, which every caller already treats as
+     * "no printer here".
+     */
+    public static function labelPrinter(int $locationId): array
+    {
+        $stored = static::labelPrinters()[(string) $locationId] ?? [];
+
+        return array_merge(
+            static::labelPrinterDefaults(),
+            is_array($stored) ? $stored : [],
+        );
+    }
+
+    /**
+     * Merged into the map, never replacing it: warehouses are configured one
+     * at a time, months apart, and a save that replaced the map would unplug
+     * every other warehouse silently.
+     *
+     * Keys are cast to string because the map round-trips through JSON, where
+     * object keys are always strings — reading back with an int key would miss
+     * everything written with a string one.
+     */
+    public static function setLabelPrinter(int $locationId, array $printer): void
+    {
+        $all = static::labelPrinters();
+
+        $all[(string) $locationId] = array_merge(
+            static::labelPrinterDefaults(),
+            array_intersect_key($printer, static::labelPrinterDefaults()),
+        );
+
+        static::setValue(self::KEY_LABEL_PRINTERS, $all);
     }
 
     public static function sessionTimeoutMinutes(): int
