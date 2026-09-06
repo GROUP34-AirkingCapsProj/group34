@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Schema;
  * These record a job leaving for the printer, not a sticker reaching a box.
  * A jammed printer still stamps. The UI says "sent" for that reason, and the
  * reprint action stays available whatever these columns say.
+ *
+ * last_printed_by follows the table's existing scanned_by convention: an FK
+ * that nulls on delete. Removing a user costs the print history its
+ * attribution but never blocks the delete or orphans the row.
  */
 return new class extends Migration
 {
@@ -32,6 +36,10 @@ return new class extends Migration
             /* The queue's "not yet sent" filter is the page's default view,
                so it runs on every load. */
             $table->index('last_printed_at', 'item_serial_last_printed_at_index');
+
+            $table->foreign('last_printed_by')
+                ->references('user_id')->on('users')
+                ->onDelete('set null');
         });
     }
 
@@ -42,6 +50,7 @@ return new class extends Migration
         }
 
         Schema::table('item_serial', function (Blueprint $table) {
+            $table->dropForeign(['last_printed_by']);
             $table->dropIndex('item_serial_last_printed_at_index');
             $table->dropColumn([
                 'first_printed_at', 'last_printed_at', 'print_count', 'last_printed_by',
