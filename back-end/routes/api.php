@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SerialController;
 use App\Http\Controllers\Api\LabelPrintController;
+use App\Http\Controllers\Api\LabelPrinterSettingsController;
 use App\Http\Controllers\Api\BarcodeQueueController;
 use App\Http\Controllers\Api\AnalyticsDashboardController;
 // ERD-aligned controllers
@@ -143,6 +144,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('role:admin')->put('/system/company-settings', [CompanySettingsController::class, 'update']);
     Route::middleware('role:admin')->get('/system/account-policy', [AccountPolicyController::class, 'show']);
     Route::middleware('role:admin')->put('/system/account-policy', [AccountPolicyController::class, 'update']);
+    Route::get('/system/label-printers', [LabelPrinterSettingsController::class, 'index']);
+    Route::middleware('role:admin')->put('/system/label-printers/{location}', [LabelPrinterSettingsController::class, 'update']);
+    Route::middleware('role:admin')->post('/system/label-printers/{location}/test', [LabelPrinterSettingsController::class, 'test']);
     Route::middleware(['role:admin', 'throttle:30,1'])->post('/password-reset/issue', [PasswordResetController::class, 'issue']);
     Route::middleware(['role:admin', 'throttle:60,1'])->get('/password-reset/active', [PasswordResetController::class, 'active']);
     Route::middleware(['role:admin', 'throttle:60,1'])->post('/password-reset/active/{passwordResetCode}/revoke', [PasswordResetController::class, 'revoke']);

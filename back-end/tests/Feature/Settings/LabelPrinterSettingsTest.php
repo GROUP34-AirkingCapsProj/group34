@@ -295,4 +295,102 @@ class LabelPrinterSettingsTest extends TestCase
         $this->assertTrue($printer->isConfigured($a->location_id));
         $this->assertFalse($printer->isConfigured($b->location_id));
     }
+
+    private function admin(): User
+    {
+        $user = $this->user();
+        $user->role_id = 1; // admin
+        $user->save();
+
+        return $user;
+    }
+
+    public function test_it_lists_every_location_with_its_printer(): void
+    {
+        $a = $this->location('Warehouse A');
+        $b = $this->location('Warehouse B');
+
+        SystemSetting::setLabelPrinter($a->location_id, ['transport' => 'tcp', 'host' => '10.0.0.1']);
+
+        $res = $this->actingAs($this->admin())->getJson('/api/system/label-printers');
+
+        $res->assertOk();
+
+        $rows = collect($res->json('data.locations'));
+
+        $this->assertTrue($rows->firstWhere('location_id', $a->location_id)['configured']);
+        /* Listed even though nobody has set it up — the panel exists to show
+           which warehouses still need one. */
+        $this->assertFalse($rows->firstWhere('location_id', $b->location_id)['configured']);
+    }
+
+    public function test_it_reports_the_label_stock_it_expects(): void
+    {
+        $res = $this->actingAs($this->admin())->getJson('/api/system/label-printers');
+
+        $res->assertOk();
+        $this->assertSame(100, $res->json('data.label.width_mm'));
+        $this->assertSame(25, $res->json('data.label.height_mm'));
+    }
+
+    public function test_an_admin_can_save_one_location(): void
+    {
+        $location = $this->location();
+
+        $res = $this->actingAs($this->admin())
+            ->putJson("/api/system/label-printers/{$location->location_id}", [
+                'transport' => 'tcp', 'host' => '192.168.1.50', 'port' => 9100, 'timeout' => 5,
+            ]);
+
+        $res->assertOk();
+        $this->assertSame('192.168.1.50', SystemSetting::labelPrinter($location->location_id)['host']);
+    }
+
+    public function test_a_non_admin_cannot_save(): void
+    {
+        $location = $this->location();
+
+        /* Not $this->user(): that helper takes role_id = min(role_id), and
+           the seeder always creates admin first as id 1, so it would hand
+           back an admin here too — the opposite of what this test needs. */
+        $user = $this->user();
+        $user->role_id = (int) (DB::table('roles')->max('role_id') ?? 2);
+        $user->save();
+
+        $res = $this->actingAs($user)
+            ->putJson("/api/system/label-printers/{$location->location_id}", [
+                'transport' => 'tcp', 'host' => '192.168.1.50',
+            ]);
+
+        $res->assertForbidden();
+        $this->assertSame('', SystemSetting::labelPrinter($location->location_id)['transport']);
+    }
+
+    public function test_a_network_printer_needs_an_address(): void
+    {
+        $location = $this->location();
+
+        $this->actingAs($this->admin())
+            ->putJson("/api/system/label-printers/{$location->location_id}", ['transport' => 'tcp'])
+            ->assertStatus(422);
+    }
+
+    public function test_a_share_printer_needs_a_path(): void
+    {
+        $location = $this->location();
+
+        $this->actingAs($this->admin())
+            ->putJson("/api/system/label-printers/{$location->location_id}", ['transport' => 'share'])
+            ->assertStatus(422);
+    }
+
+    /* An unknown location means a stale page or a hand-made request. Writing
+       it anyway would leave settings under an id nothing lists, which nobody
+       could then find or remove. */
+    public function test_saving_an_unknown_location_is_a_404(): void
+    {
+        $this->actingAs($this->admin())
+            ->putJson('/api/system/label-printers/99999999', ['transport' => ''])
+            ->assertNotFound();
+    }
 }
