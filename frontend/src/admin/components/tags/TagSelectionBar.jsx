@@ -45,15 +45,18 @@ export default function TagSelectionBar({
           </button>
         )}
         <button type="button" className="bpp-selection-pdf" onClick={onSavePdf}>
-          Save as PDF
+          Print tag
         </button>
       </div>
 
-      {/* A PDF is built in the browser and never reaches the server, so
-          nothing can stamp it. Said out loud, because a print state that
-          quietly under-reports sends a clerk back to reprint labels they are
-          already holding on a sheet. */}
-      <p className="bpp-selection-note">A PDF is not counted as sent.</p>
+      {/* This route builds the sticker in the browser and never reaches the
+          server, so nothing can stamp it. Said out loud — and now that the
+          button no longer names the format, said in full — because a print
+          state that quietly under-reports sends a clerk back to reprint
+          labels they are already holding. */}
+      <p className="bpp-selection-note">
+        Print tag makes a PDF and is not counted as sent.
+      </p>
 
       {ineligibleCount > 0 && (
         <p className="bpp-selection-warning" role="status">

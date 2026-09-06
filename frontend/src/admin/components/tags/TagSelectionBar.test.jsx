@@ -46,7 +46,7 @@ test('it sends and saves', () => {
   fireEvent.click(screen.getByRole('button', { name: /send to printer/i }));
   expect(props.onSend).toHaveBeenCalled();
 
-  fireEvent.click(screen.getByRole('button', { name: /save as pdf/i }));
+  fireEvent.click(screen.getByRole('button', { name: /print tag/i }));
   expect(props.onSavePdf).toHaveBeenCalled();
 });
 
@@ -55,14 +55,14 @@ test('it offers only the PDF when no printer is configured', () => {
   render(<TagSelectionBar {...props} printerReady={false} />);
 
   expect(screen.queryByRole('button', { name: /send to printer/i })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /save as pdf/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /print tag/i })).toBeInTheDocument();
 });
 
 /* Spec section 2: the PDF path never reaches the server, so it cannot be
    stamped. Left unsaid, the print state quietly under-reports and a clerk
    reprints labels they already have on a sheet. */
-test('it says a PDF does not count as sent', () => {
+test('it says the PDF route does not count as sent', () => {
   render(<TagSelectionBar {...props} />);
 
-  expect(screen.getByText(/pdf.*(not|isn't).*count/i)).toBeInTheDocument();
+  expect(screen.getByText(/not counted as sent/i)).toBeInTheDocument();
 });
