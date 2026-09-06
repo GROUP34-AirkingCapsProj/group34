@@ -27,6 +27,7 @@ const routePrefetchMap = {
   '/admin/purchase-requests': () => import('../pages/PurchaseRequestPage'),
   '/admin/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
   '/admin/inventory': () => import('../pages/InventoryManagement'),
+  '/admin/barcode-printing': () => import('../pages/BarcodePrintingPage'),
   '/admin/transfers': () => import('../pages/TransfersPage'),
   '/admin/issuances': () => import('../pages/IssuanceManagement'),
   '/admin/adjustments': () => import('../pages/AdjustmentManagement'),
@@ -81,6 +82,7 @@ const adminMenuSections = [
     label: 'INVENTORY INTELLIGENCE',
     items: [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
+      { name: 'Barcode Printing', path: '/admin/barcode-printing', icon: 'scan' },
       { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
       { name: 'Incident Reports', path: '/admin/incidents', icon: 'incident' },
       { name: 'Inspections', path: '/admin/inspections', icon: 'incident' },

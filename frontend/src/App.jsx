@@ -29,6 +29,7 @@ const IncidentInspectionPage = lazy(() => import('./admin/pages/IncidentInspecti
 
 // Inventory
 const InventoryManagement = lazy(() => import('./admin/pages/InventoryManagement'));
+const BarcodePrintingPage = lazy(() => import('./admin/pages/BarcodePrintingPage'));
 const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferManagement'));
 const TransfersPage = lazy(() => import('./admin/pages/TransfersPage'));
 const TransferRequestPage = lazy(() => import('./admin/pages/TransferRequestPage'));
@@ -143,6 +144,7 @@ function App() {
 
           {/* Inventory */}
           <Route path="/admin/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
+          <Route path="/admin/barcode-printing" element={<RoleRoute><BarcodePrintingPage /></RoleRoute>} />
           <Route path="/admin/transfers" element={<RoleRoute><TransfersPage /></RoleRoute>} />
           {/* /admin/transfer-scan retired — receiving is now handled via IST flow (/admin/ist/:id/receive) */}
           <Route path="/admin/transfer-scan" element={<Navigate to="/admin/ist" replace />} />

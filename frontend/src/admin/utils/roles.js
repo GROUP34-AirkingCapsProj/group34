@@ -81,6 +81,12 @@ export const ROUTE_ACCESS = {
   '/admin/brands': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
   '/admin/inventory-operation': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
   '/admin/scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  /* Reprinting a damaged label is warehouse work, so it matches the scan
+     pages rather than the read-only reports. The queue endpoints behind it
+     are auth-only and already scoped to the user's location; an unlisted
+     path here would fall back to admin-only and hide the page from exactly
+     the people who print. */
+  '/admin/barcode-printing': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
 
   // Inventory operations
   '/admin/inventory': Object.values(ROLES),
