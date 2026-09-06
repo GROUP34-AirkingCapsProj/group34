@@ -88,4 +88,16 @@ class LabelPrinterSettingsTest extends TestCase
 
         $this->assertSame(9100, SystemSetting::labelPrinter($location->location_id)['port']);
     }
+
+    /* JSON round-trips a whole float back as an int, so a float timeout
+       would split int/string depending on whether the value was fractional.
+       An int-only field removes the ambiguity at the source. */
+    public function test_a_timeout_arriving_as_a_string_reads_back_as_an_int(): void
+    {
+        $location = $this->location();
+
+        SystemSetting::setLabelPrinter($location->location_id, ['transport' => 'tcp', 'timeout' => '5']);
+
+        $this->assertSame(5, SystemSetting::labelPrinter($location->location_id)['timeout']);
+    }
 }

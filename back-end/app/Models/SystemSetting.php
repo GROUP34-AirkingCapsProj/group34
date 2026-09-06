@@ -100,9 +100,8 @@ class SystemSetting extends Model
 
     /**
      * One location's printer. A location nobody has configured returns the
-     * defaults untouched, so a caller can treat an empty transport as intent
-     * to mean "no printer configured here" without special-casing an unset
-     * location.
+     * defaults untouched, so a caller can treat an empty transport as meaning
+     * "no printer configured here" without special-casing an unset location.
      */
     public static function labelPrinter(int $locationId): array
     {
@@ -119,6 +118,13 @@ class SystemSetting extends Model
      * complete record, and an admin retiring a printer with transport: ''
      * must not leave the old host behind for a later partial save to
      * resurrect.
+     *
+     * Every save also passes every entry back through labelPrinters(), which
+     * filters to known keys. So saving warehouse A's printer also re-normalises
+     * warehouse B's stored entry, silently dropping any key this class no
+     * longer recognises. Harmless today; whoever adds a sixth field should
+     * know that old data is normalised on the next unrelated save rather than
+     * preserved as-is.
      */
     public static function setLabelPrinter(int $locationId, array $printer): void
     {
@@ -127,11 +133,17 @@ class SystemSetting extends Model
         if (! in_array($printer['transport'] ?? '', ['tcp', 'share', ''], true)) {
             $printer['transport'] = '';
         }
+        if (array_key_exists('host', $printer)) {
+            $printer['host'] = (string) $printer['host'];
+        }
         if (array_key_exists('port', $printer)) {
             $printer['port'] = (int) $printer['port'];
         }
+        if (array_key_exists('share', $printer)) {
+            $printer['share'] = (string) $printer['share'];
+        }
         if (array_key_exists('timeout', $printer)) {
-            $printer['timeout'] = (float) $printer['timeout'];
+            $printer['timeout'] = (int) $printer['timeout'];
         }
 
         $all              = static::labelPrinters();
