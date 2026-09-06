@@ -1550,10 +1550,39 @@ export const scanEventsAPI = {
 ====================== */
 export const barcodeLabelsAPI = {
   status: async () => apiRequest('/barcode-labels/status'),
-  print: async (serialIds) =>
+
+  /* The tag population to print from. `filters` maps straight onto the query
+     string the queue endpoint reads — empty values are dropped so a cleared
+     filter does not arrive as `?q=`. */
+  queue: async (filters = {}, page = 1, perPage = 24) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== '' && value != null) params.append(key, String(value));
+    });
+
+    return apiRequest(`/barcode-labels/queue?${params.toString()}`);
+  },
+
+  /* Every id matching those same filters, for "select all matching". Capped
+     server-side; the response says whether it truncated. */
+  queueIds: async (filters = {}) => {
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== '' && value != null) params.append(key, String(value));
+    });
+
+    return apiRequest(`/barcode-labels/queue/ids?${params.toString()}`);
+  },
+
+  /* mode 'bulk' (default) prints only tags we minted; 'single' is one
+     deliberate reprint and accepts a supplier or manufacturer code too. The
+     server enforces both — this argument only states the intent. */
+  print: async (serialIds, mode = 'bulk') =>
     apiRequest('/barcode-labels/print', {
       method: 'POST',
-      body: JSON.stringify({ serial_ids: serialIds }),
+      body: JSON.stringify({ serial_ids: serialIds, mode }),
     }),
 };
 

@@ -39,3 +39,30 @@ test('bars are drawn at the module width the geometry asked for', () => {
   expect(narrowest).toBeCloseTo(moduleWidthMm(value), 3);
   expect(bars.length).toBeGreaterThan(20);
 });
+
+/* Read back what the sticker actually says. jsPDF writes uncompressed content
+   streams, so the drawn strings are in the file verbatim — and unlike spying
+   on a draw call, this asserts the thing that reaches the label. */
+const drawnText = (doc) => doc.output();
+
+test('a label falls back to its own product name when the batch has no single one', () => {
+  const printed = drawnText(buildLabelDocument(
+    [
+      { serial_number: 'INT-1', product_name: 'Copper Tube' },
+      { serial_number: 'INT-2', product_name: 'Split Type AC' },
+    ],
+    undefined,
+  ));
+
+  expect(printed).toContain('Copper Tube');
+  expect(printed).toContain('Split Type AC');
+});
+
+/* An explicit batch name still wins — the per-product sheet passes one, and
+   every tag in that batch really is that product. */
+test('an explicit product name still applies to the whole batch', () => {
+  const printed = drawnText(buildLabelDocument([{ serial_number: 'INT-1', product_name: 'Ignored' }], 'PE Foam'));
+
+  expect(printed).toContain('PE Foam');
+  expect(printed).not.toContain('Ignored');
+});

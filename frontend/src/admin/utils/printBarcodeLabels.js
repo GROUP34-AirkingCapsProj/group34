@@ -45,10 +45,16 @@ export function buildLabelDocument(tags, productName) {
     /* Centred, so the quiet zone is even on both sides however long the code. */
     const originX = (LABEL_WIDTH_MM - widthMm) / 2;
 
-    if (productName) {
+    /* A batch name wins when the caller has one — the per-product sheet
+       prints one product, and every tag in it really is that product. The
+       printing page prints a whole delivery, so there each label falls back
+       to its own. */
+    const label = productName || tag.product_name;
+
+    if (label) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(NAME_PT);
-      doc.text(truncateToWidth(doc, productName, LABEL_WIDTH_MM - 4), LABEL_WIDTH_MM / 2, NAME_BASELINE_MM, { align: 'center' });
+      doc.text(truncateToWidth(doc, label, LABEL_WIDTH_MM - 4), LABEL_WIDTH_MM / 2, NAME_BASELINE_MM, { align: 'center' });
     }
 
     doc.setFillColor(0, 0, 0);

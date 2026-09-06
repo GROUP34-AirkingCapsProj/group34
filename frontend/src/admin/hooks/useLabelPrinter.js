@@ -43,7 +43,7 @@ export function useLabelPrinter() {
     return () => { active = false; };
   }, []);
 
-  const sendToPrinter = useCallback(async (tags) => {
+  const sendToPrinter = useCallback(async (tags, mode = 'bulk') => {
     /* The printer is told which tags by id, so a payload that carries only
        serial numbers cannot reach it. Silence here would look like a dead
        button; the PDF still works and says so. */
@@ -55,7 +55,7 @@ export function useLabelPrinter() {
 
     setSending(true);
     try {
-      const res = await barcodeLabelsAPI.print(ids);
+      const res = await barcodeLabelsAPI.print(ids, mode);
       toast.success(res?.message || 'Sent to the printer.');
     } catch (e) {
       /* The printer being off is not a broken button. Say what happened and
