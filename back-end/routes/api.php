@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SerialController;
 use App\Http\Controllers\Api\LabelPrintController;
+use App\Http\Controllers\Api\BarcodeQueueController;
 use App\Http\Controllers\Api\AnalyticsDashboardController;
 // ERD-aligned controllers
 use App\Http\Controllers\Api\LocationController;
@@ -491,6 +492,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
        a PDF and open a print dialog, so direct printing runs through here. */
     Route::get('/barcode-labels/status', [LabelPrintController::class, 'status']);
     Route::post('/barcode-labels/print', [LabelPrintController::class, 'print']);
+
+    /* The printing queue: everything received that still carries a scannable
+       identity, filtered down to what a clerk is about to label. */
+    Route::get('/barcode-labels/queue', [BarcodeQueueController::class, 'index']);
+    Route::get('/barcode-labels/queue/ids', [BarcodeQueueController::class, 'ids']);
 
     /*
     |--------------------------------------------------------------------------
