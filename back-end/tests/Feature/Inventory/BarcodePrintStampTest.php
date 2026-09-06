@@ -230,4 +230,39 @@ class BarcodePrintStampTest extends TestCase
 
         $this->assertSame(0, (int) $tag->refresh()->print_count);
     }
+
+    /* The single-refused-tag case above documents the 422 behaviour, but it
+       can't tell "only what was sent got stamped" apart from "nothing was
+       stamped because nothing was sent" — the whole request short-circuits
+       at printable->isEmpty() either way. The real production shape is a
+       mixed bulk selection: the UI's own copy is "38 selected · 6 are
+       supplier codes and won't be included in a bulk print". This proves the
+       refused tag stays untouched — and never even reaches the printer —
+       when the request goes through because something else in it could
+       print. */
+    public function test_a_refused_tag_in_a_mixed_batch_is_left_untouched(): void
+    {
+        $printableTag = $this->materialTag();
+        $refusedTag   = $this->materialTag(['supplier_barcode' => 'SUP-9911']);
+        $user         = $this->user();
+
+        $this->actingAs($user)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$printableTag->serial_id, $refusedTag->serial_id],
+        ])->assertOk();
+
+        $printableTag->refresh();
+        $refusedTag->refresh();
+
+        $this->assertSame(1, (int) $printableTag->print_count);
+        $this->assertNotNull($printableTag->last_printed_at);
+
+        $this->assertSame(0, (int) $refusedTag->print_count);
+        $this->assertNull($refusedTag->first_printed_at);
+        $this->assertNull($refusedTag->last_printed_at);
+        $this->assertNull($refusedTag->last_printed_by);
+
+        $job = file_get_contents($this->spoolFile);
+        $this->assertStringContainsString($printableTag->serial_number, $job);
+        $this->assertStringNotContainsString($refusedTag->serial_number, $job, 'a refused tag must never reach the printer');
+    }
 }
