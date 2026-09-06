@@ -7,6 +7,7 @@ use App\Models\ConsumableDetail;
 use App\Models\ItemSerial;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\Receiving;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -267,6 +268,38 @@ class BarcodeQueueTest extends TestCase
 
         $this->assertContains($mine->serial_id, $ids);
         $this->assertNotContains($theirs->serial_id, $ids);
+    }
+
+    /* The GRN half of the "receipt" box is proven above; the PO half is not,
+       and a green suite with it deleted entirely would say nothing.
+
+       The retired tag is the load-bearing row. The two halves of this filter
+       are an OR, and an OR written at the top level of the query instead of
+       inside the receipt clause escapes the base scope — retired tags, and a
+       branch user's location fence with them — for anyone who types a PO
+       number. A retired tag hanging off the matching receipt is the cheapest
+       row that catches that. */
+    public function test_it_finds_a_receipt_by_its_purchase_order_number(): void
+    {
+        $location = $this->location();
+        $po       = PurchaseOrder::create(['po_number' => 'PO-' . uniqid()]);
+
+        $wanted = $this->receiptOn('2026-09-01', $location);
+        $wanted->update(['po_id' => $po->po_id]);
+        $other  = $this->receiptOn('2026-09-01', $location);
+
+        $mine    = $this->tag($this->material(), ['receiving_id' => $wanted->receiving_id]);
+        $theirs  = $this->tag($this->material(), ['receiving_id' => $other->receiving_id]);
+        $retired = $this->tag($this->material(), [
+            'receiving_id' => $wanted->receiving_id,
+            'serial_type'  => 'issued',
+        ]);
+
+        $ids = $this->ids(['receipt' => $po->po_number]);
+
+        $this->assertContains($mine->serial_id, $ids);
+        $this->assertNotContains($theirs->serial_id, $ids);
+        $this->assertNotContains($retired->serial_id, $ids);
     }
 
     public function test_it_searches_by_product_name_and_code(): void
