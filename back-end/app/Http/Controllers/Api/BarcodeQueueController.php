@@ -194,6 +194,11 @@ class BarcodeQueueController extends Controller
             ->whereHas('product', fn (Builder $p) => $p
                 ->where('product_type', $request->input('product_type'))));
 
+        /* An exact product, from the picker. `q` below is still the substring
+           search - it stays for URLs people have already shared. */
+        $query->when($request->filled('product_id'), fn (Builder $q) => $q
+            ->where('product_id', (int) $request->input('product_id')));
+
         $query->when($request->filled('location_id'), fn (Builder $q) => $q
             ->where('location_id', (int) $request->input('location_id')));
 

@@ -327,6 +327,33 @@ class BarcodeQueueTest extends TestCase
         $this->assertContains($tag->serial_id, $ids);
     }
 
+    /* Picking from a menu names one product, so the filter is an id rather
+       than a substring. The second product exists to prove the difference:
+       under the `q` search, "Copper Tube" also matched "Copper Tube
+       Insulation", and a clerk printing for one of them got both. */
+    public function test_it_filters_to_exactly_one_product(): void
+    {
+        $copper = $this->material();
+
+        $insulation = Product::create([
+            'product_code' => 'CON-' . uniqid(),
+            'product_name' => 'Copper Tube Insulation',
+            'product_type' => 'installation_material',
+        ]);
+        ConsumableDetail::create([
+            'product_id' => $insulation->product_id, 'pieces_per_package' => 10,
+            'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
+        ]);
+
+        $wanted = $this->tag($copper);
+        $other  = $this->tag($insulation);
+
+        $ids = $this->ids(['product_id' => $copper->product_id]);
+
+        $this->assertContains($wanted->serial_id, $ids);
+        $this->assertNotContains($other->serial_id, $ids);
+    }
+
     public function test_it_filters_by_whether_the_tag_was_sent_to_a_printer(): void
     {
         $unsent = $this->tag($this->material());
