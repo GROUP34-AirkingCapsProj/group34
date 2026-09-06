@@ -359,4 +359,78 @@ class BarcodeQueueTest extends TestCase
         $this->assertNotContains($wrongType->serial_id, $ids);
         $this->assertNotContains($wrongMonth->serial_id, $ids);
     }
+
+    /* The filter bar reads "340 tags · 112 not yet sent" on every load.
+       Two requests for one sentence would be a wasted round trip. */
+    public function test_it_reports_the_matching_and_unsent_totals(): void
+    {
+        $location = $this->location('CountingHouse');
+        $product  = $this->material();
+
+        $this->tag($product, ['location_id' => $location->location_id]);
+        $this->tag($product, ['location_id' => $location->location_id]);
+        $this->tag($product, [
+            'location_id'     => $location->location_id,
+            'print_count'     => 1,
+            'last_printed_at' => now(),
+        ]);
+        /* Deliberately out of step: print_count says "never sent" but
+           last_printed_at says otherwise. last_printed_at is THE authoritative
+           column, so this row must count as sent, not unsent — pinning which
+           column the endpoint actually trusts. */
+        $this->tag($product, [
+            'location_id'     => $location->location_id,
+            'print_count'     => 0,
+            'last_printed_at' => now(),
+        ]);
+
+        $res = $this->actingAs($this->user())
+            ->getJson('/api/barcode-labels/queue?location_id=' . $location->location_id);
+
+        $res->assertOk();
+        $res->assertJsonPath('counts.total', 4);
+        $res->assertJsonPath('counts.unsent', 2);
+    }
+
+    public function test_select_all_returns_the_ids_matching_the_filters(): void
+    {
+        $here  = $this->location('Here');
+        $there = $this->location('There');
+
+        $mine   = $this->tag($this->material(), ['location_id' => $here->location_id]);
+        $theirs = $this->tag($this->material(), ['location_id' => $there->location_id]);
+
+        $res = $this->actingAs($this->user())
+            ->getJson('/api/barcode-labels/queue/ids?location_id=' . $here->location_id);
+
+        $res->assertOk();
+
+        $ids = $res->json('data.serial_ids');
+
+        $this->assertContains($mine->serial_id, $ids);
+        $this->assertNotContains($theirs->serial_id, $ids);
+        $this->assertFalse($res->json('data.truncated'));
+    }
+
+    /* A silent truncation reads as "everything is selected". The clerk finds
+       out otherwise at the shelf, with 140 unlabelled cartons. */
+    public function test_select_all_caps_at_two_hundred_and_says_so(): void
+    {
+        $location = $this->location('BigDelivery');
+        $product  = $this->material();
+
+        foreach (range(1, 205) as $ignored) {
+            $this->tag($product, ['location_id' => $location->location_id]);
+        }
+
+        $res = $this->actingAs($this->user())
+            ->getJson('/api/barcode-labels/queue/ids?location_id=' . $location->location_id);
+
+        $res->assertOk();
+
+        $this->assertCount(200, $res->json('data.serial_ids'));
+        $this->assertSame(205, $res->json('data.total'));
+        $this->assertTrue($res->json('data.truncated'));
+        $this->assertSame(200, $res->json('data.max'));
+    }
 }

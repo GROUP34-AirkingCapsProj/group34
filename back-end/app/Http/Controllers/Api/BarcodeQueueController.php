@@ -42,7 +42,18 @@ class BarcodeQueueController extends Controller
 
         $page->getCollection()->transform(fn (ItemSerial $serial) => $this->row($serial));
 
-        return $this->paginated($page);
+        /* Counted over the same filter set the page was built from, so the
+           header cannot disagree with the grid under it. The unsent count is
+           a second query rather than a derived number: the page holds 24 rows
+           and the answer is about all of them. */
+        $response = $this->paginated($page);
+
+        return $response->setData(array_merge($response->getData(true), [
+            'counts' => [
+                'total'  => $page->total(),
+                'unsent' => (clone $this->filtered($request))->whereNull('last_printed_at')->count(),
+            ],
+        ]));
     }
 
     /**
