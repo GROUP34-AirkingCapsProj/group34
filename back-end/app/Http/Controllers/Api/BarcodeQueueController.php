@@ -95,10 +95,15 @@ class BarcodeQueueController extends Controller
      * Product::isSerialized(), which lazy-loads applianceDetail /
      * consumableDetail per row when they are absent. Without them a page of
      * 24 rows fires a couple of hundred extra queries.
+     *
+     * Date and receipt filters reach through the receiving relation. A tag
+     * with no receiving_id therefore drops out of those two — which is
+     * correct: it has no answer to "what came in that week", and including it
+     * would claim one.
      */
     private function filtered(Request $request): Builder
     {
-        return ItemSerial::query()
+        $query = ItemSerial::query()
             ->with([
                 'product.applianceDetail', 'product.consumableDetail',
                 'location', 'receiving',
@@ -109,5 +114,56 @@ class BarcodeQueueController extends Controller
                filter so no filter combination can widen it. */
             ->forUser($request->user())
             ->where('serial_type', '!=', 'issued');
+
+        $query->when($request->filled('product_type'), fn (Builder $q) => $q
+            ->whereHas('product', fn (Builder $p) => $p
+                ->where('product_type', $request->input('product_type'))));
+
+        $query->when($request->filled('location_id'), fn (Builder $q) => $q
+            ->where('location_id', (int) $request->input('location_id')));
+
+        $query->when($request->filled('date_from'), fn (Builder $q) => $q
+            ->whereHas('receiving', fn (Builder $r) => $r
+                ->whereDate('receiving_date', '>=', $request->input('date_from'))));
+
+        $query->when($request->filled('date_to'), fn (Builder $q) => $q
+            ->whereHas('receiving', fn (Builder $r) => $r
+                ->whereDate('receiving_date', '<=', $request->input('date_to'))));
+
+        /* One box for "which delivery": a GRN number or the PO it came from,
+           because a clerk holding paperwork has whichever one is printed on
+           it and should not have to know which field it is. */
+        $query->when($request->filled('receipt'), function (Builder $q) use ($request) {
+            $needle = trim((string) $request->input('receipt'));
+
+            $q->whereHas('receiving', fn (Builder $r) => $r
+                ->where('receiving_number', 'like', "%{$needle}%")
+                ->orWhereHas('purchaseOrder', fn (Builder $po) => $po
+                    ->where('po_number', 'like', "%{$needle}%")));
+        });
+
+        $query->when($request->filled('q'), function (Builder $q) use ($request) {
+            $needle = trim((string) $request->input('q'));
+
+            $q->whereHas('product', fn (Builder $p) => $p
+                ->where('product_name', 'like', "%{$needle}%")
+                ->orWhere('product_code', 'like', "%{$needle}%"));
+        });
+
+        /* `last_printed_at IS NULL` is THE definition of "unsent" — not
+           `print_count = 0`. The two encode the same fact and nothing in the
+           schema keeps them in step, so if stamping ever sets one without the
+           other, a queue whose filter used one and whose badge used the other
+           would disagree and nobody would notice. One authoritative column,
+           used everywhere; it is also the indexed one. */
+        $state = $request->input('print_state', 'all');
+
+        if ($state === 'unsent') {
+            $query->whereNull('last_printed_at');
+        } elseif ($state === 'sent') {
+            $query->whereNotNull('last_printed_at');
+        }
+
+        return $query;
     }
 }

@@ -192,4 +192,171 @@ class BarcodeQueueTest extends TestCase
         $this->assertContains($a->serial_id, $ids);
         $this->assertContains($b->serial_id, $ids);
     }
+
+    private function ids(array $query): array
+    {
+        $res = $this->actingAs($this->user())
+            ->getJson('/api/barcode-labels/queue?' . http_build_query($query));
+
+        $res->assertOk();
+
+        return collect($res->json('data'))->pluck('serial_id')->all();
+    }
+
+    public function test_it_filters_by_product_type(): void
+    {
+        $material  = $this->tag($this->material());
+        $appliance = $this->tag($this->appliance());
+
+        $ids = $this->ids(['product_type' => 'installation_material']);
+
+        $this->assertContains($material->serial_id, $ids);
+        $this->assertNotContains($appliance->serial_id, $ids);
+    }
+
+    public function test_it_filters_by_the_date_the_stock_came_in(): void
+    {
+        $location = $this->location();
+        $march    = $this->receiptOn('2026-03-10', $location);
+        $august   = $this->receiptOn('2026-08-20', $location);
+
+        $old   = $this->tag($this->material(), ['receiving_id' => $march->receiving_id]);
+        $fresh = $this->tag($this->material(), ['receiving_id' => $august->receiving_id]);
+
+        $ids = $this->ids(['date_from' => '2026-08-01', 'date_to' => '2026-08-31']);
+
+        $this->assertContains($fresh->serial_id, $ids);
+        $this->assertNotContains($old->serial_id, $ids);
+    }
+
+    /* A date filter asks "what came in that week". A tag with no receipt
+       cannot answer, and guessing either way would be a lie — so it drops
+       out of a date-filtered list and stays in an unfiltered one. */
+    public function test_a_tag_with_no_receipt_drops_out_of_a_date_filter(): void
+    {
+        $orphan = $this->tag($this->material(), ['receiving_id' => null]);
+
+        $this->assertContains($orphan->serial_id, $this->ids([]));
+        $this->assertNotContains($orphan->serial_id, $this->ids(['date_from' => '2026-01-01']));
+    }
+
+    public function test_it_filters_by_location(): void
+    {
+        $here      = $this->location('Cebu');
+        $elsewhere = $this->location('Davao');
+
+        $mine   = $this->tag($this->material(), ['location_id' => $here->location_id]);
+        $theirs = $this->tag($this->material(), ['location_id' => $elsewhere->location_id]);
+
+        $ids = $this->ids(['location_id' => $here->location_id]);
+
+        $this->assertContains($mine->serial_id, $ids);
+        $this->assertNotContains($theirs->serial_id, $ids);
+    }
+
+    public function test_it_filters_by_receipt_number(): void
+    {
+        $location = $this->location();
+        $wanted   = $this->receiptOn('2026-09-01', $location);
+        $other    = $this->receiptOn('2026-09-01', $location);
+
+        $mine   = $this->tag($this->material(), ['receiving_id' => $wanted->receiving_id]);
+        $theirs = $this->tag($this->material(), ['receiving_id' => $other->receiving_id]);
+
+        $ids = $this->ids(['receipt' => $wanted->receiving_number]);
+
+        $this->assertContains($mine->serial_id, $ids);
+        $this->assertNotContains($theirs->serial_id, $ids);
+    }
+
+    public function test_it_searches_by_product_name_and_code(): void
+    {
+        $copper = $this->tag($this->material());
+        $ac     = $this->tag($this->appliance());
+
+        $ids = $this->ids(['q' => 'Copper']);
+
+        $this->assertContains($copper->serial_id, $ids);
+        $this->assertNotContains($ac->serial_id, $ids);
+    }
+
+    /* The product_code half of the search box exists so a clerk who has the
+       code memorized (not the display name) can still find the tag. A search
+       that only matched product_name would look identical on the "Copper"
+       test above while silently dropping this case. */
+    public function test_it_searches_by_product_code_alone(): void
+    {
+        $product = $this->material();
+        $tag     = $this->tag($product);
+
+        $ids = $this->ids(['q' => $product->product_code]);
+
+        $this->assertContains($tag->serial_id, $ids);
+    }
+
+    public function test_it_filters_by_whether_the_tag_was_sent_to_a_printer(): void
+    {
+        $unsent = $this->tag($this->material());
+        $sent   = $this->tag($this->material(), [
+            'print_count'      => 1,
+            'first_printed_at' => now()->subDay(),
+            'last_printed_at'  => now()->subDay(),
+        ]);
+
+        $unsentIds = $this->ids(['print_state' => 'unsent']);
+        $this->assertContains($unsent->serial_id, $unsentIds);
+        $this->assertNotContains($sent->serial_id, $unsentIds);
+
+        $sentIds = $this->ids(['print_state' => 'sent']);
+        $this->assertContains($sent->serial_id, $sentIds);
+        $this->assertNotContains($unsent->serial_id, $sentIds);
+    }
+
+    /* "1st to 31st" must include stock received exactly on the 1st and
+       exactly on the 31st — the realistic case a clerk hits, and the one an
+       off-by-one on either boundary (`>` instead of `>=`, `<` instead of
+       `<=`) would silently drop. */
+    public function test_date_filter_includes_both_boundary_days(): void
+    {
+        $location = $this->location();
+        $onFrom   = $this->receiptOn('2026-08-01', $location);
+        $onTo     = $this->receiptOn('2026-08-31', $location);
+        $before   = $this->receiptOn('2026-07-31', $location);
+        $after    = $this->receiptOn('2026-09-01', $location);
+
+        $first = $this->tag($this->material(), ['receiving_id' => $onFrom->receiving_id]);
+        $last  = $this->tag($this->material(), ['receiving_id' => $onTo->receiving_id]);
+        $early = $this->tag($this->material(), ['receiving_id' => $before->receiving_id]);
+        $late  = $this->tag($this->material(), ['receiving_id' => $after->receiving_id]);
+
+        $ids = $this->ids(['date_from' => '2026-08-01', 'date_to' => '2026-08-31']);
+
+        $this->assertContains($first->serial_id, $ids);
+        $this->assertContains($last->serial_id, $ids);
+        $this->assertNotContains($early->serial_id, $ids);
+        $this->assertNotContains($late->serial_id, $ids);
+    }
+
+    /* Filters narrow together, not in competition: "appliances received in
+       August" must not return August materials. */
+    public function test_filters_combine(): void
+    {
+        $location = $this->location();
+        $august   = $this->receiptOn('2026-08-20', $location);
+        $march    = $this->receiptOn('2026-03-20', $location);
+
+        $wanted     = $this->tag($this->appliance(), ['receiving_id' => $august->receiving_id]);
+        $wrongType  = $this->tag($this->material(), ['receiving_id' => $august->receiving_id]);
+        $wrongMonth = $this->tag($this->appliance(), ['receiving_id' => $march->receiving_id]);
+
+        $ids = $this->ids([
+            'product_type' => 'appliance',
+            'date_from'    => '2026-08-01',
+            'date_to'      => '2026-08-31',
+        ]);
+
+        $this->assertContains($wanted->serial_id, $ids);
+        $this->assertNotContains($wrongType->serial_id, $ids);
+        $this->assertNotContains($wrongMonth->serial_id, $ids);
+    }
 }
