@@ -27,6 +27,16 @@ class ItemSerial extends Model
         'serial_type',
         'transfer_id',
         'status_id',
+        'first_printed_at',
+        'last_printed_at',
+        'print_count',
+        'last_printed_by',
+    ];
+
+    protected $casts = [
+        'first_printed_at' => 'datetime',
+        'last_printed_at'  => 'datetime',
+        'print_count'      => 'integer',
     ];
 
     public function product(): BelongsTo
