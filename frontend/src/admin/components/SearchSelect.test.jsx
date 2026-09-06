@@ -81,3 +81,52 @@ test('a disabled picker opens nothing', () => {
 
   expect(screen.queryByText('Copper Tube')).not.toBeInTheDocument();
 });
+
+/* Picking is only half a filter. Without a way back to "no selection" the
+   box can be emptied on screen — focus blanks it — while the value behind it
+   never changes, so the filter stays applied and the label returns on blur. */
+test('it offers a way back to no selection when the caller gives one', () => {
+  const onChange = jest.fn();
+  render(
+    <SearchSelect items={items} value="a" onChange={onChange}
+                  placeholder="Search…" clearLabel="All products" />,
+  );
+  openMenu();
+
+  fireEvent.click(screen.getByText('All products'));
+
+  expect(onChange).toHaveBeenCalledWith('');
+});
+
+test('the way back is offered only once something is selected', () => {
+  render(
+    <SearchSelect items={items} value="" onChange={jest.fn()}
+                  placeholder="Search…" clearLabel="All products" />,
+  );
+  openMenu();
+
+  expect(screen.queryByText('All products')).not.toBeInTheDocument();
+});
+
+/* A query must not hide it: typing is how you get to the menu in the first
+   place, and a filter you cannot find your way out of is the bug above. */
+test('a query never hides the way back', () => {
+  render(
+    <SearchSelect items={items} value="a" onChange={jest.fn()}
+                  placeholder="Search…" clearLabel="All products" />,
+  );
+  openMenu();
+
+  fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'zzzz' } });
+
+  expect(screen.getByText('All products')).toBeInTheDocument();
+});
+
+/* The issuance picker passes no clearLabel and must keep exactly the rows it
+   had — an extra row in it would be a change to a flow this never touched. */
+test('without a clearLabel the menu holds only the items', () => {
+  render(<SearchSelect items={items} value="a" onChange={jest.fn()} placeholder="Search…" />);
+  openMenu();
+
+  expect(screen.getAllByRole('button')).toHaveLength(items.length);
+});

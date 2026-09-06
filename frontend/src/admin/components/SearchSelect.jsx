@@ -21,6 +21,9 @@ import { createPortal } from 'react-dom';
 //   onChange(id)
 //   placeholder — shown when nothing is typed or selected
 //   emptyText   — shown when the query matches nothing
+//   clearLabel  — text for the row that returns to no selection, e.g.
+//                 "All products". Omit it and no such row is offered, which
+//                 is right for a picker whose value is required.
 //   facets      — optional node rendered above the input
 //   className   — class for the input; defaults to the app's po-select
 //   disabled
@@ -30,6 +33,7 @@ const SearchSelect = ({
   onChange,
   placeholder = 'Search…',
   emptyText = 'No matches',
+  clearLabel = null,
   facets = null,
   className = 'po-select',
   disabled,
@@ -112,6 +116,26 @@ const SearchSelect = ({
             border: '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 10px 28px rgba(0,0,0,.20)',
           }}
         >
+          {/* Deliberately outside `matches`: it is not a row of data, so a
+              query must never hide it. Focusing the box blanks it on screen
+              without touching the value, so without this row a filter can be
+              emptied in appearance and stay applied in fact. */}
+          {clearLabel && value ? (
+            <button
+              type="button"
+              className="prod-search-item prod-search-item--clear"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onChange(''); setOpen(false); setQuery(''); }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+                border: 'none', borderBottom: '1px solid #e2e8f0', background: '#f8fafc',
+                cursor: 'pointer', fontSize: 13, color: '#475569', fontWeight: 600,
+              }}
+            >
+              {clearLabel}
+            </button>
+          ) : null}
+
           {matches.length === 0 ? (
             <div style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 13 }}>{emptyText}</div>
           ) : matches.map((item) => (

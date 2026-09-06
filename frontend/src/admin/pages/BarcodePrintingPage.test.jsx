@@ -245,3 +245,25 @@ test('picking a receipt filters by its number', async () => {
     );
   });
 });
+
+/* The regression this guards: the pickers had no way back to "no selection",
+   so focusing the box blanked it on screen while the filter stayed applied,
+   and the old label came back the moment you clicked away. */
+test('clearing a picked product drops the filter from the query', async () => {
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  fireEvent.focus(screen.getByPlaceholderText(/search product/i));
+  fireEvent.click(await screen.findByText('Copper Tube', { selector: 'span' }));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.queue.mock.calls.at(-1)[0]).toHaveProperty('product_id', '5');
+  });
+
+  fireEvent.focus(screen.getByPlaceholderText(/search product/i));
+  fireEvent.click(await screen.findByText('All products'));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.queue.mock.calls.at(-1)[0]).not.toHaveProperty('product_id');
+  });
+});

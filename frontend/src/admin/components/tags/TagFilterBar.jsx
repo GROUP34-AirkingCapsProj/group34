@@ -88,6 +88,7 @@ export default function TagFilterBar({ filters, onChange, counts, options }) {
           onChange={(id) => set('location_id')(id)}
           placeholder="Search location…"
           emptyText="No locations with tags"
+          clearLabel="All locations"
         />
       </div>
 
@@ -99,6 +100,7 @@ export default function TagFilterBar({ filters, onChange, counts, options }) {
           onChange={(value) => set('receipt')(value)}
           placeholder="Search receipt or PO…"
           emptyText="No receipts match"
+          clearLabel="All receipts"
         />
       </div>
 
@@ -110,6 +112,7 @@ export default function TagFilterBar({ filters, onChange, counts, options }) {
           onChange={(id) => set('product_id')(id)}
           placeholder="Search product…"
           emptyText="No products with tags"
+          clearLabel="All products"
         />
       </div>
 
