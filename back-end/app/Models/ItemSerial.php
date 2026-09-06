@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 class ItemSerial extends Model
 {
-    use Auditable;
+    use Auditable, ScopesToUserLocation;
     protected $table = 'item_serial';
 
     /** Inventory status_id for "In Stock" (status_lookup category 'inventory'). */

@@ -6,9 +6,11 @@ use App\Exceptions\LabelPrinterException;
 use App\Http\Controllers\Controller;
 use App\Models\ItemSerial;
 use App\Services\LabelPrinterService;
+use App\Services\TagPrintPolicy;
 use App\Services\ZplLabelBuilder;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Sends barcode stickers straight to the Zebra.
@@ -23,6 +25,7 @@ class LabelPrintController extends Controller
 
     public function __construct(
         private LabelPrinterService $printer,
+        private TagPrintPolicy $policy,
     ) {
     }
 
@@ -37,16 +40,33 @@ class LabelPrintController extends Controller
         $request->validate([
             'serial_ids'   => 'required|array|min:1|max:200',
             'serial_ids.*' => 'integer',
+            'mode'         => 'nullable|in:bulk,single',
         ]);
 
-        $serials = ItemSerial::with('product')
-            ->whereIn('serial_id', $request->input('serial_ids'))
+        /* Defaulting to bulk keeps every existing caller — the per-product tag
+           sheet — on exactly the rule it had before modes existed. */
+        $mode = (string) $request->input('mode', 'bulk');
+        $ids  = $request->input('serial_ids');
+
+        if ($mode === 'single' && count($ids) !== 1) {
+            return $this->error('A single reprint sends exactly one label.', 422);
+        }
+
+        /* forUser() is the same location scope Inventory, Receiving and
+           Issuance already apply. The client sends serial ids, so without it
+           a branch-scoped user could reprint labels for another branch's
+           stock simply by guessing ids. Centralized roles are unaffected. */
+        $serials = ItemSerial::with(['product.applianceDetail', 'product.consumableDetail'])
+            ->forUser($request->user())
+            ->whereIn('serial_id', $ids)
             ->get();
 
         /* The client says which tags to print; it does not get to say what is
-           printable. A tag is ours to reprint only when we minted it — see
-           printable() — and that rule is enforced here, not in the browser. */
-        $printable = $serials->filter(fn (ItemSerial $serial) => $this->printable($serial))->values();
+           printable. TagPrintPolicy owns that rule and it is enforced here,
+           not in the browser. */
+        $printable = $serials
+            ->filter(fn (ItemSerial $serial) => $this->policy->printable($serial, $mode))
+            ->values();
 
         if ($printable->isEmpty()) {
             return $this->error('None of those tags can be reprinted.', 422);
@@ -68,9 +88,12 @@ class LabelPrintController extends Controller
         } catch (LabelPrinterException $e) {
             /* 503: the request was fine, the printer is not. The UI tells the
                user to use the PDF instead, so this must not read as a bug in
-               what they clicked. */
+               what they clicked. Nothing is stamped — a job that never left
+               must not leave a trail saying it did. */
             return $this->error($e->getMessage(), 503);
         }
+
+        $this->stampPrinted($printable->pluck('serial_id')->all(), $request->user()?->user_id);
 
         return $this->success(
             ['printed' => $printable->count()],
@@ -79,18 +102,33 @@ class LabelPrintController extends Controller
     }
 
     /**
-     * The same rule the tag sheet applies on screen.
+     * Record that these tags went to the printer.
      *
-     * A serialized product's serial is the manufacturer's own, a tag carrying
-     * a supplier barcode was printed by the supplier, and a retired tag points
-     * at stock that is gone. Reprinting any of the three puts a label on the
-     * wrong thing.
+     * Called only after send() returns without throwing, so a dead printer
+     * leaves no trace. first_printed_at is written in its own statement
+     * guarded by whereNull: the first send owns that date permanently, and a
+     * reprint must not overwrite the history it is evidence of.
      */
-    private function printable(ItemSerial $serial): bool
+    private function stampPrinted(array $serialIds, ?int $userId): void
     {
-        return $serial->product !== null
-            && ! $serial->product->isSerialized()
-            && $serial->serial_type !== 'issued'
-            && $serial->supplier_barcode === null;
+        /* A query-builder update, not a loop of model saves. ItemSerial uses
+           the Auditable trait, so stamping 200 tags through Eloquent would
+           write 200 audit_trail rows for one press of one button. This form
+           bypasses model events deliberately — the print history columns are
+           themselves the record of what happened, and they are on the row
+           being written. */
+        $now = now();
+
+        DB::transaction(function () use ($serialIds, $userId, $now) {
+            ItemSerial::whereIn('serial_id', $serialIds)->update([
+                'last_printed_at' => $now,
+                'last_printed_by' => $userId,
+                'print_count'     => DB::raw('print_count + 1'),
+            ]);
+
+            ItemSerial::whereIn('serial_id', $serialIds)
+                ->whereNull('first_printed_at')
+                ->update(['first_printed_at' => $now]);
+        });
     }
 }

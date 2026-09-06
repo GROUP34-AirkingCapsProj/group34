@@ -201,4 +201,90 @@ class BarcodeLabelPrintTest extends TestCase
         $this->assertGreaterThanOrEqual(2, $builder->moduleDots($longestRealCode));
         $this->assertFalse($builder->overflows($longestRealCode));
     }
+
+    public function test_a_single_reprint_accepts_a_supplier_code(): void
+    {
+        $tag = $this->materialTag(['supplier_barcode' => 'SUP-9911']);
+
+        $res = $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+            'mode'       => 'single',
+        ]);
+
+        $res->assertOk();
+        $this->assertStringContainsString($tag->serial_number, file_get_contents($this->spoolFile));
+    }
+
+    public function test_a_single_reprint_accepts_a_manufacturers_serial(): void
+    {
+        $serial = $this->applianceSerial();
+
+        $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$serial->serial_id],
+            'mode'       => 'single',
+        ])->assertOk();
+    }
+
+    /* "Single" names an intent, not a batch size. A 200-item single reprint
+       would be a bulk run wearing the label that skips the bulk rule. */
+    public function test_single_mode_refuses_more_than_one_label(): void
+    {
+        $first  = $this->materialTag(['supplier_barcode' => 'SUP-1']);
+        $second = $this->materialTag(['supplier_barcode' => 'SUP-2']);
+
+        $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$first->serial_id, $second->serial_id],
+            'mode'       => 'single',
+        ])->assertStatus(422);
+
+        $this->assertSame('', (string) file_get_contents($this->spoolFile));
+    }
+
+    public function test_a_retired_tag_is_refused_even_as_a_single_reprint(): void
+    {
+        $tag = $this->materialTag(['serial_type' => 'issued']);
+
+        $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+            'mode'       => 'single',
+        ])->assertStatus(422);
+    }
+
+    /* The client nominates ids. Without a location scope a branch-scoped user
+       could reprint another branch's labels by guessing them — the route
+       guard only says they may print something, not whose stock. */
+    public function test_it_refuses_a_tag_at_another_users_location(): void
+    {
+        $tag = $this->materialTag();
+
+        $scopedUser = $this->user();
+        $scopedUser->role_id     = 3; // branch_manager — not centralized
+        $scopedUser->location_id = $this->location()->location_id;
+        $scopedUser->save();
+
+        $this->actingAs($scopedUser)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertStatus(422);
+
+        $this->assertSame('', (string) file_get_contents($this->spoolFile));
+    }
+
+    /* Scoping must not become "refuse everything" — a scoped user printing a
+       tag physically at their own location has to keep working. */
+    public function test_it_accepts_a_tag_at_the_users_own_location(): void
+    {
+        $location = $this->location();
+        $tag = $this->materialTag(['location_id' => $location->location_id]);
+
+        $scopedUser = $this->user();
+        $scopedUser->role_id     = 3; // branch_manager — not centralized
+        $scopedUser->location_id = $location->location_id;
+        $scopedUser->save();
+
+        $this->actingAs($scopedUser)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertOk();
+
+        $this->assertStringContainsString($tag->serial_number, file_get_contents($this->spoolFile));
+    }
 }
