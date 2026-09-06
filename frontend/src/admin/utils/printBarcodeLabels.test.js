@@ -1,4 +1,4 @@
-import { buildLabelDocument } from './printBarcodeLabels';
+import { buildLabelDocument, buildLabelSheetDocument } from './printBarcodeLabels';
 import { LABEL_HEIGHT_MM, LABEL_WIDTH_MM, labelBars, moduleWidthMm } from './barcodeLabel';
 
 /* The bug this file exists to prevent: a sticker printed in the middle of a
@@ -65,4 +65,32 @@ test('an explicit product name still applies to the whole batch', () => {
 
   expect(printed).toContain('PE Foam');
   expect(printed).not.toContain('Ignored');
+});
+
+/* The other PDF: plain paper, not label stock. One sticker per A4 sheet is
+   correct when the page IS the label and the printer feeds a roll; on a
+   document printer it is a ream of paper for a delivery's worth of tags.
+   True size is kept — these get cut out and stuck on, and a barcode scaled
+   down to fit more per page stops scanning. */
+test('a paper sheet carries many labels per page at true size', () => {
+  const doc = buildLabelSheetDocument([{ serial_number: 'INT-1', product_name: 'Copper Tube' }]);
+
+  expect(doc.internal.pageSize.getWidth()).toBeCloseTo(297, 0);
+  expect(doc.internal.pageSize.getHeight()).toBeCloseTo(210, 0);
+});
+
+test('it fills a sheet before starting another', () => {
+  const tags = (count) => Array.from({ length: count }, (_, i) => ({ serial_number: `INT-${i}` }));
+
+  expect(buildLabelSheetDocument(tags(14)).getNumberOfPages()).toBe(1);
+  expect(buildLabelSheetDocument(tags(15)).getNumberOfPages()).toBe(2);
+});
+
+test('every tag on a sheet is drawn, whichever page it lands on', () => {
+  const tags = Array.from({ length: 15 }, (_, i) => ({ serial_number: `INT-${i}`, product_name: 'Copper Tube' }));
+
+  const printed = buildLabelSheetDocument(tags).output();
+
+  expect(printed).toContain('INT-0');
+  expect(printed).toContain('INT-14');
 });

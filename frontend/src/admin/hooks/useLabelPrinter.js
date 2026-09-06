@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { barcodeLabelsAPI } from '../services/api';
-import { printBarcodeLabels } from '../utils/printBarcodeLabels';
+import { printBarcodeLabels, printLabelSheet } from '../utils/printBarcodeLabels';
 import { toast } from '../utils/toast';
 
 /**
@@ -9,7 +9,13 @@ import { toast } from '../utils/toast';
  * `sendToPrinter` goes straight to the Zebra: the server holds the connection
  * and sends ZPL, because no browser can pick a printer or skip the print
  * dialog. `savePdf` builds the same sticker as a PDF whose page size IS the
- * label, for when there is no printer wired up or someone wants a copy.
+ * label, for when there is no printer wired up — the print dialog can then
+ * feed label stock. `savePdfSheet` is the paper route: the same stickers
+ * tiled on A4 for a document printer, to be cut out.
+ *
+ * The two PDFs are not interchangeable. A page that IS the label is right on
+ * a roll and wastes a sheet per sticker on paper; a tiled A4 is right on
+ * paper and prints one label per roll-feed with the rest lost off the edge.
  *
  * `printerReady` says whether a printer is configured at all, so the UI can
  * offer a button that works rather than one that always errors.
@@ -74,7 +80,11 @@ export function useLabelPrinter() {
     printBarcodeLabels(tags, productName, { onNotice: toast.info });
   }, []);
 
-  return { printerReady, sending, sendToPrinter, savePdf };
+  const savePdfSheet = useCallback((tags, productName) => {
+    printLabelSheet(tags, productName, { onNotice: toast.info });
+  }, []);
+
+  return { printerReady, sending, sendToPrinter, savePdf, savePdfSheet };
 }
 
 export default useLabelPrinter;

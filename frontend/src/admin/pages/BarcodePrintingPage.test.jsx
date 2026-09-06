@@ -113,7 +113,7 @@ test('sending a selection prints in bulk mode', async () => {
   await screen.findByText('Copper Tube');
 
   fireEvent.click(screen.getByLabelText('Select INT-PO-2026-237-01'));
-  fireEvent.click(await screen.findByRole('button', { name: /send to printer/i }));
+  fireEvent.click(await screen.findByRole('button', { name: /^print tags$/i }));
 
   await waitFor(() => {
     expect(barcodeLabelsAPI.print).toHaveBeenCalledWith([1], 'bulk');
@@ -165,7 +165,7 @@ test('a successful send refreshes the print state on screen', async () => {
   const before = barcodeLabelsAPI.queue.mock.calls.length;
 
   fireEvent.click(screen.getByLabelText('Select INT-PO-2026-237-01'));
-  fireEvent.click(await screen.findByRole('button', { name: /send to printer/i }));
+  fireEvent.click(await screen.findByRole('button', { name: /^print tags$/i }));
 
   await waitFor(() => {
     expect(barcodeLabelsAPI.queue.mock.calls.length).toBeGreaterThan(before);
@@ -181,7 +181,7 @@ test('a failed send leaves the grid alone', async () => {
   const before = barcodeLabelsAPI.queue.mock.calls.length;
 
   fireEvent.click(screen.getByLabelText('Select INT-PO-2026-237-01'));
-  fireEvent.click(await screen.findByRole('button', { name: /send to printer/i }));
+  fireEvent.click(await screen.findByRole('button', { name: /^print tags$/i }));
 
   await waitFor(() => {
     expect(barcodeLabelsAPI.print).toHaveBeenCalled();

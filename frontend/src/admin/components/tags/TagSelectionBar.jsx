@@ -41,19 +41,21 @@ export default function TagSelectionBar({
             disabled={sending}
             onClick={onSend}
           >
-            {sending ? 'Sending…' : 'Send to printer'}
+            {sending ? 'Printing…' : 'Print Tags'}
           </button>
         )}
         <button type="button" className="bpp-selection-pdf" onClick={onSavePdf}>
-          Save as PDF
+          Print as PDF
         </button>
       </div>
 
-      {/* A PDF is built in the browser and never reaches the server, so
-          nothing can stamp it. Said out loud, because a print state that
-          quietly under-reports sends a clerk back to reprint labels they are
-          already holding on a sheet. */}
-      <p className="bpp-selection-note">A PDF is not counted as sent.</p>
+      {/* Two routes, and the difference is the paper. The PDF is also built
+          in the browser and never reaches the server, so nothing can stamp it
+          — said out loud, because a print state that quietly under-reports
+          sends a clerk back to reprint labels they already have on a sheet. */}
+      <p className="bpp-selection-note">
+        The PDF lays the tags out on A4 to be cut out, and is not counted as sent.
+      </p>
 
       {ineligibleCount > 0 && (
         <p className="bpp-selection-warning" role="status">
