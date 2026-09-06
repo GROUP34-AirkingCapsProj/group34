@@ -45,10 +45,16 @@ const row = (overrides = {}) => ({
   ...overrides,
 });
 
-const queueResponse = (rows) => ({
+const queueResponse = (rows, options = {}) => ({
   data: rows,
   pagination: { current_page: 1, last_page: 1, per_page: 24, total: rows.length },
   counts: { total: rows.length, unsent: rows.length },
+  options: {
+    products: [{ product_id: 5, product_name: 'Copper Tube', product_code: 'CON-1' }],
+    receipts: [{ value: 'RCV-1', kind: 'grn' }],
+    locations: [{ location_id: 2, location_name: 'Main' }],
+    ...options,
+  },
 });
 
 const renderPage = () => render(
@@ -188,4 +194,54 @@ test('a failed send leaves the grid alone', async () => {
   });
 
   expect(barcodeLabelsAPI.queue.mock.calls.length).toBe(before);
+});
+
+test('picking a product filters by its id, not its name', async () => {
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  fireEvent.focus(screen.getByPlaceholderText(/search product/i));
+  fireEvent.click(await screen.findByText('Copper Tube', { selector: 'span' }));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.queue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ product_id: '5' }),
+      1,
+      expect.any(Number),
+    );
+  });
+});
+
+test('picking a location filters by its id', async () => {
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  fireEvent.focus(screen.getByPlaceholderText(/search location/i));
+  fireEvent.click(await screen.findByText('Main', { selector: 'span' }));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.queue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ location_id: '2' }),
+      1,
+      expect.any(Number),
+    );
+  });
+});
+
+/* A receipt has no id of its own, so the value IS the id - and the endpoint's
+   substring match resolves it unchanged. */
+test('picking a receipt filters by its number', async () => {
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  fireEvent.focus(screen.getByPlaceholderText(/search receipt/i));
+  fireEvent.click(await screen.findByText('RCV-1', { selector: 'span' }));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.queue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ receipt: 'RCV-1' }),
+      1,
+      expect.any(Number),
+    );
+  });
 });

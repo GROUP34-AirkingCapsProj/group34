@@ -6,7 +6,6 @@ import TagCard from '../components/tags/TagCard';
 import TagFilterBar from '../components/tags/TagFilterBar';
 import TagSelectionBar from '../components/tags/TagSelectionBar';
 import BarcodeZoom from '../components/tags/BarcodeZoom';
-import { useUserLocation } from '../context/AuthContext';
 import { useLabelPrinter } from '../hooks/useLabelPrinter';
 import { useTagSelection } from '../hooks/useTagSelection';
 import { barcodeLabelsAPI } from '../services/api';
@@ -29,8 +28,11 @@ import '../styles/barcode_printing.css';
 
 const PER_PAGE = 24;
 
+/* `q` is no longer offered in the UI — the Product picker sends an exact
+   product_id instead — but it stays here so a URL someone bookmarked or
+   shared before the pickers landed still resolves. */
 const FILTER_KEYS = [
-  'product_type', 'date_from', 'date_to',
+  'product_type', 'product_id', 'date_from', 'date_to',
   'location_id', 'receipt', 'q', 'print_state',
 ];
 
@@ -51,6 +53,7 @@ export default function BarcodePrintingPage() {
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [counts, setCounts] = useState(null);
+  const [options, setOptions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [zoomedTag, setZoomedTag] = useState(null);
   const [truncatedTotal, setTruncatedTotal] = useState(0);
@@ -60,9 +63,6 @@ export default function BarcodePrintingPage() {
      printer — which is the one thing this page exists to get right. */
   const [printedAt, setPrintedAt] = useState(0);
 
-  /* LocationSelector fetches nothing — without this list it degrades to a
-     bare number box, which is a worse filter than none. */
-  const { allowedLocations } = useUserLocation();
   const { printerReady, sending, sendToPrinter, savePdf } = useLabelPrinter();
   const selection = useTagSelection();
 
@@ -76,6 +76,7 @@ export default function BarcodePrintingPage() {
         setRows(res?.data || []);
         setPagination(res?.pagination || null);
         setCounts(res?.counts || null);
+        setOptions(res?.options || null);
       })
       .catch((e) => {
         if (active) toast.error(e?.message || 'Could not load the tags.');
@@ -166,7 +167,7 @@ export default function BarcodePrintingPage() {
           filters={filters}
           onChange={applyFilters}
           counts={counts}
-          allowedLocations={allowedLocations}
+          options={options}
         />
 
         <TagSelectionBar

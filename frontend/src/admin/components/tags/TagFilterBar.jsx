@@ -1,6 +1,6 @@
 import React from 'react';
 import DateInput from '../DateInput';
-import LocationSelector from '../LocationSelector';
+import SearchSelect from '../SearchSelect';
 
 /**
  * What to narrow the print queue down to.
@@ -8,9 +8,37 @@ import LocationSelector from '../LocationSelector';
  * Fully controlled: every change is handed straight up to the page, which
  * owns the filter object, mirrors it into the URL and re-queries. Keeping no
  * state here is what lets a reload or a shared link land on the same list.
+ *
+ * The three pickers are fed from `options` — the distinct products, receipts
+ * and locations among the tags currently being listed, computed by the queue
+ * endpoint from the same filter set. They therefore offer only values that
+ * return rows, and they narrow as the other filters do.
  */
-export default function TagFilterBar({ filters, onChange, counts, allowedLocations = [] }) {
+export default function TagFilterBar({ filters, onChange, counts, options }) {
   const set = (key) => (value) => onChange({ ...filters, [key]: value });
+
+  const products = (options?.products || []).map((p) => ({
+    id: String(p.product_id),
+    label: p.product_name,
+    sublabel: p.product_code,
+    searchText: `${p.product_name || ''} ${p.product_code || ''}`,
+  }));
+
+  /* A receipt has no id of its own, so its number is its id. `kind` becomes
+     the row's badge: one box searches GRNs and POs together because a clerk
+     holds whichever number the paperwork printed. */
+  const receipts = (options?.receipts || []).map((r) => ({
+    id: r.value,
+    label: r.value,
+    sublabel: r.kind === 'po' ? 'PO' : 'GRN',
+    searchText: r.value,
+  }));
+
+  const locations = (options?.locations || []).map((l) => ({
+    id: String(l.location_id),
+    label: l.location_name,
+    searchText: l.location_name,
+  }));
 
   return (
     <div className="bpp-filters no-print">
@@ -50,41 +78,38 @@ export default function TagFilterBar({ filters, onChange, counts, allowedLocatio
         />
       </div>
 
-      {/* LocationSelector renders its own <label>Location</label> and its own
-          fixed id, and takes no `id` prop — so it gets neither here, or the
-          page would show the word twice. Unlike DateInput it hands back a
-          VALUE (Number or null), not an event.
-
-          It also does not fetch anything: `allowedLocations` must be supplied,
-          and it degrades to a plain text input when that list is empty. The
-          page sources it from useUserLocation() and passes it down. */}
+      {/* SearchSelect renders its own input and takes no id, so these three
+          labels carry no htmlFor rather than pointing at nothing. */}
       <div className="bpp-filter">
-        <LocationSelector
-          value={filters.location_id ? Number(filters.location_id) : null}
-          onChange={(value) => set('location_id')(value != null ? String(value) : '')}
-          allowedLocations={allowedLocations}
+        <label>Location</label>
+        <SearchSelect
+          items={locations}
+          value={filters.location_id || ''}
+          onChange={(id) => set('location_id')(id)}
+          placeholder="Search location…"
+          emptyText="No locations with tags"
         />
       </div>
 
       <div className="bpp-filter">
-        <label htmlFor="bpp-receipt">Receipt or PO</label>
-        <input
-          id="bpp-receipt"
-          type="text"
+        <label>Receipt or PO</label>
+        <SearchSelect
+          items={receipts}
           value={filters.receipt || ''}
-          placeholder="RCV-… or PO-…"
-          onChange={(e) => set('receipt')(e.target.value)}
+          onChange={(value) => set('receipt')(value)}
+          placeholder="Search receipt or PO…"
+          emptyText="No receipts match"
         />
       </div>
 
       <div className="bpp-filter">
-        <label htmlFor="bpp-q">Product</label>
-        <input
-          id="bpp-q"
-          type="text"
-          value={filters.q || ''}
-          placeholder="Name or code"
-          onChange={(e) => set('q')(e.target.value)}
+        <label>Product</label>
+        <SearchSelect
+          items={products}
+          value={filters.product_id || ''}
+          onChange={(id) => set('product_id')(id)}
+          placeholder="Search product…"
+          emptyText="No products with tags"
         />
       </div>
 
