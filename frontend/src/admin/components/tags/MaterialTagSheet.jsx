@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Barcode from 'react-barcode';
 import BarcodeZoom from './BarcodeZoom';
+import TagCard from './TagCard';
 import { useLabelPrinter } from '../../hooks/useLabelPrinter';
 import {
   COMFORTABLE_MODULE_MM,
@@ -98,26 +98,12 @@ export default function MaterialTagSheet({ tags, productName, showHeader = true 
 
       <div className="bsr-tag-sheet-grid">
         {printableTags.map((tag) => (
-          <div className="bsr-tag-card" key={tag.serial_number}>
-            {productName && (
-              <div className="bsr-tag-card-product">{productName}</div>
-            )}
-            <button
-              type="button"
-              className="bsr-tag-card-zoom"
-              onClick={() => setZoomedTag(tag)}
-              aria-label={`Enlarge tag ${tag.serial_number} for scanning`}
-            >
-              <Barcode
-                value={tag.serial_number}
-                format="CODE128"
-                height={48}
-                fontSize={12}
-                displayValue
-              />
-              <span className="bsr-tag-card-enlarge no-print">Tap to enlarge</span>
-            </button>
-          </div>
+          <TagCard
+            key={tag.serial_number}
+            tag={tag}
+            productName={productName}
+            onZoom={setZoomedTag}
+          />
         ))}
       </div>
 
