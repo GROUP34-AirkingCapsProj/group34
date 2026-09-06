@@ -41,8 +41,10 @@ npx react-scripts test --watchAll=false --testPathPattern=TagCard
 
 ```bash
 php artisan migrate --force
-php artisan migrate --force --env=testing
+DB_DATABASE=airkingV5_test php artisan migrate --force
 ```
+
+`--env=testing` does **not** work here: there is no `.env.testing`, so the flag falls back to `.env` and silently migrates the dev database again, reporting "Nothing to migrate". The test database name comes from `phpunit.xml`, so it has to be passed explicitly as above.
 
 ---
 
@@ -215,6 +217,13 @@ return new class extends Migration
             /* The queue's "not yet sent" filter is the page's default view,
                so it runs on every load. */
             $table->index('last_printed_at', 'item_serial_last_printed_at_index');
+
+            /* Same shape as scanned_by and receiving_id already use on this
+               table: removing a user blanks the attribution rather than
+               blocking the delete or orphaning the row. */
+            $table->foreign('last_printed_by')
+                ->references('user_id')->on('users')
+                ->onDelete('set null');
         });
     }
 
@@ -225,6 +234,7 @@ return new class extends Migration
         }
 
         Schema::table('item_serial', function (Blueprint $table) {
+            $table->dropForeign(['last_printed_by']);
             $table->dropIndex('item_serial_last_printed_at_index');
             $table->dropColumn([
                 'first_printed_at', 'last_printed_at', 'print_count', 'last_printed_by',
@@ -234,7 +244,7 @@ return new class extends Migration
 };
 ```
 
-Note: no foreign key on `last_printed_by`. A deleted user must not block a tag's history, and the neighbouring `scanned_by` column follows the same convention.
+On the foreign key: `scanned_by` and `receiving_id` are already declared this way on this table (`2026_04_27_000000_add_scan_fields_to_item_serial.php:17-23`), so `last_printed_by` follows suit. `onDelete('set null')` gives the property that matters — removing a user costs the print history its attribution but never blocks the delete or orphans the row — without trading away referential integrity.
 
 - [ ] **Step 4: Add the columns to the model**
 
@@ -269,7 +279,7 @@ In `back-end/app/Models/ItemSerial.php`, extend `$fillable` (it currently ends w
 
 ```bash
 php artisan migrate --force
-php artisan migrate --force --env=testing
+DB_DATABASE=airkingV5_test php artisan migrate --force
 php artisan test --filter=BarcodePrintStampTest
 ```
 
@@ -523,7 +533,7 @@ class TagPrintPolicy
 php artisan test --filter=TagPrintPolicyTest
 ```
 
-Expected: PASS, 7 tests.
+Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -604,6 +614,46 @@ php artisan test --filter=BarcodeLabelPrintTest
 
 Expected: the four new tests FAIL (422 where 200 was expected, and 200 where 422 was expected on the multi-id case). The eight existing tests PASS.
 
+- [ ] **Step 2b: Make `ItemSerial` location-scopable**
+
+`ItemSerial` has a `location_id` but is the one such model without the `ScopesToUserLocation` trait — `Inventory`, `InventoryBatch`, `Receiving`, `Issuance`, `Adjustment` and others all use it. Existing `ItemSerial` callers scope by passing a location explicitly (see `scopeIssuableAt`), which is why the gap never surfaced; a new endpoint that lists across locations is the first caller that needs the user-based scope.
+
+Add the trait to `back-end/app/Models/ItemSerial.php`:
+
+```php
+use App\Models\Concerns\ScopesToUserLocation;
+```
+```php
+    use Auditable, ScopesToUserLocation;
+```
+
+This is additive and changes no existing behaviour: `forUser()` is a local scope that only applies where a caller invokes it. Per `ScopesToUserLocation`, a centralized user (roles 1, 2, 5) is unfiltered, a scoped user sees only their location, and a scoped user with no location gets an empty result rather than everything.
+
+Add this test to `BarcodeLabelPrintTest`:
+
+```php
+    /* The client nominates ids. Without a location scope a branch-scoped user
+       could reprint another branch's labels by guessing them — the route
+       guard only says they may print something, not whose stock. */
+    public function test_it_refuses_a_tag_at_another_users_location(): void
+    {
+        $tag = $this->materialTag();
+
+        $scopedUser = $this->user();
+        $scopedUser->role_id     = $this->nonCentralizedRoleId();
+        $scopedUser->location_id = $this->location()->location_id;
+        $scopedUser->save();
+
+        $this->actingAs($scopedUser)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertStatus(422);
+
+        $this->assertSame('', (string) file_get_contents($this->spoolFile));
+    }
+```
+
+`nonCentralizedRoleId()` is a helper you add: any `role_id` not in `[1, 2, 5]`, read from the `roles` table so it stays true if roles change. Check how `User::scopedLocationId()` resolves a user's location before writing this — if it reads something other than a `location_id` column, adjust the fixture to match rather than adding a column.
+
 - [ ] **Step 3: Rewrite the controller**
 
 In `back-end/app/Http/Controllers/Api/LabelPrintController.php`, set the imports to:
@@ -656,7 +706,13 @@ class LabelPrintController extends Controller
             return $this->error('A single reprint sends exactly one label.', 422);
         }
 
+        /* forUser() is the same location scope Inventory, Receiving and
+           Issuance already apply. The client sends serial ids, so without it
+           a branch-scoped user could reprint labels for another branch's
+           stock simply by guessing ids — the route guard only establishes
+           that they may print SOMETHING. Centralized roles are unaffected. */
         $serials = ItemSerial::with(['product.applianceDetail', 'product.consumableDetail'])
+            ->forUser($request->user())
             ->whereIn('serial_id', $ids)
             ->get();
 
@@ -710,6 +766,12 @@ class LabelPrintController extends Controller
      */
     private function stampPrinted(array $serialIds, ?int $userId): void
     {
+        /* A query-builder update, not a loop of model saves. ItemSerial uses
+           the Auditable trait, so stamping 200 tags through Eloquent would
+           write 200 audit_trail rows for one press of one button. This form
+           bypasses model events deliberately — the print history columns are
+           themselves the record of what happened, and they are on the row
+           being written. */
         $now = now();
 
         DB::transaction(function () use ($serialIds, $userId, $now) {
@@ -1029,6 +1091,51 @@ class BarcodeQueueTest extends TestCase
     public function test_it_requires_a_signed_in_user(): void
     {
         $this->getJson('/api/barcode-labels/queue')->assertStatus(401);
+    }
+
+    /* A branch-scoped user prints labels for their own stock. Listing another
+       branch's tags would let them select-all and run off labels for cartons
+       they will never see — and the "select all matching" endpoint resolves
+       ids server-side, so the scope has to hold there too, not just here. */
+    public function test_a_scoped_user_sees_only_their_own_location(): void
+    {
+        $mine   = $this->location('Mine');
+        $theirs = $this->location('Theirs');
+
+        $ours   = $this->tag($this->material(), ['location_id' => $mine->location_id]);
+        $others = $this->tag($this->material(), ['location_id' => $theirs->location_id]);
+
+        $scoped = $this->scopedUserAt($mine);
+
+        $ids = collect($this->actingAs($scoped)->getJson('/api/barcode-labels/queue')->json('data'))
+            ->pluck('serial_id');
+
+        $this->assertContains($ours->serial_id, $ids);
+        $this->assertNotContains($others->serial_id, $ids);
+
+        $selectAll = $this->actingAs($scoped)->getJson('/api/barcode-labels/queue/ids')->json('data.serial_ids');
+
+        $this->assertContains($ours->serial_id, $selectAll);
+        $this->assertNotContains($others->serial_id, $selectAll);
+    }
+
+    /* A centralized role is deliberately unscoped — head office prints for
+       every branch. Without this, "scope it" would quietly become "scope it
+       for everyone" and nobody would notice until head office could not
+       print. */
+    public function test_a_centralized_user_sees_every_location(): void
+    {
+        $here  = $this->location('Here');
+        $there = $this->location('There');
+
+        $a = $this->tag($this->material(), ['location_id' => $here->location_id]);
+        $b = $this->tag($this->material(), ['location_id' => $there->location_id]);
+
+        $ids = collect($this->actingAs($this->user())->getJson('/api/barcode-labels/queue')->json('data'))
+            ->pluck('serial_id');
+
+        $this->assertContains($a->serial_id, $ids);
+        $this->assertContains($b->serial_id, $ids);
     }
 }
 ```
@@ -1352,6 +1459,11 @@ Replace `filtered()` in `BarcodeQueueController`:
                 'product.applianceDetail', 'product.consumableDetail',
                 'location', 'receiving',
             ])
+            /* The same location scope Inventory and Receiving apply. A
+               branch-scoped user must not be able to list — or select-all and
+               print — another branch's labels. Applied before any request
+               filter so no filter combination can widen it. */
+            ->forUser($request->user())
             ->where('serial_type', '!=', 'issued');
 
         $query->when($request->filled('product_type'), fn (Builder $q) => $q
@@ -1389,9 +1501,12 @@ Replace `filtered()` in `BarcodeQueueController`:
                 ->orWhere('product_code', 'like', "%{$needle}%"));
         });
 
-        /* 'sent' is read off last_printed_at rather than print_count > 0:
-           the two are written together, and a null date is the indexed
-           column. */
+        /* `last_printed_at IS NULL` is THE definition of "unsent" — not
+           `print_count = 0`. The two encode the same fact and nothing in the
+           schema keeps them in step, so if stamping ever sets one without the
+           other, a queue whose filter used one and whose badge used the other
+           would disagree and nobody would notice. One authoritative column,
+           used everywhere; it is also the indexed one. */
         $state = $request->input('print_state', 'all');
 
         if ($state === 'unsent') {
@@ -1543,6 +1658,16 @@ php artisan test --filter=BarcodeQueueTest
 ```
 
 Expected: PASS, 15 tests.
+
+- [ ] **Step 4b: Check the index actually earns its place**
+
+Task 1 added a single-column index on `last_printed_at` on the reasoning that "not yet sent" is the default view. Now that a real query exists, test that reasoning instead of inheriting it:
+
+```bash
+DB_DATABASE=airkingV5_test php artisan tinker --execute="print_r(DB::select('EXPLAIN SELECT * FROM item_serial WHERE last_printed_at IS NULL AND location_id = 1'));"
+```
+
+On a freshly migrated table almost every row is unsent, so that predicate has near-zero selectivity and the optimizer will likely prefer a full scan — while `product_type`, `location_id` and the date range are all more selective. If `EXPLAIN` shows the index unused, say so in your report and propose a composite (e.g. `(location_id, last_printed_at)`) rather than silently keeping a dead index. Do not change it without reporting the EXPLAIN output.
 
 - [ ] **Step 5: Run the whole backend suite**
 
@@ -2156,7 +2281,7 @@ import LocationSelector from '../LocationSelector';
  * owns the filter object, mirrors it into the URL and re-queries. Keeping no
  * state here is what lets a reload or a shared link land on the same list.
  */
-export default function TagFilterBar({ filters, onChange, counts }) {
+export default function TagFilterBar({ filters, onChange, counts, allowedLocations = [] }) {
   const set = (key) => (value) => onChange({ ...filters, [key]: value });
 
   return (
@@ -2174,12 +2299,17 @@ export default function TagFilterBar({ filters, onChange, counts }) {
         </select>
       </div>
 
+      {/* DateInput hands back the raw change EVENT, not a value — it wires
+          `onChange={onChange}` straight onto a native date input. Reading
+          e.target.value here is required; passing the event through would
+          store an Event object in the filter and send [object Object] to the
+          API. */}
       <div className="bpp-filter">
         <label htmlFor="bpp-from">Received from</label>
         <DateInput
           id="bpp-from"
           value={filters.date_from || ''}
-          onChange={(value) => set('date_from')(value)}
+          onChange={(e) => set('date_from')(e.target.value)}
         />
       </div>
 
@@ -2188,16 +2318,23 @@ export default function TagFilterBar({ filters, onChange, counts }) {
         <DateInput
           id="bpp-to"
           value={filters.date_to || ''}
-          onChange={(value) => set('date_to')(value)}
+          onChange={(e) => set('date_to')(e.target.value)}
         />
       </div>
 
+      {/* LocationSelector renders its own <label>Location</label> and its own
+          fixed id, and takes no `id` prop — so it gets neither here, or the
+          page would show the word twice. Unlike DateInput it hands back a
+          VALUE (Number or null), not an event.
+
+          It also does not fetch anything: `allowedLocations` must be supplied,
+          and it degrades to a plain text input when that list is empty. The
+          page sources it from useUserLocation() and passes it down. */}
       <div className="bpp-filter">
-        <label htmlFor="bpp-location">Location</label>
         <LocationSelector
-          id="bpp-location"
-          value={filters.location_id || ''}
-          onChange={(value) => set('location_id')(value)}
+          value={filters.location_id ? Number(filters.location_id) : null}
+          onChange={(value) => set('location_id')(value != null ? String(value) : '')}
+          allowedLocations={allowedLocations}
         />
       </div>
 
@@ -2246,7 +2383,18 @@ export default function TagFilterBar({ filters, onChange, counts }) {
 }
 ```
 
-Check the props `DateInput` and `LocationSelector` actually take before wiring them — read `frontend/src/admin/components/DateInput.jsx` and `LocationSelector.jsx`. If either hands back an event rather than a value, adjust the `onChange` above to match; do not change the shared component.
+Both shared components were read before this was written, and the wiring above reflects what they actually do — the two differ, which is the trap:
+
+| | `DateInput` | `LocationSelector` |
+|---|---|---|
+| `onChange` receives | the change **event** (`onChange={onChange}` on a native `<input type="date">`) | a **value**: `Number` or `null` |
+| accepts `id`? | yes | no — it hardcodes `id="location-selector-input"` |
+| renders its own label? | no | yes, the word "Location" |
+| needs data passed in? | no | yes — `allowedLocations`, or it degrades to a text input |
+
+Do not change either shared component to make them consistent; other pages depend on their current behaviour.
+
+`allowedLocations` comes from the `useUserLocation()` hook, which `BarcodePrintingPage` calls in Task 13 and passes down. Follow the fallback shape used at `frontend/src/admin/pages/BarcodeScan.jsx:3179` when the hook's list is empty.
 
 - [ ] **Step 2: Commit**
 

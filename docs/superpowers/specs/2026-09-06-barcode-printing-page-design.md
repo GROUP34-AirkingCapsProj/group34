@@ -120,12 +120,21 @@ Paginated. `item_serial` joined to `products`, `locations`, `receiving`.
 | `product_type` | `installation_material` \| `appliance` |
 | `date_from`, `date_to` | against the receipt date |
 | `location_id` | |
-| `receiving_id` or PO number | |
+| `receipt` | one box for "which delivery": substring-matches the GRN `receiving_number` **or** the linked PO's `po_number`. Deliberately not a numeric `receiving_id` — a clerk holds paperwork, not an id, and does not know which of the two numbers is printed on it. |
 | `q` | product name / code search |
 | `print_state` | `unsent` \| `sent` \| `all` |
 
 Each row returns: `serial_id`, `serial_number`, `supplier_barcode`, `tier`,
-product name, receipt date, location, `print_count`, `last_printed_at`.
+`bulk_printable`, `product_id`, `product_name`, `product_type`,
+`location_name`, `receiving_number`, `receiving_date`, `print_count`,
+`last_printed_at`.
+
+`bulk_printable` is the server's own answer to "would a bulk print include
+this", and the UI must use it rather than re-deriving the rule from `tier` —
+the point of returning it is that the browser never holds a second opinion
+about what will print. `location_name`, `receiving_number` and
+`receiving_date` are nullable: a tag with no receipt is legitimate and appears
+in unfiltered lists.
 
 The response carries the total matching count and the unsent count, so the
 filter bar can show *"340 tags · 112 not yet sent"* without a second request.
