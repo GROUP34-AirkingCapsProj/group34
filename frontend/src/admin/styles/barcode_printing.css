@@ -70,6 +70,13 @@
 .bpp-selection-print { background: #2563eb; color: #fff; }
 .bpp-selection-pdf { background: #fff; color: #2563eb; }
 
+.bpp-selection-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
 .bpp-selection-warning {
   flex-basis: 100%;
   margin: 0;

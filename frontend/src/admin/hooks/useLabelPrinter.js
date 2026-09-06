@@ -50,17 +50,21 @@ export function useLabelPrinter() {
     const ids = (tags || []).map((tag) => tag?.serial_id).filter((id) => id != null);
     if (ids.length === 0) {
       toast.error('These tags cannot be sent to the printer. Save them as a PDF instead.');
-      return;
+      return false;
     }
 
     setSending(true);
     try {
       const res = await barcodeLabelsAPI.print(ids, mode);
       toast.success(res?.message || 'Sent to the printer.');
+      /* Whether the job left, so a caller showing print history can refetch
+         it. A failed send changed nothing and must not trigger one. */
+      return true;
     } catch (e) {
       /* The printer being off is not a broken button. Say what happened and
          point at the way that still works. */
       toast.error(e?.message || 'The printer could not be reached. Save the stickers as a PDF instead.');
+      return false;
     } finally {
       setSending(false);
     }

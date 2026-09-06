@@ -49,6 +49,12 @@ export default function TagSelectionBar({
         </button>
       </div>
 
+      {/* A PDF is built in the browser and never reaches the server, so
+          nothing can stamp it. Said out loud, because a print state that
+          quietly under-reports sends a clerk back to reprint labels they are
+          already holding on a sheet. */}
+      <p className="bpp-selection-note">A PDF is not counted as sent.</p>
+
       {ineligibleCount > 0 && (
         <p className="bpp-selection-warning" role="status">
           {ineligibleCount} are supplier or manufacturer codes and won&apos;t be included in a

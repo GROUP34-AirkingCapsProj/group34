@@ -152,3 +152,40 @@ test('select all matching asks the server for the ids', async () => {
 
   expect(await screen.findByText(/3 selected/i)).toBeInTheDocument();
 });
+
+/* Print state is the reason half this page exists. Leaving the grid stale
+   after a send means the cards still read "Not yet sent" for labels that are
+   coming out of the printer, and an `unsent` filter still lists them. */
+test('a successful send refreshes the print state on screen', async () => {
+  barcodeLabelsAPI.print.mockResolvedValue({ message: 'Sent.' });
+
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  const before = barcodeLabelsAPI.queue.mock.calls.length;
+
+  fireEvent.click(screen.getByLabelText('Select INT-PO-2026-237-01'));
+  fireEvent.click(await screen.findByRole('button', { name: /send to printer/i }));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.queue.mock.calls.length).toBeGreaterThan(before);
+  });
+});
+
+test('a failed send leaves the grid alone', async () => {
+  barcodeLabelsAPI.print.mockRejectedValue(new Error('printer offline'));
+
+  renderPage();
+  await screen.findByText('Copper Tube');
+
+  const before = barcodeLabelsAPI.queue.mock.calls.length;
+
+  fireEvent.click(screen.getByLabelText('Select INT-PO-2026-237-01'));
+  fireEvent.click(await screen.findByRole('button', { name: /send to printer/i }));
+
+  await waitFor(() => {
+    expect(barcodeLabelsAPI.print).toHaveBeenCalled();
+  });
+
+  expect(barcodeLabelsAPI.queue.mock.calls.length).toBe(before);
+});

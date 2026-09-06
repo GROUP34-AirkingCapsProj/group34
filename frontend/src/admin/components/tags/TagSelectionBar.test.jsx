@@ -57,3 +57,12 @@ test('it offers only the PDF when no printer is configured', () => {
   expect(screen.queryByRole('button', { name: /send to printer/i })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save as pdf/i })).toBeInTheDocument();
 });
+
+/* Spec section 2: the PDF path never reaches the server, so it cannot be
+   stamped. Left unsaid, the print state quietly under-reports and a clerk
+   reprints labels they already have on a sheet. */
+test('it says a PDF does not count as sent', () => {
+  render(<TagSelectionBar {...props} />);
+
+  expect(screen.getByText(/pdf.*(not|isn't).*count/i)).toBeInTheDocument();
+});

@@ -55,6 +55,11 @@ export default function BarcodePrintingPage() {
   const [zoomedTag, setZoomedTag] = useState(null);
   const [truncatedTotal, setTruncatedTotal] = useState(0);
 
+  /* Bumped after a send lands. The print state on every card is server data,
+     and a grid left stale reads "Not yet sent" for labels coming out of the
+     printer — which is the one thing this page exists to get right. */
+  const [printedAt, setPrintedAt] = useState(0);
+
   /* LocationSelector fetches nothing — without this list it degrades to a
      bare number box, which is a worse filter than none. */
   const { allowedLocations } = useUserLocation();
@@ -80,7 +85,7 @@ export default function BarcodePrintingPage() {
       });
 
     return () => { active = false; };
-  }, [filters, page]);
+  }, [filters, page, printedAt]);
 
   /* Filters and the page number share the query string, so a filter change
      must reset the page — page 7 of a narrower list is usually empty. */
@@ -135,10 +140,16 @@ export default function BarcodePrintingPage() {
     try {
       const res = await barcodeLabelsAPI.print([tag.serial_id], 'single');
       toast.success(res?.message || 'Sent to the printer.');
+      setPrintedAt((n) => n + 1);
     } catch (e) {
       toast.error(e?.message || 'The printer could not be reached. Save it as a PDF instead.');
     }
   }, []);
+
+  const handleSend = useCallback(async () => {
+    const sent = await sendToPrinter(selectedTags, 'bulk');
+    if (sent) setPrintedAt((n) => n + 1);
+  }, [sendToPrinter, selectedTags]);
 
   return (
     <AdminLayout>
@@ -166,7 +177,7 @@ export default function BarcodePrintingPage() {
           sending={sending}
           onSelectAll={handleSelectAll}
           onClear={handleClear}
-          onSend={() => sendToPrinter(selectedTags, 'bulk')}
+          onSend={handleSend}
           onSavePdf={() => savePdf(rows.filter((row) => selection.isSelected(row.serial_id)))}
         />
 
