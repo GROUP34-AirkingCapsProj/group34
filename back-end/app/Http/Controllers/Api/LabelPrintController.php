@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\LabelPrinterException;
 use App\Http\Controllers\Controller;
 use App\Models\ItemSerial;
+use App\Models\Location;
 use App\Services\LabelPrinterService;
 use App\Services\TagPrintPolicy;
 use App\Services\ZplLabelBuilder;
@@ -29,10 +30,33 @@ class LabelPrintController extends Controller
     ) {
     }
 
-    /** Whether the UI should offer a direct-print button at all. */
-    public function status()
+    /**
+     * Whether the UI should offer a direct-print button at all, and which
+     * locations have a printer.
+     *
+     * Scoped the way everything else here is: a branch user is told about
+     * their own location, a centralized one about all of them. `configured`
+     * is the summary the button is drawn from — at least one printer among
+     * the locations whose tags this user can print.
+     */
+    public function status(Request $request)
     {
-        return $this->success(['configured' => $this->printer->isConfigured()]);
+        $user = $request->user();
+
+        $locations = Location::query()
+            ->when(! $user->isCentralized(), fn ($q) => $q->where('location_id', $user->scopedLocationId() ?? 0))
+            ->orderBy('location_name')
+            ->get(['location_id', 'location_name'])
+            ->map(fn (Location $location) => [
+                'location_id'   => $location->location_id,
+                'location_name' => $location->location_name,
+                'configured'    => $this->printer->isConfigured($location->location_id),
+            ]);
+
+        return $this->success([
+            'configured' => $locations->contains('configured', true),
+            'locations'  => $locations->values(),
+        ]);
     }
 
     public function print(Request $request)
@@ -72,6 +96,32 @@ class LabelPrintController extends Controller
             return $this->error('None of those tags can be reprinted.', 422);
         }
 
+        /* Which printer this goes to is decided by where the tags are, not by
+           who is printing: a label exists to be stuck on a box, and the box is
+           at that location. Computed from $printable — what will actually
+           print — so a tag the policy already dropped cannot make an
+           otherwise-clean batch look mixed. */
+        $locationIds = $printable->pluck('location_id')->unique()->values();
+
+        if ($locationIds->count() > 1) {
+            return $this->error(
+                "These {$printable->count()} tags are at {$locationIds->count()} locations. "
+                . 'Filter to one location and print again.',
+                422,
+            );
+        }
+
+        $locationId = (int) $locationIds->first();
+
+        if (! $this->printer->isConfigured($locationId)) {
+            $name = Location::find($locationId)?->location_name ?? 'this location';
+
+            return $this->error(
+                "No printer is set up for {$name}. Save the stickers as a PDF, or ask an admin to add one.",
+                503,
+            );
+        }
+
         $builder = new ZplLabelBuilder(
             widthMm: (int) config('labelprinter.label.width_mm'),
             heightMm: (int) config('labelprinter.label.height_mm'),
@@ -84,7 +134,7 @@ class LabelPrintController extends Controller
         ])->all());
 
         try {
-            $this->printer->send($zpl);
+            $this->printer->send($zpl, $locationId);
         } catch (LabelPrinterException $e) {
             /* 503: the request was fine, the printer is not. The UI tells the
                user to use the PDF instead, so this must not read as a bug in

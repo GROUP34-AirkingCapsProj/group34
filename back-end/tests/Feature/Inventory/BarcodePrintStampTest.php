@@ -6,6 +6,7 @@ use App\Models\ConsumableDetail;
 use App\Models\ItemSerial;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -29,16 +30,27 @@ class BarcodePrintStampTest extends TestCase
 
     private string $spoolFile;
 
+    private Location $printerLocation;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         /* A file stands in for the printer share: the service writes the job
-           as bytes either way, so this exercises the real transport. */
-        $this->spoolFile = tempnam(sys_get_temp_dir(), 'zpl');
-        config([
-            'labelprinter.transport' => 'share',
-            'labelprinter.share'     => $this->spoolFile,
+           as bytes either way, so this exercises the real transport.
+
+           One location for the whole file, with one printer: a job now goes
+           to the printer where its tags are, so tags scattered across a
+           location each would be refused as a mixed batch. */
+        $this->spoolFile       = tempnam(sys_get_temp_dir(), 'zpl');
+        $this->printerLocation = Location::create([
+            'location_code' => 'LOC-' . uniqid(), 'location_name' => 'L',
+            'location_type' => 'warehouse',
+        ]);
+
+        SystemSetting::setLabelPrinter($this->printerLocation->location_id, [
+            'transport' => 'share',
+            'share'     => $this->spoolFile,
         ]);
     }
 
@@ -68,14 +80,9 @@ class BarcodePrintStampTest extends TestCase
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);
-        $location = Location::create([
-            'location_code' => 'LOC-' . uniqid(), 'location_name' => 'L',
-            'location_type' => 'warehouse',
-        ]);
-
         return ItemSerial::create(array_merge([
             'product_id'    => $product->product_id,
-            'location_id'   => $location->location_id,
+            'location_id'   => $this->printerLocation->location_id,
             'serial_number' => 'INT-TEST-' . uniqid(),
             'serial_type'   => 'received',
             'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
@@ -204,7 +211,9 @@ class BarcodePrintStampTest extends TestCase
        labels nobody ever printed. */
     public function test_a_dead_printer_stamps_nothing(): void
     {
-        config(['labelprinter.transport' => null, 'labelprinter.share' => null]);
+        /* An empty transport is how a location is left with no printer —
+           the same state a warehouse nobody has configured yet is in. */
+        SystemSetting::setLabelPrinter($this->printerLocation->location_id, ['transport' => '']);
         $tag = $this->materialTag();
 
         $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [

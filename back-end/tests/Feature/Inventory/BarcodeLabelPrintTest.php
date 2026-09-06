@@ -7,6 +7,7 @@ use App\Models\ConsumableDetail;
 use App\Models\ItemSerial;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\ZplLabelBuilder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -28,16 +29,24 @@ class BarcodeLabelPrintTest extends TestCase
 
     private string $spoolFile;
 
+    private Location $printerLocation;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         /* A file stands in for the printer share: the service writes the job
-           as bytes either way, so this exercises the real transport. */
-        $this->spoolFile = tempnam(sys_get_temp_dir(), 'zpl');
-        config([
-            'labelprinter.transport' => 'share',
-            'labelprinter.share'     => $this->spoolFile,
+           as bytes either way, so this exercises the real transport.
+
+           One location for the whole file, with one printer: a job now goes
+           to the printer where its tags are, so tags scattered across a
+           location each would be refused as a mixed batch. */
+        $this->spoolFile       = tempnam(sys_get_temp_dir(), 'zpl');
+        $this->printerLocation = $this->location();
+
+        SystemSetting::setLabelPrinter($this->printerLocation->location_id, [
+            'transport' => 'share',
+            'share'     => $this->spoolFile,
         ]);
     }
 
@@ -77,7 +86,7 @@ class BarcodeLabelPrintTest extends TestCase
 
         return ItemSerial::create(array_merge([
             'product_id'    => $product->product_id,
-            'location_id'   => $this->location()->location_id,
+            'location_id'   => $this->printerLocation->location_id,
             'serial_number' => 'INT-TEST-' . uniqid(),
             'serial_type'   => 'received',
             'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
@@ -94,7 +103,7 @@ class BarcodeLabelPrintTest extends TestCase
 
         return ItemSerial::create([
             'product_id'    => $product->product_id,
-            'location_id'   => $this->location()->location_id,
+            'location_id'   => $this->printerLocation->location_id,
             'serial_number' => 'MFG-' . uniqid(),
             'serial_type'   => 'received',
             'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
@@ -167,7 +176,9 @@ class BarcodeLabelPrintTest extends TestCase
 
     public function test_an_unconfigured_printer_reads_as_a_printer_problem(): void
     {
-        config(['labelprinter.transport' => null, 'labelprinter.share' => null]);
+        /* An empty transport is how a location is left with no printer —
+           the same state a warehouse nobody has configured yet is in. */
+        SystemSetting::setLabelPrinter($this->printerLocation->location_id, ['transport' => '']);
         $tag = $this->materialTag();
 
         $res = $this->actingAs($this->user())->postJson('/api/barcode-labels/print', [
@@ -185,7 +196,7 @@ class BarcodeLabelPrintTest extends TestCase
         $this->actingAs($this->user())->getJson('/api/barcode-labels/status')
             ->assertOk()->assertJsonPath('data.configured', true);
 
-        config(['labelprinter.transport' => null]);
+        SystemSetting::setLabelPrinter($this->printerLocation->location_id, ['transport' => '']);
 
         $this->actingAs($this->user())->getJson('/api/barcode-labels/status')
             ->assertOk()->assertJsonPath('data.configured', false);
@@ -274,6 +285,13 @@ class BarcodeLabelPrintTest extends TestCase
     public function test_it_accepts_a_tag_at_the_users_own_location(): void
     {
         $location = $this->location();
+
+        /* Its own location, so its own printer: the job goes where the tag
+           is, and this location is not the file's shared one. */
+        SystemSetting::setLabelPrinter($location->location_id, [
+            'transport' => 'share', 'share' => $this->spoolFile,
+        ]);
+
         $tag = $this->materialTag(['location_id' => $location->location_id]);
 
         $scopedUser = $this->user();
