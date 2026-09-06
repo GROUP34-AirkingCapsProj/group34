@@ -9,9 +9,6 @@ use Tests\TestCase;
 
 /**
  * A printer per location, set by an admin rather than by a developer.
- *
- * None of this needs a printer to exist. Reachability is asserted against a
- * closed port, which is the shape of the first real attempt anyway.
  */
 class LabelPrinterSettingsTest extends TestCase
 {
@@ -50,9 +47,7 @@ class LabelPrinterSettingsTest extends TestCase
         $this->assertSame('192.168.1.50', $printer['host']);
     }
 
-    /* The load-bearing case for the storage shape. Warehouses are configured
-       one at a time, months apart, and a save that replaced the map instead of
-       merging into it would silently unplug every other warehouse. */
+    /* Pins the map-level merge: saving one location must not disturb another. */
     public function test_saving_one_location_leaves_another_alone(): void
     {
         $a = $this->location('Warehouse A');
@@ -66,7 +61,9 @@ class LabelPrinterSettingsTest extends TestCase
     }
 
     /* Empty transport is a saved state, not an absence: it is how an admin
-       retires a printer, and it must survive a round trip as "off". */
+       retires a printer, and it must survive a round trip as "off". The
+       entry is replaced wholesale, so the old host must not survive either -
+       a partial save must not be able to resurrect it. */
     public function test_a_location_can_be_saved_as_having_no_printer(): void
     {
         $location = $this->location();
@@ -74,6 +71,21 @@ class LabelPrinterSettingsTest extends TestCase
         SystemSetting::setLabelPrinter($location->location_id, ['transport' => 'tcp', 'host' => '10.0.0.1']);
         SystemSetting::setLabelPrinter($location->location_id, ['transport' => '']);
 
-        $this->assertSame('', SystemSetting::labelPrinter($location->location_id)['transport']);
+        $printer = SystemSetting::labelPrinter($location->location_id);
+        $this->assertSame('', $printer['transport']);
+        $this->assertSame('', $printer['host']);
+    }
+
+    /* Every other setter in this file normalises on write. A settings form
+       posts numbers as strings, and a strict comparison against the int
+       default would otherwise fail depending on whether a location was ever
+       configured. */
+    public function test_a_port_arriving_as_a_string_reads_back_as_an_int(): void
+    {
+        $location = $this->location();
+
+        SystemSetting::setLabelPrinter($location->location_id, ['transport' => 'tcp', 'port' => '9100']);
+
+        $this->assertSame(9100, SystemSetting::labelPrinter($location->location_id)['port']);
     }
 }

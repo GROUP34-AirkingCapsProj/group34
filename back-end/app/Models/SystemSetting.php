@@ -77,47 +77,65 @@ class SystemSetting extends Model
         return ['transport' => '', 'host' => '', 'port' => 9100, 'share' => '', 'timeout' => 5];
     }
 
-    /** The whole map, for a settings screen that lists every location. */
+    /**
+     * The whole map, for a settings screen that lists every location. Each
+     * entry comes back merged over the defaults, same shape as
+     * labelPrinter(), so a caller can iterate this without re-merging itself.
+     */
     public static function labelPrinters(): array
     {
         $all = static::getValue(self::KEY_LABEL_PRINTERS, []);
+        $all = is_array($all) ? $all : [];
 
-        return is_array($all) ? $all : [];
+        $out = [];
+        foreach ($all as $locationId => $entry) {
+            $out[$locationId] = array_merge(
+                static::labelPrinterDefaults(),
+                array_intersect_key(is_array($entry) ? $entry : [], static::labelPrinterDefaults()),
+            );
+        }
+
+        return $out;
     }
 
     /**
-     * One location's printer, merged over the defaults so a caller never has
-     * to check whether a key is present. A location nobody has configured
-     * reads as an empty transport, which every caller already treats as
-     * "no printer here".
+     * One location's printer. A location nobody has configured returns the
+     * defaults untouched, so a caller can treat an empty transport as intent
+     * to mean "no printer configured here" without special-casing an unset
+     * location.
      */
     public static function labelPrinter(int $locationId): array
     {
-        $stored = static::labelPrinters()[(string) $locationId] ?? [];
-
-        return array_merge(
-            static::labelPrinterDefaults(),
-            is_array($stored) ? $stored : [],
-        );
+        return static::labelPrinters()[$locationId] ?? static::labelPrinterDefaults();
     }
 
     /**
-     * Merged into the map, never replacing it: warehouses are configured one
-     * at a time, months apart, and a save that replaced the map would unplug
+     * The map is merged: saving one location's printer leaves every other
+     * location's entry untouched, since warehouses are configured one at a
+     * time, months apart, and a save that replaced the map would unplug
      * every other warehouse silently.
      *
-     * Keys are cast to string because the map round-trips through JSON, where
-     * object keys are always strings — reading back with an int key would miss
-     * everything written with a string one.
+     * The entry itself is replaced, not merged: the settings form posts a
+     * complete record, and an admin retiring a printer with transport: ''
+     * must not leave the old host behind for a later partial save to
+     * resurrect.
      */
     public static function setLabelPrinter(int $locationId, array $printer): void
     {
-        $all = static::labelPrinters();
+        $printer = array_intersect_key($printer, static::labelPrinterDefaults());
 
-        $all[(string) $locationId] = array_merge(
-            static::labelPrinterDefaults(),
-            array_intersect_key($printer, static::labelPrinterDefaults()),
-        );
+        if (! in_array($printer['transport'] ?? '', ['tcp', 'share', ''], true)) {
+            $printer['transport'] = '';
+        }
+        if (array_key_exists('port', $printer)) {
+            $printer['port'] = (int) $printer['port'];
+        }
+        if (array_key_exists('timeout', $printer)) {
+            $printer['timeout'] = (float) $printer['timeout'];
+        }
+
+        $all              = static::labelPrinters();
+        $all[$locationId] = array_merge(static::labelPrinterDefaults(), $printer);
 
         static::setValue(self::KEY_LABEL_PRINTERS, $all);
     }
