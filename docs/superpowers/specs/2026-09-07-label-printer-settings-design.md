@@ -57,6 +57,30 @@ Out: any change to how a sticker is built or what may be reprinted.
 `ZplLabelBuilder`, `TagPrintPolicy` and the tier rules are untouched.
 `LabelPrintController` changes only in where it sends the job.
 
+## Assumption this design rests on
+
+**Each location's printer is reachable from wherever the server runs** — an IP
+address on the same network, or a Windows share the server can write to.
+
+This is not a detail. The server does the printing: PHP opens a socket or
+writes to a path. It cannot reach a printer paired over Bluetooth, or plugged
+by USB, into a clerk's PC in another building — there is no route between those
+two machines for it to use. Warehouse label printers are normally Ethernet-
+attached for exactly this reason, which is why 9100 is the default port here.
+
+The assumption is invisible during development, where XAMPP runs on the same PC
+a clerk would use, and becomes load-bearing the moment the system is deployed
+to a server. If the printers turn out to be Bluetooth or USB devices attached
+to local PCs, **this design cannot reach them** and no configuration value
+fixes it; that shape needs a browser-side approach — Zebra Browser Print, or
+Web Bluetooth — which is a different architecture rather than a variation of
+this one.
+
+Either way the browser-built PDF route is unaffected. It needs no printer
+configured, opens the ordinary print dialog, and reaches whatever that machine
+can see, Bluetooth included. Nothing in this spec is required in order to
+print.
+
 ## Section 1 — Where the settings live
 
 One `SystemSetting` key, `label_printers`, holding a map from location id to
