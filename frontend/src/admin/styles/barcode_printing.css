@@ -129,3 +129,15 @@
 @media print {
   .no-print { display: none !important; }
 }
+
+/* The three type-to-search filters. SearchSelect renders its own input at
+   width:100%, so the column has to have a width for it to fill — the menu is
+   portalled and positions itself against the input's rect, which is zero-wide
+   until this applies. */
+.bpp-filter .prod-search {
+  min-width: 190px;
+}
+
+.bpp-filter .prod-search input {
+  min-width: 0;
+}
