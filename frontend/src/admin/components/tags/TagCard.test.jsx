@@ -68,3 +68,20 @@ test('it offers selection and reprint when the host wants them', () => {
   fireEvent.click(screen.getByRole('button', { name: /reprint/i }));
   expect(onReprint).toHaveBeenCalledWith(minted);
 });
+
+/* Which delivery and which shelf this code came from. A clerk printing
+   replacements for one receipt needs to tell two cards apart, and the code
+   itself does not say. Queue rows carry these; the per-product sheet's tags
+   do not, which is why the block is gated on the row having a tier at all. */
+test('it says which receipt and location the tag came from', () => {
+  render(<TagCard tag={{ ...minted, receiving_number: 'RCV-1', receiving_date: '2026-09-01', location_name: 'Main' }} />);
+
+  expect(screen.getByText(/RCV-1/)).toBeInTheDocument();
+  expect(screen.getByText(/Main/)).toBeInTheDocument();
+});
+
+test('a card with no receipt says nothing about one', () => {
+  render(<TagCard tag={{ serial_number: 'INT-1', product_name: 'Copper Tube' }} />);
+
+  expect(screen.queryByText(/RCV-/)).not.toBeInTheDocument();
+});

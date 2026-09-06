@@ -37,6 +37,16 @@ function printState(tag) {
   return `Sent ${count}× · last ${when}`;
 }
 
+/* Which delivery this code arrived on. Two cards for the same product are
+   otherwise indistinguishable, and a clerk reprinting for one receipt has to
+   be able to tell them apart. */
+function receivedOn(tag) {
+  if (!tag?.receiving_date) return null;
+
+  return new Date(`${String(tag.receiving_date).slice(0, 10)}T00:00:00`)
+    .toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function TagCard({
   tag,
   productName,
@@ -86,6 +96,13 @@ export default function TagCard({
         />
         <span className="bsr-tag-card-enlarge no-print">Tap to enlarge</span>
       </button>
+
+      {tag.tier && (
+        <div className="bsr-tag-card-meta no-print">
+          {[tag.receiving_number, receivedOn(tag), tag.location_name]
+            .filter(Boolean).join(' · ')}
+        </div>
+      )}
 
       {tag.tier && (
         <div className="bsr-tag-card-state no-print">{printState(tag)}</div>
