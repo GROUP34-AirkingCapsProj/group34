@@ -425,6 +425,128 @@ class BarcodeQueueTest extends TestCase
         $res->assertJsonPath('counts.unsent', 2);
     }
 
+    /* The options block for one query, so each case can scope itself.
+       Not named options(): Illuminate\Foundation\Testing\TestCase already
+       has a public method by that name, and PHP will not let a subclass
+       narrow it to private. */
+    private function queueOptions(array $query): array
+    {
+        $res = $this->actingAs($this->user())
+            ->getJson('/api/barcode-labels/queue?' . http_build_query($query));
+
+        $res->assertOk();
+
+        return $res->json('options');
+    }
+
+    public function test_it_offers_the_products_present_in_the_queue(): void
+    {
+        $location = $this->location('OptionHouse');
+        $copper   = $this->material();
+
+        $this->tag($copper, ['location_id' => $location->location_id]);
+
+        $names = collect($this->queueOptions(['location_id' => $location->location_id])['products'])
+            ->pluck('product_name');
+
+        $this->assertContains('Copper Tube', $names->all());
+    }
+
+    /* The list is built from the tags being listed, not from the product
+       catalogue. A product nobody has received cannot be offered, because
+       picking it would land on an empty grid that reads like a mistake. */
+    public function test_a_product_with_no_tags_is_not_offered(): void
+    {
+        $location  = $this->location('OptionHouse');
+        $stocked   = $this->material();
+        $unstocked = $this->material();
+
+        $this->tag($stocked, ['location_id' => $location->location_id]);
+
+        $ids = collect($this->queueOptions(['location_id' => $location->location_id])['products'])
+            ->pluck('product_id');
+
+        $this->assertContains($stocked->product_id, $ids->all());
+        $this->assertNotContains($unstocked->product_id, $ids->all());
+    }
+
+    public function test_it_offers_both_grn_and_po_numbers(): void
+    {
+        $location = $this->location('OptionHouse');
+        $po       = PurchaseOrder::create(['po_number' => 'PO-' . uniqid()]);
+
+        $receipt = $this->receiptOn('2026-09-01', $location);
+        $receipt->update(['po_id' => $po->po_id]);
+
+        $this->tag($this->material(), [
+            'location_id'  => $location->location_id,
+            'receiving_id' => $receipt->receiving_id,
+        ]);
+
+        $receipts = collect($this->queueOptions(['location_id' => $location->location_id])['receipts']);
+
+        $this->assertContains($receipt->receiving_number, $receipts->pluck('value')->all());
+        $this->assertContains($po->po_number, $receipts->pluck('value')->all());
+        $this->assertSame('grn', $receipts->firstWhere('value', $receipt->receiving_number)['kind']);
+        $this->assertSame('po', $receipts->firstWhere('value', $po->po_number)['kind']);
+    }
+
+    public function test_it_offers_the_locations_holding_tags(): void
+    {
+        $location = $this->location('OptionHouse');
+        $this->tag($this->material(), ['location_id' => $location->location_id]);
+
+        $offered = collect($this->queueOptions(['location_id' => $location->location_id])['locations']);
+
+        $this->assertContains($location->location_id, $offered->pluck('location_id')->all());
+    }
+
+    /* The load-bearing case. The options come off the same scoped query as the
+       rows, so a branch clerk's menu cannot name another branch's delivery. An
+       options query that rebuilt the filter set by hand - and forgot forUser()
+       - would pass every other case in this file and leak here. */
+    public function test_a_scoped_user_is_offered_only_their_own_location(): void
+    {
+        $mine   = $this->location('MineOptions');
+        $theirs = $this->location('TheirOptions');
+
+        $ours   = $this->receiptOn('2026-09-01', $mine);
+        $others = $this->receiptOn('2026-09-01', $theirs);
+
+        $this->tag($this->material(), ['location_id' => $mine->location_id,   'receiving_id' => $ours->receiving_id]);
+        $this->tag($this->material(), ['location_id' => $theirs->location_id, 'receiving_id' => $others->receiving_id]);
+
+        $res = $this->actingAs($this->scopedUserAt($mine))
+            ->getJson('/api/barcode-labels/queue');
+
+        $res->assertOk();
+
+        $values = collect($res->json('options.receipts'))->pluck('value')->all();
+
+        $this->assertContains($ours->receiving_number, $values);
+        $this->assertNotContains($others->receiving_number, $values);
+    }
+
+    /* The lists narrow with the filters, which is the whole reason they ride
+       on the queue response instead of a fixed endpoint of their own. */
+    public function test_the_options_narrow_with_the_filters(): void
+    {
+        $here      = $this->location('HereOptions');
+        $elsewhere = $this->location('ElsewhereOptions');
+
+        $ours   = $this->receiptOn('2026-09-01', $here);
+        $others = $this->receiptOn('2026-09-01', $elsewhere);
+
+        $this->tag($this->material(), ['location_id' => $here->location_id,      'receiving_id' => $ours->receiving_id]);
+        $this->tag($this->material(), ['location_id' => $elsewhere->location_id, 'receiving_id' => $others->receiving_id]);
+
+        $values = collect($this->queueOptions(['location_id' => $here->location_id])['receipts'])
+            ->pluck('value')->all();
+
+        $this->assertContains($ours->receiving_number, $values);
+        $this->assertNotContains($others->receiving_number, $values);
+    }
+
     public function test_select_all_returns_the_ids_matching_the_filters(): void
     {
         $here  = $this->location('Here');

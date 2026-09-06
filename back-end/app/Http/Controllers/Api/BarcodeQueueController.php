@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ItemSerial;
+use App\Models\Location;
+use App\Models\Product;
+use App\Models\Receiving;
 use App\Services\TagPrintPolicy;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +30,10 @@ class BarcodeQueueController extends Controller
 
     /** Above this a "select all" stops being a selection and becomes a spool flood. */
     private const MAX_SELECTABLE = 200;
+
+    /** Above this a menu stops being a shortlist. Unlisted values stay
+        reachable by narrowing another filter, so nothing is lost. */
+    private const MAX_OPTIONS = 50;
 
     public function __construct(private TagPrintPolicy $policy)
     {
@@ -53,6 +60,7 @@ class BarcodeQueueController extends Controller
                 'total'  => $page->total(),
                 'unsent' => (clone $this->filtered($request))->whereNull('last_printed_at')->count(),
             ],
+            'options' => $this->options($request),
         ]));
     }
 
@@ -95,6 +103,62 @@ class BarcodeQueueController extends Controller
             'receiving_date'   => $serial->receiving?->receiving_date?->toDateString(),
             'print_count'      => (int) $serial->print_count,
             'last_printed_at'  => $serial->last_printed_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * What the filter menus may offer.
+     *
+     * Built from filtered() - the same query the rows come from - so the
+     * location scope is inherited rather than re-applied, and every value
+     * offered is a value that returns rows. A menu assembled from the product
+     * catalogue instead would list things nobody has received, and picking one
+     * would land on an empty grid that reads exactly like a mistake.
+     *
+     * Ids are collected first and the display rows fetched separately: the
+     * eager loads on filtered() are for rendering tags, and dragging them
+     * through three DISTINCT queries would fire a page of joins to build a
+     * list of names.
+     */
+    private function options(Request $request): array
+    {
+        $scoped = fn () => (clone $this->filtered($request))->setEagerLoads([]);
+
+        $productIds = $scoped()->select('product_id')->distinct()
+            ->limit(self::MAX_OPTIONS)->pluck('product_id');
+
+        $locationIds = $scoped()->select('location_id')->distinct()
+            ->limit(self::MAX_OPTIONS)->pluck('location_id');
+
+        $receivingIds = $scoped()->whereNotNull('receiving_id')
+            ->select('receiving_id')->distinct()
+            ->limit(self::MAX_OPTIONS)->pluck('receiving_id');
+
+        $receivings = Receiving::with('purchaseOrder')
+            ->whereIn('receiving_id', $receivingIds)
+            ->orderByDesc('receiving_date')
+            ->get();
+
+        /* One box searches GRN and PO numbers together, because a clerk holds
+           whichever number the paperwork happened to print. `kind` is what
+           lets the menu say which one a row is. */
+        $receipts = $receivings
+            ->flatMap(fn (Receiving $receiving) => array_values(array_filter([
+                $receiving->receiving_number ? ['value' => $receiving->receiving_number, 'kind' => 'grn'] : null,
+                $receiving->purchaseOrder?->po_number ? ['value' => $receiving->purchaseOrder->po_number, 'kind' => 'po'] : null,
+            ])))
+            ->unique('value')
+            ->take(self::MAX_OPTIONS)
+            ->values();
+
+        return [
+            'products' => Product::whereIn('product_id', $productIds)
+                ->orderBy('product_name')
+                ->get(['product_id', 'product_name', 'product_code']),
+            'receipts' => $receipts,
+            'locations' => Location::whereIn('location_id', $locationIds)
+                ->orderBy('location_name')
+                ->get(['location_id', 'location_name']),
         ];
     }
 
