@@ -41,6 +41,11 @@ FROM php:8.2-apache-bookworm AS runtime
 # also takes the runtime .so files some of these extensions link against, and a
 # ~90 MB smaller image is not worth a container that dies on its first request.
 # postgresql-client ships psql/pg_dump for one-off maintenance on the Aiven DB.
+#
+# Debian package versions are deliberately unpinned: a pinned version vanishes
+# from the archive when Debian issues a point release, turning a reproducible
+# build into one that cannot build at all. The base image tag pins this image.
+# hadolint ignore=DL3008
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -71,10 +76,14 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # Fail the build rather than the first request if an extension is missing.
-RUN php -m | grep -qx pdo_pgsql \
-    && php -m | grep -qx pgsql \
-    && php -m | grep -qx mbstring \
-    && php --version
+# Asserted in PHP rather than `php -m | grep`: under /bin/sh a pipeline reports
+# only the LAST command's exit status, so a crashing php would be masked by a
+# grep that simply found nothing to match.
+# hadolint ignore=SC2016
+RUN php -r 'foreach (["pdo_pgsql", "pgsql", "mbstring", "bcmath", "gd", "zip", "intl"] as $ext) { \
+        if (! extension_loaded($ext)) { fwrite(STDERR, "FATAL: missing PHP extension: $ext\n"); exit(1); } \
+    } \
+    echo "PHP ", PHP_VERSION, " with all required extensions\n";'
 
 # Apache: rewrite is required by Laravel's public/.htaccess; headers and
 # remoteip let the app see the real client IP behind Render's proxy.

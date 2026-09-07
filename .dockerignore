@@ -26,6 +26,12 @@ backups
 *.sql
 setup-deploy.bat
 
+# ...but the PostgreSQL baseline MUST ship. `migrate` loads it on a database
+# with no applied migrations; without it Laravel falls through to the 133
+# historical migrations, which are MySQL-only and would fail against Aiven.
+# Stated explicitly rather than relying on `*.sql` not crossing a slash.
+!back-end/database/schema/*.sql
+
 # --- Machine-specific / generated ------------------------------------------
 back-end/public/storage
 back-end/storage/framework/cache/*
