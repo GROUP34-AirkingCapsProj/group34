@@ -196,7 +196,7 @@ class IncidentStatusOwnershipTest extends TestCase
             'rejection_note'  => null,
             'created_at'      => now(),
             'updated_at'      => now(),
-        ]);
+        ], 'incident_id');
     }
 
     private function statusNameOf(int $incidentId): string

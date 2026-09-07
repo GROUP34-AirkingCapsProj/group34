@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Concerns\HandlesLookupCrud;
 use App\Http\Controllers\Controller;
 use App\Models\ApplianceDetail;
@@ -10,6 +11,7 @@ use App\Models\Inventory;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 
 /**
@@ -108,12 +110,18 @@ class BrandLookupController extends Controller
         $validated = $request->validate($this->lookupRules($request));
 
         try {
-            $brand = BrandLookup::create($validated);
-        } catch (QueryException $e) {
-            if ((string) $e->getCode() !== '23000') {
-                throw $e;
-            }
-
+            // Wrapped in a nested transaction so the failing INSERT runs inside a
+            // SAVEPOINT. PostgreSQL aborts the ENTIRE transaction on any error
+            // (SQLSTATE 25P02) and refuses every later statement until rollback,
+            // where MySQL leaves the transaction usable. Without the savepoint,
+            // catching this exception yields a correct 422 and then poisons
+            // whatever the caller does next inside the same transaction.
+            $brand = DB::transaction(fn () => BrandLookup::create($validated));
+        } catch (UniqueConstraintViolationException $e) {
+            // Catching Laravel's exception rather than testing for SQLSTATE
+            // 23000: that is MySQL's code for every integrity violation, while
+            // PostgreSQL raises 23505 for a unique violation. The framework
+            // normalises both onto this one class.
             return $this->validationError(['brand_name' => ['The brand name has already been taken.']]);
         }
 
@@ -134,12 +142,18 @@ class BrandLookupController extends Controller
         $validated = $request->validate($this->lookupRules($request, $brand));
 
         try {
-            $b->update($validated);
-        } catch (QueryException $e) {
-            if ((string) $e->getCode() !== '23000') {
-                throw $e;
-            }
-
+            // Wrapped in a nested transaction so the failing INSERT runs inside a
+            // SAVEPOINT. PostgreSQL aborts the ENTIRE transaction on any error
+            // (SQLSTATE 25P02) and refuses every later statement until rollback,
+            // where MySQL leaves the transaction usable. Without the savepoint,
+            // catching this exception yields a correct 422 and then poisons
+            // whatever the caller does next inside the same transaction.
+            DB::transaction(fn () => $b->update($validated));
+        } catch (UniqueConstraintViolationException $e) {
+            // Catching Laravel's exception rather than testing for SQLSTATE
+            // 23000: that is MySQL's code for every integrity violation, while
+            // PostgreSQL raises 23505 for a unique violation. The framework
+            // normalises both onto this one class.
             return $this->validationError(['brand_name' => ['The brand name has already been taken.']]);
         }
 

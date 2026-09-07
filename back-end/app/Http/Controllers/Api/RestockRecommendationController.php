@@ -26,7 +26,17 @@ class RestockRecommendationController extends Controller
     {
         $query = RestockRecommendation::with('product.installationMaterialDetail')
             ->forUser($request->user())
-            ->orderByRaw("FIELD(priority, 'CRITICAL', 'HIGH', 'MEDIUM')")
+            // CASE rather than MySQL's FIELD(), which PostgreSQL does not have.
+            // The ELSE 0 mirrors FIELD()'s no-match return, so an unexpected
+            // priority sorts first exactly as it did before. In practice
+            // RestockAnalyticsService only ever writes these three values.
+            ->orderByRaw(
+                "CASE priority"
+                . " WHEN 'CRITICAL' THEN 1"
+                . " WHEN 'HIGH' THEN 2"
+                . " WHEN 'MEDIUM' THEN 3"
+                . ' ELSE 0 END'
+            )
             ->orderByDesc('avg_daily_demand');
 
         if ($request->filled('priority') && $request->priority !== 'all') {

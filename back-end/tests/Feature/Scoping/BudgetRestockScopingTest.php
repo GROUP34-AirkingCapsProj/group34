@@ -93,7 +93,7 @@ class BudgetRestockScopingTest extends TestCase
                 'feature' => 'po_recommendations', 'action' => 'read',
                 'description' => 'Read access for po recommendations',
                 'created_at' => now(), 'updated_at' => now(),
-            ]);
+            ], 'permission_id');
         }
         \Illuminate\Support\Facades\DB::table('user_permission_overrides')->insert([
             'user_id' => $bm->user_id, 'permission_id' => $permId, 'is_granted' => 1,

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Container start-up for the Airking Inventory API.
+#
+# Everything here is deliberately done at RUN time, not BUILD time: the config
+# cache freezes whatever the environment holds when it is written, and the
+# environment (DB credentials, APP_KEY, FRONTEND_URL) only exists once Render
+# starts the container.
+set -euo pipefail
+
+log() { printf '[entrypoint] %s\n' "$*" >&2; }
+
+cd /var/www/html
+
+# --- Fail fast on missing required configuration ---------------------------
+: "${PORT:=10000}"
+export PORT
+
+if [ -z "${APP_KEY:-}" ]; then
+    log "FATAL: APP_KEY is not set. Generate one with 'php artisan key:generate --show'"
+    log "       and add it to the service's environment. Refusing to start: without"
+    log "       it every encrypted value and session cookie is unreadable."
+    exit 1
+fi
+
+# --- Writable paths ---------------------------------------------------------
+mkdir -p storage/framework/cache/data storage/framework/sessions \
+         storage/framework/views storage/logs bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache
+
+# public/storage must be a symlink into storage/app/public. It is removed from
+# the image (it pointed at a Windows dev path), so recreate it every boot.
+if [ ! -L public/storage ]; then
+    php artisan storage:link --force || log "WARN: storage:link failed; public disk URLs may 404"
+fi
+
+# --- Optional: run migrations on boot --------------------------------------
+# Off by default. With more than one instance running, two containers booting
+# together would migrate concurrently. Prefer a Render "Pre-Deploy Command" of
+# `php artisan migrate --force`, or flip RUN_MIGRATIONS=true for a single-instance
+# service.
+if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
+    log "RUN_MIGRATIONS=true — running database migrations"
+    php artisan migrate --force --no-interaction
+fi
+
+# --- Warm the caches --------------------------------------------------------
+# clear first: a stale cached config baked into an earlier layer would win over
+# the current environment.
+php artisan config:clear >/dev/null 2>&1 || true
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan event:cache || true
+
+# The commands above run as root, so the files they just wrote are root-owned.
+# Apache's workers run as www-data and need to write into storage/ (logs,
+# compiled views, sessions) once requests start arriving.
+chown -R www-data:www-data storage bootstrap/cache
+
+log "listening on port ${PORT}"
+
+exec "$@"

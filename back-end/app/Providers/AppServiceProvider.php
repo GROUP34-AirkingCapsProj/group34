@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Support\ExactStringMatch;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
@@ -24,6 +26,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Byte-exact string matching, spelled differently per database engine.
+        // Registered as a macro so call sites read as ordinary query-builder
+        // code; the driver rules live in ExactStringMatch.
+        //
+        //     DB::table('capacity_lookup')->whereExactString('capacity_value', $v)
+        //
+        // Eloquent builders forward unknown calls to the underlying query
+        // builder, so this works from a model query too.
+        QueryBuilder::macro('whereExactString', function (string $column, ?string $value) {
+            /** @var QueryBuilder $this */
+            return ExactStringMatch::apply($this, $column, $value);
+        });
+
         // Apache terminates TLS on :443 and reverse-proxies /api to Laravel over
         // plain HTTP on 127.0.0.1:8081 (see apache/airking.conf), so the request
         // Laravel sees is never secure. Without this, every generated absolute

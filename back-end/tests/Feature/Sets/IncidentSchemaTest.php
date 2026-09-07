@@ -23,13 +23,13 @@ class IncidentSchemaTest extends SetTestCase
 
     public function test_every_relationship_column_has_a_foreign_key(): void
     {
-        $actual = collect(DB::select(
-            "SELECT COLUMN_NAME AS c, REFERENCED_TABLE_NAME AS rt
-             FROM information_schema.KEY_COLUMN_USAGE
-             WHERE TABLE_SCHEMA = DATABASE()
-               AND TABLE_NAME = 'incident_reports'
-               AND REFERENCED_TABLE_NAME IS NOT NULL"
-        ))->mapWithKeys(fn ($r) => [$r->c => $r->rt]);
+        // Schema::getForeignKeys() rather than information_schema:
+        // REFERENCED_TABLE_NAME is a MySQL extension (the standard splits the
+        // information across KEY_COLUMN_USAGE and REFERENTIAL_CONSTRAINTS), and
+        // DATABASE() does not exist on PostgreSQL. Laravel's API returns the
+        // same facts on both engines.
+        $actual = collect(Schema::getForeignKeys('incident_reports'))
+            ->mapWithKeys(fn ($fk) => [$fk['columns'][0] => $fk['foreign_table']]);
 
         $expected = [
             'location_id'   => 'locations',
@@ -91,10 +91,15 @@ class IncidentSchemaTest extends SetTestCase
             $this->assertTrue(Schema::hasColumn('incident_reports', $col), "incident_reports missing {$col}");
         }
 
+        // COLUMN_NAME / IS_NULLABLE / DATA_TYPE are ANSI and present on both
+        // engines; only the "which schema am I in" function differs. MySQL
+        // scopes by database, PostgreSQL by schema.
+        $currentSchema = DB::getDriverName() === 'pgsql' ? 'current_schema()' : 'DATABASE()';
+
         $columns = collect(DB::select(
             "SELECT COLUMN_NAME AS c, IS_NULLABLE AS n, DATA_TYPE AS t
              FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'incident_reports'"
+             WHERE TABLE_SCHEMA = {$currentSchema} AND TABLE_NAME = 'incident_reports'"
         ))->keyBy('c');
 
         $nullable = $columns->map(fn ($r) => $r->n);
@@ -110,7 +115,14 @@ class IncidentSchemaTest extends SetTestCase
 
         // datetime, not timestamp: occurred_at holds user-entered past dates, so it
         // must not inherit timestamp's 1970-2038 range or auto-init/auto-update.
-        $this->assertSame('datetime', $columns['occurred_at']->t ?? null);
+        //
+        // Both hazards are MySQL TIMESTAMP behaviours. PostgreSQL's timestamp has
+        // no such range limit and never auto-initialises, so there is no
+        // equivalent distinction to assert there.
+        $this->assertSame(
+            DB::getDriverName() === 'pgsql' ? 'timestamp without time zone' : 'datetime',
+            $columns['occurred_at']->t ?? null
+        );
     }
 
     public function test_occurred_at_and_related_issuance_round_trip_through_the_model(): void
@@ -147,16 +159,26 @@ class IncidentSchemaTest extends SetTestCase
     {
         $this->assertTrue(Schema::hasColumn('incident_reports', 'photo_source'));
 
+        // COLUMN_NAME / IS_NULLABLE / DATA_TYPE are ANSI and present on both
+        // engines; only the "which schema am I in" function differs. MySQL
+        // scopes by database, PostgreSQL by schema.
+        $currentSchema = DB::getDriverName() === 'pgsql' ? 'current_schema()' : 'DATABASE()';
+
         $col = collect(DB::select(
             "SELECT COLUMN_NAME AS c, IS_NULLABLE AS n, DATA_TYPE AS t
              FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'incident_reports'
+             WHERE TABLE_SCHEMA = {$currentSchema} AND TABLE_NAME = 'incident_reports'
                AND COLUMN_NAME = 'photo_source'"
         ))->first();
 
         // Nullable and never backfilled: rows predating this feature genuinely
         // do not know how their photo arrived, and null says exactly that.
         $this->assertSame('YES', $col->n);
-        $this->assertSame('varchar', $col->t);
+        // information_schema.DATA_TYPE spells the same type differently per
+        // engine: MySQL says 'varchar', PostgreSQL uses the ANSI name.
+        $this->assertSame(
+            DB::getDriverName() === 'pgsql' ? 'character varying' : 'varchar',
+            $col->t
+        );
     }
 }

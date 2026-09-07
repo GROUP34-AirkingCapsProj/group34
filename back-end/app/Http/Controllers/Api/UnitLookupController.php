@@ -73,7 +73,7 @@ class UnitLookupController extends Controller
     {
         // unit_id is a real foreign key on installation_material_details
         // (the products' installation material-unit detail row), so a plain where() is
-        // correct — the BINARY-paired form elsewhere in this codebase is
+        // correct — the whereExactString form elsewhere in this codebase is
         // only needed for string-valued lookups copied verbatim onto
         // products, which this is not.
         return DB::table('installation_material_details')

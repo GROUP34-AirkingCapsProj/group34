@@ -20,7 +20,7 @@ class LookupRenameServiceTest extends TestCase
             'product_type' => 'appliance',
             'created_at'   => now(),
             'updated_at'   => now(),
-        ]);
+        ], 'product_id');
 
         DB::table('appliance_details')->insert([
             'product_id'      => $productId,
@@ -120,15 +120,16 @@ class LookupRenameServiceTest extends TestCase
         );
 
         $this->assertSame(1, $updated);
-        // A plain `where` would not distinguish these two values under the
-        // table's ci collation, so assert with BINARY here too.
+        // A plain `where` would not distinguish these two values under MySQL's
+        // ci collation, so assert with an exact match here too. (On Postgres
+        // `where` is already exact; whereExactString is correct on both.)
         $this->assertSame(
             1,
-            DB::table('appliance_details')->whereRaw('BINARY capacity_rating = ?', ['5X HP'])->count()
+            DB::table('appliance_details')->whereExactString('capacity_rating', '5X HP')->count()
         );
         $this->assertSame(
             1,
-            DB::table('appliance_details')->whereRaw('BINARY capacity_rating = ?', ['5xhp'])->count()
+            DB::table('appliance_details')->whereExactString('capacity_rating', '5xhp')->count()
         );
     }
 

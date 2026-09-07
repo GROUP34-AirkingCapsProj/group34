@@ -94,8 +94,15 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            'search_path' => env('DB_SCHEMA', 'public'),
+            // Managed Postgres (Aiven, Neon, Supabase, RDS) requires TLS. Set
+            // DB_SSLMODE=require in production; `prefer` stays the local default
+            // so a plain dev Postgres still connects.
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Only needed for sslmode=verify-ca / verify-full: the path to the
+            // provider's CA bundle (Aiven calls it ca.pem). Left unset, the
+            // connector omits it from the DSN entirely.
+            'sslrootcert' => env('DB_SSLROOTCERT'),
         ],
 
         'sqlsrv' => [

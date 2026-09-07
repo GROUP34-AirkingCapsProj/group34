@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * Three rules drive every decision here — see the task write-up for the
  * full rationale:
  *   1. Case variants are preserved as separate rows (grouping happens in PHP,
- *      existence checks use BINARY) because products reference the exact
+ *      existence checks are byte-exact) because products reference the exact
  *      string, and collapsing case would orphan whichever spelling loses.
  *   2. Every insert is guarded by an existence check first, so running this
  *      twice inserts nothing the second time.
@@ -146,8 +146,11 @@ class LookupBackfill
      */
     protected static function insertIfMissing(string $table, string $column, string $value): void
     {
+        // Byte-exact: "1.5HP" and "1.5hp" are distinct lookup rows, so a
+        // case-insensitive check would wrongly conclude the value is already
+        // present and skip the insert. See App\Support\ExactStringMatch.
         $exists = DB::table($table)
-            ->whereRaw("BINARY {$column} = ?", [$value])
+            ->whereExactString($column, $value)
             ->exists();
 
         if ($exists) {

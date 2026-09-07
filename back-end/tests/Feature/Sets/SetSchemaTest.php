@@ -43,9 +43,14 @@ class SetSchemaTest extends SetTestCase
      */
     public function test_variant_is_wide_enough_to_hold_any_appliance_variant(): void
     {
+        // information_schema.COLUMNS.CHARACTER_MAXIMUM_LENGTH is ANSI and present
+        // on both engines; only the "which schema am I in" function differs.
+        // MySQL scopes by database, PostgreSQL by schema.
+        $currentSchema = DB::getDriverName() === 'pgsql' ? 'current_schema()' : 'DATABASE()';
+
         $width = fn (string $table) => (int) DB::selectOne(
             "SELECT CHARACTER_MAXIMUM_LENGTH AS len FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'variant'",
+             WHERE TABLE_SCHEMA = {$currentSchema} AND TABLE_NAME = ? AND COLUMN_NAME = 'variant'",
             [$table]
         )->len;
 

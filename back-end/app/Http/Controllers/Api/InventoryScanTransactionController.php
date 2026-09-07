@@ -319,7 +319,16 @@ class InventoryScanTransactionController extends Controller
         if ($scannedBarcode !== '') {
             if (ReceivingDetail::query()
                 ->whereNotNull('scanned_barcode')
-                ->whereRaw("LOWER(REPLACE(REPLACE(REPLACE(TRIM(scanned_barcode), ' ', ''), CHAR(9), ''), CHAR(13), '')) = ?", [$scannedBarcodeLookup])
+                // The tab and carriage return are bound as parameters rather
+                // than written as CHAR(9)/CHAR(13): CHAR() is MySQL's
+                // code-point-to-character function, but in PostgreSQL CHAR is a
+                // TYPE, so `CHAR(9)` there is a syntax error (the equivalent
+                // function is CHR()). Binding the characters needs no function
+                // at all and behaves identically on both engines.
+                ->whereRaw(
+                    "LOWER(REPLACE(REPLACE(REPLACE(TRIM(scanned_barcode), ' ', ''), ?, ''), ?, '')) = ?",
+                    ["\t", "\r", $scannedBarcodeLookup]
+                )
                 ->exists()
             ) {
                 return $this->success([

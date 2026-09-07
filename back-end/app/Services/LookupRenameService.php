@@ -35,15 +35,17 @@ class LookupRenameService
             // Deliberately a raw query builder update: it ignores soft-delete
             // scopes, so archived sets and products stay consistent too.
             //
-            // BINARY forces a byte-exact comparison. The table's utf8mb4_unicode_ci
-            // collation makes plain `where($column, $old)` case-insensitive, but the
-            // lookup tables can legitimately hold values differing only in case
-            // (e.g. "1.5HP" and "1.5hp" as two distinct rows, because products
-            // reference the exact string). A ci match would conflate them: renaming
-            // "1.5HP" would also silently rewrite every product holding "1.5hp",
-            // orphaning that second lookup row.
+            // whereExactString is a byte-exact comparison. On MySQL the table's
+            // utf8mb4_unicode_ci collation makes a plain `where($column, $old)`
+            // case-insensitive, but the lookup tables can legitimately hold
+            // values differing only in case (e.g. "1.5HP" and "1.5hp" as two
+            // distinct rows, because products reference the exact string). A ci
+            // match would conflate them: renaming "1.5HP" would also silently
+            // rewrite every product holding "1.5hp", orphaning that second
+            // lookup row. See App\Support\ExactStringMatch for how each engine
+            // spells this — Postgres needs no cast, MySQL needs BINARY.
             $total += DB::table($table)
-                ->whereRaw("BINARY {$column} = ?", [$old])
+                ->whereExactString($column, $old)
                 ->update([$column => $new]);
         }
 

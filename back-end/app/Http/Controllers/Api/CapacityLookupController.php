@@ -78,16 +78,12 @@ class CapacityLookupController extends Controller
         $count = 0;
 
         foreach ($this->cascadeTargets() as $table => $column) {
-            // Paired form, not a bare whereRaw: the collation is
-            // case-insensitive and rows may legitimately differ only in case
-            // (e.g. "1.5HP" vs "1.5hp"), so an exact match is required — but
-            // ->where($column, $value) first narrows through any ci index on
-            // the column, then the BINARY comparison confirms the exact byte
-            // match. A lone `BINARY col = ?` is non-sargable and would ignore
-            // such an index outright.
+            // Exact, not case-insensitive: rows may legitimately differ only in
+            // case (e.g. "1.5HP" vs "1.5hp"). On MySQL that needs a BINARY
+            // comparison paired with a plain one for index use; on Postgres a
+            // plain `=` is already exact. ExactStringMatch picks per driver.
             $count += DB::table($table)
-                ->where($column, $row->capacity_value)
-                ->whereRaw("BINARY {$column} = ?", [$row->capacity_value])
+                ->whereExactString($column, $row->capacity_value)
                 ->count();
         }
 

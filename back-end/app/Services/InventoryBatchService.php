@@ -326,7 +326,14 @@ class InventoryBatchService
                     ->from('products as p')
                     ->leftJoin('installation_material_details as d', 'd.product_id', '=', 'p.product_id')
                     ->where('p.product_type', 'installation_material')
-                    ->whereRaw('COALESCE(d.is_serialized, 0) = 0');
+                    // The LEFT JOIN means d.is_serialized is NULL for a product
+                    // with no material detail row; treat that as "not serialized".
+                    //
+                    // COALESCE(..., false) rather than COALESCE(..., 0): the
+                    // column is a boolean, and while MySQL stores that as
+                    // tinyint and happily compares it to 0, PostgreSQL rejects
+                    // COALESCE(boolean, integer) outright as a type mismatch.
+                    ->whereRaw('COALESCE(d.is_serialized, false) = false');
             })
             ->update(['serial_type' => $to]);
     }

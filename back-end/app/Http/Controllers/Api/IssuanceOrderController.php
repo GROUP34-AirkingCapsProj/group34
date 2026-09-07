@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use Illuminate\Database\DetectsConcurrencyErrors;
 use App\Http\Controllers\Controller;
 use App\Models\Inventory;
 use App\Models\Issuance;
@@ -13,6 +14,10 @@ use Illuminate\Support\Facades\DB;
 
 class IssuanceOrderController extends Controller
 {
+    // Supplies causedByConcurrencyError(), which recognises deadlock and
+    // lock-timeout conditions on MySQL and PostgreSQL alike.
+    use DetectsConcurrencyErrors;
+
     public function quote(int $id): JsonResponse
     {
         $issuance = Issuance::with(['details.product.installationMaterialDetail', 'sets'])->findOrFail($id);
@@ -255,10 +260,15 @@ class IssuanceOrderController extends Controller
             // Availability moved between the pool read and the lock — another order won the race.
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Illuminate\Database\QueryException $e) {
-            // Deadlock (1213) or lock-wait timeout (1205) under heavy contention.
-            // reserve() locks in canonical product order so this should not arise,
-            // but if it does the request is retryable — a 409, not a 500.
-            if (in_array((int) ($e->errorInfo[1] ?? 0), [1213, 1205], true)) {
+            // Deadlock or lock-wait timeout under heavy contention. reserve()
+            // locks in canonical product order so this should not arise, but if
+            // it does the request is retryable — a 409, not a 500.
+            //
+            // Laravel's detector rather than MySQL's error numbers (1213/1205):
+            // PostgreSQL signals the same conditions as SQLSTATE 40P01
+            // (deadlock_detected) and 55P03 (lock_not_available), so matching on
+            // the MySQL numbers would return a 500 there instead of a 409.
+            if ($this->causedByConcurrencyError($e)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'The counter is busy reserving stock. Please try confirming again.',

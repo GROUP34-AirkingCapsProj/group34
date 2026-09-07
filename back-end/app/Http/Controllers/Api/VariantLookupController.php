@@ -73,16 +73,12 @@ class VariantLookupController extends Controller
         $count = 0;
 
         foreach ($this->cascadeTargets() as $table => $column) {
-            // Paired form, not a bare whereRaw: the collation is
-            // case-insensitive and rows may legitimately differ only in case
-            // (e.g. "Slim" vs "slim"), so an exact match is required — but
-            // ->where($column, $value) first narrows through any ci index on
-            // the column, then the BINARY comparison confirms the exact byte
-            // match. A lone `BINARY col = ?` is non-sargable and would ignore
-            // such an index outright.
+            // Exact, not case-insensitive: rows may legitimately differ only in
+            // case (e.g. "Slim" vs "slim"). On MySQL that needs a BINARY
+            // comparison paired with a plain one for index use; on Postgres a
+            // plain `=` is already exact. ExactStringMatch picks per driver.
             $count += DB::table($table)
-                ->where($column, $row->variant_name)
-                ->whereRaw("BINARY {$column} = ?", [$row->variant_name])
+                ->whereExactString($column, $row->variant_name)
                 ->count();
         }
 

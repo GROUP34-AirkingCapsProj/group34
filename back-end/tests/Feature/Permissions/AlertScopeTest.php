@@ -22,7 +22,7 @@ class AlertScopeTest extends TestCase
             'is_active'     => 1,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'location_id');
 
         $locB = (int) DB::table('locations')->insertGetId([
             'location_code' => 'ALB-' . $uid,
@@ -31,7 +31,7 @@ class AlertScopeTest extends TestCase
             'is_active'     => 1,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'location_id');
 
         // Get an existing admin user id for requested_by FK
         $adminUserId = User::where('role_id', 1)->value('user_id');

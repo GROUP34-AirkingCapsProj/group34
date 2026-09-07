@@ -46,6 +46,14 @@ class NoAccidentalTimestampRewriteTest extends TestCase
      */
     public function test_the_column_does_not_rewrite_itself_on_update(string $table, string $column): void
     {
+        if (! in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            // ON UPDATE CURRENT_TIMESTAMP is a MySQL/MariaDB column attribute
+            // with no PostgreSQL equivalent, so there is nothing there for a
+            // column to accidentally acquire. The invariant this test guards
+            // cannot be violated on any other engine.
+            $this->markTestSkipped('ON UPDATE CURRENT_TIMESTAMP is MySQL-only.');
+        }
+
         $extra = DB::selectOne(
             'select extra from information_schema.columns
               where table_schema = database() and table_name = ? and column_name = ?',

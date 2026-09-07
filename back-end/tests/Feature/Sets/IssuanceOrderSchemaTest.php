@@ -32,14 +32,20 @@ class IssuanceOrderSchemaTest extends SetTestCase
      */
     public function test_every_phase_two_relationship_column_has_a_foreign_key(): void
     {
-        $actual = collect(DB::select(
-            "SELECT TABLE_NAME AS t, COLUMN_NAME AS c, REFERENCED_TABLE_NAME AS rt
-             FROM information_schema.KEY_COLUMN_USAGE
-             WHERE TABLE_SCHEMA = DATABASE()
-               AND REFERENCED_TABLE_NAME IS NOT NULL
-               AND (TABLE_NAME IN ('issuance_sets', 'pick_reservations')
-                    OR (TABLE_NAME = 'issuance_details' AND COLUMN_NAME IN ('issuance_set_id', 'batch_id')))"
-        ))->mapWithKeys(fn ($r) => ["{$r->t}.{$r->c}" => $r->rt]);
+        // Schema::getForeignKeys() rather than information_schema: MySQL's
+        // REFERENCED_TABLE_NAME column and DATABASE() are both MySQL-only.
+        $interesting = [
+            'issuance_sets' => null,        // every FK on the table
+            'pick_reservations' => null,    // every FK on the table
+            'issuance_details' => ['issuance_set_id', 'batch_id'],
+        ];
+
+        $actual = collect($interesting)
+            ->flatMap(function ($columns, $table) {
+                return collect(Schema::getForeignKeys($table))
+                    ->filter(fn ($fk) => $columns === null || in_array($fk['columns'][0], $columns, true))
+                    ->mapWithKeys(fn ($fk) => ["{$table}.{$fk['columns'][0]}" => $fk['foreign_table']]);
+            });
 
         $expected = [
             'issuance_details.issuance_set_id' => 'issuance_sets',

@@ -11,7 +11,43 @@ $defaultOrigins = [
     'http://127.0.0.1:5173',
 ];
 
-$extraOrigins = array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', ''))));
+/**
+ * Normalise a comma-separated origin list into `scheme://host[:port]` entries.
+ *
+ * A browser sends `Origin: https://app.example.com` — no path, no trailing
+ * slash. So `https://app.example.com/` in the allow-list never matches and the
+ * request fails CORS with a confusing "origin not allowed". Parse each entry
+ * and keep only the scheme, host and port.
+ */
+$normaliseOrigins = static function (?string $raw): array {
+    return array_values(array_filter(array_map(
+        static function (string $origin): string {
+            $origin = trim($origin);
+
+            if ($origin === '') {
+                return '';
+            }
+
+            $parts = parse_url($origin);
+
+            // Anything without both a scheme and a host is not a valid origin.
+            if (! isset($parts['scheme'], $parts['host'])) {
+                return '';
+            }
+
+            return $parts['scheme'].'://'.$parts['host']
+                .(isset($parts['port']) ? ':'.$parts['port'] : '');
+        },
+        explode(',', (string) $raw)
+    )));
+};
+
+// FRONTEND_URL is the canonical origin of the deployed frontend — the one value
+// you set on the hosting platform (Render, Vercel, Netlify). CORS_ALLOWED_ORIGINS
+// remains for any *extra* origins (preview deploys, a second domain). Both accept
+// a comma-separated list and tolerate trailing slashes.
+$frontendOrigins = $normaliseOrigins(env('FRONTEND_URL', ''));
+$extraOrigins = $normaliseOrigins(env('CORS_ALLOWED_ORIGINS', ''));
 
 return [
 
@@ -19,7 +55,11 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => array_values(array_unique(array_merge($defaultOrigins, $extraOrigins))),
+    'allowed_origins' => array_values(array_unique(array_merge(
+        $defaultOrigins,
+        $frontendOrigins,
+        $extraOrigins,
+    ))),
 
     // Allow any port on localhost / 127.0.0.1; common private LAN ranges for mobile web (same Wi‑Fi)
     'allowed_origins_patterns' => [
@@ -32,7 +72,7 @@ return [
         // for netlify.app / trycloudflare.com) let ANYONE who deploys to that
         // shared domain make credentialed cross-origin calls to this API from a
         // page they control. Add a hosted or tunnelled frontend by its exact
-        // origin in CORS_ALLOWED_ORIGINS instead.
+        // origin in FRONTEND_URL / CORS_ALLOWED_ORIGINS instead.
     ],
 
     'allowed_headers' => ['*'],

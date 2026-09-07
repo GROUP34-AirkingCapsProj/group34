@@ -26,7 +26,7 @@ class RbacInfraTest extends TestCase
             'description' => 'Test role ' . $suffix,
             'created_at'  => now(),
             'updated_at'  => now(),
-        ]);
+        ], 'role_id');
 
         $statusId = DB::table('status_lookup')->insertGetId([
             'status_name'     => 'active_' . $suffix,
@@ -34,7 +34,7 @@ class RbacInfraTest extends TestCase
             'is_active'       => 1,
             'created_at'      => now(),
             'updated_at'      => now(),
-        ]);
+        ], 'status_id');
 
         $userId = DB::table('users')->insertGetId([
             'first_name'    => 'Test',
@@ -46,7 +46,7 @@ class RbacInfraTest extends TestCase
             'status_id'     => $statusId,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'user_id');
 
         return ['user_id' => $userId, 'role_id' => $roleId];
     }
@@ -162,7 +162,7 @@ class RbacInfraTest extends TestCase
                 'description' => 'System Administrator',
                 'created_at'  => now(),
                 'updated_at'  => now(),
-            ]);
+            ], 'role_id');
         }
 
         $statusId = DB::table('status_lookup')->insertGetId([
@@ -171,7 +171,7 @@ class RbacInfraTest extends TestCase
             'is_active'       => 1,
             'created_at'      => now(),
             'updated_at'      => now(),
-        ]);
+        ], 'status_id');
 
         $userId = DB::table('users')->insertGetId([
             'first_name'    => 'Admin',
@@ -183,7 +183,7 @@ class RbacInfraTest extends TestCase
             'status_id'     => $statusId,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'user_id');
 
         return ['user_id' => $userId, 'role_id' => $roleId];
     }

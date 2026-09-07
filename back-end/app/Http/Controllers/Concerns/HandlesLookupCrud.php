@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Rules\UniqueLookupName;
+use App\Support\DatabaseErrors;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -57,19 +59,22 @@ trait HandlesLookupCrud
      * Override this for a lookup whose uniqueness is additionally scoped by
      * another column.
      */
-    protected function lookupUniqueRule(Request $request, $id = null): Unique
+    protected function lookupUniqueRule(Request $request, $id = null): UniqueLookupName
     {
         $modelClass = $this->lookupModel();
         $model = new $modelClass();
 
-        $unique = Rule::unique($model->getTable(), $this->lookupNameColumn())
-            ->whereNull('deleted_at');
-
-        if ($id !== null) {
-            $unique->ignore($id, $model->getKeyName());
-        }
-
-        return $unique;
+        // UniqueLookupName rather than Rule::unique(): Rule::unique() compares
+        // with a plain `=`, which is case-insensitive under MySQL's ci collation
+        // but case-sensitive on PostgreSQL. On PostgreSQL that would quietly
+        // start allowing "AIRCON" alongside "Aircon". The rule compares
+        // LOWER(column) so both engines behave the way this app always has.
+        return new UniqueLookupName(
+            $model->getTable(),
+            $this->lookupNameColumn(),
+            $id === null ? null : (string) $id,
+            $model->getKeyName(),
+        );
     }
 
     /**
@@ -335,11 +340,20 @@ trait HandlesLookupCrud
         }
 
         try {
-            $row->forceDelete();
+            // SAVEPOINT via a nested transaction: PostgreSQL aborts the whole
+            // transaction on a constraint error and rejects every statement
+            // after it, so without this the 422 below would be followed by a
+            // dead transaction.
+            DB::transaction(fn () => $row->forceDelete());
         } catch (QueryException $e) {
-            // 23000 is the integrity-constraint SQLSTATE; anything else is a
-            // genuine fault and must not be disguised as a usage conflict.
-            if ((string) $e->getCode() !== '23000') {
+            // A foreign key still points at this row; anything else is a genuine
+            // fault and must not be disguised as a usage conflict.
+            //
+            // Not a bare '23000' check: that is MySQL's SQLSTATE for every
+            // integrity violation, whereas PostgreSQL reports a foreign-key
+            // violation as 23503. Testing for 23000 alone would rethrow on
+            // PostgreSQL and turn this handled 422 into a 500.
+            if (! DatabaseErrors::isForeignKeyViolation($e)) {
                 throw $e;
             }
 

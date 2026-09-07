@@ -48,11 +48,19 @@ class ReservationService
 
                 // Locking read: sees holds another confirm just committed, and any
                 // sibling line added earlier in this same loop.
+                //
+                // The rows are selected and summed in PHP rather than with
+                // ->sum('quantity'): PostgreSQL rejects FOR UPDATE combined with
+                // an aggregate ("FOR UPDATE is not allowed with aggregate
+                // functions", SQLSTATE 0A000), which MySQL permits. Selecting the
+                // quantities locks exactly the same rows and yields the same
+                // total; active holds for one product at one location are few.
                 $held = (int) PickReservation::active()
                     ->where('location_id', $locationId)
                     ->where('product_id', $productId)
                     ->lockForUpdate()
-                    ->sum('quantity');
+                    ->pluck('quantity')
+                    ->sum();
 
                 if ($held + $quantity > $onHand) {
                     throw new \RuntimeException(

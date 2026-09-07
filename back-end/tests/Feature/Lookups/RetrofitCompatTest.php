@@ -487,7 +487,7 @@ class RetrofitCompatTest extends LookupTestCase
             'product_type' => 'installation_material',
             'created_at'   => now(),
             'updated_at'   => now(),
-        ]);
+        ], 'product_id');
 
         DB::table('installation_material_details')->insert([
             'product_id'         => $productId,

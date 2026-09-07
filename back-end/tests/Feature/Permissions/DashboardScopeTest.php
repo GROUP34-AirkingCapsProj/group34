@@ -24,7 +24,7 @@ class DashboardScopeTest extends TestCase
             'is_active'     => 1,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'location_id');
 
         $locB = (int) DB::table('locations')->insertGetId([
             'location_name' => 'DashLocB_' . $uid,
@@ -33,7 +33,7 @@ class DashboardScopeTest extends TestCase
             'is_active'     => 1,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'location_id');
 
         $product = Product::first();
         $this->assertNotNull($product, 'Seed at least one product before running this test.');
@@ -71,7 +71,7 @@ class DashboardScopeTest extends TestCase
             'payment_status_id' => $paymentStatusId,
             'created_at'        => now(),
             'updated_at'        => now(),
-        ]);
+        ], 'sales_id');
 
         // Create a Sale for locA — the scoped user SHOULD see this one
         DB::table('sales')->insertGetId([
@@ -81,7 +81,7 @@ class DashboardScopeTest extends TestCase
             'payment_status_id' => $paymentStatusId,
             'created_at'        => now(),
             'updated_at'        => now(),
-        ]);
+        ], 'sales_id');
 
         // Count how many sales exist at locA BEFORE our user makes the request,
         // so we can assert the exact returned count

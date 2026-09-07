@@ -17,7 +17,7 @@ class BackfillTest extends LookupTestCase
 
         LookupBackfill::run();
 
-        $rows = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->get();
+        $rows = DB::table('capacity_lookup')->whereExactString('capacity_value', $value)->get();
 
         $this->assertCount(1, $rows);
     }
@@ -32,10 +32,10 @@ class BackfillTest extends LookupTestCase
         LookupBackfill::run();
 
         $this->assertFalse(
-            DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [''])->exists()
+            DB::table('capacity_lookup')->whereExactString('capacity_value', '')->exists()
         );
         $this->assertFalse(
-            DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', ['   '])->exists()
+            DB::table('capacity_lookup')->whereExactString('capacity_value', '   ')->exists()
         );
     }
 
@@ -51,8 +51,8 @@ class BackfillTest extends LookupTestCase
 
         LookupBackfill::run();
 
-        $lowerRow = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$lower])->first();
-        $upperRow = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$upper])->first();
+        $lowerRow = DB::table('capacity_lookup')->whereExactString('capacity_value', $lower)->first();
+        $upperRow = DB::table('capacity_lookup')->whereExactString('capacity_value', $upper)->first();
 
         $this->assertNotNull($lowerRow);
         $this->assertNotNull($upperRow);
@@ -68,7 +68,7 @@ class BackfillTest extends LookupTestCase
 
         LookupBackfill::run();
 
-        $row = DB::table('variant_lookup')->whereRaw('BINARY variant_name = ?', [$value])->first();
+        $row = DB::table('variant_lookup')->whereExactString('variant_name', $value)->first();
 
         $this->assertNotNull($row);
     }
@@ -82,7 +82,7 @@ class BackfillTest extends LookupTestCase
 
         LookupBackfill::run();
 
-        $row = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->first();
+        $row = DB::table('capacity_lookup')->whereExactString('capacity_value', $value)->first();
 
         $this->assertNotNull($row);
     }
@@ -123,8 +123,8 @@ class BackfillTest extends LookupTestCase
 
         LookupBackfill::run();
 
-        $overLengthRow = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$overLength])->first();
-        $validLengthRow = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$validLength])->first();
+        $overLengthRow = DB::table('capacity_lookup')->whereExactString('capacity_value', $overLength)->first();
+        $validLengthRow = DB::table('capacity_lookup')->whereExactString('capacity_value', $validLength)->first();
 
         $this->assertNull($overLengthRow);
         $this->assertNotNull($validLengthRow);
@@ -141,7 +141,7 @@ class BackfillTest extends LookupTestCase
 
         LookupBackfill::run();
 
-        $rows = DB::table('capacity_lookup')->whereRaw('BINARY capacity_value = ?', [$value])->get();
+        $rows = DB::table('capacity_lookup')->whereExactString('capacity_value', $value)->get();
 
         $this->assertCount(1, $rows, 'a value seen in both sources must produce exactly one row');
     }

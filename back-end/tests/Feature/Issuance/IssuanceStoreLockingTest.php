@@ -70,7 +70,11 @@ class IssuanceStoreLockingTest extends SetTestCase
 
         $lockedInventoryReads = array_filter(
             $queries,
-            fn (string $sql) => str_contains($sql, 'from `inventory`') && str_contains($sql, 'for update')
+            // Identifier quoting is engine-specific (`inventory` on MySQL,
+            // "inventory" on PostgreSQL), so ask the grammar how this
+            // connection writes it rather than hardcoding backticks.
+            fn (string $sql) => str_contains($sql, 'from ' . DB::getQueryGrammar()->wrapTable('inventory'))
+                && str_contains($sql, 'for update')
         );
 
         $this->assertNotEmpty(

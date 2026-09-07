@@ -6,6 +6,8 @@ use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\Product;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Database\UniqueConstraintViolationException;
 use RuntimeException;
 
 /**
@@ -25,7 +27,9 @@ use RuntimeException;
  * That constraint — not a PHP-side existence check — is the real guarantee
  * against collisions under concurrent receiving. This service computes a
  * candidate sequence number, attempts the insert, and on a unique-key
- * violation (MySQL error 1062) recounts and retries, up to a small cap.
+ * violation recounts and retries, up to a small cap. The violation is
+ * detected via Laravel's UniqueConstraintViolationException so it works on
+ * MySQL and PostgreSQL alike.
  */
 class MaterialTagService
 {
@@ -111,7 +115,7 @@ class MaterialTagService
 
     /**
      * Create a single ItemSerial tag row, retrying the sequence number on a
-     * unique-key collision (MySQL 1062) rather than pre-checking existence.
+     * unique-key collision rather than pre-checking existence.
      */
     private function createTag(
         Product $product,
@@ -131,7 +135,13 @@ class MaterialTagService
             $serialNumber = sprintf('%s%02d', $prefix, $seq);
 
             try {
-                return ItemSerial::create([
+                // Nested transaction => SAVEPOINT. The caller owns the outer
+                // transaction (see the class contract), and on PostgreSQL a
+                // failed statement aborts that whole transaction: every later
+                // statement, including nextSequence()'s count on the next loop
+                // pass, would fail with 25P02. Rolling back to the savepoint
+                // keeps the retry loop workable. MySQL never needed it.
+                return DB::transaction(fn () => ItemSerial::create([
                     'product_id'       => $product->product_id,
                     'location_id'      => $locationId,
                     'batch_id'         => $batch->batch_id,
@@ -141,9 +151,14 @@ class MaterialTagService
                     'serial_type'      => 'received',
                     'scanned_by'       => $userId,
                     'status_id'        => ItemSerial::IN_STOCK_STATUS_ID,
-                ]);
+                ]));
             } catch (QueryException $e) {
-                $isDuplicate = (int) ($e->errorInfo[1] ?? 0) === 1062;
+                // errorInfo[1] is the DRIVER's own error number: 1062 is MySQL's
+                // duplicate-key code and has no meaning to PostgreSQL, which
+                // reports a unique violation as SQLSTATE 23505. Testing the
+                // MySQL number alone would make every collision look like a hard
+                // failure on PostgreSQL and defeat the retry entirely.
+                $isDuplicate = $e instanceof UniqueConstraintViolationException;
 
                 if (!$isDuplicate || $attempts >= self::MAX_RETRIES) {
                     throw new RuntimeException(
@@ -178,14 +193,18 @@ class MaterialTagService
      * uniqueness guarantee is the DB constraint, enforced via retry with a
      * strictly-increasing offset in createTag().
      *
-     * Uses LOCATE(...) = 1 rather than a LIKE pattern: the prefix embeds the
+     * Uses POSITION(...) = 1 rather than a LIKE pattern: the prefix embeds the
      * caller-supplied referenceLabel (a PO number or receipt form), and
-     * LIKE's '%'/'_' wildcards are not escaped by query bindings. LOCATE
+     * LIKE's '%'/'_' wildcards are not escaped by query bindings. POSITION
      * treats the prefix as a plain literal, so a reference label such as
      * 'PO_2401' cannot accidentally match unrelated rows like 'POX2401'.
+     *
+     * POSITION(x IN y) rather than MySQL's LOCATE(x, y): it is the SQL-standard
+     * spelling and both MySQL and PostgreSQL implement it, where LOCATE does not
+     * exist on PostgreSQL at all.
      */
     private function nextSequence(string $prefix): int
     {
-        return ItemSerial::whereRaw('LOCATE(?, serial_number) = 1', [$prefix])->count() + 1;
+        return ItemSerial::whereRaw('POSITION(? IN serial_number) = 1', [$prefix])->count() + 1;
     }
 }

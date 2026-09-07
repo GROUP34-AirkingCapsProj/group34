@@ -160,7 +160,7 @@ class LookupCrudTraitTest extends LookupTestCase
         $id = $this->postJson('/api/capacities', ['capacity_value' => $value])->json('data.capacity_id');
 
         // A usageCountFor() hardcoded to 0 (or one that only reads part of
-        // cascadeTargets(), or a non-sargable BINARY predicate that silently
+        // cascadeTargets(), or a non-sargable exact predicate that silently
         // matches nothing) would all still pass every other test here.
         $this->applianceWith(['capacity_rating' => $value]);
 
