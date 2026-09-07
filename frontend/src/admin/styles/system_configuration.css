@@ -882,3 +882,64 @@
     flex-wrap: wrap;
   }
 }
+
+/* ── Barcode printers ──────────────────────────────────────────────────
+   One row per location, expanding into a connection form. */
+.lpp-status { color: #64748b; padding: 12px 0; }
+
+.lpp-row { border-bottom: 1px solid #f1f5f9; padding: 10px 0; }
+.lpp-row:last-of-type { border-bottom: none; }
+
+.lpp-row-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lpp-location { font-weight: 600; min-width: 160px; }
+.lpp-detail { color: #64748b; font-size: 0.875rem; flex: 1; }
+.lpp-actions { display: flex; gap: 8px; }
+.lpp-actions button {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.lpp-actions button:hover { background: #f1f5f9; }
+
+/* Read, not dismissed: the message names what to go and check. */
+.lpp-result { margin: 8px 0 0; font-size: 0.85rem; color: #92400e; }
+.lpp-result--ok { color: #15803d; }
+
+.lpp-form {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  padding: 12px 0 4px;
+}
+.lpp-form label { font-size: 0.8rem; color: #475569; font-weight: 600; }
+.lpp-form input, .lpp-form select {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  max-width: 320px;
+}
+.lpp-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.lpp-form-actions button {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.lpp-stock {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+  color: #64748b;
+  font-size: 0.85rem;
+}

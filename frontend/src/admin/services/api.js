@@ -541,6 +541,21 @@ export const alertsAPI = {
 };
 
 /** Session timeout from system_settings (GET any auth user; PUT admin only). */
+/* Which printer each location uses. Reading is open to any signed-in user;
+   saving and testing are admin-only on the server. */
+export const labelPrintersAPI = {
+  getAll: async () => apiRequest('/system/label-printers'),
+
+  update: async (locationId, printer) =>
+    apiRequest(`/system/label-printers/${locationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(printer),
+    }),
+
+  test: async (locationId) =>
+    apiRequest(`/system/label-printers/${locationId}/test`, { method: 'POST' }),
+};
+
 export const systemSettingsAPI = {
   getSession: async () => apiRequest('/system/session-settings'),
   /**

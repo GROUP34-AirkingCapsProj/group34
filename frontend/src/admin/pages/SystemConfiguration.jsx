@@ -4,6 +4,7 @@ import Loader from '../components/Loader';
 import UserManagementPanel from '../components/UserManagementPanel';
 import { toast } from '../utils/toast';
 import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, accountPolicyAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
+import LabelPrinterPanel from '../components/LabelPrinterPanel';
 import '../styles/system_configuration.css';
 
 const LockIcon = () => (
@@ -72,6 +73,12 @@ const MapPinIcon = () => (
   </svg>
 );
 
+const PrinterIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+  </svg>
+);
+
 const XCircleIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
@@ -119,6 +126,7 @@ const TABS = [
   { id: 'accounts', label: 'User Accounts', icon: <PersonIcon /> },
   { id: 'users', label: 'User Management', icon: <PersonAddIcon />, badge: 2 },
   { id: 'company', label: 'Company Settings', icon: <BuildingIcon /> },
+  { id: 'printers', label: 'Barcode Printers', icon: <PrinterIcon /> },
 ];
 
 const DEFAULT_SETTINGS = {
@@ -780,6 +788,12 @@ const SystemConfiguration = () => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'printers' && (
+          <div className="sc-tab-content">
+            <LabelPrinterPanel />
           </div>
         )}
 
