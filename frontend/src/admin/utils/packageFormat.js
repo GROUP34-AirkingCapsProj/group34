@@ -1,5 +1,5 @@
-// Helpers for expressing a piece count in terms of a consumable's package size.
-// A consumable may define `pieces_per_package` (e.g. 10) and `package_unit` (e.g. "Box").
+// Helpers for expressing a piece count in terms of an installation material's package size.
+// An installation material may define `pieces_per_package` (e.g. 10) and `package_unit` (e.g. "Box").
 // Inventory, transfers, dispatch and receive all work in PIECES; these helpers only
 // re-express a piece total for display/entry — no rounding of the stored value.
 

@@ -15,7 +15,7 @@ class IncidentFilingTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $b    = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
 
         $incident = app(IncidentService::class)->file([
@@ -40,7 +40,7 @@ class IncidentFilingTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(barcode: 'BC-EXCL-FLOW');
+        $p    = $this->makeInstallationMaterial(barcode: 'BC-EXCL-FLOW');
         $old  = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDay(), 'zone_label' => 'Zone 2']);
 
@@ -73,7 +73,7 @@ class IncidentFilingTest extends SetTestCase
         $a    = $this->makeLocation('A');
         $b    = $this->makeLocation('B');
         $user = $this->makeUserAt($a, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $batch = $this->makeBatch($p, $a, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         app(IncidentService::class)->file([
@@ -91,7 +91,7 @@ class IncidentFilingTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
 
         $this->expectException(\InvalidArgumentException::class);
 
@@ -106,7 +106,7 @@ class IncidentFilingTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         // A batchless incident (e.g. product-level) must not pull any batch out of rotation.
@@ -137,7 +137,7 @@ class IncidentFilingTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $b    = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = app(IncidentService::class)->file([

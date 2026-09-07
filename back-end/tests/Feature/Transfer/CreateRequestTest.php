@@ -7,7 +7,7 @@ class CreateRequestTest extends TransferTestCase
     public function test_pull_request_has_null_source_and_pending_status(): void
     {
         $dst = $this->makeLocation('Dst');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $user = $this->makeUserAt($dst, 'inventory_analyst');
 
         $res = $this->actingAs($user, 'sanctum')->postJson('/api/transfers', [
@@ -26,7 +26,7 @@ class CreateRequestTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $user = $this->makeUserAt($dst, 'inventory_analyst');
 
         $res = $this->actingAs($user, 'sanctum')->postJson('/api/transfers', [

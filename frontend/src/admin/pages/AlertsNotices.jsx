@@ -726,7 +726,7 @@ const AlertsNotices = () => {
                         <div className="an-approval-left">
                           <span className="an-approval-title">{p.generated_name || `Registration #${p.id}`}</span>
                           <span className="an-approval-detail">
-                            {p.registration_kind && <>Type: {p.registration_kind}</>}
+                            {p.registration_kind && <>Type: {p.registration_kind === 'appliance' ? 'Appliance' : 'Installation Material'}</>}
                           </span>
                         </div>
                         <div className="an-approval-right">

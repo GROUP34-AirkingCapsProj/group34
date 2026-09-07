@@ -33,7 +33,7 @@ class FifoPickingService
         foreach ($lines as $line) {
             $productId = (int) $line['product_id'];
             $needed    = max(0, (int) $line['quantity']);
-            $product   = Product::with('consumableDetail')->find($productId);
+            $product   = Product::with('installationMaterialDetail')->find($productId);
 
             $out[] = [
                 'product_id'   => $productId,
@@ -43,7 +43,7 @@ class FifoPickingService
                 // fields let every picker offer package + loose-piece entry
                 // without changing the inventory unit used by the server.
                 'pieces_per_package' => (int) ($product?->getPiecesPerPackage() ?? 0),
-                'package_unit' => $product?->consumableDetail?->package_unit,
+                'package_unit' => $product?->installationMaterialDetail?->package_unit,
                 'suggestions'  => $this->isSerialized($product)
                     ? $this->serialSteps($locationId, $productId, $needed, $excludedBatchIds)
                     : $this->batchSteps($locationId, $productId, $needed, $excludedBatchIds),
@@ -148,7 +148,7 @@ class FifoPickingService
             // b.received_at comes back as a raw string from the joined table, not
             // through the InventoryBatch cast. Normalise it to the same
             // 'Y-m-d H:i:s' shape batchSteps() emits so a consumer can compare
-            // received_at across serial and consumable steps without surprises.
+            // received_at across serial and installation material steps without surprises.
             'received_at'   => $row->received_at !== null
                 ? Carbon::parse($row->received_at)->toDateTimeString()
                 : null,
@@ -160,7 +160,7 @@ class FifoPickingService
      * Judge one scan against a document's line list.
      *
      * @param  array<int,array{product_id:int,quantity:int,picked:int}>  $lines
-     * @param  string|null  $confirmedZone  zone the picker confirmed (consumables)
+     * @param  string|null  $confirmedZone  zone the picker confirmed (installation materials)
      * @param  string|null  $unitHint       reserved for unit-aware picking; unused today
      * @param  array<int,int>  $excludedBatchIds  batches under an open incident
      */
@@ -274,7 +274,7 @@ class FifoPickingService
             ? $this->batchForSerial($locationId, $serial)
             : $this->batchForZone($locationId, $productId, $confirmedZone, $excludedBatchIds);
 
-        // When the scan maps to no batch, only ONE case is trusted: a consumable
+        // When the scan maps to no batch, only ONE case is trusted: an installation material
         // scanned without a zone (the picker is trusted to take the plan's oldest).
         // A serial with no batch linkage, or a confirmed zone matching no batch,
         // is a violation while older pickable stock exists — we cannot confirm the

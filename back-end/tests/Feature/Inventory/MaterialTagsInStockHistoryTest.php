@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Inventory;
 
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\Issuance;
@@ -50,7 +50,7 @@ class MaterialTagsInStockHistoryTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'PE Foam',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 10,
             'package_unit' => 'Roll', 'is_serialized' => 0, 'count_unit' => $countUnit,
         ]);
@@ -155,7 +155,7 @@ class MaterialTagsInStockHistoryTest extends TestCase
 
     /**
      * Materials are picked by batch, not by tag - FifoPickingService writes a
-     * null serial_number on every consumable pick - so issuance_details holds
+     * null serial_number on every installation material pick - so issuance_details holds
      * no per-tag serial to union in. Guarded so a future change is deliberate.
      */
     public function test_material_issuance_records_no_per_tag_serial(): void

@@ -31,7 +31,7 @@ class InventoryController extends Controller
                         'category',
                         'status',
                         'applianceDetail' => fn($aq) => $aq->with(['brand']),
-                        'consumableDetail' => fn($cq) => $cq->with('unit'),
+                        'installationMaterialDetail' => fn($cq) => $cq->with('unit'),
                     ])
                     ->withSum(['inventories as stock_on_hand_total' => function ($sub) {
                         // all locations — same basis as Item Master QTY
@@ -177,7 +177,7 @@ class InventoryController extends Controller
             'location',
             'product.category',
             'product.status',
-            'product.applianceDetail.brand',            'product.consumableDetail.unit',
+            'product.applianceDetail.brand',            'product.installationMaterialDetail.unit',
         ])->find($id);
 
         if (!$inventory) {
@@ -193,7 +193,7 @@ class InventoryController extends Controller
             ->with([
                 'product.category',
                 'product.status',
-                'product.applianceDetail.brand',                'product.consumableDetail.unit',
+                'product.applianceDetail.brand',                'product.installationMaterialDetail.unit',
             ])
             ->get();
 
@@ -223,7 +223,7 @@ class InventoryController extends Controller
             'status',
             'product.category',
             'product.status',
-            'product.applianceDetail.brand',            'product.consumableDetail.unit',
+            'product.applianceDetail.brand',            'product.installationMaterialDetail.unit',
         ])->find($id);
 
         if (! $inventory) {
@@ -235,14 +235,14 @@ class InventoryController extends Controller
         $locationId = $inventory->location_id;
 
         if ($product && ! $product->relationLoaded('applianceDetail')) {
-            $product->load('applianceDetail', 'consumableDetail');
+            $product->load('applianceDetail', 'installationMaterialDetail');
         }
 
         $isSerialized     = $product?->isSerialized()        ?? false;
         $piecesPerPackage = $product?->getPiecesPerPackage() ?? 1;
         // Counting granularity decides what one material tag stands for; see
         // MaterialTagService::mintForCount.
-        $countUnit        = $product?->consumableDetail?->count_unit ?? 'package';
+        $countUnit        = $product?->installationMaterialDetail?->count_unit ?? 'package';
 
         // ── Receiving history ─────────────────────────────────────────────
         $receivingDetails = ReceivingDetail::query()
@@ -462,7 +462,7 @@ class InventoryController extends Controller
             }
 
             // Material issuance picks by batch, not by tag: FifoPickingService
-            // writes serial_number => null on every consumable pick, so
+            // writes serial_number => null on every installation material pick, so
             // issuance_details holds no per-tag serial to union in the way the
             // serialized branch does. Issued material tags are therefore not
             // listed; the Stock-Out history tab remains the record of what left.
@@ -590,7 +590,7 @@ class InventoryController extends Controller
         // ── Movement summary: distinguish customer sales from transfers ────
         // Sold and transferred pieces come from separate tables, so a transfer
         // can never be counted as a sale (and vice versa). Both work the same
-        // for appliances and consumables — they are recorded as quantities.
+        // for appliances and installation materials — they are recorded as quantities.
         $soldPieces = (int) DB::table('issuance_details')
             ->join('issuances', 'issuances.issuance_id', '=', 'issuance_details.issuance_id')
             ->where('issuance_details.product_id', $productId)
@@ -722,9 +722,9 @@ class InventoryController extends Controller
                 'capacity_rating'    => $product?->applianceDetail?->capacity_rating ?? null,
                 'variant'            => $product?->applianceDetail?->variant ?? null,
                 'warranty_months'    => $product?->applianceDetail?->warranty_period_months ?? null,
-                'unit_name'          => $product?->consumableDetail?->unit?->unit_name ?? null,
-                'unit_abbr'          => $product?->consumableDetail?->unit?->unit_abbreviation ?? null,
-                'package_unit'       => $product?->consumableDetail?->package_unit ?? null,
+                'unit_name'          => $product?->installationMaterialDetail?->unit?->unit_name ?? null,
+                'unit_abbr'          => $product?->installationMaterialDetail?->unit?->unit_abbreviation ?? null,
+                'package_unit'       => $product?->installationMaterialDetail?->package_unit ?? null,
             ],
             'receiving_history' => $receivingDetails,
             'serial_records'    => $serials,
@@ -782,7 +782,7 @@ class InventoryController extends Controller
                     ->with([
                         'category', 'status',
                         'applianceDetail' => fn($aq) => $aq->with(['brand']),
-                        'consumableDetail' => fn($cq) => $cq->with('unit'),
+                        'installationMaterialDetail' => fn($cq) => $cq->with('unit'),
                     ])
                     ->first();
                 if ($product) {
@@ -802,7 +802,7 @@ class InventoryController extends Controller
                             ->with([
                                 'category', 'status',
                                 'applianceDetail' => fn($aq) => $aq->with(['brand']),
-                                'consumableDetail' => fn($cq) => $cq->with('unit'),
+                                'installationMaterialDetail' => fn($cq) => $cq->with('unit'),
                             ])
                             ->first();
                         if ($product) {
@@ -829,8 +829,8 @@ class InventoryController extends Controller
                 $product->setAttribute('model_name',             $ad->model_code);
                 $product->setRelation('brand', $ad->brand);
             }
-            if ($product->consumableDetail) {
-                $cd = $product->consumableDetail;
+            if ($product->installationMaterialDetail) {
+                $cd = $product->installationMaterialDetail;
                 $product->setAttribute('unit_id',            $cd->unit_id);
                 $product->setAttribute('pieces_per_package', $cd->pieces_per_package);
                 $product->setAttribute('package_unit',       $cd->package_unit);
@@ -855,8 +855,8 @@ class InventoryController extends Controller
                 'brand_name'         => $product->applianceDetail?->brand?->brand_name   ?? null,
                 'capacity'           => $product->applianceDetail?->capacity_rating       ?? null,
                 'variant'            => $product->applianceDetail?->variant               ?? null,
-                'unit_name'          => $product->consumableDetail?->unit?->unit_name     ?? null,
-                'unit_abbr'          => $product->consumableDetail?->unit?->unit_abbreviation ?? null,
+                'unit_name'          => $product->installationMaterialDetail?->unit?->unit_name     ?? null,
+                'unit_abbr'          => $product->installationMaterialDetail?->unit?->unit_abbreviation ?? null,
             ], 'Barcode scanned successfully');
 
         } catch (ValidationException $e) {

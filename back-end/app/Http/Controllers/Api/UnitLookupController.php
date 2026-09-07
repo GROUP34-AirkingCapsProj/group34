@@ -72,7 +72,7 @@ class UnitLookupController extends Controller
     protected function usageCountFor(Model $row): int
     {
         // unit_id is a real foreign key on installation_material_details
-        // (the products' consumable-unit detail row), so a plain where() is
+        // (the products' installation material-unit detail row), so a plain where() is
         // correct — the BINARY-paired form elsewhere in this codebase is
         // only needed for string-valued lookups copied verbatim onto
         // products, which this is not.

@@ -36,7 +36,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 20);
 
         $issuance = $this->draftWithLine($loc, $p, 4);
@@ -55,7 +55,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 20);
 
         $issuance = $this->draftWithLine($loc, $p, 2);
@@ -72,7 +72,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $this->setStock($loc->location_id, $p->product_id, 20);
 
         $issuance = $this->draftWithLine($loc, $p, 5);
@@ -92,7 +92,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 20);
 
         // First order confirms a hold of 5.
@@ -110,7 +110,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 3);
 
         $issuance = $this->draftWithLine($loc, $p, 8, 10);
@@ -129,7 +129,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $this->setStock($loc->location_id, $p->product_id, 1);
 
         $issuance = $this->draftWithLine($loc, $p, 9);
@@ -166,7 +166,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $this->setStock($loc->location_id, $p->product_id, 20);
 
         $issuance = $this->draftWithLine($loc, $p, 2);
@@ -183,7 +183,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $this->setStock($loc->location_id, $p->product_id, 6);
 
         $first  = $this->draftWithLine($loc, $p, 6);
@@ -197,7 +197,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftWithLine($loc, $p, 4, 10);
@@ -222,7 +222,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 5);
 
         $first = $this->draftWithLine($loc, $p, 5, 10);
@@ -247,8 +247,8 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $a    = $this->makeConsumable(price: 10);
-        $b    = $this->makeConsumable(price: 20);
+        $a    = $this->makeInstallationMaterial(price: 10);
+        $b    = $this->makeInstallationMaterial(price: 20);
         $this->setStock($loc->location_id, $a->product_id, 10);
         $this->setStock($loc->location_id, $b->product_id, 10);
 
@@ -292,7 +292,7 @@ class ConfirmQuoteTest extends SetTestCase
     {
         $loc     = $this->makeLocation();
         $auditor = $this->makeUserAt($loc, 'auditor');
-        $p       = $this->makeConsumable();
+        $p       = $this->makeInstallationMaterial();
         $this->setStock($loc->location_id, $p->product_id, 20);
 
         $issuance = $this->draftWithLine($loc, $p, 4);

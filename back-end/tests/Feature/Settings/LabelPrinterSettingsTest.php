@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Settings;
 
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\ItemSerial;
 use App\Models\Location;
 use App\Models\Product;
@@ -68,7 +68,7 @@ class LabelPrinterSettingsTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Tube',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);

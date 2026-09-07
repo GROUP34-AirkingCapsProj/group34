@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Inventory;
 
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -35,14 +35,14 @@ class ReceivingDraftStagingTest extends TestCase
         ]);
     }
 
-    /** A package-counted consumable: 1 box = 50 pieces. */
-    private function makeConsumable(int $piecesPerPackage = 50, string $countUnit = 'package'): Product
+    /** A package-counted installation material: 1 box = 50 pieces. */
+    private function makeInstallationMaterial(int $piecesPerPackage = 50, string $countUnit = 'package'): Product
     {
         $product = Product::create([
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Pipe',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => $piecesPerPackage,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => $countUnit,
         ]);
@@ -68,7 +68,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable();
+        $product  = $this->makeInstallationMaterial();
         $poDetail = $this->makePoLine($product, $location);
         $poId     = (int) $poDetail->po_id;
 
@@ -92,7 +92,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable();
+        $product  = $this->makeInstallationMaterial();
         $poDetail = $this->makePoLine($product, $location);
 
         $draft = ReceivingDraft::create([
@@ -128,7 +128,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable();
+        $product  = $this->makeInstallationMaterial();
         $poDetail = $this->makePoLine($product, $location);
 
         $payload = ['po_id' => $poDetail->po_id, 'location_id' => $location->location_id];
@@ -147,7 +147,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $poDetail = $this->makePoLine($product, $location, 10);
 
         $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
@@ -175,7 +175,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $poDetail = $this->makePoLine($product, $location, 10);
 
         $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
@@ -201,7 +201,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $poDetail = $this->makePoLine($product, $location, 10);
 
         $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
@@ -231,7 +231,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $poDetail = $this->makePoLine($product, $location, 10);
 
         $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
@@ -256,7 +256,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $poDetail = $this->makePoLine($product, $location, 10);
 
         $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
@@ -281,7 +281,7 @@ class ReceivingDraftStagingTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $poDetail = $this->makePoLine($product, $location, 10);
 
         $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [

@@ -29,7 +29,7 @@ class TagPrintPolicy
      * a serial we did not issue and cannot reissue.
      *
      * Caller must eager-load product.applianceDetail and
-     * product.consumableDetail before iterating a collection.
+     * product.installationMaterialDetail before iterating a collection.
      * Product::isSerialized() lazy-loads whichever detail it needs, and a
      * queue page of up to a hundred rows would otherwise cost a couple of
      * hundred extra queries — one detail lookup per row instead of one

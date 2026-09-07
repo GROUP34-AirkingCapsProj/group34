@@ -11,7 +11,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_scanning_the_oldest_zone_is_accepted(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-FIFO-OK');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-FIFO-OK');
         $old = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDay(), 'zone_label' => 'Zone 2']);
 
@@ -29,7 +29,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_scanning_a_newer_zone_is_a_fifo_violation(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-FIFO-BAD');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-FIFO-BAD');
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDay(), 'zone_label' => 'Zone 2']);
 
@@ -48,8 +48,8 @@ class FifoValidateScanTest extends SetTestCase
     public function test_a_product_not_on_the_list_is_a_hard_block(): void
     {
         $loc     = $this->makeLocation();
-        $onList  = $this->makeConsumable();
-        $offList = $this->makeConsumable(barcode: 'BC-NOT-LISTED');
+        $onList  = $this->makeInstallationMaterial();
+        $offList = $this->makeInstallationMaterial(barcode: 'BC-NOT-LISTED');
         $this->makeBatch($offList, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $result = app(FifoPickingService::class)->validateScan(
@@ -66,7 +66,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_unknown_barcode_is_a_hard_block(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $result = app(FifoPickingService::class)->validateScan(
             $loc->location_id,
@@ -82,7 +82,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_scanning_past_the_line_quantity_is_over_pick(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-OVER');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-OVER');
         $this->makeBatch($p, $loc, ['quantity_remaining' => 9, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $result = app(FifoPickingService::class)->validateScan(
@@ -99,7 +99,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_an_excluded_batch_no_longer_blocks_the_next_zone(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-EXCLUDED');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-EXCLUDED');
         $old = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDay(), 'zone_label' => 'Zone 2']);
 
@@ -142,7 +142,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_an_older_batch_appearing_mid_pick_makes_the_next_scan_a_violation(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-MIDPICK');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-MIDPICK');
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(2), 'zone_label' => 'Zone 2']);
 
         $svc   = app(FifoPickingService::class);
@@ -159,10 +159,10 @@ class FifoValidateScanTest extends SetTestCase
         $this->assertSame('Zone 1', $after->expectedZoneLabel);
     }
 
-    public function test_a_consumable_scan_with_no_zone_confirmation_is_accepted_against_the_oldest_batch(): void
+    public function test_an_installation_material_scan_with_no_zone_confirmation_is_accepted_against_the_oldest_batch(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-NOZONE');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-NOZONE');
         $old = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(3), 'zone_label' => null]);
 
         $result = app(FifoPickingService::class)->validateScan(
@@ -179,7 +179,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_a_confirmed_zone_that_matches_no_batch_is_a_violation(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-BOGUS-ZONE');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-BOGUS-ZONE');
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(4), 'zone_label' => 'Zone 1']);
 
         $result = app(FifoPickingService::class)->validateScan(
@@ -196,8 +196,8 @@ class FifoValidateScanTest extends SetTestCase
     public function test_the_scanned_product_may_be_the_second_line_on_the_order(): void
     {
         $loc = $this->makeLocation();
-        $a   = $this->makeConsumable();
-        $b   = $this->makeConsumable(barcode: 'BC-SECOND-LINE');
+        $a   = $this->makeInstallationMaterial();
+        $b   = $this->makeInstallationMaterial(barcode: 'BC-SECOND-LINE');
         $this->makeBatch($b, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(3), 'zone_label' => 'Zone 1']);
 
         $result = app(FifoPickingService::class)->validateScan(
@@ -223,7 +223,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_scanning_when_the_only_batch_is_excluded_is_blocked(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-ONLY-EXCLUDED');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-ONLY-EXCLUDED');
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(3), 'zone_label' => 'Zone 1']);
 
         $result = app(FifoPickingService::class)->validateScan(
@@ -243,7 +243,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_scanning_when_the_only_batch_is_depleted_is_blocked(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-ONLY-EMPTY');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-ONLY-EMPTY');
         $this->makeBatch($p, $loc, ['quantity_remaining' => 0, 'received_at' => now()->subDays(3), 'zone_label' => 'Zone 1']);
 
         $result = app(FifoPickingService::class)->validateScan(
@@ -263,7 +263,7 @@ class FifoValidateScanTest extends SetTestCase
     public function test_a_product_with_no_batch_history_is_accepted_as_legacy(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-LEGACY');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-LEGACY');
         // Note: no makeBatch — the product has stock conceptually but no batch rows.
 
         $result = app(FifoPickingService::class)->validateScan(

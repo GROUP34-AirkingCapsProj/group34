@@ -55,7 +55,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 10, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = app(IncidentService::class)->file([
@@ -100,7 +100,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 10, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = app(IncidentService::class)->file([
@@ -134,7 +134,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 10, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         // The FIFO hold is one rule with no special cases: how the incident was
@@ -211,7 +211,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',
@@ -239,7 +239,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type'         => 'standalone',
@@ -280,7 +280,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $defective = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',
@@ -332,7 +332,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         // The columns are plain strings, so the validator is the only thing
         // keeping a typo out of shrinkage reporting.
@@ -356,7 +356,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',
@@ -439,7 +439,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $bm  = $this->makeUserAt($loc, 'branch_manager');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $res = $this->actingAs($bm, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',
@@ -464,7 +464,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $au  = $this->makeUserAt($loc, 'auditor');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->actingAs($au, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',
@@ -486,7 +486,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $deviceNow = now()->setTimezone('Asia/Manila')->toIso8601String();
 
@@ -505,7 +505,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         // Same ISO-with-offset shape, but actually in the future — the guard
         // must survive the timezone fix rather than being loosened by it.

@@ -53,7 +53,7 @@ class IncidentInspectionController extends Controller
         $user = Auth::user();
 
         $query = IncidentItem::query()
-            ->with(['product.consumableDetail', 'expectedProduct', 'serial', 'incident.location'])
+            ->with(['product.installationMaterialDetail', 'expectedProduct', 'serial', 'incident.location'])
             ->join('incident_reports as ir', 'ir.incident_id', '=', 'incident_items.incident_id')
             ->select('incident_items.*');
 
@@ -416,7 +416,7 @@ class IncidentInspectionController extends Controller
     private function reportPayload(IncidentReport $incident, bool $full = false): array
     {
         $incident->load([
-            'items.product.consumableDetail', 'items.expectedProduct', 'items.serial',
+            'items.product.installationMaterialDetail', 'items.expectedProduct', 'items.serial',
             'evidence', 'status', 'inspectedBy',
         ]);
 
@@ -451,7 +451,7 @@ class IncidentInspectionController extends Controller
             return $payload;
         }
 
-        $incident->load(['product.consumableDetail', 'location', 'reportedBy']);
+        $incident->load(['product.installationMaterialDetail', 'location', 'reportedBy']);
 
         return $payload + [
             'source_type'         => $incident->source_type,
@@ -463,7 +463,7 @@ class IncidentInspectionController extends Controller
             'product_id'          => $incident->product_id !== null ? (int) $incident->product_id : null,
             'product_name'        => $incident->product?->product_name,
             'pieces_per_package'  => (int) ($incident->product?->pieces_per_package ?? 1),
-            'package_unit'        => $incident->product?->consumableDetail?->package_unit,
+            'package_unit'        => $incident->product?->installationMaterialDetail?->package_unit,
             'batch_id'            => $incident->batch_id !== null ? (int) $incident->batch_id : null,
             'quantity'            => (int) $incident->quantity,
             'narrative'           => $incident->narrative,
@@ -530,7 +530,7 @@ class IncidentInspectionController extends Controller
             // Packaging, so the register can show "25 pcs · 2 Box + 5 pcs"
             // exactly as the incident list does. quantity is PIECES.
             'pieces_per_package' => (int) ($item->product?->pieces_per_package ?? 1),
-            'package_unit'       => $item->product?->consumableDetail?->package_unit,
+            'package_unit'       => $item->product?->installationMaterialDetail?->package_unit,
             'batch_id'           => $item->batch_id !== null ? (int) $item->batch_id : null,
             'serial_id'          => $item->serial_id !== null ? (int) $item->serial_id : null,
             'unit_role'          => $item->unit_role,

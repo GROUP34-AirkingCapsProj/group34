@@ -83,7 +83,7 @@ class RevertToDraftTest extends TestCase
             ->forSource('issuance', $issuance->issuance_id)->count());
     }
 
-    public function test_revert_restores_a_scanned_consumable_pick(): void
+    public function test_revert_restores_a_scanned_installation_material_pick(): void
     {
         [$location, $user, $customer] = $this->scaffold();
         $product = Product::create([

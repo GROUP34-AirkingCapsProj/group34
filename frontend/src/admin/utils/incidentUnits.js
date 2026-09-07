@@ -37,7 +37,7 @@ export const packingOf = (product) => {
   return {
     piecesPerPackage: per,
     usesPacks: per > 1,
-    packageUnit: product?.consumable_detail?.package_unit || product?.package_unit || 'pkg',
+    packageUnit: product?.installation_material_detail?.package_unit || product?.package_unit || 'pkg',
   };
 };
 

@@ -58,12 +58,12 @@ class SaleCreatesWarrantyTest extends TestCase
         ]);
     }
 
-    /** An appliance carrying $months of cover, or a consumable when $months is null. */
+    /** An appliance carrying $months of cover, or an installation material when $months is null. */
     private function makeProduct(?int $months = 36): Product
     {
         $product = Product::create([
             'product_code' => ($months === null ? 'CON-' : 'APP-') . uniqid(),
-            'product_name' => $months === null ? 'Test Consumable' : 'Test Appliance',
+            'product_name' => $months === null ? 'Test Installation material' : 'Test Appliance',
             'product_type' => $months === null ? 'installation_material' : 'appliance',
             'unit_price'   => 100,
         ]);
@@ -176,8 +176,8 @@ class SaleCreatesWarrantyTest extends TestCase
         );
     }
 
-    /** Consumables carry none, so a sale of one must not invent cover. */
-    public function test_a_consumable_sale_creates_no_warranty(): void
+    /** Installation materials carry none, so a sale of one must not invent cover. */
+    public function test_an_installation_material_sale_creates_no_warranty(): void
     {
         ['user' => $user, 'issuance' => $issuance, 'product' => $product] =
             $this->makeSale(months: null, withSerial: false);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Modal from './Modal';
 import {
-  consumableSupplyAPI,
+  installationMaterialSupplyAPI,
   pendingProductsAPI,
   categoriesAPI,
   brandsAPI,
@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/item_management.css';
 
-/** Used when GET /consumable-supply/catalog fails or returns empty (e.g. backend route missing). */
+/** Used when GET /installation-material-supply/catalog fails or returns empty (e.g. backend route missing). */
 const DEFAULT_SUPPLY_TYPES = [
   'Refrigerant',
   'Copper / tubing',
@@ -42,7 +42,7 @@ const DEFAULT_PACKAGING_UNITS = [
   { key: 'pair', label: 'Pair' },
 ];
 
-const emptyConsumable = (barcode) => ({
+const emptyInstallationMaterial = (barcode) => ({
   barcode: barcode || '',
   category_id: '',
   brand_id: '',
@@ -72,7 +72,7 @@ const emptyAppliance = (barcode) => ({
 });
 
 /**
- * Submit consumable or appliance registration for approval (pending_products).
+ * Submit installation material or appliance registration for approval (pending_products).
  * Used from Inventory Operation when a barcode is not in the catalog.
  */
 export default function ProductRegisterModal({
@@ -91,7 +91,7 @@ export default function ProductRegisterModal({
   const showApplianceModelCode = roleKey === ROLES.ADMIN || roleKey === ROLES.BRANCH_MANAGER;
   const showApplianceWarranty = !isWarehousePersonnel;
 
-  const [kind, setKind] = useState('consumable');
+  const [kind, setKind] = useState('installation_material');
   const [catalog, setCatalog] = useState(null);
   const [serverSupplyTypes, setServerSupplyTypes] = useState(null);
   const [supplyTypesLoading, setSupplyTypesLoading] = useState(false);
@@ -103,7 +103,7 @@ export default function ProductRegisterModal({
   const [variants, setVariants] = useState([]);
   const [acTypes, setAcTypes] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [con, setCon] = useState(() => emptyConsumable(initialBarcode));
+  const [con, setCon] = useState(() => emptyInstallationMaterial(initialBarcode));
   const [app, setApp] = useState(() => emptyAppliance(initialBarcode));
 
   const loadLookups = useCallback(() => {
@@ -143,20 +143,20 @@ export default function ProductRegisterModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    const base = emptyConsumable(initialBarcode);
+    const base = emptyInstallationMaterial(initialBarcode);
     setCon({
       ...base,
       supply_type: '',
       packaging_unit: DEFAULT_PACKAGING_UNITS[0]?.key ?? '',
     });
     setApp(emptyAppliance(initialBarcode));
-    setKind('consumable');
+    setKind('installation_material');
     setServerSupplyTypes(null);
     loadLookups();
     setSupplyTypesLoading(true);
     Promise.all([
-      consumableSupplyAPI.getSupplyTypes().catch(() => null),
-      consumableSupplyAPI.getCatalog().catch(() => null),
+      installationMaterialSupplyAPI.getSupplyTypes().catch(() => null),
+      installationMaterialSupplyAPI.getCatalog().catch(() => null),
     ])
       .then(([stRes, catRes]) => {
         const list = Array.isArray(stRes?.data) ? stRes.data : [];
@@ -248,7 +248,7 @@ export default function ProductRegisterModal({
     }
     setSubmitting(true);
     try {
-      if (kind === 'consumable') {
+      if (kind === 'installation_material') {
         if (!con.barcode.trim()) {
           toast.error('Barcode is required.');
           return;
@@ -342,13 +342,13 @@ export default function ProductRegisterModal({
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <button
             type="button"
-            onClick={() => setKind('consumable')}
+            onClick={() => setKind('installation_material')}
             style={{
               flex: 1,
               padding: '8px 12px',
               borderRadius: 8,
-              border: kind === 'consumable' ? '2px solid #dc2626' : '1px solid #e5e7eb',
-              background: kind === 'consumable' ? '#fef2f2' : '#fff',
+              border: kind === 'installation_material' ? '2px solid #dc2626' : '1px solid #e5e7eb',
+              background: kind === 'installation_material' ? '#fef2f2' : '#fff',
               fontWeight: 600,
               fontSize: 13,
               cursor: 'pointer',
@@ -374,7 +374,7 @@ export default function ProductRegisterModal({
           </button>
         </div>
 
-        {kind === 'consumable' ? (
+        {kind === 'installation_material' ? (
           <>
             <div className="im-form-field">
               <label>BARCODE *</label>
@@ -722,7 +722,7 @@ export default function ProductRegisterModal({
             className="im-modal-btn-confirm"
             disabled={
               submitting ||
-              (kind === 'consumable' && (supplyTypesLoading || supplyTypes.length === 0))
+              (kind === 'installation_material' && (supplyTypesLoading || supplyTypes.length === 0))
             }
           >
             {submitting ? 'Submitting…' : 'Submit for approval'}

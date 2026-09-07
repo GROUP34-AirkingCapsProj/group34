@@ -21,7 +21,7 @@ class TransferFlowTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
         $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
             ['product_id' => $prod->product_id, 'quantity_requested' => 5, 'quantity_scanned' => 5],
@@ -39,7 +39,7 @@ class TransferFlowTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
         $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
             ['product_id' => $prod->product_id, 'quantity_requested' => 3, 'quantity_scanned' => 3],
@@ -70,7 +70,7 @@ class TransferFlowTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 3);
 
         $req = \App\Models\Transfer::create([
@@ -101,7 +101,7 @@ class TransferFlowTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 50);
         $admin = $this->adminUser();
 
@@ -133,7 +133,7 @@ class TransferFlowTest extends TransferTestCase
         $whA  = $this->makeLocation('WH-A');
         $whB  = $this->makeLocation('WH-B');
         $dest = $this->makeLocation('SR-DEST');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($whA->location_id, $prod->product_id, 10);
         $this->setStock($whB->location_id, $prod->product_id, 10);
 

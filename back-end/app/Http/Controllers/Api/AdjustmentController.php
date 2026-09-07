@@ -69,7 +69,7 @@ class AdjustmentController extends Controller
 
             // Preloaded outside the loop: packaging comes off the product and
             // resolving it per iteration would be an N+1 across the detail lines.
-            $products = Product::with(['consumableDetail', 'applianceDetail'])
+            $products = Product::with(['installationMaterialDetail', 'applianceDetail'])
                 ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
                 ->get()
                 ->keyBy('product_id');

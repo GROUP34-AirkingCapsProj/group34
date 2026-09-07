@@ -3,7 +3,7 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\ApplianceDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\ItemSerial;
 use App\Models\Location;
 use App\Models\Product;
@@ -45,7 +45,7 @@ class TagPrintPolicyTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Tube',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);
@@ -58,7 +58,7 @@ class TagPrintPolicyTest extends TestCase
             'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
         ], $overrides));
 
-        return $serial->load('product.consumableDetail');
+        return $serial->load('product.installationMaterialDetail');
     }
 
     private function applianceSerial(): ItemSerial
@@ -85,7 +85,7 @@ class TagPrintPolicyTest extends TestCase
      * identical remote controls — rather than tracking unit by unit.
      * isAppliance() is true but isSerialized() is false, so tier() falls
      * through past the manufacturer branch to the same barcode/minted
-     * checks a consumable would hit.
+     * checks an installation material would hit.
      */
     private function nonSerializedApplianceTag(array $overrides = []): ItemSerial
     {
@@ -109,15 +109,15 @@ class TagPrintPolicyTest extends TestCase
     /**
      * A material that is nonetheless individually serialized by its
      * manufacturer — e.g. a compressor unit sold as installation material.
-     * Product::isSerialized() supports this combination for consumables too.
+     * Product::isSerialized() supports this combination for installation materials too.
      */
-    private function serializedConsumableTag(): ItemSerial
+    private function serializedInstallationMaterialTag(): ItemSerial
     {
         $product = Product::create([
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Compressor Unit',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 1,
             'package_unit' => 'Unit', 'is_serialized' => 1, 'count_unit' => 'piece',
         ]);
@@ -130,7 +130,7 @@ class TagPrintPolicyTest extends TestCase
             'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
         ]);
 
-        return $serial->load('product.consumableDetail');
+        return $serial->load('product.installationMaterialDetail');
     }
 
     public function test_it_names_each_tier(): void
@@ -201,9 +201,9 @@ class TagPrintPolicyTest extends TestCase
      * manufacturer and bulk must refuse it just as it would for a serialized
      * appliance.
      */
-    public function test_a_serialized_consumable_tiers_as_manufacturer(): void
+    public function test_a_serialized_installation_material_tiers_as_manufacturer(): void
     {
-        $tag = $this->serializedConsumableTag();
+        $tag = $this->serializedInstallationMaterialTag();
 
         $this->assertSame('manufacturer', $this->policy->tier($tag));
         $this->assertFalse($this->policy->printable($tag, 'bulk'));

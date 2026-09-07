@@ -22,8 +22,13 @@ class PoInventoryController extends Controller
      */
     public function index(Request $request)
     {
+        // Drained batches are left out: the console answers "what is in this warehouse
+        // under this PO", and a batch at zero has been issued or transferred away. A PO
+        // whose stock has entirely left a warehouse drops that warehouse's group, rather
+        // than lingering as an empty row implying the goods are still on the shelf.
         $batches = InventoryBatch::forUser($request->user())
             ->whereNotNull('receiving_id')
+            ->where('quantity_remaining', '>', 0)
             ->with(['product', 'location', 'receiving.purchaseOrder.supplier'])
             ->orderBy('received_at', 'asc')
             ->get();
@@ -92,9 +97,13 @@ class PoInventoryController extends Controller
         $locationId = (int) $request->query('location_id');
 
         // Group batches (scoped to the user) for this PO + warehouse.
+        // Same filter as index(): a group the console no longer lists must not be
+        // reachable by URL either, or the totals on the detail screen would count
+        // stock the list view has already written off as gone.
         $batches = InventoryBatch::forUser($request->user())
             ->where('location_id', $locationId)
             ->whereNotNull('receiving_id')
+            ->where('quantity_remaining', '>', 0)
             ->whereHas('receiving', fn ($q) => $q->where('po_id', $poId))
             ->with(['product', 'location', 'receiving.purchaseOrder.supplier'])
             ->orderBy('received_at', 'asc')
@@ -213,7 +222,7 @@ class PoInventoryController extends Controller
             // appliance serial is the manufacturer's, a material tag is ours
             // (scannable, and reprintable when we generated it).
             $productIds = $serialRows->pluck('product_id')->unique()->all();
-            $products   = Product::with(['applianceDetail', 'consumableDetail'])
+            $products   = Product::with(['applianceDetail', 'installationMaterialDetail'])
                 ->whereIn('product_id', $productIds)->get()->keyBy('product_id');
 
             // Legacy receipts that predate tagging still carry their scanned
@@ -267,7 +276,7 @@ class PoInventoryController extends Controller
                         // it reports no per-row quantity at all.
                         'row_quantity_received'    => $isSerialized ? 1 : null,
                         'is_material_tag'          => ! $isSerialized,
-                        'count_unit'               => $isSerialized ? null : ($product?->consumableDetail?->count_unit ?? 'package'),
+                        'count_unit'               => $isSerialized ? null : ($product?->installationMaterialDetail?->count_unit ?? 'package'),
                         'pieces_per_package'       => $isSerialized ? null : $product?->getPiecesPerPackage(),
                     ];
                 })

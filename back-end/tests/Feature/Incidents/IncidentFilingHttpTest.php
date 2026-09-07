@@ -27,7 +27,7 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 9, 'received_at' => now()]);
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
@@ -65,7 +65,7 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type'      => 'standalone',
@@ -105,7 +105,7 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 4, 'received_at' => now()]);
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
@@ -135,8 +135,8 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc      = $this->makeLocation();
         $wp       = $this->makeUserAt($loc, 'warehouse_personnel');
-        $arrived  = $this->makeConsumable('WRONG-ONE');
-        $expected = $this->makeConsumable('RIGHT-ONE');
+        $arrived  = $this->makeInstallationMaterial('WRONG-ONE');
+        $expected = $this->makeInstallationMaterial('RIGHT-ONE');
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type'         => 'standalone',
@@ -180,7 +180,7 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type'         => 'standalone',
@@ -214,8 +214,8 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc      = $this->makeLocation();
         $wp       = $this->makeUserAt($loc, 'warehouse_personnel');
-        $arrived  = $this->makeConsumable('FLAT-WRONG');
-        $expected = $this->makeConsumable('FLAT-RIGHT');
+        $arrived  = $this->makeInstallationMaterial('FLAT-WRONG');
+        $expected = $this->makeInstallationMaterial('FLAT-RIGHT');
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type'         => 'standalone',
@@ -241,7 +241,7 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type'         => 'standalone',
@@ -261,7 +261,7 @@ class IncidentFilingHttpTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',

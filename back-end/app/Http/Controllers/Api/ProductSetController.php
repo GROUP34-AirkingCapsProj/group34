@@ -14,7 +14,7 @@ class ProductSetController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = ProductSet::with(['lines.product.consumableDetail', 'brands']);
+        $query = ProductSet::with(['lines.product.installationMaterialDetail', 'brands']);
 
         if ($request->boolean('active_only', true)) {
             $query->where('is_active', true);
@@ -36,7 +36,7 @@ class ProductSetController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $set = ProductSet::with(['lines.product.consumableDetail', 'brands'])->findOrFail($id);
+        $set = ProductSet::with(['lines.product.installationMaterialDetail', 'brands'])->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $this->present($set)]);
     }
@@ -64,7 +64,7 @@ class ProductSetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Set created.',
-            'data'    => $this->present($set->fresh(['lines.product.consumableDetail', 'brands'])),
+            'data'    => $this->present($set->fresh(['lines.product.installationMaterialDetail', 'brands'])),
         ], 201);
     }
 
@@ -101,7 +101,7 @@ class ProductSetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Set updated.',
-            'data'    => $this->present($set->fresh(['lines.product.consumableDetail', 'brands'])),
+            'data'    => $this->present($set->fresh(['lines.product.installationMaterialDetail', 'brands'])),
         ]);
     }
 
@@ -115,7 +115,7 @@ class ProductSetController extends Controller
     /** Soft-deleted sets only — mirrors index() but scoped to onlyTrashed(). */
     public function archived(Request $request): JsonResponse
     {
-        $query = ProductSet::onlyTrashed()->with(['lines.product.consumableDetail', 'brands']);
+        $query = ProductSet::onlyTrashed()->with(['lines.product.installationMaterialDetail', 'brands']);
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -145,7 +145,7 @@ class ProductSetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Set restored.',
-            'data'    => $this->present($set->fresh(['lines.product.consumableDetail', 'brands'])),
+            'data'    => $this->present($set->fresh(['lines.product.installationMaterialDetail', 'brands'])),
         ]);
     }
 
@@ -204,7 +204,7 @@ class ProductSetController extends Controller
                 'product_type'       => $line->product?->product_type,
                 'quantity'           => (int) round((float) $line->quantity),   // pieces
                 'pieces_per_package' => (int) ($line->product?->pieces_per_package ?? 0),
-                'package_unit'       => $line->product?->consumableDetail?->package_unit,
+                'package_unit'       => $line->product?->installationMaterialDetail?->package_unit,
                 'spec_note'          => $line->spec_note,
                 'sort_order'         => (int) $line->sort_order,
                 'unit_price'         => (float) ($line->product?->unit_price ?? 0),

@@ -4,7 +4,7 @@ import ProductRegisterModal from './ProductRegisterModal';
 import {
   batchAPI,
   locationsAPI,
-  consumableSupplyAPI,
+  installationMaterialSupplyAPI,
   pendingProductsAPI,
   acTypesAPI,
   categoriesAPI,
@@ -22,7 +22,7 @@ import {
 jest.mock('../services/api', () => ({
   batchAPI: { get: jest.fn() },
   locationsAPI: { getAll: jest.fn() },
-  consumableSupplyAPI: { getSupplyTypes: jest.fn(), getCatalog: jest.fn() },
+  installationMaterialSupplyAPI: { getSupplyTypes: jest.fn(), getCatalog: jest.fn() },
   pendingProductsAPI: { store: jest.fn() },
   categoriesAPI: { getAll: jest.fn() },
   brandsAPI: { getAll: jest.fn() },
@@ -60,8 +60,8 @@ const setupMocks = () => {
     },
   });
   locationsAPI.getAll.mockResolvedValue({ data: [{ location_id: 40, location_name: 'Main Warehouse' }] });
-  consumableSupplyAPI.getSupplyTypes.mockResolvedValue({ data: ['Refrigerant'] });
-  consumableSupplyAPI.getCatalog.mockResolvedValue({ data: null });
+  installationMaterialSupplyAPI.getSupplyTypes.mockResolvedValue({ data: ['Refrigerant'] });
+  installationMaterialSupplyAPI.getCatalog.mockResolvedValue({ data: null });
   pendingProductsAPI.store.mockResolvedValue({ data: {} });
 };
 

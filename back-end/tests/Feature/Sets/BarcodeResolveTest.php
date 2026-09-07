@@ -39,10 +39,10 @@ class BarcodeResolveTest extends SetTestCase
         $this->assertSame('serial', $out['matched_by']);
     }
 
-    public function test_resolves_a_consumable_by_product_barcode(): void
+    public function test_resolves_an_installation_material_by_product_barcode(): void
     {
         $loc     = $this->makeLocation();
-        $product = $this->makeConsumable(barcode: 'BC-RESOLVE-2');
+        $product = $this->makeInstallationMaterial(barcode: 'BC-RESOLVE-2');
 
         $out = $this->resolver()->call('BC-RESOLVE-2', $loc->location_id);
 
@@ -54,7 +54,7 @@ class BarcodeResolveTest extends SetTestCase
     public function test_barcode_matching_tolerates_case_and_whitespace(): void
     {
         $loc     = $this->makeLocation();
-        $product = $this->makeConsumable(barcode: 'BC-RESOLVE-3');
+        $product = $this->makeInstallationMaterial(barcode: 'BC-RESOLVE-3');
 
         $out = $this->resolver()->call('  bc-resolve-3 ', $loc->location_id);
 
@@ -90,7 +90,7 @@ class BarcodeResolveTest extends SetTestCase
     {
         $loc     = $this->makeLocation();
         // Product's own barcode is something else, so passes 1 and 2 both miss.
-        $product = $this->makeConsumable(barcode: 'PRODUCT-OWN-BC');
+        $product = $this->makeInstallationMaterial(barcode: 'PRODUCT-OWN-BC');
 
         DB::table('receiving_details')->insert([
             'product_id'      => $product->product_id,

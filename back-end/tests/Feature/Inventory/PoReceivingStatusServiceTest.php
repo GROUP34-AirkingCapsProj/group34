@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Inventory;
 
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -26,7 +26,7 @@ class PoReceivingStatusServiceTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'PE Foam',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => $ppp, 'is_serialized' => 0,
         ]);
         $po = PurchaseOrder::create([

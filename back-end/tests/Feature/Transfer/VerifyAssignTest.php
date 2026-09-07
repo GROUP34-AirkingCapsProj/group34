@@ -10,8 +10,8 @@ class VerifyAssignTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $keep = $this->makeConsumable();
-        $drop = $this->makeConsumable();
+        $keep = $this->makeInstallationMaterial();
+        $drop = $this->makeInstallationMaterial();
         $ia = $this->makeUserAt($dst, 'inventory_analyst');
 
         $ist = Transfer::create([

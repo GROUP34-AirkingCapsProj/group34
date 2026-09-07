@@ -46,10 +46,10 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
     return () => { ok = false; };
   }, [transfer.transfer_id]);
 
-  // Consumables with a package size (e.g. 10 pcs/Box) get packages + loose-pieces
+  // Installation materials with a package size (e.g. 10 pcs/Box) get packages + loose-pieces
   // entry, mirroring the requester side. packEntry holds the split; qty stays the
   // piece total (the submit + shortfall source).
-  const ppOf = (d) => Number(d.product?.consumable_detail?.pieces_per_package || 0);
+  const ppOf = (d) => Number(d.product?.installation_material_detail?.pieces_per_package || 0);
   const [packEntry, setPackEntry] = useState(() => {
     const init = {};
     details.forEach((d) => {
@@ -218,7 +218,7 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
                 <small>
                   SKU: {sku(d)} · requested {d.quantity_requested}
                   {(() => {
-                    const bd = packageBreakdown(d.quantity_requested, d.product?.consumable_detail?.pieces_per_package, d.product?.consumable_detail?.package_unit);
+                    const bd = packageBreakdown(d.quantity_requested, d.product?.installation_material_detail?.pieces_per_package, d.product?.installation_material_detail?.package_unit);
                     return bd ? ` pcs · ${bd}` : '';
                   })()}
                 </small>
@@ -233,11 +233,11 @@ const VerifyPanel = ({ transfer, locations = [], onDone }) => {
               {ppOf(d) > 1 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <label className="tf-qty-field" title={`${ppOf(d)} pcs per ${d.product?.consumable_detail?.package_unit || 'package'}`}>
+                    <label className="tf-qty-field" title={`${ppOf(d)} pcs per ${d.product?.installation_material_detail?.package_unit || 'package'}`}>
                       <input type="number" min={0} className="ak-input" style={{ width: 52 }}
                         value={packEntry[did]?.packages ?? 0}
                         onChange={(e) => setPack(did, 'packages', e.target.value)} disabled={busy} />
-                      <span className="tf-qty-unit">{d.product?.consumable_detail?.package_unit || 'pkg'}×{ppOf(d)}</span>
+                      <span className="tf-qty-unit">{d.product?.installation_material_detail?.package_unit || 'pkg'}×{ppOf(d)}</span>
                     </label>
                     <label className="tf-qty-field">
                       <input type="number" min={0} className="ak-input" style={{ width: 46 }}

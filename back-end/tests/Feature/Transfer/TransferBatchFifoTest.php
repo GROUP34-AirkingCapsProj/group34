@@ -10,11 +10,11 @@ use App\Services\TransferService;
 
 class TransferBatchFifoTest extends TransferTestCase
 {
-    public function test_dispatch_consumable_deducts_oldest_batch_first(): void
+    public function test_dispatch_installation_material_deducts_oldest_batch_first(): void
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
 
         $svc = new InventoryBatchService();
@@ -103,11 +103,11 @@ class TransferBatchFifoTest extends TransferTestCase
         $this->assertSame(4, $legacy->fresh()->quantity_remaining);
     }
 
-    public function test_reverse_consumable_restores_to_oldest_traceable_batch(): void
+    public function test_reverse_installation_material_restores_to_oldest_traceable_batch(): void
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
 
         $svc = new InventoryBatchService();

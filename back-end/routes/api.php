@@ -473,7 +473,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:item_master_management,update')->put('/items/{product}', [ProductController::class, 'update']);
     Route::middleware('permission:item_master_management,archive')->delete('/items/{product}', [ProductController::class, 'destroy']);
 
-    Route::get('/consumable-supply/catalog', [PendingProductController::class, 'catalog']);
+    Route::get('/installation-material-supply/catalog', [PendingProductController::class, 'catalog']);
     Route::get('/supply-types', [PendingProductController::class, 'supplyTypesIndex']);
     Route::middleware('permission:item_master_management,create')->post('/pending-products', [PendingProductController::class, 'store']);
     // List: procurement/audit visibility; approve: same as create submitters who run Item Master workflow

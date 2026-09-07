@@ -31,7 +31,7 @@ class SerialRowMovementColumnsTest extends TestCase
         ]);
     }
 
-    public function test_consumable_rows_carry_per_batch_in_and_out(): void
+    public function test_installation_material_rows_carry_per_batch_in_and_out(): void
     {
         $loc = Location::create([
             'location_code' => 'LOC-' . uniqid(),
@@ -40,7 +40,7 @@ class SerialRowMovementColumnsTest extends TestCase
         ]);
         $product = Product::create([
             'product_code' => 'CON-' . uniqid(),
-            'product_name' => 'Test Consumable',
+            'product_name' => 'Test Installation material',
             'product_type' => 'installation_material',
         ]);
         $inventory = Inventory::create([

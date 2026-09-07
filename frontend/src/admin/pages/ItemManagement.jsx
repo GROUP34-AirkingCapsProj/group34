@@ -53,7 +53,7 @@ const ItemManagement = () => {
   const [pagination, setPagination] = useState({ total: 0, last_page: 1 });
   const [productType, setProductType] = useState('appliance');
   const [activeTab, setActiveTab] = useState('all');
-  const [typeCounts, setTypeCounts] = useState({ all: 0, appliance: 0, consumable: 0 });
+  const [typeCounts, setTypeCounts] = useState({ all: 0, appliance: 0, installationMaterial: 0 });
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const rowsPerPage = 10;
@@ -228,7 +228,7 @@ const ItemManagement = () => {
         setTypeCounts({
           all: getTotal(allRes),
           appliance: getTotal(appRes),
-          consumable: getTotal(conRes),
+          installationMaterial: getTotal(conRes),
         });
       } catch {}
     };
@@ -280,13 +280,16 @@ const ItemManagement = () => {
     }
     setEditingItem(item);
     const storedType = item.product_type;
-    const legacyIsConsumable =
+    // Matches on category_name below: "Consumable" is a legitimate CATEGORY name and
+    // is deliberately not renamed here. Only the product *type* was renamed to
+    // installation_material.
+    const legacyIsInstallationMaterial =
       !storedType &&
       ((item.unit?.unit_name || '').toLowerCase() === 'roll' ||
         (item.category?.category_name || '').toLowerCase().includes('consumable') ||
         (item.category?.category_name || '').toLowerCase().includes('parts') ||
         (item.category?.category_name || '').toLowerCase().includes('installation'));
-    const resolvedType = storedType || (legacyIsConsumable ? 'installation_material' : 'appliance');
+    const resolvedType = storedType || (legacyIsInstallationMaterial ? 'installation_material' : 'appliance');
     setProductType(resolvedType);
     setFormData({
       name: item.product_name || item.name || '',
@@ -467,7 +470,7 @@ const ItemManagement = () => {
         warranty_value:  Number(formData.warranty_value) || 0,
         warranty_unit:   formData.warranty_unit || 'month',
       } : {}),
-      // Consumable-specific
+      // Installation Material-specific
       ...(!isAppliance ? {
         unit_id:            formData.unit_id || null,
         pieces_per_package: formData.pieces_per_package ? Number(formData.pieces_per_package) : null,
@@ -506,6 +509,7 @@ const ItemManagement = () => {
     if (i.product_type) return i.product_type;
     const u = (i.unit?.unit_name || '').toLowerCase();
     const c = (i.category?.category_name || '').toLowerCase();
+    // 'consumable' here is a CATEGORY name, not the old product type — leave it.
     return (u === 'roll' || u === 'box' || c.includes('consumable') || c.includes('parts') || c.includes('installation'))
       ? 'installation_material' : 'appliance';
   };
@@ -688,7 +692,7 @@ const ItemManagement = () => {
   const getTypeBadge = (item) => {
     const type = resolveType(item);
     if (type === 'installation_material') {
-      return { label: 'INSTALLATION MATERIAL', className: 'im-type-consumable' };
+      return { label: 'INSTALLATION MATERIAL', className: 'im-type-installation-material' };
     }
     return { label: 'APPLIANCE', className: 'im-type-unit' };
   };
@@ -788,7 +792,7 @@ const ItemManagement = () => {
             </div>
             <div className="im-stat-info">
               <span className="im-stat-label">Installation Materials</span>
-              <span className="im-stat-number">{typeCounts.consumable}</span>
+              <span className="im-stat-number">{typeCounts.installationMaterial}</span>
             </div>
           </div>
           <div className="im-stat-card">
@@ -836,7 +840,7 @@ const ItemManagement = () => {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33" />
             </svg>
             Installation Materials
-            <span className="im-tab-count">{typeCounts.consumable}</span>
+            <span className="im-tab-count">{typeCounts.installationMaterial}</span>
           </button>
         </div>
 
@@ -1057,8 +1061,8 @@ const ItemManagement = () => {
           <div className={`im-view-details${itemPulse ? ' ak-focus-pulse' : ''}`}>
             {/* Type badge */}
             <div style={{ marginBottom: '12px' }}>
-              <span className={`im-type-badge ${resolveType(viewingItem) === 'appliance' ? 'im-type-unit' : 'im-type-consumable'}`}>
-                {resolveType(viewingItem) === 'appliance' ? 'APPLIANCE' : 'CONSUMABLE SUPPLY'}
+              <span className={`im-type-badge ${resolveType(viewingItem) === 'appliance' ? 'im-type-unit' : 'im-type-installation-material'}`}>
+                {resolveType(viewingItem) === 'appliance' ? 'APPLIANCE' : 'INSTALLATION MATERIAL SUPPLY'}
               </span>
             </div>
 
@@ -1117,7 +1121,7 @@ const ItemManagement = () => {
               </>
             )}
 
-            {/* Consumable-specific fields */}
+            {/* Installation Material-specific fields */}
             {resolveType(viewingItem) === 'installation_material' && (
               <>
                 <div className="im-view-row">
@@ -1535,7 +1539,7 @@ const ItemManagement = () => {
                 </div>
               </>
             ) : (
-              /* ── CONSUMABLE SUPPLY FORM ──────────────────────────────── */
+              /* ── INSTALLATION MATERIAL SUPPLY FORM ──────────────────────────────── */
               <>
                 <div className="im-form-row">
                   <div className="im-form-field">

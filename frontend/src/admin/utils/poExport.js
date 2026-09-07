@@ -50,7 +50,7 @@ export function distinctDeliverLocations(rows, locationsById = {}) {
 /**
  * Build the description string for a line item.
  * Appliance  → "PRODUCT NAME BRAND CAPACITY VARIANT"
- * Consumable → "PRODUCT NAME (50pcs/Box)"
+ * Installation Material → "PRODUCT NAME (50pcs/Box)"
  */
 function buildDescription(item) {
   const base = (item.name || '').toUpperCase();

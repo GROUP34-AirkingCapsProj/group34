@@ -1672,6 +1672,33 @@ export const productsAPI = {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/products?${query}` : '/products');
   },
+  /**
+   * Every product matching `params`, not just the first page.
+   *
+   * getAll() with a big per_page is a silent truncation: the catalogue outgrew
+   * the guessed cap and products past it simply vanished from pickers, which
+   * reads to the user as "the product I have stock in isn't there". This walks
+   * `pagination.last_page` instead of guessing, so the list is complete
+   * whatever the catalogue size. The page cap is a runaway guard only.
+   */
+  getAllPages: async (params = {}, { perPage = 200, maxPages = 50 } = {}) => {
+    const first = await productsAPI.getAll({ ...params, per_page: perPage, page: 1 });
+    const items = Array.isArray(first?.data) ? [...first.data] : [];
+
+    const lastPage = Number(first?.pagination?.last_page) || 1;
+    const pages = Math.min(lastPage, maxPages);
+
+    for (let page = 2; page <= pages; page += 1) {
+      // Sequential, not parallel: the picker opens on a page that is already
+      // firing several lookups, and the catalogue is small enough that a burst
+      // of concurrent requests costs more than it saves.
+      // eslint-disable-next-line no-await-in-loop
+      const res = await productsAPI.getAll({ ...params, per_page: perPage, page });
+      if (Array.isArray(res?.data)) items.push(...res.data);
+    }
+
+    return { ...first, data: items };
+  },
   getById: async (id) => apiRequest(`/products/${id}`),
   create: async (data) =>
     apiRequest('/products', {
@@ -1944,11 +1971,11 @@ export const profitLossAPI = {
 };
 
 /* ======================
-   CONSUMABLE SUPPLY + PENDING PRODUCT REGISTRATION
+   INSTALLATION MATERIAL SUPPLY + PENDING PRODUCT REGISTRATION
 ====================== */
-export const consumableSupplyAPI = {
-  getCatalog: async () => apiRequest('/consumable-supply/catalog'),
-  /** Same values validated on POST /pending-products (consumable supply_type). */
+export const installationMaterialSupplyAPI = {
+  getCatalog: async () => apiRequest('/installation-material-supply/catalog'),
+  /** Same values validated on POST /pending-products (installation material supply_type). */
   getSupplyTypes: async () => apiRequest('/supply-types'),
 };
 
@@ -2118,7 +2145,7 @@ export const barcodeScanAPI = {
   },
   create: async (data) =>
     apiRequest('/barcode-scans', { method: 'POST', body: JSON.stringify(data) }),
-  /** Smart lookup: FOUND | NOT_FOUND | PENDING_CONSUMABLE */
+  /** Smart lookup: FOUND | NOT_FOUND | PENDING_INSTALLATION_MATERIAL */
   lookup: async (barcode) =>
     apiRequest('/barcode/scan', {
       method: 'POST',

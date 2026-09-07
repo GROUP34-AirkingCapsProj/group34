@@ -9,7 +9,7 @@ class OffloadFlowTest extends TransferTestCase
     public function test_offload_request_stores_source_with_null_destination_pending(): void
     {
         $src = $this->makeLocation('Src');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $wp = $this->makeUserAt($src, 'warehouse_personnel');
 
         $res = $this->actingAs($wp, 'sanctum')->postJson('/api/transfers', [
@@ -29,7 +29,7 @@ class OffloadFlowTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $ia = $this->makeUserAt($src, 'inventory_analyst');
 
         $ist = Transfer::create([

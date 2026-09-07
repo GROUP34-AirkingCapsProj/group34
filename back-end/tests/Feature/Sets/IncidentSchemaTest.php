@@ -59,7 +59,7 @@ class IncidentSchemaTest extends SetTestCase
         // Proves the model, fillable, and the ScopesToUserLocation trait don't
         // block a plain create/read outside an HTTP request.
         $loc     = $this->makeLocation();
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $user    = $this->makeUserAt($loc, 'warehouse_personnel');
 
         $incident = IncidentReport::create([
@@ -116,7 +116,7 @@ class IncidentSchemaTest extends SetTestCase
     public function test_occurred_at_and_related_issuance_round_trip_through_the_model(): void
     {
         $loc     = $this->makeLocation();
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $user    = $this->makeUserAt($loc, 'warehouse_personnel');
 
         $occurredAt = now()->subDay();

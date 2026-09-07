@@ -11,7 +11,7 @@ use Tests\TestCase;
 /**
  * scopeIssuableAt() must resolve a unit by EITHER identifier it carries.
  *
- * A consumable's supplier barcode moved out of serial_number (which now holds
+ * An installation material's supplier barcode moved out of serial_number (which now holds
  * a generated INT-... tag) into supplier_barcode. Matching serial_number alone
  * made those scans fall through to the product-level fallback, losing the
  * batch identification FIFO depends on.

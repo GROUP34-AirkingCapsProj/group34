@@ -46,7 +46,7 @@ class BarcodeAdjustmentController extends Controller
     {
         $po = PurchaseOrder::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
         ])->find($poId);
 
         if (! $po) {
@@ -55,7 +55,7 @@ class BarcodeAdjustmentController extends Controller
 
         $receivingDetails = ReceivingDetail::with([
             'product.applianceDetail.brand',
-            'product.consumableDetail.unit',
+            'product.installationMaterialDetail.unit',
             'receiving',
         ])
         ->whereHas('receiving', fn ($q) => $q->where('po_id', $poId))
@@ -63,7 +63,7 @@ class BarcodeAdjustmentController extends Controller
         ->map(function (ReceivingDetail $rd) {
             $product = $rd->product;
             if ($product && ! $product->relationLoaded('applianceDetail')) {
-                $product->load('applianceDetail', 'consumableDetail');
+                $product->load('applianceDetail', 'installationMaterialDetail');
             }
             return [
                 'receiving_detail_id' => $rd->receiving_detail_id,
@@ -77,7 +77,7 @@ class BarcodeAdjustmentController extends Controller
                 'quantity_amount'     => $rd->quantity_amount,
                 'brand_name'          => $product?->applianceDetail?->brand?->brand_name,
                 'capacity'            => $product?->applianceDetail?->capacity_rating ?? null,
-                'unit_name'           => $product?->consumableDetail?->unit?->unit_name ?? null,
+                'unit_name'           => $product?->installationMaterialDetail?->unit?->unit_name ?? null,
                 'created_at'          => $rd->created_at,
             ];
         });
@@ -121,7 +121,7 @@ class BarcodeAdjustmentController extends Controller
 
         $rd = ReceivingDetail::with([
             'product.applianceDetail.brand',
-            'product.consumableDetail.unit',
+            'product.installationMaterialDetail.unit',
         ])->find($validated['receiving_detail_id']);
 
         if (! $rd) {
@@ -130,10 +130,10 @@ class BarcodeAdjustmentController extends Controller
 
         $originalProduct = $rd->product;
         if ($originalProduct && ! $originalProduct->relationLoaded('applianceDetail')) {
-            $originalProduct->load('applianceDetail', 'consumableDetail');
+            $originalProduct->load('applianceDetail', 'installationMaterialDetail');
         }
 
-        $correctedProduct = Product::with(['applianceDetail.brand', 'consumableDetail.unit'])
+        $correctedProduct = Product::with(['applianceDetail.brand', 'installationMaterialDetail.unit'])
             ->find($validated['corrected_product_id']);
 
         if (! $correctedProduct) {
@@ -152,9 +152,9 @@ class BarcodeAdjustmentController extends Controller
         }
 
         if ($originalProduct?->isSerialized() && ! $correctedProduct->isSerialized()) {
-            $changes[] = 'Type change: Appliance (serialized) → Consumable (bulk). Serial number record will be removed.';
+            $changes[] = 'Type change: Appliance (serialized) → Installation Material (bulk). Serial number record will be removed.';
         } elseif (! $originalProduct?->isSerialized() && $correctedProduct->isSerialized()) {
-            $changes[] = 'Type change: Consumable (bulk) → Appliance (serialized). A serial number record will be created.';
+            $changes[] = 'Type change: Installation Material (bulk) → Appliance (serialized). A serial number record will be created.';
         }
 
         $changes[] = "Inventory for \"{$originalProduct?->product_name}\" will decrease by {$origQty} unit(s).";
@@ -215,7 +215,7 @@ class BarcodeAdjustmentController extends Controller
         return DB::transaction(function () use ($validated, $resolvedLocationId, $userId, $ipAddress, $userAgent) {
 
             // ── Load rows with locks ─────────────────────────────────────────
-            $rd = ReceivingDetail::with(['product.applianceDetail', 'product.consumableDetail', 'receiving'])
+            $rd = ReceivingDetail::with(['product.applianceDetail', 'product.installationMaterialDetail', 'receiving'])
                 ->lockForUpdate()
                 ->find($validated['receiving_detail_id']);
 
@@ -225,11 +225,11 @@ class BarcodeAdjustmentController extends Controller
 
             $originalProduct = $rd->product;
             if ($originalProduct && ! $originalProduct->relationLoaded('applianceDetail')) {
-                $originalProduct->load('applianceDetail', 'consumableDetail');
+                $originalProduct->load('applianceDetail', 'installationMaterialDetail');
             }
 
             /** @var Product|null $correctedProduct */
-            $correctedProduct = Product::with(['applianceDetail', 'consumableDetail'])
+            $correctedProduct = Product::with(['applianceDetail', 'installationMaterialDetail'])
                 ->lockForUpdate()
                 ->find($validated['corrected_product_id']);
 
@@ -496,9 +496,9 @@ class BarcodeAdjustmentController extends Controller
             'adjustment.location',
             'adjustment.status',
             'originalProduct.applianceDetail.brand',
-            'originalProduct.consumableDetail.unit',
+            'originalProduct.installationMaterialDetail.unit',
             'correctedProduct.applianceDetail.brand',
-            'correctedProduct.consumableDetail.unit',
+            'correctedProduct.installationMaterialDetail.unit',
             'correctedByUser',
             'approvedByUser',
             'receivingDetail',
@@ -532,7 +532,7 @@ class BarcodeAdjustmentController extends Controller
         // Search receiving_details by scanned_barcode
         $rd = ReceivingDetail::with([
             'product.applianceDetail.brand',
-            'product.consumableDetail.unit',
+            'product.installationMaterialDetail.unit',
             'receiving',
         ])
         ->where('scanned_barcode', $barcode)
@@ -575,7 +575,7 @@ class BarcodeAdjustmentController extends Controller
     // =========================================================================
     private function syncPoReceivingStatus(int $poId): void
     {
-        $details = PurchaseOrderDetail::with(['product.applianceDetail', 'product.consumableDetail'])
+        $details = PurchaseOrderDetail::with(['product.applianceDetail', 'product.installationMaterialDetail'])
             ->where('po_id', $poId)
             ->get();
 

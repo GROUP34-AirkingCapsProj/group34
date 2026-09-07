@@ -76,7 +76,7 @@ export const ROUTE_ACCESS = {
 
   // Item/barcode/classification
   '/admin/items': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/pending-consumables': [ROLES.ADMIN, ROLES.BRANCH_MANAGER],
+  '/admin/pending-installation-materials': [ROLES.ADMIN, ROLES.BRANCH_MANAGER],
   '/admin/categories': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
   '/admin/brands': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
   '/admin/inventory-operation': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],

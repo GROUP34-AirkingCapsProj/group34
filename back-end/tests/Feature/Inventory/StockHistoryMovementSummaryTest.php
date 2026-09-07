@@ -13,7 +13,7 @@ use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\Transfer;
 use App\Models\TransferDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\BarcodeScan;
 
 class StockHistoryMovementSummaryTest extends TestCase
@@ -47,7 +47,7 @@ class StockHistoryMovementSummaryTest extends TestCase
         ]);
         $product = Product::create([
             'product_code' => 'CON-' . uniqid(),
-            'product_name' => 'Test Consumable',
+            'product_name' => 'Test Installation material',
             'product_type' => 'installation_material',
         ]);
 
@@ -154,7 +154,7 @@ class StockHistoryMovementSummaryTest extends TestCase
             'cost_price' => 50,
             'unit_price' => 50,
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id,
             'pieces_per_package' => 5,
             'package_unit' => 'Roll',

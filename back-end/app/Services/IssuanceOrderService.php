@@ -126,7 +126,7 @@ class IssuanceOrderService
     private function sellingPricePerPiece(Product $product): float
     {
         $packagePrice = (float) $product->unit_price;
-        $pieces = $product->isConsumable() ? $product->getPiecesPerPackage() : 1;
+        $pieces = $product->isInstallationMaterial() ? $product->getPiecesPerPackage() : 1;
 
         return round($packagePrice / max(1, $pieces), 4);
     }

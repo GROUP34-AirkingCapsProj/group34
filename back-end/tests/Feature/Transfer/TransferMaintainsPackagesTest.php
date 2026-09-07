@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Transfer;
 
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Inventory;
 use App\Models\Location;
 use App\Models\Product;
@@ -19,7 +19,7 @@ class TransferMaintainsPackagesTest extends TransferTestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Tube',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Roll', 'is_serialized' => 0,
         ]);
@@ -52,8 +52,8 @@ class TransferMaintainsPackagesTest extends TransferTestCase
         $to   = $this->makeLocation('PKG-REV-DST');
         $user = $this->makeUser();
 
-        $product = $this->makeConsumable();
-        ConsumableDetail::create([
+        $product = $this->makeInstallationMaterial();
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Roll', 'is_serialized' => 0,
         ]);
@@ -110,8 +110,8 @@ class TransferMaintainsPackagesTest extends TransferTestCase
         $to   = $this->makeLocation('PKG-UNDER-DST');
         $user = $this->makeUser();
 
-        $product = $this->makeConsumable();
-        ConsumableDetail::create([
+        $product = $this->makeInstallationMaterial();
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Roll', 'is_serialized' => 0,
         ]);

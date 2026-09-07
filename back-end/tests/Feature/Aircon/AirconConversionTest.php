@@ -252,18 +252,18 @@ class AirconConversionTest extends AirconTestCase
     {
         $this->actingAsAdmin();
 
-        $consumable = Product::create([
+        $installationMaterial = Product::create([
             'product_code' => 'CON-' . uniqid(),
             'product_name' => 'Copper Tubing ' . uniqid(),
             'product_type' => 'installation_material',
             'unit_price'   => 50000.00,
         ]);
 
-        $this->convert($consumable)
+        $this->convert($installationMaterial)
              ->assertStatus(422)
              ->assertJsonValidationErrors('product');
 
-        $this->assertSame(0, ApplianceDetail::where('product_id', $consumable->product_id)->count());
+        $this->assertSame(0, ApplianceDetail::where('product_id', $installationMaterial->product_id)->count());
     }
 
     public function test_a_one_piece_ac_type_cannot_be_split(): void

@@ -53,7 +53,7 @@ class IssuanceDetail extends Model
         // ProductSetLine::product().
         return $this->belongsTo(Product::class, 'product_id', 'product_id')
                     ->withTrashed()
-                    ->with(['applianceDetail.brand', 'consumableDetail.unit']);
+                    ->with(['applianceDetail.brand', 'installationMaterialDetail.unit']);
     }
 
     /**

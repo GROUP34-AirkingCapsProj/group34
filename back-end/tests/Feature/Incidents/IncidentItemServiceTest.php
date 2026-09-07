@@ -176,7 +176,7 @@ class IncidentItemServiceTest extends TestCase
      * SERIAL_STATUS_NAME is read unconditionally in applyOutcomes(), BEFORE
      * stampSerial()'s null-serial guard — so a missing entry is a TypeError
      * mid-confirmation, after the stock movement has already run inside the
-     * transaction. It fires even for a consumable with no serial at all.
+     * transaction. It fires even for an installation material with no serial at all.
      */
     public function test_every_outcome_status_has_a_seeded_serial_status(): void
     {

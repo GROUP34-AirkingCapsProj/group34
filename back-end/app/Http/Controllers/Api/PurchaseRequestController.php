@@ -38,7 +38,7 @@ class PurchaseRequestController extends Controller
         'budget',
         'convertedPO',
         'details.product.applianceDetail.brand',
-        'details.product.consumableDetail.unit',
+        'details.product.installationMaterialDetail.unit',
         'details.location',
     ];
 
@@ -70,7 +70,7 @@ class PurchaseRequestController extends Controller
             ->leftJoinSub($stockAtLocation, 'warehouse_stock', function ($join) {
                 $join->on('warehouse_stock.product_id', '=', 'products.product_id');
             })
-            ->with('consumableDetail')
+            ->with('installationMaterialDetail')
             ->select('products.*')
             ->selectRaw('COALESCE(warehouse_stock.current_stock, 0) as current_stock')
             ->get()
@@ -83,7 +83,7 @@ class PurchaseRequestController extends Controller
                 $needed = max(1, $target - $current);
                 $isMaterial = $product->product_type === 'installation_material';
                 $piecesPerPackage = $isMaterial
-                    ? max(1, (int) ($product->consumableDetail?->pieces_per_package ?? 1))
+                    ? max(1, (int) ($product->installationMaterialDetail?->pieces_per_package ?? 1))
                     : 1;
 
                 return [
@@ -96,7 +96,7 @@ class PurchaseRequestController extends Controller
                     'reason_codes' => [$current === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'],
                     'pieces_per_package' => $isMaterial ? $piecesPerPackage : null,
                     'package_unit' => $isMaterial
-                        ? ($product->consumableDetail?->package_unit ?: null)
+                        ? ($product->installationMaterialDetail?->package_unit ?: null)
                         : null,
                     'order_packages' => $isMaterial
                         ? (int) ceil($needed / $piecesPerPackage)
@@ -261,7 +261,7 @@ class PurchaseRequestController extends Controller
     {
         $prs = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.location',
             'location',
             'supplier',
@@ -317,7 +317,7 @@ class PurchaseRequestController extends Controller
                 foreach ($pr->details as $i => $d) {
                     $p  = $d->product;
                     $ad = $p?->applianceDetail;
-                    $cd = $p?->consumableDetail;
+                    $cd = $p?->installationMaterialDetail;
 
                     fputcsv($handle, [
                         $pr->pr_number,
@@ -354,7 +354,7 @@ class PurchaseRequestController extends Controller
     {
         $p  = $detail->product;
         $ad = $p?->applianceDetail;
-        $cd = $p?->consumableDetail;
+        $cd = $p?->installationMaterialDetail;
 
         return [
             'pr_detail_id'       => $detail->pr_detail_id,
@@ -372,11 +372,11 @@ class PurchaseRequestController extends Controller
             'product_name'       => $p?->product_name,
             'product_type'       => $p?->product_type,
             'is_serialized'      => $p?->isSerialized() ?? false,
-            // Appliance (null for consumables)
+            // Appliance (null for installation materials)
             'brand_name'         => $ad?->brand?->brand_name,
             'capacity_rating'    => $ad?->capacity_rating,
             'variant'            => $ad?->variant,
-            // Consumable (null for appliances)
+            // Installation material (null for appliances)
             'unit_name'          => $cd?->unit?->unit_name,
             'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
             'pieces_per_package' => $cd?->pieces_per_package,
@@ -657,7 +657,7 @@ class PurchaseRequestController extends Controller
     {
         $pr = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.location',
             'location',
             'budget',
@@ -681,7 +681,7 @@ class PurchaseRequestController extends Controller
 
             $p  = $d->product;
             $ad = $p?->applianceDetail;
-            $cd = $p?->consumableDetail;
+            $cd = $p?->installationMaterialDetail;
 
             return [
                 'product_id'               => $d->product_id,
@@ -894,7 +894,7 @@ class PurchaseRequestController extends Controller
             }
 
             $po->load(['supplier', 'location', 'status', 'purchaseRequest',
-                'details.product.applianceDetail.brand', 'details.product.consumableDetail.unit']);
+                'details.product.applianceDetail.brand', 'details.product.installationMaterialDetail.unit']);
             return $this->success($po, 'Purchase request converted to purchase order', 201);
         } catch (\Throwable $e) {
             return $this->error('Conversion failed: ' . $e->getMessage(), 500);

@@ -552,7 +552,7 @@
   width: fit-content;
 }
 .invd-type-appliance  { background: #dbeafe; color: #1d4ed8; }
-.invd-type-consumable { background: #dcfce7; color: #15803d; }
+.invd-type-installation-material { background: #dcfce7; color: #15803d; }
 
 /* Value helpers */
 .invd-mono     { font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 0.5px; }

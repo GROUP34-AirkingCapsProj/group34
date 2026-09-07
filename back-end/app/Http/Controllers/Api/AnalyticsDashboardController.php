@@ -22,8 +22,27 @@ class AnalyticsDashboardController extends Controller
     {
     }
 
+    /**
+     * The location filter these reads run under.
+     *
+     * analytics_dashboard.read is granted to branch_manager, a location-scoped
+     * role, so the query parameter cannot be trusted on its own: a null value
+     * means "every location". Scoped roles are therefore pinned to their own
+     * location and the parameter is ignored, mirroring what
+     * App\Traits\ResolvesUserLocation does for writes. Centralized roles
+     * (admin, inventory_analyst, auditor) keep full control, including null
+     * for the org-wide view.
+     */
     private function locationId(Request $request): ?int
     {
+        $user = $request->user();
+
+        if ($user && ! $user->isCentralized()) {
+            // A scoped user with no assigned location gets no rows, rather than
+            // silently widening to every location (spec D3).
+            return $user->scopedLocationId() ?? -1;
+        }
+
         $value = $request->query('location_id');
 
         return ($value === null || $value === '') ? null : (int) $value;

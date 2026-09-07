@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Inventory;
 
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Schema;
@@ -25,7 +25,7 @@ class CountUnitColumnTest extends TestCase
             'product_type' => 'installation_material',
         ]);
 
-        $detail = ConsumableDetail::create([
+        $detail = InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 100, 'is_serialized' => 0,
         ]);
         $this->assertSame('package', $detail->fresh()->count_unit);

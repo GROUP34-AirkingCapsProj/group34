@@ -38,9 +38,16 @@ export const NAV_BUNDLES = [
  * way it enforces NAV_BUNDLES, so access stays permission-driven even without a
  * sidebar entry. (Warranty Claims is reached via the "Claim Warranty" button on
  * the Warranty Records page, not the sidebar.)
+ *
+ * Report Incident is reached from the "Report Incident" tile on the Inventory
+ * Operation scan page. It was in neither this map nor ROUTE_ACCESS, so the
+ * role fallback in canAccessRoute treated it as admin-only and bounced every
+ * warehouse personnel back to the dashboard — even though the backend grants
+ * them incident_reports.create.
  */
 export const PERMISSION_GATED_ROUTES = {
   '/admin/warranty-claims': 'warranty_claims.create',
+  '/admin/barcode-adjustment': 'incident_reports.create',
 };
 
 const granted = (perms, key) => perms != null && perms[key] === true;

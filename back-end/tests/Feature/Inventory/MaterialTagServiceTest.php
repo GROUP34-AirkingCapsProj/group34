@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Inventory;
 
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\Location;
@@ -28,13 +28,13 @@ class MaterialTagServiceTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Material',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 100,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => $countUnit,
         ]);
 
-        // Force a fresh load so consumableDetail (and count_unit) is not stale/default.
-        return Product::with('consumableDetail')->findOrFail($product->product_id);
+        // Force a fresh load so installationMaterialDetail (and count_unit) is not stale/default.
+        return Product::with('installationMaterialDetail')->findOrFail($product->product_id);
     }
 
     private function makeBatch(Product $product, Location $location, int $qty = 600): InventoryBatch
@@ -49,7 +49,7 @@ class MaterialTagServiceTest extends TestCase
     {
         $location = $this->makeLocation();
         $product  = $this->makeProduct('package');
-        $this->assertSame('package', $product->consumableDetail->count_unit);
+        $this->assertSame('package', $product->installationMaterialDetail->count_unit);
         $batch    = $this->makeBatch($product, $location);
 
         $service = app(MaterialTagService::class);
@@ -70,7 +70,7 @@ class MaterialTagServiceTest extends TestCase
     {
         $location = $this->makeLocation();
         $product  = $this->makeProduct('piece');
-        $this->assertSame('piece', $product->consumableDetail->count_unit);
+        $this->assertSame('piece', $product->installationMaterialDetail->count_unit);
         $batch    = $this->makeBatch($product, $location);
 
         $service = app(MaterialTagService::class);
@@ -105,7 +105,7 @@ class MaterialTagServiceTest extends TestCase
     {
         $location = $this->makeLocation();
         $product  = $this->makeProduct('piece');
-        $this->assertSame('piece', $product->consumableDetail->count_unit);
+        $this->assertSame('piece', $product->installationMaterialDetail->count_unit);
         $batch    = $this->makeBatch($product, $location);
 
         $service = app(MaterialTagService::class);

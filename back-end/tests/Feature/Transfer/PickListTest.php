@@ -4,11 +4,11 @@ namespace Tests\Feature\Transfer;
 
 class PickListTest extends TransferTestCase
 {
-    public function test_consumable_pick_list_is_fifo_by_zone(): void
+    public function test_installation_material_pick_list_is_fifo_by_zone(): void
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         $this->makeBatch($product, $src, ['zone_label' => 'A-01', 'quantity_remaining' => 3, 'received_at' => '2026-01-01']);
         $this->makeBatch($product, $src, ['zone_label' => 'B-02', 'quantity_remaining' => 5, 'received_at' => '2026-02-01']);

@@ -3,7 +3,7 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\ApplianceDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
 use App\Models\Location;
@@ -39,13 +39,13 @@ class ReceivingDraftValidationTest extends TestCase
         ]);
     }
 
-    private function makeConsumable(int $piecesPerPackage = 50): Product
+    private function makeInstallationMaterial(int $piecesPerPackage = 50): Product
     {
         $product = Product::create([
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Pipe',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => $piecesPerPackage,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);
@@ -95,7 +95,7 @@ class ReceivingDraftValidationTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable();
+        $product  = $this->makeInstallationMaterial();
         $po       = $this->makePo($location);
         $line     = $this->makeLine($po, $product, $location, 10);
         $draft    = $this->makeDraft($po, $location, $user);
@@ -156,7 +156,7 @@ class ReceivingDraftValidationTest extends TestCase
     {
         $user      = $this->makeUser();
         $location  = $this->makeLocation();
-        $product   = $this->makeConsumable();
+        $product   = $this->makeInstallationMaterial();
         $poA       = $this->makePo($location);
         $poB       = $this->makePo($location);
         $lineOnB   = $this->makeLine($poB, $product, $location, 10);
@@ -173,7 +173,7 @@ class ReceivingDraftValidationTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $po       = $this->makePo($location);
         // Only 1 box ordered; the clerk is staging a second.
         $line     = $this->makeLine($po, $product, $location, 1);
@@ -199,7 +199,7 @@ class ReceivingDraftValidationTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable();
+        $product  = $this->makeInstallationMaterial();
         $po       = $this->makePo($location);
         $line     = $this->makeLine($po, $product, $location, 10);
         $draft    = $this->makeDraft($po, $location, $user);

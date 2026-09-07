@@ -9,7 +9,7 @@ class WorklistScopeTest extends TransferTestCase
         $wh = $this->makeLocation('WH');
         $other = $this->makeLocation('Other');
         $third = $this->makeLocation('Third');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         $mine = $this->makeApprovedTransfer($wh, $other, [[$product, 1]]);       // wh is source
         $notMine = $this->makeApprovedTransfer($other, $third, [[$product, 1]]); // wh not involved

@@ -155,7 +155,7 @@ class TransferController extends Controller
     public function show($id)
     {
         try {
-            $transfer = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy', 'details.product.consumableDetail']))
+            $transfer = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy', 'details.product.installationMaterialDetail']))
                 ->findOrFail($id);
 
             $fromLocId = $transfer->from_location_id;
@@ -236,7 +236,7 @@ class TransferController extends Controller
             // If details are being changed, reverse previous inventory movement first,
             // then apply the new details. This keeps inventory consistent.
             if (array_key_exists('details', $validated)) {
-                $transfer->loadMissing('details.product.consumableDetail', 'details.product.applianceDetail');
+                $transfer->loadMissing('details.product.installationMaterialDetail', 'details.product.applianceDetail');
                 foreach ($transfer->details as $oldDetail) {
                     $qtyTrans = (int) ($oldDetail->quantity_transferred ?? 0);
                     $qtyRecv = (int) ($oldDetail->quantity_received ?? 0);
@@ -271,7 +271,7 @@ class TransferController extends Controller
 
                 // Preloaded outside the loop: packaging comes off the product and
                 // resolving it per iteration would be an N+1 across the detail lines.
-                $lineProducts = Product::with(['consumableDetail', 'applianceDetail'])
+                $lineProducts = Product::with(['installationMaterialDetail', 'applianceDetail'])
                     ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
                     ->get()
                     ->keyBy('product_id');
@@ -465,7 +465,7 @@ class TransferController extends Controller
                     'reorder_level' => 0,
                 ]
             );
-            $detail->loadMissing('product.consumableDetail', 'product.applianceDetail');
+            $detail->loadMissing('product.installationMaterialDetail', 'product.applianceDetail');
             $recvPpp = $this->piecesPerPackageFor($detail->product);
             $toInventory->setPieces((int) $toInventory->quantity_on_hand + $add, $recvPpp);
             $toInventory->save();

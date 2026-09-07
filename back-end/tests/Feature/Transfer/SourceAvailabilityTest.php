@@ -9,8 +9,8 @@ class SourceAvailabilityTest extends TransferTestCase
         $whA = $this->makeLocation('WH-A');
         $whB = $this->makeLocation('WH-B');
         $dst = $this->makeLocation('Showroom');
-        $p1 = $this->makeConsumable();
-        $p2 = $this->makeConsumable();
+        $p1 = $this->makeInstallationMaterial();
+        $p2 = $this->makeInstallationMaterial();
 
         $this->setStock($whA->location_id, $p1->product_id, 8);
         $this->setStock($whA->location_id, $p2->product_id, 4);

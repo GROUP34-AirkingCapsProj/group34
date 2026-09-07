@@ -451,13 +451,16 @@ export function AddCustomPath({ disabled, onAdd }) {
 
   // Load the product options for the chosen category/brand. The product picker is
   // a dropdown — no typing — so a picker who forgets the exact name just browses.
+  // Every page is fetched: the picker filters client-side, so a product left off
+  // by a per_page cap is unreachable, and to the picker that looks like stock
+  // received into inventory never arriving in issuance.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const params = { per_page: 200 };
+    const params = {};
     if (categoryId) params.category_id = categoryId;
     if (brandId) params.brand_id = brandId;
-    productsAPI.getAll(params)
+    productsAPI.getAllPages(params)
       .then((res) => {
         if (cancelled) return;
         const list = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? []);

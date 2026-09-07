@@ -42,7 +42,7 @@ abstract class SetTestCase extends TestCase
         ]);
     }
 
-    protected function makeConsumable(string $barcode = null, float $price = 50, float $cost = 30): Product
+    protected function makeInstallationMaterial(string $barcode = null, float $price = 50, float $cost = 30): Product
     {
         return Product::create([
             'product_code' => 'CON-' . uniqid(),

@@ -308,7 +308,7 @@ class IssuanceScanController extends Controller
         }
 
         if (! $product->relationLoaded('applianceDetail')) {
-            $product->load('applianceDetail.acType', 'consumableDetail');
+            $product->load('applianceDetail.acType', 'installationMaterialDetail');
         }
 
         $isSerialized     = $product->isSerialized();
@@ -445,20 +445,20 @@ class IssuanceScanController extends Controller
             });
         }
 
-        // ── CONSUMABLE BRANCH ─────────────────────────────────
+        // ── INSTALLATION MATERIAL BRANCH ─────────────────────────────────
 
-        // Ensure consumableDetail.unit is loaded.
-        if (! $product->relationLoaded('consumableDetail')) {
-            $product->load('consumableDetail.unit');
+        // Ensure installationMaterialDetail.unit is loaded.
+        if (! $product->relationLoaded('installationMaterialDetail')) {
+            $product->load('installationMaterialDetail.unit');
         } else {
-            if ($product->consumableDetail && ! $product->consumableDetail->relationLoaded('unit')) {
-                $product->consumableDetail->load('unit');
+            if ($product->installationMaterialDetail && ! $product->installationMaterialDetail->relationLoaded('unit')) {
+                $product->installationMaterialDetail->load('unit');
             }
         }
 
         $requestedQty = (float) ($validated['quantity'] ?? 1);
         $quantityUnit = $validated['quantity_unit']
-                       ?? ($product->consumableDetail?->unit?->unit_abbreviation ?? 'piece');
+                       ?? ($product->installationMaterialDetail?->unit?->unit_abbreviation ?? 'piece');
         // round before ceil so float dust (e.g. 5.000001) can't bump a whole number up
         $quantityInPieces = (int) ceil(round($requestedQty, 4));
 
@@ -468,8 +468,8 @@ class IssuanceScanController extends Controller
             : $packagePrice;
         $lineSubtotal  = round($pricePerPiece * $requestedQty, 2);
 
-        $baseUnitName = $product->consumableDetail?->unit?->unit_name ?? 'piece';
-        $baseUnitAbbr = $product->consumableDetail?->unit?->unit_abbreviation ?? 'pc';
+        $baseUnitName = $product->installationMaterialDetail?->unit?->unit_name ?? 'piece';
+        $baseUnitAbbr = $product->installationMaterialDetail?->unit?->unit_abbreviation ?? 'pc';
 
         return DB::transaction(function () use (
             $issuance, $product, $requestedQty, $quantityUnit,
@@ -584,7 +584,7 @@ class IssuanceScanController extends Controller
                 'base_unit_name'     => $baseUnitName,
                 'base_unit_abbr'     => $baseUnitAbbr,
                 'pieces_per_package' => $piecesPerPackage,
-                'package_unit'       => $product->consumableDetail?->package_unit
+                'package_unit'       => $product->installationMaterialDetail?->package_unit
                                      ?? $baseUnitName,
                 'package_price'      => $packagePrice,
                 'price_per_piece'    => $pricePerPiece,
@@ -595,7 +595,7 @@ class IssuanceScanController extends Controller
                 'detail_id'          => $detail->issuance_detail_id,
                 'stock_remaining'    => $inv->quantity_on_hand,
                 'pricing_note'       => "₱{$packagePrice} per "
-                    . ($product->consumableDetail?->package_unit ?? $baseUnitName)
+                    . ($product->installationMaterialDetail?->package_unit ?? $baseUnitName)
                     . " ÷ {$piecesPerPackage} {$baseUnitName}s"
                     . " = ₱{$pricePerPiece} per {$baseUnitName}",
                 'dropdown_units'     => $product->getIssuableDropdownUnits(),
@@ -643,7 +643,7 @@ class IssuanceScanController extends Controller
     {
         $issuance = Issuance::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'customer', 'location', 'issuedByUser', 'status',
         ])->find($issuanceId);
 
@@ -768,7 +768,7 @@ class IssuanceScanController extends Controller
 
             $fresh = Issuance::with([
                 'details.product.applianceDetail.brand',
-                'details.product.consumableDetail.unit',
+                'details.product.installationMaterialDetail.unit',
                 'details.warrantyRecord.status',
                 'customer', 'location', 'issuedByUser', 'status',
             ])->find($issuance->issuance_id);
@@ -835,7 +835,7 @@ class IssuanceScanController extends Controller
     {
         $issuance = Issuance::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.warrantyRecord.status',
             'customer', 'location', 'issuedByUser', 'status',
         ])->find($issuanceId);
@@ -915,7 +915,7 @@ class IssuanceScanController extends Controller
      */
     private function reverseIssuedDetail(IssuanceDetail $detail, Issuance $issuance): void
     {
-        $product = Product::with(['applianceDetail.acType', 'consumableDetail'])
+        $product = Product::with(['applianceDetail.acType', 'installationMaterialDetail'])
                    ->find($detail->product_id);
 
         if ($product) {
@@ -1008,7 +1008,7 @@ class IssuanceScanController extends Controller
             'items' => $issuance->details->map(function ($d) {
                 $p  = $d->product;
                 $ad = $p?->applianceDetail;
-                $cd = $p?->consumableDetail;
+                $cd = $p?->installationMaterialDetail;
                 $wr = $d->warrantyRecord ?? null;
                 return [
                     'detail_id'          => $d->issuance_detail_id,

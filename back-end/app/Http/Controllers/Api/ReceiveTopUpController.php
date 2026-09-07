@@ -44,7 +44,7 @@ class ReceiveTopUpController extends Controller
 
         $validated = $validator->validated();
 
-        $poDetail = PurchaseOrderDetail::with(['product.consumableDetail', 'product.applianceDetail', 'purchaseOrder'])
+        $poDetail = PurchaseOrderDetail::with(['product.installationMaterialDetail', 'product.applianceDetail', 'purchaseOrder'])
             ->find($validated['po_detail_id']);
 
         $product = $poDetail?->product;

@@ -373,7 +373,7 @@ export default function WarrantyClaimPage() {
                   value={scanValue}
                   onChange={(e) => setScanValue(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }}
-                  placeholder={isReplacement ? 'Scan the replacement unit serial' : 'Scan a consumable spare-part barcode'}
+                  placeholder={isReplacement ? 'Scan the replacement unit serial' : 'Scan an installation material spare-part barcode'}
                   disabled={busy}
                 />
                 {busy && <span className="isp-scan-spinner" />}

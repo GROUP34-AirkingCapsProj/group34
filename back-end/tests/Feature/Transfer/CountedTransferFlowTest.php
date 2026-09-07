@@ -3,7 +3,7 @@
 namespace Tests\Feature\Transfer;
 
 use App\Models\BarcodeScan;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Transfer;
@@ -16,10 +16,10 @@ use RuntimeException;
  */
 class CountedTransferFlowTest extends TransferTestCase
 {
-    private function makePackagedConsumable(int $piecesPerPackage = 50): Product
+    private function makePackagedInstallationMaterial(int $piecesPerPackage = 50): Product
     {
-        $product = $this->makeConsumable();
-        ConsumableDetail::create([
+        $product = $this->makeInstallationMaterial();
+        InstallationMaterialDetail::create([
             'product_id'         => $product->product_id,
             'pieces_per_package' => $piecesPerPackage,
             'package_unit'       => 'Roll',
@@ -46,7 +46,7 @@ class CountedTransferFlowTest extends TransferTestCase
         $to   = $this->makeLocation('CNT-DST');
         $user = $this->makeUser();
 
-        $product = $this->makePackagedConsumable(50);
+        $product = $this->makePackagedInstallationMaterial(50);
         $this->stock($from->location_id, $product->product_id, 500, 10);
 
         $svc = new TransferService();
@@ -139,7 +139,7 @@ class CountedTransferFlowTest extends TransferTestCase
         $to   = $this->makeLocation('CNT-OVR-DST');
         $user = $this->makeUser();
 
-        $product = $this->makePackagedConsumable(50);
+        $product = $this->makePackagedInstallationMaterial(50);
         $this->stock($from->location_id, $product->product_id, 500, 10);
 
         $svc = new TransferService();
@@ -193,7 +193,7 @@ class CountedTransferFlowTest extends TransferTestCase
         $to   = $this->makeLocation('CNT-UNDO-DST');
         $user = $this->makeUser();
 
-        $product = $this->makePackagedConsumable(50);
+        $product = $this->makePackagedInstallationMaterial(50);
         $this->stock($from->location_id, $product->product_id, 500, 10);
 
         $svc = new TransferService();
@@ -217,7 +217,7 @@ class CountedTransferFlowTest extends TransferTestCase
         $to   = $this->makeLocation('CNT-HTTP-DST');
         $user = $this->makeUser();
 
-        $product = $this->makePackagedConsumable(50);
+        $product = $this->makePackagedInstallationMaterial(50);
         $this->stock($from->location_id, $product->product_id, 500, 10);
 
         $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [

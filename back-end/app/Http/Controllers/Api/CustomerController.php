@@ -101,7 +101,7 @@ class CustomerController extends Controller
 
         $issuances = Issuance::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.warrantyRecord.status',
             'location',
             'issuedByUser',
@@ -129,7 +129,7 @@ class CustomerController extends Controller
                 'items' => $iss->details->map(function ($d) {
                     $p  = $d->product;
                     $ad = $p?->applianceDetail;
-                    $cd = $p?->consumableDetail;
+                    $cd = $p?->installationMaterialDetail;
                     $wr = $d->warrantyRecord;
 
                     $warrantyLabel = null;

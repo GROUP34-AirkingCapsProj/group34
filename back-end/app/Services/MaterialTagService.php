@@ -48,7 +48,7 @@ class MaterialTagService
         string $referenceLabel,
         ?int $userId = null
     ): array {
-        $countUnit = $product->consumableDetail?->count_unit ?? 'package';
+        $countUnit = $product->installationMaterialDetail?->count_unit ?? 'package';
         $tagCount  = $countUnit === 'piece' ? 1 : max(1, $quantityInUnits);
 
         $tags = [];

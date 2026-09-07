@@ -25,7 +25,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 50);
 
         $issuance = $this->draftAt($loc);
@@ -47,8 +47,8 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $product = $this->makeConsumable(price: 50, cost: 25);
-        $product->consumableDetail()->create([
+        $product = $this->makeInstallationMaterial(price: 50, cost: 25);
+        $product->installationMaterialDetail()->create([
             'pieces_per_package' => 5,
             'package_unit' => 'box',
         ]);
@@ -80,7 +80,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 3);
 
         $issuance = $this->draftAt($loc);
@@ -102,7 +102,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         PickReservation::create([
@@ -127,7 +127,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         PickReservation::create([
@@ -152,7 +152,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);
@@ -172,7 +172,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);
@@ -191,7 +191,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 100);
 
         $set      = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
@@ -218,7 +218,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'auditor');
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);
@@ -237,7 +237,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);
@@ -268,7 +268,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 10);
+        $p    = $this->makeInstallationMaterial(price: 10);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);
@@ -298,7 +298,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'inventory_analyst');
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);
@@ -323,7 +323,7 @@ class IssuanceQuoteTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel'); // no view_margin
-        $p    = $this->makeConsumable(price: 100, cost: 60);
+        $p    = $this->makeInstallationMaterial(price: 100, cost: 60);
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);

@@ -15,7 +15,10 @@ class DeliveryReceiptController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = DeliveryReceipt::with(['sale.customer', 'issuedBy', 'status']);
+            // delivery_receipts carries a location_id and this read route is not
+            // role-gated — scope it like every other location-bearing list.
+            $query = DeliveryReceipt::with(['sale.customer', 'issuedBy', 'status'])
+                ->forUser($request->user());
 
             if ($request->has('sales_id')) {
                 $query->where('sales_id', $request->sales_id);
@@ -54,10 +57,12 @@ class DeliveryReceiptController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         try {
-            $dr = DeliveryReceipt::with(['sale.customer', 'sale.details.product', 'issuedBy', 'status'])->findOrFail($id);
+            $dr = DeliveryReceipt::with(['sale.customer', 'sale.details.product', 'issuedBy', 'status'])
+                ->forUser($request->user())
+                ->findOrFail($id);
             return $this->success($dr, 'Delivery receipt retrieved successfully');
         } catch (\Exception $e) {
             return $this->error('Delivery receipt not found', 404);

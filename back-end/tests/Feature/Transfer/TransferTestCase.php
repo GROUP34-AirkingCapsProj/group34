@@ -67,11 +67,11 @@ abstract class TransferTestCase extends TestCase
         ]);
     }
 
-    protected function makeConsumable(): Product
+    protected function makeInstallationMaterial(): Product
     {
         return Product::create([
             'product_code' => 'CON-' . uniqid(),
-            'product_name' => 'Test Consumable',
+            'product_name' => 'Test Installation material',
             'product_type' => 'installation_material',
         ]);
     }

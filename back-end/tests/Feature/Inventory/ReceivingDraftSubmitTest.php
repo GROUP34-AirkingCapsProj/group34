@@ -3,7 +3,7 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\ApplianceDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
@@ -41,13 +41,13 @@ class ReceivingDraftSubmitTest extends TestCase
         ]);
     }
 
-    private function makeConsumable(int $piecesPerPackage = 50): Product
+    private function makeInstallationMaterial(int $piecesPerPackage = 50): Product
     {
         $product = Product::create([
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Pipe',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => $piecesPerPackage,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);
@@ -106,7 +106,7 @@ class ReceivingDraftSubmitTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable();
+        $product  = $this->makeInstallationMaterial();
         $po       = $this->makePo($location);
         $line     = $this->makeLine($po, $product, $location, 10);
         $draft    = $this->makeDraft($po, $location, $user);
@@ -129,7 +129,7 @@ class ReceivingDraftSubmitTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $po       = $this->makePo($location);
         $line     = $this->makeLine($po, $product, $location, 10);
         $draft    = $this->makeDraft($po, $location, $user, 'A-03');
@@ -168,7 +168,7 @@ class ReceivingDraftSubmitTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $bulk     = $this->makeConsumable(50);
+        $bulk     = $this->makeInstallationMaterial(50);
         $aircon   = $this->makeAppliance();
         $po       = $this->makePo($location);
         $bulkLine   = $this->makeLine($po, $bulk, $location, 10);
@@ -216,7 +216,7 @@ class ReceivingDraftSubmitTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $po       = $this->makePo($location);
         // 5 boxes ordered; the draft stages 6.
         $line     = $this->makeLine($po, $product, $location, 5);
@@ -249,7 +249,7 @@ class ReceivingDraftSubmitTest extends TestCase
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
-        $product  = $this->makeConsumable(50);
+        $product  = $this->makeInstallationMaterial(50);
         $po       = $this->makePo($location);
         $line     = $this->makeLine($po, $product, $location, 5);
         $draft    = $this->makeDraft($po, $location, $user);

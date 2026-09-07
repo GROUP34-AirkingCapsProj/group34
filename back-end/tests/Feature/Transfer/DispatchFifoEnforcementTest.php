@@ -11,8 +11,8 @@ class DispatchFifoEnforcementTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $onList  = $this->makeConsumable();
-        $offList = $this->makeConsumable();
+        $onList  = $this->makeInstallationMaterial();
+        $offList = $this->makeInstallationMaterial();
         $offList->update(['barcode' => 'BC-TR-OFFLIST']);
 
         $this->setStock($src->location_id, $onList->product_id, 10);
@@ -34,7 +34,7 @@ class DispatchFifoEnforcementTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $p->update(['barcode' => 'BC-TR-FIFO']);
         $this->setStock($src->location_id, $p->product_id, 20);
 
@@ -59,7 +59,7 @@ class DispatchFifoEnforcementTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $p->update(['barcode' => 'BC-TR-INC']);
         $this->setStock($src->location_id, $p->product_id, 20);
 
@@ -86,7 +86,7 @@ class DispatchFifoEnforcementTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $p->update(['barcode' => 'BC-TR-OK']);
         $this->setStock($src->location_id, $p->product_id, 20);
         $this->makeBatch($p, $src, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
@@ -112,7 +112,7 @@ class DispatchFifoEnforcementTest extends TransferTestCase
     public function test_shared_engine_returns_a_fifo_violation_for_a_newer_zone(): void
     {
         $src = $this->makeLocation('Src');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $p->update(['barcode' => 'BC-PARITY']);
         $this->setStock($src->location_id, $p->product_id, 20);
 

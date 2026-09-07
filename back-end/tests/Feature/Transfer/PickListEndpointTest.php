@@ -8,7 +8,7 @@ class PickListEndpointTest extends TransferTestCase
     {
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $this->makeBatch($product, $src, ['zone_label' => 'A-01', 'quantity_remaining' => 5, 'received_at' => '2026-01-01']);
         $ist = $this->makeApprovedTransfer($src, $dst, [[$product, 3]]);
         $user = $this->makeUserAt($src, 'warehouse_personnel');

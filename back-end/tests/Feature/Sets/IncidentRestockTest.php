@@ -96,7 +96,7 @@ class IncidentRestockTest extends SetTestCase
     public function test_a_restocked_return_stays_on_its_original_batch(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->setStock($loc->location_id, $p->product_id, 20);
         $b = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(30), 'zone_label' => 'Zone 1']);
@@ -149,7 +149,7 @@ class IncidentRestockTest extends SetTestCase
     public function test_a_return_posts_no_adjustment_and_records_the_quantity_on_the_item(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openReturn($loc, $p, $b, 4);
@@ -178,7 +178,7 @@ class IncidentRestockTest extends SetTestCase
     public function test_a_batchless_return_quarantines_nothing_and_creates_no_batch(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $incident = $this->openReturn($loc, $p, null, 2);
 
@@ -250,7 +250,7 @@ class IncidentRestockTest extends SetTestCase
     public function test_confirming_a_return_twice_is_rejected(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openReturn($loc, $p, $b, 3);
@@ -281,7 +281,7 @@ class IncidentRestockTest extends SetTestCase
     public function test_a_settled_item_refuses_a_new_outcome(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openReturn($loc, $p, $b, 3);

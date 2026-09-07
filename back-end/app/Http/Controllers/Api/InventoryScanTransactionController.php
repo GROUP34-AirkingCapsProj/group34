@@ -108,7 +108,7 @@ class InventoryScanTransactionController extends Controller
                       ->orWhereRaw("LOWER(TRIM(COALESCE(product_code,''))) = ?", [$norm]);
                 })
                 ->with(['applianceDetail.brand',
-                        'consumableDetail.unit'])
+                        'installationMaterialDetail.unit'])
                 ->first();
             if ($p) {
                 return $p;
@@ -124,7 +124,7 @@ class InventoryScanTransactionController extends Controller
                 $p = Product::query()
                     ->where('product_id', $serial->product_id)
                     ->with(['applianceDetail.brand',
-                            'consumableDetail.unit'])
+                            'installationMaterialDetail.unit'])
                     ->first();
                 if ($p) {
                     return $p;
@@ -141,7 +141,7 @@ class InventoryScanTransactionController extends Controller
                         $q->where('barcode', $ean)->orWhere('product_code', $ean);
                     })
                     ->with(['applianceDetail.brand',
-                            'consumableDetail.unit'])
+                            'installationMaterialDetail.unit'])
                     ->first();
                 if ($p) {
                     return $p;
@@ -149,7 +149,7 @@ class InventoryScanTransactionController extends Controller
             }
         }
 
-        // 4. Receiving history fallback — consumables whose products.barcode is null
+        // 4. Receiving history fallback — installation materials whose products.barcode is null
         //    but whose barcode was scanned during PO receiving
         foreach ($candidates as $c) {
             $norm = strtolower(trim($c));
@@ -163,7 +163,7 @@ class InventoryScanTransactionController extends Controller
                 $p = Product::query()
                     ->where('product_id', $detail->product_id)
                     ->with(['applianceDetail.brand',
-                            'consumableDetail.unit'])
+                            'installationMaterialDetail.unit'])
                     ->first();
                 if ($p) {
                     return $p;
@@ -198,7 +198,7 @@ class InventoryScanTransactionController extends Controller
 
         // One scan always equals exactly one physical unit:
         //   Serialized (appliance) → 1 scan = 1 unit (unique serial number).
-        //   Consumable             → 1 scan = 1 package = pieces_per_package individual pieces.
+        //   Installation material             → 1 scan = 1 package = pieces_per_package individual pieces.
         // The request quantity field is intentionally ignored here so the frontend
         // can never accidentally submit more than one package per scan event.
 
@@ -206,8 +206,8 @@ class InventoryScanTransactionController extends Controller
         if (! $product->relationLoaded('applianceDetail')) {
             $product->load('applianceDetail');
         }
-        if (! $product->relationLoaded('consumableDetail')) {
-            $product->load('consumableDetail');
+        if (! $product->relationLoaded('installationMaterialDetail')) {
+            $product->load('installationMaterialDetail');
         }
 
         $isSerialized     = $product->isSerialized();
@@ -292,7 +292,7 @@ class InventoryScanTransactionController extends Controller
                     ->sum('quantity_amount');
             }
 
-            // quantity_ordered is in packages for consumables, individual units for serialized.
+            // quantity_ordered is in packages for installation materials, individual units for serialized.
             // alreadyReceived and $quantity are both in pieces, so convert ordered to pieces.
             $orderedPieces = $isSerialized
                 ? (int) $poDetail->quantity_ordered
@@ -330,7 +330,7 @@ class InventoryScanTransactionController extends Controller
         }
 
         $overage = $poDetail
-            // One scan is exactly one package for a consumable (see the note
+            // One scan is exactly one package for an installation material (see the note
             // at the top of this method), so the package ceiling applies. A
             // serialized appliance has no package concept and passes null.
             ? app(ReceivingPostingService::class)->checkOverage(
@@ -418,7 +418,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',                'consumableDetail.unit',
+                'applianceDetail.brand',                'installationMaterialDetail.unit',
             ]);
 
             $payload = [
@@ -449,7 +449,7 @@ class InventoryScanTransactionController extends Controller
                     : ($piecesPerPackage > 0 ? (int) ceil($remainingPieces / $piecesPerPackage) : null);
                 $payload['packages_unit_label']   = $isSerialized
                     ? null
-                    : ($product->consumableDetail?->package_unit ?? 'package');
+                    : ($product->installationMaterialDetail?->package_unit ?? 'package');
                 $payload['ordered_packages']      = $isSerialized
                     ? null
                     : (int) ($poDetail?->quantity_ordered ?? 0);
@@ -630,7 +630,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',                'consumableDetail.unit',
+                'applianceDetail.brand',                'installationMaterialDetail.unit',
             ]);
 
             return $this->success([
@@ -663,14 +663,20 @@ class InventoryScanTransactionController extends Controller
             ?? \App\Models\Location::query()->where('location_id', $locationId)->value('location_name')
             ?? '—';
 
+        // An audit scan changes no stock — it only reads. Never let the activity
+        // write turn a lookup into a failed scan.
         $uid = $request->user()?->user_id;
         if ($uid) {
-            ActivityLog::create([
-                'user_id'       => $uid,
-                'activity_type' => 'audit_scan',
-                'module'        => 'inventory_operation',
-                'description'   => sprintf('Audit scan barcode=%s product_id=%s location_id=%s stock=%s', $barcode, $product->product_id, $locationId ?: '—', $stock),
-            ]);
+            try {
+                ActivityLog::create([
+                    'user_id'       => $uid,
+                    'activity_type' => 'audit_scan',
+                    'module'        => 'inventory_operation',
+                    'description'   => sprintf('Audit scan barcode=%s product_id=%s location_id=%s stock=%s', $barcode, $product->product_id, $locationId ?: '—', $stock),
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         $this->logScanEvent($request, 'audit', 'applied', $product,
@@ -711,7 +717,7 @@ class InventoryScanTransactionController extends Controller
             'category',
             'status',
             'applianceDetail.brand',
-            'consumableDetail.unit',
+            'installationMaterialDetail.unit',
         ]);
 
         return $this->success([
@@ -784,7 +790,7 @@ class InventoryScanTransactionController extends Controller
                         ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($issuanceBarcode)])
                         ->delete();
                 }
-                // Consumables are quantity-managed via inventory; no per-row serial removal needed
+                // Installation materials are quantity-managed via inventory; no per-row serial removal needed
             }
 
             DB::commit();
@@ -794,7 +800,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',                'consumableDetail.unit',
+                'applianceDetail.brand',                'installationMaterialDetail.unit',
             ]);
 
             return $this->success([

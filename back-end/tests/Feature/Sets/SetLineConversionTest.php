@@ -13,7 +13,7 @@ class SetLineConversionTest extends SetTestCase
 
     public function test_whole_line_quantity_is_already_pieces(): void
     {
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         $line = $this->makeSet()->lines()->create([
             'product_id' => $product->product_id,
@@ -32,7 +32,7 @@ class SetLineConversionTest extends SetTestCase
      */
     public function test_fractional_quantity_rounds_to_whole_pieces(float $quantity, int $expected): void
     {
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         $line = $this->makeSet()->lines()->create([
             'product_id' => $product->product_id,

@@ -238,7 +238,7 @@ const ReceivePanel = ({ transfer, onDone }) => {
               )}
               {activeDetail && !activeSerialized && (
                 <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>
-                  package(s) × {Number(activeDetail.product?.pieces_per_package || activeDetail.product?.consumable_detail?.pieces_per_package || 1)} pcs
+                  package(s) × {Number(activeDetail.product?.pieces_per_package || activeDetail.product?.installation_material_detail?.pieces_per_package || 1)} pcs
                 </span>
               )}
               <button type="button" className="bsr-capture-btn" onClick={submitManual} disabled={scanning || activeLine == null || !scanInput.trim()}>

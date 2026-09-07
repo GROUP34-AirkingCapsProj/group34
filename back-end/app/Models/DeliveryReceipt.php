@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopesToUserLocation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\Auditable;
 
 class DeliveryReceipt extends Model
 {
-    use Auditable;
+    use Auditable, ScopesToUserLocation;
 
     protected $table      = 'delivery_receipts';
     protected $primaryKey = 'dr_id';

@@ -83,7 +83,7 @@ class CategoryTypeTest extends LookupTestCase
         $total = DB::table('category_lookup')->count();
         $this->assertGreaterThan(0, $total, 'category_lookup is empty — this test cannot verify anything');
 
-        // The migration normalises consumable and accessory. Anything else
+        // The migration normalises installation material and accessory. Anything else
         // would be invisible in both Item Master dropdowns.
         $stray = DB::table('category_lookup')
             ->whereNotIn('category_type', ['appliance', 'installation_material'])

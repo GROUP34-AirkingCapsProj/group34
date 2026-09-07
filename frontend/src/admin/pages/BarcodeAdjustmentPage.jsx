@@ -181,7 +181,7 @@ const TypeBadge = ({ type }) => {
       background: isSerialized ? '#eff6ff' : '#f0fdf4',
       color: isSerialized ? '#2563eb' : '#15803d',
     }}>
-      {isSerialized ? 'Appliance' : 'Consumable'}
+      {isSerialized ? 'Appliance' : 'Installation Material'}
     </span>
   );
 };
@@ -235,7 +235,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
         p.appliance_detail?.brand?.brand_name?.toLowerCase().includes(q) ||
         p.appliance_detail?.capacity_rating?.toLowerCase().includes(q) ||
         p.appliance_detail?.variant?.toLowerCase().includes(q) ||
-        p.consumable_detail?.unit?.unit_name?.toLowerCase().includes(q) ||
+        p.installation_material_detail?.unit?.unit_name?.toLowerCase().includes(q) ||
         String(p.product_id).includes(q)
       );
     }
@@ -290,7 +290,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
             <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
               {selectedProduct.appliance_detail?.brand?.brand_name
                 ? `${selectedProduct.appliance_detail.brand.brand_name}${selectedProduct.appliance_detail.capacity_rating ? ' · ' + selectedProduct.appliance_detail.capacity_rating : ''}`
-                : selectedProduct.consumable_detail?.unit?.unit_name ?? ''}
+                : selectedProduct.installation_material_detail?.unit?.unit_name ?? ''}
               {' · '}
               <TypeBadge type={selectedProduct.product_type} />
             </div>
@@ -377,7 +377,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
               const brand = p.appliance_detail?.brand?.brand_name;
               const capacity = p.appliance_detail?.capacity_rating;
               const variant = p.appliance_detail?.variant;
-              const unit = p.consumable_detail?.unit?.unit_name;
+              const unit = p.installation_material_detail?.unit?.unit_name;
               const catName = categories.find(c => c.category_id === p.category_id)?.category_name;
               // This picker exists to correct a mis-scan, so it is the one
               // place a user is actively trying to tell two near-identical

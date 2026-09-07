@@ -6,7 +6,7 @@ use Tests\TestCase;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use App\Models\ApplianceDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\ItemSerial;
@@ -47,7 +47,7 @@ class ReceiveCountTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Bolt M8',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 100,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'piece',
         ]);
@@ -103,7 +103,7 @@ class ReceiveCountTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Wire Reel',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Reel', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);
@@ -185,7 +185,7 @@ class ReceiveCountTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Screw Pack',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Pack', 'is_serialized' => 0, 'count_unit' => 'piece',
         ]);
@@ -225,7 +225,7 @@ class ReceiveCountTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Screw Pack',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Pack', 'is_serialized' => 0, 'count_unit' => 'piece',
         ]);
@@ -268,7 +268,7 @@ class ReceiveCountTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Bolt M8',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 100,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'piece',
         ]);

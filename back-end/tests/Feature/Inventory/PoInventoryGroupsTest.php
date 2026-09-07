@@ -135,7 +135,7 @@ class PoInventoryGroupsTest extends TestCase
         $this->assertSame('Location 9', $mine['location_label']);
     }
 
-    public function test_group_detail_consumable_lists_barcode(): void
+    public function test_group_detail_installation_material_lists_barcode(): void
     {
         $wh = Location::create(['location_code' => 'WH-' . uniqid(), 'location_name' => 'Main WH', 'location_type' => 'warehouse']);
         $cons = Product::create(['product_code' => 'C-' . uniqid(), 'product_name' => 'Wire', 'product_type' => 'installation_material']);

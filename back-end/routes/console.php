@@ -26,16 +26,16 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
     $this->info('Running core inventory transaction check...');
     $this->line($commit ? 'Mode: COMMIT' : 'Mode: DRY RUN (rollback)');
 
-    // Choose a consumable product+source inventory row (stock can be zero; receive step will add stock first).
-    // Must be a consumable (non-appliance) so the transfer step works without serial numbers.
-    $consumableProductIds = Product::query()
+    // Choose an installation material product+source inventory row (stock can be zero; receive step will add stock first).
+    // Must be an installation material (non-appliance) so the transfer step works without serial numbers.
+    $installationMaterialProductIds = Product::query()
         ->where(function ($q) { $q->where('product_type', '!=', 'appliance')->orWhereNull('product_type'); })
         ->pluck('product_id');
 
     $sourceInv = Inventory::query()
         ->whereNotNull('location_id')
         ->whereNotNull('product_id')
-        ->whereIn('product_id', $consumableProductIds)
+        ->whereIn('product_id', $installationMaterialProductIds)
         ->orderByDesc('available_quantity')
         ->orderByDesc('quantity_on_hand')
         ->first();
@@ -53,7 +53,7 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
             ->first();
         $firstLocation = Location::query()->first();
         if (!$product || !$firstLocation) {
-            $this->error('Cannot run check: need at least one consumable product and one location.');
+            $this->error('Cannot run check: need at least one installation material product and one location.');
             return 1;
         }
         $sourceLocationId = $firstLocation->location_id;
@@ -144,7 +144,7 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
         $issuanceResp = app(IssuanceController::class)->store($issuanceReq);
         $assertOk($issuanceResp, 'Issuance');
 
-        // 3) Transfer: -1 source, +1 destination (via TransferService::directOverride — consumable, no serials)
+        // 3) Transfer: -1 source, +1 destination (via TransferService::directOverride — installation material, no serials)
         $systemUserId = (int) (DB::table('users')->value('user_id') ?? 1);
         app(TransferService::class)->directOverride(
             (int) $sourceLocationId,

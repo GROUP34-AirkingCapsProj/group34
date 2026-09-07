@@ -88,7 +88,7 @@ class AirconModel extends Model
      * getPricePerPiece(). Identical for appliances, since
      * getPiecesPerPackage() returns 1 for anything that is not an
      * installation_material — but nothing constrains a member to be an
-     * appliance, so a consumable member would price per package here and per
+     * appliance, so an installation material member would price per package here and per
      * piece in the set path.
      */
     public function totalPrice(): float

@@ -35,7 +35,7 @@ class IssuancePickEnforcementTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $this->setStock($loc->location_id, $p->product_id, 20);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 4, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 9, 'received_at' => now()->subDay(),  'zone_label' => 'Zone 2']);
@@ -54,8 +54,8 @@ class IssuancePickEnforcementTest extends SetTestCase
     {
         $loc     = $this->makeLocation();
         $user    = $this->makeUserAt($loc, 'warehouse_personnel');
-        $onList  = $this->makeConsumable();
-        $offList = $this->makeConsumable(barcode: 'BC-OFFLIST');
+        $onList  = $this->makeInstallationMaterial();
+        $offList = $this->makeInstallationMaterial(barcode: 'BC-OFFLIST');
         $this->setStock($loc->location_id, $onList->product_id, 10);
         $this->setStock($loc->location_id, $offList->product_id, 10);
         $this->makeBatch($offList, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
@@ -77,7 +77,7 @@ class IssuancePickEnforcementTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(barcode: 'BC-ENFORCE');
+        $p    = $this->makeInstallationMaterial(barcode: 'BC-ENFORCE');
         $this->setStock($loc->location_id, $p->product_id, 20);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDay(),  'zone_label' => 'Zone 2']);
@@ -100,7 +100,7 @@ class IssuancePickEnforcementTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(barcode: 'BC-COMMIT');
+        $p    = $this->makeInstallationMaterial(barcode: 'BC-COMMIT');
         $this->setStock($loc->location_id, $p->product_id, 20);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(9), 'zone_label' => 'Zone 1']);
 
@@ -124,7 +124,7 @@ class IssuancePickEnforcementTest extends SetTestCase
         // never fires. Line quantity 1; scan it once (ok), then again (blocked).
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(barcode: 'BC-OVERPICK');
+        $p    = $this->makeInstallationMaterial(barcode: 'BC-OVERPICK');
         $this->setStock($loc->location_id, $p->product_id, 20);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 10, 'received_at' => now()->subDays(3), 'zone_label' => 'Zone 1']);
 

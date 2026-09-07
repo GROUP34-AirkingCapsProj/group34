@@ -15,7 +15,7 @@ class IssuanceOrderController extends Controller
 {
     public function quote(int $id): JsonResponse
     {
-        $issuance = Issuance::with(['details.product.consumableDetail', 'sets'])->findOrFail($id);
+        $issuance = Issuance::with(['details.product.installationMaterialDetail', 'sets'])->findOrFail($id);
         $showCost = $this->canSeeMargin();
 
         // Availability is stock-per-product, so two lines of the same product draw
@@ -56,7 +56,7 @@ class IssuanceOrderController extends Controller
                 'quantity_requested' => $requested,
                 // Packaging so the UI can show a pack/box breakdown like Transfers.
                 'pieces_per_package' => (int) ($detail->product?->pieces_per_package ?? 0),
-                'package_unit'       => $detail->product?->consumableDetail?->package_unit,
+                'package_unit'       => $detail->product?->installationMaterialDetail?->package_unit,
                 'package_price'      => (float) ($detail->product?->unit_price ?? $unitPrice),
                 'unit_price'         => $unitPrice,
                 'line_total'         => round($requested * $unitPrice, 2),
@@ -221,7 +221,7 @@ class IssuanceOrderController extends Controller
                         'cost_price_at_issue' => $detail->product
                             ? round(
                                 (float) $detail->product->cost_price
-                                / max(1, $detail->product->isConsumable()
+                                / max(1, $detail->product->isInstallationMaterial()
                                     ? $detail->product->getPiecesPerPackage()
                                     : 1),
                                 4

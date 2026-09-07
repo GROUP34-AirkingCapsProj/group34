@@ -229,7 +229,13 @@ class BatchController extends Controller
         }
 
         if (in_array('sales', $parts)) {
-            $sales = Sale::with(['customer', 'createdBy', 'status'])->paginate(200);
+            // forUser() matches the `inventory` and `transactions` parts above —
+            // sales carry a location_id and this route has no permission gate.
+            // Relations are soldBy/paymentStatus; the previous createdBy/status
+            // pair does not exist on Sale and made this part throw a 500.
+            $sales = Sale::with(['customer', 'soldBy', 'paymentStatus'])
+                ->forUser($user)
+                ->paginate(200);
             $data['sales'] = [
                 'success'    => true,
                 'data'       => $sales->items(),

@@ -41,7 +41,7 @@ class DraftLineEndpointsTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(barcode: 'BC-DRAFT-GATE');
+        $p    = $this->makeInstallationMaterial(barcode: 'BC-DRAFT-GATE');
         $this->setStock($loc->location_id, $p->product_id, 10);
 
         $issuance = $this->draftAt($loc);
@@ -59,7 +59,7 @@ class DraftLineEndpointsTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $a    = $this->makeConsumable(price: 100);
+        $a    = $this->makeInstallationMaterial(price: 100);
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 2]);
@@ -79,7 +79,7 @@ class DraftLineEndpointsTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(price: 75);
+        $p    = $this->makeInstallationMaterial(price: 75);
 
         $issuance = $this->draftAt($loc);
 
@@ -97,8 +97,8 @@ class DraftLineEndpointsTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $a    = $this->makeConsumable(price: 10);
-        $b    = $this->makeConsumable(price: 20);
+        $a    = $this->makeInstallationMaterial(price: 10);
+        $b    = $this->makeInstallationMaterial(price: 20);
         $issuance = $this->draftAt($loc);
 
         $svc = app(\App\Services\IssuanceOrderService::class);
@@ -121,7 +121,7 @@ class DraftLineEndpointsTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
 
         $issuance = $this->draftAt($loc);
         $issuance->update(['status_id' => IssuanceStatus::pending()]);
@@ -136,7 +136,7 @@ class DraftLineEndpointsTest extends SetTestCase
     {
         $loc     = $this->makeLocation();
         $auditor = $this->makeUserAt($loc, 'auditor');
-        $p       = $this->makeConsumable();
+        $p       = $this->makeInstallationMaterial();
         $issuance = $this->draftAt($loc);
 
         $this->actingAs($auditor, 'sanctum')->postJson(

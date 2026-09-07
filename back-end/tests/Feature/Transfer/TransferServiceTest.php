@@ -10,9 +10,9 @@ class TransferServiceTest extends TransferTestCase
     {
         $from = $this->makeLocation('PKG-SOURCE');
         $to = $this->makeLocation('PKG-DEST');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $product->update(['barcode' => 'BOX-12']);
-        \App\Models\ConsumableDetail::create([
+        \App\Models\InstallationMaterialDetail::create([
             'product_id' => $product->product_id,
             'pieces_per_package' => 12,
             'package_unit' => 'Box',
@@ -53,7 +53,7 @@ class TransferServiceTest extends TransferTestCase
     {
         $from = $this->makeLocation('PDF-SOURCE');
         $to = $this->makeLocation('PDF-DEST');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $product->product_id, 2);
         $user = $this->makeUser();
         $service = new \App\Services\TransferService();
@@ -99,11 +99,11 @@ class TransferServiceTest extends TransferTestCase
         );
     }
 
-    public function test_dispatch_consumable_decrements_source_both_columns(): void
+    public function test_dispatch_installation_material_decrements_source_both_columns(): void
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
 
         $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
@@ -158,7 +158,7 @@ class TransferServiceTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
 
         $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
@@ -181,7 +181,7 @@ class TransferServiceTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
 
         $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
@@ -192,12 +192,12 @@ class TransferServiceTest extends TransferTestCase
         (new \App\Services\TransferService())->dispatch($ist);
     }
 
-    /** Helper: build an In-Transit IST with one dispatched consumable line. */
-    private function inTransitConsumable(int $qty = 3): array
+    /** Helper: build an In-Transit IST with one dispatched installation material line. */
+    private function inTransitInstallationMaterial(int $qty = 3): array
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
         $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
             ['product_id' => $prod->product_id, 'quantity_requested' => $qty, 'quantity_scanned' => $qty],
@@ -208,7 +208,7 @@ class TransferServiceTest extends TransferTestCase
 
     public function test_receive_scan_increments_received_and_logs_scan(): void
     {
-        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        [$from, $to, $prod, $ist] = $this->inTransitInstallationMaterial(3);
         $detail = $ist->details->first();
         $user = $this->makeUser();
 
@@ -246,7 +246,7 @@ class TransferServiceTest extends TransferTestCase
 
     public function test_remove_receive_scan_undoes_bulk_quantity(): void
     {
-        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        [$from, $to, $prod, $ist] = $this->inTransitInstallationMaterial(3);
         $detail = $ist->details->first();
         $user = $this->makeUser();
         $svc = new \App\Services\TransferService();
@@ -264,7 +264,7 @@ class TransferServiceTest extends TransferTestCase
 
     public function test_receive_scan_cannot_exceed_shipped(): void
     {
-        [$from, $to, $prod, $ist] = $this->inTransitConsumable(2);
+        [$from, $to, $prod, $ist] = $this->inTransitInstallationMaterial(2);
         $detail = $ist->details->first();
         $user = $this->makeUser();
         $svc = new \App\Services\TransferService();
@@ -275,7 +275,7 @@ class TransferServiceTest extends TransferTestCase
 
     public function test_receive_scan_rejects_duplicate_barcode(): void
     {
-        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        [$from, $to, $prod, $ist] = $this->inTransitInstallationMaterial(3);
         $detail = $ist->details->first();
         $user = $this->makeUser();
         $svc = new \App\Services\TransferService();
@@ -287,7 +287,7 @@ class TransferServiceTest extends TransferTestCase
 
     public function test_receive_confirm_increments_destination_and_closes(): void
     {
-        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        [$from, $to, $prod, $ist] = $this->inTransitInstallationMaterial(3);
         $detail = $ist->details->first();
         $user = $this->makeUser();
         $svc = new \App\Services\TransferService();
@@ -340,7 +340,7 @@ class TransferServiceTest extends TransferTestCase
 
     public function test_reverse_from_in_transit_restores_source(): void
     {
-        [$from, $to, $prod, $ist] = $this->inTransitConsumable(3);
+        [$from, $to, $prod, $ist] = $this->inTransitInstallationMaterial(3);
         (new \App\Services\TransferService())->reverse($ist->fresh('details'));
 
         $src = \App\Models\Inventory::where('location_id', $from->location_id)
@@ -353,7 +353,7 @@ class TransferServiceTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
         $this->setStock($to->location_id, $prod->product_id, 0);
         $user = $this->makeUser();
@@ -381,7 +381,7 @@ class TransferServiceTest extends TransferTestCase
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
+        $prod = $this->makeInstallationMaterial();
         $this->setStock($from->location_id, $prod->product_id, 10);
         $this->setStock($to->location_id, $prod->product_id, 0);
         $user = $this->makeUser();

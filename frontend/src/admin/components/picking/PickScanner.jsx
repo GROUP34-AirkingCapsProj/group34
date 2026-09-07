@@ -21,7 +21,7 @@ import CameraScanner from '../CameraScanner';
  *              batch_id:      number|null,
  *              zone_label:    string|null,     // where to walk to
  *              received_at:   string|null,     // 'Y-m-d H:i:s'
- *              quantity:      number,          // 1 for serialized, take-count for consumables
+ *              quantity:      number,          // 1 for serialized, take-count for installation materials
  *              // transfer pick-list rows additionally carry:
  *              // pieces_per_package?: number, package_unit?: string
  *            }>
@@ -32,7 +32,7 @@ import CameraScanner from '../CameraScanner';
  *
  *   onScan(barcode, confirmedZone, quantity, options) → Promise<serverResponse>
  *          Called on every Enter. `confirmedZone` is the zone string the picker
- *          confirmed for a CONSUMABLE step; it is null for serialized steps (the
+ *          confirmed for a INSTALLATION MATERIAL step; it is null for serialized steps (the
  *          serial identifies the batch on its own). Must resolve to the server's
  *          scan response. The scan endpoint has TWO rejection shapes the parent
  *          must surface here:
@@ -149,7 +149,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   const serialized = isSerializedStep(currentStep);
   const suggestion = currentStep?.suggestions?.[0] || null;
   const suggestedZone = suggestion?.zone_label || '';
-  // Quantity is fixed by the confirmed order. Consumables apply the current
+  // Quantity is fixed by the confirmed order. Installation materials apply the current
   // FIFO take in one scan; serialized products remain one scan per serial.
   const scanQuantity = serialized ? 1 : Math.max(1, Number(suggestion?.quantity) || 1);
 

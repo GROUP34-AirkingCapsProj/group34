@@ -9,7 +9,7 @@ class BatchSerialResolver
 {
     /**
      * Map each batch to the serial numbers (appliances) or scanned barcodes
-     * (consumables) belonging to it, keyed by batch_id.
+     * (installation materials) belonging to it, keyed by batch_id.
      *
      * @param  \Illuminate\Support\Collection $batches items exposing
      *         batch_id, product_id, location_id, receiving_id
@@ -39,8 +39,8 @@ class BatchSerialResolver
                 $applianceMap[$key][] = $s->serial_number;
             });
 
-        // Consumable scanned barcodes.
-        $consumableMap = [];
+        // Installation material scanned barcodes.
+        $installationMaterialMap = [];
         DB::table('receiving_details')
             ->join('receivings', 'receivings.receiving_id', '=', 'receiving_details.receiving_id')
             ->whereIn('receiving_details.receiving_id', $receivingIds)
@@ -53,9 +53,9 @@ class BatchSerialResolver
                 'receivings.location_id as location_id',
                 'receiving_details.receiving_id as receiving_id',
             ])
-            ->each(function ($r) use (&$consumableMap) {
+            ->each(function ($r) use (&$installationMaterialMap) {
                 $key = $r->product_id . '|' . $r->location_id . '|' . $r->receiving_id;
-                $consumableMap[$key][] = $r->scanned_barcode;
+                $installationMaterialMap[$key][] = $r->scanned_barcode;
             });
 
         $result = [];
@@ -65,7 +65,7 @@ class BatchSerialResolver
                 continue;
             }
             $key = $batch->product_id . '|' . $batch->location_id . '|' . $batch->receiving_id;
-            $result[$batch->batch_id] = $applianceMap[$key] ?? $consumableMap[$key] ?? [];
+            $result[$batch->batch_id] = $applianceMap[$key] ?? $installationMaterialMap[$key] ?? [];
         }
 
         return $result;

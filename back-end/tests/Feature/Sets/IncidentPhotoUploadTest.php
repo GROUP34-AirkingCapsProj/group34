@@ -134,7 +134,7 @@ class IncidentPhotoUploadTest extends SetTestCase
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $path = $this->uploadedPath($wp);
 
@@ -163,7 +163,7 @@ class IncidentPhotoUploadTest extends SetTestCase
 
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $path = $this->uploadedPath($wp);
 
@@ -183,7 +183,7 @@ class IncidentPhotoUploadTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         // A provenance claim about a photo that does not exist is meaningless.
         $this->actingAs($wp, 'sanctum')->postJson('/api/incident-reports', [
@@ -204,7 +204,7 @@ class IncidentPhotoUploadTest extends SetTestCase
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $path = $this->uploadedPath($wp);
 

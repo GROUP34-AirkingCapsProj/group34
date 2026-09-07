@@ -67,7 +67,7 @@ class EditAfterDispatchLedgerTest extends TransferTestCase
 
         $from    = $this->makeLocation('Source WH');
         $to      = $this->makeLocation('Dest WH');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $admin   = $this->makeUserAt($from, 'admin');
 
         $this->setStock($from->location_id, $product->product_id, 20);
@@ -97,7 +97,7 @@ class EditAfterDispatchLedgerTest extends TransferTestCase
     {
         $from    = $this->makeLocation('Source WH');
         $to      = $this->makeLocation('Dest WH');
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $admin   = $this->makeUserAt($from, 'admin');
 
         $this->setStock($from->location_id, $product->product_id, 20);

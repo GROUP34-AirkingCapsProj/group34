@@ -8,8 +8,8 @@ class ProductSetModelTest extends SetTestCase
 {
     public function test_set_computes_price_from_its_lines(): void
     {
-        $a = $this->makeConsumable(price: 100);
-        $b = $this->makeConsumable(price: 25);
+        $a = $this->makeInstallationMaterial(price: 100);
+        $b = $this->makeInstallationMaterial(price: 25);
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 2, 'sort_order' => 1]);
@@ -21,7 +21,7 @@ class ProductSetModelTest extends SetTestCase
 
     public function test_hard_deleting_a_set_removes_its_lines(): void
     {
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
         $set = ProductSet::create(['capacity_rating' => '1HP', 'variant' => 'inverter']);
         $set->lines()->create(['product_id' => $p->product_id, 'quantity' => 1]);
 
@@ -33,7 +33,7 @@ class ProductSetModelTest extends SetTestCase
 
     public function test_soft_deleting_a_set_keeps_its_lines_so_restore_works(): void
     {
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
         $set = ProductSet::create(['capacity_rating' => '2.5HP', 'variant' => 'inverter']);
         $set->lines()->create(['product_id' => $p->product_id, 'quantity' => 3]);
 

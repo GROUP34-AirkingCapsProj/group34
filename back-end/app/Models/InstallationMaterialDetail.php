@@ -6,11 +6,11 @@ use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ConsumableDetail extends Model
+class InstallationMaterialDetail extends Model
 {
     use Auditable;
     protected $table = 'installation_material_details';
-    protected $primaryKey = 'consumable_detail_id';
+    protected $primaryKey = 'installation_material_detail_id';
 
     protected $fillable = [
         'product_id',

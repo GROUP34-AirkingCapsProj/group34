@@ -83,7 +83,7 @@ class ItemSerial extends Model
      *
      * Matches EITHER identifier a unit can carry: the generated INT-... tag in
      * serial_number, or the supplier's own barcode in supplier_barcode. A
-     * consumable's supplier barcode moved out of serial_number when tagging
+     * installation material's supplier barcode moved out of serial_number when tagging
      * landed, so matching serial_number alone silently stopped resolving those
      * scans to a unit — and with it, to the batch FIFO needs.
      *

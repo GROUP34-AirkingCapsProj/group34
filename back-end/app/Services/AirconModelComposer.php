@@ -262,7 +262,7 @@ class AirconModelComposer
         $byProduct = ApplianceDetail::whereIn('product_id', $productIds)
             ->pluck('unit_role', 'product_id');
 
-        // A product with no appliance_details row — a consumable slipped into a
+        // A product with no appliance_details row — an installation material slipped into a
         // model, say — maps to null and so satisfies no branch of the rule.
         return array_values(array_unique(array_map(
             fn (int $id) => $byProduct->get($id),

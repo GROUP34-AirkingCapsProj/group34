@@ -30,7 +30,7 @@ use App\Models\UnitLookup;
  * Writing that round trip also surfaced a separate, pre-existing break: the
  * approve path wrote pending_products.created_product_id, a column that does
  * not exist in either database (it is named product_id). Every approval —
- * appliance and consumable alike — died with SQLSTATE[42S22] and rolled the
+ * appliance and installation material alike — died with SQLSTATE[42S22] and rolled the
  * whole transaction back, so no product was ever created. pending_products
  * is empty in production, so nobody had hit it yet. Fixed alongside, because
  * the approval half of these tests cannot run otherwise.

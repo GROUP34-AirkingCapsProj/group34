@@ -507,7 +507,7 @@ class AirconDocumentGroupingTest extends AirconTestCase
      * Measured as a difference of differences — tagged minus untagged at two
      * line counts — rather than as raw totals, because these endpoints already
      * carry a per-line cost that has nothing to do with grouping: Product
-     * appends `pieces_per_package`, whose accessor lazy-loads consumableDetail,
+     * appends `pieces_per_package`, whose accessor lazy-loads installationMaterialDetail,
      * and only the purchase-order endpoint eager-loads it. That pre-existing
      * N+1 is present in the untagged measurement too, so subtracting cancels it
      * and leaves exactly what grouping added.

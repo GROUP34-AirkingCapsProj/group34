@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApplianceDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Inventory;
 use App\Models\PendingProduct;
 use App\Models\Product;
@@ -72,10 +72,10 @@ class PendingProductController extends Controller
         return $this->success([
             'supply_types'    => self::supplyTypes(),
             'packaging_units' => self::packagingUnits(),
-        ], 'Consumable catalog');
+        ], 'Installation material catalog');
     }
 
-    /** GET /api/supply-types — canonical list (same validation as consumable registration). */
+    /** GET /api/supply-types — canonical list (same validation as installation material registration). */
     public function supplyTypesIndex()
     {
         return $this->success(self::supplyTypes(), 'Supply types');
@@ -83,20 +83,20 @@ class PendingProductController extends Controller
 
     public function store(Request $request)
     {
-        $kind = $request->input('registration_kind', 'consumable');
+        $kind = $request->input('registration_kind', 'installation_material');
 
         try {
             if ($kind === 'appliance') {
                 return $this->storeAppliance($request);
             }
 
-            return $this->storeConsumable($request);
+            return $this->storeInstallationMaterial($request);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
         }
     }
 
-    private function storeConsumable(Request $request)
+    private function storeInstallationMaterial(Request $request)
     {
         $packKeys = self::packagingKeys();
 
@@ -121,7 +121,7 @@ class PendingProductController extends Controller
         $generatedName = "{$validated['supply_type']} · {$packLabel} · {$barcode}";
 
         $row = PendingProduct::create([
-            'registration_kind'    => 'consumable',
+            'registration_kind'    => 'installation_material',
             'barcode'              => $barcode,
             'supply_type'          => $validated['supply_type'],
             'packaging_unit'       => $validated['packaging_unit'],
@@ -228,7 +228,7 @@ class PendingProductController extends Controller
                     return $this->approveAppliance($pendingProduct, $finalName, $uid);
                 }
 
-                return $this->approveConsumable($pendingProduct, $finalName, $uid);
+                return $this->approveInstallationMaterial($pendingProduct, $finalName, $uid);
             });
         } catch (\Throwable $e) {
             return $this->error('Approval failed: '.$e->getMessage(), 500);
@@ -236,17 +236,17 @@ class PendingProductController extends Controller
 
         RealtimeBroadcaster::approvalQueueChanged((int) $pendingProduct->opening_location_id, 'product_approved');
 
-        $product->load(['category', 'status', 'applianceDetail.brand', 'consumableDetail.unit']);
+        $product->load(['category', 'status', 'applianceDetail.brand', 'installationMaterialDetail.unit']);
 
         return $this->success($product, 'Product approved and added to Item Master');
     }
 
-    private function approveConsumable(PendingProduct $pending, string $finalName, ?int $uid): Product
+    private function approveInstallationMaterial(PendingProduct $pending, string $finalName, ?int $uid): Product
     {
         $productCode = $this->uniqueProductCode();
 
         $description = sprintf(
-            'Consumable — Supply type: %s; Packaging: %s; Barcode: %s',
+            'Installation Material — Supply type: %s; Packaging: %s; Barcode: %s',
             $pending->supply_type ?? '—',
             self::packagingLabel((string) $pending->packaging_unit),
             $pending->barcode
@@ -266,7 +266,7 @@ class PendingProductController extends Controller
             'cost_price'   => $pending->cost_price,
         ]);
 
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id'         => $product->product_id,
             'unit_id'            => null,
             'pieces_per_package' => $pending->quantity_per_package,
@@ -344,7 +344,7 @@ class PendingProductController extends Controller
             ]
         );
 
-        $openingProduct = Product::with(['consumableDetail', 'applianceDetail'])->find($productId);
+        $openingProduct = Product::with(['installationMaterialDetail', 'applianceDetail'])->find($productId);
         $openingPpp = ($openingProduct && ! $openingProduct->isSerialized())
             ? $openingProduct->getPiecesPerPackage()
             : 0;

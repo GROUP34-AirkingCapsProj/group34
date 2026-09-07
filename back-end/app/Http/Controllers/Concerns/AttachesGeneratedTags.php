@@ -65,7 +65,7 @@ trait AttachesGeneratedTags
         // system minted and can reprint would be a lie. Asking the model rather
         // than matching an 'INT-' prefix keeps this in step with the rule the
         // receiving path actually branches on.
-        $taggedProductIds = empty($productIds) ? [] : Product::with(['applianceDetail', 'consumableDetail'])
+        $taggedProductIds = empty($productIds) ? [] : Product::with(['applianceDetail', 'installationMaterialDetail'])
             ->whereIn('product_id', $productIds)
             ->get()
             ->reject(fn (Product $p) => $p->isSerialized())

@@ -64,7 +64,7 @@ class SetSchemaTest extends SetTestCase
             'updated_at' => now(),
         ], 'set_id');
 
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         DB::table('product_set_lines')->insert([
             'set_id'     => $setId,

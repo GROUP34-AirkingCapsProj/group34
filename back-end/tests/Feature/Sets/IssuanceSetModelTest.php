@@ -13,7 +13,7 @@ class IssuanceSetModelTest extends SetTestCase
     {
         $loc      = $this->makeLocation();
         $customer = $this->makeCustomer();
-        $product  = $this->makeConsumable();
+        $product  = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
 
@@ -79,7 +79,7 @@ class IssuanceSetModelTest extends SetTestCase
     public function test_active_scope_excludes_released_and_expired_reservations_but_includes_live_one(): void
     {
         $loc     = $this->makeLocation();
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         $released = PickReservation::create([
             'source_type' => 'issuance',
@@ -119,7 +119,7 @@ class IssuanceSetModelTest extends SetTestCase
     public function test_for_source_scope_does_not_cross_source_types_with_same_numeric_id(): void
     {
         $loc     = $this->makeLocation();
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         $issuanceReservation = PickReservation::create([
             'source_type' => 'issuance',
@@ -153,7 +153,7 @@ class IssuanceSetModelTest extends SetTestCase
     public function test_active_and_for_source_compose_without_leaking_rows(): void
     {
         $loc     = $this->makeLocation();
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
 
         $base = [
             'product_id'  => $product->product_id,

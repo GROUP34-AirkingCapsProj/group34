@@ -24,7 +24,7 @@ class InboundReturnTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->setStock($loc->location_id, $p->product_id, $onHand);
         $b = $this->makeBatch($p, $loc, ['quantity_remaining' => $onHand, 'received_at' => now()]);

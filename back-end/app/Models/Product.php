@@ -64,8 +64,8 @@ class Product extends Model
         return $query->where('product_type', 'appliance');
     }
 
-    /** Scope: only consumable supply records. */
-    public function scopeConsumables($query)
+    /** Scope: only installation material supply records. */
+    public function scopeInstallationMaterials($query)
     {
         return $query->where('product_type', 'installation_material');
     }
@@ -79,7 +79,7 @@ class Product extends Model
         return strtolower($this->product_type ?? '') === 'appliance';
     }
 
-    public function isConsumable(): bool
+    public function isInstallationMaterial(): bool
     {
         return strtolower($this->product_type ?? '') === 'installation_material';
     }
@@ -92,10 +92,10 @@ class Product extends Model
                 : $this->load('applianceDetail')->applianceDetail;
             return (bool) ($detail->is_serialized ?? true);
         }
-        if ($this->isConsumable()) {
-            $detail = $this->relationLoaded('consumableDetail')
-                ? $this->consumableDetail
-                : $this->load('consumableDetail')->consumableDetail;
+        if ($this->isInstallationMaterial()) {
+            $detail = $this->relationLoaded('installationMaterialDetail')
+                ? $this->installationMaterialDetail
+                : $this->load('installationMaterialDetail')->installationMaterialDetail;
             return (bool) ($detail->is_serialized ?? false);
         }
         return false;
@@ -103,10 +103,10 @@ class Product extends Model
 
     public function getPiecesPerPackage(): int
     {
-        if ($this->isConsumable()) {
-            $detail = $this->relationLoaded('consumableDetail')
-                ? $this->consumableDetail
-                : $this->load('consumableDetail')->consumableDetail;
+        if ($this->isInstallationMaterial()) {
+            $detail = $this->relationLoaded('installationMaterialDetail')
+                ? $this->installationMaterialDetail
+                : $this->load('installationMaterialDetail')->installationMaterialDetail;
             return max(1, (int) ($detail->pieces_per_package ?? 1));
         }
         return 1;
@@ -127,9 +127,9 @@ class Product extends Model
         return $this->hasOne(ApplianceDetail::class, 'product_id', 'product_id');
     }
 
-    public function consumableDetail()
+    public function installationMaterialDetail()
     {
-        return $this->hasOne(ConsumableDetail::class, 'product_id', 'product_id');
+        return $this->hasOne(InstallationMaterialDetail::class, 'product_id', 'product_id');
     }
 
     public function category(): BelongsTo
@@ -236,7 +236,7 @@ class Product extends Model
     public function getPiecesPerPackageAttribute($value): int
     {
         if ($value !== null) return (int) $value;
-        return (int) ($this->consumableDetail?->pieces_per_package ?? 1);
+        return (int) ($this->installationMaterialDetail?->pieces_per_package ?? 1);
     }
 
     /**
@@ -245,7 +245,7 @@ class Product extends Model
      */
     public function getIssuableDropdownUnits(): array
     {
-        $unitIds = collect([$this->consumableDetail?->unit_id])
+        $unitIds = collect([$this->installationMaterialDetail?->unit_id])
             ->filter()
             ->unique()
             ->values();

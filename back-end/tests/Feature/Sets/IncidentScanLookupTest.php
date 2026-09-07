@@ -149,7 +149,7 @@ class IncidentScanLookupTest extends SetTestCase
     public function test_a_product_barcode_still_resolves(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable(barcode: 'BC-LOOKUP-01');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-LOOKUP-01');
 
         $hit = $this->resolver()->callAnyState('BC-LOOKUP-01', (int) $loc->location_id);
         $this->assertSame('product_barcode', $hit['matched_by']);
@@ -185,7 +185,7 @@ class IncidentScanLookupTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable(barcode: 'BC-EP-001');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-EP-001');
         $this->setStock($loc->location_id, $p->product_id, 8);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
@@ -235,7 +235,7 @@ class IncidentScanLookupTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $au  = $this->makeUserAt($loc, 'auditor');   // read-only role
-        $p   = $this->makeConsumable(barcode: 'BC-EP-DENY');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-EP-DENY');
 
         $this->actingAs($au, 'sanctum')
             ->getJson("/api/incident-reports/lookup?barcode=BC-EP-DENY&location_id={$loc->location_id}")
@@ -252,7 +252,7 @@ class IncidentScanLookupTest extends SetTestCase
         $a = $this->makeLocation('A');
         $b = $this->makeLocation('B');
         $wp = $this->makeUserAt($a, 'warehouse_personnel');   // scoped to A
-        $p  = $this->makeConsumable(barcode: 'BC-SCOPE-01');
+        $p  = $this->makeInstallationMaterial(barcode: 'BC-SCOPE-01');
 
         $this->actingAs($wp, 'sanctum')
             ->getJson("/api/incident-reports/lookup?barcode=BC-SCOPE-01&location_id={$b->location_id}")
@@ -261,7 +261,7 @@ class IncidentScanLookupTest extends SetTestCase
     }
 
     /**
-     * A receiving-label match is a legitimate SUCCESS — a consumable, or a unit
+     * A receiving-label match is a legitimate SUCCESS — an installation material, or a unit
      * whose serial row was purged. This is the path Task 1's shadowing fix
      * protects, so a refactor that turned it back into a 404 must fail loudly.
      */
@@ -305,15 +305,15 @@ class IncidentScanLookupTest extends SetTestCase
             ->assertJsonValidationErrors(['barcode', 'location_id']);
     }
 
-    public function test_the_lookup_returns_pack_size_for_a_consumable(): void
+    public function test_the_lookup_returns_pack_size_for_an_installation_material(): void
     {
         $loc = $this->makeLocation();
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p   = $this->makeConsumable(barcode: 'BC-PACK-01');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-PACK-01');
 
-        // A consumable's pack size lives on installation_material_details;
+        // An installation material's pack size lives on installation_material_details;
         // Product appends pieces_per_package as an accessor over it.
-        \App\Models\ConsumableDetail::updateOrCreate(
+        \App\Models\InstallationMaterialDetail::updateOrCreate(
             ['product_id' => $p->product_id],
             ['pieces_per_package' => 10, 'package_unit' => 'Box']
         );

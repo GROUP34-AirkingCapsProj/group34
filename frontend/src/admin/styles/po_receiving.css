@@ -744,7 +744,7 @@
 }
 .bsr-scanned-item-time { font-size: 12px; color: #9ca3af; white-space: nowrap; }
 
-/* ── Package qty stepper (consumables) ─────────────────── */
+/* ── Package qty stepper (installation materials) ─────────────────── */
 .bsr-pkg-stepper-card {
   margin: 12px 18px 0;
   padding: 14px;

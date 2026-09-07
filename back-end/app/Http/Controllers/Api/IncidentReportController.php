@@ -24,7 +24,7 @@ class IncidentReportController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = IncidentReport::with(['product.consumableDetail', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance', 'status'])
+        $query = IncidentReport::with(['product.installationMaterialDetail', 'batch', 'location', 'reportedBy', 'reviewedBy', 'relatedIssuance', 'status'])
             ->forUser(Auth::user());   // location scoping, same trait every other list uses
 
         // `open` is strictly status Open and is kept for callers that mean it.
@@ -77,7 +77,7 @@ class IncidentReportController extends Controller
                 // a pack breakdown. quantity is PIECES; a reviewer approving a
                 // write-off needs to see "25 pcs · 2 Box + 5 pcs", not a bare 25.
                 'pieces_per_package'      => (int) ($i->product?->pieces_per_package ?? 1),
-                'package_unit'            => $i->product?->consumableDetail?->package_unit,
+                'package_unit'            => $i->product?->installationMaterialDetail?->package_unit,
                 'batch_id'                => $i->batch_id !== null ? (int) $i->batch_id : null,
                 'expected_zone'           => $i->expected_zone,
                 'actual_zone'             => $i->actual_zone,
@@ -199,10 +199,10 @@ class IncidentReportController extends Controller
                     // Packaging, so the form can offer pack + loose-pieces entry
                     // instead of one unlabelled box. pieces_per_package is an
                     // appended accessor on Product (defaults to 1); package_unit
-                    // lives on the consumable detail row and is null for
+                    // lives on the installation material detail row and is null for
                     // appliances, which is the client's "no pack size" signal.
                     'pieces_per_package' => (int) ($product->pieces_per_package ?? 1),
-                    'package_unit'       => $product->consumableDetail?->package_unit,
+                    'package_unit'       => $product->installationMaterialDetail?->package_unit,
                 ],
                 'serial' => $serial === null ? null : [
                     'serial_id'     => (int) $serial->serial_id,

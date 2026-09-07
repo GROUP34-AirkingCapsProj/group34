@@ -74,7 +74,7 @@ class IncidentResolutionTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $b    = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $res = $this->actingAs($user, 'sanctum')->postJson('/api/incident-reports', [
@@ -97,7 +97,7 @@ class IncidentResolutionTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable();
+        $p    = $this->makeInstallationMaterial();
         $b    = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE);
@@ -122,7 +122,7 @@ class IncidentResolutionTest extends SetTestCase
     public function test_confirming_missing_deducts_the_batch_and_marks_the_item_missing(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 3);
@@ -159,7 +159,7 @@ class IncidentResolutionTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 3);
@@ -192,7 +192,7 @@ class IncidentResolutionTest extends SetTestCase
     public function test_confirming_defective_deducts_the_batch_and_scraps_the_item(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 8, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE, 2);
@@ -222,7 +222,7 @@ class IncidentResolutionTest extends SetTestCase
     {
         $loc     = $this->makeLocation();
         $wrong   = $this->makeAppliance();
-        $correct = $this->makeConsumable();
+        $correct = $this->makeInstallationMaterial();
         $b = $this->makeBatch($wrong, $loc, ['quantity_remaining' => 4, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $wrong, $b, IncidentReport::REASON_WRONG_TYPE, 4);
@@ -264,7 +264,7 @@ class IncidentResolutionTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 4, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_WRONG_TYPE);
@@ -295,7 +295,7 @@ class IncidentResolutionTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 7, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_ZONE_MISMATCH, 7);
@@ -331,7 +331,7 @@ class IncidentResolutionTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $ia  = $this->makeUserAt($loc, 'inventory_analyst');
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_DEFECTIVE, 1);
@@ -351,7 +351,7 @@ class IncidentResolutionTest extends SetTestCase
         $loc    = $this->makeLocation();
         $ia     = $this->makeUserAt($loc, 'inventory_analyst');
         $picker = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p      = $this->makeConsumable();
+        $p      = $this->makeInstallationMaterial();
         $b      = $this->makeBatch($p, $loc, ['quantity_remaining' => 9, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $this->openIncident($loc, $p, $b, IncidentReport::REASON_MISSING, 1, (int) $picker->user_id);
@@ -378,7 +378,7 @@ class IncidentResolutionTest extends SetTestCase
     public function test_deduction_over_the_batch_does_not_diverge_batch_and_location(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         // Location holds 50 (a bigger pool), but the incident's batch has only 3.
         $this->setStock($loc->location_id, $p->product_id, 50);
@@ -418,7 +418,7 @@ class IncidentResolutionTest extends SetTestCase
     public function test_a_batchless_wrong_type_is_filed_and_decided_normally(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $incident = $this->openIncident($loc, $p, null, IncidentReport::REASON_WRONG_TYPE, 2);
 

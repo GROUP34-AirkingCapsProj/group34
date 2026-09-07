@@ -168,7 +168,7 @@ class BarcodeQueueController extends Controller
      *
      * The eager loads are not optional: TagPrintPolicy::tier() calls
      * Product::isSerialized(), which lazy-loads applianceDetail /
-     * consumableDetail per row when they are absent. Without them a page of
+     * installationMaterialDetail per row when they are absent. Without them a page of
      * 24 rows fires a couple of hundred extra queries.
      *
      * Date and receipt filters reach through the receiving relation. A tag
@@ -180,7 +180,7 @@ class BarcodeQueueController extends Controller
     {
         $query = ItemSerial::query()
             ->with([
-                'product.applianceDetail', 'product.consumableDetail',
+                'product.applianceDetail', 'product.installationMaterialDetail',
                 'location', 'receiving',
             ])
             /* The same location scope Inventory and Receiving apply. A

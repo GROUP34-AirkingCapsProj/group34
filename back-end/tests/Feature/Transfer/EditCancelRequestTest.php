@@ -22,8 +22,8 @@ class EditCancelRequestTest extends TransferTestCase
     public function test_requester_can_edit_pending_lines_and_notes(): void
     {
         $dst = $this->makeLocation('Dst');
-        $p1 = $this->makeConsumable();
-        $p2 = $this->makeConsumable();
+        $p1 = $this->makeInstallationMaterial();
+        $p2 = $this->makeInstallationMaterial();
         $wp = $this->makeUserAt($dst, 'warehouse_personnel');
         $t = $this->pendingPull($dst, $p1, $wp);
 
@@ -43,7 +43,7 @@ class EditCancelRequestTest extends TransferTestCase
     public function test_non_requester_non_analyst_cannot_edit(): void
     {
         $dst = $this->makeLocation('Dst');
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
         $owner = $this->makeUserAt($dst, 'warehouse_personnel');
         $other = $this->makeUserAt($this->makeLocation('Other'), 'warehouse_personnel');
         $t = $this->pendingPull($dst, $p, $owner);
@@ -56,7 +56,7 @@ class EditCancelRequestTest extends TransferTestCase
     public function test_cannot_edit_once_approved(): void
     {
         $dst = $this->makeLocation('Dst');
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
         $wp = $this->makeUserAt($dst, 'warehouse_personnel');
         $t = $this->pendingPull($dst, $p, $wp);
         $t->status_id = $this->statusId('Approved');
@@ -70,7 +70,7 @@ class EditCancelRequestTest extends TransferTestCase
     public function test_requester_can_cancel_pending_and_it_soft_deletes(): void
     {
         $dst = $this->makeLocation('Dst');
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
         $wp = $this->makeUserAt($dst, 'warehouse_personnel');
         $t = $this->pendingPull($dst, $p, $wp);
 

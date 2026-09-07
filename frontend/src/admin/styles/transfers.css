@@ -133,6 +133,6 @@
 .tf-line-avail--ok { color: #059669; }
 .tf-line-avail--short { color: #dc2626; }
 
-/* Package + pieces quantity entry (consumables) */
+/* Package + pieces quantity entry (installation materials) */
 .tf-qty-field { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; }
 .tf-qty-unit { font-size: 9.5px; color: var(--ak-muted, #6b7280); line-height: 1; }

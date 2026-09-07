@@ -423,7 +423,7 @@ const InventoryManagement = () => {
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
   const getItemCode    = (item) => item.product?.product_code || item.item?.code || item.sku || '';
-  // Appliance model code, falling back to barcode for consumables/bulk items.
+  // Appliance model code, falling back to barcode for installation materials/bulk items.
   const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || item.product?.barcode || '';
   const getItemQty     = (item) => Number(item.quantity_on_hand ?? item.quantity ?? 0);
   // Pieces named by an unsettled incident. Physically present and still counted
@@ -1417,8 +1417,8 @@ const InventoryManagement = () => {
                       </div>
                       <div className="invd-field">
                         <span className="invd-label">Type</span>
-                        <span className={`invd-type-badge ${historyData?.product?.product_type === 'appliance' ? 'invd-type-appliance' : 'invd-type-consumable'}`}>
-                          {historyData?.product?.product_type === 'appliance' ? 'Appliance' : 'Consumable'}
+                        <span className={`invd-type-badge ${historyData?.product?.product_type === 'appliance' ? 'invd-type-appliance' : 'invd-type-installation-material'}`}>
+                          {historyData?.product?.product_type === 'appliance' ? 'Appliance' : 'Installation Material'}
                         </span>
                       </div>
                       <div className="invd-field">

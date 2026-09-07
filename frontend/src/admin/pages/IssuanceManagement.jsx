@@ -67,7 +67,9 @@ const IssuanceManagement = () => {
     try {
       const [locRes, prodRes, statRes] = await Promise.all([
         locationsAPI.getAll(),
-        productsAPI.getAll({ per_page: 500 }),
+        // Every page: this feeds the "Items to Issue" product dropdown, and a
+        // product the cap left out cannot be issued at all.
+        productsAPI.getAllPages(),
         statusAPI.getAll(),
       ]);
       setLocations(Array.isArray(locRes?.data) ? locRes.data : []);

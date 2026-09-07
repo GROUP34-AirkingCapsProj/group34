@@ -21,7 +21,7 @@ class ReceivingStoresZoneLabelTest extends TestCase
             'location_code' => 'LOC-' . uniqid(), 'location_name' => 'Test Loc', 'location_type' => 'warehouse',
         ]);
         $product = Product::create([
-            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Consumable', 'product_type' => 'installation_material',
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Installation material', 'product_type' => 'installation_material',
         ]);
         $roleId = (int) (DB::table('roles')->min('role_id') ?? 1);
         $user = User::create([
@@ -56,7 +56,7 @@ class ReceivingStoresZoneLabelTest extends TestCase
             'location_code' => 'LOC-' . uniqid(), 'location_name' => 'Test Loc', 'location_type' => 'warehouse',
         ]);
         $product = Product::create([
-            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Consumable', 'product_type' => 'installation_material',
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Installation material', 'product_type' => 'installation_material',
         ]);
         $roleId = (int) (DB::table('roles')->min('role_id') ?? 1);
         $user = User::create([
@@ -91,7 +91,7 @@ class ReceivingStoresZoneLabelTest extends TestCase
             'location_code' => 'LOC-' . uniqid(), 'location_name' => 'Test Loc', 'location_type' => 'warehouse',
         ]);
         $product = Product::create([
-            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Consumable', 'product_type' => 'installation_material',
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Installation material', 'product_type' => 'installation_material',
         ]);
         $roleId = (int) (DB::table('roles')->min('role_id') ?? 1);
         $user = User::create([

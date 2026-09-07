@@ -10,7 +10,7 @@ class PoReceivingStatusService
 {
     public function sync(int $poId, $userId = null): void
     {
-        $details = PurchaseOrderDetail::with('product.consumableDetail')
+        $details = PurchaseOrderDetail::with('product.installationMaterialDetail')
             ->where('po_id', $poId)
             ->get(['po_detail_id', 'product_id', 'quantity_ordered']);
 
@@ -31,14 +31,14 @@ class PoReceivingStatusService
             if (! $product->relationLoaded('applianceDetail')) {
                 $product->load('applianceDetail');
             }
-            if (! $product->relationLoaded('consumableDetail')) {
-                $product->load('consumableDetail');
+            if (! $product->relationLoaded('installationMaterialDetail')) {
+                $product->load('installationMaterialDetail');
             }
 
             $isSerialized  = $product->isSerialized();
             $pcsPerPackage = $product->getPiecesPerPackage();
 
-            // quantity_ordered is in units for appliances, packages for consumables.
+            // quantity_ordered is in units for appliances, packages for installation materials.
             // quantity_amount is always stored in pieces — convert ordered to pieces.
             $orderedPieces = $isSerialized
                 ? (int) $d->quantity_ordered

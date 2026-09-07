@@ -28,8 +28,8 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_adding_a_set_expands_lines_multiplied_by_set_quantity(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable(price: 100);
-        $b = $this->makeConsumable(price: 25);
+        $a = $this->makeInstallationMaterial(price: 100);
+        $b = $this->makeInstallationMaterial(price: 25);
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 2, 'sort_order' => 1]);
@@ -47,7 +47,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_adding_the_same_set_twice_creates_two_independent_groups(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable();
+        $a = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
@@ -63,7 +63,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_adding_a_custom_line_has_no_set_id(): void
     {
         $issuance = $this->draft();
-        $p = $this->makeConsumable(price: 75);
+        $p = $this->makeInstallationMaterial(price: 75);
 
         $detail = app(IssuanceOrderService::class)->addCustomLine($issuance, $p->product_id, 3);
 
@@ -72,11 +72,11 @@ class IssuanceOrderServiceTest extends SetTestCase
         $this->assertEqualsWithDelta(75.0, (float) $detail->unit_price, 0.001);
     }
 
-    public function test_packaged_consumable_is_priced_per_piece_in_the_order(): void
+    public function test_packaged_installation_material_is_priced_per_piece_in_the_order(): void
     {
         $issuance = $this->draft();
-        $product = $this->makeConsumable(price: 50);
-        $product->consumableDetail()->create([
+        $product = $this->makeInstallationMaterial(price: 50);
+        $product->installationMaterialDetail()->create([
             'pieces_per_package' => 5,
             'package_unit' => 'box',
         ]);
@@ -91,7 +91,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_editing_a_set_line_flags_the_group_as_modified(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable();
+        $a = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 5]);
@@ -109,8 +109,8 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_removing_a_set_line_also_flags_modified(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable();
-        $b = $this->makeConsumable();
+        $a = $this->makeInstallationMaterial();
+        $b = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
@@ -129,7 +129,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_lines_cannot_be_changed_once_the_order_leaves_draft(): void
     {
         $issuance = $this->draft();
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
         $issuance->update(['status_id' => IssuanceStatus::pending()]);
 
         $this->expectException(\RuntimeException::class);
@@ -139,7 +139,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_set_line_with_fractional_quantity_rounds_to_whole_pieces_on_expansion(): void
     {
         $issuance = $this->draft();
-        $product  = $this->makeConsumable(price: 10);
+        $product  = $this->makeInstallationMaterial(price: 10);
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         // A BOQ line of 1.5 lengths rounds up to 2 whole pieces before it is
@@ -160,8 +160,8 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_removing_a_custom_line_does_not_touch_any_set_group(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable();
-        $custom = $this->makeConsumable();
+        $a = $this->makeInstallationMaterial();
+        $custom = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
@@ -180,7 +180,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     {
         $issuanceA = $this->draft();
         $issuanceB = $this->draft();
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
 
         $svc = app(IssuanceOrderService::class);
         $detail = $svc->addCustomLine($issuanceA, $p->product_id, 1);
@@ -193,7 +193,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     {
         $issuanceA = $this->draft();
         $issuanceB = $this->draft();
-        $p = $this->makeConsumable();
+        $p = $this->makeInstallationMaterial();
 
         $svc = app(IssuanceOrderService::class);
         $detail = $svc->addCustomLine($issuanceA, $p->product_id, 1);
@@ -207,7 +207,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_add_set_with_zero_quantity_throws_and_leaves_no_partial_group(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable();
+        $a = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
@@ -228,7 +228,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_add_set_with_negative_quantity_throws(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable();
+        $a = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
@@ -242,7 +242,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_removing_the_last_line_of_a_group_leaves_the_empty_group_row_present(): void
     {
         $issuance = $this->draft();
-        $a = $this->makeConsumable();
+        $a = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1]);
@@ -262,7 +262,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_updating_a_line_recomputes_its_subtotal(): void
     {
         $issuance = $this->draft();
-        $p = $this->makeConsumable(price: 40);
+        $p = $this->makeInstallationMaterial(price: 40);
 
         $svc    = app(IssuanceOrderService::class);
         $detail = $svc->addCustomLine($issuance, $p->product_id, 2);
@@ -281,7 +281,7 @@ class IssuanceOrderServiceTest extends SetTestCase
      */
     public function test_a_product_used_by_a_set_line_cannot_be_hard_deleted(): void
     {
-        $product = $this->makeConsumable();
+        $product = $this->makeInstallationMaterial();
         $set     = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $product->product_id, 'quantity' => 1]);
 
@@ -296,7 +296,7 @@ class IssuanceOrderServiceTest extends SetTestCase
     public function test_adding_a_set_still_prices_a_soft_deleted_product(): void
     {
         $issuance = $this->draft();
-        $product  = $this->makeConsumable(price: 90);
+        $product  = $this->makeInstallationMaterial(price: 90);
 
         $set = ProductSet::create(['capacity_rating' => '2HP', 'variant' => 'non-inverter']);
         $set->lines()->create(['product_id' => $product->product_id, 'quantity' => 2]);
@@ -315,7 +315,7 @@ class IssuanceOrderServiceTest extends SetTestCase
         // Simulates the race the lock closes: the caller holds a stale Draft
         // instance while the row has already flipped to Pending in the database.
         $issuance = $this->draft();
-        $p        = $this->makeConsumable();
+        $p        = $this->makeInstallationMaterial();
 
         $stale = Issuance::find($issuance->issuance_id);          // reads Draft
         Issuance::whereKey($issuance->issuance_id)                // someone confirms

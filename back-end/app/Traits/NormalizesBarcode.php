@@ -135,7 +135,7 @@ trait NormalizesBarcode
 
         $product = $this->findProductByBarcodeCandidates($candidates);
         if ($product) {
-            $product->load(['consumableDetail.unit']);
+            $product->load(['installationMaterialDetail.unit']);
 
             return ['product' => $product, 'serial' => null, 'matched_by' => 'product_barcode'];
         }
@@ -154,7 +154,7 @@ trait NormalizesBarcode
 
             if ($detail) {
                 return [
-                    'product'    => Product::with(['applianceDetail.brand', 'consumableDetail.unit'])
+                    'product'    => Product::with(['applianceDetail.brand', 'installationMaterialDetail.unit'])
                                            ->find($detail->product_id),
                     'serial'     => null,
                     'matched_by' => 'receiving_barcode',
@@ -194,7 +194,7 @@ trait NormalizesBarcode
         // receiving barcode — letting that pass win would shadow the serial lookup
         // for precisely the not-in-stock units incidents are about.
         //
-        // The product_barcode pass must keep its precedence. Consumables do get an
+        // The product_barcode pass must keep its precedence. Installation materials do get an
         // item_serial row, but since the receiving work its serial_number holds a
         // minted INT-… tag and the scanned supplier code lives in the separate
         // supplier_barcode column. The any-state pass below keys on serial_number

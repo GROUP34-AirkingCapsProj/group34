@@ -46,7 +46,7 @@ class ReceivingDraftSubmitService
             ];
         }
 
-        $items = $draft->items()->with(['product.applianceDetail', 'product.consumableDetail'])->get();
+        $items = $draft->items()->with(['product.applianceDetail', 'product.installationMaterialDetail'])->get();
 
         if ($items->isEmpty()) {
             return [

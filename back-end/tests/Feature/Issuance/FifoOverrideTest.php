@@ -49,7 +49,7 @@ class FifoOverrideTest extends SetTestCase
     {
         $loc  = $this->makeLocation();
         $user = $this->makeUserAt($loc, 'warehouse_personnel');
-        $p    = $this->makeConsumable(barcode: $barcode);
+        $p    = $this->makeInstallationMaterial(barcode: $barcode);
         $this->setStock($loc->location_id, $p->product_id, 20);
         // Distinct remaining quantities so a wrong-batch deduction cannot hide
         // behind two rows that happen to look alike.
@@ -195,8 +195,8 @@ class FifoOverrideTest extends SetTestCase
     {
         $loc     = $this->makeLocation();
         $user    = $this->makeUserAt($loc, 'warehouse_personnel');
-        $onList  = $this->makeConsumable();
-        $offList = $this->makeConsumable(barcode: 'BC-OV-OFFLIST');
+        $onList  = $this->makeInstallationMaterial();
+        $offList = $this->makeInstallationMaterial(barcode: 'BC-OV-OFFLIST');
         $this->setStock($loc->location_id, $onList->product_id, 10);
         $this->setStock($loc->location_id, $offList->product_id, 10);
         $this->makeBatch($offList, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);

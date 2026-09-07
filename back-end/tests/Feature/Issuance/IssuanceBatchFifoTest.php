@@ -205,7 +205,7 @@ class IssuanceBatchFifoTest extends TestCase
     {
         $location = $this->makeLocation();
         $product  = Product::create([
-            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Consumable',
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Test Installation material',
             'product_type' => 'installation_material', 'unit_price' => 50,
         ]);
         $customer = Customer::create(['customer_name' => 'Test Customer', 'customer_type' => 'individual']);
@@ -249,7 +249,7 @@ class IssuanceBatchFifoTest extends TestCase
     {
         $location = $this->makeLocation();
         $product = Product::create([
-            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Limited Consumable',
+            'product_code' => 'CON-' . uniqid(), 'product_name' => 'Limited Installation material',
             'product_type' => 'installation_material', 'unit_price' => 50,
         ]);
         $customer = Customer::create(['customer_name' => 'Test Customer', 'customer_type' => 'individual']);
@@ -296,7 +296,7 @@ class IssuanceBatchFifoTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Five Piece Box',
             'product_type' => 'installation_material', 'unit_price' => 50,
         ]);
-        $product->consumableDetail()->create([
+        $product->installationMaterialDetail()->create([
             'pieces_per_package' => 5,
             'package_unit' => 'box',
         ]);

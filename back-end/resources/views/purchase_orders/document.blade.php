@@ -94,7 +94,7 @@
       @php
         $product = $detail->product;
         $appliance = $product?->applianceDetail;
-        $material = $product?->consumableDetail;
+        $material = $product?->installationMaterialDetail;
         $code = $appliance?->model_code ?? $product?->product_code ?? '—';
         $unit = $product?->product_type === 'appliance' ? 'unit' : ($material?->package_unit ?? $material?->unit?->unit_abbreviation ?? 'pkg');
         $spec = collect([$product?->product_name, $appliance?->brand?->brand_name, $appliance?->capacity_rating, $appliance?->variant])->filter()->implode(' ');

@@ -308,7 +308,7 @@ class WarrantyClaimController extends Controller
                 'quantity_in_pieces' => $d->quantity_in_pieces,
                 'quantity_unit'      => $d->quantity_unit,
                 'pieces_per_package' => $d->product?->getPiecesPerPackage() ?? 1,
-                'package_unit'       => $d->product?->consumableDetail?->unit?->unit_name ?? 'unit',
+                'package_unit'       => $d->product?->installationMaterialDetail?->unit?->unit_name ?? 'unit',
                 'line_source'        => $d->line_source,
                 'unit_cost'          => $d->unit_cost,
                 'line_cost'          => $d->line_cost,
@@ -326,7 +326,7 @@ class WarrantyClaimController extends Controller
     {
         return WarrantyClaim::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'customer', 'product.applianceDetail.brand', 'location', 'status',
             'warranty.issuance', 'createdByUser',
         ])->forUser($request->user())->find($claimId);

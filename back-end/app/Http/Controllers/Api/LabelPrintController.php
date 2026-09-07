@@ -89,7 +89,7 @@ class LabelPrintController extends Controller
            Issuance already apply. The client sends serial ids, so without it
            a branch-scoped user could reprint labels for another branch's
            stock simply by guessing ids. Centralized roles are unaffected. */
-        $serials = ItemSerial::with(['product.applianceDetail', 'product.consumableDetail'])
+        $serials = ItemSerial::with(['product.applianceDetail', 'product.installationMaterialDetail'])
             ->forUser($request->user())
             ->whereIn('serial_id', $ids)
             ->get();

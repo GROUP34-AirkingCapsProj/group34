@@ -114,7 +114,7 @@ const NewRequestModal = ({ isOpen, onClose, onCreated, editTransfer = null, onSa
     setLines((prev) => prev.map((l) => (l.uid === uid ? { ...l, [field]: value } : l)));
 
   const productById = (pid) => products.find((p) => String(p.id) === String(pid));
-  // A consumable that ships in packages of >1 piece → offer packages + loose pieces.
+  // An installation material that ships in packages of >1 piece → offer packages + loose pieces.
   const packSize = (l) => {
     const p = productById(l.productId);
     return p && p.type !== 'appliance' && p.piecesPerPackage > 1 ? p : null;

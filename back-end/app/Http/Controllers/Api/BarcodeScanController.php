@@ -18,7 +18,7 @@ class BarcodeScanController extends Controller
     use ApiResponse, NormalizesBarcode;
 
     /**
-     * POST /barcode/scan — Receive PO smart lookup (FOUND | NOT_FOUND | PENDING_CONSUMABLE).
+     * POST /barcode/scan — Receive PO smart lookup (FOUND | NOT_FOUND | PENDING_INSTALLATION_MATERIAL).
      */
     public function scanLookup(Request $request)
     {
@@ -38,14 +38,14 @@ class BarcodeScanController extends Controller
                     $norm = strtolower($c);
                     $pending = DB::table('pending_products')
                         ->where('status', 'pending')
-                        ->where('registration_kind', 'consumable')
+                        ->where('registration_kind', 'installation_material')
                         ->whereRaw('LOWER(TRIM(barcode)) = ?', [$norm])
                         ->first();
                     if ($pending) {
                         return $this->success([
-                            'status'               => 'PENDING_CONSUMABLE',
+                            'status'               => 'PENDING_INSTALLATION_MATERIAL',
                             'pending_product_id'   => $pending->pending_product_id ?? null,
-                        ], 'Pending consumable registration');
+                        ], 'Pending installation material registration');
                     }
                 }
             }
@@ -66,7 +66,7 @@ class BarcodeScanController extends Controller
             }
 
             // Also search by receiving barcode (receiving_details.scanned_barcode) so
-            // consumables whose products.barcode is null are still found by the code
+            // installation materials whose products.barcode is null are still found by the code
             // that was scanned during PO receiving.
             if (! $product) {
                 foreach ($candidates as $c) {
@@ -89,7 +89,7 @@ class BarcodeScanController extends Controller
                     'category',
                     'status',
                     'applianceDetail.brand',
-                    'consumableDetail.unit',
+                    'installationMaterialDetail.unit',
                 ]);
 
                 $piecesPerPkg  = $product->getPiecesPerPackage();
@@ -107,12 +107,12 @@ class BarcodeScanController extends Controller
                     'brand_name'         => $product->applianceDetail?->brand?->brand_name       ?? null,
                     'capacity'           => $product->applianceDetail?->capacity_rating           ?? null,
                     'variant'            => $product->applianceDetail?->variant                   ?? null,
-                    'unit_name'          => $product->consumableDetail?->unit?->unit_name         ?? null,
-                    'unit_abbr'          => $product->consumableDetail?->unit?->unit_abbreviation ?? null,
+                    'unit_name'          => $product->installationMaterialDetail?->unit?->unit_name         ?? null,
+                    'unit_abbr'          => $product->installationMaterialDetail?->unit?->unit_abbreviation ?? null,
                     // Fields for the issuance quantity panel
-                    'base_unit_name'     => $product->consumableDetail?->unit?->unit_name         ?? null,
-                    'base_unit_abbr'     => $product->consumableDetail?->unit?->unit_abbreviation ?? null,
-                    'package_unit'       => $product->consumableDetail?->package_unit             ?? null,
+                    'base_unit_name'     => $product->installationMaterialDetail?->unit?->unit_name         ?? null,
+                    'base_unit_abbr'     => $product->installationMaterialDetail?->unit?->unit_abbreviation ?? null,
+                    'package_unit'       => $product->installationMaterialDetail?->package_unit             ?? null,
                     'package_price'      => $packagePrice,
                     'price_per_piece'    => $pricePerPiece,
                     'dropdown_units'     => $product->getIssuableDropdownUnits(),
@@ -191,7 +191,7 @@ class BarcodeScanController extends Controller
                     'product.category',
                     'product.status',
                     'product.applianceDetail.brand',
-                    'product.consumableDetail.unit',
+                    'product.installationMaterialDetail.unit',
                 ]),
                 'Barcode scan recorded successfully',
                 201

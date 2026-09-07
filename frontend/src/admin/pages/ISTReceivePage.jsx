@@ -53,7 +53,7 @@ const ISTReceivePage = () => {
   const [receivedTotals, setReceivedTotals] = useState({}); // { [did]: quantity_received }
   const [activeLine,     setActiveLine]      = useState(null); // selected transfer_detail_id
   const [scanInput,      setScanInput]       = useState('');
-  const [scanQty,        setScanQty]         = useState(1);    // consumable qty per scan
+  const [scanQty,        setScanQty]         = useState(1);    // installation material qty per scan
   const [scanning,       setScanning]        = useState(false);
 
   const receivedTotalsRef = useRef({});
@@ -392,7 +392,7 @@ const ISTReceivePage = () => {
                         value={scanQty}
                         onChange={(e) => setScanQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
                         disabled={scanning}
-                        title="Quantity per scan (consumable)"
+                        title="Quantity per scan (installation material)"
                         style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, textAlign: 'center' }}
                       />
                     )}

@@ -94,7 +94,7 @@ class IssuanceController extends Controller
 
             // Preloaded outside the loop: packaging comes off the product and
             // resolving it per iteration would be an N+1 across the detail lines.
-            $issuedProducts = Product::with(['consumableDetail', 'applianceDetail'])
+            $issuedProducts = Product::with(['installationMaterialDetail', 'applianceDetail'])
                 ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
                 ->get()
                 ->keyBy('product_id');

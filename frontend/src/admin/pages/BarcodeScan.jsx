@@ -1157,7 +1157,7 @@ const BarcodeScan = () => {
         try {
           const lookupRes = await barcodeScanAPI.lookup(code);
           const lookupPayload = lookupRes?.data;
-          if (lookupPayload?.status === 'PENDING_CONSUMABLE') {
+          if (lookupPayload?.status === 'PENDING_INSTALLATION_MATERIAL') {
             playScanFeedback(false);
             toast.warning('This product registration is pending approval');
             return;
@@ -1209,7 +1209,7 @@ const BarcodeScan = () => {
           toast.error(lookupErr.message || 'Barcode lookup failed.');
           return;
         }
-        if (lookupPayload?.status === 'PENDING_CONSUMABLE') {
+        if (lookupPayload?.status === 'PENDING_INSTALLATION_MATERIAL') {
           playScanFeedback(false);
           toast.warning('This product registration is pending approval');
           return;
@@ -3150,13 +3150,13 @@ const BarcodeScan = () => {
   const receivePoSetupGrid = (
     <div className="bs-action-grid">
       <div className="bs-filter-col">
-        <label title="Per scan: full amount for consumables; appliances always add 1 unit per scan.">QUANTITY</label>
+        <label title="Per scan: full amount for installation materials; appliances always add 1 unit per scan.">QUANTITY</label>
         <input
           type="number"
           min="1"
           value={txForm.quantity}
           onChange={(e) => setTxForm((p) => ({ ...p, quantity: e.target.value }))}
-          title="Consumables: units added per scan. Appliances: treated as 1 (serialized)."
+          title="Installation materials: units added per scan. Appliances: treated as 1 (serialized)."
         />
       </div>
       <div className="bs-filter-col">
@@ -4628,7 +4628,7 @@ const BarcodeScan = () => {
               <span className="bs-action-sub">
                 Select a storage location first, then scan. Purchase order is optional — leave it empty to receive without a PO.
                 {' '}When a PO is selected, only products on that PO are accepted. Each valid scan updates inventory on the server.
-                {' '}Quantity applies to <strong>consumables</strong> (bulk items); <strong>appliances</strong> are received one unit per scan (serialized).
+                {' '}Quantity applies to <strong>installation materials</strong> (bulk items); <strong>appliances</strong> are received one unit per scan (serialized).
                 {receivePoLinesLoading && ' (Loading PO line items…)'}
                 {!receivePoLinesLoading && txForm.pc_id && receivePoProductIds.length > 0
                   && ` Only ${receivePoProductIds.length} product(s) on this PO can be accepted by scan.`}

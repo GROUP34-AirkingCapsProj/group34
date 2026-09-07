@@ -6,12 +6,12 @@ use App\Services\TransferService;
 
 class ReceiveScanResolveTest extends TransferTestCase
 {
-    public function test_receive_scan_resolves_consumable_by_barcode_to_line(): void
+    public function test_receive_scan_resolves_installation_material_by_barcode_to_line(): void
     {
         $from = $this->makeLocation('WH-A');
         $to   = $this->makeLocation('SR-B');
-        $prod = $this->makeConsumable();
-        // Give the consumable a scannable barcode the lookup can find.
+        $prod = $this->makeInstallationMaterial();
+        // Give the installation material a scannable barcode the lookup can find.
         // findProductByBarcodeCandidates checks products.barcode OR products.product_code.
         $prod->update(['barcode' => 'CON-BARCODE-1']);
         $this->setStock($from->location_id, $prod->product_id, 5);
@@ -22,11 +22,11 @@ class ReceiveScanResolveTest extends TransferTestCase
             ['product_id' => $prod->product_id, 'quantity_requested' => 3],
         ]);
 
-        // Dispatch 3 units (consumable scan uses qty), then move to In Transit.
+        // Dispatch 3 units (installation material scan uses qty), then move to In Transit.
         $svc->recordDispatchScan($ist, 'CON-BARCODE-1', null, $user->user_id, 3);
         $svc->dispatch($ist->fresh('details'), $user->user_id);
 
-        // Receive with NO transfer_detail_id — must resolve the consumable by barcode.
+        // Receive with NO transfer_detail_id — must resolve the installation material by barcode.
         $res = $svc->recordReceiveScan($ist->fresh('details'), 'CON-BARCODE-1', null, $user->user_id, 1);
 
         $this->assertSame($ist->details->first()->transfer_detail_id, $res['transfer_detail_id']);

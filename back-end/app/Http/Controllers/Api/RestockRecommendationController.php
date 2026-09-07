@@ -24,7 +24,7 @@ class RestockRecommendationController extends Controller
     /** GET /api/restock/recommendations — latest stored batch. */
     public function index(Request $request)
     {
-        $query = RestockRecommendation::with('product.consumableDetail')
+        $query = RestockRecommendation::with('product.installationMaterialDetail')
             ->forUser($request->user())
             ->orderByRaw("FIELD(priority, 'CRITICAL', 'HIGH', 'MEDIUM')")
             ->orderByDesc('avg_daily_demand');
@@ -54,7 +54,7 @@ class RestockRecommendationController extends Controller
         $rows = $query->get()->map(function ($r) {
             $arr        = $r->toArray();
             $isMaterial = $r->product?->product_type === 'installation_material';
-            $cd         = $r->product?->consumableDetail;
+            $cd         = $r->product?->installationMaterialDetail;
             $ppp        = max(1, (int) ($cd?->pieces_per_package ?? 1));
 
             $arr['pieces_per_package'] = $isMaterial ? $ppp : null;

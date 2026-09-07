@@ -11,13 +11,13 @@ class WarrantyClaimTest extends TestCase
     use DatabaseTransactions;
     use CreatesWarrantyTestData;
 
-    public function test_repair_resolves_consumable_by_item_serial_barcode(): void
+    public function test_repair_resolves_installation_material_by_item_serial_barcode(): void
     {
         $this->actingUser();
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 20);
+        $part = $this->makeInstallationMaterial($locationId, 20);
 
         // Physical scanned barcode lives on an item_serial row, NOT on products.barcode
         $code = 'PARTBC-' . strtoupper(uniqid());
@@ -43,7 +43,7 @@ class WarrantyClaimTest extends TestCase
         $detail = $this->service()->addItem($claim, ['barcode' => $code, 'quantity' => 2]);
 
         $this->assertSame((int) $part->product_id, (int) $detail->product_id);
-        $this->assertNull($detail->serial_number, 'Consumable repair part should not store a serial.');
+        $this->assertNull($detail->serial_number, 'Installation material repair part should not store a serial.');
         $this->assertSame(2, (int) $detail->quantity_in_pieces);
     }
 
@@ -198,13 +198,13 @@ class WarrantyClaimTest extends TestCase
         ]);
     }
 
-    public function test_repair_addItem_deducts_consumable_stock(): void
+    public function test_repair_addItem_deducts_installation_material_stock(): void
     {
         $this->actingUser();
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 100);
+        $part = $this->makeInstallationMaterial($locationId, 100);
 
         $claim = $this->service()->initClaim([
             'customer_id'  => $customer->customer_id,
@@ -306,7 +306,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 100);
+        $part = $this->makeInstallationMaterial($locationId, 100);
 
         $claim  = $this->service()->initClaim([
             'customer_id'  => $customer->customer_id,
@@ -362,7 +362,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 50);
+        $part = $this->makeInstallationMaterial($locationId, 50);
 
         $claim = $this->service()->initClaim([
             'customer_id'  => $customer->customer_id,
@@ -438,7 +438,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 30);
+        $part = $this->makeInstallationMaterial($locationId, 30);
 
         $init = $this->postJson('/api/warranty-claims/init', [
             'customer_id'   => $customer->customer_id,
@@ -490,7 +490,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 10);
+        $part = $this->makeInstallationMaterial($locationId, 10);
 
         $init = $this->postJson('/api/warranty-claims/init', [
             'customer_id'   => $customer->customer_id,
@@ -526,7 +526,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 10);
+        $part = $this->makeInstallationMaterial($locationId, 10);
 
         $init = $this->postJson('/api/warranty-claims/init', [
             'customer_id'   => $customer->customer_id,

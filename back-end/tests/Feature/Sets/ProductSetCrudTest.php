@@ -76,8 +76,8 @@ class ProductSetCrudTest extends SetTestCase
     {
         $loc      = $this->makeLocation();
         $admin    = $this->makeUserAt($loc, 'admin');
-        $a        = $this->makeConsumable(price: 100);
-        $b        = $this->makeConsumable(price: 25);
+        $a        = $this->makeInstallationMaterial(price: 100);
+        $b        = $this->makeInstallationMaterial(price: 25);
         $brandIds = $this->brandIds(2);
 
         $res = $this->actingAs($admin, 'sanctum')->postJson('/api/product-sets', [
@@ -114,8 +114,8 @@ class ProductSetCrudTest extends SetTestCase
     {
         $loc = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
-        $product = $this->makeConsumable(price: 500, cost: 500);
-        $product->consumableDetail()->create([
+        $product = $this->makeInstallationMaterial(price: 500, cost: 500);
+        $product->installationMaterialDetail()->create([
             'pieces_per_package' => 50,
             'package_unit' => 'box',
         ]);
@@ -156,8 +156,8 @@ class ProductSetCrudTest extends SetTestCase
     {
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
-        $a     = $this->makeConsumable();
-        $c     = $this->makeConsumable();
+        $a     = $this->makeInstallationMaterial();
+        $c     = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2TR']);
         $set->brands()->sync($this->brandIds(1));
@@ -255,8 +255,8 @@ class ProductSetCrudTest extends SetTestCase
     {
         $loc   = $this->makeLocation();
         $admin = $this->makeUserAt($loc, 'admin');
-        $a     = $this->makeConsumable();
-        $b     = $this->makeConsumable();
+        $a     = $this->makeInstallationMaterial();
+        $b     = $this->makeInstallationMaterial();
 
         $set = ProductSet::create(['capacity_rating' => '2TR']);
         $set->lines()->create(['product_id' => $a->product_id, 'quantity' => 1, 'sort_order' => 2]);

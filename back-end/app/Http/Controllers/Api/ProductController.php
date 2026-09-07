@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ApplianceDetail;
 use App\Models\BrandLookup;
 use App\Models\CategoryLookup;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Product;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -27,7 +27,7 @@ class ProductController extends Controller
     {
         $query = Product::with(['category', 'status'])
             ->with(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
-            ->with(['consumableDetail' => fn($q) => $q->with('unit')])
+            ->with(['installationMaterialDetail' => fn($q) => $q->with('unit')])
             ->withSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
         if ($request->filled('search')) {
@@ -75,7 +75,7 @@ class ProductController extends Controller
     {
         $product->load(['category', 'status'])
                 ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
-                ->load(['consumableDetail' => fn($q) => $q->with('unit')])
+                ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')])
                 ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
         $product->setAttribute('quantity', (int) ($product->stock_on_hand_total ?? 0));
@@ -85,7 +85,7 @@ class ProductController extends Controller
     }
 
     // -----------------------------------------------------------------------
-    // STORE (appliance or consumable in one transaction)
+    // STORE (appliance or installation material in one transaction)
     // -----------------------------------------------------------------------
 
     public function store(Request $request)
@@ -179,7 +179,7 @@ class ProductController extends Controller
                     $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
                         ? $request->input('warranty_unit') : 'month';
 
-                    ConsumableDetail::create([
+                    InstallationMaterialDetail::create([
                         'product_id'         => $product->product_id,
                         'unit_id'            => $request->input('unit_id') ?: null,
                         'pieces_per_package' => $request->input('pieces_per_package') ? (int) $request->input('pieces_per_package') : null,
@@ -195,7 +195,7 @@ class ProductController extends Controller
 
             $product->load(['category', 'status'])
                     ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
-                    ->load(['consumableDetail' => fn($q) => $q->with('unit')]);
+                    ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')]);
 
             $product->setAttribute('quantity', 0);
             $this->flattenExtension($product);
@@ -270,7 +270,7 @@ class ProductController extends Controller
                     $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
                         ? $request->input('warranty_unit') : 'month';
 
-                    $product->consumableDetail()->updateOrCreate(
+                    $product->installationMaterialDetail()->updateOrCreate(
                         ['product_id' => $product->product_id],
                         [
                             'unit_id'            => $request->input('unit_id') ?: null,
@@ -287,7 +287,7 @@ class ProductController extends Controller
             $fresh = $product->fresh();
             $fresh->load(['category', 'status'])
                   ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
-                  ->load(['consumableDetail' => fn($q) => $q->with('unit')])
+                  ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')])
                   ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
 
             $fresh->setAttribute('quantity', (int) ($fresh->stock_on_hand_total ?? 0));
@@ -313,7 +313,7 @@ class ProductController extends Controller
     public function archived(Request $request)
     {
         $query = Product::onlyTrashed()
-            ->with(['category', 'applianceDetail.brand', 'applianceDetail.acType', 'consumableDetail.unit']);
+            ->with(['category', 'applianceDetail.brand', 'applianceDetail.acType', 'installationMaterialDetail.unit']);
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -360,7 +360,7 @@ class ProductController extends Controller
             'status',
             'applianceDetail.brand',
             'applianceDetail.acType',
-            'consumableDetail.unit',
+            'installationMaterialDetail.unit',
         ])->orderBy('product_id')->get();
 
         $filename = 'item-master-' . now()->format('Ymd-His') . '.csv';
@@ -385,7 +385,7 @@ class ProductController extends Controller
 
             foreach ($products as $p) {
                 $ad = $p->applianceDetail;
-                $cd = $p->consumableDetail;
+                $cd = $p->installationMaterialDetail;
 
                 fputcsv($handle, [
                     $p->product_code,
@@ -448,8 +448,8 @@ class ProductController extends Controller
             $p->setRelation('brand',       $ad->brand);
         }
 
-        if ($p->consumableDetail) {
-            $cd = $p->consumableDetail;
+        if ($p->installationMaterialDetail) {
+            $cd = $p->installationMaterialDetail;
             $p->setAttribute('unit_id',            $cd->unit_id);
             $p->setAttribute('unit_name',          $cd->unit?->unit_name);
             $p->setAttribute('unit_abbreviation',  $cd->unit?->unit_abbreviation);

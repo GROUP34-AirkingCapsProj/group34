@@ -172,7 +172,7 @@ class ReceivingController extends Controller
                 $scannedBarcode = $scannedBarcode !== '' ? $scannedBarcode : null;
                 $zoneLabel = $detail['zone_label'] ?? null;
 
-                $product = Product::with(['applianceDetail', 'consumableDetail'])->find($productId);
+                $product = Product::with(['applianceDetail', 'installationMaterialDetail'])->find($productId);
                 $isSerialized = $product ? $product->isSerialized() : false;
 
                 ReceivingDetail::create([
@@ -607,7 +607,7 @@ class ReceivingController extends Controller
             'location',
             'details.location',
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
         ])->find($poId);
         if (! $po) {
             return null;
@@ -617,7 +617,7 @@ class ReceivingController extends Controller
             'location',
             'receivedBy',
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
         ])
             ->where('po_id', $poId)
             ->orderBy('receiving_date')
@@ -638,7 +638,7 @@ class ReceivingController extends Controller
             // auditable received-value calculation.
             $piecesPerOrderedUnit = $d->product?->product_type === 'appliance'
                 ? 1
-                : max(1, (int) ($d->product?->consumableDetail?->pieces_per_package ?? 1));
+                : max(1, (int) ($d->product?->installationMaterialDetail?->pieces_per_package ?? 1));
             $baseUnits = max(0, (int) $d->quantity_ordered) * $piecesPerOrderedUnit;
             $lineValue = (float) ($d->subtotal ?? ((float) $d->unit_price * (int) $d->quantity_ordered));
             $costByWh[$wh][$pid]['base_units'] = ($costByWh[$wh][$pid]['base_units'] ?? 0) + $baseUnits;
@@ -676,7 +676,7 @@ class ReceivingController extends Controller
                 if (! isset($groups[$whId]['products'][$pid])) {
                     $product = $d->product;
                     $appliance = $product?->applianceDetail;
-                    $material = $product?->consumableDetail;
+                    $material = $product?->installationMaterialDetail;
                     $groups[$whId]['products'][$pid] = [
                         'code'               => $appliance?->model_code ?? $product?->product_code ?? $product?->barcode ?? '',
                         'name'               => $product?->product_name ?? ('Product #' . $pid),

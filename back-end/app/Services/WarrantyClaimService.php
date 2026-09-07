@@ -28,7 +28,7 @@ class WarrantyClaimService
     public function addCustomOrderLine(WarrantyClaim $claim, int $productId, int $pieces): void
     {
         $this->assertPending($claim);
-        $product = Product::with(['applianceDetail', 'consumableDetail.unit'])->findOrFail($productId);
+        $product = Product::with(['applianceDetail', 'installationMaterialDetail.unit'])->findOrFail($productId);
         $this->assertProductAllowedForClaim($claim, $product);
         $pieces = max(1, $pieces);
         if ($claim->claim_type === 'replacement'
@@ -46,9 +46,9 @@ class WarrantyClaimService
             'product_id' => $productId, 'line_source' => 'custom',
             'quantity_requested' => $pieces, 'quantity_issued' => 0,
             'quantity_in_pieces' => 0,
-            'quantity_unit' => $product->isConsumable()
-                ? ($product->consumableDetail?->unit?->unit_name ?? 'piece') : 'unit',
-            'unit_cost' => $product->isConsumable()
+            'quantity_unit' => $product->isInstallationMaterial()
+                ? ($product->installationMaterialDetail?->unit?->unit_name ?? 'piece') : 'unit',
+            'unit_cost' => $product->isInstallationMaterial()
                 ? $product->getPricePerPiece((float) $product->cost_price)
                 : (float) $product->cost_price,
             'line_cost' => 0,
@@ -96,7 +96,7 @@ class WarrantyClaimService
     private function assertProductAllowedForClaim(WarrantyClaim $claim, Product $product): void
     {
         if ($claim->claim_type === 'repair' && $product->isSerialized()) {
-            throw new WarrantyClaimException('Repair orders may contain consumable repair parts only.');
+            throw new WarrantyClaimException('Repair orders may contain installation material repair parts only.');
         }
         if ($claim->claim_type === 'replacement' && ! $product->isSerialized()) {
             throw new WarrantyClaimException('Replacement orders may contain serialized replacement units only.');
@@ -190,7 +190,7 @@ class WarrantyClaimService
 
     /**
      * Add one item to a pending claim and deduct it from inventory.
-     * Repair -> a consumable (barcode + quantity). Replacement -> one serialized unit.
+     * Repair -> an installation material (barcode + quantity). Replacement -> one serialized unit.
      *
      * @throws WarrantyClaimException
      */
@@ -215,15 +215,15 @@ class WarrantyClaimService
     {
         $product = $this->resolveRepairPart($candidates);
         if (! $product) {
-            throw new WarrantyClaimException('Part not found. Scan a stocked consumable spare part.');
+            throw new WarrantyClaimException('Part not found. Scan a stocked installation material spare part.');
         }
-        $product->load('consumableDetail.unit');
+        $product->load('installationMaterialDetail.unit');
         if ($product->isSerialized()) {
-            throw new WarrantyClaimException('Repairs use consumable parts only. This is a serialized appliance.');
+            throw new WarrantyClaimException('Repairs use installation material parts only. This is a serialized appliance.');
         }
 
         $pieces = (int) max(1, ceil($qty));
-        $unitName = $product->consumableDetail?->unit?->unit_name ?? 'piece';
+        $unitName = $product->installationMaterialDetail?->unit?->unit_name ?? 'piece';
 
         return DB::transaction(function () use ($claim, $product, $locationId, $pieces, $unitName) {
             $detail = $claim->details()->where('product_id', $product->product_id)
@@ -247,7 +247,7 @@ class WarrantyClaimService
             $inv->setPieces((int) $inv->quantity_on_hand - $pieces, $ppp);
             $inv->save();
 
-            // Consumable catalog cost is stored per package; claim quantities
+            // Installation material catalog cost is stored per package; claim quantities
             // are deducted in base pieces, matching the issuance flow.
             $unitCost = $product->getPricePerPiece((float) ($product->cost_price ?? 0));
             $newIssued = (int) $detail->quantity_issued + $pieces;
@@ -273,7 +273,7 @@ class WarrantyClaimService
     /**
      * Resolve a repair part from a scanned code, mirroring the issuance flow:
      * product barcode/code -> item_serial.serial_number -> receiving_details.scanned_barcode.
-     * Consumables often have a NULL products.barcode; their scannable code lives in
+     * Installation materials often have a NULL products.barcode; their scannable code lives in
      * item_serial / receiving_details (from the PO receiving scan), so all three are tried.
      */
     private function resolveRepairPart(array $candidates): ?Product
@@ -378,7 +378,7 @@ class WarrantyClaimService
         if (! $detail) {
             throw new WarrantyClaimException('Item not found on this claim.');
         }
-        $product = Product::with(['applianceDetail', 'consumableDetail'])->find($detail->product_id);
+        $product = Product::with(['applianceDetail', 'installationMaterialDetail'])->find($detail->product_id);
 
         DB::transaction(function () use ($claim, $detail, $product) {
             $issuedPieces = (int) $detail->quantity_in_pieces;

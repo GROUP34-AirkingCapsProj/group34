@@ -129,7 +129,7 @@ class ReceivingDraftController extends Controller
             return $this->validationError($validator->errors());
         }
 
-        $poDetail = PurchaseOrderDetail::with(['product.applianceDetail', 'product.consumableDetail'])
+        $poDetail = PurchaseOrderDetail::with(['product.applianceDetail', 'product.installationMaterialDetail'])
             ->find($request->po_detail_id);
 
         /** @var ?Product $product */
@@ -290,7 +290,7 @@ class ReceivingDraftController extends Controller
     }
 
     /**
-     * A scan is exactly one package for a consumable, or one unit for an
+     * A scan is exactly one package for an installation material, or one unit for an
      * appliance. The client's quantity is deliberately ignored so it can never
      * submit more than one package per scan event.
      *
@@ -312,7 +312,7 @@ class ReceivingDraftController extends Controller
      */
     private function countQuantities(Product $product, int $units, $actualPieces): array
     {
-        $countUnit = $product->consumableDetail?->count_unit ?? 'package';
+        $countUnit = $product->installationMaterialDetail?->count_unit ?? 'package';
 
         if ($countUnit === 'piece') {
             // The clerk counted pieces directly — expected and actual are the

@@ -63,7 +63,7 @@ class TransferService
      */
     public function pickList(Transfer $ist): array
     {
-        $ist->loadMissing('details.product.consumableDetail');
+        $ist->loadMissing('details.product.installationMaterialDetail');
 
         $lines = $ist->details->map(fn ($detail) => [
             'product_id' => (int) $detail->product_id,
@@ -78,7 +78,7 @@ class TransferService
 
         // Re-attach the transfer-specific fields the shared service is
         // document-agnostic about: the "Product #{id}" name fallback and the
-        // consumable packaging columns the transfer UI reads. suggest() returns
+        // installation material packaging columns the transfer UI reads. suggest() returns
         // exactly one row per input line in the same order, so index alignment
         // with $ist->details is one-to-one.
         return collect($suggested)->map(function (array $row, int $i) use ($ist) {
@@ -88,8 +88,8 @@ class TransferService
                 ?? "Product #{$row['product_id']}";
 
             return $row + [
-                'pieces_per_package' => (int) ($detail?->product?->consumableDetail?->pieces_per_package ?? 0),
-                'package_unit'       => $detail?->product?->consumableDetail?->package_unit,
+                'pieces_per_package' => (int) ($detail?->product?->installationMaterialDetail?->pieces_per_package ?? 0),
+                'package_unit'       => $detail?->product?->installationMaterialDetail?->package_unit,
             ];
         })->all();
     }
@@ -106,6 +106,81 @@ class TransferService
             ->where('product_id', $productId)
             ->lockForUpdate()
             ->first();
+    }
+
+    /**
+     * The date the goods first entered the business, read off the source bucket so the
+     * destination bucket can inherit it. Null when the source batch is gone or the
+     * lineage was never traceable -- creditFromReceiving() then leaves received_at
+     * unset rather than inventing today's date.
+     */
+    private function sourceReceivedAt(int $productId, int $fromLocationId, ?int $receivingId)
+    {
+        if (! $receivingId) {
+            return null;
+        }
+
+        return InventoryBatch::where('product_id', $productId)
+            ->where('location_id', $fromLocationId)
+            ->where('receiving_id', $receivingId)
+            ->value('received_at');
+    }
+
+    /**
+     * Credit the destination buckets for a bulk (non-serialized) line.
+     *
+     * Bulk stock carries no per-unit lineage, so the source batches are recovered from
+     * the movement rows dispatch() wrote for this transfer. Allocation follows those
+     * rows in order, which is the FIFO order dispatch drew them down in, and stops at
+     * $received: on a short receipt the units that never turned up must not be credited
+     * anywhere, or the discrepancy silently becomes stock.
+     *
+     * Anything left over -- a receipt larger than the recorded dispatch, or a transfer
+     * dispatched before destination crediting existed and so having no usable movement
+     * rows -- lands in the legacy catch-all. Untraceable is the honest answer there;
+     * guessing a receiving_id would fabricate a provenance the data does not support.
+     */
+    private function creditBulkDestinationBatches(Transfer $locked, TransferDetail $detail, int $received): void
+    {
+        $remaining = $received;
+
+        $movements = \App\Models\InventoryBatchMovement::where('transfer_id', $locked->transfer_id)
+            ->where('product_id', $detail->product_id)
+            ->where('movement_type', 'transfer')
+            ->orderBy('batch_movement_id')
+            ->get();
+
+        foreach ($movements as $movement) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $take = min((int) $movement->quantity, $remaining);
+            if ($take <= 0) {
+                continue;
+            }
+
+            $sourceBatch = InventoryBatch::find($movement->batch_id);
+
+            $this->batches->creditFromReceiving(
+                $detail->product_id,
+                $locked->to_location_id,
+                $sourceBatch?->receiving_id,
+                $take,
+                $sourceBatch?->received_at
+            );
+
+            $remaining -= $take;
+        }
+
+        if ($remaining > 0) {
+            $this->batches->creditFromReceiving(
+                $detail->product_id,
+                $locked->to_location_id,
+                null,
+                $remaining
+            );
+        }
     }
 
     /**
@@ -284,7 +359,7 @@ class TransferService
                         ->where('product_id', $match->product_id)
                         ->first();
                 } else {
-                    // Consumable fallback: resolve the barcode to a product on this transfer.
+                    // Installation material fallback: resolve the barcode to a product on this transfer.
                     $product = $this->findProductByBarcodeCandidates($this->barcodeLookupCandidates($code));
                     $line = $product
                         ? TransferDetail::where('transfer_id', $ist->transfer_id)
@@ -407,13 +482,38 @@ class TransferService
                             ->where('scan_mode', 'receive')
                             ->where('product_id', $detail->product_id)
                             ->pluck('barcode');
+
+                        // Grouped by receiving_id so each serial lands in the destination
+                        // bucket for the receipt it actually came from, and so its batch_id
+                        // is repointed there: a serial standing at B must not still claim
+                        // membership of a batch sitting at A.
                         ItemSerial::where('transfer_id', $locked->transfer_id)
                             ->where('product_id', $detail->product_id)
                             ->whereIn('serial_number', $scanned)
-                            ->update([
-                                'serial_type' => 'received',
-                                'location_id' => $locked->to_location_id,
-                            ]);
+                            ->get()
+                            ->groupBy('receiving_id')
+                            ->each(function ($group, $receivingId) use ($locked, $detail) {
+                                // groupBy() stringifies a null key to ''; see the same
+                                // coercion in dispatch() for why `?:` is safe here.
+                                $receivingId = $receivingId ? (int) $receivingId : null;
+
+                                $dstBatch = $this->batches->creditFromReceiving(
+                                    $detail->product_id,
+                                    $locked->to_location_id,
+                                    $receivingId,
+                                    $group->count(),
+                                    $this->sourceReceivedAt($detail->product_id, $locked->from_location_id, $receivingId)
+                                );
+
+                                ItemSerial::whereIn('serial_id', $group->pluck('serial_id'))
+                                    ->update([
+                                        'serial_type' => 'received',
+                                        'location_id' => $locked->to_location_id,
+                                        'batch_id'    => $dstBatch->batch_id,
+                                    ]);
+                            });
+                    } else {
+                        $this->creditBulkDestinationBatches($locked, $detail, $received);
                     }
                 }
 
@@ -505,6 +605,15 @@ class TransferService
                         $dst->setPieces((int) $dst->quantity_on_hand - $recv, $this->piecesPerPackage($detail));
                         $dst->save();
                     }
+
+                    // receive() credited the destination buckets; take that credit back,
+                    // or the batch ledger keeps claiming stock at B that inventory and
+                    // the source batch both agree has gone home. Newest-first would be
+                    // more symmetrical with the crediting order, but deductFifo() is the
+                    // one deduction path the rest of the system agrees on, and the floor
+                    // at 0 keeps a destination that has already consumed some of the
+                    // arrival from going negative.
+                    $this->batches->deductFifo($detail->product_id, $locked->to_location_id, $recv);
                 }
 
                 $src = $this->lockInventory($locked->from_location_id, $detail->product_id);
@@ -519,12 +628,30 @@ class TransferService
                         ->get()
                         ->groupBy('receiving_id')
                         ->each(function ($group, $receivingId) use ($locked, $detail) {
+                            $receivingId = $receivingId ? (int) $receivingId : null;
+
                             $this->batches->restoreFifo(
                                 $detail->product_id,
                                 $locked->from_location_id,
                                 $group->count(),
-                                $receivingId ? (int) $receivingId : null
+                                $receivingId
                             );
+
+                            // Send batch_id home alongside location_id. receive() may have
+                            // repointed these serials at a destination bucket; leaving them
+                            // there would have a serial standing at A insisting it belongs
+                            // to a batch at B - the same mismatch in reverse.
+                            $sourceBatchId = $receivingId
+                                ? InventoryBatch::where('product_id', $detail->product_id)
+                                    ->where('location_id', $locked->from_location_id)
+                                    ->where('receiving_id', $receivingId)
+                                    ->value('batch_id')
+                                : null;
+
+                            if ($sourceBatchId) {
+                                ItemSerial::whereIn('serial_id', $group->pluck('serial_id'))
+                                    ->update(['batch_id' => $sourceBatchId]);
+                            }
                         });
 
                     ItemSerial::where('transfer_id', $locked->transfer_id)
@@ -626,7 +753,7 @@ class TransferService
      *  - serialized: the serial must be at from_location, in stock
      *    (serial_type='received'), free of another transfer, and belong to a
      *    product on this IST (which also auto-routes it to the line).
-     *  - consumable: barcode resolves to a product that is on this IST.
+     *  - installation material: barcode resolves to a product that is on this IST.
      * Duplicate barcodes on this IST are rejected. Returns the resolved line +
      * running totals. $transferDetailId may be passed by the manual per-line UI;
      * when null it is resolved here.
@@ -679,7 +806,7 @@ class TransferService
                 }
                 $step = 1;
             } else {
-                // Consumable path — resolve product by barcode candidates.
+                // Installation material path — resolve product by barcode candidates.
                 $product = $this->findProductByBarcodeCandidates($this->barcodeLookupCandidates($code));
                 if (!$product) {
                     throw new RuntimeException('Barcode not found.');
@@ -695,7 +822,7 @@ class TransferService
                 $step = max(1, (int) $qty) * ($quantityIsPackages ? $piecesPerPackage : 1);
             }
 
-            // Serialized identifiers must be unique. Consumable package barcodes
+            // Serialized identifiers must be unique. Installation material package barcodes
             // are intentionally reusable because every box carries the same code.
             $dupe = BarcodeScan::where('transfer_id', $ist->transfer_id)
                 ->where('scan_mode', 'transfer')

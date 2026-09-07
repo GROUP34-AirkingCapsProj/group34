@@ -45,7 +45,7 @@ class DemoProductDataSeeder extends Seeder
                 if ($r->product_type === 'appliance') {
                     $this->fillApplianceRow($r);
                 } else {
-                    $this->fillConsumableRow($r);
+                    $this->fillInstallationMaterialRow($r);
                 }
             }
         });
@@ -111,7 +111,7 @@ class DemoProductDataSeeder extends Seeder
         $name = $r->product_name ?? '';
 
         if ($r->product_type === 'installation_material') {
-            $base = $this->consumableBasePrice($name);
+            $base = $this->installationMaterialBasePrice($name);
         } elseif ($cat === 'Air Conditioning') {
             $base = $this->aircraftHpPrice($r->capacity_rating);
         } elseif ($cat === 'Television') {
@@ -175,8 +175,8 @@ class DemoProductDataSeeder extends Seeder
         return $nearest;
     }
 
-    /** Consumable price by keyword in the product name. */
-    private function consumableBasePrice(string $name): int
+    /** Installation material price by keyword in the product name. */
+    private function installationMaterialBasePrice(string $name): int
     {
         $seed = crc32($name);
         $n = strtolower($name);
@@ -195,7 +195,7 @@ class DemoProductDataSeeder extends Seeder
     private function descriptionFor(object $r): string
     {
         if ($r->product_type === 'installation_material') {
-            return trim(($r->product_name ?? 'Consumable supply item') . '.');
+            return trim(($r->product_name ?? 'Installation material supply item') . '.');
         }
 
         $brand   = $this->isBlank($r->brand_name) ? '' : $r->brand_name . ' ';
@@ -271,7 +271,7 @@ class DemoProductDataSeeder extends Seeder
     // installation_material_details
     // -----------------------------------------------------------------------
 
-    private function fillConsumableRow(object $r): void
+    private function fillInstallationMaterialRow(object $r): void
     {
         $detail = DB::table('installation_material_details')->where('product_id', $r->product_id)->first();
         if (! $detail) {

@@ -30,7 +30,7 @@ class PurchaseOrderController extends Controller
         'status',
         'purchaseRequest',
         'details.product.applianceDetail.brand',
-        'details.product.consumableDetail.unit',
+        'details.product.installationMaterialDetail.unit',
         'details.approvedBy',
         'details.location',
     ];
@@ -518,7 +518,7 @@ class PurchaseOrderController extends Controller
             ->where('supplier_product.supplier_id', $supplierId)
             ->with([
                 'applianceDetail.brand',
-                'consumableDetail.unit',
+                'installationMaterialDetail.unit',
             ])
             ->select('products.*')
             ->get()
@@ -533,10 +533,10 @@ class PurchaseOrderController extends Controller
                 'brand_name'         => $p->applianceDetail?->brand?->brand_name,
                 'capacity_rating'    => $p->applianceDetail?->capacity_rating,
                 'variant'            => $p->applianceDetail?->variant,
-                'unit_name'          => $p->consumableDetail?->unit?->unit_name,
-                'unit_abbreviation'  => $p->consumableDetail?->unit?->unit_abbreviation,
-                'pieces_per_package' => $p->consumableDetail?->pieces_per_package,
-                'package_unit'       => $p->consumableDetail?->package_unit,
+                'unit_name'          => $p->installationMaterialDetail?->unit?->unit_name,
+                'unit_abbreviation'  => $p->installationMaterialDetail?->unit?->unit_abbreviation,
+                'pieces_per_package' => $p->installationMaterialDetail?->pieces_per_package,
+                'package_unit'       => $p->installationMaterialDetail?->package_unit,
             ]);
 
         return response()->json(['success' => true, 'data' => $products]);
@@ -550,7 +550,7 @@ class PurchaseOrderController extends Controller
     {
         $pos = PurchaseOrder::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.location',
             'supplier', 'location', 'status',
             'purchaseRequest',
@@ -615,7 +615,7 @@ class PurchaseOrderController extends Controller
                 foreach ($po->details as $i => $d) {
                     $p  = $d->product;
                     $ad = $p?->applianceDetail;
-                    $cd = $p?->consumableDetail;
+                    $cd = $p?->installationMaterialDetail;
 
                     fputcsv($handle, [
                         $po->po_number,
@@ -678,7 +678,7 @@ class PurchaseOrderController extends Controller
     {
         $p  = $detail->product;
         $ad = $p?->applianceDetail;
-        $cd = $p?->consumableDetail;
+        $cd = $p?->installationMaterialDetail;
 
         return [
             'po_detail_id'       => $detail->po_detail_id,

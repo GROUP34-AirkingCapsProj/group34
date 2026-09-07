@@ -91,7 +91,7 @@ class BatchSerialNumbersTest extends TestCase
         $this->assertContains($serial, $mine['serials']);
     }
 
-    public function test_consumable_batch_lists_scanned_barcode(): void
+    public function test_installation_material_batch_lists_scanned_barcode(): void
     {
         $loc = Location::create([
             'location_code' => 'LOC-' . uniqid(),
@@ -100,7 +100,7 @@ class BatchSerialNumbersTest extends TestCase
         ]);
         $product = Product::create([
             'product_code' => 'CON-' . uniqid(),
-            'product_name' => 'Test Consumable',
+            'product_name' => 'Test Installation material',
             'product_type' => 'installation_material',
         ]);
         $inventory = Inventory::create([

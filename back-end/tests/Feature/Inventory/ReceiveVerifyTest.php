@@ -3,7 +3,7 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\ApplianceDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\Location;
@@ -36,7 +36,7 @@ class ReceiveVerifyTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Tube',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => 50,
             'package_unit' => 'Box', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);
@@ -55,7 +55,7 @@ class ReceiveVerifyTest extends TestCase
             'unit_price' => 1, 'subtotal' => 10,
         ]);
 
-        return [$location, Product::with('consumableDetail')->find($product->product_id), $user, $po, $poDetail];
+        return [$location, Product::with('installationMaterialDetail')->find($product->product_id), $user, $po, $poDetail];
     }
 
     /** @return array{0:Location,1:Product,2:User,3:PurchaseOrder,4:PurchaseOrderDetail} */

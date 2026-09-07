@@ -6,10 +6,10 @@ use App\Services\FifoPickingService;
 
 class FifoSuggestTest extends SetTestCase
 {
-    public function test_consumable_suggestions_walk_batches_oldest_first(): void
+    public function test_installation_material_suggestions_walk_batches_oldest_first(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->makeBatch($p, $loc, ['quantity_remaining' => 4, 'received_at' => now()->subDays(10), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 9, 'received_at' => now()->subDays(2),  'zone_label' => 'Zone 2']);
@@ -49,7 +49,7 @@ class FifoSuggestTest extends SetTestCase
     public function test_suggestions_stop_once_the_requested_quantity_is_covered(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->makeBatch($p, $loc, ['quantity_remaining' => 50, 'received_at' => now()->subDays(5), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 50, 'received_at' => now()->subDay(),   'zone_label' => 'Zone 2']);
@@ -65,7 +65,7 @@ class FifoSuggestTest extends SetTestCase
     public function test_a_product_with_no_stock_yields_no_suggestions(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $out = app(FifoPickingService::class)->suggest($loc->location_id, [
             ['product_id' => $p->product_id, 'quantity' => 2],
@@ -78,7 +78,7 @@ class FifoSuggestTest extends SetTestCase
     public function test_empty_batches_are_skipped(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->makeBatch($p, $loc, ['quantity_remaining' => 0, 'received_at' => now()->subDays(20), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(2),  'zone_label' => 'Zone 2']);
@@ -94,7 +94,7 @@ class FifoSuggestTest extends SetTestCase
     public function test_requesting_more_than_total_stock_returns_only_what_is_available(): void
     {
         $loc = $this->makeLocation();
-        $p   = $this->makeConsumable();
+        $p   = $this->makeInstallationMaterial();
 
         $this->makeBatch($p, $loc, ['quantity_remaining' => 3, 'received_at' => now()->subDays(5), 'zone_label' => 'Zone 1']);
         $this->makeBatch($p, $loc, ['quantity_remaining' => 2, 'received_at' => now()->subDay(),   'zone_label' => 'Zone 2']);
@@ -113,8 +113,8 @@ class FifoSuggestTest extends SetTestCase
     public function test_multiple_lines_each_get_their_own_suggestions_block_in_order(): void
     {
         $loc = $this->makeLocation();
-        $p1  = $this->makeConsumable();
-        $p2  = $this->makeConsumable();
+        $p1  = $this->makeInstallationMaterial();
+        $p2  = $this->makeInstallationMaterial();
 
         $this->makeBatch($p1, $loc, ['quantity_remaining' => 5, 'received_at' => now()->subDays(3), 'zone_label' => 'Zone A']);
         $this->makeBatch($p2, $loc, ['quantity_remaining' => 7, 'received_at' => now()->subDays(3), 'zone_label' => 'Zone B']);
@@ -135,29 +135,29 @@ class FifoSuggestTest extends SetTestCase
     }
 
     /**
-     * Serial and consumable steps must format received_at identically, so a
+     * Serial and installation material steps must format received_at identically, so a
      * consumer can compare the field across both without hitting a string-shape
-     * mismatch. Serial steps read a raw joined column; consumable steps go
+     * mismatch. Serial steps read a raw joined column; installation material steps go
      * through the Carbon cast — both must land on 'Y-m-d H:i:s'.
      */
-    public function test_received_at_has_the_same_shape_for_serials_and_consumables(): void
+    public function test_received_at_has_the_same_shape_for_serials_and_installation_materials(): void
     {
         $loc  = $this->makeLocation();
         $when = now()->subDays(7)->startOfMinute();
 
-        $consumable = $this->makeConsumable();
-        $this->makeBatch($consumable, $loc, ['quantity_remaining' => 3, 'received_at' => $when, 'zone_label' => 'Zone 1']);
+        $installationMaterial = $this->makeInstallationMaterial();
+        $this->makeBatch($installationMaterial, $loc, ['quantity_remaining' => 3, 'received_at' => $when, 'zone_label' => 'Zone 1']);
 
         $appliance = $this->makeAppliance();
         $batch     = $this->makeBatch($appliance, $loc, ['quantity_remaining' => 1, 'received_at' => $when, 'zone_label' => 'Zone 1']);
         $this->makeSerial($appliance, $loc, 'SN-FMT', $batch->receiving_id);
 
         $svc = app(FifoPickingService::class);
-        $consumableStep = $svc->suggest($loc->location_id, [['product_id' => $consumable->product_id, 'quantity' => 1]])[0]['suggestions'][0];
+        $installationMaterialStep = $svc->suggest($loc->location_id, [['product_id' => $installationMaterial->product_id, 'quantity' => 1]])[0]['suggestions'][0];
         $serialStep     = $svc->suggest($loc->location_id, [['product_id' => $appliance->product_id,  'quantity' => 1]])[0]['suggestions'][0];
 
         $expected = $when->toDateTimeString();
-        $this->assertSame($expected, $consumableStep['received_at']);
+        $this->assertSame($expected, $installationMaterialStep['received_at']);
         $this->assertSame($expected, $serialStep['received_at']);
     }
 }

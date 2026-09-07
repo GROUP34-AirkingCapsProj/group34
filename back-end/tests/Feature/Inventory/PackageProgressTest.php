@@ -3,7 +3,7 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\ApplianceDetail;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -35,7 +35,7 @@ class PackageProgressTest extends TestCase
         ]);
     }
 
-    /** A consumable line, 82 pieces per package, 3 packages ordered. */
+    /** An installation material line, 82 pieces per package, 3 packages ordered. */
     private function materialScaffold(int $ppp = 82, int $ordered = 3): array
     {
         $location = Location::create([
@@ -45,7 +45,7 @@ class PackageProgressTest extends TestCase
             'product_code' => 'CON-' . uniqid(), 'product_name' => 'Copper Tube',
             'product_type' => 'installation_material',
         ]);
-        ConsumableDetail::create([
+        InstallationMaterialDetail::create([
             'product_id' => $product->product_id, 'pieces_per_package' => $ppp,
             'package_unit' => 'Pack', 'is_serialized' => 0, 'count_unit' => 'package',
         ]);

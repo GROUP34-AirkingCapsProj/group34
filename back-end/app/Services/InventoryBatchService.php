@@ -29,6 +29,53 @@ class InventoryBatchService
         ]);
     }
 
+    /**
+     * Add $qty to the bucket that holds $receivingId's stock at $locationId, opening
+     * that bucket if the location has never held any of this receiving before.
+     *
+     * A batch does not travel. `inventory_batches` is keyed by product + location +
+     * receiving, so one receipt spread across two warehouses is two rows sharing a
+     * receiving_id, not one row that moves. That is what lets a transfer send part of
+     * a batch onward while the rest stays put -- a single relocatable row could not
+     * describe stock in two places at once.
+     *
+     * $receivedAt carries the ORIGINAL receipt date, not now(). FIFO orders by
+     * received_at, so stamping the arrival date would let stock that has been in the
+     * business for a year queue behind stock received last week purely because it
+     * changed warehouse. Age belongs to the goods, not to the shelf.
+     *
+     * A null $receivingId credits the legacy catch-all, for stock whose lineage was
+     * already untraceable before it moved.
+     */
+    public function creditFromReceiving(
+        int $productId,
+        int $locationId,
+        ?int $receivingId,
+        int $qty,
+        $receivedAt = null,
+        ?string $zoneLabel = null
+    ): InventoryBatch {
+        $batch = $receivingId
+            ? InventoryBatch::firstOrCreate(
+                ['product_id' => $productId, 'location_id' => $locationId, 'receiving_id' => $receivingId],
+                ['quantity_received' => 0, 'quantity_remaining' => 0, 'received_at' => $receivedAt, 'zone_label' => $zoneLabel]
+            )
+            : $this->legacyBatch($productId, $locationId);
+
+        if ($qty > 0) {
+            $batch->quantity_received  += $qty;
+            $batch->quantity_remaining += $qty;
+            $batch->save();
+        }
+
+        // The legacy batch never has tags of its own, so there is nothing to reconcile.
+        if ($receivingId) {
+            $this->reconcileTagsForBatch((int) $batch->batch_id);
+        }
+
+        return $batch;
+    }
+
     /** The single catch-all batch (receiving_id null) for stock that predates batch tracking or has run out of traceable batches. */
     public function legacyBatch(int $productId, int $locationId): InventoryBatch
     {
@@ -284,11 +331,20 @@ class InventoryBatchService
             ->update(['serial_type' => $to]);
     }
 
-    /** Batches for the monitoring UI drill-down: PO-linked batches oldest-first, legacy batch (if any) last. */
+    /**
+     * Batches for the monitoring UI drill-down: PO-linked batches oldest-first, legacy
+     * batch (if any) last.
+     *
+     * Drained batches are excluded. A batch at zero is a receipt this location has
+     * finished with -- issued out, or transferred on -- and listing it under "what is
+     * in this warehouse" is how a shipped-out batch appeared to still be sitting at
+     * its origin. inventory_batch_movements holds where it went.
+     */
     public function batchesForDisplay(int $productId, int $locationId)
     {
         return InventoryBatch::where('product_id', $productId)
             ->where('location_id', $locationId)
+            ->where('quantity_remaining', '>', 0)
             ->with('receiving.purchaseOrder')
             ->orderByRaw('receiving_id IS NULL, received_at ASC')
             ->get();
