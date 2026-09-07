@@ -20,13 +20,17 @@ use App\Reports\ReportParameters;
  * hitting a 403 or, worse, seeing every location's login attempts.
  *
  * The mock page originally described this card as "System usage and login
- * statistics", but there is no source for the usage half: App\Models\
- * ActivityLog points at a table `activity_log` that has no migration and
- * does not appear in the schema dump (airking_cleans.sql) — it is an
- * orphaned model, same as Transaction and MaterialMovementLedger turned out
- * to be. So this report covers logins only, the description is reworded to
- * match, and a note says so explicitly rather than silently under-delivering
- * on the original promise.
+ * statistics", but this report covers logins only: when it was written there
+ * was no source for the usage half, because App\Models\ActivityLog pointed at
+ * an `activity_log` table that did not exist — one of several orphaned models,
+ * alongside Transaction and MaterialMovementLedger.
+ *
+ * That has since changed: `activity_log` was given a migration, and the
+ * orphaned models were deleted (except Transaction, kept pending a fix and
+ * quarantined in Tests\Feature\Schema\SchemaModelContractTest). So a usage
+ * half is now buildable — it simply has not been built here yet. The
+ * description remains logins-only, with a note saying so explicitly, rather
+ * than silently under-delivering on the original promise.
  */
 class UserActivityReport implements ReportDefinition
 {

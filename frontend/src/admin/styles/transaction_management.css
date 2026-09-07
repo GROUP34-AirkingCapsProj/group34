@@ -764,3 +764,15 @@
   background: #eff6ff;
   color: #2563eb;
 }
+
+/* An incident is a loss report, a warranty claim is an after-sale return —
+   both are stock movements, so they carry a badge like the other four types. */
+.txn-type-incident {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.txn-type-warranty {
+  background: #f5f3ff;
+  color: #7c3aed;
+}

@@ -1042,21 +1042,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | ERD: AUDIT_LOG (audit_log)
+    | AUDIT TRAIL (legacy, unstructured)
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:audit_trail_viewing,read')->group(function () {
-        Route::get('/audit-log', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\AuditLog::with('user')->orderBy('created_at', 'desc');
-            if ($request->has('user_id')) {
-                $query->where('user_id', $request->user_id);
-            }
-            if ($request->has('action')) {
-                $query->where('action', $request->action);
-            }
-            return $query->paginate($request->input('per_page', 50));
-        });
-
         Route::get('/audit-trail', [AuditTrailController::class, 'legacyIndex']);
 
         Route::get('/audit-trail/user/{userId}', function ($userId) {

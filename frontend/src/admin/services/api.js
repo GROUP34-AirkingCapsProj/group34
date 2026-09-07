@@ -649,10 +649,6 @@ export const auditAPI = {
   },
   getFilterOptions: async () => apiRequest('/audit-trail/v2/filter-options'),
   getEntry: async (id) => apiRequest(`/audit-trail/v2/${id}`),
-  getLog: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/audit-log?${query}` : '/audit-log');
-  },
   getLoginSessions: async (params = {}) => {
     const query = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')

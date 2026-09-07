@@ -62,7 +62,7 @@ class LocationPerformanceAnalyticsTest extends TestCase
         $locationId = $this->makeLocation('Named Warehouse');
         $this->stock($locationId, 50);
 
-        $result = $this->service->locationPerformance(null);
+        $result = $this->service->locationPerformance(null, null);
 
         $row = collect($result['branchPerformanceData'])->firstWhere('name', 'Named Warehouse');
         $this->assertNotNull($row, 'Location must be grouped by its real name.');
@@ -77,7 +77,7 @@ class LocationPerformanceAnalyticsTest extends TestCase
         $this->stock($locationId, 5);   // low
         $this->stock($locationId, 0);   // critical
 
-        $result = $this->service->locationPerformance(null);
+        $result = $this->service->locationPerformance(null, null);
         $row    = collect($result['branchPerformanceData'])->firstWhere('name', 'Half Healthy');
 
         $this->assertSame(50, $row['efficiencyScore']);
@@ -89,7 +89,7 @@ class LocationPerformanceAnalyticsTest extends TestCase
         $locationId = $this->makeLocation('No Ceiling');
         $this->stock($locationId, 2, 10, null);
 
-        $result = $this->service->locationPerformance(null);
+        $result = $this->service->locationPerformance(null, null);
         $row    = collect($result['branchRestockingNeeds'])->firstWhere('name', 'No Ceiling');
 
         $this->assertSame(1, $row['restockNeeded']);
@@ -129,7 +129,7 @@ class LocationPerformanceAnalyticsTest extends TestCase
         $poorId = $this->makeLocation('Poor Efficiency');
         $this->stock($poorId, 5); // low stock -> efficiency 0
 
-        $result = $this->service->locationPerformance(null);
+        $result = $this->service->locationPerformance(null, null);
         $names  = collect($result['branchPerformanceData'])
             ->whereIn('name', ['High Value Optimal', 'Low Value Optimal', 'Poor Efficiency'])
             ->pluck('name')
@@ -189,7 +189,7 @@ class LocationPerformanceAnalyticsTest extends TestCase
             'updated_at' => now()->subDays(5),
         ]);
 
-        $result = $this->service->locationPerformance(null);
+        $result = $this->service->locationPerformance(null, null);
         $row    = collect($result['branchPerformanceData'])->firstWhere('name', 'Turnover Warehouse');
 
         // 40 consumed / 20 on hand = 2x, matching the Movement tab's definition.
@@ -240,11 +240,11 @@ class LocationPerformanceAnalyticsTest extends TestCase
             ]);
         }
 
-        $resultAll = $this->service->locationPerformance(null);
+        $resultAll = $this->service->locationPerformance(null, null);
         $rowAll    = collect($resultAll['branchPerformanceData'])->firstWhere('name', 'Category Warehouse');
         $this->assertSame(2, $rowAll['items']);
 
-        $resultFiltered = $this->service->locationPerformance($catA);
+        $resultFiltered = $this->service->locationPerformance(null, $catA);
         $rowFiltered    = collect($resultFiltered['branchPerformanceData'])->firstWhere('name', 'Category Warehouse');
         $this->assertSame(1, $rowFiltered['items']);
     }
@@ -260,7 +260,7 @@ class LocationPerformanceAnalyticsTest extends TestCase
         $millionsId = $this->makeLocation('Millions Location');
         $this->stock($millionsId, 20000); // value 2,000,000
 
-        $result = $this->service->locationPerformance(null);
+        $result = $this->service->locationPerformance(null, null);
         $rowFor = fn (string $name) => collect($result['branchPerformanceData'])->firstWhere('name', $name);
 
         $this->assertSame('₱500', $rowFor('Sub Thousand Location')['stockValueFormatted']);

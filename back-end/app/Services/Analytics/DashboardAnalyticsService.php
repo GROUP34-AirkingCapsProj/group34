@@ -526,7 +526,13 @@ class DashboardAnalyticsService
             ])->all();
     }
 
-    public function locationPerformance(?int $categoryId): array
+    /**
+     * Per-location performance. $locationId narrows the report to a single
+     * location — the controller passes the caller's enforced location for
+     * location-scoped roles, so a branch manager sees only their own branch
+     * here instead of every branch's figures side by side.
+     */
+    public function locationPerformance(?int $locationId, ?int $categoryId): array
     {
         $bucket  = $this->bucketExpression();
         $price   = self::PIECE_PRICE;
@@ -538,7 +544,7 @@ class DashboardAnalyticsService
         // zero restock cost and understate the location's true need.
         $target = "COALESCE(p.max_stock_level, {$reorder})";
 
-        $rows = $this->inventoryQuery(null, $categoryId)
+        $rows = $this->inventoryQuery($locationId, $categoryId)
             ->selectRaw("i.location_id,
                          l.location_name,
                          COUNT(*) AS items,
@@ -562,7 +568,7 @@ class DashboardAnalyticsService
         // ONLY_FULL_GROUP_BY won't let a per-product breakdown coexist with the
         // location-level SUMs in one query.
         $onHandByLocation = [];
-        $this->inventoryQuery(null, $categoryId)
+        $this->inventoryQuery($locationId, $categoryId)
             ->selectRaw('i.location_id, i.product_id, SUM(i.quantity_on_hand) AS on_hand')
             ->groupBy('i.location_id', 'i.product_id')
             ->get()
@@ -647,10 +653,15 @@ class DashboardAnalyticsService
      * locations here would let the performance tab show a location the
      * dropdown can't select — so the two are kept reconcilable on purpose.
      */
-    public function filters(): array
+    /**
+     * Options for the dashboard's filter controls. $locationId narrows the
+     * location list to the caller's own location for location-scoped roles.
+     */
+    public function filters(?int $locationId = null): array
     {
         return [
             'locations' => DB::table('locations')
+                ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
                 ->orderBy('location_name')
                 ->get(['location_id', 'location_name', 'location_type'])
                 ->map(static fn ($l) => [

@@ -118,10 +118,22 @@ class RestockRecommendationController extends Controller
         $productIds = $suggestions->pluck('product_id')->filter()->unique()->values()->all();
         $whByProduct = collect();
         if ($productIds) {
+            // po_recommendations.read is granted to branch_manager, a scoped
+            // role, so this list is limited to the warehouses that user may
+            // see — otherwise it names every warehouse holding the product.
+            $user      = $request->user();
+            $scopedLoc = ($user && ! $user->isCentralized()) ? $user->scopedLocationId() : null;
+
             $whByProduct = DB::table('inventory as inv')
                 ->join('locations as l', 'l.location_id', '=', 'inv.location_id')
                 ->where('l.location_type', 'warehouse')
                 ->whereIn('inv.product_id', $productIds)
+                ->when(
+                    $user && ! $user->isCentralized(),
+                    fn ($q) => $scopedLoc === null
+                        ? $q->whereRaw('1 = 0')
+                        : $q->where('inv.location_id', $scopedLoc)
+                )
                 ->select('inv.product_id', 'l.location_id', 'l.location_name')
                 ->distinct()
                 ->get()

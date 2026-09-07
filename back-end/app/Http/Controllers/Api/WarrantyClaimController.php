@@ -24,7 +24,10 @@ class WarrantyClaimController extends Controller
 
     public function index(Request $request)
     {
-        $query = WarrantyClaim::with(['customer', 'product', 'status', 'warranty'])
+        // `location` is here for the admin Transaction ledger, which lists a
+        // claim beside receivings and transfers and needs the branch name to
+        // show in the same column as theirs.
+        $query = WarrantyClaim::with(['customer', 'product', 'status', 'warranty', 'location'])
             ->forUser($request->user())
             ->orderBy('created_at', 'desc');
 

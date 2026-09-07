@@ -147,6 +147,54 @@ class AnalyticsLocationScopeTest extends TestCase
         $this->assertSame(999, $this->units($json));
     }
 
+    public function test_scoped_user_sees_only_their_own_branch_in_location_performance(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $rows = $this->actingAs($bm)
+            ->getJson('/api/analytics/location-performance?category_id=' . $this->categoryId)
+            ->assertStatus(200)
+            ->json('data.branchPerformanceData');
+
+        $ids = collect($rows)->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        $this->assertNotContains(
+            $this->theirs,
+            $ids,
+            'The branch performance chart exposed another location to a scoped user.'
+        );
+        $this->assertSame([$this->mine], $ids);
+    }
+
+    public function test_scoped_user_only_gets_their_own_location_in_the_filter_dropdown(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $locations = $this->actingAs($bm)
+            ->getJson('/api/analytics/filters')
+            ->assertStatus(200)
+            ->json('data.locations');
+
+        $ids = collect($locations)->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        $this->assertSame([$this->mine], $ids, 'The location filter must offer only the location the user can actually see.');
+    }
+
+    public function test_centralized_user_sees_every_branch_in_location_performance(): void
+    {
+        $analyst = $this->userAt(2, $this->mine);
+
+        $rows = $this->actingAs($analyst)
+            ->getJson('/api/analytics/location-performance?category_id=' . $this->categoryId)
+            ->assertStatus(200)
+            ->json('data.branchPerformanceData');
+
+        $ids = collect($rows)->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        $this->assertContains($this->mine, $ids);
+        $this->assertContains($this->theirs, $ids);
+    }
+
     public function test_centralized_user_still_gets_org_wide_totals_when_unfiltered(): void
     {
         $admin = $this->userAt(1, $this->mine);

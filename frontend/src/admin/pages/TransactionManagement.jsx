@@ -7,7 +7,7 @@ import Modal from '../components/Modal';
 import {
   receivingsAPI, issuancesAPI, issuanceOrderAPI, transfersAPI,
   adjustmentsAPI, customersAPI, companySettingsAPI, inventoryAPI,
-  incidentReportsAPI, openApiFile,
+  incidentReportsAPI, warrantyClaimsAPI, openApiFile,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -54,7 +54,20 @@ const TransactionManagement = () => {
   const [incidents, setIncidents] = useState([]);
   const [logisticsLoading, setLogisticsLoading] = useState(true);
   const [computationView, setComputationView] = useState(null);
-  const [datePeriod, setDatePeriod] = useState('today');
+  /**
+   * The ledger opens on the full history, not on today.
+   *
+   * This page is the one place that answers "what has happened to our stock",
+   * and most of what has happened did not happen today. Defaulting to 'today'
+   * made the page look like it had stopped recording receivings, transfers and
+   * adjustments entirely: those are posted in bursts and then sit, while
+   * issuances go out daily, so on a typical morning the only rows inside the
+   * window were issuances. Nothing was missing from the data — the window was.
+   *
+   * The filter itself is client-side; every source is fetched in full either
+   * way, so 'all' costs nothing extra to load.
+   */
+  const [datePeriod, setDatePeriod] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
 
@@ -79,8 +92,11 @@ const TransactionManagement = () => {
     }
     const value = String(status || '').toLowerCase();
     if (!value || value === '[object object]') return 'Pending';
-    if (value.includes('complete') || value.includes('received') || value.includes('done')) return 'Completed';
-    if (value.includes('cancel') || value.includes('reject') || value.includes('deny') || value.includes('void')) return 'Cancelled';
+    // 'resolve' and 'dismiss' are incident-report terminal states. Without them
+    // a Resolved incident fell through to the default and sat in the ledger as
+    // Pending forever, and a Dismissed one looked like outstanding work.
+    if (value.includes('complete') || value.includes('received') || value.includes('done') || value.includes('resolve')) return 'Completed';
+    if (value.includes('cancel') || value.includes('reject') || value.includes('deny') || value.includes('void') || value.includes('dismiss')) return 'Cancelled';
     if (value.includes('draft')) return 'Draft';
     return 'Pending';
   };
@@ -249,13 +265,79 @@ const TransactionManagement = () => {
       type: 'Adjustment',
       itemName: row.product?.product_name || row.item_name || row.reason || 'Stock Adjustment',
       location,
-      reference: row.reference_no || row.adjustment_no || `ADJ-${row.adjustment_id ?? row.id ?? ''}`,
+      // `adjustment_number` is the column the API returns and the one
+      // AdjustmentController's search matches on; `adjustment_no` never
+      // existed, so every adjustment fell through to the synthetic ADJ-<id>.
+      reference: row.adjustment_number || row.reference_no || `ADJ-${row.adjustment_id ?? row.id ?? ''}`,
       qty,
       unitPrice,
       total,
       status: normalizeStatus(row.status || row.adjustment_status),
       occurredAt: row.adjustment_date || row.transaction_date || row.created_at,
       lineItems,
+    };
+  };
+
+  /**
+   * Incidents arrive already flattened — the controller maps each report to a
+   * payload with location_name/product_name rather than nested relations, and
+   * caps at 500 with no `pagination` key. Do not reach for row.location here.
+   */
+  const mapIncident = (row) => {
+    const qty = Number(row.quantity ?? 0);
+    return {
+      id: `INC-${row.incident_id ?? Math.random().toString(36).slice(2, 8)}`,
+      entityId: row.incident_id ?? null,
+      type: 'Incident',
+      itemName: row.product_name || row.reason || 'Incident report',
+      location: row.location_name || 'N/A',
+      reference: row.incident_number || `INC-${row.incident_id ?? ''}`,
+      qty,
+      unitPrice: 0,
+      // An incident records loss, not a purchase — there is no money on the
+      // row. Left at 0 so it never inflates the valuation panels.
+      total: 0,
+      status: normalizeStatus(row.status_name ?? row.status),
+      occurredAt: row.occurred_at || row.created_at,
+      lineItems: row.product_name
+        ? [{ key: 'incident', product: row.product_name, quantity: qty, unitCost: 0, value: 0, serial: row.serial_number || null }]
+        : [],
+      // The incident list payload IS the full report — the controller maps every
+      // field a detail view needs. Carried through so opening a row needs no
+      // second request; see the detail effect below.
+      raw: row,
+    };
+  };
+
+  const mapWarrantyClaim = (row) => {
+    const items = Array.isArray(row.items) ? row.items : [];
+    // The index endpoint does not load claim items; a claim always covers the
+    // one serial on the header, so fall back to that rather than showing 0.
+    const qty = items.length || (row.serial_number ? 1 : 0);
+    const partsCost = Number(row.parts_cost ?? 0);
+    const cid = row.claim_id ?? row.id;
+    return {
+      id: `WC-${cid ?? Math.random().toString(36).slice(2, 8)}`,
+      entityId: cid ?? null,
+      type: 'Warranty',
+      itemName: row.product?.product_name || row.item_name || 'Warranty claim',
+      location: row.location?.location_name || row.location_name || 'N/A',
+      reference: row.claim_number || (cid != null ? `WC-${cid}` : 'Warranty claim'),
+      qty,
+      unitPrice: qty ? partsCost / qty : partsCost,
+      total: partsCost,
+      status: normalizeStatus(row.status?.status_name ?? row.status),
+      occurredAt: row.completed_at || row.created_at,
+      lineItems: items.length
+        ? items.map((item, index) => ({
+            key: item.claim_item_id ?? index,
+            product: item.product?.product_name || `Claim item ${index + 1}`,
+            quantity: Number(item.quantity ?? 1),
+            unitCost: Number(item.unit_cost ?? 0),
+            value: Number(item.unit_cost ?? 0) * Number(item.quantity ?? 1),
+            serial: item.serial_number || null,
+          }))
+        : [{ key: 'claim', product: row.product?.product_name || 'Warranty claim', quantity: qty, unitCost: partsCost, value: partsCost, serial: row.serial_number || null }],
     };
   };
 
@@ -274,15 +356,19 @@ const TransactionManagement = () => {
           }
           return rows;
         };
-        const [receivingsRes, issuancesRes, transfersRes, adjustmentsRes] = await Promise.allSettled([
+        const [receivingsRes, issuancesRes, transfersRes, adjustmentsRes, incidentsRes, warrantyRes] = await Promise.allSettled([
           loadEveryPage(receivingsAPI),
           loadEveryPage(issuancesAPI),
           loadEveryPage(transfersAPI),
           loadEveryPage(adjustmentsAPI),
+          // Not loadEveryPage: the incident endpoint returns a flat capped list
+          // with no `pagination` block, so there is no second page to ask for.
+          incidentReportsAPI.list().then((res) => (Array.isArray(res?.data) ? res.data : [])),
+          loadEveryPage(warrantyClaimsAPI),
         ]);
 
-        const results = [receivingsRes, issuancesRes, transfersRes, adjustmentsRes];
-        const names = ['Receivings', 'Issuances', 'Transfers', 'Adjustments'];
+        const results = [receivingsRes, issuancesRes, transfersRes, adjustmentsRes, incidentsRes, warrantyRes];
+        const names = ['Receivings', 'Issuances', 'Transfers', 'Adjustments', 'Incident reports', 'Warranty claims'];
         const warnings = results.flatMap((result, index) => result.status === 'rejected' ? [`${names[index]} could not be loaded: ${result.reason?.message || 'request failed'}`] : []);
         setSourceWarnings(warnings);
 
@@ -298,8 +384,19 @@ const TransactionManagement = () => {
         const adjustments = adjustmentsRes.status === 'fulfilled'
           ? adjustmentsRes.value.map(mapAdjustment)
           : [];
+        const incidentRows = incidentsRes.status === 'fulfilled' ? incidentsRes.value : [];
+        const warrantyClaims = warrantyRes.status === 'fulfilled'
+          ? warrantyRes.value.map(mapWarrantyClaim)
+          : [];
 
-        const allTransactions = [...receivings, ...issuances, ...transfers, ...adjustments].sort((a, b) => {
+        // The overview counters read the raw incident rows (status names, dates),
+        // so they are shared from this one fetch rather than requested twice.
+        setIncidents(incidentRows);
+
+        const allTransactions = [
+          ...receivings, ...issuances, ...transfers, ...adjustments,
+          ...incidentRows.map(mapIncident), ...warrantyClaims,
+        ].sort((a, b) => {
           const aTs = new Date(a.occurredAt || 0).getTime();
           const bTs = new Date(b.occurredAt || 0).getTime();
           return bTs - aTs;
@@ -319,17 +416,12 @@ const TransactionManagement = () => {
 
   useEffect(() => {
     fetchAllTransactions();
-    Promise.allSettled([
-      inventoryAPI.getAll({ per_page: 1000 }),
-      incidentReportsAPI.list(),
-    ]).then(([inventoryRes, incidentRes]) => {
-      if (inventoryRes.status === 'fulfilled') {
-        setInventoryRows(Array.isArray(inventoryRes.value?.data) ? inventoryRes.value.data : []);
-      }
-      if (incidentRes.status === 'fulfilled') {
-        setIncidents(Array.isArray(incidentRes.value?.data) ? incidentRes.value.data : []);
-      }
-    }).finally(() => setLogisticsLoading(false));
+    // Incidents are no longer requested here — fetchAllTransactions needs them
+    // for the ledger and shares the same rows with the overview counters.
+    inventoryAPI.getAll({ per_page: 1000 })
+      .then((res) => setInventoryRows(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => {})
+      .finally(() => setLogisticsLoading(false));
     companySettingsAPI.get()
       .then((settings) => setPdfPaperSize(settings?.pdf_paper_size || 'a4'))
       .catch(() => {});
@@ -337,12 +429,26 @@ const TransactionManagement = () => {
 
   useEffect(() => {
     if (!activeTransaction || activeTransaction.type === 'Issuance') return undefined;
+
+    // An incident carries its own full payload from the list endpoint, so it
+    // needs no lookup at all. Without this it fell into the `adjustmentsAPI`
+    // default below and an incident id was fetched as an adjustment id.
+    if (activeTransaction.type === 'Incident') {
+      setMovementError('');
+      setMovementLoading(false);
+      setMovementDetail(activeTransaction.raw ?? activeTransaction);
+      return undefined;
+    }
+
     let stale = false;
-    const api = activeTransaction.type === 'Receiving'
-      ? receivingsAPI
-      : activeTransaction.type === 'Transfer'
-        ? transfersAPI
-        : adjustmentsAPI;
+    const apiByType = {
+      Receiving: receivingsAPI,
+      Transfer: transfersAPI,
+      Adjustment: adjustmentsAPI,
+      Warranty: warrantyClaimsAPI,
+    };
+    const api = apiByType[activeTransaction.type];
+    if (!api) return undefined;
     setMovementLoading(true);
     setMovementError('');
     api.getById(activeTransaction.entityId)
@@ -357,13 +463,20 @@ const TransactionManagement = () => {
     const params = new URLSearchParams();
     params.set('paper_size', pdfPaperSize);
     if (preview) params.set('preview', '1');
-    const path = txn.type === 'Issuance'
-      ? `/issuance-scan/delivery-receipt/${txn.entityId}/pdf`
-      : txn.type === 'Receiving'
-      ? `/receivings/${txn.entityId}/receipt/pdf`
-      : txn.type === 'Transfer'
-        ? `/transfers/${txn.entityId}/receipt/pdf`
-        : `/adjustments/${txn.entityId}/pdf`;
+    // A lookup, not a trailing else. The else used to be the adjustment PDF, so
+    // any type without its own branch printed SOMEBODY ELSE'S document at the
+    // same id — a warranty claim 21 fetched adjustment 21 and rendered it.
+    // An unlisted type has no document; say so by returning null.
+    const pathByType = {
+      Issuance:   `/issuance-scan/delivery-receipt/${txn.entityId}/pdf`,
+      Receiving:  `/receivings/${txn.entityId}/receipt/pdf`,
+      Transfer:   `/transfers/${txn.entityId}/receipt/pdf`,
+      Adjustment: `/adjustments/${txn.entityId}/pdf`,
+      Warranty:   `/warranty-claims/${txn.entityId}/receipt/pdf`,
+      // Incident: there is no incident PDF endpoint.
+    };
+    const path = pathByType[txn.type];
+    if (!path) return null;
     return `${path}?${params.toString()}`;
   };
 
@@ -525,6 +638,8 @@ const TransactionManagement = () => {
     if (type === 'Issuance') return 'txn-type-issuance';
     if (type === 'Transfer') return 'txn-type-transfer';
     if (type === 'Adjustment') return 'txn-type-adjustment';
+    if (type === 'Incident') return 'txn-type-incident';
+    if (type === 'Warranty') return 'txn-type-warranty';
     return '';
   };
 
@@ -771,6 +886,8 @@ const TransactionManagement = () => {
               <option value="Issuance">Issuance</option>
               <option value="Transfer">Transfer</option>
               <option value="Adjustment">Adjustment</option>
+              <option value="Incident">Incident</option>
+              <option value="Warranty">Warranty</option>
             </select>
             <select className="ak-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">All Status</option>
@@ -1028,7 +1145,41 @@ const TransactionManagement = () => {
         {!movementLoading && !movementError && movementDetail && (() => {
           const txn = activeTransaction;
           const d = movementDetail;
-          const rows = (Array.isArray(d.details) ? d.details : []).map((line, index) => {
+          // A claim's lines come back as `items`, and an incident is a single
+          // event with no line array at all. Both used to fall through to the
+          // adjustment branch below, which reads `details` — so both rendered an
+          // empty table under Added / Deducted / Net change.
+          const lineSource = txn.type === 'Warranty'
+            ? (Array.isArray(d.items) ? d.items : [])
+            : txn.type === 'Incident'
+              ? [d]
+              : (Array.isArray(d.details) ? d.details : []);
+
+          const rows = lineSource.map((line, index) => {
+            if (txn.type === 'Warranty') {
+              return {
+                key: line.detail_id || index,
+                product: line.product_name || `Product #${line.product_id}`,
+                code: line.model_code || line.product_code || '—',
+                values: [
+                  Number(line.quantity_requested || 0),
+                  Number(line.quantity_issued || 0),
+                  line.serial_number || '—',
+                ],
+              };
+            }
+            if (txn.type === 'Incident') {
+              return {
+                key: line.incident_id || index,
+                product: line.product_name || line.reason || 'Incident',
+                code: line.product_code || '—',
+                values: [
+                  Number(line.quantity || 0),
+                  line.reason || '—',
+                  line.narrative || line.suspected_cause || '—',
+                ],
+              };
+            }
             const product = line.product || {};
             const code = product.model_code || product.appliance_detail?.model_code
               || product.applianceDetail?.model_code || product.product_code || '—';
@@ -1065,11 +1216,13 @@ const TransactionManagement = () => {
               values: [added, deducted, `${added - deducted > 0 ? '+' : ''}${added - deducted}`, line.reason || '—'],
             };
           });
-          const headers = txn.type === 'Receiving'
-            ? ['Received (pcs)', 'Serial / Scanned ID', 'Recorded price']
-            : txn.type === 'Transfer'
-              ? ['Requested (pcs)', 'Dispatched (pcs)', 'Received (pcs)']
-              : ['Added', 'Deducted', 'Net change', 'Reason'];
+          const headersByType = {
+            Receiving: ['Received (pcs)', 'Serial / Scanned ID', 'Recorded price'],
+            Transfer:  ['Requested (pcs)', 'Dispatched (pcs)', 'Received (pcs)'],
+            Warranty:  ['Requested (pcs)', 'Issued (pcs)', 'Serial'],
+            Incident:  ['Quantity (pcs)', 'Reason', 'Details'],
+          };
+          const headers = headersByType[txn.type] || ['Added', 'Deducted', 'Net change', 'Reason'];
           const createdBy = userFullName(d.created_by || d.createdBy) || d.adjusted_by || '—';
           const approvedBy = userFullName(d.approved_by || d.approvedBy) || '—';
           const receivedBy = userFullName(d.received_by || d.receivedBy) || '—';
@@ -1080,7 +1233,7 @@ const TransactionManagement = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(165px,1fr))', gap: 12 }}>
                 <div><div className="ak-label">Reference</div><strong>{txn.reference}</strong></div>
                 <div><div className="ak-label">Status</div><span className={`txn-status-badge ${getStatusClass(normalizeStatus(statusName))}`}>{statusName || '—'}</span></div>
-                <div><div className="ak-label">Transaction date</div>{formatDateTime(d.receiving_date || d.transfer_date || d.adjustment_date || d.created_at)}</div>
+                <div><div className="ak-label">Transaction date</div>{formatDateTime(d.receiving_date || d.transfer_date || d.adjustment_date || d.occurred_at || d.completed_at || d.created_at)}</div>
                 <div><div className="ak-label">Location</div>{d.location?.location_name || txn.location}</div>
                 {txn.type === 'Receiving' && <>
                   <div><div className="ak-label">PO number</div>{d.purchase_order?.po_number || d.purchaseOrder?.po_number || '—'}</div>
@@ -1115,12 +1268,14 @@ const TransactionManagement = () => {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
-                <select className="ak-select" value={pdfPaperSize} onChange={(e) => setPdfPaperSize(e.target.value)}>
-                  <option value="a4">A4</option><option value="letter">Letter</option>
-                  <option value="legal">Legal</option><option value="a5">A5</option>
-                </select>
-                <button type="button" className="ak-btn" onClick={() => openTransactionDocument(txn)}>View Document</button>
-                <button type="button" className="ak-btn ak-btn--primary" onClick={() => openTransactionDocument(txn, true)}>Download PDF</button>
+                {transactionDocumentPath(txn) && <>
+                  <select className="ak-select" value={pdfPaperSize} onChange={(e) => setPdfPaperSize(e.target.value)}>
+                    <option value="a4">A4</option><option value="letter">Letter</option>
+                    <option value="legal">Legal</option><option value="a5">A5</option>
+                  </select>
+                  <button type="button" className="ak-btn" onClick={() => openTransactionDocument(txn)}>View Document</button>
+                  <button type="button" className="ak-btn ak-btn--primary" onClick={() => openTransactionDocument(txn, true)}>Download PDF</button>
+                </>}
                 <button type="button" className="ak-btn" onClick={() => { setActiveTransaction(null); setMovementDetail(null); }}>Close</button>
               </div>
             </div>

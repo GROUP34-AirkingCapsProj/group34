@@ -9,13 +9,14 @@ use App\Models\CategoryLookup;
 use App\Models\InstallationMaterialDetail;
 use App\Models\Product;
 use App\Traits\ApiResponse;
+use App\Traits\SumsStockForUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, SumsStockForUser;
 
     private const CAPACITY_RATINGS = ['1HP', '1.5HP', '2HP', '2.5HP', '3HP', '5HP'];
 
@@ -28,7 +29,7 @@ class ProductController extends Controller
         $query = Product::with(['category', 'status'])
             ->with(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
             ->with(['installationMaterialDetail' => fn($q) => $q->with('unit')])
-            ->withSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
+            ->withSum(['inventories as stock_on_hand_total' => $this->stockSumForUser($request->user())], 'quantity_on_hand');
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -71,12 +72,12 @@ class ProductController extends Controller
     // SHOW
     // -----------------------------------------------------------------------
 
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
         $product->load(['category', 'status'])
                 ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
                 ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')])
-                ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
+                ->loadSum(['inventories as stock_on_hand_total' => $this->stockSumForUser($request->user())], 'quantity_on_hand');
 
         $product->setAttribute('quantity', (int) ($product->stock_on_hand_total ?? 0));
         $this->flattenExtension($product);
@@ -288,7 +289,7 @@ class ProductController extends Controller
             $fresh->load(['category', 'status'])
                   ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
                   ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')])
-                  ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
+                  ->loadSum(['inventories as stock_on_hand_total' => $this->stockSumForUser($request->user())], 'quantity_on_hand');
 
             $fresh->setAttribute('quantity', (int) ($fresh->stock_on_hand_total ?? 0));
             $this->flattenExtension($fresh);

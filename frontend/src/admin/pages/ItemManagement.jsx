@@ -882,7 +882,7 @@ const ItemManagement = () => {
                   <th>WARRANTY</th>
                   <th>COST PRICE</th>
                   <th>UNIT PRICE</th>
-                  <th title="Total on-hand quantity across all locations">STOCK</th>
+                  <th title="Total on-hand quantity across the locations you can see">STOCK</th>
                   <th>STATUS</th>
                   <th>ACTIONS</th>
                 </tr>

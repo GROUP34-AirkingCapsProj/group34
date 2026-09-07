@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AttachesGeneratedTags;
 use App\Traits\ApiResponse;
+use App\Traits\SumsStockForUser;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ReceivingDetail;
@@ -18,24 +19,31 @@ class InventoryController extends Controller
 {
     use ApiResponse;
     use AttachesGeneratedTags;
+    use SumsStockForUser;
 
     public function index(Request $request)
     {
+        $user = $request->user();
+
         // Only rows whose product still exists in `products` (same catalog as Item Master).
         $query = Inventory::query()
-            ->forUser($request->user())
+            ->forUser($user)
             ->whereHas('product')
             ->with(['location'])
-            ->with(['product' => function ($q) {
+            ->with(['product' => function ($q) use ($user) {
                 $q->with([
                         'category',
                         'status',
                         'applianceDetail' => fn($aq) => $aq->with(['brand']),
                         'installationMaterialDetail' => fn($cq) => $cq->with('unit'),
                     ])
-                    ->withSum(['inventories as stock_on_hand_total' => function ($sub) {
-                        // all locations — same basis as Item Master QTY
-                    }], 'quantity_on_hand');
+                    // Same basis as Item Master QTY: org-wide for centralized
+                    // roles, the user's own location for scoped roles. Without
+                    // this the rows are filtered but the total is not.
+                    ->withSum(
+                        ['inventories as stock_on_hand_total' => $this->stockSumForUser($user)],
+                        'quantity_on_hand'
+                    );
             }]);
 
         if ($request->has('search')) {

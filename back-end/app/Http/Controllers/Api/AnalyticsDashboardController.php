@@ -95,12 +95,16 @@ class AnalyticsDashboardController extends Controller
     public function locationPerformance(Request $request): JsonResponse
     {
         return $this->ok($this->analytics->locationPerformance(
+            $this->locationId($request),
             $this->categoryId($request)
         ));
     }
 
-    public function filters(): JsonResponse
+    public function filters(Request $request): JsonResponse
     {
-        return $this->ok($this->analytics->filters());
+        // The location filter must only offer what the caller can actually be
+        // shown — for a scoped role every other option is a no-op now that
+        // locationId() pins them to their own location.
+        return $this->ok($this->analytics->filters($this->locationId($request)));
     }
 }

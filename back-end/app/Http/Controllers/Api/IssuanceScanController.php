@@ -409,7 +409,7 @@ class IssuanceScanController extends Controller
                     $product->product_id,
                     $locationId,
                     $canonicalSerial,
-                    'accepted',
+                    'applied',
                     1
                 );
 
@@ -566,7 +566,7 @@ class IssuanceScanController extends Controller
                 $product->product_id,
                 $locationId,
                 null,
-                'accepted',
+                'applied',
                 $quantityInPieces
             );
 
