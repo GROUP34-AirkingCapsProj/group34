@@ -305,6 +305,18 @@ class LabelPrinterSettingsTest extends TestCase
         return $user;
     }
 
+    /* Not $this->user(): that helper takes role_id = min(role_id), and the
+       seeder always creates admin first as id 1, so it hands back an admin.
+       Anything asserting an admin-only gate needs this instead. */
+    private function nonAdmin(): User
+    {
+        $user = $this->user();
+        $user->role_id = (int) (DB::table('roles')->max('role_id') ?? 2);
+        $user->save();
+
+        return $user;
+    }
+
     public function test_it_lists_every_location_with_its_printer(): void
     {
         $a = $this->location('Warehouse A');
@@ -350,14 +362,7 @@ class LabelPrinterSettingsTest extends TestCase
     {
         $location = $this->location();
 
-        /* Not $this->user(): that helper takes role_id = min(role_id), and
-           the seeder always creates admin first as id 1, so it would hand
-           back an admin here too — the opposite of what this test needs. */
-        $user = $this->user();
-        $user->role_id = (int) (DB::table('roles')->max('role_id') ?? 2);
-        $user->save();
-
-        $res = $this->actingAs($user)
+        $res = $this->actingAs($this->nonAdmin())
             ->putJson("/api/system/label-printers/{$location->location_id}", [
                 'transport' => 'tcp', 'host' => '192.168.1.50',
             ]);
@@ -392,5 +397,86 @@ class LabelPrinterSettingsTest extends TestCase
         $this->actingAs($this->admin())
             ->putJson('/api/system/label-printers/99999999', ['transport' => ''])
             ->assertNotFound();
+    }
+    /* The first real attempt will look exactly like this: an address nothing
+       is listening on. It must come back as a sentence, with a 200, because
+       the panel renders the message rather than an error state. */
+    public function test_an_unreachable_printer_answers_with_a_message(): void
+    {
+        $location = $this->location('Warehouse A');
+
+        SystemSetting::setLabelPrinter($location->location_id, [
+            'transport' => 'tcp',
+            'host'      => '127.0.0.1',
+            'port'      => 9101, // nothing listens here
+            'timeout'   => 1,
+        ]);
+
+        $res = $this->actingAs($this->admin())
+            ->postJson("/api/system/label-printers/{$location->location_id}/test");
+
+        $res->assertOk();
+        $this->assertFalse($res->json('data.ok'));
+        $this->assertStringContainsString('127.0.0.1:9101', $res->json('data.message'));
+    }
+
+    public function test_testing_a_location_with_no_printer_says_so(): void
+    {
+        $location = $this->location('Warehouse B');
+
+        $res = $this->actingAs($this->admin())
+            ->postJson("/api/system/label-printers/{$location->location_id}/test");
+
+        $res->assertOk();
+        $this->assertFalse($res->json('data.ok'));
+        $this->assertStringContainsString('No printer is set up', $res->json('data.message'));
+    }
+
+    /* A writable path is reachable, which is what the share transport means.
+       The only success path assertable without hardware. */
+    public function test_a_writable_share_reads_as_reachable(): void
+    {
+        $location = $this->location('Warehouse A');
+        $this->spoolFor($location);
+
+        $res = $this->actingAs($this->admin())
+            ->postJson("/api/system/label-printers/{$location->location_id}/test");
+
+        $res->assertOk();
+        $this->assertTrue($res->json('data.ok'));
+    }
+
+    public function test_a_non_admin_cannot_test_a_printer(): void
+    {
+        $location = $this->location();
+
+        $this->actingAs($this->nonAdmin())
+            ->postJson("/api/system/label-printers/{$location->location_id}/test")
+            ->assertForbidden();
+    }
+
+    public function test_testing_an_unknown_location_is_a_404(): void
+    {
+        $this->actingAs($this->admin())
+            ->postJson('/api/system/label-printers/99999999/test')
+            ->assertNotFound();
+    }
+
+    /* A closed branch does not need a printer offered for it, and this list
+       must not disagree with the one behind the print button, which filters
+       the same way. is_active is not fillable, so it is set past the guard
+       rather than through update(). */
+    public function test_it_leaves_out_inactive_locations(): void
+    {
+        $open   = $this->location('Open Warehouse');
+        $closed = $this->location('Closed Warehouse');
+        $closed->forceFill(['is_active' => 0])->save();
+
+        $ids = collect($this->actingAs($this->admin())
+            ->getJson('/api/system/label-printers')
+            ->json('data.locations'))->pluck('location_id')->all();
+
+        $this->assertContains($open->location_id, $ids);
+        $this->assertNotContains($closed->location_id, $ids);
     }
 }
