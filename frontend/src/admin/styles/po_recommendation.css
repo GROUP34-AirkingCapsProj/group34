@@ -2563,6 +2563,18 @@
   background: #f9fafb;
 }
 
+/* Approve / reject / verify sit at the far right of the detail footer. */
+.po-detail-footer__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.po-detail-footer__actions:empty {
+  display: none;
+}
+
 .po-detail-btn {
   display: inline-flex;
   align-items: center;

@@ -1756,46 +1756,6 @@ const PurchaseOrderPage = () => {
                 };
                 return (
                   <div className="po-detail-footer">
-                    {statusCfg.color === 'pending' && canApprovePO && (
-                      <>
-                        <button
-                          type="button"
-                          className="aq-btn-reject"
-                          disabled={poActionLoading === d.po_id}
-                          onClick={() => handleRejectPO(d)}
-                        >
-                          REJECT
-                        </button>
-                        <button
-                          type="button"
-                          className="aq-btn-approve"
-                          disabled={poActionLoading === d.po_id}
-                          onClick={() => handleApprovePO(d)}
-                        >
-                          {poActionLoading === d.po_id ? 'SAVING…' : 'APPROVE'}
-                        </button>
-                      </>
-                    )}
-                    {canVerifyPO && statusCfg.color === 'pending' && d.verification_status !== 'verified' && (
-                      <>
-                        <button
-                          type="button"
-                          className="aq-btn-reject"
-                          disabled={poActionLoading === d.po_id}
-                          onClick={() => handleRejectPOVerification(d)}
-                        >
-                          REJECT
-                        </button>
-                        <button
-                          type="button"
-                          className="aq-btn-approve"
-                          disabled={poActionLoading === d.po_id}
-                          onClick={() => handleVerifyPO(d)}
-                        >
-                          {poActionLoading === d.po_id ? 'SAVING…' : 'VERIFY'}
-                        </button>
-                      </>
-                    )}
                     <select
                       className="po-input"
                       aria-label="PDF paper size"
@@ -1823,6 +1783,49 @@ const PurchaseOrderPage = () => {
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                       EXPORT PDF
                     </button>
+                    {/* Approve / reject live at the far right of the footer. */}
+                    <div className="po-detail-footer__actions">
+                      {statusCfg.color === 'pending' && canApprovePO && (
+                        <>
+                          <button
+                            type="button"
+                            className="aq-btn-reject"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleRejectPO(d)}
+                          >
+                            REJECT
+                          </button>
+                          <button
+                            type="button"
+                            className="aq-btn-approve"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleApprovePO(d)}
+                          >
+                            {poActionLoading === d.po_id ? 'SAVING…' : 'APPROVE'}
+                          </button>
+                        </>
+                      )}
+                      {canVerifyPO && statusCfg.color === 'pending' && d.verification_status !== 'verified' && (
+                        <>
+                          <button
+                            type="button"
+                            className="aq-btn-reject"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleRejectPOVerification(d)}
+                          >
+                            REJECT
+                          </button>
+                          <button
+                            type="button"
+                            className="aq-btn-approve"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleVerifyPO(d)}
+                          >
+                            {poActionLoading === d.po_id ? 'SAVING…' : 'VERIFY'}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
