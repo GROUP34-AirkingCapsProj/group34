@@ -228,6 +228,22 @@ using the system.
 
 ## When this machine cannot reach the target
 
+**Try a different network first.** This turned out to be per-network, not
+per-machine: the same laptop that could not reach Aiven from the campus Wi-Fi
+connected without trouble from another network, and the live `data:transfer`
+then ran normally. The `--sql` path below is the fallback for when no reachable
+network is available — not the expected route.
+
+Two things make this easy to misdiagnose:
+
+- The failure looks like a credentials problem but is not. DNS resolves and the
+  TCP connection is *accepted*; only PostgreSQL's handshake goes unanswered,
+  timing out with `SQLSTATE[08006] timeout expired`. No password is ever sent.
+- A network you *think* you switched to may not be in use. `check-aiven.ps1`
+  prints your public IP in step 0 — if it did not change, the switch did not
+  take effect, which is the usual explanation for "the hotspot made no
+  difference".
+
 `data:transfer` needs a network path from here to Aiven, because the data is
 here and the database is there. Sometimes there isn't one: a network that
 accepts the TCP connection and then swallows PostgreSQL's handshake cannot be

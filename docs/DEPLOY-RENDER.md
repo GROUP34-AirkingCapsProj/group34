@@ -175,7 +175,7 @@ these directly.
 | `MAIL_MAILER` | `smtp` |
 | `MAIL_SCHEME` | `smtp` |
 | `MAIL_HOST` | `smtp-relay.brevo.com` |
-| `MAIL_PORT` | `587` |
+| `MAIL_PORT` | **`2525`** — not 587, see below |
 | `MAIL_ENCRYPTION` | `tls` |
 | `MAIL_USERNAME` | Brevo SMTP login (an email address) |
 | `MAIL_PASSWORD` | Brevo SMTP key |
@@ -183,9 +183,31 @@ these directly.
 | `MAIL_FROM_NAME` | `Airking Inventory System` |
 
 If you already run this project locally, these nine values are already in
-`back-end/.env` — copy them across verbatim. Set them here rather than later:
-every environment-variable change on Render triggers a full rebuild, so adding
-mail now saves you a 5-10 minute redeploy.
+`back-end/.env` — copy them across verbatim, **except `MAIL_PORT`**. Set them
+here rather than later: every environment-variable change on Render triggers a
+full rebuild, so adding mail now saves you a 5-10 minute redeploy.
+
+> **`MAIL_PORT` is the one value that differs from your local `.env`.**
+>
+> Render blocks outbound traffic to SMTP ports **25, 465 and 587** on free web
+> services ([changelog][render-smtp]). Port 25 stays blocked on every plan; 465
+> and 587 work only on a paid instance. Nothing in the app or in Brevo reports
+> this usefully — the send simply hangs and fails with:
+>
+> ```
+> Connection could not be established with host "smtp-relay.brevo.com:587":
+> stream_socket_client(): Unable to connect (Connection timed out)
+> ```
+>
+> Brevo also listens on **2525**, which is not on Render's block list, and
+> upgrades with STARTTLS exactly as 587 does. So `MAIL_PORT=2525` is the whole
+> fix — every other `MAIL_*` value stays the same.
+>
+> Because admin login **fails closed** when mail cannot be sent (Phase 6), this
+> misconfiguration locks every administrator out of the deployed system. Getting
+> it right the first time is worth the extra minute.
+
+[render-smtp]: https://render.com/changelog/free-web-services-will-no-longer-allow-outbound-traffic-to-smtp-ports
 
 **First-boot only**
 
@@ -287,9 +309,38 @@ WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
 > address; `REACT_APP_API_PUBLIC_URL` bypasses that and is the correct variable
 > for a public deployment. The `/api` suffix is required.
 
-3. Deploy, and note the static site's URL.
+3. **Add the SPA rewrite rule.** On the static site: **Redirects/Rewrites** →
+   **Add Rule**:
 
-4. **Go back to your API service** and add:
+   | Field | Value |
+   |---|---|
+   | Source | `/*` |
+   | Destination | `/index.html` |
+   | Action | **Rewrite** (not Redirect) |
+
+   Without this, the site loads and clicking around works, but **refreshing any
+   page returns a bare `Not Found`** — as does opening a link to anything other
+   than `/`. React Router handles navigation in the browser without contacting
+   the server, so the gap only appears when the browser actually requests
+   `/dashboard` and Render finds no such file.
+
+   The repository already carries an SPA fallback in two formats — `_redirects`
+   (Netlify) and `vercel.json` (Vercel) — and **Render reads neither**. Leave
+   both files alone; they are correct for those platforms. Render's rule lives
+   only in the dashboard.
+
+   Rewrite rules apply immediately, with no rebuild. Verify:
+
+   ```bash
+   curl -o /dev/null -w "%{http_code}\n" https://YOUR-FRONTEND.onrender.com/dashboard
+   ```
+
+   **Expect `200`.** A `404` means the rule did not save, or was created as a
+   Redirect instead of a Rewrite.
+
+4. Note the static site's URL.
+
+5. **Go back to your API service** and add:
 
 | Key | Value |
 |---|---|
@@ -375,6 +426,11 @@ re-run — it does nothing if an admin already exists.
 | Frontend calls `127.0.0.1` | Wrong variable | Use `REACT_APP_API_PUBLIC_URL`, with `/api` |
 | First request takes a minute | Free tier sleeping | Expected |
 | Password reset sends nothing | Sender not verified | Verify it in Brevo |
+| Refreshing any page shows a bare `Not Found`; `/` still works | No SPA rewrite on the static site | Phase 5 step 3. `_redirects` and `vercel.json` do not apply on Render |
+| "We could not send your login code", admins locked out | Render blocks outbound port 587 on free instances | Set `MAIL_PORT=2525`; see Phase 3.2 |
+| `login_otp_mail_failed ... Connection timed out` in the logs | Same as above | Same as above |
+| `login_otp_mail_failed` never appears in Logs | Laravel logging to a file inside the container | Set `LOG_CHANNEL=stderr` (Phase 3.2) — Render only shows stdout/stderr |
+| `data:transfer` fails with `SQLSTATE[08006] timeout expired` | Your network blocks the Aiven port | Not a credentials problem. Run `back-end/scripts/check-aiven.ps1`, then switch networks — see "Known limitations" |
 
 To read logs: Render → your service → **Logs**.
 
@@ -403,7 +459,31 @@ nothing triggers it. Fixing this means a Render Cron Job running
 **Your existing data is not there.** The deployment creates an empty system with
 configuration only — roles, permissions, statuses, categories, brands, units,
 locations. Your products, inventory levels, users and history are still only in
-your local MySQL database. Moving them is a separate task.
+your local MySQL database. Moving them is a separate task: run
+`php artisan data:transfer`, documented in `docs/DATA-TRANSFER.md`.
+
+> **The transfer may not run from every network.** It connects from your machine
+> straight to Aiven on the port from Phase 1 — which is not 5432, and which
+> plenty of managed networks do not allow out. The failure is quiet and easy to
+> misread: DNS resolves, the TCP connection is *accepted*, and then PostgreSQL's
+> handshake never gets a reply, timing out after 15 seconds with
+> `SQLSTATE[08006] timeout expired`.
+>
+> That signature — accepted, then silence — means a firewall or proxy answered
+> on the server's behalf and dropped the traffic. It is **not** a password, an
+> IP allow-list, or a `PG_*` problem, and no configuration change fixes it. A
+> campus or office network is the usual culprit; the same laptop on a home
+> connection normally works, and switching networks is what resolved it here.
+>
+> `back-end/scripts/check-aiven.ps1` tells you which step fails and prints your
+> public IP. Run it before and after switching networks — **if the public IP did
+> not change, the network did not actually change**, which is the common reason
+> a phone hotspot appears to make no difference.
+>
+> If no reachable network is available, `data:transfer --sql=<file>` writes the
+> whole load to a file that `psql` can run from any machine that *can* reach the
+> database. See "When this machine cannot reach the target" in
+> `docs/DATA-TRANSFER.md`.
 
 ---
 
@@ -418,9 +498,11 @@ your local MySQL database. Moving them is a separate task.
 | Frontend Publish Directory | `build` |
 | Frontend API variable | `REACT_APP_API_PUBLIC_URL` = `https://api.../api` |
 | API CORS variable | `FRONTEND_URL` = `https://frontend...` (no trailing slash) |
+| Frontend rewrite rule | `/*` → `/index.html`, action **Rewrite** |
 | Success message in log | `Nothing to migrate.` |
 | Expected table count | `86` |
 | `RUN_MIGRATIONS` | `true` first deploy, then `false` |
+| `MAIL_PORT` | `2525` on Render (587 is blocked on free instances) |
 
 See also `docs/POSTGRES.md` for how the database layer works and how to
 regenerate the schema baseline.
