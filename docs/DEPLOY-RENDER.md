@@ -168,6 +168,25 @@ these directly.
 | `DB_PASSWORD` | Aiven password |
 | `DB_SSLMODE` | `require` |
 
+**Mail (Brevo)** — see Phase 6 if you do not have these yet
+
+| Key | Value |
+|---|---|
+| `MAIL_MAILER` | `smtp` |
+| `MAIL_SCHEME` | `smtp` |
+| `MAIL_HOST` | `smtp-relay.brevo.com` |
+| `MAIL_PORT` | `587` |
+| `MAIL_ENCRYPTION` | `tls` |
+| `MAIL_USERNAME` | Brevo SMTP login (an email address) |
+| `MAIL_PASSWORD` | Brevo SMTP key |
+| `MAIL_FROM_ADDRESS` | your verified sender |
+| `MAIL_FROM_NAME` | `Airking Inventory System` |
+
+If you already run this project locally, these nine values are already in
+`back-end/.env` — copy them across verbatim. Set them here rather than later:
+every environment-variable change on Render triggers a full rebuild, so adding
+mail now saves you a 5-10 minute redeploy.
+
 **First-boot only**
 
 | Key | Value |
@@ -285,27 +304,35 @@ it and every request fails with a CORS error even though both sites are up.
 
 ## Phase 6 — Email (Brevo)
 
+The nine `MAIL_*` variables were set in Phase 3.2. This phase is for verifying
+them, or for creating the Brevo credentials if you did not already have them.
+
+**If you already had working credentials, skip to "Verify" below.** Do not
+regenerate the SMTP key — the old one stops working the moment you do, which
+would break your local environment too.
+
+**First-time setup**
+
 1. Create a Brevo account.
-2. Go to **Senders, Domains & IPs** and verify a sender email address. Brevo
-   silently discards mail from unverified senders.
-3. Go to **SMTP & API** → **SMTP** and create an SMTP key.
+2. **Senders, Domains & IPs** -> verify a sender address. Brevo silently
+   discards mail from unverified senders, so this is not optional.
+3. **SMTP & API** -> **SMTP** -> create an SMTP key.
 
-Add to the **API** service:
+`MAIL_USERNAME` is the SMTP *login* shown on that page (an email address ending
+`@smtp-brevo.com`), and `MAIL_PASSWORD` is the SMTP *key*. Neither is your Brevo
+account password.
 
-| Key | Value |
-|---|---|
-| `MAIL_MAILER` | `smtp` |
-| `MAIL_HOST` | `smtp-relay.brevo.com` |
-| `MAIL_PORT` | `587` |
-| `MAIL_ENCRYPTION` | `tls` |
-| `MAIL_USERNAME` | your Brevo SMTP **login** (an email address) |
-| `MAIL_PASSWORD` | your Brevo SMTP **key** |
-| `MAIL_FROM_ADDRESS` | the verified sender |
-| `MAIL_FROM_NAME` | `Airking Inventory System` |
+**Verify**
 
-`MAIL_PASSWORD` is the SMTP key, **not** your Brevo account password.
+Use "forgot password" on the deployed site and watch for the email.
 
-Test by using "forgot password" on the deployed site.
+If nothing arrives, open **Brevo -> Transactional -> Logs** before touching any
+config. That log tells you whether the message reached Brevo at all, which
+splits the problem cleanly in two: nothing logged means the API never connected
+(wrong host, port, or credentials on Render); logged but not delivered means
+Brevo rejected it (usually an unverified `MAIL_FROM_ADDRESS`).
+
+The free tier allows 300 emails/day.
 
 ---
 
