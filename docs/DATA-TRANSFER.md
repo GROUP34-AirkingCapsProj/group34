@@ -226,6 +226,43 @@ using the system.
 
 ---
 
+## When this machine cannot reach the target
+
+`data:transfer` needs a network path from here to Aiven, because the data is
+here and the database is there. Sometimes there isn't one: a network that
+accepts the TCP connection and then swallows PostgreSQL's handshake cannot be
+configured around, and no `PG_*` value fixes it. `back-end/scripts/check-aiven.ps1`
+tells you whether that is what you are looking at — it walks DNS, TCP and the
+handshake and stops at the first step that fails.
+
+For that case, `--sql` writes the entire load to a file and connects to nothing:
+
+```bash
+php artisan data:transfer --sql=airking-data.sql
+```
+
+The script does everything the live path does, in the same order, inside one
+transaction — empty, load, fill the deferred columns, resynchronise the
+sequences, verify. The verification is a `DO` block that `RAISE`s on a mismatch,
+so a short load aborts the transaction instead of committing quietly. Foreign
+keys it does not need to check itself; PostgreSQL enforces those on insert.
+
+Run it from any machine that *can* reach the database — that machine needs
+`psql` and the file, nothing else, and never needs your MySQL data:
+
+```bash
+psql "postgres://avnadmin:PASSWORD@HOST:PORT/defaultdb?sslmode=require" \
+    -f airking-data.sql
+```
+
+**The file contains real data**, including password hashes and customer records.
+It is not a repository artefact: `.gitignore` blocks `airking-data*.sql` so it
+cannot be committed by accident, and it should be deleted once it has been
+loaded. Do not upload it to a file-sharing site to get it onto another machine —
+use a USB stick or a direct copy.
+
+---
+
 ## Verification
 
 The command finishes by asserting three things, and refuses to report success
@@ -278,12 +315,14 @@ bcrypt hashes intact, so your existing passwords keep working. Do not also run
 `AdminUserSeeder` — you would end up with a spare account whose password is
 published in the repo. If you already ran it, delete that user afterwards.
 
-**The write half has never been run.** The command exists, and its planning half
-is exercised against your real schema: the dry run produces a load order that
-satisfies all 223 foreign keys, and the tests assert it. But nothing here has
-inserted a row into PostgreSQL — there is no local PostgreSQL to try it against,
-so the first real run is the one against Aiven. That is what the backup in step
-1 and the single transaction are for.
+**Nothing here has yet inserted a row into PostgreSQL.** The planning half is
+exercised against your real schema — the load order satisfies all 223 foreign
+keys and the tests assert it, and the generated script is checked for structure
+the same way. But there is no local PostgreSQL to try either path against, so
+the first real execution is the one against Aiven, and PostgreSQL's opinion of
+the SQL is still unknown. That is what the backup in step 1, the single
+transaction and the `RAISE` assertions are for: the expected failure mode is
+"it aborted and told you why", not "it half worked".
 
 **Re-running is safe, and destructive.** Each run empties the 80 tables and
 reloads them, so a second attempt after a failure works. It also means a run

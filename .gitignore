@@ -16,6 +16,14 @@ back-end/.env.backup
 back-end/.env.production
 back-end/.env.pgtest
 
+# Data exports from `php artisan data:transfer --sql`. These hold real business
+# data -- password hashes, customer records -- and must never be committed. The
+# baseline schema in back-end/database/schema/ is a different thing and stays
+# tracked.
+airking-data*.sql
+back-end/airking-data*.sql
+back-end/storage/data-transfer/
+
 # Dependencies
 frontend/node_modules/
 back-end/vendor/

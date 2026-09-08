@@ -18,6 +18,7 @@ use Throwable;
  *
  *   php artisan data:transfer --dry-run     # print the plan, write nothing
  *   php artisan data:transfer               # do it
+ *   php artisan data:transfer --sql=out.sql # write a script instead of connecting
  *
  * Reads the MySQL connection (DB_*) and writes the pgsql_target connection
  * (PG_*), so both databases are open at once and local development is never
@@ -40,6 +41,7 @@ class TransferDataToPostgres extends Command
         {--dry-run : Print the plan and row counts without writing anything}
         {--table=* : Move only these tables (debugging; parents must already be present)}
         {--chunk=500 : Rows per INSERT statement}
+        {--sql= : Write the load to this .sql file instead of connecting to the target}
         {--force : Skip the confirmation prompt}';
 
     protected $description = 'Copy business data from local MySQL into the deployed PostgreSQL database';
@@ -126,9 +128,11 @@ class TransferDataToPostgres extends Command
         // The plan is derived entirely from the source, so an unreachable target
         // is only fatal once there is something to write. Reporting it here
         // rather than after the plan keeps a broken PG_* from looking like a
-        // problem with the data.
+        // problem with the data. --sql never connects at all.
         try {
-            $this->target->getPdo();
+            if (! $this->option('sql')) {
+                $this->target->getPdo();
+            }
         } catch (Throwable $e) {
             if (! $this->option('dry-run')) {
                 $this->error('Cannot reach the target database: '.$e->getMessage());
@@ -167,6 +171,10 @@ class TransferDataToPostgres extends Command
             $this->info('Dry run — nothing was written.');
 
             return $this->targetReachable ? self::SUCCESS : self::FAILURE;
+        }
+
+        if ($path = $this->option('sql')) {
+            return $this->writeSqlFile($path, $order, $counts);
         }
 
         if (! $this->confirmTarget(array_sum($counts))) {
@@ -427,9 +435,15 @@ class TransferDataToPostgres extends Command
 
         $this->newLine();
         $this->info("Source: {$this->source->getDriverName()} [{$this->schema}]");
-        $this->info('Target: pgsql ['.$this->target->getConfig('database').'] on '
-            .$this->target->getConfig('host')
-            .($this->targetReachable ? '' : '  — UNREACHABLE'));
+
+        if ($path = $this->option('sql')) {
+            $this->info("Target: {$path} (a script; nothing is connected to)");
+        } else {
+            $this->info('Target: pgsql ['.$this->target->getConfig('database').'] on '
+                .$this->target->getConfig('host')
+                .($this->targetReachable ? '' : '  — UNREACHABLE'));
+        }
+
         $this->newLine();
 
         $this->line('Load order ('.count($order).' tables, '
@@ -753,6 +767,333 @@ class TransferDataToPostgres extends Command
             'SELECT pg_get_serial_sequence(?, ?) AS sequence',
             [$table, $column]
         )->sequence ?? null;
+    }
+
+    // ------------------------------------------------------------------
+    // SQL script output
+    // ------------------------------------------------------------------
+
+    /**
+     * Writes the whole load to a file instead of performing it.
+     *
+     * For when this machine cannot reach the target at all — a network that
+     * accepts the TCP connection and then swallows the PostgreSQL handshake,
+     * which no amount of correct configuration fixes. The script is the
+     * deliverable: it can be run from anywhere with psql, by anyone, and this
+     * machine never needs to talk to Aiven.
+     *
+     *   php artisan data:transfer --sql=airking-data.sql
+     *   psql "postgres://avnadmin:PASSWORD@HOST:PORT/defaultdb?sslmode=require" \
+     *       -f airking-data.sql
+     *
+     * The script does everything the live path does and in the same order —
+     * empty, load, fill deferred columns, resynchronise sequences, verify —
+     * inside one transaction. The verification is a DO block that RAISEs, so a
+     * mismatch aborts the transaction rather than reporting success. What it
+     * cannot do is check foreign keys itself; PostgreSQL enforces those on
+     * insert, so a violation aborts the transaction anyway.
+     *
+     * The file contains real data, including password hashes and customer
+     * records. It is not a repository artefact. Delete it once it has been run.
+     */
+    private function writeSqlFile(string $path, array $order, array $counts): int
+    {
+        $absolute = $this->absolutePath($path);
+
+        if (! is_dir(dirname($absolute))) {
+            $this->error('No such directory: '.dirname($absolute));
+
+            return self::FAILURE;
+        }
+
+        // LF endings and UTF-8 without a BOM: psql reads this on a Linux host,
+        // and a BOM would be parsed as part of the first statement.
+        $handle = fopen($absolute, 'wb');
+
+        if ($handle === false) {
+            $this->error('Could not write to '.$absolute);
+
+            return self::FAILURE;
+        }
+
+        $write = function (string $sql) use ($handle): void {
+            fwrite($handle, str_replace("\r\n", "\n", $sql));
+        };
+
+        $write($this->sqlHeader($order, $counts));
+
+        // Reverse load order, so a child is emptied before its parent.
+        $write("--\n-- Empty the tables being reloaded.\n--\n");
+
+        foreach (array_reverse($order) as $table) {
+            $write('DELETE FROM '.$this->q($table).";\n");
+        }
+
+        $write("\n");
+
+        $bar = $this->output->createProgressBar(array_sum($counts));
+        $bar->start();
+
+        foreach ($order as $table) {
+            if ($counts[$table] === 0) {
+                continue;
+            }
+
+            $write("--\n-- {$table}: ".number_format($counts[$table])." rows\n--\n");
+            $this->writeInserts($write, $table, $bar);
+            $write("\n");
+        }
+
+        $bar->finish();
+        $this->newLine(2);
+
+        $write($this->sqlDeferredUpdates());
+        $write($this->sqlSequences($order));
+        $write($this->sqlAssertions($order, $counts));
+        $write("COMMIT;\n");
+
+        fclose($handle);
+
+        $this->info('Wrote '.$absolute);
+        $this->line('  '.number_format(filesize($absolute) / 1024, 1).' KiB, '
+            .number_format(array_sum($counts)).' rows, '.count($order).' tables');
+
+        foreach ($this->notes as $note) {
+            $this->line('  note: '.$note);
+        }
+
+        $this->newLine();
+        $this->warn('This file contains real data, including password hashes.');
+        $this->line('  Do not commit it. Delete it once it has been loaded.');
+        $this->newLine();
+        $this->line('Run it from any machine that can reach the database:');
+        $this->line('  psql "postgres://avnadmin:PASSWORD@HOST:PORT/defaultdb?sslmode=require" \\');
+        $this->line('      -f '.basename($absolute));
+
+        return self::SUCCESS;
+    }
+
+    /** Resolves a relative path against the app root, leaving absolute ones alone. */
+    private function absolutePath(string $path): string
+    {
+        $absolute = str_starts_with($path, '/')
+            || str_starts_with($path, '\\')
+            // Windows drive letter: C:\... or C:/...
+            || (strlen($path) > 2 && ctype_alpha($path[0]) && $path[1] === ':');
+
+        return $absolute ? $path : base_path($path);
+    }
+
+    private function sqlHeader(array $order, array $counts): string
+    {
+        $tables = count($order);
+        $rows = number_format(array_sum($counts));
+        $schema = $this->schema;
+
+        return <<<SQL
+        --
+        -- Airking Inventory — business data for PostgreSQL.
+        --
+        -- GENERATED FILE — do not edit by hand.
+        -- Regenerate with:  php artisan data:transfer --sql=<file>
+        -- Source: MySQL database "{$schema}" — {$tables} tables, {$rows} rows.
+        --
+        -- CONTAINS REAL DATA, including password hashes and customer records.
+        -- Do not commit this file. Delete it once it has been loaded.
+        --
+        -- Load it with:
+        --   psql "postgres://avnadmin:PASSWORD@HOST:PORT/defaultdb?sslmode=require" -f <file>
+        --
+        -- Assumes the target already has the schema (php artisan migrate). It
+        -- EMPTIES every table listed below before reloading it, so anything in
+        -- the target that is not also in the source is discarded.
+        --
+        -- Everything runs in one transaction and ends with assertions that RAISE
+        -- on a mismatch, so a partial load rolls back rather than reporting
+        -- success.
+        --
+
+        \set ON_ERROR_STOP on
+
+        SET client_min_messages TO warning;
+        SET standard_conforming_strings TO on;
+
+        BEGIN;
+
+
+        SQL;
+    }
+
+    /** Streams one table's rows out as chunked multi-row INSERTs. */
+    private function writeInserts(callable $write, string $table, $bar): void
+    {
+        $chunk = max(1, (int) $this->option('chunk'));
+        $deferred = array_flip($this->deferredColumns[$table] ?? []);
+        $key = $this->primaryKeys[$table] ?? null;
+
+        $query = $this->source->table($table);
+        $key ? $query->orderBy($key) : $query->orderByRaw('1');
+
+        $query->chunk($chunk, function ($rows) use ($write, $table, $deferred, $bar) {
+            $columns = array_keys((array) $rows->first());
+
+            $values = $rows->map(function ($row) use ($table, $columns, $deferred) {
+                $rendered = array_map(
+                    fn ($column) => isset($deferred[$column])
+                        ? 'NULL'
+                        : $this->sqlValue($table, $column, ((array) $row)[$column]),
+                    $columns
+                );
+
+                return '    ('.implode(', ', $rendered).')';
+            })->implode(",\n");
+
+            $write('INSERT INTO '.$this->q($table).' ('
+                .implode(', ', array_map(fn ($c) => $this->q($c), $columns))
+                .") VALUES\n".$values.";\n");
+
+            $bar->advance($rows->count());
+        });
+    }
+
+    /**
+     * Renders one value as a PostgreSQL literal.
+     *
+     * Everything except booleans is quoted, including numbers and timestamps:
+     * an unadorned quoted literal has type "unknown" and PostgreSQL casts it to
+     * whatever the column is. That is one rule instead of a per-type table, and
+     * one rule cannot disagree with itself.
+     */
+    private function sqlValue(string $table, string $column, mixed $value): string
+    {
+        $converted = $this->convert($table, $column, $value);
+
+        if ($converted === null) {
+            return 'NULL';
+        }
+
+        if (is_bool($converted)) {
+            return $converted ? 'true' : 'false';
+        }
+
+        return $this->literal((string) $converted);
+    }
+
+    private function sqlDeferredUpdates(): string
+    {
+        if ($this->deferredColumns === []) {
+            return '';
+        }
+
+        $sql = "--\n-- Self-referencing columns, held back until every row exists.\n--\n";
+
+        foreach ($this->deferredColumns as $table => $columns) {
+            $key = $this->primaryKeys[$table];
+
+            foreach ($columns as $column) {
+                foreach ($this->source->table($table)->whereNotNull($column)->pluck($column, $key) as $id => $value) {
+                    $sql .= 'UPDATE '.$this->q($table).' SET '.$this->q($column).' = '
+                        .$this->sqlValue($table, $column, $value)
+                        .' WHERE '.$this->q($key).' = '.$this->literal((string) $id).";\n";
+                }
+            }
+        }
+
+        return $sql."\n";
+    }
+
+    private function sqlSequences(array $order): string
+    {
+        $sql = "--\n-- Advance each identity sequence past the rows just inserted, or the\n"
+            ."-- next insert the application makes collides on the primary key.\n--\n";
+
+        foreach ($order as $table) {
+            if (! $column = $this->primaryKeys[$table] ?? null) {
+                continue;
+            }
+
+            // Resolved at run time rather than here, so this does not depend on
+            // the target's sequence naming. is_called is false on an empty
+            // table, so the next value is 1 rather than 2.
+            $sql .= "SELECT setval(pg_get_serial_sequence('{$table}', '{$column}'),\n"
+                .'    COALESCE((SELECT MAX('.$this->q($column).') FROM '.$this->q($table)."), 1),\n"
+                .'    (SELECT MAX('.$this->q($column).') FROM '.$this->q($table).") IS NOT NULL)\n"
+                ."WHERE pg_get_serial_sequence('{$table}', '{$column}') IS NOT NULL;\n";
+        }
+
+        return $sql."\n";
+    }
+
+    /**
+     * The same two assertions the live path makes, as SQL that aborts on failure.
+     *
+     * RAISE EXCEPTION inside the transaction means a mismatch rolls the whole
+     * load back. Without this the script would happily COMMIT a table that
+     * silently loaded zero rows.
+     */
+    private function sqlAssertions(array $order, array $counts): string
+    {
+        $sql = "--\n-- Verification. A mismatch raises, which rolls back everything above.\n--\n";
+
+        $sql .= "DO \$\$\nDECLARE n bigint;\nBEGIN\n";
+
+        foreach ($order as $table) {
+            $sql .= '    SELECT count(*) INTO n FROM '.$this->q($table).";\n"
+                ."    IF n <> {$counts[$table]} THEN\n"
+                ."        RAISE EXCEPTION '{$table}: expected {$counts[$table]} rows, found %', n;\n"
+                ."    END IF;\n";
+        }
+
+        $sql .= "END\n\$\$;\n\n";
+
+        $pairs = [];
+
+        foreach ($order as $table) {
+            if ($counts[$table] > 0 && $column = $this->primaryKeys[$table] ?? null) {
+                $pairs[] = '        ('.$this->literal($table).', '.$this->literal($column).')';
+            }
+        }
+
+        if ($pairs !== []) {
+            $sql .= "DO \$\$\nDECLARE\n    r record;\n    seq text;\n    lastval bigint;\n    maxid bigint;\nBEGIN\n"
+                ."    FOR r IN SELECT * FROM (VALUES\n".implode(",\n", $pairs)."\n    ) AS t(tbl, col) LOOP\n"
+                ."        seq := pg_get_serial_sequence(r.tbl, r.col);\n"
+                ."        CONTINUE WHEN seq IS NULL;\n"
+                ."        EXECUTE format('SELECT last_value FROM %s', seq) INTO lastval;\n"
+                ."        EXECUTE format('SELECT COALESCE(MAX(%I), 0) FROM %I', r.col, r.tbl) INTO maxid;\n"
+                ."        IF lastval < maxid THEN\n"
+                ."            RAISE EXCEPTION 'sequence for %.% is at %, behind max id %', r.tbl, r.col, lastval, maxid;\n"
+                ."        END IF;\n"
+                ."    END LOOP;\n"
+                ."END\n\$\$;\n\n";
+        }
+
+        return $sql;
+    }
+
+    // ------------------------------------------------------------------
+    // Quoting
+    //
+    // Only --sql needs these. The live path binds values as parameters, which
+    // is both safer and faster; a generated script has no parameters to bind to.
+    // ------------------------------------------------------------------
+
+    /** Quote an identifier for PostgreSQL. */
+    private function q(string $identifier): string
+    {
+        return '"'.str_replace('"', '""', $identifier).'"';
+    }
+
+    /**
+     * Quote a string literal for PostgreSQL.
+     *
+     * Doubling the quote is the whole escape, and it is correct only because
+     * the header sets standard_conforming_strings — without it a backslash in
+     * the data would be read as an escape character.
+     */
+    private function literal(string $value): string
+    {
+        return "'".str_replace("'", "''", $value)."'";
     }
 
     // ------------------------------------------------------------------
