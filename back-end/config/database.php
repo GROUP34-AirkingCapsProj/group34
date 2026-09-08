@@ -105,6 +105,33 @@ return [
             'sslrootcert' => env('DB_SSLROOTCERT'),
         ],
 
+        /*
+         * A second PostgreSQL connection, pointed at the *deployed* database.
+         *
+         * Exists for `data:transfer`, which has to hold both databases open at
+         * once: DB_* stays on local MySQL so development keeps working, and PG_*
+         * describes the Aiven target. Unused by the application itself — in
+         * production DB_CONNECTION=pgsql and the connection above is the one
+         * that serves requests.
+         */
+        'pgsql_target' => [
+            'driver' => 'pgsql',
+            'url' => env('PG_URL'),
+            'host' => env('PG_HOST', '127.0.0.1'),
+            'port' => env('PG_PORT', '5432'),
+            'database' => env('PG_DATABASE', 'defaultdb'),
+            'username' => env('PG_USERNAME', 'avnadmin'),
+            'password' => env('PG_PASSWORD', ''),
+            'charset' => env('PG_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => env('PG_SCHEMA', 'public'),
+            // Defaults to require, not prefer: this connection only ever points
+            // at a managed host across the public internet.
+            'sslmode' => env('PG_SSLMODE', 'require'),
+            'sslrootcert' => env('PG_SSLROOTCERT'),
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

@@ -51,7 +51,7 @@ class ExportPostgresSchema extends Command
      * transactional table (products, inventory, audit_trail, ...). Moving those
      * is a data-migration decision, not part of a schema baseline.
      */
-    private const REFERENCE_TABLES = [
+    public const REFERENCE_TABLES = [
         'status_lookup',
         'roles',
         'permissions',
@@ -83,7 +83,7 @@ class ExportPostgresSchema extends Command
      * that is not valid JSON, loading it into jsonb will fail loudly — which is
      * the right outcome, since Laravel would have failed to decode it anyway.
      */
-    private const JSON_COLUMNS = [
+    public const JSON_COLUMNS = [
         'archive_logs.modules_processed',
         'audit_trail.old_values',
         'audit_trail.new_values',
@@ -109,7 +109,7 @@ class ExportPostgresSchema extends Command
      *   - archive_last_run is a timestamped record of the last archive sweep.
      *     A new database has never run one.
      */
-    private const REFERENCE_ROW_EXCLUSIONS = [
+    public const REFERENCE_ROW_EXCLUSIONS = [
         'system_settings' => [
             'key' => ['label_printers', 'archive_last_run'],
         ],

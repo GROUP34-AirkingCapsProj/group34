@@ -15,8 +15,8 @@ Measured against `airkingV5` on 2026-09-08:
 
 | | |
 |---|---|
-| Tables | 86 (62 hold rows, 24 are empty) |
-| Total rows | **~3,000** |
+| Tables moved | 80 of 86 (59 hold rows; the other 6 are skipped, see below) |
+| Total rows | **2,833** |
 | Largest tables | `role_permissions` (600), `permission_audit_logs` (400), `products` (338) |
 | Foreign keys | 223, of which 2 are self-referencing |
 | Uploaded files | 1 (an avatar), 1 KB |
@@ -42,10 +42,15 @@ until object storage (S3/R2) is wired up, treat every incident photo and report
 uploaded in production as temporary. Rows that reference a file keep their path
 and the file 404s.
 
-**`sessions`, `cache`, `cache_locks`, `password_reset_*`, `personal_access_tokens`.**
+**`sessions`, `cache`, `cache_locks`, `password_reset_tokens`, `personal_access_tokens`.**
 Transient by nature. Copying live sessions to a host with a different `APP_KEY`
 produces cookies that cannot be decrypted. Everyone logs in again; that is
 correct, not a regression.
+
+**`migrations`.** Skipped for a different and more dangerous reason. The
+target's copy was written by the baseline load, and it is what tells Laravel the
+historical migrations are already applied. Overwriting it with this machine's
+copy is harmless today and wrong the moment the two drift.
 
 ---
 
@@ -56,9 +61,16 @@ here. It is Linux-first and awkward to run on Windows, it needs its casting
 rules re-derived from scratch, and its value is throughput — which is irrelevant
 at 3,000 rows.
 
-Instead: a `data:transfer` Artisan command reading from a `mysql_source`
-connection and writing to the existing `pgsql` connection. Run from your machine
-against Aiven over the internet; Render is not involved.
+Instead: **`php artisan data:transfer`**
+(`back-end/app/Console/Commands/TransferDataToPostgres.php`), reading the local
+`mysql` connection and writing a second `pgsql_target` connection. `DB_*` stays
+on local MySQL so development keeps working; `PG_*` describes Aiven. Run from
+your machine against Aiven over the internet; Render is not involved.
+
+**Prerequisite:** PHP needs the PostgreSQL driver. XAMPP ships the DLLs but
+leaves them switched off — `extension=pdo_pgsql` and `extension=pgsql` are now
+uncommented in `C:\xampp\php\php.ini`, with the original kept alongside as
+`php.ini.bak-before-pgsql`. Confirm with `php -m | findstr pgsql`.
 
 This wins because the conversion rules already exist in this repo. The
 `schema:export-pgsql` command written for the baseline already knows which
@@ -66,9 +78,10 @@ columns are JSON, which tables hold reference data, and how to resynchronise
 identity sequences. The transfer reuses that knowledge rather than restating it
 in a second dialect.
 
-It is also inspectable: `--dry-run` prints a per-table plan and row count
-without writing anything, and `--table=products` moves one table so a failure
-can be reproduced in isolation.
+It is also inspectable: `--dry-run` prints the load order, a row count and the
+conversions per table without writing anything — and works even with `PG_*`
+unset, since the plan comes entirely from the source. `--table=products` moves
+one table so a failure can be reproduced in isolation.
 
 ---
 
@@ -81,8 +94,11 @@ defer this: `SET CONSTRAINTS ALL DEFERRED` only works on constraints declared
 `DEFERRABLE` (ours are not), and `ALTER TABLE ... DISABLE TRIGGER ALL` needs
 superuser, which Aiven's `avnadmin` is not.
 
-So the command topologically sorts the tables using
-`Schema::connection('pgsql')->getForeignKeys($table)` and loads in that order.
+So the command topologically sorts the tables from
+`information_schema.KEY_COLUMN_USAGE` and loads in that order. The resulting
+order is asserted against all 223 constraints by
+`tests/Feature/Schema/DataTransferPlanTest.php` — the only part of this that can
+be tested without a live PostgreSQL to write to.
 
 **Two tables reference themselves** and would deadlock a naive sort:
 
@@ -93,9 +109,10 @@ So the command topologically sorts the tables using
 
 Both columns are nullable, so both are handled the same way: insert every row
 with that column forced to `NULL`, then a second pass `UPDATE`s the real values
-once all rows exist. 171 of the 223 FK columns are nullable, so the same
-technique is available as a fallback if the sort finds a cycle this plan has not
-anticipated.
+once all rows exist. 171 of the 223 FK columns are nullable, and the sort applies
+the same technique automatically if it meets a cycle this plan did not
+anticipate — deferring one nullable column inside it rather than guessing. A
+cycle with no nullable column to defer aborts and says which tables it involves.
 
 ### 2. Type conversions
 
@@ -110,10 +127,15 @@ MySQL and PostgreSQL disagree on four things in this schema:
 
 ### 3. Reference-data collision
 
-16 tables already hold rows in production. The command `DELETE`s them inside the
-transaction before reloading from MySQL, in reverse FK order. Local is treated
+16 tables already hold rows in production. The command `DELETE`s every table it
+is about to load, in reverse FK order, inside the transaction. Local is treated
 as the source of truth, so production ends up identical rather than merged —
 merging two versions of a lookup table by hand is how you get duplicate brands.
+Emptying all 80 rather than only those 16 is also what makes a second attempt
+safe after a failed first one.
+
+`DELETE`, not `TRUNCATE`: `TRUNCATE` takes an `ACCESS EXCLUSIVE` lock, and with
+`CASCADE` would silently empty tables outside the list.
 
 `system_settings` keeps its exclusion list: `label_printers` and
 `archive_last_run` are dev-machine state, not configuration.
@@ -148,9 +170,11 @@ using the system.
    backup. Cheap insurance, and the only thing standing between you and a
    rebuild if step 4 goes wrong.
 
-2. **Point the command at both databases.** Add the Aiven credentials to
-   `back-end/.env` as `PG_*` variables (a separate connection, so your local
-   `DB_*` MySQL settings are untouched and local development keeps working).
+2. **Point the command at both databases.** `back-end/.env` now ends with a
+   `PG_*` block. Fill in `PG_HOST`, `PG_PORT` and `PG_PASSWORD` from the Aiven
+   console — the same values you pasted into Render, and note the port is not
+   5432. Your `DB_*` MySQL settings are untouched, so local development keeps
+   working.
 
 3. **Dry run.**
 
@@ -162,11 +186,17 @@ using the system.
    intends to apply. Writes nothing. Read the order and confirm nothing is
    missing.
 
-4. **Transfer.**
+4. **Transfer.** It asks twice — once about the backup, once about the row
+   count — before touching anything.
 
    ```bash
    php artisan data:transfer
    ```
+
+   Before opening the transaction it checks the target has every table and
+   column it is about to write. If the baseline has drifted from the current
+   schema, that surfaces here as one sentence naming the column, rather than as
+   a failure halfway through the load.
 
 5. **Verify** (below).
 
@@ -216,11 +246,14 @@ bcrypt hashes intact, so your existing passwords keep working. Do not also run
 `AdminUserSeeder` — you would end up with a spare account whose password is
 published in the repo. If you already ran it, delete that user afterwards.
 
-**This has never been run.** Same caveat as the Docker image carried: the plan
-is derived from the real schema and real row counts, but the command does not
-exist yet. Expect the first `--dry-run` to surface at least one thing this
-document did not predict.
+**The write half has never been run.** The command exists, and its planning half
+is exercised against your real schema: the dry run produces a load order that
+satisfies all 223 foreign keys, and the tests assert it. But nothing here has
+inserted a row into PostgreSQL — there is no local PostgreSQL to try it against,
+so the first real run is the one against Aiven. That is what the backup in step
+1 and the single transaction are for.
 
-**Re-running is not idempotent for non-reference tables.** Running it twice
-without restoring a backup will collide on primary keys. That is deliberate —
-the alternative, silently upserting, would mask a partial first run.
+**Re-running is safe, and destructive.** Each run empties the 80 tables and
+reloads them, so a second attempt after a failure works. It also means a run
+started by accident discards whatever is in production. Hence the two prompts;
+`--force` skips them and should be left alone.
