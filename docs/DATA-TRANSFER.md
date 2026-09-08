@@ -166,9 +166,29 @@ nothing.
 will be looking at data that is about to be replaced. Do this when nobody is
 using the system.
 
-1. **Back up the Aiven database.** Aiven console → Backups → take a manual
-   backup. Cheap insurance, and the only thing standing between you and a
-   rebuild if step 4 goes wrong.
+1. **Decide whether you need a backup.**
+
+   Aiven has no "back up now" button for PostgreSQL — backups are automatic,
+   and on the free plan there are none at all. Check yours under the service's
+   **Backups** tab.
+
+   For the *first* run this does not matter: everything currently in Aiven is
+   the baseline schema plus reference data, all of which `migrate` regenerates
+   exactly from this repo. The rollback is to rebuild, not to restore — see
+   "Rollback" below.
+
+   It matters from the *second* run onwards, once people have used the deployed
+   site and production holds rows this machine has never seen. At that point a
+   re-run would discard them, and only a real dump gets them back:
+
+   ```bash
+   pg_dump "postgres://avnadmin:PASSWORD@HOST:PORT/defaultdb?sslmode=require" \
+       -Fc -f airking-aiven-backup.dump
+   ```
+
+   `pg_dump` is not on this machine and XAMPP does not ship it. It comes with
+   the PostgreSQL Windows installer — during setup, deselect everything except
+   **Command Line Tools**; a full server install is not needed.
 
 2. **Point the command at both databases.** `back-end/.env` now ends with a
    `PG_*` block. Fill in `PG_HOST`, `PG_PORT` and `PG_PASSWORD` from the Aiven
@@ -231,11 +251,23 @@ SELECT count(*) FROM users;       -- expect 8
 
 ## Rollback
 
-Restore the manual backup from step 1. Because the load is one transaction, the
-realistic bad outcome is "nothing happened", not "half the data moved".
+Because the load is one transaction, the realistic bad outcome is "nothing
+happened", not "half the data moved". The `DELETE` that empties the tables is
+the one irreversible action, and it sits inside that same transaction.
 
-The one irreversible action is the `DELETE` on reference tables — which is why
-it sits inside the same transaction as the load.
+If the target does need resetting, and production holds nothing that is not also
+on this machine, rebuild rather than restore — no backup required:
+
+```sql
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+```
+
+then redeploy with `RUN_MIGRATIONS=true` to reload the baseline, and run the
+transfer again.
+
+Once production holds rows this machine has never seen, that is no longer true
+and only the dump from step 1 will bring them back.
 
 ---
 
