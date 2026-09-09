@@ -1,0 +1,288 @@
+/* ============================================================================
+   RESPONSIVE DATA TABLES  ·  loaded globally from src/index.js
+   ----------------------------------------------------------------------------
+   Why this file exists.
+
+   Almost every table wrapper in the app already declared `overflow-x: auto`,
+   yet no table could be side-scrolled on a phone. The scroller was inert: the
+   tables are `width: 100%` with freely wrapping <td>s, so on a 390px viewport
+   the table dutifully shrank to 390px. Nothing overflowed, so `auto` never
+   produced a scrollbar — the columns just crushed into unreadable slivers and
+   the right-hand ones became illegible rather than reachable.
+
+   The fix is not a fixed `min-width` (that would force a 3-column table to
+   scroll on a phone it fits on fine). Instead, below the breakpoint the table
+   is allowed to size to its own content — `width: auto; min-width: 100%` — and
+   cells stop wrapping. A narrow table still fills the wrapper and does not
+   scroll; a wide one genuinely overflows, so the existing scroller engages.
+
+   Specificity note: every per-page `width: 100%` on a table is a single-class
+   selector (0,1,0). The `> table` rules below are (0,1,1) and win on their own,
+   so nothing here needs !important.
+   ============================================================================ */
+
+/* Every element that wraps a data table, collected from the pages that use one.
+   Listed explicitly rather than styling bare `table`, so print/receipt layouts
+   (ISTReceiptPage, ReceivingReceipt, the printed transfer slip) keep their
+   fixed widths and are not turned into scrollers. */
+.ak-table-wrap,
+.as-log-table-wrap,
+.as-module-table-wrap,
+.at-table-wrapper,
+.branch-table-wrapper,
+.bs-audit-table-wrap,
+.consumption-table-wrapper,
+.cr-table-wrap,
+.im-table-wrapper,
+.inv-table-wrapper,
+.invd-table-wrap,
+.isp-table-wrap,
+.low-stock-table-wrap,
+.plm-table-wrapper,
+.po-table-wrapper,
+.rcx-matrix-wrap,
+.rd-table-wrap,
+.sn-table-wrapper,
+.table-wrapper,
+.txn-computation-table-wrap,
+.um-table-wrapper,
+.wh-table-wrapper,
+.ak-scroll-x {
+  overflow-x: auto;
+  /* Keep a horizontal flick inside the table instead of letting it bubble up
+     and trigger the browser's back-navigation gesture. */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  .ak-table-wrap > table,
+  .as-log-table-wrap > table,
+  .as-module-table-wrap > table,
+  .at-table-wrapper > table,
+  .branch-table-wrapper > table,
+  .bs-audit-table-wrap > table,
+  .consumption-table-wrapper > table,
+  .cr-table-wrap > table,
+  .im-table-wrapper > table,
+  .inv-table-wrapper > table,
+  .invd-table-wrap > table,
+  .isp-table-wrap > table,
+  .low-stock-table-wrap > table,
+  .plm-table-wrapper > table,
+  .po-table-wrapper > table,
+  .rcx-matrix-wrap > table,
+  .rd-table-wrap > table,
+  .sn-table-wrapper > table,
+  .table-wrapper > table,
+  .txn-computation-table-wrap > table,
+  .um-table-wrapper > table,
+  .wh-table-wrapper > table,
+  .ak-scroll-x > table {
+    /* Size to content, but never narrower than the wrapper. */
+    width: auto;
+    min-width: 100%;
+  }
+
+  .ak-table-wrap > table th,
+  .ak-table-wrap > table td,
+  .as-log-table-wrap > table th,
+  .as-log-table-wrap > table td,
+  .as-module-table-wrap > table th,
+  .as-module-table-wrap > table td,
+  .at-table-wrapper > table th,
+  .at-table-wrapper > table td,
+  .branch-table-wrapper > table th,
+  .branch-table-wrapper > table td,
+  .bs-audit-table-wrap > table th,
+  .bs-audit-table-wrap > table td,
+  .consumption-table-wrapper > table th,
+  .consumption-table-wrapper > table td,
+  .cr-table-wrap > table th,
+  .cr-table-wrap > table td,
+  .im-table-wrapper > table th,
+  .im-table-wrapper > table td,
+  .inv-table-wrapper > table th,
+  .inv-table-wrapper > table td,
+  .invd-table-wrap > table th,
+  .invd-table-wrap > table td,
+  .isp-table-wrap > table th,
+  .isp-table-wrap > table td,
+  .low-stock-table-wrap > table th,
+  .low-stock-table-wrap > table td,
+  .plm-table-wrapper > table th,
+  .plm-table-wrapper > table td,
+  .po-table-wrapper > table th,
+  .po-table-wrapper > table td,
+  .rcx-matrix-wrap > table th,
+  .rcx-matrix-wrap > table td,
+  .rd-table-wrap > table th,
+  .rd-table-wrap > table td,
+  .sn-table-wrapper > table th,
+  .sn-table-wrapper > table td,
+  .table-wrapper > table th,
+  .table-wrapper > table td,
+  .txn-computation-table-wrap > table th,
+  .txn-computation-table-wrap > table td,
+  .um-table-wrapper > table th,
+  .um-table-wrapper > table td,
+  .wh-table-wrapper > table th,
+  .wh-table-wrapper > table td,
+  .ak-scroll-x > table th,
+  .ak-scroll-x > table td {
+    white-space: nowrap;
+  }
+
+  /* Escape hatch: put .ak-cell-wrap on a cell holding long free text (notes,
+     addresses, remarks) so it wraps at a sane width instead of stretching the
+     whole table off the side of the world. */
+  .ak-cell-wrap {
+    white-space: normal !important;
+    min-width: 12rem;
+    max-width: 20rem;
+    overflow-wrap: anywhere;
+  }
+
+  /* A row that spans the whole table — loader, error, "no records found" — is
+     centred across the full (now wider) table, which puts it off-screen. Left
+     align it so the message is readable without scrolling, and let it wrap. */
+  .table-empty,
+  .ak-table-empty {
+    white-space: normal !important;
+    text-align: left !important;
+  }
+}
+
+/* On touch devices the overlay scrollbar stays invisible until the user
+   already scrolls, so nothing advertises that more columns exist. A slim
+   always-visible bar is the affordance. */
+@media (max-width: 900px) and (hover: none) {
+  .ak-table-wrap,
+  .at-table-wrapper,
+  .branch-table-wrapper,
+  .consumption-table-wrapper,
+  .cr-table-wrap,
+  .im-table-wrapper,
+  .inv-table-wrapper,
+  .invd-table-wrap,
+  .isp-table-wrap,
+  .plm-table-wrapper,
+  .po-table-wrapper,
+  .sn-table-wrapper,
+  .table-wrapper,
+  .um-table-wrapper,
+  .wh-table-wrapper,
+  .ak-scroll-x {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ak-ink-faint, #939aa8) transparent;
+  }
+
+  .ak-table-wrap::-webkit-scrollbar,
+  .at-table-wrapper::-webkit-scrollbar,
+  .branch-table-wrapper::-webkit-scrollbar,
+  .consumption-table-wrapper::-webkit-scrollbar,
+  .cr-table-wrap::-webkit-scrollbar,
+  .im-table-wrapper::-webkit-scrollbar,
+  .inv-table-wrapper::-webkit-scrollbar,
+  .invd-table-wrap::-webkit-scrollbar,
+  .isp-table-wrap::-webkit-scrollbar,
+  .plm-table-wrapper::-webkit-scrollbar,
+  .po-table-wrapper::-webkit-scrollbar,
+  .sn-table-wrapper::-webkit-scrollbar,
+  .table-wrapper::-webkit-scrollbar,
+  .um-table-wrapper::-webkit-scrollbar,
+  .wh-table-wrapper::-webkit-scrollbar,
+  .ak-scroll-x::-webkit-scrollbar {
+    height: 6px;
+    -webkit-appearance: none;
+  }
+
+  .ak-table-wrap::-webkit-scrollbar-thumb,
+  .at-table-wrapper::-webkit-scrollbar-thumb,
+  .branch-table-wrapper::-webkit-scrollbar-thumb,
+  .consumption-table-wrapper::-webkit-scrollbar-thumb,
+  .cr-table-wrap::-webkit-scrollbar-thumb,
+  .im-table-wrapper::-webkit-scrollbar-thumb,
+  .inv-table-wrapper::-webkit-scrollbar-thumb,
+  .invd-table-wrap::-webkit-scrollbar-thumb,
+  .isp-table-wrap::-webkit-scrollbar-thumb,
+  .plm-table-wrapper::-webkit-scrollbar-thumb,
+  .po-table-wrapper::-webkit-scrollbar-thumb,
+  .sn-table-wrapper::-webkit-scrollbar-thumb,
+  .table-wrapper::-webkit-scrollbar-thumb,
+  .um-table-wrapper::-webkit-scrollbar-thumb,
+  .wh-table-wrapper::-webkit-scrollbar-thumb,
+  .ak-scroll-x::-webkit-scrollbar-thumb {
+    background: rgba(147, 154, 168, 0.55);
+    border-radius: 999px;
+  }
+}
+
+/* ============================================================================
+   .table-wrapper / .data-table
+   ----------------------------------------------------------------------------
+   AdjustmentManagement, DeliveryReceiptManagement and PurchaseReturnManagement
+   render <div class="table-wrapper"><table class="data-table"> — but neither
+   class was defined anywhere in the codebase, so those three pages fell back to
+   raw browser table defaults: no scroll container, no padding, no rules. Given
+   nowrap cells above, unpadded defaults would look broken, so they inherit the
+   ak-table treatment and now match the rest of the admin.
+   ============================================================================ */
+.table-wrapper {
+  background: var(--ak-card, #fff);
+  border: 1px solid var(--ak-line, #e7e9f1);
+  border-radius: var(--ak-radius, 16px);
+  box-shadow: var(--ak-shadow-lg, 0 10px 30px rgba(20, 24, 31, 0.08));
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.data-table thead th {
+  text-align: left;
+  font-family: var(--ak-mono, ui-monospace, monospace);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ak-ink-faint, #939aa8);
+  padding: 0.8rem 0.95rem;
+  border-bottom: 1px solid var(--ak-line, #e7e9f1);
+  white-space: nowrap;
+  background: #fbfbfe;
+}
+
+.data-table tbody td {
+  padding: 0.75rem 0.95rem;
+  border-bottom: 1px solid var(--ak-line-soft, #eff1f7);
+  font-size: 0.88rem;
+  vertical-align: middle;
+}
+
+.data-table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.data-table tbody tr:hover {
+  background: var(--ak-band, #f7f8fc);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table .table-empty {
+  text-align: center;
+  color: var(--ak-ink-soft, #5b6472);
+  padding: 2rem 0.95rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-table tbody tr {
+    transition: none;
+  }
+}

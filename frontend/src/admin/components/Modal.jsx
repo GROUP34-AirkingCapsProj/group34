@@ -12,8 +12,16 @@ const Modal = ({
   hideHeader = false,
 }) => {
   useEffect(() => {
+    // A confirm dialog opened from inside this modal renders in its own portal,
+    // so Escape would otherwise reach both and dismiss the modal underneath the
+    // confirm the user was still answering. SweetAlert2 marks the body while a
+    // blocking popup is up; toasts set swal2-toast-shown and must not count.
+    const blockingPopupOpen = () =>
+      document.body.classList.contains('swal2-shown') &&
+      !document.body.classList.contains('swal2-toast-shown');
+
     const handleEscape = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !blockingPopupOpen()) {
         onClose();
       }
     };
@@ -111,7 +119,10 @@ const Modal = ({
             flex: 1,
             minHeight: 0,
             overflowY: 'auto',
-            overflowX: 'hidden',
+            // 'hidden' silently clipped wide tables rendered straight into a
+            // modal, leaving no way to reach the right-hand columns. 'auto'
+            // only shows a scrollbar when something actually overflows.
+            overflowX: 'auto',
             WebkitOverflowScrolling: 'touch',
             padding: hideHeader ? '24px' : '0 24px 24px',
           }}

@@ -1,5 +1,7 @@
 /* AirKing PWA — minimal offline shell for SPA (Vercel / CRA). */
-const CACHE_NAME = 'airking-pwa-shell-v1';
+// Bump this whenever the cached shell (index.html / manifest.json) changes,
+// otherwise returning users keep serving the previous shell forever.
+const CACHE_NAME = 'airking-pwa-shell-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -11,7 +13,14 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      )
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {

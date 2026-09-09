@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import './admin/styles/swal-toast.css';
+import './admin/styles/table_scroll.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { register as registerPwaServiceWorker } from './serviceWorkerRegistration';

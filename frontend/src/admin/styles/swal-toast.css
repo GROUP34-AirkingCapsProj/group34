@@ -1,3 +1,14 @@
+/* ── Stacking ──────────────────────────────────────────────────────────────
+   SweetAlert2 ships .swal2-container at z-index 1060, which sits *below*
+   every overlay in this app: Modal.jsx uses 10000, SearchSelect's portal
+   10050, barcode zoom 10010. A confirm fired from inside an open modal was
+   therefore painted behind it. Confirms and toasts are always the most
+   recent, most urgent thing on screen, so they own the top of the stack.
+   Keep this above any new overlay z-index. */
+.swal2-container {
+  z-index: 20000 !important;
+}
+
 /* SweetAlert2 toast - compact, top-end */
 .swal2-popup.swal-toast {
   padding: 0.5rem 1rem !important;
