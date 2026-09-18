@@ -19,7 +19,8 @@
    per-page CSS. Migrate a page by wrapping it in `.ak-page` and swapping its
    bespoke header/card/button/table classes for the ak-* equivalents below.
    ============================================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts load via <link> in public/index.html (non-blocking). Do not @import
+   Google Fonts here — CSS @import blocks stylesheet parsing. */
 
 /* Design tokens live on :root (not .ak-page) so controls rendered in a portaled
    modal — createPortal(..., document.body), OUTSIDE any .ak-page — still resolve
@@ -51,6 +52,25 @@
   --ak-radius-sm: 10px;
   --ak-shadow:    0 1px 2px rgba(20, 24, 31, 0.04), 0 12px 32px -18px rgba(20, 24, 31, 0.22);
   --ak-shadow-lg: 0 1px 2px rgba(20, 24, 31, 0.04), 0 22px 48px -30px rgba(20, 24, 31, 0.28);
+}
+
+html[data-theme='dark'] {
+  --ak-bg:        #12181f;
+  --ak-ink:       #e8edf4;
+  --ak-ink-soft:  #9aa5b5;
+  --ak-ink-faint: #7a8698;
+  --ak-card:      #1a222d;
+  --ak-line:      #2c3644;
+  --ak-line-soft: #243040;
+  --ak-band:      #151b24;
+  --ak-crimson:      #ef2d52;
+  --ak-crimson-deep: #dc143c;
+  --ak-gold:         #f5b301;
+  --ak-amber:        #fbbf24;
+  --ak-green:        #34d399;
+  --ak-blue:         #60a5fa;
+  --ak-shadow:    0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -14px rgba(0, 0, 0, 0.55);
+  --ak-shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.35), 0 22px 48px -24px rgba(0, 0, 0, 0.65);
 }
 
 .ak-page {

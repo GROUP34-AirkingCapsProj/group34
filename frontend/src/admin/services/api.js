@@ -606,6 +606,26 @@ export const archiveSettingsAPI = {
   },
 };
 
+/** Database backup / restore (admin only). */
+export const backupAPI = {
+  getSettings: async () => apiRequest('/backup/settings'),
+  updateSettings: async (payload) =>
+    apiRequest('/backup/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  runNow: async () =>
+    apiRequest('/backup/run', { method: 'POST' }),
+  getHistory: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/backup/history?${query}` : '/backup/history');
+  },
+  download: async (id, filename = 'backup.sql') =>
+    openApiFile(`/backup/history/${id}/download`, { download: true, filename }),
+  restore: async (id) =>
+    apiRequest(`/backup/history/${id}/restore`, { method: 'POST' }),
+};
+
 /** Company letterhead settings (GET any auth user; PUT admin only). */
 export const companySettingsAPI = {
   get: async () => apiRequest('/system/company-settings'),

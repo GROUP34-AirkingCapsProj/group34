@@ -5,6 +5,7 @@ import UserManagementPanel from '../components/UserManagementPanel';
 import { toast } from '../utils/toast';
 import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, accountPolicyAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
 import LabelPrinterPanel from '../components/LabelPrinterPanel';
+import BackupPanel from '../components/BackupPanel';
 import '../styles/system_configuration.css';
 
 const LockIcon = () => (
@@ -121,8 +122,15 @@ const PolicyToggle = ({ id, label, desc, checked, onChange }) => (
   </div>
 );
 
+const DatabaseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.36 6 2s-2.13 2-6 2-6-1.36-6-2 2.13-2 6-2zm0 14c-3.87 0-6-1.36-6-2v-1.14c1.55.83 3.7 1.14 6 1.14s4.45-.31 6-1.14V17c0 .64-2.13 2-6 2zm0-5c-3.87 0-6-1.36-6-2v-1.14c1.55.83 3.7 1.14 6 1.14s4.45-.31 6-1.14V12c0 .64-2.13 2-6 2z"/>
+  </svg>
+);
+
 const TABS = [
   { id: 'security', label: 'Security', icon: <LockIcon /> },
+  { id: 'backup', label: 'Backup', icon: <DatabaseIcon /> },
   { id: 'accounts', label: 'User Accounts', icon: <PersonIcon /> },
   { id: 'users', label: 'User Management', icon: <PersonAddIcon />, badge: 2 },
   { id: 'company', label: 'Company Settings', icon: <BuildingIcon /> },
@@ -794,6 +802,12 @@ const SystemConfiguration = () => {
         {activeTab === 'printers' && (
           <div className="sc-tab-content">
             <LabelPrinterPanel />
+          </div>
+        )}
+
+        {activeTab === 'backup' && (
+          <div className="sc-tab-content">
+            <BackupPanel />
           </div>
         )}
 

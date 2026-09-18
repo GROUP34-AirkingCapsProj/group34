@@ -4,8 +4,7 @@
    security-grade "control room" aesthetic. Everything is namespaced under
    .rbac-console so it never leaks into the rest of the admin app.
    ============================================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
+/* Fonts load via public/index.html <link> — avoid blocking CSS @import. */
 .rbac-console {
   /* canvas + ink */
   --rc-bg:        #f4f5fa;

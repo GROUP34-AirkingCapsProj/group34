@@ -261,3 +261,14 @@ Schedule::command('archive:cleanup')
     ->runInBackground()
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/archive-cleanup.log'));
+
+// Database backup: fires every minute; the enabled/time gate lives inside
+// RunScheduledBackup itself (reads the stored backup_schedule setting fresh
+// on each tick), the only way for the Backup admin page's arbitrary time
+// field to actually drive this, since a Schedule:: expression is otherwise
+// fixed at deploy time.
+Schedule::command('backup:run')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/backup-run.log'));

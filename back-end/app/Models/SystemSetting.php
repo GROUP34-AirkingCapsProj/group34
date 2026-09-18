@@ -21,6 +21,8 @@ class SystemSetting extends Model
     public const KEY_ARCHIVE_LAST_RUN        = 'archive_last_run';
     public const KEY_ACCOUNT_POLICY          = 'account_self_service_policy';
     public const KEY_LABEL_PRINTERS          = 'label_printers';
+    public const KEY_BACKUP_SCHEDULE         = 'backup_schedule';
+    public const KEY_BACKUP_LAST_RUN         = 'backup_last_run';
 
     protected $fillable = ['key', 'value'];
 

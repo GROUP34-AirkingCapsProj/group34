@@ -3,14 +3,15 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, layoutAPI, resolveStorageUrl } from '../services/api';
 import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
-import { getEcho } from '../utils/echo';
 import { channelFor, REALTIME_EVENTS } from '../utils/realtimeChannel';
 import { playNotifySound, initNotifySound } from '../utils/notifySound';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
+import ThemeToggle from '../components/ThemeToggle';
 import '../styles/dashboard_air.css';
 import '../styles/airking_ds.css';
+import '../styles/theme_dark.css';
 
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -100,17 +101,18 @@ const AdminLayout = ({ children }) => {
     };
   }, []);
 
-  // Realtime: push updates to the bell instantly via Echo/Reverb. Falls back to
-  // the 60s poll above when Reverb is unreachable. Only the push path plays sound.
+  // Realtime: defer Echo/Pusher until the browser is idle so dashboard APIs
+  // win the first-paint race. Falls back to the 60s poll above when Reverb is down.
   useEffect(() => {
     if (!can('notification_panel', 'read')) return;
     const channelName = channelFor(user);
     if (!channelName) return;
-    const echo = getEcho();
-    if (!echo) return;
 
     let cancelled = false;
     let burstTimer = null;
+    let channel;
+    let echo;
+    let idleId;
 
     const refreshAndChime = async () => {
       try {
@@ -121,34 +123,47 @@ const AdminLayout = ({ children }) => {
         prevBadgeRef.current = Number(d.badge_count ?? 0);
         setPendingPrCount(Number(d.pending_pr_count ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
-        // Chime on every notification (Messenger-style), not only when a count grew.
         playNotifySound();
       } catch (_) {
         // ignore — poll will reconcile
       }
     };
 
-    // One user action can emit several events; coalesce a burst into a single
-    // refetch + a single chime.
     const onEvent = () => {
       if (burstTimer) clearTimeout(burstTimer);
       burstTimer = setTimeout(refreshAndChime, 300);
     };
 
-    let channel;
-    try {
-      channel = echo.private(channelName);
-      REALTIME_EVENTS.forEach((evt) => channel.listen(evt, onEvent));
-    } catch (_) {
-      return;
+    const subscribe = async () => {
+      try {
+        const mod = await import('../utils/echo');
+        if (cancelled) return;
+        echo = mod.getEcho();
+        if (!echo) return;
+        channel = echo.private(channelName);
+        REALTIME_EVENTS.forEach((evt) => channel.listen(evt, onEvent));
+      } catch (_) {
+        // poll fallback remains
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(subscribe, { timeout: 4000 });
+    } else {
+      idleId = setTimeout(subscribe, 2000);
     }
 
     return () => {
       cancelled = true;
       if (burstTimer) clearTimeout(burstTimer);
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleId === 'number') {
+        try { window.cancelIdleCallback(idleId); } catch (_) { /* ignore */ }
+      } else {
+        clearTimeout(idleId);
+      }
       try {
         REALTIME_EVENTS.forEach((evt) => channel && channel.stopListening(evt));
-        echo.leave(channelName);
+        if (echo && channelName) echo.leave(channelName);
       } catch (_) {
         // ignore
       }
@@ -174,19 +189,20 @@ const AdminLayout = ({ children }) => {
     return sessionStorage.getItem('activeNavItem') || '';
   });
 
-  // Prefetch common routes on mount
+  // Soft prefetch: only a couple of likely next pages, after idle — hover still prefetches.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      [
-        '/admin/dashboard',
-        '/admin/inventory',
-        '/admin/draft-po-creator',
-        '/admin/items',
-        '/admin/transactions',
-        '/admin/purchase-orders',
-      ].forEach(prefetchRoute);
-    }, 1000);
-    return () => clearTimeout(timer);
+    const run = () => {
+      ['/admin/inventory', '/admin/draft-po-creator'].forEach(prefetchRoute);
+    };
+    let idleId;
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(run, { timeout: 8000 });
+      return () => {
+        try { window.cancelIdleCallback(idleId); } catch (_) { /* ignore */ }
+      };
+    }
+    idleId = setTimeout(run, 5000);
+    return () => clearTimeout(idleId);
   }, []);
 
   const handleNavHover = useCallback((path) => {
@@ -335,6 +351,7 @@ const AdminLayout = ({ children }) => {
               locationName={userLocationName}
               className="header-location-badge"
             />
+            <ThemeToggle />
             {can('notification_panel', 'read') && (
               <button
                 type="button"

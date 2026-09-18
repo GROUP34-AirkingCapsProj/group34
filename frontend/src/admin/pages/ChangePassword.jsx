@@ -4,6 +4,7 @@ import { accountAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../utils/toast';
 import PasswordFieldWithToggle from '../components/PasswordFieldWithToggle';
+import ThemeToggle from '../components/ThemeToggle';
 import '../styles/login.css';
 
 /**
@@ -67,6 +68,7 @@ const ChangePassword = () => {
 
   return (
     <div className="login-page">
+      <ThemeToggle className="theme-toggle--login" size={20} />
       <div className="login-container">
         <div className="left-side">
           <div className="logo-box">

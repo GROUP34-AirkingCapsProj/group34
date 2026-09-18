@@ -4,6 +4,7 @@ import { passwordResetAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import PasswordFieldWithToggle from '../components/PasswordFieldWithToggle';
 import '../styles/login.css';
+import ThemeToggle from '../components/ThemeToggle';
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -123,6 +124,7 @@ const ForgotPassword = () => {
 
   return (
     <div className="login-page">
+      <ThemeToggle className="theme-toggle--login" size={20} />
       <div className="login-container">
         <div className="left-side">
           <div className="logo-box">

@@ -268,9 +268,11 @@ class AuthController extends Controller
                 $this->logOtpIssued($request, $user, false);
 
                 // Fail closed. No code was delivered, so no code can be entered.
+                $dest = $user->recovery_email ?: 'your recovery email';
+
                 return response()->json([
-                    'message' => 'We could not send your login code to '
-                        . $user->recovery_email . '. Contact your administrator.',
+                    'message' => 'We could not send your login code to '.$dest
+                        .'. Check mail settings (Brevo SMTP login/key and verified sender), then try again.',
                 ], 503);
             }
 

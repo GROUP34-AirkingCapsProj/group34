@@ -1185,6 +1185,25 @@
     flex-direction: column;
     text-align: center;
   }
+  .approval-alert-btn {
+    width: 100%;
+  }
+  .stats-container {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .charts-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 400px) {
+  .stats-container {
+    grid-template-columns: 1fr;
+  }
+  .quick-actions-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===============================
@@ -1192,7 +1211,7 @@
 ================================ */
 .charts-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 24px;
   margin-bottom: 28px;
   padding: 4px 0;
@@ -1814,8 +1833,8 @@
 ================================ */
 .low-stock-section {
   background: var(--bg-elevated);
-  border: 1px solid #fbbf24;
-  border-left: 4px solid #f59e0b;
+  border: 1px solid var(--warning-border);
+  border-left: 4px solid var(--accent-dark);
   border-radius: 12px;
   margin-bottom: 28px;
   overflow: hidden;
@@ -1826,8 +1845,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px;
-  border-bottom: 1px solid #fef3c7;
-  background: #fffbeb;
+  border-bottom: 1px solid var(--warning-border);
+  background: var(--warning-bg);
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -1842,7 +1861,7 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: #fef3c7;
+  background: var(--accent-light);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1852,20 +1871,21 @@
 .low-stock-icon svg {
   width: 20px;
   height: 20px;
-  stroke: #d97706;
+  stroke: var(--accent-dark);
 }
 
 .low-stock-title {
   font-size: 15px;
   font-weight: 700;
-  color: #92400e;
+  color: var(--warning-text);
   margin: 0 0 2px 0;
 }
 
 .low-stock-subtitle {
   font-size: 12px;
-  color: #b45309;
+  color: var(--warning-text);
   margin: 0;
+  opacity: 0.85;
 }
 
 .low-stock-view-all {
@@ -1897,8 +1917,8 @@
 }
 
 .low-stock-table thead tr {
-  background: #fffbeb;
-  border-bottom: 1px solid #fef3c7;
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
 }
 
 .low-stock-table th {
@@ -1907,7 +1927,7 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #b45309;
+  color: var(--warning-text);
   white-space: nowrap;
 }
 
@@ -1921,7 +1941,7 @@
 }
 
 .low-stock-table tbody tr:hover {
-  background: #fffbeb;
+  background: var(--warning-bg);
 }
 
 .low-stock-table td {
@@ -1974,8 +1994,8 @@
 
 .low-stock-pagination {
   padding: 12px 20px;
-  border-top: 1px solid #fef3c7;
-  background: #fffbeb;
+  border-top: 1px solid var(--warning-border);
+  background: var(--warning-bg);
 }
 
 .low-stock-page-label {

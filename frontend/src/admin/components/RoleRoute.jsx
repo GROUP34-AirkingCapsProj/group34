@@ -18,8 +18,12 @@ const RoleRoute = ({ children }) => {
 
   const bundle = NAV_BUNDLES.find((b) => b.routePath === location.pathname);
   if (bundle) {
+    // Dashboard is the post-login landing page — render immediately while
+    // permissions hydrate so we don't sit on "Checking access…". Widgets already
+    // gate themselves with can().
     if (permissions == null) {
-      return <div style={{ padding: '1.5rem', color: '#6b7280' }}>Checking access…</div>;
+      if (location.pathname === '/admin/dashboard') return children;
+      return <div style={{ padding: '1.5rem', color: 'var(--text-muted, #6b7280)' }}>Checking access…</div>;
     }
     if (!bundleVisible(bundle, permissions)) return <Navigate to="/admin/dashboard" replace />;
     return children;
@@ -30,7 +34,7 @@ const RoleRoute = ({ children }) => {
   const requiredPerm = PERMISSION_GATED_ROUTES[location.pathname];
   if (requiredPerm) {
     if (permissions == null) {
-      return <div style={{ padding: '1.5rem', color: '#6b7280' }}>Checking access…</div>;
+      return <div style={{ padding: '1.5rem', color: 'var(--text-muted, #6b7280)' }}>Checking access…</div>;
     }
     if (permissions[requiredPerm] !== true) return <Navigate to="/admin/dashboard" replace />;
     return children;

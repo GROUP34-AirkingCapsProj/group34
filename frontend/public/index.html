@@ -12,6 +12,9 @@
       name="description"
       content="AirKing Air Conditioning inventory system — stock, purchasing, transfers and reporting."
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/apple-touch-icon.png" />
     <!--
       manifest.json provides metadata used when your web app is installed on a
@@ -28,6 +31,20 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>AirKing Inventory</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('airking-theme');
+          if (t !== 'dark' && t !== 'light') t = 'light';
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.style.colorScheme = t;
+          if (t === 'dark') {
+            var m = document.querySelector('meta[name="theme-color"]');
+            if (m) m.setAttribute('content', '#0f1419');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

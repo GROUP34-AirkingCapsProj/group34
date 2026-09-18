@@ -4,7 +4,7 @@ import AdminLayout from '../../admin/components/AdminLayout';
 import Loader from '../../admin/components/Loader';
 import { useAuth } from '../../admin/context/AuthContext';
 import { getRoleKey, ROLES } from '../../admin/utils/roles';
-import { batchAPI, dashboardAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
+import { batchAPI, dashboardAPI, getApiBaseUrl } from '../../admin/services/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -89,17 +89,13 @@ const AdminDashboard = () => {
   const [chartData,       setChartData]       = useState(null);
   const [chartLoading,    setChartLoading]    = useState(false);
   const chartDebounce = useRef(null);
+  const chartsHydrated = useRef(false);
+  const skipInitialChartFetch = useRef(true);
 
   const loadDashboard = async () => {
     setConnectionError(null);
     setLoading(true);
     try {
-      const health = await checkApiHealth();
-      if (!health.ok) {
-        setConnectionError(health.message || 'Backend is not responding.');
-        setLoading(false);
-        return;
-      }
       const res = await batchAPI.get({ include: ['dashboard'] });
       const dashboardData = res?.data?.dashboard ?? null;
       if (!dashboardData) {
@@ -107,13 +103,27 @@ const AdminDashboard = () => {
         return;
       }
       setData(dashboardData);
+      // Seed charts from the batch payload so we skip a redundant /charts round-trip.
+      if (!chartsHydrated.current) {
+        setChartData({
+          inventory_by_category: dashboardData.inventory_by_category,
+          stock_status_by_location: dashboardData.stock_status_by_location,
+          warehouse_capacity: dashboardData.warehouse_capacity,
+          stock_trends: dashboardData.stock_trends,
+          transaction_trends: dashboardData.transaction_trends,
+        });
+        chartsHydrated.current = true;
+      }
     } catch (err) {
       const msg = err?.message || 'Connection error';
       const isAuth = err?.status === 401;
+      const isNetwork = !err?.status || err?.status === 0 || /Failed to fetch|NetworkError/i.test(msg);
       setConnectionError(
         isAuth
           ? 'Session expired or not logged in. Please log in again.'
-          : msg
+          : isNetwork
+            ? `${msg} — ensure the API is running at ${getApiBaseUrl()}.`
+            : msg
       );
       if (isAuth) {
         setTimeout(() => navigate('/admin/login'), 2000);
@@ -127,7 +137,7 @@ const AdminDashboard = () => {
     loadDashboard();
   }, []);
 
-  // Load filter options once
+  // Load filter options once (non-blocking)
   useEffect(() => {
     dashboardAPI.getFilterOptions().then(res => {
       const d = res?.data ?? {};
@@ -139,8 +149,13 @@ const AdminDashboard = () => {
     }).catch(() => {});
   }, []);
 
-  // Re-fetch chart data whenever filters change (debounced 350ms)
+  // Re-fetch chart data when the user changes filters (skip first mount —
+  // charts already came from the dashboard batch).
   useEffect(() => {
+    if (skipInitialChartFetch.current) {
+      skipInitialChartFetch.current = false;
+      return;
+    }
     clearTimeout(chartDebounce.current);
     chartDebounce.current = setTimeout(async () => {
       setChartLoading(true);
@@ -176,39 +191,7 @@ const AdminDashboard = () => {
     setFilterProductId('');
   };
 
-  if (connectionError) {
-    return (
-      <AdminLayout>
-        <div className="dashboard-connection-error">
-          <div className="dashboard-connection-error-card">
-            <h2>Could not load dashboard</h2>
-            <p className="dashboard-connection-error-message">{connectionError}</p>
-            <p className="dashboard-connection-error-hint">
-              Ensure the backend is running: <code>cd back-end && php artisan serve</code>
-              <br />
-              API base: <code>{getApiBaseUrl()}</code>
-            </p>
-            <p className="dashboard-connection-error-hint">
-              If the backend runs on a different host or port, set <code>REACT_APP_API_URL</code> in the frontend <code>.env</code> (see <code>.env.example</code>), then restart the React dev server (<code>npm start</code>).
-            </p>
-            <button type="button" className="dashboard-connection-retry" onClick={loadDashboard}>
-              Retry
-            </button>
-          </div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  if (loading || !data) {
-    return (
-      <AdminLayout>
-        <Loader variant="page" label="Loading dashboard" />
-      </AdminLayout>
-    );
-  }
-
-  /* ── Chart options ── */
+  /* ── Chart options (safe to compute even while loading) ── */
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -282,6 +265,27 @@ const AdminDashboard = () => {
 
   return (
     <AdminLayout>
+      {connectionError ? (
+        <div className="dashboard-connection-error">
+          <div className="dashboard-connection-error-card">
+            <h2>Could not load dashboard</h2>
+            <p className="dashboard-connection-error-message">{connectionError}</p>
+            <p className="dashboard-connection-error-hint">
+              Ensure the backend is running: <code>cd back-end && php artisan serve</code>
+              <br />
+              API base: <code>{getApiBaseUrl()}</code>
+            </p>
+            <p className="dashboard-connection-error-hint">
+              If the backend runs on a different host or port, set <code>REACT_APP_API_URL</code> in the frontend <code>.env</code> (see <code>.env.example</code>), then restart the React dev server (<code>npm start</code>).
+            </p>
+            <button type="button" className="dashboard-connection-retry" onClick={loadDashboard}>
+              Retry
+            </button>
+          </div>
+        </div>
+      ) : (loading || !data) ? (
+        <Loader variant="page" label="Loading dashboard" />
+      ) : (
      <div className="ak-page">
       {/* HEADER */}
       <header className="ak-header">
@@ -639,6 +643,7 @@ const AdminDashboard = () => {
         </div>
       </div>
      </div>
+      )}
     </AdminLayout>
 
   );

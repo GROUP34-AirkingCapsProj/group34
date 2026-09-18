@@ -57,6 +57,13 @@ class LoginOtpIssuer
                 'error'     => $e->getMessage(),
             ]);
 
+            // Surface the common Brevo misconfig without leaking credentials.
+            if (str_contains($e->getMessage(), '535') || str_contains(strtolower($e->getMessage()), 'authentication failed')) {
+                Log::warning('login_otp_mail_auth_hint', [
+                    'hint' => 'Brevo rejected SMTP login/key. Create a new SMTP key in Brevo and update MAIL_USERNAME / MAIL_PASSWORD. Confirm MAIL_FROM_ADDRESS is a verified sender.',
+                ]);
+            }
+
             return false;
         }
 

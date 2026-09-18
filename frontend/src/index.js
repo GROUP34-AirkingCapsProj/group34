@@ -3,14 +3,18 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import './admin/styles/swal-toast.css';
 import './admin/styles/table_scroll.css';
+import './admin/styles/theme_dark.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { register as registerPwaServiceWorker } from './serviceWorkerRegistration';
+import { ThemeProvider } from './admin/context/ThemeContext';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
   </React.StrictMode>
 );
 

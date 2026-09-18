@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\IssuanceScanController;
 use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveSettingsController;
+use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\NavBundleController;
 use App\Http\Controllers\Api\AccountController;
@@ -274,6 +275,22 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
              Route::post('/run-now',          [ArchiveSettingsController::class, 'runNow']);
              Route::post('/run-cleanup',      [ArchiveSettingsController::class, 'runCleanup']);
              Route::get('/logs',              [ArchiveSettingsController::class, 'logs']);
+         });
+
+    /*
+    |--------------------------------------------------------------------------
+    | BACKUP — schedule, manual run, history, restore
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin')
+         ->prefix('backup')
+         ->group(function () {
+             Route::get('/settings',              [BackupController::class, 'settings']);
+             Route::put('/settings',              [BackupController::class, 'updateSettings']);
+             Route::post('/run',                  [BackupController::class, 'runNow']);
+             Route::get('/history',               [BackupController::class, 'history']);
+             Route::get('/history/{id}/download', [BackupController::class, 'download']);
+             Route::post('/history/{id}/restore', [BackupController::class, 'restore']);
          });
 
     /*

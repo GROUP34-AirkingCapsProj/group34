@@ -38,7 +38,8 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f9fafb;
+  background: var(--bg-main);
+  color: var(--text-dark);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0));
 }
@@ -99,8 +100,8 @@
   right: 0;
   bottom: 0;
   display: flex;
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-color);
   padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0));
   justify-content: space-around;
   z-index: 50;
@@ -116,7 +117,7 @@
   padding: 6px 4px;
   font-size: 0.7rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-muted);
   text-decoration: none;
   border-radius: 8px;
 }
@@ -133,17 +134,17 @@
 }
 
 .pwa-card {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  border: 1px solid #f3f4f6;
+  border: 1px solid var(--border-color);
   margin-bottom: 14px;
 }
 
 .pwa-card h2 {
   font-size: 0.95rem;
-  color: #111827;
+  color: var(--text-dark);
   margin: 0 0 12px;
   font-weight: 700;
 }
@@ -257,9 +258,9 @@
 }
 
 .pwa-btn-secondary {
-  background: #fff;
-  color: #374151;
-  border: 2px solid #e5e7eb;
+  background: var(--bg-elevated);
+  color: var(--text-dark);
+  border: 2px solid var(--border-color);
 }
 
 .pwa-btn:disabled {
@@ -271,11 +272,13 @@
 .pwa-input {
   width: 100%;
   padding: 12px 14px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border-color);
   border-radius: 10px;
   font-size: 1rem;
   margin-bottom: 12px;
   box-sizing: border-box;
+  background: var(--bg-elevated);
+  color: var(--text-dark);
 }
 
 .pwa-input:focus {
@@ -291,18 +294,20 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: linear-gradient(180deg, var(--primary-light) 0%, #f9fafb 40%);
+  background: linear-gradient(180deg, var(--primary-light) 0%, var(--bg-main) 40%);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text-dark);
+  position: relative;
 }
 
 .pwa-login-card {
   width: 100%;
   max-width: 400px;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 16px;
   padding: 28px 24px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
-  border: 1px solid #f3f4f6;
+  box-shadow: var(--shadow-dropdown);
+  border: 1px solid var(--border-color);
 }
 
 .pwa-login-card h1 {
@@ -313,7 +318,7 @@
 
 .pwa-login-card > p {
   margin: 0 0 20px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 

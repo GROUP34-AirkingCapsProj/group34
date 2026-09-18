@@ -1,4 +1,4 @@
-/* Global design tokens (light theme only). */
+/* Global design tokens — light + dark via [data-theme]. */
 :root {
   color-scheme: light;
   /* Brand */
@@ -39,6 +39,60 @@
   --login-input-border: #dddddd;
   --login-error-bg: #ffe6e6;
   --login-error-border: #ffcccc;
+
+  --warning-bg: #fffbeb;
+  --warning-border: #fcd34d;
+  --warning-text: #92400e;
+  --danger-soft-bg: #fef2f2;
+  --success-soft-bg: #ecfdf5;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --primary: #ef2d52;
+  --primary-dark: #dc143c;
+  --primary-light: rgba(239, 45, 82, 0.18);
+
+  --accent: #f5b301;
+  --accent-dark: #d4a017;
+  --accent-light: rgba(245, 179, 1, 0.16);
+
+  --body-bg: #0f1419;
+
+  --bg-main: #12181f;
+  --bg-card: #1a222d;
+  --bg-sidebar: #151b24;
+  --bg-elevated: #1e2733;
+  --bg-hover: #243040;
+  --bg-muted: #1a222d;
+  --bg-code: #243040;
+
+  --text-dark: #e8edf4;
+  --text-muted: #9aa5b5;
+  --text-sidebar: #c5ced9;
+  --text-label: #7a8698;
+
+  --border-color: #2c3644;
+  --border-strong: #3d4a5c;
+
+  --shadow-dropdown: 0 12px 36px rgba(0, 0, 0, 0.45);
+
+  --login-page-bg: #0f1419;
+  --login-card: #1a222d;
+  --login-border: #2c3644;
+  --login-muted: #9aa5b5;
+  --login-text: #e8edf4;
+  --login-input-bg: #151b24;
+  --login-input-border: #3d4a5c;
+  --login-error-bg: rgba(239, 45, 82, 0.15);
+  --login-error-border: rgba(239, 45, 82, 0.4);
+
+  --warning-bg: rgba(217, 119, 6, 0.16);
+  --warning-border: rgba(245, 179, 1, 0.4);
+  --warning-text: #fcd34d;
+  --danger-soft-bg: rgba(239, 45, 82, 0.12);
+  --success-soft-bg: rgba(5, 150, 105, 0.14);
 }
 
 body {
