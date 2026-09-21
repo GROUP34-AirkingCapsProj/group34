@@ -1,0 +1,165 @@
+/* ================================================================
+   BACKUP PAGE
+   Supplements archive_settings.css (as-* primitives) with the pieces
+   that have no existing analog: stat cards, the two-column layout,
+   the read-only schedule summary, and the safety-card run button.
+   ================================================================ */
+
+.bk-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.bk-stat-card {
+  flex: 1 1 200px;
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bk-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.bk-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.bk-stat-value--sm {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.bk-stat-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.bk-columns {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .bk-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bk-summary {
+  margin-top: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+}
+
+.bk-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.bk-summary span {
+  color: #64748b;
+}
+
+.bk-summary strong {
+  color: #1e293b;
+  font-weight: 600;
+  text-align: right;
+}
+
+.bk-schedule-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.bk-safety-item {
+  margin-bottom: 16px;
+}
+
+.bk-safety-item h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 4px;
+}
+
+.bk-safety-item p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.bk-run-now-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.bk-run-now-btn:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.bk-run-now-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bk-actions-cell {
+  display: flex;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.bk-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.bk-link-btn:hover:not(:disabled) {
+  color: #1d4ed8;
+}
+
+.bk-link-btn:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  text-decoration: none;
+}

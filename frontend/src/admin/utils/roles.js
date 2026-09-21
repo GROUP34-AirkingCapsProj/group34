@@ -73,6 +73,7 @@ export const ROUTE_ACCESS = {
   '/admin/config': [ROLES.ADMIN],
   '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/archive-settings': [ROLES.ADMIN],
+  '/admin/backup': [ROLES.ADMIN],
 
   // Item/barcode/classification
   '/admin/items': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],

@@ -108,10 +108,14 @@ class ExportPostgresSchema extends Command
      *     absent, not wrong.
      *   - archive_last_run is a timestamped record of the last archive sweep.
      *     A new database has never run one.
+     *   - backup_schedule and backup_last_run carry the same kind of
+     *     machine-specific run state (last_scheduled_run_date, a local
+     *     storage_path override, which log row was last successful) — a
+     *     fresh database has never run a backup either.
      */
     public const REFERENCE_ROW_EXCLUSIONS = [
         'system_settings' => [
-            'key' => ['label_printers', 'archive_last_run'],
+            'key' => ['label_printers', 'archive_last_run', 'backup_schedule', 'backup_last_run'],
         ],
     ];
 

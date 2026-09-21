@@ -63,6 +63,7 @@ const adminMenuSections = [
       { name: 'Location Management', path: '/admin/branches', icon: 'location' },
       { name: 'System Configuration', path: '/admin/config', icon: 'config' },
       { name: 'Archive Management', path: '/admin/archive', icon: 'archive' },
+      { name: 'Backup', path: '/admin/backup', icon: 'backup', adminOnly: true },
     ],
   },
   {
@@ -288,6 +289,14 @@ const renderIcon = (iconType) => {
           <polyline points="21 8 21 21 3 21 3 8"></polyline>
           <rect x="1" y="3" width="22" height="5"></rect>
           <line x1="10" y1="12" x2="14" y2="12"></line>
+        </svg>
+      );
+    case 'backup':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+          <path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"></path>
+          <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"></path>
         </svg>
       );
     case 'archive-settings':

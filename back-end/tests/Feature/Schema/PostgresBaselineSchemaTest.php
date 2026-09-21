@@ -23,7 +23,7 @@ use Tests\TestCase;
  */
 class PostgresBaselineSchemaTest extends TestCase
 {
-    private const EXPECTED_TABLES = 86;
+    private const EXPECTED_TABLES = 87;
 
     private string $sql;
 
