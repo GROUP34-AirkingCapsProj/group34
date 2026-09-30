@@ -10,7 +10,7 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
-import { confirmAction, confirmWithReason } from '../utils/confirm';
+import { confirmAction } from '../utils/confirm';
 import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
@@ -121,11 +121,10 @@ const BudgetManagementPage = () => {
   const { user, can } = useAuth();
   const role     = getRoleKey(user);
   const isAdmin  = role === ROLES.ADMIN;
-  const canVerifyBudget = typeof can === 'function' && can('budget_verification', 'verify');
-  const canReadBudget   = typeof can === 'function' && can('budget_verification', 'read');
-  // Admin manages budgets (CRUD); a verifier (auditor or a granted user) may
-  // view them and verify/reject. Both need to reach the page.
-  const canView = isAdmin || canReadBudget || canVerifyBudget;
+  const canReadBudget = typeof can === 'function' && can('budget_verification', 'read');
+  // Admin manages budgets (CRUD); a reader (auditor or a granted user) may view
+  // them. Both need to reach the page.
+  const canView = isAdmin || canReadBudget;
 
   const [activeTab,    setActiveTab]    = useState('overview');
   const [budgets,      setBudgets]      = useState([]);
@@ -326,32 +325,6 @@ const BudgetManagementPage = () => {
     }
   }, []);
 
-  // ── Verify / Reject ──────────────────────────────────────────────────────────
-  const handleVerifyBudget = useCallback(async (b) => {
-    try {
-      await budgetAllocationsAPI.verify(b.budget_id);
-      toast.success('Budget verified', `${b.period_label} can now fund requests.`);
-      loadBudgets();
-    } catch (err) { toast.error('Could not verify budget', err?.message); }
-  }, [loadBudgets]);
-
-  const handleRejectBudget = useCallback(async (b) => {
-    const { confirmed, reason } = await confirmWithReason({
-      title: `Reject budget ${b.period_label}?`,
-      confirmText: 'Reject',
-      tone: 'danger',
-      reasonRequired: true,
-      reasonLabel: 'Reason',
-      reasonPlaceholder: 'Why is this budget being rejected?',
-    });
-    if (!confirmed) return;
-    try {
-      await budgetAllocationsAPI.reject(b.budget_id, reason);
-      toast.success('Budget rejected', `${b.period_label} was sent back.`);
-      loadBudgets();
-    } catch (err) { toast.error('Could not reject budget', err?.message); }
-  }, [loadBudgets]);
-
   // ── Shared form renderer ─────────────────────────────────────────────────────
   const renderFormFields = (f, setFn, errors, isEdit = false) => {
     const committed = isEdit ? Number(editBudget?.committed || 0) : 0;
@@ -363,12 +336,12 @@ const BudgetManagementPage = () => {
         {/* Location */}
         <div className="po-field">
           <label className="po-field-label">
-            LOCATION <span style={{ color: '#dc2626' }}>*</span>
+            LOCATION <span style={{ color: 'var(--text-danger)' }}>*</span>
           </label>
           {isEdit ? (
             <div className="po-reference-badge">
               {locations.find(l => String(l.location_id) === String(f.location_id))?.location_name || '—'}
-              <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 12 }}>(cannot change)</span>
+              <span style={{ color: 'var(--ink-blue-300)', marginLeft: 6, fontSize: 12 }}>(cannot change)</span>
             </div>
           ) : (
             <select
@@ -390,7 +363,7 @@ const BudgetManagementPage = () => {
         {/* Period Label */}
         <div className="po-field">
           <label className="po-field-label">
-            PERIOD LABEL <span style={{ color: '#dc2626' }}>*</span>
+            PERIOD LABEL <span style={{ color: 'var(--text-danger)' }}>*</span>
           </label>
           <input
             className={`po-input${errors.period_label ? ' po-field--error' : ''}`}
@@ -406,7 +379,7 @@ const BudgetManagementPage = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="po-field">
             <label className="po-field-label">
-              PERIOD START <span style={{ color: '#dc2626' }}>*</span>
+              PERIOD START <span style={{ color: 'var(--text-danger)' }}>*</span>
             </label>
             <DateInput
               className={`po-input${errors.period_start ? ' po-field--error' : ''}`}
@@ -417,7 +390,7 @@ const BudgetManagementPage = () => {
           </div>
           <div className="po-field">
             <label className="po-field-label">
-              PERIOD END <span style={{ color: '#dc2626' }}>*</span>
+              PERIOD END <span style={{ color: 'var(--text-danger)' }}>*</span>
             </label>
             <DateInput
               className={`po-input${errors.period_end ? ' po-field--error' : ''}`}
@@ -449,19 +422,19 @@ const BudgetManagementPage = () => {
         {/* Total Budget */}
         <div className="po-field">
           <label className="po-field-label">
-            TOTAL BUDGET (₱) <span style={{ color: '#dc2626' }}>*</span>
+            TOTAL BUDGET (₱) <span style={{ color: 'var(--text-danger)' }}>*</span>
           </label>
           {isEdit && (committed + spent) > 0 && (
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginBottom: 6 }}>
               Already committed/spent:{' '}
-              <strong style={{ color: '#1e293b' }}>
+              <strong style={{ color: 'var(--ink-blue-800-3)' }}>
                 {fmtPeso(committed)} committed + {fmtPeso(spent)} spent = {fmtPeso(committed + spent)}
               </strong>
               {' '}(minimum floor)
             </div>
           )}
           <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontSize: 14 }}>₱</span>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-blue-500)', fontSize: 14 }}>₱</span>
             <input
               className={`po-input${errors.total_budget ? ' po-field--error' : ''}`}
               type="number"
@@ -520,21 +493,21 @@ const BudgetManagementPage = () => {
       <div className="budget-preview-card">
         <div className="budget-preview-title">PREVIEW</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 15 }}>
+          <span style={{ fontWeight: 700, color: 'var(--ink-blue-800-3)', fontSize: 15 }}>
             {loc?.location_name || '—'}
           </span>
-          <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>
+          <span style={{ fontSize: 13, color: 'var(--text-success)', fontWeight: 600 }}>
             {form.period_label || '—'}
           </span>
         </div>
-        <div style={{ fontSize: 13, color: '#475569', marginBottom: 4 }}>
+        <div style={{ fontSize: 13, color: 'var(--ink-blue-700)', marginBottom: 4 }}>
           Total Budget: <strong>{fmtPeso(bNum)}</strong>
         </div>
-        <div style={{ fontSize: 13, color: '#16a34a' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-success)' }}>
           Available: <strong>{fmtPeso(bNum)}</strong> (starts at 100%)
         </div>
         {form.period_start && form.period_end && (
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginTop: 4 }}>
             Period: {isoToMDY(form.period_start)} → {isoToMDY(form.period_end)}
           </div>
         )}
@@ -568,7 +541,7 @@ const BudgetManagementPage = () => {
             <div className="budget-card-period">
               {b.period_label}
               {b.period_start && b.period_end && (
-                <span style={{ color: '#94a3b8', marginLeft: 6 }}>
+                <span style={{ color: 'var(--ink-blue-300)', marginLeft: 6 }}>
                   ({isoToMDY(b.period_start)} – {isoToMDY(b.period_end)})
                 </span>
               )}
@@ -581,19 +554,6 @@ const BudgetManagementPage = () => {
             <span className={`budget-period-badge budget-period-badge--${pStatus.key}`}>
               {pStatus.label}
             </span>
-            {b.verification_status === 'pending' && (
-              <span className="ak-badge" style={{ background:'#fffbeb', color:'#92400e' }}>AWAITING VERIFICATION</span>
-            )}
-            {b.verification_status === 'verified' && (
-              <span className="ak-badge" style={{ background:'#dcfce7', color:'#166534' }}>
-                VERIFIED{b.verifier ? ` — ${b.verifier.first_name} ${b.verifier.last_name}` : ''}
-              </span>
-            )}
-            {b.verification_status === 'rejected' && (
-              <span className="ak-badge" style={{ background:'#fee2e2', color:'#991b1b' }}>
-                REJECTED{b.verification_note ? ` — ${b.verification_note}` : ''}
-              </span>
-            )}
           </div>
         </div>
 
@@ -604,7 +564,7 @@ const BudgetManagementPage = () => {
             style={{ width: `${fillPct}%` }}
           />
         </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: -4, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: 'var(--ink-blue-300)', textAlign: 'right', marginTop: -4, marginBottom: 8 }}>
           {Math.round(fillPct)}% used
         </div>
 
@@ -645,7 +605,7 @@ const BudgetManagementPage = () => {
               <div className="budget-util-legend">
                 <span><span className="dot" style={{ background: '#0f766e' }} />Spent</span>
                 <span><span className="dot" style={{ background: '#f59e0b' }} />Committed</span>
-                <span><span className="dot" style={{ background: '#e2e8f0' }} />Available</span>
+                <span><span className="dot" style={{ background: 'var(--bg-sunken)' }} />Available</span>
                 <span className="budget-util-pct">{utilPct}% utilized</span>
               </div>
             </div>
@@ -663,19 +623,19 @@ const BudgetManagementPage = () => {
         )}
 
         {/* Meta */}
-        <div style={{ fontSize: 12, color: '#94a3b8' }}>
-          Created by: <strong style={{ color: '#64748b' }}>{createdBy}</strong>
+        <div style={{ fontSize: 12, color: 'var(--ink-blue-300)' }}>
+          Created by: <strong style={{ color: 'var(--ink-blue-500)' }}>{createdBy}</strong>
           {b.created_at && (
             <span> on {isoToMDY(b.created_at)}</span>
           )}
           {b.category?.category_name && (
             <span style={{ marginLeft: 12 }}>
-              Category: <strong style={{ color: '#64748b' }}>{b.category.category_name}</strong>
+              Category: <strong style={{ color: 'var(--ink-blue-500)' }}>{b.category.category_name}</strong>
             </span>
           )}
         </div>
         {b.notes && (
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>
+          <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginTop: 4, fontStyle: 'italic' }}>
             Notes: {b.notes}
           </div>
         )}
@@ -703,12 +663,6 @@ const BudgetManagementPage = () => {
             VIEW LEDGER
           </button>
           {isAdmin && <ArchiveButton onArchive={() => handleArchive(b.budget_id)} size="md" />}
-          {canVerifyBudget && b.verification_status !== 'verified' && (
-            <>
-              <button type="button" className="budget-edit-btn" onClick={() => handleVerifyBudget(b)}>Verify</button>
-              <button type="button" className="budget-edit-btn" onClick={() => handleRejectBudget(b)}>Reject</button>
-            </>
-          )}
         </div>
       </div>
     );
@@ -723,7 +677,7 @@ const BudgetManagementPage = () => {
       <div>
         {/* Summary card */}
         <div className="budget-summary-card">
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: '#94a3b8' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--ink-blue-300)' }}>
             BUDGET OVERVIEW — ALL LOCATIONS
           </div>
           <div className="budget-summary-grid">
@@ -771,7 +725,7 @@ const BudgetManagementPage = () => {
   // ── Tab: Create ──────────────────────────────────────────────────────────────
   const renderCreate = () => (
     <div className="po-details-card" style={{ maxWidth: 680 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 18px' }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-blue-800-3)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 18px' }}>
         New Budget Allocation
       </h3>
 
@@ -808,7 +762,7 @@ const BudgetManagementPage = () => {
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
             <p>Access Denied</p>
-            <span>Budget management is restricted to administrators and budget verifiers.</span>
+            <span>Budget management is restricted to administrators.</span>
           </div>
         </div>
       </AdminLayout>
@@ -847,7 +801,7 @@ const BudgetManagementPage = () => {
           >
             Budget Overview
             {budgets.length > 0 && (
-              <span style={{ marginLeft: 6, background: '#e2e8f0', color: '#475569', borderRadius: 10, fontSize: 11, padding: '1px 7px', fontWeight: 700 }}>
+              <span style={{ marginLeft: 6, background: 'var(--bg-sunken)', color: 'var(--ink-blue-700)', borderRadius: 10, fontSize: 11, padding: '1px 7px', fontWeight: 700 }}>
                 {budgets.length}
               </span>
             )}
@@ -881,7 +835,7 @@ const BudgetManagementPage = () => {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8 }}>
               <button
                 type="button"
-                style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, cursor: 'pointer', color: '#475569' }}
+                style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', color: 'var(--ink-blue-700)' }}
                 onClick={() => setEditBudget(null)}
                 disabled={editSaving}
               >
@@ -910,7 +864,7 @@ const BudgetManagementPage = () => {
         {ledgerLoading ? (
           <Loader variant="inline" label="Loading transactions" />
         ) : ledgerRows.length === 0 ? (
-          <p style={{ color: '#64748b', fontSize: 13 }}>
+          <p style={{ color: 'var(--ink-blue-500)', fontSize: 13 }}>
             No transactions yet. Rows appear when purchase requests are approved,
             archived, or received against this budget.
           </p>

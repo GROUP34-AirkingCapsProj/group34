@@ -641,13 +641,12 @@ const PurchaseRequestPage = () => {
     const budget    = entry?.budget ?? null;
     const subtotal  = blockSubtotalsByLoc[locId] || 0;
     const available = budget ? Number(budget.available ?? 0) : null;
-    const verified  = budget?.verification_status === 'verified';
     const missing   = !loading && !budget;
     const over      = available !== null && subtotal > available;
     const loc       = locations.find(l => String(l.location_id ?? l.id ?? '') === locId);
     const locName   = loc?.location_name || loc?.name || `Warehouse #${locId}`;
-    const ok        = !loading && !missing && verified && !over;
-    return { locId, locName, loading, budget, subtotal, available, verified, missing, over, ok };
+    const ok        = !loading && !missing && !over;
+    return { locId, locName, loading, budget, subtotal, available, missing, over, ok };
   }), [distinctBlockLocIds, budgetsByLoc, blockSubtotalsByLoc, locations]);
 
   const hasBlockingWarehouseGroup = warehouseGroupStatus.some(g => !g.ok);
@@ -700,10 +699,6 @@ const PurchaseRequestPage = () => {
       }
       if (group.missing) {
         toast.error("Couldn't send request", `No budget found for ${group.locName}. Ask Admin to create one in Budget Management.`);
-        return;
-      }
-      if (!group.verified) {
-        toast.error("Couldn't send request", `The budget for ${group.locName} has not been verified by an auditor yet.`);
         return;
       }
       if (group.over) {
@@ -914,8 +909,8 @@ const PurchaseRequestPage = () => {
               <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             <div>
-              <div style={{ fontWeight: 700, color: '#92400e', fontSize: 13 }}>No budget found for {group.locName}</div>
-              <div style={{ color: '#78350f', fontSize: 12, marginTop: 3 }}>
+              <div style={{ fontWeight: 700, color: 'var(--warning-text)', fontSize: 13 }}>No budget found for {group.locName}</div>
+              <div style={{ color: 'var(--ink-orange-700-7)', fontSize: 12, marginTop: 3 }}>
                 Ask Admin to create a budget allocation for this warehouse in Budget Management.
               </div>
             </div>
@@ -930,29 +925,18 @@ const PurchaseRequestPage = () => {
     const spent     = Number(budget.spent || 0);
     const available = Number(budget.available ?? (total - committed - spent));
     const avColor   = budgetColor(available, total);
-    const badge     = budget.verification_status === 'verified'
-      ? { label: 'VERIFIED', color: '#16a34a', bg: '#f0fdf4' }
-      : budget.verification_status === 'rejected'
-        ? { label: 'REJECTED', color: '#dc2626', bg: '#fef2f2' }
-        : { label: 'AWAITING VERIFICATION', color: '#d97706', bg: '#fffbeb' };
-
     return (
       <div className="pr-budget-card">
         <div className="pr-budget-card-header">
           <span className="pr-budget-card-title">Budget — {group.locName}</span>
-          <span
-            style={{ fontSize: 11, fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 8px', borderRadius: 999 }}
-          >
-            {badge.label}
-          </span>
         </div>
         <div className="pr-budget-grid">
           {[
-            { label: 'TOTAL BUDGET', value: fmtPeso(total),          color: '#1e293b' },
-            { label: 'COMMITTED',    value: fmtPeso(committed),      color: '#d97706' },
-            { label: 'SPENT',        value: fmtPeso(spent),          color: '#dc2626' },
+            { label: 'TOTAL BUDGET', value: fmtPeso(total),          color: 'var(--ink-blue-800-3)' },
+            { label: 'COMMITTED',    value: fmtPeso(committed),      color: 'var(--ink-orange-600)' },
+            { label: 'SPENT',        value: fmtPeso(spent),          color: 'var(--text-danger)' },
             { label: 'AVAILABLE',    value: fmtPeso(available),      color: avColor  },
-            { label: 'THIS REQUEST', value: fmtPeso(group.subtotal), color: group.over ? '#dc2626' : '#1e293b' },
+            { label: 'THIS REQUEST', value: fmtPeso(group.subtotal), color: group.over ? 'var(--text-danger)' : 'var(--ink-blue-800-3)' },
           ].map(({ label, value, color }) => (
             <div key={label} className="pr-budget-item">
               <span className="pr-budget-label">{label}</span>
@@ -961,15 +945,8 @@ const PurchaseRequestPage = () => {
           ))}
         </div>
         {group.over && (
-          <div style={{ margin:'10px 0 0', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#991b1b' }}>
+          <div style={{ margin:'10px 0 0', background:'var(--danger-soft-bg)', border:'1px solid var(--line-red-200)', borderRadius:8, padding:'8px 12px', fontSize:13, color:'var(--ink-red-600)' }}>
             This request's items for {group.locName} ({fmtPeso(group.subtotal)}) exceed the available budget ({fmtPeso(available)}).
-          </div>
-        )}
-        {!group.over && budget.verification_status !== 'verified' && (
-          <div style={{ margin:'10px 0 0', background:'#fffbeb', border:'1px solid #fbbf24', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#92400e' }}>
-            {budget.verification_status === 'rejected'
-              ? `This budget was rejected by the auditor${budget.verification_note ? `: ${budget.verification_note}` : ''}.`
-              : 'This budget is awaiting auditor verification — you cannot submit a request against it yet.'}
           </div>
         )}
       </div>
@@ -1056,7 +1033,7 @@ const PurchaseRequestPage = () => {
         const panelOpen = !openRecPanels.has(block.id);
 
         return (
-          <div key={block.id} className="po-line-items-card pr-warehouse-split" style={{ border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 16 }}>
+          <div key={block.id} className="po-line-items-card pr-warehouse-split" style={{ border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
             <div className="po-line-items-header">
               <div className="po-line-items-title" style={{ flex: 1 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
@@ -1240,7 +1217,7 @@ const PurchaseRequestPage = () => {
                     return (
                     <React.Fragment key={r.id}>
                       <tr>
-                        <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
+                        <td style={{ color: 'var(--ink-blue-300)', fontSize: 12 }}>{idx + 1}</td>
                         <td style={{ minWidth: 200 }}>
                           <ProductSearchSelect
                             products={products}
@@ -1257,7 +1234,7 @@ const PurchaseRequestPage = () => {
                             </span>
                           ) : '—'}
                         </td>
-                        <td style={{ fontSize: 12, color: '#64748b' }}>{productLabel(r)}</td>
+                        <td style={{ fontSize: 12, color: 'var(--ink-blue-500)' }}>{productLabel(r)}</td>
                         <td>
                           <input
                             type="number" min="1"
@@ -1266,7 +1243,7 @@ const PurchaseRequestPage = () => {
                             onChange={e => updateRowField(block.id, r.id, 'qty', e.target.value)}
                           />
                           {r.productType === 'installation_material' && Number(r.piecesPerPackage) > 1 && (
-                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: 'var(--ink-blue-300)', marginTop: 2 }}>
                               × {r.piecesPerPackage} {productById.get(String(r.productId))?.unitAbbr || 'pcs'}/{r.packageUnit || 'package'}
                               {' '}= {(Number(r.qty) || 0) * Number(r.piecesPerPackage)} {productById.get(String(r.productId))?.unitAbbr || 'pcs'}
                             </div>
@@ -1347,7 +1324,7 @@ const PurchaseRequestPage = () => {
                                     • <strong>{w.pr_number}</strong> ({w.status}):{' '}
                                     {w.quantity_requested} requested →{' '}
                                     {w.quantity_ordered} ordered in PO →{' '}
-                                    <strong style={{ color: '#92400e' }}>{w.quantity_remaining} still remaining</strong>
+                                    <strong style={{ color: 'var(--warning-text)' }}>{w.quantity_remaining} still remaining</strong>
                                     {w.needed_by_date && ` · needed by ${w.needed_by_date}`}
                                   </div>
                                 ))}
@@ -1377,7 +1354,7 @@ const PurchaseRequestPage = () => {
                       {r.reorderWarning && r.reorderWarning.length > 0 && r.warningAcknowledged && (
                         <tr>
                           <td colSpan={8} style={{ padding: '0 8px 8px' }}>
-                            <div style={{ background: '#fef9c3', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: '#713f12', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                            <div style={{ background: 'var(--tint-amber)', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: 'var(--ink-orange-700-4)', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
                               <svg viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                               <span>Note: {r.reorderWarning.reduce((t, w) => t + (w.quantity_remaining || 0), 0)} unit(s) of {r.productName} already have open demand on other PRs.</span>
                             </div>
@@ -1418,13 +1395,13 @@ const PurchaseRequestPage = () => {
               <button type="button" className="po-btn po-btn-add-product" onClick={() => addRow(block.id)}>
                 + ADD PRODUCT
               </button>
-              <span style={{ fontSize: 13, color: '#64748b' }}>
-                BLOCK SUBTOTAL&nbsp; <strong style={{ fontSize: 15, color: '#1e293b' }}>{fmtPeso(blockSubtotal)}</strong>
+              <span style={{ fontSize: 13, color: 'var(--ink-blue-500)' }}>
+                BLOCK SUBTOTAL&nbsp; <strong style={{ fontSize: 15, color: 'var(--ink-blue-800-3)' }}>{fmtPeso(blockSubtotal)}</strong>
               </span>
             </div>
 
             {group && !group.loading && !group.missing && group.over && (
-              <div style={{ margin: '0 16px 14px', background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <div style={{ margin: '0 16px 14px', background: 'var(--warning-bg)', border: '1px solid var(--line-amber-400-2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warning-text)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="16" height="16" style={{ flexShrink: 0, marginTop: 1 }}>
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                   <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
@@ -1450,8 +1427,8 @@ const PurchaseRequestPage = () => {
           + ADD ANOTHER WAREHOUSE
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <span style={{ fontSize: 13, color: '#64748b' }}>ESTIMATED TOTAL</span>
-          <strong style={{ fontSize: 16, color: '#1e293b' }}>{fmtPeso(estimatedTotal)}</strong>
+          <span style={{ fontSize: 13, color: 'var(--ink-blue-500)' }}>ESTIMATED TOTAL</span>
+          <strong style={{ fontSize: 16, color: 'var(--ink-blue-800-3)' }}>{fmtPeso(estimatedTotal)}</strong>
         </div>
       </div>
 
@@ -1471,7 +1448,7 @@ const PurchaseRequestPage = () => {
             !selectedSupplierId ? 'Select a supplier first'
             : !hasAnyValidRow ? 'Add at least one item with a selected product'
             : hasRowsWithoutWarehouse ? 'Select a destination warehouse for every warehouse block that has items'
-            : hasBlockingWarehouseGroup ? 'One or more warehouses are over budget, unverified, or missing a budget'
+            : hasBlockingWarehouseGroup ? 'One or more warehouses are over budget or missing a budget'
             : undefined
           }
         >
@@ -1553,15 +1530,15 @@ const PurchaseRequestPage = () => {
                   </div>
 
                   <PRProgressBar pr={pr} />
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{getPRStatusText(pr)}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginTop: 4 }}>{getPRStatusText(pr)}</div>
 
                   {pr.status_id === PR_STATUS.REJECTED && pr.rejection_reason && (
-                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: '#991b1b' }}>
+                    <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--line-red-200)', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: 'var(--ink-red-600)' }}>
                       <strong>Rejected:</strong> {pr.rejection_reason}
                     </div>
                   )}
                   {pr.converted_to_po_id && pr.convertedPO?.po_number && (
-                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: '#166534' }}>
+                    <div style={{ background: 'var(--success-soft-bg)', border: '1px solid var(--line-green-300)', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: 'var(--ink-green-800)' }}>
                       <strong>Converted to PO:</strong> {pr.convertedPO.po_number}
                     </div>
                   )}
@@ -1677,15 +1654,15 @@ const PurchaseRequestPage = () => {
                   {pr.budget && (
                     <div className="pr-admin-budget-bar">
                       <div>
-                        <span style={{ color: '#64748b', fontSize: 11 }}>AVAILABLE</span>
+                        <span style={{ color: 'var(--ink-blue-500)', fontSize: 11 }}>AVAILABLE</span>
                         <span style={{ marginLeft: 6, fontWeight: 700, color: budgetColor(budgetAvail, budgetTotal) }}>
                           {fmtPeso(budgetAvail)}
                         </span>
                       </div>
                       <div style={{ color: '#cbd5e1' }}>|</div>
                       <div>
-                        <span style={{ color: '#64748b', fontSize: 11 }}>PR TOTAL</span>
-                        <span style={{ marginLeft: 6, fontWeight: 700, color: isOver ? '#dc2626' : '#16a34a' }}>
+                        <span style={{ color: 'var(--ink-blue-500)', fontSize: 11 }}>PR TOTAL</span>
+                        <span style={{ marginLeft: 6, fontWeight: 700, color: isOver ? 'var(--text-danger)' : 'var(--text-success)' }}>
                           {fmtPeso(prTotal)}
                         </span>
                       </div>
@@ -1693,7 +1670,7 @@ const PurchaseRequestPage = () => {
                   )}
 
                   {pr.purpose && (
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 8, fontStyle: 'italic' }}>
+                    <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginTop: 8, fontStyle: 'italic' }}>
                       Purpose: {pr.purpose}
                     </div>
                   )}
@@ -1701,7 +1678,7 @@ const PurchaseRequestPage = () => {
                   {/* Expandable item preview */}
                   <button
                     type="button"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#2563eb', padding: '6px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-info)', padding: '6px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}
                     onClick={() => setExpandedCards(prev => {
                       const next = new Set(prev);
                       next.has(pr.pr_id) ? next.delete(pr.pr_id) : next.add(pr.pr_id);
@@ -1727,9 +1704,9 @@ const PurchaseRequestPage = () => {
                           {groupDetailsByLocation(pr.details).map((grp, gi) => (
                             <React.Fragment key={gi}>
                               <tr>
-                                <td colSpan={6} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
+                                <td colSpan={6} style={{ background: 'var(--bg-hover)', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: 'var(--text-body)', textTransform: 'uppercase' }}>
                                   {grp.locationName}
-                                  <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>{fmtPeso(grp.subtotal)}</span>
+                                  <span style={{ float: 'right', fontWeight: 600, color: 'var(--ink-blue-500)' }}>{fmtPeso(grp.subtotal)}</span>
                                 </td>
                               </tr>
                               {grp.rows.map((d, di) => (
@@ -1737,7 +1714,7 @@ const PurchaseRequestPage = () => {
                                   <td>
                                     <div>{d.product_name || d.product?.product_name || `Item ${di + 1}`}</div>
                                     {d.product?.applianceDetail?.model_code && (
-                                      <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
+                                      <small style={{ color: 'var(--ink-blue-300)' }}>{d.product.applianceDetail.model_code}</small>
                                     )}
                                   </td>
                                   <td>
@@ -1745,7 +1722,7 @@ const PurchaseRequestPage = () => {
                                       {(d.product_type || d.product?.product_type) === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                                     </span>
                                   </td>
-                                  <td style={{ color: '#64748b' }}>{detailLabel(d)}</td>
+                                  <td style={{ color: 'var(--ink-blue-500)' }}>{detailLabel(d)}</td>
                                   <td>{d.quantity}</td>
                                   <td>{fmtPeso(d.estimated_price)}</td>
                                   <td>{fmtPeso(d.subtotal)}</td>
@@ -1761,7 +1738,7 @@ const PurchaseRequestPage = () => {
                 </div>
                 <div className="po-status-card-right">
                   <span className="po-status-total-label">PR TOTAL</span>
-                  <span className="po-status-total-amount" style={{ color: isOver ? '#dc2626' : undefined }}>
+                  <span className="po-status-total-amount" style={{ color: isOver ? 'var(--text-danger)' : undefined }}>
                     {fmtPeso(prTotal)}
                   </span>
                 </div>
@@ -1871,19 +1848,19 @@ const PurchaseRequestPage = () => {
             {/* Progress bar */}
             <div style={{ margin: '14px 0 6px' }}>
               <PRProgressBar pr={pr} />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{getPRStatusText(pr)}</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginTop: 4 }}>{getPRStatusText(pr)}</div>
             </div>
 
             {/* Rejected notice */}
             {pr.status_id === PR_STATUS.REJECTED && pr.rejection_reason && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#991b1b' }}>
+              <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--line-red-200)', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: 'var(--ink-red-600)' }}>
                 <strong>Rejected:</strong> {pr.rejection_reason}
               </div>
             )}
 
             {/* Converted notice */}
             {pr.converted_to_po_id && pr.convertedPO?.po_number && (
-              <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#166534' }}>
+              <div style={{ background: 'var(--success-soft-bg)', border: '1px solid var(--line-green-300)', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: 'var(--ink-green-800)' }}>
                 <strong>Converted to PO:</strong> {pr.convertedPO.po_number}
               </div>
             )}
@@ -1916,9 +1893,9 @@ const PurchaseRequestPage = () => {
                       return groupDetailsByLocation(details).map((grp, gi) => (
                         <React.Fragment key={gi}>
                           <tr>
-                            <td colSpan={8} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
+                            <td colSpan={8} style={{ background: 'var(--bg-hover)', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: 'var(--text-body)', textTransform: 'uppercase' }}>
                               {grp.locationName}
-                              <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>{fmtPeso(grp.subtotal)}</span>
+                              <span style={{ float: 'right', fontWeight: 600, color: 'var(--ink-blue-500)' }}>{fmtPeso(grp.subtotal)}</span>
                             </td>
                           </tr>
                           {grp.rows.map((d, di) => {
@@ -1929,12 +1906,12 @@ const PurchaseRequestPage = () => {
                             const pType       = d.product_type || d.product?.product_type || '';
                             return (
                               <tr key={d.pr_detail_id ?? `${gi}-${di}`}
-                                style={hasOpen ? { background: '#fffbeb' } : {}}>
+                                style={hasOpen ? { background: 'var(--warning-bg)' } : {}}>
                                 <td className="po-detail-table-idx">{idx}</td>
                                 <td>
                                   <div>{d.product_name || d.product?.product_name || `Item ${idx}`}</div>
                                   {d.product?.applianceDetail?.model_code && (
-                                    <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
+                                    <small style={{ color: 'var(--ink-blue-300)' }}>{d.product.applianceDetail.model_code}</small>
                                   )}
                                 </td>
                                 <td style={{ fontSize: 11 }}>
@@ -1942,17 +1919,17 @@ const PurchaseRequestPage = () => {
                                     {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                                   </span>
                                 </td>
-                                <td style={{ fontSize: 11, color: '#64748b' }}>{detailLabel(d)}</td>
+                                <td style={{ fontSize: 11, color: 'var(--ink-blue-500)' }}>{detailLabel(d)}</td>
                                 <td>{d.quantity}</td>
-                                <td style={{ color: orderedInPO > 0 ? '#16a34a' : '#94a3b8' }}>{orderedInPO}</td>
+                                <td style={{ color: orderedInPO > 0 ? 'var(--text-success)' : 'var(--ink-blue-300)' }}>{orderedInPO}</td>
                                 <td>
                                   {hasOpen ? (
-                                    <span style={{ color: '#d97706', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <span style={{ color: 'var(--ink-orange-600)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                                       {remaining}
                                       <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                                     </span>
                                   ) : (
-                                    <span style={{ color: '#94a3b8' }}>{remaining}</span>
+                                    <span style={{ color: 'var(--ink-blue-300)' }}>{remaining}</span>
                                   )}
                                 </td>
                                 <td className="po-detail-table-sub">{fmtPeso(d.subtotal)}</td>

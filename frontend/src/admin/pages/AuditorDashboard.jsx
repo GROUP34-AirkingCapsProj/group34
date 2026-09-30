@@ -5,7 +5,7 @@ import Loader from '../components/Loader';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler } from 'chart.js';
 import { useRoleDashboard, Kpi, fmt, PALETTE, baseChartOptions } from './dashboard/dashboardKit';
-import { budgetAllocationsAPI, purchaseOrdersAPI } from '../services/api';
+import { purchaseOrdersAPI } from '../services/api';
 import '../styles/role_dashboards.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
@@ -15,13 +15,9 @@ const TYPE_TONE = { sale: 'green', transfer: 'blue', receiving: 'amber', adjustm
 export default function AuditorDashboard() {
   const navigate = useNavigate();
   const { data, loading, error } = useRoleDashboard();
-  const [pendingBudgets, setPendingBudgets] = useState(0);
   const [pendingPos, setPendingPos] = useState(0);
 
   useEffect(() => {
-    budgetAllocationsAPI.getAll({ verification_status: 'pending', per_page: 1 })
-      .then((r) => setPendingBudgets(r?.pagination?.total ?? (Array.isArray(r?.data) ? r.data.length : 0)))
-      .catch(() => {});
     purchaseOrdersAPI.getAll({ verification_status: 'pending', per_page: 1 })
       .then((r) => setPendingPos(r?.pagination?.total ?? (Array.isArray(r?.data) ? r.data.length : 0)))
       .catch(() => {});
@@ -62,7 +58,6 @@ export default function AuditorDashboard() {
           <Kpi label="Pending approvals" value={fmt(stats.pending_actions)} tone="crimson" icon={<Clock />} />
           <Kpi label="Pending registrations" value={fmt(stats.pending_registrations)} tone="blue" icon={<Tag />} />
           <Kpi label="Active locations" value={fmt(stats.active_locations)} tone="green" icon={<Pin />} />
-          <Kpi label="Budgets awaiting verification" value={fmt(pendingBudgets)} tone="crimson" icon={<Clock />} />
           <Kpi label="POs awaiting verification" value={fmt(pendingPos)} tone="blue" icon={<Clock />} />
         </div>
 
