@@ -272,3 +272,13 @@ Schedule::command('backup:run')
     ->withoutOverlapping()
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/backup-run.log'));
+
+// Ledger drift check: proves the ledger still agrees with its sources, and turns
+// any movement it cannot account for into an audit finding the Explorer surfaces.
+// Runs after the day's postings have settled. A non-zero exit is expected whenever
+// drift exists — the findings are the output, the exit code is only a signal.
+Schedule::command('ledger:drift-check')
+    ->dailyAt('02:30')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/ledger-drift-check.log'));
