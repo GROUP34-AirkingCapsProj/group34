@@ -678,6 +678,31 @@ export const auditAPI = {
 };
 
 /* ======================
+   AUDIT & EVIDENCE EXPLORER
+   Every call is scoped server-side; nothing here fetches a whole table.
+====================== */
+const evidenceQuery = (params = {}) =>
+  new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  ).toString();
+
+export const auditEvidenceAPI = {
+  getSummary: async (params = {}) => apiRequest(`/audit-evidence/summary?${evidenceQuery(params)}`),
+  getBreakdown: async (params = {}) => apiRequest(`/audit-evidence/breakdown?${evidenceQuery(params)}`),
+  getMovements: async (params = {}) => apiRequest(`/audit-evidence/movements?${evidenceQuery(params)}`),
+  getReconciliation: async (params = {}) => apiRequest(`/audit-evidence/reconciliation?${evidenceQuery(params)}`),
+  getEvent: async (correlationId) => apiRequest(`/audit-evidence/events/${encodeURIComponent(correlationId)}`),
+  getSerialLifecycle: async (serial) => apiRequest(`/audit-evidence/serials/${encodeURIComponent(serial)}/lifecycle`),
+  getBatchLifecycle: async (batchId) => apiRequest(`/audit-evidence/batches/${batchId}/lifecycle`),
+  getExceptions: async (params = {}) => apiRequest(`/audit-evidence/exceptions?${evidenceQuery(params)}`),
+  resolveException: async (findingId, resolutionNote) =>
+    apiRequest(`/audit-evidence/exceptions/${findingId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ resolution_note: resolutionNote }),
+    }),
+};
+
+/* ======================
    LOCATIONS API (ERD — replaces branches & warehouses)
 ====================== */
 export const locationsAPI = {
