@@ -23,6 +23,8 @@ class InventoryBatch extends Model
         'quantity_remaining',
         'received_at',
         'zone_label',
+        'unit_cost',
+        'cost_basis',
     ];
 
     protected $casts = [
