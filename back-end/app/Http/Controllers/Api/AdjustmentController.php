@@ -8,6 +8,7 @@ use App\Models\Adjustment;
 use App\Models\AdjustmentDetail;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Services\Ledger\LedgerPoster;
 use App\Support\RealtimeBroadcaster;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -77,7 +78,7 @@ class AdjustmentController extends Controller
             foreach ($validated['details'] as $detail) {
                 $detail['add_quantity']    = $detail['add_quantity'] ?? 0;
                 $detail['deduct_quantity'] = $detail['deduct_quantity'] ?? 0;
-                $adjustment->details()->create($detail);
+                $detailRow = $adjustment->details()->create($detail);
 
                 $addQty = (int) $detail['add_quantity'];
                 $deductQty = (int) $detail['deduct_quantity'];
@@ -108,6 +109,41 @@ class AdjustmentController extends Controller
                     : 0;
                 $inventory->setPieces((int) $inventory->quantity_on_hand + $net, $adjPpp);
                 $inventory->save();
+
+                // Stock moves here, at creation — adjustments have no approval step
+                // in this system, so this is the only moment the movement becomes
+                // real. A net-zero line moved nothing and posts nothing, which keeps
+                // a correction that cancels itself out of the auditor's totals.
+                if ($net !== 0) {
+                    $adjBatch = \App\Models\InventoryBatch::where('product_id', $detail['product_id'])
+                        ->where('location_id', $validated['location_id'])
+                        ->whereNotNull('unit_cost')
+                        ->orderBy('received_at')
+                        ->first();
+                    $adjCost = $adjBatch?->unit_cost;
+
+                    app(LedgerPoster::class)->post([
+                        'occurred_at'      => $validated['adjustment_date'],
+                        'direction'        => $net > 0 ? 'in' : 'out',
+                        'movement_type'    => 'adjustment',
+                        'product_id'       => (int) $detail['product_id'],
+                        'batch_id'         => $adjBatch?->batch_id,
+                        'quantity'         => abs($net),
+                        'unit_cost'        => $adjCost !== null ? (float) $adjCost : null,
+                        'cost_basis'       => $adjCost !== null ? ($adjBatch->cost_basis ?? 'actual') : 'unavailable',
+                        'from_location_id' => $net < 0 ? (int) $validated['location_id'] : null,
+                        'to_location_id'   => $net > 0 ? (int) $validated['location_id'] : null,
+                        'source_type'      => 'adjustments',
+                        'source_id'        => (int) $adjustment->adjustment_id,
+                        'source_line_id'   => (int) $detailRow->adjustment_detail_id,
+                        'correlation_id'   => 'adjustments:' . $adjustment->adjustment_id,
+                        'actor_user_id'    => $validated['created_by'] ?? auth()->id(),
+                        'notes'            => $validated['adjustment_type'],
+                        'posting_key'      => 'adjustment:' . $adjustment->adjustment_id
+                                              . ':line:' . $detailRow->adjustment_detail_id
+                                              . ':' . ($net > 0 ? 'in' : 'out'),
+                    ]);
+                }
             }
 
             DB::commit();
