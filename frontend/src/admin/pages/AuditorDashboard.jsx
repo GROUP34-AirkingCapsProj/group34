@@ -47,7 +47,10 @@ export default function AuditorDashboard() {
               <p className="ak-sub">System-wide activity and control checkpoints (read-only).</p>
             </div>
             <div className="ak-header-aside ak-actions">
-              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/audit-trail')}>Audit trail</button>
+              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/audit-evidence')}>Audit &amp; evidence</button>
+              {/* /admin/audit, not /admin/audit-trail — the latter is not a
+                  registered route and this button did nothing. */}
+              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/audit')}>Audit trail</button>
               <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/compliance')}>Compliance</button>
             </div>
           </div>
