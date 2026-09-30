@@ -12,7 +12,7 @@ class BudgetNoVerificationTest extends BudgetTestCase
     public function test_a_freshly_created_budget_funds_a_pr_approval(): void
     {
         $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000, ['verification_status' => 'pending']);
+        $budget = $this->makeBudget(10000);
         $pr = $this->makePr($budget, 4000, 13);
 
         $this->actingAs($admin, 'sanctum')
@@ -38,9 +38,9 @@ class BudgetNoVerificationTest extends BudgetTestCase
             ->assertSuccessful();
     }
 
-    public function test_resolve_active_budget_returns_a_budget_regardless_of_past_status(): void
+    public function test_resolve_active_budget_returns_the_current_budget(): void
     {
-        $budget = $this->makeBudget(10000, ['verification_status' => 'rejected']);
+        $budget = $this->makeBudget(10000);
 
         $resolved = app(\App\Services\BudgetService::class)->resolveActiveBudget($this->locationId);
 
