@@ -4,7 +4,6 @@ namespace Tests\Feature\Budget;
 
 use App\Events\BudgetChanged;
 use App\Exceptions\InsufficientBudgetException;
-use App\Exceptions\NoActiveBudgetException;
 use App\Models\BudgetTransaction;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
@@ -232,45 +231,4 @@ class BudgetServiceTest extends BudgetTestCase
         $this->assertSame(0, BudgetTransaction::where('txn_type', 'adjustment')->where('budget_id', $budget->budget_id)->count());
     }
 
-    public function test_commit_po_throws_when_budget_rejected(): void
-    {
-        $budget = $this->makeBudget(10000, ['verification_status' => 'rejected']);
-        $pr = $this->makePr($budget, 0, 14);
-        $po = $this->makePo($pr, 4000, 7);
-        $this->addPoLine($po, 4000);
-
-        $this->expectException(NoActiveBudgetException::class);
-        $this->service->commitPo($po->fresh()->load('details'));
-    }
-
-    public function test_resolve_active_budget_skips_unverified(): void
-    {
-        $this->makeBudget(10000, ['verification_status' => 'pending']);
-        $this->assertNull($this->service->resolveActiveBudget($this->locationId));
-
-        $verified = $this->makeBudget(20000);
-        $this->assertSame($verified->budget_id, $this->service->resolveActiveBudget($this->locationId)->budget_id);
-    }
-
-    public function test_adjust_total_change_resets_verification(): void
-    {
-        $budget = $this->makeBudget(10000); // verified by default
-        $this->service->adjustTotal($budget, 15000);
-
-        $budget->refresh();
-        $this->assertSame('pending', $budget->verification_status);
-        $this->assertNull($budget->verified_by);
-        $this->assertNull($budget->verified_at);
-    }
-
-    public function test_adjust_total_noop_does_not_reset_verification(): void
-    {
-        $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000, ['verified_by' => $admin->user_id, 'verified_at' => now()]);
-        $this->service->adjustTotal($budget, 10000); // unchanged → no-op
-
-        $budget->refresh();
-        $this->assertSame('verified', $budget->verification_status);
-        $this->assertSame($admin->user_id, (int) $budget->verified_by);
-    }
 }

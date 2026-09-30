@@ -80,13 +80,12 @@ class ReanchorBudgetCommitments extends Command
                     : round((float) $po->total_amount, 2);
                 $budgetId = DB::table('budget_allocations')
                     ->where('location_id', $locationId)
-                    ->where('verification_status', 'verified')
                     ->whereDate('period_start', '<=', today())
                     ->whereDate('period_end', '>=', today())
                     ->orderByDesc('period_start')
                     ->value('budget_id');
                 if (!$budgetId) {
-                    $this->warn("No verified active budget for location {$locationId} (PO {$po->po_id}) — skipped");
+                    $this->warn("No active budget for location {$locationId} (PO {$po->po_id}) — skipped");
                     continue;
                 }
                 BudgetTransaction::create([

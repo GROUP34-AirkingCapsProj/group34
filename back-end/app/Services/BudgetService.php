@@ -38,7 +38,6 @@ class BudgetService
         $today = today();
 
         return BudgetAllocation::where('location_id', $locationId)
-            ->where('verification_status', 'verified')
             ->where('period_start', '<=', $today)
             ->where('period_end', '>=', $today)
             ->orderByDesc('period_start')
@@ -314,16 +313,7 @@ class BudgetService
                     number_format($newTotal, 2)
                 ));
             $locked->total_budget = round($newTotal, 2);
-            $locked->verification_status = 'pending';
-            $locked->verified_by = null;
-            $locked->verified_at = null;
-            $locked->verification_note = 'Auto-reset: total changed, awaiting re-verification';
             $locked->save();
-
-            // The amount an auditor vouched for changed — alert verifiers to re-check.
-            RealtimeBroadcaster::budgetChanged((int) $locked->location_id, 'verification_pending', [
-                'budget_id' => $locked->budget_id,
-            ]);
         });
     }
 

@@ -87,12 +87,12 @@ class WarehousePrApproveTest extends BudgetTestCase
         $this->assertSame('300.00', (string) $bB->fresh()->committed);
     }
 
-    public function test_approve_all_or_nothing_when_one_warehouse_unverified(): void
+    public function test_approve_all_or_nothing_when_one_warehouse_has_no_budget(): void
     {
         $admin = $this->makeUser('admin');
         $whA = $this->locationId; $whB = $this->warehouse();
         $bA = $this->makeBudget(10000, ['location_id' => $whA]);
-        $bB = $this->makeBudget(10000, ['location_id' => $whB, 'verification_status' => 'pending']);
+        // No budget for $whB at all — the one failure that still blocks approval.
         $pr = $this->twoWarehousePr($whA, $whB);
 
         $res = $this->actingAs($admin, 'sanctum')->patchJson("/api/purchase-requests/{$pr->pr_id}/approve");

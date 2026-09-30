@@ -190,43 +190,4 @@ class BudgetEnforcementTest extends BudgetTestCase
         $this->assertEquals($budget->budget_id, $response->json('data.budget.budget_id'));
         $this->assertEquals(40000, $response->json('data.budget.available'));
     }
-
-    public function test_store_rejects_pr_against_unverified_budget(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $this->makeBudget(10000, ['verification_status' => 'pending']);
-
-        $response = $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload());
-
-        $response->assertStatus(422);
-        $this->assertStringContainsString('no active budget', strtolower($response->json('message')));
-    }
-
-    public function test_store_message_reflects_rejected_budget(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $this->makeBudget(10000, ['verification_status' => 'rejected', 'verification_note' => 'bad amount']);
-
-        $response = $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload());
-
-        $response->assertStatus(422);
-        $this->assertStringContainsString('no active budget', strtolower($response->json('message')));
-    }
-
-    public function test_approve_blocked_when_budget_unverified_after_submission(): void
-    {
-        $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 13);
-        $budget->update(['verification_status' => 'pending']); // simulates a post-submission reset
-
-        $response = $this->actingAs($admin, 'sanctum')
-            ->patchJson("/api/purchase-requests/{$pr->pr_id}/approve");
-
-        $response->assertStatus(422);
-        $this->assertStringContainsString('no active budget', strtolower($response->json('message')));
-        $this->assertSame(13, $pr->fresh()->status_id); // rolled back, still pending
-    }
 }

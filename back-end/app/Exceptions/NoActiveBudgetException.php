@@ -2,11 +2,7 @@
 
 namespace App\Exceptions;
 
-/**
- * No budget covers today for this warehouse. Budgets used to carry an auditor
- * verification state, which collapsed "unverified" and "absent" into one error;
- * verification is gone, so absence is the only remaining failure.
- */
+/** No budget's period covers today for this warehouse. */
 class NoActiveBudgetException extends \RuntimeException
 {
     public function __construct(string $context)

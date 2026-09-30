@@ -578,7 +578,7 @@ class PurchaseRequestController extends Controller
                     }
                 } else {
                     $budget = \App\Models\BudgetAllocation::find($pr->budget_id);
-                    if (!$budget || $budget->verification_status !== 'verified') {
+                    if (!$budget) {
                         $whName = \App\Models\Location::where('location_id', $pr->location_id)->value('location_name');
                         throw new NoActiveBudgetException($whName ?? "warehouse #{$pr->location_id}");
                     }

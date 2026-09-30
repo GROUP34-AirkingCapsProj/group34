@@ -196,7 +196,7 @@ class BudgetEndpointsTest extends BudgetTestCase
     public function test_store_tops_up_existing_budget_for_same_period(): void
     {
         $admin = $this->makeUser('admin');
-        // An existing VERIFIED budget for July at this location.
+        // An existing budget for July at this location.
         $existing = $this->makeBudget(1000, [
             'period_start' => '2026-07-01',
             'period_end'   => '2026-07-31',
@@ -217,8 +217,6 @@ class BudgetEndpointsTest extends BudgetTestCase
             ->whereDate('period_start', '2026-07-01')->count());
         $existing->refresh();
         $this->assertSame('1500.00', (string) $existing->total_budget);
-        // Top-up voids the prior verification (increased amount needs re-verification).
-        $this->assertSame('pending', $existing->verification_status);
         // Journaled as an adjustment.
         $this->assertSame(1, BudgetTransaction::where('budget_id', $existing->budget_id)
             ->where('txn_type', 'adjustment')->count());

@@ -101,9 +101,12 @@ class PoCommitTest extends BudgetTestCase
         $this->service->commitPo($po->fresh()->load('details'));
     }
 
-    public function test_commit_po_throws_when_no_verified_budget(): void
+    public function test_commit_po_throws_when_no_active_budget_covers_today(): void
     {
-        $budget = $this->makeBudget(10000, ['verification_status' => 'pending']);
+        $budget = $this->makeBudget(10000, [
+            'period_start' => today()->subDays(60)->toDateString(),
+            'period_end'   => today()->subDays(30)->toDateString(),
+        ]);
         $pr = $this->makePr($budget, 0, 14);
         $po = $this->makePo($pr, 4000, 7);
         $this->addPoLine($po, 4000);
