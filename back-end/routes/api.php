@@ -795,10 +795,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::post('/budget-allocations/{id}/restore', [BudgetAllocationController::class, 'restore']);
         Route::delete('/budget-allocations/{id}/force', [BudgetAllocationController::class, 'forceDestroy']);
     });
-    Route::middleware('permission:budget_verification,verify')->group(function () {
-        Route::patch('/budget-allocations/{id}/verify', [BudgetAllocationController::class, 'verify']);
-        Route::patch('/budget-allocations/{id}/reject', [BudgetAllocationController::class, 'reject']);
-    });
 
     /*
     |--------------------------------------------------------------------------
@@ -1083,6 +1079,34 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::get('/audit-trail/v2/{audit_id}', [AuditTrailController::class, 'show']);
         Route::get('/login-sessions', [\App\Http\Controllers\Api\LoginSessionController::class, 'index']);
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | AUDIT & EVIDENCE EXPLORER
+    |--------------------------------------------------------------------------
+    | Read-only apart from resolving a drift finding, which is the auditor's own
+    | act and carries its own permission.
+    */
+    Route::middleware('permission:audit_evidence,read')->prefix('audit-evidence')->group(function () {
+        Route::get('/summary', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'summary']);
+        Route::get('/breakdown', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'breakdown']);
+        Route::get('/movements', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'movements']);
+        Route::get('/reconciliation', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'reconciliation']);
+        Route::get('/exceptions', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'exceptions']);
+        Route::get('/batches/{batchId}/lifecycle', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'batchLifecycle'])
+            ->whereNumber('batchId');
+        // Serials and correlation ids carry colons, dots and dashes, so the default
+        // segment pattern is widened rather than letting a valid id 404.
+        Route::get('/serials/{serial}/lifecycle', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'serialLifecycle'])
+            ->where('serial', '[A-Za-z0-9\-_\.:]+');
+        Route::get('/events/{correlationId}', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'event'])
+            ->where('correlationId', '[A-Za-z0-9\-_\.:]+');
+    });
+
+    Route::middleware('permission:audit_evidence,resolve_exception')
+        ->post('/audit-evidence/exceptions/{findingId}/resolve',
+            [\App\Http\Controllers\Api\AuditEvidenceController::class, 'resolveException'])
+        ->whereNumber('findingId');
 
     /*
     |--------------------------------------------------------------------------

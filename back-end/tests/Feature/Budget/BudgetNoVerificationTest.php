@@ -47,4 +47,43 @@ class BudgetNoVerificationTest extends BudgetTestCase
         $this->assertNotNull($resolved);
         $this->assertSame($budget->budget_id, $resolved->budget_id);
     }
+
+    public function test_the_budget_verify_route_no_longer_exists(): void
+    {
+        $auditor = $this->makeUser('auditor');
+        $budget = $this->makeBudget(10000);
+
+        $this->actingAs($auditor, 'sanctum')
+            ->patchJson("/api/budget-allocations/{$budget->budget_id}/verify")
+            ->assertStatus(404);
+    }
+
+    public function test_an_auditor_sees_no_budget_verification_alert(): void
+    {
+        $auditor = $this->makeUser('auditor');
+        $this->makeBudget(1000);
+
+        $res = $this->actingAs($auditor, 'sanctum')->getJson('/api/alerts/settings');
+        $res->assertSuccessful();
+
+        $types = collect($res->json('data.alerts'))->pluck('type')->all();
+        $this->assertNotContains('budget_verification', $types);
+    }
+
+    public function test_the_newest_budget_wins_among_overlapping_periods(): void
+    {
+        $older = $this->makeBudget(10000, [
+            'period_start' => today()->subDays(20)->toDateString(),
+            'period_end'   => today()->addDays(20)->toDateString(),
+        ]);
+        $newer = $this->makeBudget(20000, [
+            'period_start' => today()->subDays(5)->toDateString(),
+            'period_end'   => today()->addDays(5)->toDateString(),
+        ]);
+
+        $resolved = app(\App\Services\BudgetService::class)->resolveActiveBudget($this->locationId);
+
+        $this->assertSame($newer->budget_id, $resolved->budget_id);
+        $this->assertNotSame($older->budget_id, $resolved->budget_id);
+    }
 }

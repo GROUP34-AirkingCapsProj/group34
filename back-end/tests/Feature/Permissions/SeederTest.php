@@ -54,11 +54,10 @@ class SeederTest extends TestCase
     }
 
     /**
-     * (b) Admin must be granted ALL permissions, EXCEPT the two verification
-     * "verify" actions (budget_verification.verify, purchase_order_verification.verify)
-     * which are deliberately carved out to auditor-only by role default — admin
-     * can only gain them via a per-user permission override. See
-     * VerificationPermissionTest::test_admin_cannot_verify_budget_by_default.
+     * (b) Admin must be granted ALL permissions, EXCEPT the verification "verify"
+     * action (purchase_order_verification.verify), which is deliberately carved
+     * out to auditor-only by role default — admin can only gain it via a
+     * per-user permission override. See PoVerificationTest.
      */
     public function test_admin_is_granted_all_permissions(): void
     {

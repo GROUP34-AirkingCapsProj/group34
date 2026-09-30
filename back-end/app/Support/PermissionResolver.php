@@ -8,14 +8,13 @@ class PermissionResolver
 {
     /**
      * Permissions deliberately carved out of the admin structural bypass:
-     * verification is auditor-only by separation of duties, so the System
-     * Administrator does NOT get these automatically — only via a per-user
-     * override (see SeederTest + VerificationPermissionTest).
+     * PO verification is auditor-only by separation of duties, so the System
+     * Administrator does NOT get it automatically — only via a per-user
+     * override (see SeederTest + PoVerificationTest).
      *
      * @var array<int, string>  "feature.action"
      */
     private const ADMIN_BYPASS_EXCLUDED = [
-        'budget_verification.verify',
         'purchase_order_verification.verify',
     ];
 

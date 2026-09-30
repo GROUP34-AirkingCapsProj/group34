@@ -181,18 +181,6 @@ class BudgetEndpointsTest extends BudgetTestCase
             ->assertSuccessful();
     }
 
-    public function test_available_endpoint_exposes_verification_status(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $budget = $this->makeBudget(10000, ['verification_status' => 'verified']);
-
-        $response = $this->actingAs($ia, 'sanctum')
-            ->getJson("/api/budget-allocations/{$budget->budget_id}/available");
-
-        $response->assertSuccessful();
-        $this->assertSame('verified', $response->json('data.verification_status'));
-    }
-
     public function test_store_tops_up_existing_budget_for_same_period(): void
     {
         $admin = $this->makeUser('admin');
