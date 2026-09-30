@@ -42,6 +42,52 @@ class LedgerPoster
         }
     }
 
+    /**
+     * Undo a posted movement by posting its mirror, never by editing or deleting it.
+     *
+     * The mirror reuses the original's frozen unit_cost, cost_basis and
+     * extended_value rather than resolving fresh ones: a cost that moved since
+     * posting would let a reversal undo a different amount of value than it
+     * reversed. Locations swap, so the row reads as the stock going back where it
+     * came from. Quantities stay positive — direction carries the sign.
+     */
+    public function reverse(InventoryLedgerEntry $original, string $reason, ?int $actorUserId = null): InventoryLedgerEntry
+    {
+        if ($original->isReversal()) {
+            throw new LedgerPostingException(
+                "Ledger posting refused: entry {$original->ledger_id} is itself a reversal. "
+                . 'Re-doing a reversed movement posts a new forward entry, not a reversal of a reversal.'
+            );
+        }
+
+        $flip = ['in' => 'out', 'out' => 'in', 'neutral' => 'neutral'];
+
+        return $this->post([
+            'occurred_at'        => Carbon::now(),
+            'direction'          => $flip[$original->direction],
+            'movement_type'      => $original->movement_type,
+            'lens'               => $original->lens,
+            'product_id'         => $original->product_id,
+            'batch_id'           => $original->batch_id,
+            'serial_number'      => $original->serial_number,
+            'quantity'           => $original->quantity,
+            'unit_cost'          => $original->unit_cost,
+            'extended_value'     => $original->extended_value,
+            'cost_basis'         => $original->cost_basis,
+            'from_location_id'   => $original->to_location_id,
+            'to_location_id'     => $original->from_location_id,
+            'source_type'        => $original->source_type,
+            'source_id'          => $original->source_id,
+            'source_line_id'     => $original->source_line_id,
+            'correlation_id'     => $original->correlation_id,
+            'actor_user_id'      => $actorUserId,
+            'reverses_ledger_id' => $original->ledger_id,
+            'origin'             => $original->origin,
+            'posting_key'        => 'reversal:' . $original->ledger_id,
+            'notes'              => $reason,
+        ]);
+    }
+
     private function normalize(array $a): array
     {
         $a['direction']   = $a['direction'] ?? 'out';
