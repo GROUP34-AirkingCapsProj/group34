@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
 use App\Services\AirconLineGrouper;
 use App\Services\InventoryBatchService;
+use App\Services\Ledger\LedgerPoster;
 
 class IssuanceController extends Controller
 {
@@ -100,7 +101,12 @@ class IssuanceController extends Controller
                 ->keyBy('product_id');
 
             foreach ($validated['details'] as $detail) {
-                $issuance->details()->create($detail);
+                // Kept as a variable, not re-queried below: a request may list the
+                // same product on two lines, and looking the line up by product_id
+                // would return the same (newest) detail row for both. The ledger's
+                // posting_key carries that id, so the second line's rows would
+                // collide with the first's and be silently deduped away.
+                $detailRow = $issuance->details()->create($detail);
 
                 // Deduct inventory at issuance location.
                 //
@@ -153,6 +159,39 @@ class IssuanceController extends Controller
                         'quantity' => $deductedQuantity,
                         'performed_by' => $issuance->issued_by,
                         'moved_at' => now(),
+                    ]);
+
+                    // One ledger row per batch slice, each valued at the cost that
+                    // slice actually came in at. A 6-piece issue drawn from a
+                    // 4-piece batch at 100 and a 6-piece batch at 200 is 800 pesos
+                    // of stock out, not 6 x whatever the product list price says.
+                    //
+                    // A batch with no recorded cost (stock received before costs
+                    // were tracked) posts as 'unavailable' with a null value rather
+                    // than 0.00 — the quantity is still evidence, but asserting the
+                    // goods were free would be a lie, and blocking a warehouse
+                    // issuance over a historical data gap is the worse trade.
+                    $batch = \App\Models\InventoryBatch::find($batchId);
+                    $batchCost = $batch?->unit_cost;
+
+                    app(LedgerPoster::class)->post([
+                        'occurred_at'      => $issuance->issuance_date ?? now(),
+                        'direction'        => 'out',
+                        'movement_type'    => 'issuance',
+                        'product_id'       => (int) $detail['product_id'],
+                        'batch_id'         => (int) $batchId,
+                        'quantity'         => (int) $deductedQuantity,
+                        'unit_cost'        => $batchCost !== null ? (float) $batchCost : null,
+                        'cost_basis'       => $batchCost !== null ? ($batch->cost_basis ?? 'actual') : 'unavailable',
+                        'from_location_id' => (int) $validated['location_id'],
+                        'source_type'      => 'issuances',
+                        'source_id'        => $issuance->issuance_id,
+                        'source_line_id'   => $detailRow->issuance_detail_id,
+                        'correlation_id'   => 'issuances:' . $issuance->issuance_id,
+                        'actor_user_id'    => $issuance->issued_by,
+                        'posting_key'      => 'issuance:' . $issuance->issuance_id
+                                              . ':line:' . $detailRow->issuance_detail_id
+                                              . ':batch:' . $batchId . ':out',
                     ]);
                 }
             }
