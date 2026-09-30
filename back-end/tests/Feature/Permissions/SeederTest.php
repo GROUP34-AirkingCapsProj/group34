@@ -54,19 +54,26 @@ class SeederTest extends TestCase
     }
 
     /**
-     * (b) Admin must be granted ALL permissions, EXCEPT the verification "verify"
-     * action (purchase_order_verification.verify), which is deliberately carved
-     * out to auditor-only by role default — admin can only gain it via a
-     * per-user permission override. See PoVerificationTest.
+     * (b) Admin must be granted ALL permissions, EXCEPT the segregation-of-duties
+     * carve-outs, which are auditor-only by role default — admin can only gain them
+     * via a per-user permission override. See PoVerificationTest.
+     *
+     * The carve-outs exist so the person who approves an action is not also the
+     * person who checks it: budget and PO verification (the checker in the
+     * maker-checker-approver chain), and resolving an Audit & Evidence drift
+     * finding (closing an exception that may concern spending the admin approved).
      */
     public function test_admin_is_granted_all_permissions(): void
     {
         $adminId = Role::where('role_name', 'admin')->value('role_id');
         $this->assertNotNull($adminId, 'admin role not found');
 
-        $carvedOut = Permission::where('action', 'verify')
-            ->whereIn('feature', ['budget_verification', 'purchase_order_verification'])
-            ->count();
+        $carvedOut = Permission::where(function ($q) {
+            $q->where('action', 'verify')
+              ->whereIn('feature', ['budget_verification', 'purchase_order_verification']);
+        })->orWhere(function ($q) {
+            $q->where('feature', 'audit_evidence')->where('action', 'resolve_exception');
+        })->count();
 
         $totalPermissions = Permission::count() - $carvedOut;
         $adminGranted     = RolePermission::where('role_id', $adminId)

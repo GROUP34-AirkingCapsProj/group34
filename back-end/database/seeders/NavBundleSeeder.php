@@ -60,6 +60,7 @@ class NavBundleSeeder extends Seeder
             ['System Reports',       '/admin/reports',              'COMPLIANCE & SUPPORT',    'reports',            'report_viewing',          'read'],
             ['Alerts & Notices',     '/admin/alerts',               'COMPLIANCE & SUPPORT',    'notifications',      'notification_panel',      'read'],
             ['Audit Trail',          '/admin/audit',                'COMPLIANCE & SUPPORT',    'audit',              'audit_trail_viewing',     'read'],
+            ['Audit & Evidence',     '/admin/audit-evidence',       'COMPLIANCE & SUPPORT',    'audit',              'audit_evidence',          'read'],
         ];
     }
 

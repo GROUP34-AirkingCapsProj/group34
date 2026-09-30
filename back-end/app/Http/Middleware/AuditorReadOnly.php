@@ -44,9 +44,19 @@ class AuditorReadOnly
             return $next($request);
         }
 
-        // PO verification is the auditor's one write capability — the permission
-        // middleware on these routes still enforces who may call them.
+        // PO verification is one of the auditor's two write capabilities — the
+        // permission middleware on these routes still enforces who may call them.
         if (preg_match('#^/api/purchase-orders/\d+/(verify|reject)$#', $path)) {
+            return $next($request);
+        }
+
+        // The other: resolving a drift finding in the Audit & Evidence Explorer.
+        // That page is read-only apart from recording what was done about an
+        // exception, and a finding closed with no explanation would leave the
+        // discrepancy unexplained while looking dealt with — so the auditor has to
+        // be able to write the note. permission:audit_evidence,resolve_exception on
+        // the route still decides who may.
+        if (preg_match('#^/api/audit-evidence/exceptions/\d+/resolve$#', $path)) {
             return $next($request);
         }
 
