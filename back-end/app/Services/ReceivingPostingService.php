@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
+use App\Services\Ledger\BatchCostResolver;
+use App\Services\Ledger\LedgerPoster;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -25,7 +27,9 @@ class ReceivingPostingService
 {
     public function __construct(
         private InventoryBatchService $batches,
-        private MaterialTagService $tags
+        private MaterialTagService $tags,
+        private LedgerPoster $ledger,
+        private BatchCostResolver $costs
     ) {
     }
 
@@ -68,9 +72,14 @@ class ReceivingPostingService
         $receiving = $this->resolveReceiving($poDetail, $locationId, $userId);
         $receiving->increment('total_quantity_received', $pieces);
 
-        $batch = $this->accumulateBatch($receiving, $product, $locationId, $pieces, $zoneLabel);
+        $lineCost = $this->costs->costForReceivingLine($poDetail, $product);
 
-        ReceivingDetail::create([
+        $batch = $this->accumulateBatch(
+            $receiving, $product, $locationId, $pieces, $zoneLabel,
+            $lineCost['unit_cost'], $lineCost['cost_basis']
+        );
+
+        $detail = ReceivingDetail::create([
             'receiving_id'      => $receiving->receiving_id,
             'product_id'        => $product->product_id,
             'po_detail_id'      => $poDetail?->po_detail_id,
@@ -81,10 +90,33 @@ class ReceivingPostingService
             // Anything else — a scan, or a caller with no opinion — leaves NULL,
             // which is the honest reading: the box has not been opened.
             'contents_verified_at' => $contentsVerified ? now() : null,
-            'prod_price'        => $product->cost_price ?? 0,
+            // What the business is paying, per the PO line — not the product's
+            // list cost, which is a stand-in that made every valuation downstream
+            // wrong. Falls back to the list cost only when there is no PO line.
+            'prod_price'        => $lineCost['unit_cost'] ?? 0,
             'condition'         => 'Good',
             'scanned_barcode'   => $supplierBarcode ?: null,
             'entry_mode'        => $entryMode,
+        ]);
+
+        $this->ledger->post([
+            'occurred_at'    => $receiving->receiving_date ?? now(),
+            'direction'      => 'in',
+            'movement_type'  => 'receiving',
+            'product_id'     => $product->product_id,
+            'batch_id'       => $batch->batch_id,
+            'serial_number'  => $product->isSerialized() ? $supplierBarcode : null,
+            'quantity'       => $pieces,
+            'unit_cost'      => $lineCost['unit_cost'],
+            'cost_basis'     => $lineCost['cost_basis'],
+            'to_location_id' => $locationId,
+            'source_type'    => 'receivings',
+            'source_id'      => $receiving->receiving_id,
+            'source_line_id' => $detail->receiving_detail_id,
+            'correlation_id' => 'receivings:' . $receiving->receiving_id,
+            'actor_user_id'  => $userId,
+            'posting_key'    => 'receiving:' . $receiving->receiving_id
+                                . ':line:' . $detail->receiving_detail_id . ':in',
         ]);
 
         $reference = $poDetail?->purchaseOrder?->po_number ?? 'RCV' . $receiving->receiving_number;
@@ -222,17 +254,33 @@ class ReceivingPostingService
      * product + location, rather than minting one tiny batch per scan. This
      * is deliberate: repeated scans against one receiving header build a
      * single coherent batch per product+location.
+     *
+     * Because one batch can absorb several postings, its unit_cost is blended
+     * rather than overwritten — two deliveries at two prices leave a weighted
+     * average, and cost_basis records that it is derived.
      */
-    private function accumulateBatch(Receiving $receiving, Product $product, int $locationId, int $pieces, ?string $zoneLabel): InventoryBatch
-    {
+    private function accumulateBatch(
+        Receiving $receiving,
+        Product $product,
+        int $locationId,
+        int $pieces,
+        ?string $zoneLabel,
+        ?float $lineCost = null,
+        string $lineBasis = 'unavailable'
+    ): InventoryBatch {
         $batch = InventoryBatch::where('receiving_id', $receiving->receiving_id)
             ->where('product_id', $product->product_id)
             ->where('location_id', $locationId)
             ->first();
 
         if ($batch) {
+            // Blend before incrementing: the weighting needs the pre-addition quantity.
+            $blend = $this->costs->blendIntoBatch($batch, $pieces, $lineCost, $lineBasis);
+
             $batch->quantity_received  += $pieces;
             $batch->quantity_remaining += $pieces;
+            $batch->unit_cost  = $blend['unit_cost'];
+            $batch->cost_basis = $blend['cost_basis'];
             if ($zoneLabel !== null) {
                 $batch->zone_label = $zoneLabel;
             }
@@ -241,7 +289,7 @@ class ReceivingPostingService
             return $batch;
         }
 
-        return $this->batches->createBatch(
+        $batch = $this->batches->createBatch(
             $product->product_id,
             $locationId,
             $receiving->receiving_id,
@@ -249,6 +297,12 @@ class ReceivingPostingService
             $receiving->receiving_date ?? now(),
             $zoneLabel
         );
+
+        $batch->unit_cost  = $lineCost;
+        $batch->cost_basis = $lineBasis;
+        $batch->save();
+
+        return $batch;
     }
 
     /**
