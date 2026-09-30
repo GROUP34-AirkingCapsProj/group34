@@ -254,7 +254,10 @@ return new class extends Migration
             $table->decimal('actual', 18, 2)->nullable();
             $table->decimal('variance', 18, 2)->nullable();
             $table->string('detail', 500)->nullable();
-            $table->timestamp('detected_at');
+            // useCurrent() is required: as the first TIMESTAMP column this would
+            // otherwise acquire ON UPDATE CURRENT_TIMESTAMP, and resolving a
+            // finding would rewrite the detection time it exists to record.
+            $table->timestamp('detected_at')->useCurrent();
             $table->timestamp('resolved_at')->nullable();
             $table->unsignedBigInteger('resolved_by')->nullable();
             $table->string('resolution_note', 500)->nullable();

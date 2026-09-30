@@ -25,32 +25,61 @@ class LedgerSchemaTest extends TestCase
         }
     }
 
-    /**
-     * Asks information_schema directly rather than using Schema::getForeignKeys(),
-     * which reads information_schema.key_column_usage. A full scan of that view has
-     * to open every tablespace on the server, and on the local XAMPP MariaDB 10.4
-     * one of the legacy databases has corrupt tablespaces, so the scan segfaults
-     * mysqld outright -- for any table, including tables with no FKs at all.
-     * table_constraints answers the same question without the server-wide scan.
-     */
     public function test_the_ledger_declares_no_foreign_keys_so_audit_rows_outlive_their_subjects(): void
+    {
+        foreach (['inventory_ledger', 'ledger_drift_findings'] as $table) {
+            $this->assertSame(
+                [],
+                $this->constraintsOf($table, 'FOREIGN KEY'),
+                "{$table} must have no FK constraints: a cascade delete would erase audit evidence."
+            );
+        }
+    }
+
+    /**
+     * The unique index is the whole idempotency contract. posting_key is derived
+     * deterministically from the movement, so it is this constraint -- not any
+     * application check -- that stops a retried request, a double-clicked button
+     * or a re-run backfill from posting the same value twice.
+     */
+    public function test_posting_key_is_unique_so_a_retried_post_cannot_double_count(): void
+    {
+        // Matched by name rather than by column: the column list lives in
+        // key_column_usage, which cannot be queried here (see constraintsOf), and
+        // Laravel derives this name from the table and column deterministically.
+        $names = array_map(
+            static fn ($constraint) => $constraint->constraint_name ?? $constraint->CONSTRAINT_NAME,
+            $this->constraintsOf('inventory_ledger', 'UNIQUE')
+        );
+
+        $this->assertContains(
+            'inventory_ledger_posting_key_unique',
+            $names,
+            'inventory_ledger.posting_key must be unique or a retry double-posts value.'
+        );
+    }
+
+    /**
+     * Reads information_schema directly rather than using Schema::getForeignKeys()
+     * or Schema::getIndexes(), which query information_schema.key_column_usage. A
+     * full scan of that view has to open every tablespace on the server, and on the
+     * local XAMPP MariaDB 10.4 a legacy database has corrupt tablespaces, so the
+     * scan segfaults mysqld outright -- for any table, even one with no FKs at all.
+     * table_constraints answers the same question without the server-wide scan, so
+     * long as it stays filtered to a single schema and table.
+     */
+    private function constraintsOf(string $table, string $type): array
     {
         $connection = Schema::getConnection();
 
-        $constraints = $connection->select(
+        return $connection->select(
             'select constraint_name from information_schema.table_constraints
               where table_schema = ? and table_name = ? and constraint_type = ?',
             [
                 $connection->getDriverName() === 'pgsql' ? 'public' : $connection->getDatabaseName(),
-                'inventory_ledger',
-                'FOREIGN KEY',
+                $table,
+                $type,
             ]
-        );
-
-        $this->assertSame(
-            [],
-            $constraints,
-            'inventory_ledger must have no FK constraints: a cascade delete would erase audit evidence.'
         );
     }
 

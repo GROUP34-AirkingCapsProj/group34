@@ -22,8 +22,8 @@ use Tests\TestCase;
  * in UTC: the rewritten value landed two hours in the FUTURE and read as a
  * still-valid token. On CI, where both clocks are UTC, the same code 422s.
  *
- * Four other columns carry the same accident, each one a movement or receipt
- * time that an unrelated update would rewrite.
+ * Five other columns are guarded here against the same accident, each one a
+ * movement, receipt or detection time that an unrelated update would rewrite.
  */
 class NoAccidentalTimestampRewriteTest extends TestCase
 {
@@ -38,6 +38,7 @@ class NoAccidentalTimestampRewriteTest extends TestCase
             'batch movement time'         => ['inventory_batch_movements', 'moved_at'],
             'warranty return receipt'     => ['warranty_claim_returns', 'received_at'],
             'warranty movement time'      => ['warranty_inventory_movements', 'moved_at'],
+            'drift finding detection time' => ['ledger_drift_findings', 'detected_at'],
         ];
     }
 

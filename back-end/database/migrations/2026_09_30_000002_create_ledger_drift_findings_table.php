@@ -4,6 +4,14 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Findings raised by the drift checks that reconcile the ledger against its
+ * sources, the FIFO movement rows and live stock.
+ *
+ * Like inventory_ledger, declares NO foreign keys: a finding records what was
+ * true when the check ran, so it has to survive the product, location or user it
+ * points at being deleted. Losing the finding would hide the discrepancy.
+ */
 return new class extends Migration
 {
     public function up(): void
@@ -19,7 +27,12 @@ return new class extends Migration
             $table->decimal('actual', 18, 2)->nullable();
             $table->decimal('variance', 18, 2)->nullable();
             $table->string('detail', 500)->nullable();
-            $table->timestamp('detected_at');
+            // useCurrent() is load-bearing, not decoration. Left bare, this is the
+            // first TIMESTAMP column in the table, so MySQL/MariaDB attach
+            // ON UPDATE CURRENT_TIMESTAMP to it -- and then the very act of
+            // resolving a finding (writing resolved_at/resolved_by) would rewrite
+            // detected_at to now and destroy the detection time being audited.
+            $table->timestamp('detected_at')->useCurrent();
             $table->timestamp('resolved_at')->nullable();
             $table->unsignedBigInteger('resolved_by')->nullable();
             $table->string('resolution_note', 500)->nullable();
