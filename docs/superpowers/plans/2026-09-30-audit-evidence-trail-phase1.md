@@ -1044,12 +1044,17 @@ class BatchCostResolverTest extends TestCase
 
     private function product(?float $costPrice): Product
     {
-        return Product::create([
+        // products.cost_price is decimal(10,2) NOT NULL DEFAULT 0.00 — it cannot be
+        // set to null, so the "no price anywhere" case is represented by dropping the
+        // key and letting the column default to 0.00. That is what an unpriced product
+        // genuinely looks like in this schema, and the resolver's `> 0` guards treat
+        // 0.00 and null alike. Same applies to products.unit_price.
+        return Product::create(array_filter([
             'product_code' => 'P-' . uniqid(),
             'product_name' => 'Test Product',
             'product_type' => 'installation_material',
             'cost_price'   => $costPrice,
-        ]);
+        ], fn ($v) => $v !== null));
     }
 
     private function poDetail(Product $product, float $unitPrice): PurchaseOrderDetail
