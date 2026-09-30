@@ -43,6 +43,56 @@ class InventoryLedgerEntryTest extends TestCase
         $this->assertTrue($entry->isReversal());
     }
 
+    public function test_a_movement_recorded_the_same_day_it_happened_is_not_backdated(): void
+    {
+        // The regression case. receivings.receiving_date, issuances.issuance_date and
+        // adjustments.adjustment_date are all `date` columns, so occurred_at lands at
+        // midnight. A minute-based comparison flagged every posting after 01:00.
+        $entry = new InventoryLedgerEntry([
+            'occurred_at' => '2026-09-30 00:00:00',
+            'posted_at'   => '2026-09-30 14:00:00',
+        ]);
+
+        $this->assertFalse($entry->isBackdated());
+    }
+
+    public function test_a_movement_dated_a_week_ago_but_recorded_today_is_backdated(): void
+    {
+        $entry = new InventoryLedgerEntry([
+            'occurred_at' => '2026-09-23 00:00:00',
+            'posted_at'   => '2026-09-30 14:00:00',
+        ]);
+
+        $this->assertTrue($entry->isBackdated());
+    }
+
+    public function test_a_movement_recorded_the_next_calendar_day_is_backdated(): void
+    {
+        // A tolerance of one day means "a later day", not "more than 24 hours".
+        $entry = new InventoryLedgerEntry([
+            'occurred_at' => '2026-09-30 23:30:00',
+            'posted_at'   => '2026-10-01 00:15:00',
+        ]);
+
+        $this->assertTrue($entry->isBackdated());
+    }
+
+    public function test_a_row_missing_either_timestamp_is_not_backdated(): void
+    {
+        $missingOccurredAt = new InventoryLedgerEntry([
+            'occurred_at' => null,
+            'posted_at'   => '2026-09-30 14:00:00',
+        ]);
+
+        $missingPostedAt = new InventoryLedgerEntry([
+            'occurred_at' => '2026-09-23 00:00:00',
+            'posted_at'   => null,
+        ]);
+
+        $this->assertFalse($missingOccurredAt->isBackdated());
+        $this->assertFalse($missingPostedAt->isBackdated());
+    }
+
     public function test_two_rows_cannot_share_a_posting_key(): void
     {
         // The unique index is the only thing standing between a retried request and

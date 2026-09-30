@@ -255,8 +255,15 @@ period and filters never reset:
    real lines, batches, serials and frozen costs; the actor chain (requested,
    verified, approved, posted, with timestamps); the change history from
    `audit_trail` via the existing `RecordHistoryService`; `occurred_at` vs
-   `posted_at` flagged when they diverge; attachments where the source has them
-   (incident photos, receiving receipt, delivery receipt).
+   `posted_at` flagged as backdated when the movement was **recorded on a later
+   day than it happened** — day granularity, not minutes, because three of the
+   four source tables (`receivings.receiving_date`, `issuances.issuance_date`,
+   `adjustments.adjustment_date`) store their event date in a `date` column, so
+   `occurred_at` lands at midnight and carries no real time of day. Comparing
+   clock times would flag every routine same-day posting and make a genuinely
+   backdated entry indistinguishable from normal operations; a later calendar day
+   is the only divergence these rows actually evidence. Also: attachments where
+   the source has them (incident photos, receiving receipt, delivery receipt).
 5. **Lifecycle** — from any serial or batch, every ledger row it appeared in,
    from receiving to final disposition.
 

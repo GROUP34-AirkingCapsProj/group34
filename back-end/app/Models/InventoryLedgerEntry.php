@@ -40,14 +40,26 @@ class InventoryLedgerEntry extends Model
         return $this->reverses_ledger_id !== null;
     }
 
-    /** True when the movement was recorded noticeably later than it happened. */
-    public function isBackdated(int $toleranceMinutes = 60): bool
+    /**
+     * True when the movement was recorded on a later day than it happened.
+     *
+     * Deliberately day-granular rather than minute-granular. Three of the four
+     * source tables store their event date in a `date` column, so occurred_at
+     * lands at midnight while posted_at is the wall clock — a minute-based
+     * comparison flagged every routine same-day posting, which would have made a
+     * genuinely backdated entry indistinguishable from normal operations.
+     *
+     * Carbon 3's diffInDays is signed, so a posted_at EARLIER than occurred_at
+     * yields a negative difference and is intentionally NOT reported here: a
+     * future-dated movement is a different anomaly from a backdated one.
+     */
+    public function isBackdated(int $toleranceDays = 1): bool
     {
         if (! $this->occurred_at || ! $this->posted_at) {
             return false;
         }
 
-        return $this->occurred_at->diffInMinutes($this->posted_at) > $toleranceMinutes;
+        return $this->occurred_at->startOfDay()->diffInDays($this->posted_at->startOfDay()) >= $toleranceDays;
     }
 
     public function product(): BelongsTo
