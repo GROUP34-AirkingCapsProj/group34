@@ -92,7 +92,7 @@ Three layers, each independently testable.
 | `quantity` | integer; `0` for finance-only rows |
 | `unit_cost` | decimal, frozen at posting |
 | `extended_value` | decimal, frozen at posting; nullable when `cost_basis = 'unavailable'` |
-| `cost_basis` | `actual` / `derived_weighted_avg` / `unavailable` |
+| `cost_basis` | `actual` / `derived_weighted_avg` / `product_default` / `unavailable` |
 | `from_location_id`, `to_location_id` | nullable |
 | `source_type`, `source_id`, `source_line_id` | the evidence pointer |
 | `correlation_id` | groups the legs of one business event |
@@ -137,7 +137,8 @@ worthless), carries no cost, requires a non-null `from_location_id`, has no
 reversal concept, and covers only issuance and transfer. It stays exactly as
 it is — the operational FIFO consumption record that picking logic depends on.
 The ledger is a separate, broader, immutable record, and the drift check
-cross-verifies the two.
+cross-verifies the two. `inventory_ledger` therefore declares no foreign keys of
+its own.
 
 ## Posting rules
 
@@ -148,9 +149,9 @@ nothing left to filter at read time and nothing to infer from a string.
 | Source | Posts at | Rows |
 | --- | --- | --- |
 | Receiving | posting of a receiving session (not draft staging, not submit) | one `in` per received line, batch + cost set |
-| Issuance / issue-out | completion | one `out` per consumed batch slice, each at its own cost |
+| Issuance / issue-out | creation / scan commit | one `out` per consumed batch slice, each at its own cost |
 | Transfer | dispatch, then receipt | `transfer_out` then `transfer_in`, shared `correlation_id`; in-transit is visible as an out with no matching in |
-| Adjustment | approval | `in` or `out`, reason in `notes` |
+| Adjustment | creation (`AdjustmentController::store`) — stock moves there; there is no approval step | `in` or `out`, reason in `notes` |
 | Incident | write-off decision / return acceptance | `incident_writeoff` out, `incident_return` in |
 | Warranty | claim send-out / replacement receipt | `warranty_out`, `warranty_return` |
 | Purchase return | posting | `out` |
@@ -192,6 +193,7 @@ Historical batches have no `unit_cost`, so the backfill resolves it through
 - `actual` — one unambiguous receiving line price
 - `derived_weighted_avg` — the receiving had mixed line prices; weighted
   average used
+- `product_default` — the product's list cost, used when no PO line price exists
 - `unavailable` — no price recoverable; quantity recorded, value null
 
 The Explorer marks non-`actual` rows visibly and shows how much of each total
