@@ -328,6 +328,27 @@ If the second command does not pick up `airkingV5_test`, run it with an explicit
 Run: `cd back-end && php artisan test --filter=LedgerSchemaTest`
 Expected: PASS (3 tests).
 
+- [ ] **Step 7b: Regenerate the Postgres baseline schema**
+
+Production runs Postgres, and this repo keeps a generated baseline that a test pins
+against the live MySQL schema. Adding tables without regenerating it fails
+`PostgresBaselineSchemaTest` and would break the deploy.
+
+```bash
+cd back-end
+php artisan schema:export-pgsql
+```
+
+That rewrites `database/schema/pgsql-schema.sql`. Then bump the tripwire constant in
+`tests/Feature/Schema/PostgresBaselineSchemaTest.php` — `EXPECTED_TABLES` is a
+deliberate guard so no table is added unnoticed; it goes from 87 to **89** for the two
+tables this task adds. Confirm with:
+
+```bash
+php artisan test --filter=PostgresBaselineSchemaTest
+```
+Expected: 9 passed.
+
 - [ ] **Step 8: Apply the four spec corrections**
 
 In `docs/superpowers/specs/2026-09-30-audit-evidence-trail-design.md`:

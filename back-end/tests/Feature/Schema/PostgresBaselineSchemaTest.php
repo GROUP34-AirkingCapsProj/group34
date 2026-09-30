@@ -23,7 +23,9 @@ use Tests\TestCase;
  */
 class PostgresBaselineSchemaTest extends TestCase
 {
-    private const EXPECTED_TABLES = 87;
+    // 87 -> 89 on 2026-09-30: the audit evidence trail added inventory_ledger and
+    // ledger_drift_findings.
+    private const EXPECTED_TABLES = 89;
 
     private string $sql;
 
