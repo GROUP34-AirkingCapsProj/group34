@@ -392,7 +392,7 @@ class PurchaseOrderController extends Controller
         } catch (ValidationException $e) {
             DB::rollBack();
             return $this->validationError($e->errors());
-        } catch (\App\Exceptions\UnverifiedBudgetException $e) {
+        } catch (\App\Exceptions\NoActiveBudgetException $e) {
             DB::rollBack();
             return $this->error($e->getMessage(), 422);
         } catch (\App\Exceptions\InsufficientBudgetException $e) {

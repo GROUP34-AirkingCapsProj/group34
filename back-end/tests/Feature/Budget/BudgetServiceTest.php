@@ -4,7 +4,7 @@ namespace Tests\Feature\Budget;
 
 use App\Events\BudgetChanged;
 use App\Exceptions\InsufficientBudgetException;
-use App\Exceptions\UnverifiedBudgetException;
+use App\Exceptions\NoActiveBudgetException;
 use App\Models\BudgetTransaction;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
@@ -239,7 +239,7 @@ class BudgetServiceTest extends BudgetTestCase
         $po = $this->makePo($pr, 4000, 7);
         $this->addPoLine($po, 4000);
 
-        $this->expectException(UnverifiedBudgetException::class);
+        $this->expectException(NoActiveBudgetException::class);
         $this->service->commitPo($po->fresh()->load('details'));
     }
 

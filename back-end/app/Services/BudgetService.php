@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\InsufficientBudgetException;
-use App\Exceptions\UnverifiedBudgetException;
+use App\Exceptions\NoActiveBudgetException;
 use App\Models\BudgetAllocation;
 use App\Models\BudgetTransaction;
 use App\Models\PurchaseOrder;
@@ -47,8 +47,8 @@ class BudgetService
 
     /**
      * Reserve budget for an approved PO, per destination warehouse. Row-locked,
-     * idempotent per (budget_id, po_id); requires a verified active budget with
-     * enough available. Throws Unverified/Insufficient. PR-agnostic (direct POs too).
+     * idempotent per (budget_id, po_id); requires an active budget with enough
+     * available. Throws NoActiveBudget/Insufficient. PR-agnostic (direct POs too).
      */
     public function commitPo(PurchaseOrder $po, ?int $userId = null): void
     {
@@ -71,7 +71,7 @@ class BudgetService
         $budget = $this->resolveActiveBudget($locationId);
         if (!$budget) {
             $whName = \App\Models\Location::where('location_id', $locationId)->value('location_name');
-            throw new UnverifiedBudgetException($whName ?? "warehouse #{$locationId}", 'pending');
+            throw new NoActiveBudgetException($whName ?? "warehouse #{$locationId}");
         }
 
         DB::transaction(function () use ($po, $budget, $amount, $userId) {
@@ -83,10 +83,6 @@ class BudgetService
             if ($this->outstandingForPo($locked->budget_id, $po->po_id) > 0) {
                 return;
             }
-            if ($locked->verification_status !== 'verified') {
-                throw new UnverifiedBudgetException($locked->period_label, $locked->verification_status);
-            }
-
             $utilBefore = $this->utilization($locked);
             $available = (float) $locked->total_budget - (float) $locked->committed - (float) $locked->spent;
             if ($amount > $available) {

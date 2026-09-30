@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\InsufficientBudgetException;
-use App\Exceptions\UnverifiedBudgetException;
+use App\Exceptions\NoActiveBudgetException;
 use App\Http\Controllers\Controller;
 use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
@@ -450,7 +450,7 @@ class PurchaseRequestController extends Controller
             $budget = $this->budgetService->resolveActiveBudget((int) $locId);
             $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
             if (!$budget) {
-                return $this->error("{$whName} has no verified active budget for today.", 422);
+                return $this->error("{$whName} has no active budget for today.", 422);
             }
             if (!$this->budgetService->hasAvailable($budget, $combined)) {
                 return $this->error(sprintf(
@@ -569,7 +569,7 @@ class PurchaseRequestController extends Controller
                         $budget = $this->budgetService->resolveActiveBudget((int) $locId);
                         if (!$budget) {
                             $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
-                            throw new UnverifiedBudgetException($whName ?? "warehouse #{$locId}", 'pending');
+                            throw new NoActiveBudgetException($whName ?? "warehouse #{$locId}");
                         }
                         if (!$this->budgetService->hasAvailable($budget, $subtotal)) {
                             $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
@@ -579,7 +579,8 @@ class PurchaseRequestController extends Controller
                 } else {
                     $budget = \App\Models\BudgetAllocation::find($pr->budget_id);
                     if (!$budget || $budget->verification_status !== 'verified') {
-                        throw new UnverifiedBudgetException($budget?->period_label ?? 'budget', $budget?->verification_status ?? 'pending');
+                        $whName = \App\Models\Location::where('location_id', $pr->location_id)->value('location_name');
+                        throw new NoActiveBudgetException($whName ?? "warehouse #{$pr->location_id}");
                     }
                     if (!$this->budgetService->hasAvailable($budget, (float) $pr->estimated_total)) {
                         $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
@@ -593,7 +594,7 @@ class PurchaseRequestController extends Controller
                     'approval_date'=> today(),
                 ]);
             });
-        } catch (UnverifiedBudgetException $e) {
+        } catch (NoActiveBudgetException $e) {
             return $this->error($e->getMessage(), 422);
         } catch (InsufficientBudgetException $e) {
             return $this->error($e->getMessage(), 422);

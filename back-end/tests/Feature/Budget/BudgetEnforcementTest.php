@@ -200,15 +200,9 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->postJson('/api/purchase-requests', $this->prPayload());
 
         $response->assertStatus(422);
-        $this->assertStringContainsString('verified', strtolower($response->json('message')));
+        $this->assertStringContainsString('no active budget', strtolower($response->json('message')));
     }
 
-    /**
-     * resolveActiveBudget() only ever returns verified budgets (Task 2), so
-     * store() can't distinguish "rejected" from "pending" from "never
-     * verified" — a rejected budget for the destination warehouse produces
-     * the same generic "no verified active budget" rejection as an unverified one.
-     */
     public function test_store_message_reflects_rejected_budget(): void
     {
         $ia = $this->makeUser('inventory_analyst');
@@ -218,7 +212,7 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->postJson('/api/purchase-requests', $this->prPayload());
 
         $response->assertStatus(422);
-        $this->assertStringContainsString('no verified active budget', strtolower($response->json('message')));
+        $this->assertStringContainsString('no active budget', strtolower($response->json('message')));
     }
 
     public function test_approve_blocked_when_budget_unverified_after_submission(): void
@@ -232,7 +226,7 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->patchJson("/api/purchase-requests/{$pr->pr_id}/approve");
 
         $response->assertStatus(422);
-        $this->assertStringContainsString('verified', strtolower($response->json('message')));
+        $this->assertStringContainsString('no active budget', strtolower($response->json('message')));
         $this->assertSame(13, $pr->fresh()->status_id); // rolled back, still pending
     }
 }
