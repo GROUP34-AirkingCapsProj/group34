@@ -165,7 +165,15 @@ reversed by an `in`), the same quantity, and the original row's frozen
 `unit_cost` and `cost_basis` — never a freshly resolved cost, or a reversal
 could undo a different amount of value than it reversed. Both rows stay
 visible; the Explorer shows the pair struck through with the reason. An auditor
-can always see that something was undone, and by whom.
+can always see that something was undone, and by whom. The mirror row carries
+`occurred_at = now()`, not the original's timestamp, and that is deliberate: the
+reversal genuinely happens when someone voids the document, so a September
+movement reversed in October leaves September's totals still showing the
+movement and books the correction in October. That is the behaviour an auditor
+expects — periods are never retroactively rewritten — and it means
+reconciliation for a closed period stays stable after the fact. The consequence
+is that the two rows do **not** net to zero inside a single-period window when
+the reversal falls in a later period.
 
 **Idempotency.** `LedgerPoster` computes a deterministic `posting_key`
 (`receiving:1234:line:56:in`, `reversal:9981`) under a unique index. A retried

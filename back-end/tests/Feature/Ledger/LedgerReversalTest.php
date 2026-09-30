@@ -87,12 +87,16 @@ class LedgerReversalTest extends TestCase
         $poster->reverse($reversal, 'undo the undo');
     }
 
-    public function test_a_reversal_keeps_the_original_value_even_if_the_cost_would_now_resolve_differently(): void
+    public function test_a_reversal_carries_the_originals_cost_fields_through_unchanged(): void
     {
         $original = $this->postedOut();   // 3 @ 250.00 = 750.00
 
-        // Whatever the product costs today is irrelevant: the reversal must undo the
-        // amount that was actually posted, not a freshly computed one.
+        // Proves reverse() passes the original's frozen cost fields through rather than
+        // leaving them for normalize() to derive. It cannot detect normalize()
+        // recomputing, because reverse() also copies unit_cost and quantity, so a
+        // recompute lands on the identical number — that branch is covered instead by
+        // LedgerPosterTest::test_a_finance_row_needs_no_product_or_quantity, where an
+        // extended_value arrives with no unit_cost to recompute from.
         $reversal = app(LedgerPoster::class)->reverse($original, 'voided');
 
         $this->assertSame($original->extended_value, $reversal->extended_value);
