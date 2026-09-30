@@ -1748,7 +1748,30 @@ git commit -m "feat(ledger): post issuance movements per FIFO batch slice"
 
 Run: `cd back-end && sed -n '340,380p;505,540p' app/Http/Controllers/Api/IssuanceScanController.php`
 
-Note for each site: the issuance id variable, the product, the location, the quantity in pieces, the serial (site 1 is the serialized path, so quantity is 1 and the serial is known), and the acting user.
+Both sites already resolve everything the posting needs — verified 2026-09-30, so use
+these existing variables rather than introducing new lookups:
+
+**Serialized site (~line 362).** Immediately after `deductFromReceiving(...)` the code
+already computes `$serialBatch` (the batch for this product+location+`receiving_id`) and
+holds `$serialRecord` (the `ItemSerial`, with `->serial_number`), `$product`,
+`$locationId` and `$issuance`. **Post before `$serialRecord->delete()`**, which runs a
+few lines later — after the delete, the serial number is gone from that variable's row
+and the evidence pointer would be lost. Posting key:
+`issuance:{issuance_id}:serial:{serial_number}:out` — the serial is the natural identity,
+so re-scanning the same unit collapses onto the same row.
+
+**Material site (~line 520).** The code already assigns `$touched` (from either
+`deductFromBatch()` on an authorised FIFO override or `deductFifo()`), then
+`$batchId = array_key_first($touched)` and `$batch = InventoryBatch::find($batchId)`,
+and then creates `$detail = IssuanceDetail::create([...])` just below. **Post after
+`$detail` exists** and key on it:
+`issuance:{issuance_id}:line:{issuance_detail_id}:batch:{batch_id}:out`.
+
+That `issuance_detail_id` resolves the open question the earlier draft of this task
+left: it is the stable per-scan identity, so no `uniqid()` or timestamp is needed.
+`$touched` can hold more than one batch when a pick spans batches, so loop over all of
+it rather than using only `array_key_first()` — one ledger row per slice, each at its
+own batch cost, exactly as Task 7 does.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -1885,7 +1908,59 @@ git commit -m "feat(ledger): post issuance movements from the scan paths"
 
 - [ ] **Step 1: Write the failing test**
 
-Reuse the existing transfer scaffolding — `tests/Feature/Transfer/TransferTestCase.php` already builds locations, products, stock and an approved IST. Extend it:
+Reuse the existing transfer scaffolding. `tests/Feature/Transfer/TransferTestCase.php`
+provides these helpers (verified against the file — there is **no**
+`approvedIstWithStock()`; compose from these):
+
+```
+statusId(string $name): int
+makeLocation(string $name): Location
+makeUser(): User
+makeUserAt(Location $location, string $role): User
+makeInstallationMaterial(): Product
+makeAppliance(): Product
+setStock(int $locationId, int $productId, int $qty): Inventory
+makeSerials(int $locationId, int $productId, int $count): array
+makeApprovedIst(int $from, int $to, array $lines): Transfer   // $lines: product_id, quantity_requested, quantity_scanned
+makeReceiving(int $locationId): Receiving
+makeBatch(Product $product, Location $location, array $attrs = []): InventoryBatch
+makeSerial(Product $product, Location $location, string $sn, ?int $receivingId = null): ItemSerial
+makeApprovedTransfer(Location $from, Location $to, array $lines): Transfer
+```
+
+Add one local helper to the new test class that composes them:
+
+```php
+    /** @return array{0: Transfer, 1: Product, 2: Location, 3: Location, 4: User} */
+    private function dispatchableIst(int $qty = 10): array
+    {
+        $from    = $this->makeLocation('Source WH');
+        $to      = $this->makeLocation('Dest WH');
+        $product = $this->makeInstallationMaterial();
+        $user    = $this->makeUser();
+
+        $this->setStock($from->location_id, $product->product_id, $qty);
+        $this->makeBatch($product, $from, [
+            'quantity_remaining' => $qty,
+            'received_at'        => now()->subMonth(),
+        ]);
+
+        $ist = $this->makeApprovedIst($from->location_id, $to->location_id, [
+            ['product_id' => $product->product_id, 'quantity_requested' => $qty, 'quantity_scanned' => $qty],
+        ]);
+
+        return [$ist, $product, $from, $to, $user];
+    }
+```
+
+**`makeBatch()` does not set `unit_cost`**, so every ledger row these tests produce
+will carry `cost_basis = 'unavailable'` and a null `extended_value`. That is correct
+behaviour, not a bug — so assert on direction, movement type, quantity and
+correlation, and do **not** assert on value in this test. If the dispatch/receive
+call sequence gives trouble, copy the working order from
+`tests/Feature/Transfer/TransferFlowTest.php`.
+
+Then the tests (replace `approvedIstWithStock(10)` below with `dispatchableIst(10)`):
 
 ```php
 <?php
@@ -6380,8 +6455,18 @@ Run: `cd frontend && npx react-scripts test --watchAll=false --testPathPattern=A
 Expected: PASS (4 tests).
 
 Run the whole frontend suite for regressions:
-Run: `cd frontend && npx react-scripts test --watchAll=false`
-Expected: PASS.
+Run: `cd frontend && CI=true npx react-scripts test --watchAll=false`
+Expected: **52 suites pass, 409 tests pass, and exactly 3 pre-existing failures** in
+`src/admin/pages/Login.test.jsx`, all raising `useTheme must be used within
+ThemeProvider`. That is the measured baseline as of 2026-09-30 (before any work in
+this plan) and comes from uncommitted dark-mode/`ThemeContext` work already in the
+tree — **not** from this feature. Do not fix it and do not count it as a regression;
+just confirm the count is still exactly 3 and that the failing file is still only
+`Login.test.jsx`. Any fourth failure, or a failure in another file, IS ours.
+
+Capture the real exit status with `${PIPESTATUS[0]}` if you pipe the output — a pipe
+through `tail`/`grep` reports the filter's status, not the runner's, which makes a
+failing suite look green.
 
 - [ ] **Step 8: Commit**
 
