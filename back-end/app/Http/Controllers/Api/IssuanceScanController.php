@@ -404,6 +404,35 @@ class IssuanceScanController extends Controller
                     ]);
                 }
 
+                // A serialized unit leaves one at a time and the serial is the
+                // evidence, so it keys the posting: re-scanning the same unit
+                // collapses onto the same ledger row instead of issuing it twice.
+                //
+                // $serialBatch was resolved before $serialRecord->delete() above —
+                // after the delete there is no row left to read the batch from, and
+                // the cost would be lost with it.
+                $serialCost = $serialBatch?->unit_cost;
+
+                app(\App\Services\Ledger\LedgerPoster::class)->post([
+                    'occurred_at'      => now(),
+                    'direction'        => 'out',
+                    'movement_type'    => 'issuance',
+                    'product_id'       => (int) $product->product_id,
+                    'batch_id'         => $serialBatch?->batch_id,
+                    'serial_number'    => $canonicalSerial,
+                    'quantity'         => 1,
+                    'unit_cost'        => $serialCost !== null ? (float) $serialCost : null,
+                    'cost_basis'       => $serialCost !== null ? ($serialBatch->cost_basis ?? 'actual') : 'unavailable',
+                    'from_location_id' => (int) $locationId,
+                    'source_type'      => 'issuances',
+                    'source_id'        => (int) $issuance->issuance_id,
+                    'source_line_id'   => (int) $detail->issuance_detail_id,
+                    'correlation_id'   => 'issuances:' . $issuance->issuance_id,
+                    'actor_user_id'    => auth()->id(),
+                    'posting_key'      => 'issuance:' . $issuance->issuance_id
+                                          . ':serial:' . $canonicalSerial . ':out',
+                ]);
+
                 $this->logScanEvent(
                     $issuance->issuance_id,
                     $product->product_id,
@@ -558,6 +587,37 @@ class IssuanceScanController extends Controller
                     'quantity' => $deductedQuantity,
                     'performed_by' => auth()->id(),
                     'moved_at' => now(),
+                ]);
+
+                // One ledger row per batch slice, each at the cost that slice came
+                // in at. A pick spanning two batches at different prices is two
+                // rows, not one averaged row — which is the whole point of costing
+                // stock-out from the batch rather than the product's list price.
+                //
+                // Keyed on the detail row rather than on a counter: it is the only
+                // identity a scan has that stays stable across a retry of the same
+                // request, so a repeated scan cannot double-count the value.
+                $sliceBatch = \App\Models\InventoryBatch::find($touchedBatchId);
+                $sliceCost  = $sliceBatch?->unit_cost;
+
+                app(\App\Services\Ledger\LedgerPoster::class)->post([
+                    'occurred_at'      => now(),
+                    'direction'        => 'out',
+                    'movement_type'    => 'issuance',
+                    'product_id'       => (int) $product->product_id,
+                    'batch_id'         => (int) $touchedBatchId,
+                    'quantity'         => (int) $deductedQuantity,
+                    'unit_cost'        => $sliceCost !== null ? (float) $sliceCost : null,
+                    'cost_basis'       => $sliceCost !== null ? ($sliceBatch->cost_basis ?? 'actual') : 'unavailable',
+                    'from_location_id' => (int) $locationId,
+                    'source_type'      => 'issuances',
+                    'source_id'        => (int) $issuance->issuance_id,
+                    'source_line_id'   => (int) $detail->issuance_detail_id,
+                    'correlation_id'   => 'issuances:' . $issuance->issuance_id,
+                    'actor_user_id'    => auth()->id(),
+                    'posting_key'      => 'issuance:' . $issuance->issuance_id
+                                          . ':line:' . $detail->issuance_detail_id
+                                          . ':batch:' . $touchedBatchId . ':out',
                 ]);
             }
 
