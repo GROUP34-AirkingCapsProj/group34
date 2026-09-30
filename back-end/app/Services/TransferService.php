@@ -19,9 +19,66 @@ class TransferService
 
     private InventoryBatchService $batches;
 
-    public function __construct(?InventoryBatchService $batches = null)
-    {
+    private \App\Services\Ledger\LedgerPoster $ledger;
+
+    // Both dependencies stay optional so the many `new TransferService()` call sites
+    // in the existing tests keep working; the container fills them in normally.
+    public function __construct(
+        ?InventoryBatchService $batches = null,
+        ?\App\Services\Ledger\LedgerPoster $ledger = null
+    ) {
         $this->batches = $batches ?? new InventoryBatchService();
+        $this->ledger  = $ledger ?? app(\App\Services\Ledger\LedgerPoster::class);
+    }
+
+    /**
+     * One leg of a transfer. Both legs share a correlation_id so the Explorer can
+     * show them as one event and reconciliation can prove they net to zero.
+     *
+     * Both legs carry from_location and to_location: the route is a fact about the
+     * movement, not about which end of it this row describes. Stock in transit is
+     * therefore an out leg with no in leg yet — which is exactly what an auditor
+     * wants to be able to see.
+     */
+    private function postTransferLeg(
+        Transfer $ist,
+        TransferDetail $detail,
+        string $direction,
+        int $batchId,
+        int $quantity,
+        ?int $userId,
+        ?string $serialNumber = null
+    ): void {
+        if ($quantity <= 0) {
+            return;
+        }
+
+        $batch = \App\Models\InventoryBatch::find($batchId);
+        $cost  = $batch?->unit_cost;
+
+        $this->ledger->post([
+            'occurred_at'      => now(),
+            'direction'        => $direction,
+            'movement_type'    => $direction === 'out' ? 'transfer_out' : 'transfer_in',
+            'product_id'       => (int) $detail->product_id,
+            'batch_id'         => $batchId,
+            'serial_number'    => $serialNumber,
+            'quantity'         => $quantity,
+            'unit_cost'        => $cost !== null ? (float) $cost : null,
+            'cost_basis'       => $cost !== null ? ($batch->cost_basis ?? 'actual') : 'unavailable',
+            'from_location_id' => (int) $ist->from_location_id,
+            'to_location_id'   => (int) $ist->to_location_id,
+            'source_type'      => 'transfers',
+            'source_id'        => (int) $ist->transfer_id,
+            'source_line_id'   => (int) $detail->transfer_detail_id,
+            'correlation_id'   => 'transfers:' . $ist->transfer_id,
+            'actor_user_id'    => $userId,
+            'posting_key'      => 'transfer:' . $ist->transfer_id
+                                  . ':line:' . $detail->transfer_detail_id
+                                  . ':batch:' . $batchId
+                                  . ($serialNumber ? ':serial:' . $serialNumber : '')
+                                  . ':' . $direction,
+        ]);
     }
 
     private function statusId(string $name): int
@@ -140,7 +197,7 @@ class TransferService
      * rows -- lands in the legacy catch-all. Untraceable is the honest answer there;
      * guessing a receiving_id would fabricate a provenance the data does not support.
      */
-    private function creditBulkDestinationBatches(Transfer $locked, TransferDetail $detail, int $received): void
+    private function creditBulkDestinationBatches(Transfer $locked, TransferDetail $detail, int $received, ?int $userId = null): void
     {
         $remaining = $received;
 
@@ -162,13 +219,17 @@ class TransferService
 
             $sourceBatch = InventoryBatch::find($movement->batch_id);
 
-            $this->batches->creditFromReceiving(
+            $dstBatch = $this->batches->creditFromReceiving(
                 $detail->product_id,
                 $locked->to_location_id,
                 $sourceBatch?->receiving_id,
                 $take,
                 $sourceBatch?->received_at
             );
+
+            // The arriving leg, keyed on the destination batch so it cannot collide
+            // with the out leg that was keyed on the source batch.
+            $this->postTransferLeg($locked, $detail, 'in', (int) $dstBatch->batch_id, $take, $userId);
 
             $remaining -= $take;
         }
@@ -280,6 +341,10 @@ class TransferService
                                     'performed_by' => $userId,
                                     'moved_at' => now(),
                                 ]);
+
+                                $this->postTransferLeg(
+                                    $locked, $detail, 'out', (int) $batch->batch_id, 1, $userId, $serial->serial_number
+                                );
                             }
                         });
                 } else {
@@ -301,6 +366,10 @@ class TransferService
                             'performed_by' => $userId,
                             'moved_at' => now(),
                         ]);
+
+                        $this->postTransferLeg(
+                            $locked, $detail, 'out', (int) $batchId, (int) $deductedQuantity, $userId
+                        );
                     }
                 }
 
@@ -492,7 +561,7 @@ class TransferService
                             ->whereIn('serial_number', $scanned)
                             ->get()
                             ->groupBy('receiving_id')
-                            ->each(function ($group, $receivingId) use ($locked, $detail) {
+                            ->each(function ($group, $receivingId) use ($locked, $detail, $userId) {
                                 // groupBy() stringifies a null key to ''; see the same
                                 // coercion in dispatch() for why `?:` is safe here.
                                 $receivingId = $receivingId ? (int) $receivingId : null;
@@ -513,7 +582,7 @@ class TransferService
                                     ]);
                             });
                     } else {
-                        $this->creditBulkDestinationBatches($locked, $detail, $received);
+                        $this->creditBulkDestinationBatches($locked, $detail, $received, $userId);
                     }
                 }
 
@@ -585,6 +654,17 @@ class TransferService
             $state = (int) $locked->status_id;
             if (!in_array($state, [$inTransit, $received], true)) {
                 return; // nothing moved yet (Pending/Approved/Rejected)
+            }
+
+            // Undoing a transfer posts mirrors of whatever it posted, never deletes.
+            // The ledger has to keep saying the movement happened and was reversed —
+            // an audit trail that erases its own rows is worth nothing.
+            $posted = \App\Models\InventoryLedgerEntry::where('correlation_id', 'transfers:' . $locked->transfer_id)
+                ->whereNull('reverses_ledger_id')
+                ->get();
+
+            foreach ($posted as $entry) {
+                $this->ledger->reverse($entry, 'Transfer reversed', auth()->id());
             }
 
             $locked->load('details.product');
