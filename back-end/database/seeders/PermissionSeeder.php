@@ -147,18 +147,26 @@ class PermissionSeeder extends Seeder
             'purchase_request_approval' => [
                 'approve' => ['admin'],
             ],
-            // Budget allocations (page /admin/budget-management). read+verify are the
-            // audit gates; create/update/archive let admin delegate budget CRUD.
+            // Budget allocations (page /admin/budget-management). read is the view
+            // gate; create/update/archive let admin delegate budget CRUD.
             'budget_verification' => [
                 'read'    => ['admin', 'auditor'],
                 'create'  => ['admin'],
                 'update'  => ['admin'],
                 'archive' => ['admin'],
-                'verify'  => ['auditor'],
             ],
             'purchase_order_verification' => [
                 'read'   => ['admin', 'auditor'],
                 'verify' => ['auditor'],
+            ],
+            // Audit & Evidence Explorer (page /admin/audit-evidence). Both lenses
+            // (inventory and finance) are visible to anyone holding read — the split
+            // is a view concern, not a permission boundary. The page is read-only
+            // apart from resolving a drift finding, which is the auditor's own act
+            // and the only thing they can write.
+            'audit_evidence' => [
+                'read'              => ['admin', 'auditor'],
+                'resolve_exception' => ['auditor'],
             ],
             // PR Recommendation analytics (inline in Purchase Requests; Stock Parameters tab).
             // create = recalculate + create draft PR; update = apply/dismiss

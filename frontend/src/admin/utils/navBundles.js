@@ -28,6 +28,7 @@ export const NAV_BUNDLES = [
   { name: 'Compliance Review',     routePath: '/admin/compliance',       required: ['exception_detection.read'] },
   { name: 'Warranty Records',      routePath: '/admin/warranties',       required: ['warranty_records.read'] },
   { name: 'Audit Trail',           routePath: '/admin/audit',            required: ['audit_trail_viewing.read'] },
+  { name: 'Audit & Evidence',     routePath: '/admin/audit-evidence',   required: ['audit_evidence.read'] },
   { name: 'System Reports',        routePath: '/admin/reports',          required: ['report_viewing.read'] },
   { name: 'Alerts & Notices',      routePath: '/admin/alerts',           required: ['notification_panel.read'] },
 ];
