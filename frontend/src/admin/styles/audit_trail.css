@@ -49,7 +49,16 @@
 .at-filter-bar__actions {
   display: flex;
   align-items: end;
+  gap: 0.5rem;
   padding-bottom: 2px;
+}
+
+/* Six fields rather than three: let them wrap and give the buttons their own row. */
+.at-filter-bar--wide {
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+}
+.at-filter-bar--wide .at-filter-bar__actions {
+  grid-column: 1 / -1;
 }
 
 /* Table card */
@@ -62,10 +71,23 @@
 }
 .at-table-top { margin-bottom: 16px; }
 .at-table-top h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 16px;
   font-weight: 700;
   color: var(--ak-ink, #111827);
   margin: 0;
+}
+.at-filter-count {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ak-ink-soft, #6b7280);
+  border: 1px solid var(--ak-line, #e5e7eb);
+  border-radius: 999px;
+  padding: 2px 9px;
 }
 
 .at-table-wrapper { overflow-x: auto; }

@@ -83,8 +83,47 @@ class AuditTrailController extends Controller
     {
         $perPage = min(max((int) $request->input('per_page', 50), 5), 200);
 
-        $auditRows = AuditTrail::with('user')
-            ->orderByDesc('created_at')
+        $action    = $request->filled('action') ? (string) $request->input('action') : null;
+        $tableName = $request->filled('table_name') ? (string) $request->input('table_name') : null;
+        $userId    = $request->filled('user_id') ? (int) $request->input('user_id') : null;
+        $dateFrom  = $request->filled('date_from') ? (string) $request->input('date_from') : null;
+        $dateTo    = $request->filled('date_to') ? (string) $request->input('date_to') : null;
+        $search    = $request->filled('search') ? trim((string) $request->input('search')) : null;
+
+        $auditQuery = AuditTrail::with('user')->orderByDesc('created_at');
+
+        if ($action !== null) {
+            $auditQuery->where('action', $action);
+        }
+        if ($tableName !== null) {
+            $auditQuery->where('table_name', $tableName);
+        }
+        if ($userId !== null) {
+            $auditQuery->where('user_id', $userId);
+        }
+        if ($dateFrom !== null) {
+            $auditQuery->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo !== null) {
+            $auditQuery->whereDate('created_at', '<=', $dateTo);
+        }
+        if ($search !== null && $search !== '') {
+            $term = '%' . $search . '%';
+            $auditQuery->where(function ($q) use ($term) {
+                $q->where('action', 'like', $term)
+                  ->orWhere('table_name', 'like', $term)
+                  ->orWhere('record_id', 'like', $term)
+                  ->orWhere('ip_address', 'like', $term)
+                  ->orWhereHas('user', function ($u) use ($term) {
+                      $u->where('email', 'like', $term)
+                        ->orWhere('username', 'like', $term)
+                        ->orWhere('first_name', 'like', $term)
+                        ->orWhere('last_name', 'like', $term);
+                  });
+            });
+        }
+
+        $auditRows = $auditQuery
             ->limit(300)
             ->get()
             // Drop unauthorized rows tied to known users (wrong-password / permission noise).
@@ -98,12 +137,35 @@ class AuditTrailController extends Controller
             ->values();
 
         // Historical unrecognized attempts: failed login with no matching user_id.
-        $failedUnknown = LoginActivity::query()
-            ->where('success', false)
-            ->whereNull('user_id')
-            ->orderByDesc('created_at')
-            ->limit(200)
-            ->get();
+        // These are synthesized, so the filters have to be re-applied against the
+        // shape they are synthesized into (action unauthorized_access, table
+        // security, no user, no record id) rather than against login_activities.
+        $wantsSynthetic = ($action === null || $action === 'unauthorized_access')
+            && ($tableName === null || $tableName === 'security')
+            && $userId === null;
+
+        if ($wantsSynthetic) {
+            $failedQuery = LoginActivity::query()
+                ->where('success', false)
+                ->whereNull('user_id')
+                ->orderByDesc('created_at');
+
+            if ($dateFrom !== null) {
+                $failedQuery->whereDate('created_at', '>=', $dateFrom);
+            }
+            if ($dateTo !== null) {
+                $failedQuery->whereDate('created_at', '<=', $dateTo);
+            }
+            // A term that matches what a synthetic row displays keeps them all;
+            // otherwise the only column left to match on is the IP.
+            if ($search !== null && $search !== '' && ! $this->syntheticMatchesTerm($search)) {
+                $failedQuery->where('ip_address', 'like', '%' . $search . '%');
+            }
+
+            $failedUnknown = $failedQuery->limit(200)->get();
+        } else {
+            $failedUnknown = collect();
+        }
 
         $unauthorizedTimestamps = [];
         foreach ($auditRows->where('action', 'unauthorized_access') as $row) {
@@ -198,6 +260,14 @@ class AuditTrailController extends Controller
             'total' => $total,
             'last_page' => $lastPage,
         ]);
+    }
+
+    /** Does a free-text term match the fixed text a synthesized unauthorized row shows? */
+    private function syntheticMatchesTerm(string $term): bool
+    {
+        $haystack = 'unauthorized_access unauthorized access security unrecognized account';
+
+        return \stripos($haystack, $term) !== false;
     }
 
     /** @return array<string, mixed> */
@@ -306,6 +376,28 @@ class AuditTrailController extends Controller
                 'value' => $t,
                 'label' => self::TABLE_LABELS[$t] ?? ucwords(str_replace('_', ' ', $t)),
             ]);
+
+        // Unrecognized-account attempts are synthesized from login_activities, so
+        // they can be filterable without ever appearing in audit_trail itself.
+        $hasSyntheticUnauthorized = LoginActivity::query()
+            ->where('success', false)
+            ->whereNull('user_id')
+            ->exists();
+
+        if ($hasSyntheticUnauthorized) {
+            if (! $actions->contains(fn($a) => $a['value'] === 'unauthorized_access')) {
+                $actions = $actions
+                    ->push(['value' => 'unauthorized_access', 'label' => self::ACTION_LABELS['unauthorized_access']])
+                    ->sortBy('label')
+                    ->values();
+            }
+            if (! $tables->contains(fn($t) => $t['value'] === 'security')) {
+                $tables = $tables
+                    ->push(['value' => 'security', 'label' => 'Security'])
+                    ->sortBy('label')
+                    ->values();
+            }
+        }
 
         $users = DB::table('audit_trail as at')
             ->join('users as u', 'u.user_id', '=', 'at.user_id')

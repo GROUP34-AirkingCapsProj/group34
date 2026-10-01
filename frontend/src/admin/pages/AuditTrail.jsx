@@ -9,6 +9,14 @@ import '../styles/airking_ds.css';
 import '../styles/audit_trail.css';
 
 const PAGE_SIZE = 15;
+const EMPTY_ACTIVITY_FILTERS = {
+  search: '',
+  action: '',
+  table_name: '',
+  user_id: '',
+  date_from: '',
+  date_to: '',
+};
 const SKIP_FIELDS = new Set(['created_at', 'updated_at', 'deleted_at', 'password_hash', 'remember_token', 'otp_code']);
 
 function formatTimestamp(value) {
@@ -88,6 +96,10 @@ const AuditTrail = () => {
   const [sessionsPage, setSessionsPage] = useState(1);
   const [expandedIds, setExpandedIds] = useState(new Set());
 
+  const [activityFilters, setActivityFilters] = useState(EMPTY_ACTIVITY_FILTERS);
+  const [appliedActivityFilters, setAppliedActivityFilters] = useState(EMPTY_ACTIVITY_FILTERS);
+  const [filterOptions, setFilterOptions] = useState({ actions: [], tables: [], users: [] });
+
   const [sessionFilters, setSessionFilters] = useState({
     email: '',
     status: 'all',
@@ -99,11 +111,16 @@ const AuditTrail = () => {
     ip: '',
   });
 
-  const loadActivity = useCallback(async () => {
+  const loadActivity = useCallback(async (filters = EMPTY_ACTIVITY_FILTERS) => {
     setLoading(true);
     setError('');
     try {
-      const res = await auditAPI.getTrail({ per_page: 200 });
+      const res = await auditAPI.getTrail({
+        per_page: 200,
+        ...Object.fromEntries(
+          Object.entries(filters).filter(([, v]) => v !== '' && v != null)
+        ),
+      });
       const payload = Array.isArray(res?.data?.data)
         ? res.data.data
         : Array.isArray(res?.data)
@@ -141,8 +158,26 @@ const AuditTrail = () => {
   }, [appliedSessionFilters]);
 
   useEffect(() => {
-    loadActivity();
+    loadActivity(EMPTY_ACTIVITY_FILTERS);
   }, [loadActivity]);
+
+  useEffect(() => {
+    let cancelled = false;
+    auditAPI.getFilterOptions()
+      .then((res) => {
+        if (cancelled) return;
+        const data = res?.data || {};
+        setFilterOptions({
+          actions: Array.isArray(data.actions) ? data.actions : [],
+          tables: Array.isArray(data.tables) ? data.tables : [],
+          users: Array.isArray(data.users) ? data.users : [],
+        });
+      })
+      // Filter options are a convenience; the text and date filters still work
+      // without them, so a failure here is not worth a toast.
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'sessions') {
@@ -151,7 +186,7 @@ const AuditTrail = () => {
   }, [activeTab, loadSessions]);
 
   const refresh = () => {
-    if (activeTab === 'activity') loadActivity();
+    if (activeTab === 'activity') loadActivity(appliedActivityFilters);
     else loadSessions(appliedSessionFilters);
   };
 
@@ -202,6 +237,28 @@ const AuditTrail = () => {
     });
   }, []);
 
+  const activityFilterCount = useMemo(
+    () => Object.values(appliedActivityFilters).filter((v) => v !== '' && v != null).length,
+    [appliedActivityFilters]
+  );
+
+  const applyActivityFilters = (e) => {
+    e.preventDefault();
+    const next = { ...activityFilters };
+    setAppliedActivityFilters(next);
+    setCurrentPage(1);
+    setExpandedIds(new Set());
+    loadActivity(next);
+  };
+
+  const clearActivityFilters = () => {
+    setActivityFilters(EMPTY_ACTIVITY_FILTERS);
+    setAppliedActivityFilters(EMPTY_ACTIVITY_FILTERS);
+    setCurrentPage(1);
+    setExpandedIds(new Set());
+    loadActivity(EMPTY_ACTIVITY_FILTERS);
+  };
+
   const applySessionFilters = (e) => {
     e.preventDefault();
     const next = { ...sessionFilters };
@@ -251,9 +308,106 @@ const AuditTrail = () => {
         </div>
 
         {activeTab === 'activity' && (
+          <>
+          <form className="at-filter-bar at-filter-bar--wide" onSubmit={applyActivityFilters}>
+            <div className="ak-field">
+              <label className="ak-label" htmlFor="at-activity-search">Search</label>
+              <input
+                id="at-activity-search"
+                className="ak-input"
+                type="text"
+                placeholder="User, table, record ID, IP"
+                value={activityFilters.search}
+                onChange={(e) => setActivityFilters((f) => ({ ...f, search: e.target.value }))}
+              />
+            </div>
+            <div className="ak-field">
+              <label className="ak-label" htmlFor="at-activity-action">Action</label>
+              <select
+                id="at-activity-action"
+                className="ak-select"
+                value={activityFilters.action}
+                onChange={(e) => setActivityFilters((f) => ({ ...f, action: e.target.value }))}
+              >
+                <option value="">All actions</option>
+                {filterOptions.actions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="ak-field">
+              <label className="ak-label" htmlFor="at-activity-table">Table</label>
+              <select
+                id="at-activity-table"
+                className="ak-select"
+                value={activityFilters.table_name}
+                onChange={(e) => setActivityFilters((f) => ({ ...f, table_name: e.target.value }))}
+              >
+                <option value="">All tables</option>
+                {filterOptions.tables.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="ak-field">
+              <label className="ak-label" htmlFor="at-activity-user">User</label>
+              <select
+                id="at-activity-user"
+                className="ak-select"
+                value={activityFilters.user_id}
+                onChange={(e) => setActivityFilters((f) => ({ ...f, user_id: e.target.value }))}
+              >
+                <option value="">All users</option>
+                {filterOptions.users.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="ak-field">
+              <label className="ak-label" htmlFor="at-activity-from">From</label>
+              <input
+                id="at-activity-from"
+                className="ak-input"
+                type="date"
+                max={activityFilters.date_to || undefined}
+                value={activityFilters.date_from}
+                onChange={(e) => setActivityFilters((f) => ({ ...f, date_from: e.target.value }))}
+              />
+            </div>
+            <div className="ak-field">
+              <label className="ak-label" htmlFor="at-activity-to">To</label>
+              <input
+                id="at-activity-to"
+                className="ak-input"
+                type="date"
+                min={activityFilters.date_from || undefined}
+                value={activityFilters.date_to}
+                onChange={(e) => setActivityFilters((f) => ({ ...f, date_to: e.target.value }))}
+              />
+            </div>
+            <div className="at-filter-bar__actions">
+              <button type="submit" className="ak-btn ak-btn--primary ak-btn--sm" disabled={loading}>
+                Apply filters
+              </button>
+              <button
+                type="button"
+                className="ak-btn ak-btn--sm"
+                onClick={clearActivityFilters}
+                disabled={loading || activityFilterCount === 0}
+              >
+                Clear
+              </button>
+            </div>
+          </form>
+
           <div className="at-table-card">
             <div className="at-table-top">
-              <h3>Activity log</h3>
+              <h3>
+                Activity log
+                {activityFilterCount > 0 && (
+                  <span className="at-filter-count">{activityFilterCount} filter{activityFilterCount === 1 ? '' : 's'} applied</span>
+                )}
+              </h3>
             </div>
 
             <div className="at-table-wrapper">
@@ -277,7 +431,13 @@ const AuditTrail = () => {
                     <tr><td colSpan={7} className="at-cell-center at-cell-error">{error}</td></tr>
                   )}
                   {!loading && !error && activityRows.length === 0 && (
-                    <tr><td colSpan={7} className="at-cell-center">No activity records found.</td></tr>
+                    <tr>
+                      <td colSpan={7} className="at-cell-center">
+                        {activityFilterCount > 0
+                          ? 'No activity records match these filters.'
+                          : 'No activity records found.'}
+                      </td>
+                    </tr>
                   )}
 
                   {!loading && !error && pagedActivity.map((row) => {
@@ -351,6 +511,7 @@ const AuditTrail = () => {
               label="log entries"
             />
           </div>
+          </>
         )}
 
         {activeTab === 'sessions' && (
