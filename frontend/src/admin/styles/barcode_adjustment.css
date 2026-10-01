@@ -18,8 +18,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 18px 24px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
@@ -27,7 +27,7 @@
 }
 .baj-header-icon {
   width: 52px; height: 52px;
-  background: #FFF0F2;
+  background: var(--danger-soft-bg);
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -35,22 +35,22 @@
 .baj-header-text { flex: 1; }
 .baj-header-text h1 {
   font-size: 20px; font-weight: 800;
-  color: #111827; margin: 0 0 2px;
+  color: var(--text-dark); margin: 0 0 2px;
   letter-spacing: 0.3px;
 }
-.baj-header-text p { font-size: 14px; color: #6b7280; margin: 0; }
+.baj-header-text p { font-size: 14px; color: var(--text-muted); margin: 0; }
 
 /* Back button */
 .baj-back-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  background: #fff; border: 1px solid #e5e7eb;
+  background: var(--bg-card); border: 1px solid var(--border-color);
   border-radius: 7px; padding: 6px 10px;
   width: auto; min-width: 0;
-  font-size: 12px; font-weight: 600; color: #374151;
+  font-size: 12px; font-weight: 600; color: var(--text-body);
   cursor: pointer; white-space: nowrap; flex: 0 0 auto;
   transition: background 0.15s;
 }
-.baj-back-btn:hover { background: #f9fafb; }
+.baj-back-btn:hover { background: var(--bg-muted); }
 
 .baj-page .baj-header-actions {
   width: auto;
@@ -70,18 +70,18 @@
 .baj-last-badge {
   display: flex; align-items: center; gap: 6px;
   padding: 7px 16px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--success-soft-bg);
+  border: 1px solid var(--line-green);
   border-radius: 20px;
   font-size: 13px; font-weight: 600;
-  color: #16a34a;
+  color: var(--text-success);
   white-space: nowrap;
 }
 
 /* ── Generic card (same as bsr-card) ────────────────────────── */
 .baj-card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
@@ -97,17 +97,17 @@
   align-items: center;
   gap: 10px;
   padding: 14px 18px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--border-soft);
 }
 .baj-card-head--active {
-  background: #FFF9FA;
-  border-bottom-color: #FECDD3;
+  background: var(--bg-card);
+  border-bottom-color: var(--line-rose-100);
 }
 
 /* ── Card icon (same as bsr-card-icon but crimson tint) ─────── */
 .baj-card-icon {
   width: 34px; height: 34px;
-  background: #FFF0F2;
+  background: var(--danger-soft-bg);
   border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -116,16 +116,16 @@
 /* ── Card title (same as bsr-card-title) ────────────────────── */
 .baj-card-title {
   font-size: 13px; font-weight: 800;
-  letter-spacing: 0.5px; color: #111827;
+  letter-spacing: 0.5px; color: var(--text-dark);
   flex: 1;
 }
 
 /* ── Card subtitle (same as bsr-card-subtitle) ──────────────── */
 .baj-card-subtitle {
-  font-size: 12px; color: #6b7280;
+  font-size: 12px; color: var(--text-muted);
   margin: 2px 0 0;
 }
-.baj-card-subtitle--warn { color: #d97706; font-weight: 600; }
+.baj-card-subtitle--warn { color: var(--ink-orange-600); font-weight: 600; }
 
 /* ── Card body padding ──────────────────────────────────────── */
 .baj-card-body {
@@ -137,15 +137,15 @@
   display: block;
   font-size: 11px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.5px;
-  color: #6b7280; margin-bottom: 6px;
+  color: var(--text-muted); margin-bottom: 6px;
 }
 
 /* ── Select (same as bsr-location-select) ───────────────────── */
 .baj-select {
   width: 100%; padding: 9px 12px;
-  border: 1px solid #d1d5db; border-radius: 8px;
-  font-size: 14px; color: #374151;
-  background: #fff; outline: none;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  font-size: 14px; color: var(--text-body);
+  background: var(--bg-card); outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box; cursor: pointer;
 }
@@ -157,9 +157,9 @@
 /* ── Text input ──────────────────────────────────────────────── */
 .baj-input {
   width: 100%; padding: 10px 14px;
-  border: 1px solid #d1d5db; border-radius: 8px;
-  font-size: 14px; color: #374151;
-  background: #fff; outline: none;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  font-size: 14px; color: var(--text-body);
+  background: var(--bg-card); outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
 }
@@ -167,20 +167,20 @@
   border-color: #DC143C;
   box-shadow: 0 0 0 3px rgba(220,20,60,0.10);
 }
-.baj-input::placeholder { color: #9ca3af; }
-.baj-input[disabled], .baj-input:disabled { background: #f9fafb; color: #9ca3af; cursor: not-allowed; }
-.baj-input--readonly { background: #f9fafb; color: #6b7280; cursor: default; }
+.baj-input::placeholder { color: var(--text-label); }
+.baj-input[disabled], .baj-input:disabled { background: var(--bg-muted); color: var(--text-label); cursor: not-allowed; }
+.baj-input--readonly { background: var(--bg-muted); color: var(--text-muted); cursor: default; }
 
 /* ── Barcode scan input (same as bsr-scan-input but crimson) ── */
 .baj-scan-input {
   flex: 1;
   padding: 12px 16px;
-  border: 2px solid #FECDD3;
+  border: 2px solid var(--line-rose-100);
   border-radius: 10px;
-  font-size: 15px; color: #374151;
+  font-size: 15px; color: var(--text-body);
   font-family: 'Courier New', monospace;
   letter-spacing: 0.5px;
-  background: #FFF9FA;
+  background: var(--bg-card);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   box-sizing: border-box;
@@ -189,7 +189,7 @@
 .baj-scan-input:focus {
   border-color: #DC143C;
   box-shadow: 0 0 0 3px rgba(220,20,60,0.10);
-  background: #fff;
+  background: var(--bg-card);
 }
 .baj-scan-input::placeholder { color: #FDA4AF; font-family: inherit; letter-spacing: 0; }
 
@@ -215,8 +215,8 @@
 }
 .baj-capture-btn:hover:not(:disabled) { background: #a01028; border-color: #a01028; }
 .baj-capture-btn:disabled {
-  background: #d1d5db; border-color: #d1d5db;
-  color: #9ca3af; cursor: not-allowed;
+  background: var(--fill-slate-200); border-color: var(--border-strong);
+  color: var(--text-label); cursor: not-allowed;
 }
 
 /* ── Scan result feedback (same position as bsr-examples-card) ─ */
@@ -224,67 +224,67 @@
   margin: 6px 18px 0;
   font-size: 12px; font-weight: 600;
 }
-.baj-scan-result--ok  { color: #065f46; }
-.baj-scan-result--err { color: #dc2626; }
+.baj-scan-result--ok  { color: var(--ink-teal-800); }
+.baj-scan-result--err { color: var(--text-danger); }
 
 /* ── Hint card (same as bsr-examples-card but crimson) ─────── */
 .baj-hint-card {
   margin: 10px 18px 0;
   padding: 12px 14px;
-  background: #FFF0F2;
+  background: var(--danger-soft-bg);
   border-radius: 8px;
-  border: 1px solid #FECDD3;
+  border: 1px solid var(--line-rose-100);
 }
 .baj-hint-label {
-  display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;
+  display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px;
 }
 .baj-hint-text {
-  font-size: 13px; color: #9f1239; font-weight: 600;
+  font-size: 13px; color: var(--ink-rose-700); font-weight: 600;
 }
 
 /* ── PO list (same as bsr items-list style) ─────────────────── */
 .baj-po-list {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   max-height: 210px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--bg-card);
 }
 .baj-po-item {
   padding: 10px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--border-soft);
   display: flex;
   align-items: center;
   gap: 10px;
   transition: background 0.12s;
 }
 .baj-po-item:last-child { border-bottom: none; }
-.baj-po-item:hover { background: #FFF0F2; }
-.baj-po-item--selected { background: #FFF0F2; }
+.baj-po-item:hover { background: var(--danger-soft-bg); }
+.baj-po-item--selected { background: var(--danger-soft-bg); }
 .baj-po-item-number {
-  font-weight: 700; font-size: 13px; color: #111827;
+  font-weight: 700; font-size: 13px; color: var(--text-dark);
 }
 .baj-po-item--selected .baj-po-item-number { color: #DC143C; }
-.baj-po-item-meta { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+.baj-po-item-meta { font-size: 11px; color: var(--text-label); margin-top: 1px; }
 
 /* PO selected badge (same as bsr-receiving-badge) */
 .baj-po-badge {
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 8px; padding: 8px 12px;
-  background: #FFF0F2;
+  background: var(--danger-soft-bg);
   border: 1px solid #DC143C;
   border-radius: 10px;
 }
 .baj-po-badge-info { flex: 1; }
-.baj-po-badge-number { font-weight: 700; font-size: 13px; color: #111827; }
-.baj-po-badge-supplier { font-size: 11px; color: #6b7280; }
+.baj-po-badge-number { font-weight: 700; font-size: 13px; color: var(--text-dark); }
+.baj-po-badge-supplier { font-size: 11px; color: var(--text-muted); }
 .baj-po-badge-clear {
   background: none; border: none; cursor: pointer;
-  color: #9ca3af; font-size: 20px; line-height: 1;
+  color: var(--text-label); font-size: 20px; line-height: 1;
   padding: 0 2px;
 }
-.baj-po-badge-clear:hover { color: #374151; }
+.baj-po-badge-clear:hover { color: var(--text-body); }
 
 /* PO status line */
 .baj-po-status {
@@ -293,8 +293,8 @@
   border-radius: 6px;
   font-size: 12px; font-weight: 600;
 }
-.baj-po-status--ok  { background: #f0fdf4; color: #065f46; }
-.baj-po-status--err { color: #dc2626; font-size: 12px; margin-top: 6px; }
+.baj-po-status--ok  { background: var(--success-soft-bg); color: var(--ink-teal-800); }
+.baj-po-status--err { color: var(--text-danger); font-size: 12px; margin-top: 6px; }
 
 /* Search input wrapper */
 .baj-search-wrap {
@@ -307,37 +307,37 @@
 }
 .baj-search-input {
   width: 100%; padding: 9px 12px 9px 30px;
-  border: 1px solid #d1d5db; border-radius: 8px;
-  font-size: 13px; color: #374151;
-  background: #fff; outline: none;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  font-size: 13px; color: var(--text-body);
+  background: var(--bg-card); outline: none;
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
 .baj-search-input:focus { border-color: #DC143C; box-shadow: 0 0 0 3px rgba(220,20,60,0.10); }
-.baj-search-input::placeholder { color: #9ca3af; }
+.baj-search-input::placeholder { color: var(--text-label); }
 
 /* ── Row divider inside card body ───────────────────────────── */
 .baj-divider {
   border: none;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--border-soft);
   margin: 16px 0;
 }
 
 /* ── Read-only field ─────────────────────────────────────────── */
 .baj-readonly {
   width: 100%; padding: 10px 14px;
-  border: 1px solid #e5e7eb; border-radius: 8px;
-  font-size: 14px; color: #6b7280;
-  background: #f9fafb;
+  border: 1px solid var(--border-color); border-radius: 8px;
+  font-size: 14px; color: var(--text-muted);
+  background: var(--bg-muted);
   box-sizing: border-box;
 }
 
 /* ── Textarea ────────────────────────────────────────────────── */
 .baj-textarea {
   width: 100%; padding: 10px 14px;
-  border: 1px solid #d1d5db; border-radius: 8px;
-  font-size: 14px; color: #374151;
-  background: #fff; outline: none;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  font-size: 14px; color: var(--text-body);
+  background: var(--bg-card); outline: none;
   resize: vertical; box-sizing: border-box;
   font-family: inherit;
   transition: border-color 0.15s;
@@ -349,40 +349,40 @@
 .baj-chip {
   padding: 4px 10px; border-radius: 20px;
   font-size: 12px; font-weight: 600; cursor: pointer;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb; color: #6b7280;
+  border: 1px solid var(--border-color);
+  background: var(--bg-muted); color: var(--text-muted);
   transition: all 0.12s;
 }
 .baj-chip--active {
-  background: #FFF0F2; border-color: #DC143C; color: #DC143C;
+  background: var(--danger-soft-bg); border-color: #DC143C; color: #DC143C;
 }
 
 /* ── Preview/submit block ────────────────────────────────────── */
 .baj-preview-card {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--warning-bg);
+  border: 1px solid var(--line-amber);
   border-radius: 12px;
   padding: 16px 18px;
   margin-top: 4px;
 }
 .baj-preview-head {
-  font-weight: 800; font-size: 12px; color: #92400e;
+  font-weight: 800; font-size: 12px; color: var(--warning-text);
   margin-bottom: 12px;
   display: flex; align-items: center; gap: 8px;
   text-transform: uppercase; letter-spacing: 0.4px;
 }
 .baj-preview-before {
-  background: #fef2f2; border-radius: 8px; padding: 10px 12px;
+  background: var(--danger-soft-bg); border-radius: 8px; padding: 10px 12px;
 }
 .baj-preview-after {
-  background: #f0fdf4; border-radius: 8px; padding: 10px 12px;
+  background: var(--success-soft-bg); border-radius: 8px; padding: 10px 12px;
 }
 .baj-preview-badge {
   font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
   margin-bottom: 6px;
 }
-.baj-preview-badge--rm  { color: #dc2626; }
-.baj-preview-badge--add { color: #059669; }
+.baj-preview-badge--rm  { color: var(--text-danger); }
+.baj-preview-badge--add { color: var(--ink-teal-700); }
 
 /* Primary action button */
 .baj-btn-primary {
@@ -394,7 +394,7 @@
   transition: background 0.15s;
 }
 .baj-btn-primary:hover:not(:disabled) { background: #a01028; }
-.baj-btn-primary:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
+.baj-btn-primary:disabled { background: var(--fill-slate-200); color: var(--text-label); cursor: not-allowed; }
 
 /* Secondary action button */
 .baj-btn-secondary {
@@ -406,7 +406,7 @@
   transition: background 0.15s;
 }
 .baj-btn-secondary:hover:not(:disabled) { background: #1d4ed8; }
-.baj-btn-secondary:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
+.baj-btn-secondary:disabled { background: var(--fill-slate-200); color: var(--text-label); cursor: not-allowed; }
 
 /* Camera box sizing is now defined in barcode_scan.css .bs-camera-box — no override needed. */
 
@@ -414,8 +414,8 @@
 .ba-picker-panel {
   position: absolute;
   top: calc(100% + 6px); left: 0; right: 0;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.12);
   z-index: 100;

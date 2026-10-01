@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="1420" viewBox="0 0 920 1420" role="img"
+           aria-label="Flowchart sheet 4. From connector B, enter the delivery note and purchase order, create a receiving draft, then scan each item. An item that does not match a purchase order line is flagged and sent to connector E. Matching items are staged in the draft, looping until all items are entered and the draft is submitted. Posting opens a transaction and replays each staged row; if any row fails the transaction rolls back and the draft survives. On success the transaction commits, budget is spent, the purchase order status is recomputed, and documents are printed before returning to connector M.">
+  <style>
+    svg { background: #ffffff; }
+    .sym  { fill: #ffffff; stroke: #000000; stroke-width: 1.7; }
+    .flow { fill: none; stroke: #000000; stroke-width: 1.6; }
+    .jn   { fill: #000000; stroke: none; }
+    .mk   { fill: #000000; }
+    .t  { font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; fill: #000000; text-anchor: middle; }
+    .tb { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .tc { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .yn { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; font-weight: 700; fill: #000000; }
+    .nt { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #555555; }
+  </style>
+
+        <defs>
+          <marker id="f4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+          </marker>
+        </defs>
+
+        <circle class="sym" cx="280" cy="40" r="22"></circle>
+        <text class="tc" x="280" y="46">B</text>
+        <text class="nt" x="312" y="44">from Sheet 2</text>
+
+        <line class="flow" x1="280" y1="62" x2="280" y2="94" marker-end="url(#f4)"></line>
+
+        <polygon class="sym" points="174,96 410,96 386,148 150,148"></polygon>
+        <text class="t" x="280" y="126">Enter delivery note and PO no.</text>
+
+        <line class="flow" x1="280" y1="148" x2="280" y2="178" marker-end="url(#f4)"></line>
+
+        <rect class="sym" x="150" y="180" width="260" height="56"></rect>
+        <text class="t" x="280" y="212">Create receiving draft</text>
+
+        <line class="flow" x1="280" y1="236" x2="280" y2="282" marker-end="url(#f4)"></line>
+        <circle class="jn" cx="280" cy="248" r="4"></circle>
+        <circle class="jn" cx="280" cy="266" r="4"></circle>
+
+        <polygon class="sym" points="174,284 410,284 386,336 150,336"></polygon>
+        <text class="t" x="280" y="306">Scan item barcode or</text>
+        <text class="t" x="280" y="323">key the counted quantity</text>
+
+        <line class="flow" x1="280" y1="336" x2="280" y2="370" marker-end="url(#f4)"></line>
+
+        <polygon class="sym" points="280,372 410,420 280,468 150,420"></polygon>
+        <text class="t" x="280" y="416">Item matches</text>
+        <text class="t" x="280" y="432">a PO line?</text>
+
+        <line class="flow" x1="410" y1="420" x2="508" y2="420" marker-end="url(#f4)"></line>
+        <text class="yn" x="432" y="412">No</text>
+
+        <rect class="sym" x="510" y="392" width="260" height="56"></rect>
+        <text class="t" x="640" y="416">Flag discrepancy —</text>
+        <text class="t" x="640" y="433">wrong model or over-delivery</text>
+
+        <line class="flow" x1="640" y1="448" x2="640" y2="486" marker-end="url(#f4)"></line>
+        <circle class="sym" cx="640" cy="510" r="22"></circle>
+        <text class="tc" x="640" y="516">E</text>
+        <text class="nt" x="672" y="514">Sheet 7</text>
+
+        <line class="flow" x1="280" y1="468" x2="280" y2="500" marker-end="url(#f4)"></line>
+        <text class="yn" x="292" y="490">Yes</text>
+
+        <rect class="sym" x="150" y="502" width="260" height="56"></rect>
+        <text class="t" x="280" y="526">Stage the row in the draft</text>
+        <text class="t" x="280" y="543">— no stock moved yet</text>
+
+        <line class="flow" x1="280" y1="558" x2="280" y2="590" marker-end="url(#f4)"></line>
+
+        <polygon class="sym" points="280,592 410,640 280,688 150,640"></polygon>
+        <text class="t" x="280" y="636">More items to</text>
+        <text class="t" x="280" y="652">receive?</text>
+
+        <path class="flow" d="M150,640 H70 V248 H276" marker-end="url(#f4)"></path>
+        <text class="yn" x="106" y="632">Yes</text>
+
+        <line class="flow" x1="280" y1="688" x2="280" y2="720" marker-end="url(#f4)"></line>
+        <text class="yn" x="292" y="710">No</text>
+
+        <polygon class="sym" points="280,722 410,770 280,818 150,770"></polygon>
+        <text class="t" x="280" y="766">Submit the</text>
+        <text class="t" x="280" y="782">draft?</text>
+
+        <path class="flow" d="M150,770 H110 V266 H276" marker-end="url(#f4)"></path>
+        <text class="yn" x="118" y="762">No</text>
+
+        <line class="flow" x1="280" y1="818" x2="280" y2="850" marker-end="url(#f4)"></line>
+        <text class="yn" x="292" y="840">Yes</text>
+
+        <rect class="sym" x="150" y="852" width="260" height="56"></rect>
+        <text class="t" x="280" y="884">Open database transaction</text>
+
+        <line class="flow" x1="280" y1="908" x2="280" y2="940" marker-end="url(#f4)"></line>
+
+        <rect class="sym" x="150" y="942" width="260" height="64"></rect>
+        <line class="flow" x1="162" y1="942" x2="162" y2="1006"></line>
+        <line class="flow" x1="398" y1="942" x2="398" y2="1006"></line>
+        <text class="t" x="280" y="966">ReceivingPostingService:</text>
+        <text class="t" x="280" y="983">post each staged row into</text>
+        <text class="t" x="280" y="1000">inventory batches and tags</text>
+
+        <line class="flow" x1="280" y1="1006" x2="280" y2="1038" marker-end="url(#f4)"></line>
+
+        <polygon class="sym" points="280,1040 410,1088 280,1136 150,1088"></polygon>
+        <text class="t" x="280" y="1084">All rows</text>
+        <text class="t" x="280" y="1100">posted?</text>
+
+        <line class="flow" x1="410" y1="1088" x2="508" y2="1088" marker-end="url(#f4)"></line>
+        <text class="yn" x="432" y="1080">No</text>
+
+        <rect class="sym" x="510" y="1060" width="260" height="56"></rect>
+        <text class="t" x="640" y="1084">Roll back everything;</text>
+        <text class="t" x="640" y="1101">the draft survives intact</text>
+
+        <path class="flow" d="M770,1088 H880 V248 H286"></path>
+
+        <line class="flow" x1="280" y1="1136" x2="280" y2="1168" marker-end="url(#f4)"></line>
+        <text class="yn" x="292" y="1158">Yes</text>
+
+        <rect class="sym" x="150" y="1170" width="260" height="64"></rect>
+        <text class="t" x="280" y="1194">Commit; spend the budget;</text>
+        <text class="t" x="280" y="1211">recompute PO status —</text>
+        <text class="t" x="280" y="1228">Partially Received or Completed</text>
+
+        <line class="flow" x1="280" y1="1234" x2="280" y2="1266" marker-end="url(#f4)"></line>
+
+        <path class="sym" d="M150,1268 h260 v46 q-65,16 -130,0 t-130,0 z"></path>
+        <text class="t" x="280" y="1298">Print GRN and barcode labels</text>
+
+        <line class="flow" x1="280" y1="1326" x2="280" y2="1358" marker-end="url(#f4)"></line>
+
+        <circle class="sym" cx="280" cy="1382" r="22"></circle>
+        <text class="tc" x="280" y="1388">M</text>
+        <text class="nt" x="312" y="1386">back to Sheet 2</text>
+      </svg>

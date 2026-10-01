@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="1330" viewBox="0 0 920 1330" role="img"
+           aria-label="Flowchart sheet 6. From connector D, enter source, destination and items and save the transfer as pending. If the branch manager rejects it the status is set and flow returns to the menu. On approval a FIFO pick list is built, items are scanned for dispatch and deducted from the source, setting the status to in transit. At the destination items are scanned again; if the received quantity differs from the dispatched quantity the status becomes partially received and the variance is logged, otherwise received. Batch layers are rebuilt at the destination before returning to connector M.">
+  <style>
+    svg { background: #ffffff; }
+    .sym  { fill: #ffffff; stroke: #000000; stroke-width: 1.7; }
+    .flow { fill: none; stroke: #000000; stroke-width: 1.6; }
+    .jn   { fill: #000000; stroke: none; }
+    .mk   { fill: #000000; }
+    .t  { font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; fill: #000000; text-anchor: middle; }
+    .tb { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .tc { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .yn { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; font-weight: 700; fill: #000000; }
+    .nt { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #555555; }
+  </style>
+
+        <defs>
+          <marker id="f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+          </marker>
+        </defs>
+
+        <circle class="sym" cx="280" cy="40" r="22"></circle>
+        <text class="tc" x="280" y="46">D</text>
+        <text class="nt" x="312" y="44">from Sheet 2</text>
+
+        <line class="flow" x1="280" y1="62" x2="280" y2="94" marker-end="url(#f6)"></line>
+
+        <polygon class="sym" points="174,96 410,96 386,148 150,148"></polygon>
+        <text class="t" x="280" y="118">Enter source branch,</text>
+        <text class="t" x="280" y="135">destination and items</text>
+
+        <line class="flow" x1="280" y1="148" x2="280" y2="178" marker-end="url(#f6)"></line>
+
+        <rect class="sym" x="150" y="180" width="260" height="56"></rect>
+        <text class="t" x="280" y="212">Save transfer — status = Pending</text>
+
+        <line class="flow" x1="280" y1="236" x2="280" y2="268" marker-end="url(#f6)"></line>
+
+        <polygon class="sym" points="280,270 410,318 280,366 150,318"></polygon>
+        <text class="t" x="280" y="314">Branch manager</text>
+        <text class="t" x="280" y="330">approves?</text>
+
+        <line class="flow" x1="410" y1="318" x2="508" y2="318" marker-end="url(#f6)"></line>
+        <text class="yn" x="432" y="310">No</text>
+
+        <rect class="sym" x="510" y="290" width="260" height="56"></rect>
+        <text class="t" x="640" y="322">Set status = Rejected</text>
+
+        <path class="flow" d="M770,318 H870 V1288 H304" marker-end="url(#f6)"></path>
+
+        <line class="flow" x1="280" y1="366" x2="280" y2="398" marker-end="url(#f6)"></line>
+        <text class="yn" x="292" y="388">Yes</text>
+
+        <rect class="sym" x="150" y="400" width="260" height="56"></rect>
+        <line class="flow" x1="162" y1="400" x2="162" y2="456"></line>
+        <line class="flow" x1="398" y1="400" x2="398" y2="456"></line>
+        <text class="t" x="280" y="424">FifoPickingService:</text>
+        <text class="t" x="280" y="441">build the pick list</text>
+
+        <line class="flow" x1="280" y1="456" x2="280" y2="488" marker-end="url(#f6)"></line>
+
+        <rect class="sym" x="150" y="490" width="260" height="56"></rect>
+        <text class="t" x="280" y="522">Set status = Approved</text>
+
+        <line class="flow" x1="280" y1="546" x2="280" y2="578" marker-end="url(#f6)"></line>
+
+        <polygon class="sym" points="174,580 410,580 386,632 150,632"></polygon>
+        <text class="t" x="280" y="611">Scan items for dispatch</text>
+
+        <line class="flow" x1="280" y1="632" x2="280" y2="664" marker-end="url(#f6)"></line>
+
+        <polygon class="sym" points="280,666 410,714 280,762 150,714"></polygon>
+        <text class="t" x="280" y="710">All pick-list items</text>
+        <text class="t" x="280" y="726">scanned?</text>
+
+        <path class="flow" d="M150,714 H70 V606 H164" marker-end="url(#f6)"></path>
+        <text class="yn" x="106" y="706">No</text>
+
+        <line class="flow" x1="280" y1="762" x2="280" y2="794" marker-end="url(#f6)"></line>
+        <text class="yn" x="292" y="784">Yes</text>
+
+        <rect class="sym" x="150" y="796" width="260" height="56"></rect>
+        <text class="t" x="280" y="820">Deduct from source;</text>
+        <text class="t" x="280" y="837">set status = In Transit</text>
+
+        <line class="flow" x1="280" y1="852" x2="280" y2="884" marker-end="url(#f6)"></line>
+
+        <polygon class="sym" points="174,886 410,886 386,938 150,938"></polygon>
+        <text class="t" x="280" y="917">Scan items at destination</text>
+
+        <line class="flow" x1="280" y1="938" x2="280" y2="970" marker-end="url(#f6)"></line>
+
+        <polygon class="sym" points="280,972 410,1020 280,1068 150,1020"></polygon>
+        <text class="t" x="280" y="1016">Received qty =</text>
+        <text class="t" x="280" y="1032">dispatched qty?</text>
+
+        <line class="flow" x1="410" y1="1020" x2="508" y2="1020" marker-end="url(#f6)"></line>
+        <text class="yn" x="432" y="1012">No</text>
+
+        <rect class="sym" x="510" y="992" width="260" height="56"></rect>
+        <text class="t" x="640" y="1016">Set Partially Received;</text>
+        <text class="t" x="640" y="1033">log the variance</text>
+
+        <path class="flow" d="M640,1048 V1158 H286" marker-end="url(#f6)"></path>
+
+        <line class="flow" x1="280" y1="1068" x2="280" y2="1098" marker-end="url(#f6)"></line>
+        <text class="yn" x="292" y="1088">Yes</text>
+
+        <rect class="sym" x="150" y="1100" width="260" height="40"></rect>
+        <text class="t" x="280" y="1125">Set status = Received</text>
+
+        <line class="flow" x1="280" y1="1140" x2="280" y2="1176" marker-end="url(#f6)"></line>
+        <circle class="jn" cx="280" cy="1158" r="4"></circle>
+
+        <rect class="sym" x="150" y="1178" width="260" height="56"></rect>
+        <text class="t" x="280" y="1202">Rebuild batch layers at the</text>
+        <text class="t" x="280" y="1219">destination; append movements</text>
+
+        <line class="flow" x1="280" y1="1234" x2="280" y2="1264" marker-end="url(#f6)"></line>
+
+        <circle class="sym" cx="280" cy="1288" r="22"></circle>
+        <text class="tc" x="280" y="1294">M</text>
+        <text class="nt" x="312" y="1292">back to Sheet 2</text>
+      </svg>

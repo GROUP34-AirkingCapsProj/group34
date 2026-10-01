@@ -98,7 +98,7 @@ const MODES = [
     key: 'receive-po',
     label: 'Receive PO',
     apiLabel: 'RECEIVE PO',
-    color: '#10b981',
+    color: 'var(--ink-teal-600)',
     bg: '#ecfdf5',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
@@ -110,7 +110,7 @@ const MODES = [
     key: 'issue-out',
     label: 'Issue Out',
     apiLabel: 'ISSUE OUT',
-    color: '#3b82f6',
+    color: 'var(--ink-blue-400)',
     bg: '#eff6ff',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
@@ -122,7 +122,7 @@ const MODES = [
     key: 'transfer',
     label: 'Transfer',
     apiLabel: 'TRANSFER',
-    color: '#f59e0b',
+    color: 'var(--ink-orange-500-2)',
     bg: '#fffbeb',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
@@ -146,7 +146,7 @@ const MODES = [
     key: 'adjust',
     label: 'Report Incident',
     apiLabel: 'ADJUST',
-    color: '#ef4444',
+    color: 'var(--ink-red-400)',
     bg: '#fef2f2',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
@@ -3300,8 +3300,8 @@ const BarcodeScan = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                         <span style={{
                           fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.05em',
-                          color: hMode?.color || '#6b7280',
-                          background: hMode?.bg || '#f3f4f6',
+                          color: hMode?.color || 'var(--text-muted)',
+                          background: hMode?.bg || 'var(--bg-hover)',
                           padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap',
                         }}>
                           {h.mode}
@@ -3787,7 +3787,7 @@ const BarcodeScan = () => {
                             <span className="bsr-success-label">Received</span>
                             <span className="bsr-success-value">
                               1 {bsrScanSuccess.packageUnitLabel}
-                              <span style={{ color: '#6b7280', fontWeight: 400, marginLeft: 4 }}>({bsrScanSuccess.qtyReceived} pcs)</span>
+                              <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>({bsrScanSuccess.qtyReceived} pcs)</span>
                             </span>
                           </div>
                           <div className="bsr-success-row">
@@ -3809,7 +3809,7 @@ const BarcodeScan = () => {
                       {!bsrScanSuccess.isSerialized && bsrScanSuccess.remainingPackages !== null && (
                         <div className="bsr-success-row">
                           <span className="bsr-success-label">Remaining</span>
-                          <span className="bsr-success-value" style={{ color: bsrScanSuccess.remainingPackages <= 0 ? '#16a34a' : '#d97706' }}>
+                          <span className="bsr-success-value" style={{ color: bsrScanSuccess.remainingPackages <= 0 ? 'var(--text-success)' : 'var(--ink-orange-600)' }}>
                             {bsrScanSuccess.remainingPackages <= 0
                               ? `0 ${bsrScanSuccess.packageUnitLabel}(s) — fully received`
                               : `${bsrScanSuccess.remainingPackages} ${bsrScanSuccess.packageUnitLabel}(s) left`
@@ -3896,7 +3896,7 @@ const BarcodeScan = () => {
                     role="status"
                     aria-live="polite"
                     className="bs-cam-hint"
-                    style={{ margin: '0 0 8px', color: bsrCaptureArmed ? '#15803d' : '#374151' }}
+                    style={{ margin: '0 0 8px', color: bsrCaptureArmed ? 'var(--ink-green)' : 'var(--text-body)' }}
                   >
                     <strong>Status: {bsrCaptureArmed ? 'Scanning...' : 'Ready to scan'}</strong>
                   </p>
@@ -4675,11 +4675,11 @@ const BarcodeScan = () => {
             <p
               className="bs-input-sub"
               style={{
-                background: '#fff7ed',
-                border: '1px solid #fdba74',
+                background: 'var(--tint-amber-soft)',
+                border: '1px solid var(--line-orange-300-2)',
                 borderRadius: 8,
                 padding: '10px 12px',
-                color: '#9a3412',
+                color: 'var(--ink-orange-700-5)',
                 marginBottom: 10,
               }}
             >
@@ -4699,7 +4699,7 @@ const BarcodeScan = () => {
               ? 'Camera decodes automatically when the code is in view. Admins may also type or use a USB barcode wedge in the field — short pause or Enter / Tab submits.'
               : 'Camera decodes automatically when the code is in view. Manual typing and USB wedge entry are disabled; use the camera only.'}
           </p>
-          <p className="bs-input-sub" style={{ marginTop: -6, fontSize: 12, color: '#64748b' }}>
+          <p className="bs-input-sub" style={{ marginTop: -6, fontSize: 12, color: 'var(--ink-blue-500)' }}>
             {currentModeKey === 'audit' ? (
               <>
                 Scan a <strong>product barcode</strong> to inspect all inventory for that product, or an
@@ -4799,7 +4799,7 @@ const BarcodeScan = () => {
         </div>}
 
         {currentModeKey === 'transfer' && (
-          <div style={{ margin: '12px 0', padding: '14px 16px', background: '#fff7ed', borderRadius: 10, border: '1px solid #fed7aa' }}>
+          <div style={{ margin: '12px 0', padding: '14px 16px', background: 'var(--tint-amber-soft)', borderRadius: 10, border: '1px solid var(--line-orange-200)' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
               <button
                 type="button"
@@ -4816,7 +4816,7 @@ const BarcodeScan = () => {
                 TRANSFER IN (showroom)
               </button>
             </div>
-            <p style={{ margin: 0, fontSize: 13, color: '#9a3412', lineHeight: 1.45 }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-orange-700-5)', lineHeight: 1.45 }}>
               {transferSubmode === 'out'
                 ? 'Ship from warehouse. Use “Ship first” so stock only appears at the showroom after someone scans to receive here.'
                 : 'Truck arrived? Pick your showroom and the in-transit transfer, then scan each barcode to add stock at this location.'}
@@ -4905,7 +4905,7 @@ const BarcodeScan = () => {
                       </div>
                       <div className="bs-result-cell">
                         <span className="bs-rk">Audit</span>
-                        <span className="bs-rv" style={{ color: '#4338ca', fontWeight: 600 }}>Verified (no stock change)</span>
+                        <span className="bs-rv" style={{ color: 'var(--ink-indigo-500)', fontWeight: 600 }}>Verified (no stock change)</span>
                       </div>
                     </>
                   ) : scanResult.inventory ? (
@@ -5042,8 +5042,8 @@ const BarcodeScan = () => {
                 </span>
               </div>
               {mode.key === 'receive-po' && (
-                <div className="bs-receive-po-context" style={{ borderTop: '1px solid #ecfdf5' }}>
-                  <p className="bs-action-sub" style={{ padding: '12px 16px 0', margin: 0, color: '#047857' }}>
+                <div className="bs-receive-po-context" style={{ borderTop: '1px solid var(--line-green-100-2)' }}>
+                  <p className="bs-action-sub" style={{ padding: '12px 16px 0', margin: 0, color: 'var(--ink-teal-800-2)' }}>
                     <strong>Location</strong> and <strong>Purchase order</strong> (optional) — same as setup above; keep them here after you scan so you can change them without scrolling up.
                   </p>
                   {receivePoSetupGrid}
@@ -5055,7 +5055,7 @@ const BarcodeScan = () => {
                   <label>
                     QUANTITY
                     {mode.key === 'issue-out' && scanResult?.inventory && !scanResult.transactionEngineApplied && (
-                      <span style={{ fontWeight: 500, color: '#64748b' }}>
+                      <span style={{ fontWeight: 500, color: 'var(--ink-blue-500)' }}>
                         {' '}(max {availableAtLocation(scanResult.inventory)})
                       </span>
                     )}
@@ -5139,9 +5139,9 @@ const BarcodeScan = () => {
                 )}
                 {(mode.key === 'issue-out' || (mode.key === 'transfer' && transferSubmode === 'out')) && (
                   <div className="bs-filter-col" style={{ gridColumn: '1 / -1' }}>
-                    <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-blue-700)' }}>
                       Available at selected location:{' '}
-                      <strong style={{ color: '#0f172a' }}>
+                      <strong style={{ color: 'var(--text-dark)' }}>
                         {scanResult.inventory ? availableAtLocation(scanResult.inventory) : '—'}
                       </strong>
                       {scanResult.inventory ? ' units (issue/transfer cannot exceed this)' : ' — select a location with stock'}
@@ -5150,7 +5150,7 @@ const BarcodeScan = () => {
                 )}
                 {mode.key === 'transfer' && transferSubmode === 'in' && (
                   <div className="bs-filter-col" style={{ gridColumn: '1 / -1' }}>
-                    <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-blue-700)' }}>
                       Receiving matches the scanned barcode to this transfer line. If qty at showroom is still 0, receipt will add stock.
                     </p>
                   </div>
@@ -5241,7 +5241,7 @@ const BarcodeScan = () => {
                     <span className="bs-hi-time">{h.scannedAt}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: MODES.find(m => m.key === h.modeKey)?.color || '#6b7280', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: MODES.find(m => m.key === h.modeKey)?.color || 'var(--text-muted)', letterSpacing: '0.04em' }}>
                       {h.mode}
                     </span>
                     {h.inventory ? (() => {
@@ -5270,7 +5270,7 @@ const BarcodeScan = () => {
           }}
           title="Barcode not found"
         >
-          <p style={{ marginBottom: 16, color: '#374151', lineHeight: 1.45 }}>
+          <p style={{ marginBottom: 16, color: 'var(--text-body)', lineHeight: 1.45 }}>
             Barcode not found. Do you want to register this product?
           </p>
           <div className="im-modal-footer" style={{ justifyContent: 'flex-end', gap: 10 }}>

@@ -18,7 +18,7 @@ body {
 ================================ */
 .landing-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #f0f2f5 100%);
+  background: linear-gradient(135deg, var(--bg-muted) 0%, var(--bg-hover) 100%);
   display: flex;
   flex-direction: column;
 }
@@ -40,13 +40,13 @@ body {
 .brand-logo {
   width: 56px;
   height: 56px;
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
 }
 
 .brand-logo img {
@@ -59,14 +59,14 @@ body {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-dark);
   letter-spacing: -0.5px;
 }
 
 .brand p {
   margin: 0;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -87,12 +87,12 @@ body {
   font-size: 38px;
   font-weight: 700;
   margin-bottom: 10px;
-  color: #111827;
+  color: var(--text-dark);
   letter-spacing: -1px;
 }
 
 .subtitle {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 16px;
   margin-bottom: 48px;
   font-weight: 400;
@@ -113,12 +113,12 @@ body {
    ROLE CARD
 ================================ */
 .role-card {
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: 16px;
   padding: 32px 28px;
   text-align: left;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-  border: 1px solid #f3f4f6;
+  border: 1px solid var(--border-soft);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
@@ -138,7 +138,7 @@ body {
 .role-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
-  border-color: #e5e7eb;
+  border-color: var(--border-color);
 }
 
 /* ===============================
@@ -200,13 +200,13 @@ body {
   margin: 0 0 10px 0;
   font-size: 19px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-dark);
   letter-spacing: -0.3px;
 }
 
 .role-card p {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 20px;
   line-height: 1.6;
   font-weight: 400;
@@ -218,7 +218,7 @@ body {
 .access-btn {
   background: transparent;
   border: none;
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 500;
   cursor: pointer;
   padding: 0;
@@ -233,7 +233,7 @@ body {
 }
 
 .access-btn:hover {
-  color: #2563eb;
+  color: var(--text-info);
   gap: 8px;
   background: transparent;
 }

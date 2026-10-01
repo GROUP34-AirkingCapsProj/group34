@@ -431,7 +431,7 @@ const UserManagementPanel = () => {
             </thead>
             <tbody>
               {users.length === 0 ? (
-                <tr><td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '40px' }}>{loading ? <Loader /> : 'No users found'}</td></tr>
+                <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--ink-slate-400)', padding: '40px' }}>{loading ? <Loader /> : 'No users found'}</td></tr>
               ) : (
                 users.map((user) => (
                   <tr key={user.user_id || user.id}>
@@ -518,18 +518,18 @@ const UserManagementPanel = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Add New User'}>
         <form onSubmit={handleSubmit} className="um-form">
           {submitError && (
-            <div className="um-field-error" style={{ marginBottom: '12px', padding: '8px 12px', background: '#fee', borderRadius: '4px' }}>
+            <div className="um-field-error" style={{ marginBottom: '12px', padding: '8px 12px', background: 'var(--danger-soft-bg)', borderRadius: '4px' }}>
               {submitError}
             </div>
           )}
           {!editingUser && roles.length === 0 && (
-            <div style={{ marginBottom: '12px', padding: '8px 12px', background: '#fff3cd', borderRadius: '4px', fontSize: '14px' }}>
+            <div style={{ marginBottom: '12px', padding: '8px 12px', background: 'var(--tint-amber)', borderRadius: '4px', fontSize: '14px' }}>
               No roles loaded. Refresh the page or try again.
               <button type="button" onClick={() => { setSubmitError(''); fetchUsers(currentPage); }} style={{ marginLeft: '8px', padding: '4px 8px' }}>Retry load</button>
             </div>
           )}
           {!editingUser && (
-            <p style={{ marginBottom: '16px', fontSize: '13px', color: '#6b7280' }}>
+            <p style={{ marginBottom: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
               Enter the new user's personal information, account credentials, then choose their role and branch.
             </p>
           )}

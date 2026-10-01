@@ -270,7 +270,7 @@ export default function SetBuilderModal({ isOpen, onClose, initialSet, brands, o
                 </label>
               ))}
             </div>
-            {errors.brand_ids?.[0] && <span style={{ color: '#b91c1c', fontSize: '0.78rem' }}>{errors.brand_ids[0]}</span>}
+            {errors.brand_ids?.[0] && <span style={{ color: 'var(--ink-red)', fontSize: '0.78rem' }}>{errors.brand_ids[0]}</span>}
           </div>
 
           <div className="ak-field">

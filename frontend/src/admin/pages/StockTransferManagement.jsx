@@ -346,7 +346,7 @@ const StockTransferManagement = () => {
             </div>
           ))}
         </div>
-        <p style={{ fontSize: 12, color: '#6b7280', margin: '-12px 0 20px' }}>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '-12px 0 20px' }}>
           This month: <strong>{thisMonthCount}</strong> transfers
         </p>
 
@@ -415,7 +415,7 @@ const StockTransferManagement = () => {
                       <p className="txn-feed-ref">Ref: {t.transfer_number || t.transfer_id}</p>
                       <div className="txn-feed-actions">
                         <button type="button" className="txn-btn-view" onClick={() => setViewingTransfer(t)}>View</button>
-                        <button type="button" className="txn-btn-view" style={{ color: '#059669' }} onClick={() => printTransfer(t)}>Print</button>
+                        <button type="button" className="txn-btn-view" style={{ color: 'var(--ink-teal-700)' }} onClick={() => printTransfer(t)}>Print</button>
                         <button type="button" className="txn-btn-edit" onClick={() => openEditModal(t)}>Edit</button>
                         <ArchiveButton
                           onArchive={() => handleArchive(t.transfer_id)}
@@ -454,7 +454,7 @@ const StockTransferManagement = () => {
           </div>
           {viewingTransfer.details?.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <h4 style={{ marginBottom: 8, color: '#374151' }}>Items Transferred</h4>
+              <h4 style={{ marginBottom: 8, color: 'var(--text-body)' }}>Items Transferred</h4>
               <table className="data-table">
                 <thead><tr><th>Product</th><th>Qty shipped</th><th>Qty received (showroom)</th></tr></thead>
                 <tbody>{viewingTransfer.details.map((d, i) => (
@@ -472,7 +472,7 @@ const StockTransferManagement = () => {
             </div>
           )}
           {getTransferWorkflow(viewingTransfer).key === 'transit' && (
-            <p style={{ marginTop: 12, fontSize: 14, color: '#b45309' }}>
+            <p style={{ marginTop: 12, fontSize: 14, color: 'var(--ink-amber)' }}>
               Stock has left the warehouse. The showroom must scan items on{' '}
               <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => { setViewingTransfer(null); navigate('/admin/ist'); }}>
                 IST Receive flow
@@ -523,11 +523,11 @@ const StockTransferManagement = () => {
             </div>
 
             {!editingTransfer && (
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 12, cursor: 'pointer', fontSize: 14, color: '#374151' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 12, cursor: 'pointer', fontSize: 14, color: 'var(--text-body)' }}>
                 <input type="checkbox" checked={shipFirst} onChange={(e) => setShipFirst(e.target.checked)} style={{ marginTop: 3 }} />
                 <span>
                   <strong>Ship first (showroom receives later)</strong>
-                  <span style={{ display: 'block', fontSize: 13, color: '#6b7280', marginTop: 4 }}>
+                  <span style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
                     Warehouse stock is reduced now; destination stock increases only when the showroom scans each item (status &quot;In transit&quot; until fully received).
                   </span>
                 </span>
@@ -536,7 +536,7 @@ const StockTransferManagement = () => {
 
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h4 style={{ margin: 0, color: '#374151' }}>Items to Transfer</h4>
+                <h4 style={{ margin: 0, color: 'var(--text-body)' }}>Items to Transfer</h4>
                 <button type="button" className="btn-secondary" style={{ padding: '4px 12px', fontSize: 13 }} onClick={addDetailRow}>+ Add Item</button>
               </div>
               <table className="data-table">

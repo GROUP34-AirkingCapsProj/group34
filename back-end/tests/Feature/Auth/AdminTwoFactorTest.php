@@ -10,6 +10,7 @@ use App\Services\TwoFactorPolicy;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
 class AdminTwoFactorTest extends TestCase
@@ -45,16 +46,20 @@ class AdminTwoFactorTest extends TestCase
     }
 
     /**
-     * The central claim of this feature: an admin is not subject to the global
-     * switch. If this ever passes for the wrong reason the whole change is
-     * pointless, so it is asserted directly against the policy rather than
-     * only through HTTP.
+     * The central claim of this feature: the global switch governs every role,
+     * admins included. Asserted directly against the policy rather than only
+     * through HTTP, so it cannot pass for the wrong reason.
      */
-    public function test_an_admin_needs_a_code_even_when_the_toggle_is_off(): void
+    public function test_an_admin_follows_the_toggle(): void
     {
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        $admin = $this->makeAdmin();
+        $policy = app(TwoFactorPolicy::class);
 
-        $this->assertTrue(app(TwoFactorPolicy::class)->requiresOtp($this->makeAdmin()));
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $this->assertFalse($policy->requiresOtp($admin));
+
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $this->assertTrue($policy->requiresOtp($admin));
     }
 
     public function test_a_non_admin_follows_the_toggle(): void
@@ -84,17 +89,22 @@ class AdminTwoFactorTest extends TestCase
 
     public function test_requires_recovery_email_only_when_a_code_is_needed_and_none_is_set(): void
     {
-        SystemSetting::setTwoFactorAuthEnabled(false);
         $policy = app(TwoFactorPolicy::class);
 
-        // Admin, no address -> must supply one.
-        $this->assertTrue($policy->requiresRecoveryEmail($this->makeAdmin(['recovery_email' => null])));
+        SystemSetting::setTwoFactorAuthEnabled(true);
 
-        // Admin with an address -> nothing to collect.
+        // Challenged and no address -> must supply one, whatever the role.
+        $this->assertTrue($policy->requiresRecoveryEmail($this->makeAdmin(['recovery_email' => null])));
+        $this->assertTrue($policy->requiresRecoveryEmail($this->makeUser(['recovery_email' => null])));
+
+        // Already has an address -> nothing to collect.
         $this->assertFalse($policy->requiresRecoveryEmail($this->makeAdmin()));
 
-        // Non-admin with the toggle off needs no code, so no address either --
-        // this must not gate users who are not being challenged.
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        // Toggle off means no code, so no address either -- this must not gate
+        // anyone who is not being challenged, admins now included.
+        $this->assertFalse($policy->requiresRecoveryEmail($this->makeAdmin(['recovery_email' => null])));
         $this->assertFalse($policy->requiresRecoveryEmail($this->makeUser(['recovery_email' => null])));
     }
 
@@ -408,15 +418,10 @@ class AdminTwoFactorTest extends TestCase
         ]);
     }
 
-    /**
-     * The whole point of the feature: the admin UI can switch two-factor off,
-     * and before this the account with the most to lose could therefore disable
-     * its own protection.
-     */
-    public function test_an_admin_is_challenged_even_with_the_toggle_off(): void
+    public function test_an_admin_is_challenged_with_the_toggle_on(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin();
 
         $this->login($admin)
@@ -425,6 +430,25 @@ class AdminTwoFactorTest extends TestCase
             ->assertJsonMissing(['token']);
 
         Mail::assertSent(LoginOtpMail::class, fn ($m) => $m->hasTo($admin->recovery_email));
+    }
+
+    /**
+     * The behaviour change: the toggle now covers admins too, so switching it
+     * off signs them straight in. Asserted through HTTP because the previous
+     * exemption lived at this layer for a long time and a stale branch here
+     * would be invisible to the policy-level test above.
+     */
+    public function test_an_admin_is_not_challenged_with_the_toggle_off(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        $this->login($this->makeAdmin())
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', false)
+            ->assertJsonStructure(['token']);
+
+        Mail::assertNothingSent();
     }
 
     public function test_a_non_admin_is_not_challenged_with_the_toggle_off(): void
@@ -455,7 +479,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_a_user_with_no_recovery_address_is_asked_for_one(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin(['recovery_email' => null]);
 
         $this->login($admin)
@@ -475,7 +499,7 @@ class AdminTwoFactorTest extends TestCase
      */
     public function test_login_is_refused_when_the_code_cannot_be_sent(): void
     {
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin();
 
         Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
@@ -483,6 +507,51 @@ class AdminTwoFactorTest extends TestCase
         $this->login($admin)
             ->assertStatus(503)
             ->assertJsonMissing(['token']);
+    }
+
+    /**
+     * The 503 above is raised for any delivery failure, but the two causes need
+     * different words. Telling someone to check their Brevo key when the real
+     * problem is that the machine could not resolve the SMTP host sends them
+     * auditing credentials that were never wrong -- which is exactly what
+     * happened in production on 2026-09-21.
+     */
+    public function test_a_transport_failure_is_reported_as_a_network_problem(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException(
+            'Connection could not be established with host "smtp-relay.brevo.com:587": '
+            .'stream_socket_client(): php_network_getaddresses: getaddrinfo for '
+            .'smtp-relay.brevo.com failed: No such host is known. '
+        ));
+
+        $message = $this->login($admin)->assertStatus(503)->json('message');
+
+        $this->assertStringContainsString('network', strtolower($message));
+        // The credentials were fine. Naming them here is the bug.
+        $this->assertStringNotContainsString('brevo', strtolower($message));
+    }
+
+    /**
+     * The converse: a genuine credential rejection must still say so, or fixing
+     * the message above would just move the misdiagnosis to the other case.
+     */
+    public function test_a_rejected_smtp_key_is_still_reported_as_a_mail_setting(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException(
+            'Expected response code "250" but got code "535", '
+            .'with message "535 5.7.8 Authentication failed".'
+        ));
+
+        $message = $this->login($admin)->assertStatus(503)->json('message');
+
+        $this->assertStringContainsString('mail settings', strtolower($message));
+        $this->assertStringNotContainsString('network', strtolower($message));
     }
 
     /**
@@ -494,7 +563,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_issuing_a_code_is_recorded_as_a_login_attempt(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin();
 
         $this->login($admin)->assertStatus(200);
@@ -521,7 +590,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_issuing_a_code_is_not_recorded_as_a_failed_login(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin();
 
         $before = \App\Models\AuditTrail::where('action', 'login_failed')->count();
@@ -538,7 +607,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_saves_an_address_and_sends_the_code(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin(['recovery_email' => null]);
         $address = 'bootstrap_' . uniqid() . '@gmail.com';
 
@@ -562,7 +631,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_refuses_a_wrong_password(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin(['recovery_email' => null]);
 
         $this->postJson('/api/login/recovery-email', [
@@ -578,7 +647,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_rejects_an_address_already_in_use(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $taken = $this->makeUser();
         $admin = $this->makeAdmin(['recovery_email' => null]);
 
@@ -594,7 +663,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_rejects_the_users_own_login_address(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin(['recovery_email' => null]);
 
         // Otherwise the "second factor" arrives at the address the attacker
@@ -611,7 +680,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_refuses_an_inactive_account(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin(['recovery_email' => null, 'status_id' => 2]);
 
         $this->postJson('/api/login/recovery-email', [
@@ -637,7 +706,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_cannot_overwrite_an_existing_recovery_address(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin();
         $original = $admin->recovery_email;
 
@@ -660,7 +729,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_does_not_reveal_whether_an_address_is_registered(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $known = $this->makeUser();
         $victim = $this->makeAdmin(['recovery_email' => null]);
 
@@ -692,7 +761,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_bootstrap_shares_the_login_lockout(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin(['recovery_email' => null]);
 
         $max = \App\Models\SystemSetting::maxLoginAttempts();
@@ -724,7 +793,7 @@ class AdminTwoFactorTest extends TestCase
     public function test_the_code_challenge_precedes_the_forced_password_change(): void
     {
         Mail::fake();
-        SystemSetting::setTwoFactorAuthEnabled(false);
+        SystemSetting::setTwoFactorAuthEnabled(true);
         $admin = $this->makeAdmin(['must_change_password' => true]);
 
         $this->login($admin)

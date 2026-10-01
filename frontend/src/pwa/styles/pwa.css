@@ -8,11 +8,11 @@
   padding: 24px;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   text-align: center;
-  color: #374151;
+  color: var(--text-body);
 }
 
 .pwa-config-missing code {
-  background: #f3f4f6;
+  background: var(--bg-hover);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.9em;
@@ -170,8 +170,8 @@
 }
 
 .pwa-stat.warn {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--warning-bg);
+  border-color: var(--line-amber);
 }
 
 .pwa-stat-value {
@@ -182,12 +182,12 @@
 }
 
 .pwa-stat.warn .pwa-stat-value {
-  color: #b45309;
+  color: var(--ink-amber);
 }
 
 .pwa-stat-label {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-top: 4px;
   font-weight: 600;
 }
@@ -204,7 +204,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--border-soft);
   font-size: 0.875rem;
 }
 
@@ -223,13 +223,13 @@
 }
 
 .pwa-pill.found {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--fill-green-100);
+  color: var(--ink-teal-800);
 }
 
 .pwa-pill.created {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--tint-blue);
+  color: var(--ink-blue-600);
 }
 
 .pwa-btn {
@@ -334,8 +334,8 @@
 .pwa-scan-reader-wrap {
   border-radius: 12px;
   overflow: hidden;
-  border: 2px solid #e5e7eb;
-  background: #000;
+  border: 2px solid var(--border-color);
+  background: var(--fill-slate-900);
   min-height: 220px;
   margin-bottom: 12px;
 }
@@ -345,9 +345,9 @@
 }
 
 .pwa-scan-result {
-  background: #f0fdf4;
-  border: 1px solid #86efac;
-  color: #166534;
+  background: var(--success-soft-bg);
+  border: 1px solid var(--line-green-300);
+  color: var(--ink-green-800);
   padding: 12px;
   border-radius: 10px;
   font-size: 0.9rem;
@@ -355,9 +355,9 @@
 }
 
 .pwa-scan-result.new {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1e40af;
+  background: var(--tint-blue-soft);
+  border-color: var(--line-blue-200);
+  color: var(--ink-blue-600);
 }
 
 .pwa-search {
@@ -370,7 +370,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--border-soft);
   cursor: pointer;
 }
 
@@ -383,7 +383,7 @@
 }
 
 .pwa-muted {
-  color: #9ca3af;
+  color: var(--text-label);
   font-size: 0.8rem;
 }
 
@@ -405,7 +405,7 @@
 }
 
 .pwa-modal {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 16px 16px 0 0;
   width: 100%;
   max-width: 440px;
@@ -430,7 +430,7 @@
   display: block;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #6b7280;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 4px;

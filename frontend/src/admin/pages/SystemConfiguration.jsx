@@ -515,11 +515,11 @@ const SystemConfiguration = () => {
                   </span>
                   <input type="checkbox" id="twoFactorAuth" checked={settings.twoFactorAuth} onChange={() => handleToggle('twoFactorAuth')} />
                   <label htmlFor="twoFactorAuth">
-                    <span className="sc-checkbox-label">Require a login code for non-admin users</span>
+                    <span className="sc-checkbox-label">Require a login code for all users</span>
                     <span className="sc-checkbox-desc">
                       Sends a one-time code to the user&apos;s recovery email at login.
-                      Administrators always receive one and are not affected by this
-                      setting.
+                      This applies to every role, administrators included — turning it
+                      off removes the second step from your own sign-in too.
                     </span>
                   </label>
                 </div>
@@ -775,23 +775,23 @@ const SystemConfiguration = () => {
                 <p>Live preview of how the company header will appear on exported Purchase Orders.</p>
               </div>
               <div className="sc-card-body">
-                <div style={{ fontFamily: "'Times New Roman', serif", background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '20px 24px' }}>
+                <div style={{ fontFamily: "'Times New Roman', serif", background: 'var(--bg-muted)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '20px 24px' }}>
                   <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: 12, marginBottom: 12 }}>
                     <div style={{ fontSize: 20, fontWeight: 900, textTransform: 'uppercase', marginBottom: 4 }}>
                       {companyForm.company_name || 'COMPANY NAME'}
                     </div>
                     {companyForm.company_address && (
-                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_address}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{companyForm.company_address}</div>
                     )}
                     {companyForm.company_email && (
-                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_email}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{companyForm.company_email}</div>
                     )}
                     {companyForm.company_phone && (
-                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_phone}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{companyForm.company_phone}</div>
                     )}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>PURCHASE ORDER #PO-XXXX</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', fontStyle: 'italic' }}>PURCHASE ORDER #PO-XXXX</div>
                   </div>
                 </div>
               </div>

@@ -259,8 +259,8 @@
   flex-shrink: 0;
 }
 .nav-item.active .nav-item-badge {
-  background: #fff;
-  color: #dc2626;
+  background: var(--bg-card);
+  color: var(--text-danger);
 }
 
 .nav-icon {
@@ -288,7 +288,7 @@
 .nav-skel-label,
 .nav-skel-icon,
 .nav-skel-text {
-  background: linear-gradient(90deg, var(--bg-hover, #f3f4f6) 25%, rgba(0,0,0,0.04) 37%, var(--bg-hover, #f3f4f6) 63%);
+  background: linear-gradient(90deg, var(--bg-hover) 25%, rgba(0,0,0,0.04) 37%, var(--bg-hover) 63%);
   background-size: 400% 100%;
   animation: nav-skel-shimmer 1.3s ease-in-out infinite;
 }
@@ -956,18 +956,18 @@
 }
 
 .stat-icon.purple {
-  background: #f3e8ff;
-  color: #9333ea;
+  background: var(--tint-violet);
+  color: var(--ink-violet-400);
 }
 
 .stat-icon.green {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--tint-green);
+  color: var(--text-success);
 }
 
 .stat-icon.blue {
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--tint-blue);
+  color: var(--text-info);
 }
 
 .stat-content {
@@ -1152,11 +1152,11 @@
   height: 24px;
 }
 
-.quick-action-icon-red { background: #fee2e2; color: var(--primary); }
-.quick-action-icon-yellow { background: #fef3c7; color: #d97706; }
-.quick-action-icon-blue { background: #dbeafe; color: #2563eb; }
-.quick-action-icon-green { background: #dcfce7; color: #16a34a; }
-.quick-action-icon-purple { background: #f3e8ff; color: #9333ea; }
+.quick-action-icon-red { background: var(--tint-red); color: var(--primary); }
+.quick-action-icon-yellow { background: var(--tint-amber); color: var(--ink-orange-600); }
+.quick-action-icon-blue { background: var(--tint-blue); color: var(--text-info); }
+.quick-action-icon-green { background: var(--tint-green); color: var(--text-success); }
+.quick-action-icon-purple { background: var(--tint-violet); color: var(--ink-violet-400); }
 .quick-action-icon-grey { background: var(--bg-hover); color: var(--text-muted); }
 
 .quick-action-label {
@@ -1324,7 +1324,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #9ca3af;
+  color: var(--text-label);
 }
 
 /* Period quick-select buttons */
@@ -1341,12 +1341,12 @@
   border: 1px solid var(--border-color);
   border-radius: 20px;
   background: var(--bg-hover);
-  color: #6b7280;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
 }
-.dash-period-btn:hover { background: #e5e7eb; color: #374151; }
+.dash-period-btn:hover { background: var(--bg-sunken); color: var(--text-body); }
 .dash-period-btn--active {
   background: #1e3a8a;
   border-color: #1e3a8a;
@@ -1366,13 +1366,13 @@
   border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 12px;
-  color: #374151;
-  background: #fff;
+  color: var(--text-body);
+  background: var(--bg-card);
   height: 32px;
   outline: none;
 }
 .dash-filter-date:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.12); }
-.dash-filter-date-sep { font-size: 13px; color: #9ca3af; }
+.dash-filter-date-sep { font-size: 13px; color: var(--text-label); }
 
 /* Dimension selects */
 .dash-filter-dims {
@@ -1385,8 +1385,8 @@
   border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 12px;
-  color: #374151;
-  background: #fff;
+  color: var(--text-body);
+  background: var(--bg-card);
   height: 32px;
   outline: none;
   min-width: 140px;
@@ -1402,7 +1402,7 @@
 }
 .dash-filter-updating {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-style: italic;
 }
 .dash-filter-clear-btn {
@@ -1411,13 +1411,13 @@
   font-weight: 600;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #f9fafb;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-body);
   cursor: pointer;
   height: 32px;
   transition: background 0.15s;
 }
-.dash-filter-clear-btn:hover { background: #f3f4f6; }
+.dash-filter-clear-btn:hover { background: var(--bg-hover); }
 
 /* ===============================
    RESPONSIVE
@@ -1678,7 +1678,7 @@
   border: none;
   font-size: 12px;
   font-weight: 600;
-  color: #DC2626;
+  color: var(--text-danger);
   cursor: pointer;
   white-space: nowrap;
   padding: 4px 0;
@@ -1789,15 +1789,15 @@
   padding: 2px 8px;
   border-radius: 999px;
   text-transform: capitalize;
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--bg-hover);
+  color: var(--text-muted);
 }
 
-.ra-status--completed   { background: rgba(5,150,105,0.1);  color: #059669; }
-.ra-status--received    { background: rgba(37,99,235,0.1);  color: #2563EB; }
-.ra-status--pending     { background: rgba(245,158,11,0.1); color: #D97706; }
-.ra-status--approved    { background: rgba(5,150,105,0.1);  color: #059669; }
-.ra-status--cancelled   { background: rgba(220,38,38,0.1);  color: #DC2626; }
+.ra-status--completed   { background: rgba(5,150,105,0.1);  color: var(--ink-teal-700); }
+.ra-status--received    { background: rgba(37,99,235,0.1);  color: var(--text-info); }
+.ra-status--pending     { background: rgba(245,158,11,0.1); color: var(--ink-orange-600); }
+.ra-status--approved    { background: rgba(5,150,105,0.1);  color: var(--ink-teal-700); }
+.ra-status--cancelled   { background: rgba(220,38,38,0.1);  color: var(--text-danger); }
 
 .ra-time {
   font-size: 11px;
@@ -1817,10 +1817,10 @@
   }
 }
 
-.ra-status--updated  { background: rgba(124,58,237,0.1);  color: #7C3AED; }
-.ra-status--created  { background: rgba(5,150,105,0.1);   color: #059669; }
-.ra-status--deleted  { background: rgba(220,38,38,0.1);   color: #DC2626; }
-.ra-status--info     { background: rgba(37,99,235,0.1);   color: #2563EB; }
+.ra-status--updated  { background: rgba(124,58,237,0.1);  color: var(--ink-violet); }
+.ra-status--created  { background: rgba(5,150,105,0.1);   color: var(--ink-teal-700); }
+.ra-status--deleted  { background: rgba(220,38,38,0.1);   color: var(--text-danger); }
+.ra-status--info     { background: rgba(37,99,235,0.1);   color: var(--text-info); }
 
 .ra-desc--wrap {
   white-space: normal;
@@ -1965,12 +1965,12 @@
 }
 
 .ls-td-qty {
-  color: #d97706;
+  color: var(--ink-orange-600);
   font-weight: 700;
 }
 
 .ls-td-def {
-  color: #dc2626;
+  color: var(--text-danger);
   font-weight: 700;
 }
 
@@ -1984,12 +1984,12 @@
 
 .ls-badge--low {
   background: rgba(245, 158, 11, 0.12);
-  color: #d97706;
+  color: var(--ink-orange-600);
 }
 
 .ls-badge--out {
   background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  color: var(--text-danger);
 }
 
 .low-stock-pagination {

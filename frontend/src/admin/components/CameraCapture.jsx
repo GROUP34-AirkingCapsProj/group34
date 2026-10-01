@@ -192,7 +192,7 @@ export default function CameraCapture({ isOpen, onCapture, onCancel }) {
           // A stalled element would otherwise be a dead end: no metadata, no
           // 'live', no shutter, and no explanation for the black rectangle.
           onError={() => { setError('The camera stream failed. Try again.'); setPhase('review'); }}
-          style={{ width: '100%', maxHeight: 320, borderRadius: 8, background: '#000' }}
+          style={{ width: '100%', maxHeight: 320, borderRadius: 8, background: 'var(--fill-slate-900)' }}
         />
       )}
 

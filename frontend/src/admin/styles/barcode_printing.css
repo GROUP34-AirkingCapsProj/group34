@@ -5,7 +5,7 @@
 .bpp-page { padding: 24px; }
 
 .bpp-header h1 { margin: 0 0 4px; font-size: 1.5rem; }
-.bpp-subtitle { margin: 0 0 20px; color: #64748b; max-width: 60ch; }
+.bpp-subtitle { margin: 0 0 20px; color: var(--ink-blue-500); max-width: 60ch; }
 
 .bpp-filters {
   display: flex;
@@ -13,16 +13,16 @@
   gap: 12px 16px;
   align-items: flex-end;
   padding: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 16px;
 }
 
 .bpp-filter { display: flex; flex-direction: column; gap: 4px; }
-.bpp-filter label { font-size: 0.75rem; color: #475569; font-weight: 600; }
+.bpp-filter label { font-size: 0.75rem; color: var(--ink-blue-700); font-weight: 600; }
 .bpp-filter input, .bpp-filter select {
   padding: 6px 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   min-width: 160px;
 }
@@ -30,7 +30,7 @@
 .bpp-filter-counts {
   margin: 0;
   flex-basis: 100%;
-  color: #475569;
+  color: var(--ink-blue-700);
   font-size: 0.875rem;
 }
 
@@ -46,8 +46,8 @@
   align-items: center;
   padding: 12px 16px;
   margin-bottom: 16px;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
 }
 
@@ -55,7 +55,7 @@
 .bpp-selection-link {
   background: none;
   border: none;
-  color: #2563eb;
+  color: var(--text-info);
   cursor: pointer;
   text-decoration: underline;
   padding: 0;
@@ -68,19 +68,19 @@
   cursor: pointer;
 }
 .bpp-selection-print { background: #2563eb; color: #fff; }
-.bpp-selection-pdf { background: #fff; color: #2563eb; }
+.bpp-selection-pdf { background: var(--bg-card); color: var(--text-info); }
 
 .bpp-selection-note {
   flex-basis: 100%;
   margin: 0;
-  color: #64748b;
+  color: var(--ink-blue-500);
   font-size: 0.8rem;
 }
 
 .bpp-selection-warning {
   flex-basis: 100%;
   margin: 0;
-  color: #92400e;
+  color: var(--warning-text);
   font-size: 0.875rem;
 }
 
@@ -90,7 +90,7 @@
   gap: 16px;
 }
 
-.bpp-status { padding: 32px; text-align: center; color: #64748b; }
+.bpp-status { padding: 32px; text-align: center; color: var(--ink-blue-500); }
 
 /* Tier badge and print state, on the shared card. The card's own rule lives
    in po_receiving.css and is not relative; the checkbox is absolutely
@@ -108,18 +108,18 @@
   border-radius: 999px;
   margin-bottom: 6px;
 }
-.bsr-tag-card-tier--minted { background: #dbeafe; color: #1e40af; }
-.bsr-tag-card-tier--supplier { background: #fef3c7; color: #92400e; }
-.bsr-tag-card-tier--manufacturer { background: #ede9fe; color: #5b21b6; }
+.bsr-tag-card-tier--minted { background: var(--tint-blue); color: var(--ink-blue-600); }
+.bsr-tag-card-tier--supplier { background: var(--tint-amber); color: var(--warning-text); }
+.bsr-tag-card-tier--manufacturer { background: var(--tint-violet); color: var(--ink-violet-600); }
 
-.bsr-tag-card-meta { font-size: 0.72rem; color: #64748b; margin-top: 6px; }
-.bsr-tag-card-state { font-size: 0.75rem; color: #64748b; margin-top: 6px; }
+.bsr-tag-card-meta { font-size: 0.72rem; color: var(--ink-blue-500); margin-top: 6px; }
+.bsr-tag-card-state { font-size: 0.75rem; color: var(--ink-blue-500); margin-top: 6px; }
 .bsr-tag-card--selected { outline: 2px solid #2563eb; }
 .bsr-tag-card-select { position: absolute; top: 8px; left: 8px; }
 .bsr-tag-card-reprint {
   margin-top: 8px;
   background: none;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 4px 10px;
   cursor: pointer;
@@ -153,15 +153,15 @@
 
 .bpp-filter-clear {
   background: none;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 5px 12px;
-  color: #475569;
+  color: var(--ink-blue-700);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .bpp-filter-clear:hover {
-  background: #f1f5f9;
+  background: var(--bg-hover);
 }

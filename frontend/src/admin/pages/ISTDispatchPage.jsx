@@ -194,15 +194,15 @@ const ISTDispatchPage = () => {
         <div className="ak-page po-recommendation-page">
           <div className="po-details-card" style={{ textAlign: 'center', padding: '40px 32px' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>🚚</div>
-            <h2 style={{ color: '#16a34a', fontWeight: 700, marginBottom: 8 }}>Dispatch Confirmed</h2>
-            <p style={{ color: '#475569', marginBottom: 24 }}>
+            <h2 style={{ color: 'var(--text-success)', fontWeight: 700, marginBottom: 8 }}>Dispatch Confirmed</h2>
+            <p style={{ color: 'var(--ink-blue-700)', marginBottom: 24 }}>
               {ist?.transfer_number} is now <strong>In Transit</strong>. The destination can receive it.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button type="button" className="po-btn" style={{ background: '#1e293b', color: '#fff' }} onClick={() => navigate(`/admin/ist/${id}`)}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-contrast)', color: '#fff' }} onClick={() => navigate(`/admin/ist/${id}`)}>
                 View IST
               </button>
-              <button type="button" className="po-btn" style={{ background: '#f1f5f9', color: '#475569' }} onClick={() => navigate('/admin/ist')}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }} onClick={() => navigate('/admin/ist')}>
                 Back to IST List
               </button>
             </div>
@@ -269,7 +269,7 @@ const ISTDispatchPage = () => {
                 ].map(({ label, value, bold }) => (
                   <div key={label} className="po-field">
                     <span className="po-field-label">{label}</span>
-                    <span style={{ fontSize: 14, color: '#1e293b', fontWeight: bold ? 700 : 500 }}>{value}</span>
+                    <span style={{ fontSize: 14, color: 'var(--ink-blue-800-3)', fontWeight: bold ? 700 : 500 }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -423,7 +423,7 @@ const ISTDispatchPage = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveScan(s.did, s)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 11, padding: '2px 6px', borderRadius: 3 }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-danger)', fontSize: 11, padding: '2px 6px', borderRadius: 3 }}
                               title="Remove this scan"
                             >
                               Remove
@@ -440,7 +440,7 @@ const ISTDispatchPage = () => {
             <div className="po-details-card" style={{ margin: '16px 0' }}>
               <div className="po-field">
                 <span className="po-field-label">DISPATCHED BY</span>
-                <span style={{ fontSize: 14, color: '#1e293b', fontWeight: 500 }}>{userName(user)}</span>
+                <span style={{ fontSize: 14, color: 'var(--ink-blue-800-3)', fontWeight: 500 }}>{userName(user)}</span>
               </div>
             </div>
 
@@ -448,7 +448,7 @@ const ISTDispatchPage = () => {
               <button
                 type="button"
                 className="po-btn"
-                style={{ background: '#f1f5f9', color: '#475569' }}
+                style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }}
                 onClick={() => navigate(`/admin/ist/${id}`)}
                 disabled={submitting}
               >
@@ -458,7 +458,7 @@ const ISTDispatchPage = () => {
                 type="button"
                 className="po-btn"
                 style={{
-                  background: totalScanned < 1 ? '#94a3b8' : '#1e293b',
+                  background: totalScanned < 1 ? '#94a3b8' : 'var(--bg-contrast)',
                   color: '#fff', minWidth: 180,
                   cursor: totalScanned < 1 ? 'not-allowed' : 'pointer',
                 }}

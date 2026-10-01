@@ -195,10 +195,10 @@ const AdminDashboard = () => {
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1f2937', padding: 12, borderRadius: 8 } },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'var(--bg-contrast)', padding: 12, borderRadius: 8 } },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } }, barPercentage: 0.5, categoryPercentage: 0.8, offset: true },
-      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: '#6b7280', font: { size: 11 }, stepSize: 1 }, beginAtZero: true },
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 } }, barPercentage: 0.5, categoryPercentage: 0.8, offset: true },
+      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 }, stepSize: 1 }, beginAtZero: true },
     },
     layout: { padding: { left: 8, right: 8 } },
   };
@@ -207,12 +207,12 @@ const AdminDashboard = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'bottom', align: 'center', labels: { color: '#6b7280', usePointStyle: true, pointStyle: 'rect', padding: 15, font: { size: 11 } } },
-      tooltip: { backgroundColor: '#1f2937', padding: 12, borderRadius: 8 },
+      legend: { display: true, position: 'bottom', align: 'center', labels: { color: 'var(--text-muted)', usePointStyle: true, pointStyle: 'rect', padding: 15, font: { size: 11 } } },
+      tooltip: { backgroundColor: 'var(--bg-contrast)', padding: 12, borderRadius: 8 },
     },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 10 } } },
-      y: { grid: { color: '#e5e7eb', drawBorder: false, borderDash: [3, 3] }, ticks: { color: '#6b7280', font: { size: 11 } }, beginAtZero: true },
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 10 } } },
+      y: { grid: { color: '#e5e7eb', drawBorder: false, borderDash: [3, 3] }, ticks: { color: 'var(--text-muted)', font: { size: 11 } }, beginAtZero: true },
     },
   };
 
@@ -220,12 +220,12 @@ const AdminDashboard = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'bottom', align: 'center', labels: { color: '#6b7280', usePointStyle: true, pointStyle: 'circle', padding: 15, font: { size: 11 } } },
-      tooltip: { backgroundColor: '#1f2937', padding: 12, borderRadius: 8 },
+      legend: { display: true, position: 'bottom', align: 'center', labels: { color: 'var(--text-muted)', usePointStyle: true, pointStyle: 'circle', padding: 15, font: { size: 11 } } },
+      tooltip: { backgroundColor: 'var(--bg-contrast)', padding: 12, borderRadius: 8 },
     },
     scales: {
-      x: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
-      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: '#6b7280', font: { size: 11 }, stepSize: 45 }, beginAtZero: true },
+      x: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 } } },
+      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 }, stepSize: 45 }, beginAtZero: true },
     },
     interaction: { intersect: false, mode: 'index' },
   };
@@ -256,11 +256,11 @@ const AdminDashboard = () => {
   };
 
   const activityMeta = {
-    sale:      { label: 'Sale',      color: '#DC2626', bg: 'rgba(220,38,38,0.08)'  },
-    transfer:  { label: 'Transfer',  color: '#2563EB', bg: 'rgba(37,99,235,0.08)'  },
-    receiving: { label: 'Receiving', color: '#059669', bg: 'rgba(5,150,105,0.08)'  },
-    activity:  { label: 'Activity',  color: '#7C3AED', bg: 'rgba(124,58,237,0.08)' },
-    audit:     { label: 'Audit',     color: '#D97706', bg: 'rgba(217,119,6,0.08)'  },
+    sale:      { label: 'Sale',      color: 'var(--text-danger)', bg: 'rgba(220,38,38,0.08)'  },
+    transfer:  { label: 'Transfer',  color: 'var(--text-info)', bg: 'rgba(37,99,235,0.08)'  },
+    receiving: { label: 'Receiving', color: 'var(--ink-teal-700)', bg: 'rgba(5,150,105,0.08)'  },
+    activity:  { label: 'Activity',  color: 'var(--ink-violet)', bg: 'rgba(124,58,237,0.08)' },
+    audit:     { label: 'Audit',     color: 'var(--ink-orange-600)', bg: 'rgba(217,119,6,0.08)'  },
   };
 
   return (
@@ -488,7 +488,7 @@ const AdminDashboard = () => {
           ) : (
             <ul className="recent-activity-list">
               {recentActivity.map((item, idx) => {
-                const meta = activityMeta[item.type] ?? { label: item.type, color: '#6b7280', bg: '#f3f4f6' };
+                const meta = activityMeta[item.type] ?? { label: item.type, color: 'var(--text-muted)', bg: '#f3f4f6' };
                 const isAudit = item.type === 'audit';
                 return (
                   <li key={idx} className="recent-activity-item">
@@ -638,7 +638,7 @@ const AdminDashboard = () => {
                 <div className="chart-card">
           <h3>Warehouse Capacity</h3>
           <div className="chart-wrapper">
-            <Bar data={{ labels: warehouseCapacity.labels, datasets: [{ label: 'Capacity', data: warehouseCapacity.capacity, backgroundColor: '#D1D5DB', borderRadius: 4, barThickness: 80 }, { label: 'Occupancy', data: warehouseCapacity.occupancy, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 80 }] }} options={groupedBarOptions} />
+            <Bar data={{ labels: warehouseCapacity.labels, datasets: [{ label: 'Capacity', data: warehouseCapacity.capacity, backgroundColor: 'var(--fill-slate-200)', borderRadius: 4, barThickness: 80 }, { label: 'Occupancy', data: warehouseCapacity.occupancy, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 80 }] }} options={groupedBarOptions} />
           </div>
         </div>
       </div>

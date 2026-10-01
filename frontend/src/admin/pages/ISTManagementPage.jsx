@@ -38,8 +38,8 @@ const StatusBadge = ({ name }) => {
     <span style={{
       display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11,
       fontWeight: 700, letterSpacing: 0.4,
-      color: statusClr[cfg.color] || '#64748b',
-      background: statusBg[cfg.color] || '#f1f5f9',
+      color: statusClr[cfg.color] || 'var(--ink-blue-500)',
+      background: statusBg[cfg.color] || 'var(--bg-hover)',
     }}>
       {cfg.label}
     </span>
@@ -199,7 +199,7 @@ const ISTManagementPage = () => {
 
         {/* Quick-filter presets */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', alignSelf: 'center', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-blue-300)', alignSelf: 'center', textTransform: 'uppercase', letterSpacing: 0.5 }}>
             Worklist:
           </span>
           <button
@@ -207,9 +207,9 @@ const ISTManagementPage = () => {
             onClick={() => applyPreset('fulfill')}
             style={{
               padding: '6px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-              border: activePreset === 'fulfill' ? '2px solid #16a34a' : '1.5px solid #bbf7d0',
-              background: activePreset === 'fulfill' ? '#16a34a' : '#f0fdf4',
-              color: activePreset === 'fulfill' ? '#fff' : '#16a34a',
+              border: activePreset === 'fulfill' ? '2px solid #16a34a' : '1.5px solid var(--line-green)',
+              background: activePreset === 'fulfill' ? '#16a34a' : 'var(--success-soft-bg)',
+              color: activePreset === 'fulfill' ? '#fff' : 'var(--text-success)',
               display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
@@ -217,8 +217,8 @@ const ISTManagementPage = () => {
             {toFulfillCount > 0 && (
               <span style={{
                 fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
-                background: activePreset === 'fulfill' ? 'rgba(255,255,255,0.25)' : '#dcfce7',
-                color: activePreset === 'fulfill' ? '#fff' : '#16a34a',
+                background: activePreset === 'fulfill' ? 'rgba(255,255,255,0.25)' : 'var(--tint-green)',
+                color: activePreset === 'fulfill' ? '#fff' : 'var(--text-success)',
               }}>
                 {toFulfillCount}
               </span>
@@ -229,9 +229,9 @@ const ISTManagementPage = () => {
             onClick={() => applyPreset('receive')}
             style={{
               padding: '6px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-              border: activePreset === 'receive' ? '2px solid #2563eb' : '1.5px solid #bfdbfe',
-              background: activePreset === 'receive' ? '#2563eb' : '#eff6ff',
-              color: activePreset === 'receive' ? '#fff' : '#2563eb',
+              border: activePreset === 'receive' ? '2px solid #2563eb' : '1.5px solid var(--line-blue)',
+              background: activePreset === 'receive' ? '#2563eb' : 'var(--tint-blue-soft)',
+              color: activePreset === 'receive' ? '#fff' : 'var(--text-info)',
               display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
@@ -239,8 +239,8 @@ const ISTManagementPage = () => {
             {toReceiveCount > 0 && (
               <span style={{
                 fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
-                background: activePreset === 'receive' ? 'rgba(255,255,255,0.25)' : '#dbeafe',
-                color: activePreset === 'receive' ? '#fff' : '#2563eb',
+                background: activePreset === 'receive' ? 'rgba(255,255,255,0.25)' : 'var(--tint-blue)',
+                color: activePreset === 'receive' ? '#fff' : 'var(--text-info)',
               }}>
                 {toReceiveCount}
               </span>
@@ -255,8 +255,8 @@ const ISTManagementPage = () => {
             onClick={() => setViewTab('outgoing')}
             style={{
               padding: '8px 20px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              background: viewTab === 'outgoing' ? '#1e293b' : '#f1f5f9',
-              color:      viewTab === 'outgoing' ? '#fff'    : '#64748b',
+              background: viewTab === 'outgoing' ? 'var(--bg-contrast)' : 'var(--bg-hover)',
+              color:      viewTab === 'outgoing' ? '#fff'    : 'var(--ink-blue-500)',
             }}
           >
             Outgoing
@@ -266,8 +266,8 @@ const ISTManagementPage = () => {
             onClick={() => setViewTab('incoming')}
             style={{
               padding: '8px 20px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              background: viewTab === 'incoming' ? '#1e293b' : '#f1f5f9',
-              color:      viewTab === 'incoming' ? '#fff'    : '#64748b',
+              background: viewTab === 'incoming' ? 'var(--bg-contrast)' : 'var(--bg-hover)',
+              color:      viewTab === 'incoming' ? '#fff'    : 'var(--ink-blue-500)',
               display:    'flex', alignItems: 'center', gap: 6,
             }}
           >
@@ -295,9 +295,9 @@ const ISTManagementPage = () => {
                 type="button"
                 onClick={() => setStatusTab(tab.key)}
                 style={{
-                  padding: '5px 14px', border: active ? '2px solid #1e293b' : '1px solid #e2e8f0',
+                  padding: '5px 14px', border: active ? '2px solid #1e293b' : '1px solid var(--border-color)',
                   borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: active ? 700 : 500,
-                  background: active ? '#1e293b' : '#fff', color: active ? '#fff' : '#64748b',
+                  background: active ? 'var(--bg-contrast)' : 'var(--bg-card)', color: active ? '#fff' : 'var(--ink-blue-500)',
                   display: 'flex', alignItems: 'center', gap: 5,
                 }}
               >
@@ -305,7 +305,7 @@ const ISTManagementPage = () => {
                 {cnt > 0 && (
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
-                    background: active ? 'rgba(255,255,255,0.2)' : '#f1f5f9', color: active ? '#fff' : '#64748b',
+                    background: active ? 'rgba(255,255,255,0.2)' : 'var(--bg-hover)', color: active ? '#fff' : 'var(--ink-blue-500)',
                   }}>
                     {cnt}
                   </span>
@@ -365,9 +365,9 @@ const ISTManagementPage = () => {
                         onClick={() => navigate(`/admin/ist/${ist.transfer_id}`)}
                       >
                         <td>
-                          <span style={{ fontWeight: 600, color: '#1e293b' }}>{ist.transfer_number}</span>
+                          <span style={{ fontWeight: 600, color: 'var(--ink-blue-800-3)' }}>{ist.transfer_number}</span>
                           {(ist.transfer_request?.transfer_number || ist.transferRequest?.transfer_number) && (
-                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: 'var(--ink-blue-300)', marginTop: 2 }}>
                               from {ist.transfer_request?.transfer_number || ist.transferRequest?.transfer_number}
                             </div>
                           )}
@@ -391,7 +391,7 @@ const ISTManagementPage = () => {
                               <button
                                 type="button"
                                 className="po-btn"
-                                style={{ fontSize: 11, padding: '4px 10px', background: '#1e293b', color: '#fff' }}
+                                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--bg-contrast)', color: '#fff' }}
                                 onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/receipt`); }}
                               >
                                 Print Receipt
@@ -420,7 +420,7 @@ const ISTManagementPage = () => {
                               <button
                                 type="button"
                                 className="po-btn"
-                                style={{ fontSize: 11, padding: '4px 10px', background: '#1e293b', color: '#fff' }}
+                                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--bg-contrast)', color: '#fff' }}
                                 onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/receive`); }}
                               >
                                 Confirm Receipt
@@ -439,7 +439,7 @@ const ISTManagementPage = () => {
                               <button
                                 type="button"
                                 className="po-btn"
-                                style={{ fontSize: 11, padding: '4px 10px', background: '#1e293b', color: '#fff' }}
+                                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--bg-contrast)', color: '#fff' }}
                                 onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/dispatch`); }}
                               >
                                 Scan / Dispatch

@@ -890,7 +890,7 @@ const ItemManagement = () => {
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                       {loading ? <Loader /> : 'No products found'}
                     </td>
                   </tr>
@@ -1477,7 +1477,7 @@ const ItemManagement = () => {
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Optional product notes"
                       rows={2}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #e5e7eb', resize: 'vertical' }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-color)', resize: 'vertical' }}
                     />
                   </div>
                   <div className="im-form-field">
@@ -1618,7 +1618,7 @@ const ItemManagement = () => {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="e.g. 1/4 inch copper tubing for AC installations"
                     rows={3}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #e5e7eb', resize: 'vertical' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-color)', resize: 'vertical' }}
                   />
                 </div>
                 <div className="im-form-row">
@@ -1737,12 +1737,12 @@ const ItemManagement = () => {
             )}
 
             {/* Stock Levels (both types) */}
-            <div className="im-form-row" style={{ marginTop: 8, paddingTop: 12, borderTop: '1px dashed #e5e7eb' }}>
+            <div className="im-form-row" style={{ marginTop: 8, paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
               <div className="im-form-field">
                 <label>
                   RECOMMENDED STOCKS
                   {stockParamUnitHint && (
-                    <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}> — {stockParamUnitHint}</span>
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--ink-blue-300)' }}> — {stockParamUnitHint}</span>
                   )}
                 </label>
                 <input
@@ -1757,7 +1757,7 @@ const ItemManagement = () => {
                 <label>
                   SAFETY STOCK
                   {stockParamUnitHint && (
-                    <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}> — {stockParamUnitHint}</span>
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--ink-blue-300)' }}> — {stockParamUnitHint}</span>
                   )}
                 </label>
                 <input
@@ -1772,7 +1772,7 @@ const ItemManagement = () => {
                 <label>
                   MAX STOCK LEVEL
                   {stockParamUnitHint && (
-                    <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}> — {stockParamUnitHint}</span>
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--ink-blue-300)' }}> — {stockParamUnitHint}</span>
                   )}
                 </label>
                 <input

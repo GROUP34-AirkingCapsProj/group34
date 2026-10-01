@@ -72,7 +72,7 @@ export function Kpi({ label, value, icon, tone = 'crimson' }) {
 
 export const baseChartOptions = {
   responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { display: false }, tooltip: { backgroundColor: '#14181f', padding: 10, cornerRadius: 8 } },
+  plugins: { legend: { display: false }, tooltip: { backgroundColor: 'var(--fill-blue-900)', padding: 10, cornerRadius: 8 } },
   scales: {
     x: { grid: { display: false }, ticks: { color: PALETTE.ink, font: { size: 11 } } },
     y: { grid: { color: PALETTE.grid }, ticks: { color: PALETTE.ink, font: { size: 11 } }, beginAtZero: true },

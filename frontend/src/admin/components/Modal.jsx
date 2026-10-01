@@ -67,7 +67,7 @@ const Modal = ({
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#fff',
+          background: 'var(--bg-card)',
           width: '100%',
           maxWidth,
           maxHeight: '90vh',
@@ -86,11 +86,11 @@ const Modal = ({
               justifyContent: 'space-between',
               alignItems: 'center',
               padding: '18px 24px',
-              borderBottom: '1px solid #e5e7eb',
+              borderBottom: '1px solid var(--border-color)',
               flexShrink: 0,
             }}
           >
-            <h2 id="modal-title" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>
+            <h2 id="modal-title" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-dark)' }}>
               {title}
             </h2>
             <button
@@ -101,7 +101,7 @@ const Modal = ({
               style={{
                 fontSize: 28,
                 fontWeight: 300,
-                color: '#6b7280',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 lineHeight: 1,
                 padding: '0 4px',

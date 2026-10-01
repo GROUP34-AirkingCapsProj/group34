@@ -11,8 +11,8 @@
  */
 
 .incdoc {
-  background: var(--ak-card, #fff);
-  border: 1px solid var(--ak-line, #e7e9f1);
+  background: var(--ak-card);
+  border: 1px solid var(--ak-line);
   border-radius: var(--ak-radius, 16px);
   box-shadow: var(--ak-shadow);
   padding: 1.1rem 1.25rem 1.4rem;
@@ -40,7 +40,7 @@
 }
 
 .incdoc__subtitle {
-  color: var(--ak-ink-soft, #5b6472);
+  color: var(--ak-ink-soft);
   font-size: 0.82rem;
   margin: 0.2rem 0 0;
 }
@@ -48,7 +48,7 @@
 /* ── one section of the sheet ─────────────────────────────────────────────── */
 
 .incdoc__section {
-  border-bottom: 1px solid var(--ak-line-soft, #eff1f7);
+  border-bottom: 1px solid var(--ak-line-soft);
   padding: 0.95rem 0;
 }
 
@@ -68,12 +68,12 @@
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ak-ink, #14181f);
+  color: var(--ak-ink);
   margin: 0;
 }
 
 .incdoc__hint {
-  color: var(--ak-ink-soft, #5b6472);
+  color: var(--ak-ink-soft);
   font-size: 0.82rem;
   margin: 0 0 0.6rem;
   max-width: 62ch;
@@ -89,19 +89,19 @@
  * The inspector's half during filing: present, empty and greyed, so the
  * reporter can see what will be asked later and what is not their job.
  */
-.incdoc__section--awaiting { background: var(--ak-band, #f7f8fc); }
-.incdoc__section--awaiting .incdoc__section-title { color: var(--ak-ink-faint, #939aa8); }
-.incdoc__section--awaiting .incdoc__body { color: var(--ak-ink-faint, #939aa8); font-size: 0.85rem; }
+.incdoc__section--awaiting { background: var(--ak-band); }
+.incdoc__section--awaiting .incdoc__section-title { color: var(--ak-ink-faint); }
+.incdoc__section--awaiting .incdoc__body { color: var(--ak-ink-faint); font-size: 0.85rem; }
 
 /* Where the document changes hands. Above it the reporter's, below the inspector's. */
 .incdoc__rule {
   border: none;
-  border-top: 2px dashed var(--ak-ink-faint, #939aa8);
+  border-top: 2px dashed var(--ak-ink-faint);
   margin: 1.2rem 0 0.2rem;
 }
 
 .incdoc__rule-note {
-  color: var(--ak-ink-faint, #939aa8);
+  color: var(--ak-ink-faint);
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -120,11 +120,11 @@
 .incdoc__row > * { flex: 1 1 200px; min-width: 0; }
 
 .incdoc__unit {
-  border: 1px solid var(--ak-line, #e7e9f1);
+  border: 1px solid var(--ak-line);
   border-radius: var(--ak-radius-sm, 10px);
   padding: 0.8rem;
   margin: 0 0 0.7rem;
-  background: var(--ak-card, #fff);
+  background: var(--ak-card);
 }
 
 .incdoc__unit-legend {

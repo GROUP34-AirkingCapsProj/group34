@@ -260,7 +260,7 @@ const DispatchPanel = ({ transfer, onDone }) => {
                     </div>
                     {s.scan_id != null && (
                       <button type="button" onClick={() => handleRemoveScan(s.did, s)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 11, padding: '2px 6px' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-danger)', fontSize: 11, padding: '2px 6px' }}
                         title="Remove this scan">Remove</button>
                     )}
                   </div>

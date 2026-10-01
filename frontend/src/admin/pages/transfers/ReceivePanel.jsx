@@ -134,7 +134,7 @@ const ReceivePanel = ({ transfer, onDone }) => {
     return (
       <div className="tf-drawer" style={{ textAlign: 'center', padding: '1.5rem 0' }}>
         <div style={{ fontSize: 36, marginBottom: 10 }}>✓</div>
-        <h3 style={{ color: '#15803d', fontWeight: 700, margin: '0 0 6px' }}>Receipt Confirmed</h3>
+        <h3 style={{ color: 'var(--ink-green)', fontWeight: 700, margin: '0 0 6px' }}>Receipt Confirmed</h3>
         <p className="ak-muted" style={{ marginBottom: 18 }}>{transfer?.transfer_number} has been received successfully.</p>
         <div className="tf-actions-row" style={{ justifyContent: 'center' }}>
           <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="ak-btn ak-btn--primary" style={{ textDecoration: 'none' }}>
@@ -233,11 +233,11 @@ const ReceivePanel = ({ transfer, onDone }) => {
                   type="number" min={1} value={scanQty}
                   onChange={(e) => setScanQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
                   disabled={scanning} title="Number of packages represented by this scan"
-                  style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, textAlign: 'center' }}
+                  style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 13, textAlign: 'center' }}
                 />
               )}
               {activeDetail && !activeSerialized && (
-                <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--ink-blue-500)', whiteSpace: 'nowrap' }}>
                   package(s) × {Number(activeDetail.product?.pieces_per_package || activeDetail.product?.installation_material_detail?.pieces_per_package || 1)} pcs
                 </span>
               )}
@@ -264,7 +264,7 @@ const ReceivePanel = ({ transfer, onDone }) => {
                     </div>
                     {s.scan_id != null && (
                       <button type="button" onClick={() => handleRemoveScan(s.did, s)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 11, padding: '2px 6px' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-danger)', fontSize: 11, padding: '2px 6px' }}
                         title="Remove this scan">Remove</button>
                     )}
                   </div>

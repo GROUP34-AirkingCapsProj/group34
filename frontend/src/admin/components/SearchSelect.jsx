@@ -131,8 +131,8 @@ const SearchSelect = ({
           className="prod-search-menu"
           style={{
             position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width,
-            zIndex: 10050, maxHeight: 300, overflowY: 'auto', background: '#fff',
-            border: '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 10px 28px rgba(0,0,0,.20)',
+            zIndex: 10050, maxHeight: 300, overflowY: 'auto', background: 'var(--bg-card)',
+            border: '1px solid var(--border-strong)', borderRadius: 8, boxShadow: '0 10px 28px rgba(0,0,0,.20)',
           }}
         >
           {/* Deliberately outside `matches`: it is not a row of data, so a
@@ -147,8 +147,8 @@ const SearchSelect = ({
               onClick={() => { onChange(''); setOpen(false); setQuery(null); }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
-                border: 'none', borderBottom: '1px solid #e2e8f0', background: '#f8fafc',
-                cursor: 'pointer', fontSize: 13, color: '#475569', fontWeight: 600,
+                border: 'none', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-muted)',
+                cursor: 'pointer', fontSize: 13, color: 'var(--ink-blue-700)', fontWeight: 600,
               }}
             >
               {clearLabel}
@@ -156,7 +156,7 @@ const SearchSelect = ({
           ) : null}
 
           {matches.length === 0 ? (
-            <div style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 13 }}>{emptyText}</div>
+            <div style={{ padding: '10px 12px', color: 'var(--ink-blue-300)', fontSize: 13 }}>{emptyText}</div>
           ) : matches.map((item) => (
             <button
               type="button"
@@ -166,13 +166,13 @@ const SearchSelect = ({
               onClick={() => { onChange(item.id); setOpen(false); setQuery(null); }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none',
-                borderBottom: '1px solid #f1f5f9',
-                background: item.id === value ? '#eff6ff' : '#fff', cursor: 'pointer', fontSize: 13,
+                borderBottom: '1px solid var(--border-soft)',
+                background: item.id === value ? 'var(--tint-blue-soft)' : 'var(--bg-card)', cursor: 'pointer', fontSize: 13,
               }}
             >
-              <span style={{ fontWeight: 600, color: '#1e293b' }}>{item.label}</span>
-              {item.sublabel ? <span style={{ color: '#64748b' }}> · {item.sublabel}</span> : null}
-              {item.extra ? <span style={{ color: '#94a3b8' }}> · {item.extra}</span> : null}
+              <span style={{ fontWeight: 600, color: 'var(--ink-blue-800-3)' }}>{item.label}</span>
+              {item.sublabel ? <span style={{ color: 'var(--ink-blue-500)' }}> · {item.sublabel}</span> : null}
+              {item.extra ? <span style={{ color: 'var(--ink-blue-300)' }}> · {item.extra}</span> : null}
             </button>
           ))}
         </div>,

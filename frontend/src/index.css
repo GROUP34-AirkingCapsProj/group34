@@ -45,54 +45,431 @@
   --warning-text: #92400e;
   --danger-soft-bg: #fef2f2;
   --success-soft-bg: #ecfdf5;
+
+  /* ---- Page-level tokens ------------------------------------------------
+     The 44 per-page stylesheets and a lot of JSX inline styles were written
+     against raw Tailwind greys (#fff, #f3f4f6, #374151, #e5e7eb …), so they
+     stayed light when the theme flipped. These tokens exist so those literals
+     have something to resolve to. Every LIGHT value below is the exact literal
+     it replaced, so light mode renders as it always did; the dark block is
+     where the navy set takes over.
+     Add a page token here rather than reaching for a raw hex in a page file. */
+  --bg-sunken: #e5e7eb;        /* pressed / inset wells */
+  --border-soft: #f3f4f6;      /* hairline inside a card */
+
+  --text-body: #374151;        /* secondary prose, one step under --text-dark */
+  --text-danger: #dc2626;
+  --text-success: #16a34a;
+  --text-info: #2563eb;
+
+  /* Status washes: a pale fill plus a readable ink of the same hue. Pastel
+     fills are light-mode objects — in dark they become translucent so they
+     tint the navy underneath instead of punching a hole in it. */
+  --tint-red: #fee2e2;
+  --tint-green: #dcfce7;
+  --tint-blue: #dbeafe;
+  --tint-amber: #fef3c7;
+  --tint-blue-soft: #eff6ff;
+  --tint-amber-soft: #fff7ed;
+
+  --ink-red: #b91c1c;
+  --ink-green: #15803d;
+  --ink-blue: #1d4ed8;
+  --ink-amber: #b45309;
+
+  --line-red: #fecaca;
+  --line-green: #bbf7d0;
+  --line-blue: #bfdbfe;
+  --line-amber: #fde68a;
+
+  --tint-violet: #ede9fe;
+  --tint-violet-soft: #f5f3ff;
+  --ink-violet: #7c3aed;
+
+  /* A deliberately dark panel in LIGHT mode (slate fills carrying white text).
+     In dark it LIFTS instead of deepening — going darker than the card would
+     make it vanish, so it climbs to the hover step and keeps its white ink. */
+  --bg-contrast: #1e293b;
+  /* ---- Generated page tokens (light) ------------------------------------
+     The per-page stylesheets and JSX inline styles were written against raw
+     Tailwind literals, so they stayed light when the theme flipped. Each token
+     below carries the EXACT literal it replaced, so light mode is unchanged;
+     the dark block derives a counterpart from that literal's own hue.
+     Regenerate with scratchpad/tokenize2.py — do not hand-edit pairs. */
+  --fill-amber-100: #fff7d6;
+  --fill-blue-100: #e8f0fe;
+  --fill-blue-200: #cbd5e1;
+  --fill-blue-700: #374151;
+  --fill-blue-700-2: #334155;
+  --fill-blue-900: #14181f;
+  --fill-fuchsia-100: #fce7f3;
+  --fill-green-100: #d1fae5;
+  --fill-indigo-100: #c4b5fd;
+  --fill-orange-100: #fff4e0;
+  --fill-orange-100-2: #ffedd5;
+  --fill-orange-200: #fed7aa;
+  --fill-red-100: #ffeaea;
+  --fill-red-100-2: #fecaca;
+  --fill-sky-100: #e0f2fe;
+  --fill-sky-100-2: #bae6fd;
+  --fill-sky-100-3: #f0fdff;
+  --fill-sky-100-4: #eceff1;
+  --fill-slate-200: #d1d5db;
+  --fill-slate-900: #000000;
+  --fill-teal-100: #ecfeff;
+  --fill-teal-100-2: #ccfbf1;
+  --fill-violet-100: #f5e9ff;
+  --ink-amber-600: #ca8a04;
+  --ink-blue-300: #94a3b8;
+  --ink-blue-400: #3b82f6;
+  --ink-blue-500: #64748b;
+  --ink-blue-600: #1e40af;
+  --ink-blue-700: #475569;
+  --ink-blue-700-2: #1e3a8a;
+  --ink-blue-800: #1f2937;
+  --ink-blue-800-2: #1e3a5f;
+  --ink-blue-800-3: #1e293b;
+  --ink-blue-900: #14181f;
+  --ink-green-500: #22c55e;
+  --ink-green-800: #166534;
+  --ink-green-800-2: #14532d;
+  --ink-indigo-400: #4f46e5;
+  --ink-indigo-500: #4338ca;
+  --ink-indigo-600: #3730a3;
+  --ink-orange-500: #ea580c;
+  --ink-orange-500-2: #f59e0b;
+  --ink-orange-600: #d97706;
+  --ink-orange-600-2: #c2410c;
+  --ink-orange-700: #7c2d12;
+  --ink-orange-700-2: #a06800;
+  --ink-orange-700-3: #854d0e;
+  --ink-orange-700-4: #713f12;
+  --ink-orange-700-5: #9a3412;
+  --ink-orange-700-6: #a16207;
+  --ink-orange-700-7: #78350f;
+  --ink-red-400: #ef4444;
+  --ink-red-500: #d32f2f;
+  --ink-red-500-2: #e12d2d;
+  --ink-red-600: #991b1b;
+  --ink-red-700: #7f1d1d;
+  --ink-rose-600: #be185d;
+  --ink-rose-600-2: #b70f1f;
+  --ink-rose-600-3: #d20f22;
+  --ink-rose-600-4: #9d174d;
+  --ink-rose-600-5: #b51232;
+  --ink-rose-700: #9f1239;
+  --ink-rose-700-2: #a01028;
+  --ink-rose-700-3: #881337;
+  --ink-sky-600: #1a6fa8;
+  --ink-sky-600-2: #0891b2;
+  --ink-sky-700: #0369a1;
+  --ink-sky-700-2: #0e7490;
+  --ink-sky-700-3: #075985;
+  --ink-slate-200: #c0c4cc;
+  --ink-slate-200-2: #b8bfc9;
+  --ink-slate-400: #999999;
+  --ink-slate-400-2: #939aa8;
+  --ink-slate-600: #666666;
+  --ink-slate-600-2: #5b6472;
+  --ink-slate-700: #4b5563;
+  --ink-slate-700-2: #555555;
+  --ink-slate-800: #333333;
+  --ink-slate-900: #111111;
+  --ink-slate-900-2: #18181b;
+  --ink-teal-600: #10b981;
+  --ink-teal-700: #059669;
+  --ink-teal-700-2: #0f766e;
+  --ink-teal-800: #065f46;
+  --ink-teal-800-2: #047857;
+  --ink-teal-800-3: #115e59;
+  --ink-violet-400: #9333ea;
+  --ink-violet-500: #9810fa;
+  --ink-violet-500-2: #6d28d9;
+  --ink-violet-500-3: #7e22ce;
+  --ink-violet-600: #5b21b6;
+  --ink-violet-600-2: #6b21a8;
+  --line-amber-200: #f3dfa3;
+  --line-amber-400: #fde047;
+  --line-amber-400-2: #fbbf24;
+  --line-amber-400-3: #fcd34d;
+  --line-blue-100: #dbeafe;
+  --line-blue-100-2: #e0eaff;
+  --line-blue-100-3: #c7d2fe;
+  --line-blue-100-4: #dbe3ee;
+  --line-blue-100-5: #e8edf3;
+  --line-blue-100-6: #cddafb;
+  --line-blue-200: #93c5fd;
+  --line-blue-300: #60a5fa;
+  --line-blue-300-2: #94a3b8;
+  --line-blue-400: #3b82f6;
+  --line-green-100: #d1fae5;
+  --line-green-100-2: #ecfdf5;
+  --line-green-200: #a7f3d0;
+  --line-green-200-2: #bbe9cd;
+  --line-green-200-3: #bfe8d0;
+  --line-green-300: #86efac;
+  --line-green-400: #4ade80;
+  --line-indigo-100: #ddd6fe;
+  --line-indigo-100-2: #c4b5fd;
+  --line-indigo-300: #6366f1;
+  --line-orange-100: #fde2c2;
+  --line-orange-200: #fed7aa;
+  --line-orange-300: #f3c98b;
+  --line-orange-300-2: #fdba74;
+  --line-orange-400: #fb923c;
+  --line-red-200: #fca5a5;
+  --line-red-400: #ef4444;
+  --line-rose-100: #fecdd3;
+  --line-rose-100-2: #f8d2d8;
+  --line-rose-100-3: #f6cdd2;
+  --line-sky-100: #bae6fd;
+  --line-sky-200: #a5f3fc;
+  --line-slate-100: #dddddd;
+  --line-slate-100-2: #e0e0e0;
+  --line-slate-100-3: #ffffff;
+  --line-slate-300: #bbbbbb;
+  --line-slate-400: #939aa8;
+  --line-slate-400-2: #9ca3af;
+  --line-slate-900: #111111;
+  --line-slate-900-2: #000000;
+  --line-teal-200: #99f6e4;
+  --line-teal-300: #6ee7b7;
+  --line-violet-100: #d8b4fe;
+  --line-violet-100-2: #e9d5ff;
+  --line-violet-200: #c084fc;
 }
 
+/* Dark theme — "deep water" navy set.
+   Four rules hold this palette together; keep them if you add tokens:
+   1. Every surface is a real blue (hue ~215°, 27-35% saturation), not a grey
+      with a hint of blue. The ramp climbs in lightness only — body 12%, card
+      19%, elevated 23%, hover 28% — so depth reads without changing hue.
+   2. Nothing is near-black. The floor sits at #141c29.
+   3. Body ink is #d3dce8, not white — ~10:1 on the card, well past AA, without
+      the 13.6:1 glare that makes text smear on dark backgrounds.
+   4. Accents are chroma-reduced: the brand red reads as ember, the gold as
+      brass. Saturated light-mode hues vibrate against dark surfaces.
+   Shadows are deep navy rather than black — pure black over blue goes muddy. */
 html[data-theme='dark'] {
   color-scheme: dark;
 
-  --primary: #ef2d52;
-  --primary-dark: #dc143c;
-  --primary-light: rgba(239, 45, 82, 0.18);
+  --primary: #e1495f;
+  --primary-dark: #c03350;
+  --primary-light: rgba(225, 73, 95, 0.18);
 
-  --accent: #f5b301;
-  --accent-dark: #d4a017;
-  --accent-light: rgba(245, 179, 1, 0.16);
+  --accent: #e0ae4a;
+  --accent-dark: #bd8f33;
+  --accent-light: rgba(224, 174, 74, 0.15);
 
-  --body-bg: #0f1419;
+  --body-bg: #141c29;
 
-  --bg-main: #12181f;
-  --bg-card: #1a222d;
-  --bg-sidebar: #151b24;
-  --bg-elevated: #1e2733;
-  --bg-hover: #243040;
-  --bg-muted: #1a222d;
-  --bg-code: #243040;
+  --bg-main: #18212f;
+  --bg-card: #212d3f;
+  --bg-sidebar: #1b2537;
+  --bg-elevated: #2a384c;
+  --bg-hover: #34455b;
+  --bg-muted: #1b2537;
+  --bg-code: #2c3a4e;
 
-  --text-dark: #e8edf4;
-  --text-muted: #9aa5b5;
-  --text-sidebar: #c5ced9;
-  --text-label: #7a8698;
+  --text-dark: #d3dce8;
+  --text-muted: #97a7ba;
+  --text-sidebar: #b8c5d5;
+  --text-label: #8797ab;
 
-  --border-color: #2c3644;
-  --border-strong: #3d4a5c;
+  --border-color: #3a4a5f;
+  --border-strong: #526680;
 
-  --shadow-dropdown: 0 12px 36px rgba(0, 0, 0, 0.45);
+  --shadow-dropdown: 0 12px 32px rgba(8, 14, 24, 0.5);
 
-  --login-page-bg: #0f1419;
-  --login-card: #1a222d;
-  --login-border: #2c3644;
-  --login-muted: #9aa5b5;
-  --login-text: #e8edf4;
-  --login-input-bg: #151b24;
-  --login-input-border: #3d4a5c;
-  --login-error-bg: rgba(239, 45, 82, 0.15);
-  --login-error-border: rgba(239, 45, 82, 0.4);
+  --login-page-bg: #141c29;
+  --login-card: #212d3f;
+  --login-border: #3a4a5f;
+  --login-muted: #97a7ba;
+  --login-text: #d3dce8;
+  --login-input-bg: #1b2537;
+  --login-input-border: #526680;
+  --login-error-bg: rgba(225, 73, 95, 0.16);
+  --login-error-border: rgba(225, 73, 95, 0.38);
 
-  --warning-bg: rgba(217, 119, 6, 0.16);
-  --warning-border: rgba(245, 179, 1, 0.4);
-  --warning-text: #fcd34d;
-  --danger-soft-bg: rgba(239, 45, 82, 0.12);
-  --success-soft-bg: rgba(5, 150, 105, 0.14);
+  --warning-bg: rgba(224, 174, 74, 0.14);
+  --warning-border: rgba(224, 174, 74, 0.34);
+  --warning-text: #e8c179;
+  --danger-soft-bg: rgba(225, 73, 95, 0.13);
+  --success-soft-bg: rgba(95, 191, 155, 0.14);
+
+  /* ---- Page-level tokens (see the light block for why these exist) ---- */
+  --bg-sunken: #2a384c;
+  --border-soft: #2d3a4e;
+
+  --text-body: #b8c5d5;
+  --text-danger: #f09aa6;
+  --text-success: #7fd3b4;
+  --text-info: #a8cdec;
+
+  --tint-red: rgba(225, 73, 95, 0.18);
+  --tint-green: rgba(95, 191, 155, 0.18);
+  --tint-blue: rgba(127, 181, 230, 0.2);
+  --tint-amber: rgba(224, 174, 74, 0.18);
+  --tint-blue-soft: rgba(127, 181, 230, 0.11);
+  --tint-amber-soft: rgba(224, 174, 74, 0.1);
+
+  --ink-red: #f09aa6;
+  --ink-green: #7fd3b4;
+  --ink-blue: #a8cdec;
+  --ink-amber: #e8bd7c;
+
+  --line-red: rgba(225, 73, 95, 0.36);
+  --line-green: rgba(95, 191, 155, 0.36);
+  --line-blue: rgba(127, 181, 230, 0.38);
+  --line-amber: rgba(224, 174, 74, 0.36);
+
+  --tint-violet: rgba(167, 139, 250, 0.2);
+  --tint-violet-soft: rgba(167, 139, 250, 0.12);
+  --ink-violet: #c4b2f7;
+
+  --bg-contrast: #34455b;
+  /* ---- Generated page tokens (dark) — see the light block ---- */
+  --fill-amber-100: rgba(216, 194, 100, 0.17);
+  --fill-blue-100: rgba(100, 142, 216, 0.17);
+  --fill-blue-200: rgba(100, 153, 216, 0.17);
+  --fill-blue-700: rgba(100, 145, 216, 0.17);
+  --fill-blue-700-2: rgba(100, 148, 216, 0.17);
+  --fill-blue-900: rgba(100, 142, 216, 0.17);
+  --fill-fuchsia-100: rgba(216, 100, 166, 0.17);
+  --fill-green-100: rgba(100, 216, 157, 0.17);
+  --fill-indigo-100: rgba(124, 100, 216, 0.17);
+  --fill-orange-100: rgba(216, 175, 100, 0.17);
+  --fill-orange-100-2: rgba(216, 166, 100, 0.17);
+  --fill-orange-200: rgba(216, 162, 100, 0.17);
+  --fill-red-100: rgba(216, 100, 100, 0.17);
+  --fill-red-100-2: rgba(216, 100, 100, 0.17);
+  --fill-sky-100: rgba(100, 170, 216, 0.17);
+  --fill-sky-100-2: rgba(100, 176, 216, 0.17);
+  --fill-sky-100-3: rgba(100, 201, 216, 0.17);
+  --fill-sky-100-4: rgba(100, 170, 216, 0.17);
+  --fill-slate-200: #34455b;
+  --fill-slate-900: #34455b;
+  --fill-teal-100: rgba(100, 210, 216, 0.17);
+  --fill-teal-100-2: rgba(100, 216, 191, 0.17);
+  --fill-violet-100: rgba(163, 100, 216, 0.17);
+  --ink-amber-600: #e9cb8b;
+  --ink-blue-300: #9db5d7;
+  --ink-blue-400: #8bafe9;
+  --ink-blue-500: #9db5d7;
+  --ink-blue-600: #8ba1e9;
+  --ink-blue-700: #9db5d7;
+  --ink-blue-700-2: #8ea5e6;
+  --ink-blue-800: #9db5d7;
+  --ink-blue-800-2: #96b5de;
+  --ink-blue-800-3: #9db3d7;
+  --ink-blue-900: #9db2d7;
+  --ink-green-500: #8be9ae;
+  --ink-green-800: #8ee6b0;
+  --ink-green-800-2: #90e4b1;
+  --ink-indigo-400: #918be9;
+  --ink-indigo-500: #9892e2;
+  --ink-indigo-600: #9995e0;
+  --ink-orange-500: #e9ab8b;
+  --ink-orange-500-2: #e9c68b;
+  --ink-orange-600: #e9bd8b;
+  --ink-orange-600-2: #e9a78b;
+  --ink-orange-700: #e9a38b;
+  --ink-orange-700-2: #e9c88b;
+  --ink-orange-700-3: #e9bd8b;
+  --ink-orange-700-4: #e9b88b;
+  --ink-orange-700-5: #e9a38b;
+  --ink-orange-700-6: #e9c38b;
+  --ink-orange-700-7: #e9ad8b;
+  --ink-red-400: #e98b8b;
+  --ink-red-500: #e78d8d;
+  --ink-red-500-2: #e98b8b;
+  --ink-red-600: #e98b8b;
+  --ink-red-700: #e58f8f;
+  --ink-rose-600: #e98bb2;
+  --ink-rose-600-2: #e98b94;
+  --ink-rose-600-3: #e98b94;
+  --ink-rose-600-4: #e98bb1;
+  --ink-rose-600-5: #e98b9e;
+  --ink-rose-700: #e98ba5;
+  --ink-rose-700-2: #e98b9b;
+  --ink-rose-700-3: #e98ba8;
+  --ink-sky-600: #8bc3e9;
+  --ink-sky-600-2: #8bd7e9;
+  --ink-sky-700: #8bc8e9;
+  --ink-sky-700-2: #8bd5e9;
+  --ink-sky-700-3: #8bc8e9;
+  --ink-slate-200: #8797ab;
+  --ink-slate-200-2: #8797ab;
+  --ink-slate-400: #8797ab;
+  --ink-slate-400-2: #8797ab;
+  --ink-slate-600: #b8c5d5;
+  --ink-slate-600-2: #b8c5d5;
+  --ink-slate-700: #b8c5d5;
+  --ink-slate-700-2: #b8c5d5;
+  --ink-slate-800: #d3dce8;
+  --ink-slate-900: #d3dce8;
+  --ink-slate-900-2: #d3dce8;
+  --ink-teal-600: #8be9ca;
+  --ink-teal-700: #8be9cc;
+  --ink-teal-700-2: #8be9e2;
+  --ink-teal-800: #8be9cf;
+  --ink-teal-800-2: #8be9ce;
+  --ink-teal-800-3: #8be9e3;
+  --ink-violet-400: #bc8be9;
+  --ink-violet-500: #c28be9;
+  --ink-violet-500-2: #b08be9;
+  --ink-violet-500-3: #bd8be9;
+  --ink-violet-600: #b08be9;
+  --ink-violet-600-2: #bf8ce8;
+  --line-amber-200: rgba(216, 187, 100, 0.38);
+  --line-amber-400: rgba(216, 198, 100, 0.38);
+  --line-amber-400-2: rgba(216, 184, 100, 0.38);
+  --line-amber-400-3: rgba(216, 189, 100, 0.38);
+  --line-blue-100: rgba(100, 150, 216, 0.38);
+  --line-blue-100-2: rgba(100, 137, 216, 0.38);
+  --line-blue-100-3: rgba(100, 123, 216, 0.38);
+  --line-blue-100-4: rgba(100, 149, 216, 0.38);
+  --line-blue-100-5: rgba(100, 153, 216, 0.38);
+  --line-blue-100-6: rgba(100, 133, 216, 0.38);
+  --line-blue-200: rgba(100, 155, 216, 0.38);
+  --line-blue-300: rgba(100, 152, 216, 0.38);
+  --line-blue-300-2: rgba(100, 148, 216, 0.38);
+  --line-blue-400: rgba(100, 144, 216, 0.38);
+  --line-green-100: rgba(100, 216, 157, 0.38);
+  --line-green-100-2: rgba(100, 216, 162, 0.38);
+  --line-green-200: rgba(100, 216, 163, 0.38);
+  --line-green-200-2: rgba(100, 216, 145, 0.38);
+  --line-green-200-3: rgba(100, 216, 148, 0.38);
+  --line-green-300: rgba(100, 216, 142, 0.38);
+  --line-green-400: rgba(100, 216, 142, 0.38);
+  --line-indigo-100: rgba(120, 100, 216, 0.38);
+  --line-indigo-100-2: rgba(124, 100, 216, 0.38);
+  --line-indigo-300: rgba(100, 102, 216, 0.38);
+  --line-orange-100: rgba(216, 163, 100, 0.38);
+  --line-orange-200: rgba(216, 162, 100, 0.38);
+  --line-orange-300: rgba(216, 169, 100, 0.38);
+  --line-orange-300-2: rgba(216, 159, 100, 0.38);
+  --line-orange-400: rgba(216, 152, 100, 0.38);
+  --line-red-200: rgba(216, 100, 100, 0.38);
+  --line-red-400: rgba(216, 100, 100, 0.38);
+  --line-rose-100: rgba(216, 100, 114, 0.38);
+  --line-rose-100-2: rgba(216, 100, 118, 0.38);
+  --line-rose-100-3: rgba(216, 100, 114, 0.38);
+  --line-sky-100: rgba(100, 176, 216, 0.38);
+  --line-sky-200: rgba(100, 204, 216, 0.38);
+  --line-slate-100: #3a4a5f;
+  --line-slate-100-2: #3a4a5f;
+  --line-slate-100-3: #2d3a4e;
+  --line-slate-300: #526680;
+  --line-slate-400: #526680;
+  --line-slate-400-2: #526680;
+  --line-slate-900: #526680;
+  --line-slate-900-2: #526680;
+  --line-teal-200: rgba(100, 216, 194, 0.38);
+  --line-teal-300: rgba(100, 216, 170, 0.38);
+  --line-violet-100: rgba(157, 100, 216, 0.38);
+  --line-violet-100-2: rgba(155, 100, 216, 0.38);
+  --line-violet-200: rgba(158, 100, 216, 0.38);
 }
 
 body {

@@ -11,13 +11,13 @@
 .wh-page-header-left h1 {
     font-size: 24px;
     font-weight: 700;
-    color: #111827;
+    color: var(--text-dark);
     margin: 0 0 4px 0;
 }
 
 .wh-page-header-left p {
     font-size: 14px;
-    color: #6b7280;
+    color: var(--text-muted);
     margin: 0;
 }
 
@@ -31,24 +31,24 @@
 /* View toggle */
 .wh-view-toggle {
     display: flex;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
 }
 
 .wh-toggle-btn {
-    background: #fff;
+    background: var(--bg-card);
     border: none;
     padding: 8px 18px;
     font-size: 13px;
     font-weight: 500;
-    color: #6b7280;
+    color: var(--text-muted);
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 }
 
 .wh-toggle-btn:not(:last-child) {
-    border-right: 1px solid #e5e7eb;
+    border-right: 1px solid var(--border-color);
 }
 
 .wh-toggle-btn.active {
@@ -58,8 +58,8 @@
 }
 
 .wh-toggle-btn:not(.active):hover {
-    background: #f3f4f6;
-    color: #374151;
+    background: var(--bg-hover);
+    color: var(--text-body);
 }
 
 .btn-create-warehouse {
@@ -88,10 +88,10 @@
     width: 100%;
     max-width: 340px;
     padding: 9px 14px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 14px;
-    color: #374151;
+    color: var(--text-body);
     outline: none;
     transition: border-color 0.15s;
 }
@@ -109,8 +109,8 @@
 
 /* Individual Card */
 .wh-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 24px;
     transition: box-shadow 0.2s;
@@ -128,13 +128,13 @@
 .wh-card-header h3 {
     font-size: 18px;
     font-weight: 700;
-    color: #111827;
+    color: var(--text-dark);
     margin: 0 0 2px 0;
 }
 
 .wh-code {
     font-size: 13px;
-    color: #9ca3af;
+    color: var(--text-label);
     font-weight: 500;
 }
 
@@ -150,7 +150,7 @@
 .wh-label {
     display: block;
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--text-label);
     font-weight: 500;
     margin-bottom: 2px;
 }
@@ -158,7 +158,7 @@
 .wh-value {
     display: block;
     font-size: 14px;
-    color: #374151;
+    color: var(--text-body);
     font-weight: 500;
 }
 
@@ -177,13 +177,13 @@
 .wh-percent {
     font-size: 14px;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-body);
 }
 
 .wh-progress-bar {
     width: 100%;
     height: 8px;
-    background: #f3f4f6;
+    background: var(--bg-hover);
     border-radius: 4px;
     overflow: hidden;
     margin-bottom: 6px;
@@ -199,7 +199,7 @@
     display: flex;
     gap: 6px;
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--text-label);
 }
 
 /* Card Footer */
@@ -208,12 +208,12 @@
     justify-content: space-between;
     align-items: center;
     padding-top: 16px;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid var(--border-soft);
 }
 
 .wh-status-active {
-    background: #dcfce7;
-    color: #16a34a;
+    background: var(--tint-green);
+    color: var(--text-success);
     padding: 4px 14px;
     border-radius: 20px;
     font-size: 12px;
@@ -221,8 +221,8 @@
 }
 
 .wh-status-inactive {
-    background: #f3f4f6;
-    color: #6b7280;
+    background: var(--bg-hover);
+    color: var(--text-muted);
     padding: 4px 14px;
     border-radius: 20px;
     font-size: 12px;
@@ -241,7 +241,7 @@
 }
 
 .wh-btn-edit-link:hover {
-    color: #a01028;
+    color: var(--ink-rose-700-2);
     text-decoration: underline;
 }
 
@@ -273,7 +273,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 20px 30px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-soft);
 }
 
 .modal-header h2 {
@@ -282,7 +282,7 @@
 }
 
 .close {
-    color: #999;
+    color: var(--ink-slate-400);
     font-size: 32px;
     font-weight: bold;
     cursor: pointer;
@@ -310,7 +310,7 @@ form {
 
 .form-group label {
     display: block;
-    color: #333;
+    color: var(--ink-slate-800);
     font-weight: bold;
     margin-bottom: 8px;
     font-size: 14px;
@@ -320,7 +320,7 @@ form {
 .form-group select {
     width: 100%;
     padding: 10px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--line-slate-100);
     border-radius: 8px;
     font-size: 14px;
     outline: none;
@@ -336,14 +336,14 @@ form {
     justify-content: flex-end;
     gap: 10px;
     padding-top: 20px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border-soft);
 }
 
 .btn-cancel {
     background: white;
-    color: #666;
+    color: var(--ink-slate-600);
     padding: 10px 25px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--line-slate-100);
     border-radius: 8px;
     font-size: 14px;
     font-weight: bold;
@@ -351,7 +351,7 @@ form {
 }
 
 .btn-cancel:hover {
-    background: #f8f9fa;
+    background: var(--bg-muted);
 }
 
 .btn-save {
@@ -371,8 +371,8 @@ form {
 
 /* ── List View ────────────────────────────────────────────── */
 .wh-list-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     overflow: hidden;
     margin-bottom: 20px;
@@ -389,8 +389,8 @@ form {
 }
 
 .wh-table thead {
-    background: #f9fafb;
-    border-bottom: 1px solid #e5e7eb;
+    background: var(--bg-muted);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .wh-table th {
@@ -398,14 +398,14 @@ form {
     text-align: left;
     font-size: 12px;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     white-space: nowrap;
 }
 
 .wh-table tbody tr {
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--border-soft);
     transition: background 0.1s;
 }
 
@@ -414,29 +414,29 @@ form {
 }
 
 .wh-table tbody tr:hover {
-    background: #fafafa;
+    background: var(--bg-muted);
 }
 
 .wh-table td {
     padding: 13px 16px;
-    color: #374151;
+    color: var(--text-body);
     vertical-align: middle;
 }
 
 .wh-td-muted {
-    color: #9ca3af;
+    color: var(--text-label);
     font-size: 13px;
     font-weight: 500;
 }
 
 .wh-td-title {
     font-weight: 600;
-    color: #111827;
+    color: var(--text-dark);
 }
 
 .wh-td-sub {
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--text-label);
     margin-top: 2px;
 }
 
@@ -457,14 +457,14 @@ form {
 .wh-td-capacity-bar {
     width: 100%;
     height: 6px;
-    background: #f3f4f6;
+    background: var(--bg-hover);
     border-radius: 3px;
     overflow: hidden;
 }
 
 .wh-td-capacity-label {
     font-size: 11px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 /* ── Pagination ────────────────────────────────────────────── */
@@ -478,20 +478,20 @@ form {
 }
 
 .wh-page-btn {
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 7px 13px;
     font-size: 13px;
     font-weight: 500;
-    color: #374151;
+    color: var(--text-body);
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
 
 .wh-page-btn:hover:not(:disabled) {
-    background: #f3f4f6;
-    border-color: #d1d5db;
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
 }
 
 .wh-page-btn.active {
@@ -508,7 +508,7 @@ form {
 
 .wh-page-meta {
     font-size: 13px;
-    color: #9ca3af;
+    color: var(--text-label);
     margin-left: 8px;
 }
 

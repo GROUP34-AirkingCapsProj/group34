@@ -92,9 +92,9 @@ const STATUS_TONE = {
 };
 
 const BANNER_STYLE = {
-  green: { bg: '#ecfdf5', border: '#10b981', color: '#065f46' },
-  amber: { bg: '#fffbeb', border: '#f59e0b', color: '#92400e' },
-  red: { bg: '#fef2f2', border: '#ef4444', color: '#991b1b' },
+  green: { bg: '#ecfdf5', border: '#10b981', color: 'var(--ink-teal-800)' },
+  amber: { bg: '#fffbeb', border: '#f59e0b', color: 'var(--warning-text)' },
+  red: { bg: '#fef2f2', border: 'var(--line-red-400)', color: 'var(--ink-red-600)' },
 };
 
 /** A plan row is serialized when any of its suggestions carries a serial. */
@@ -250,7 +250,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   if (!currentStep) {
     return (
       <div className="ak-card" style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
-        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#065f46' }}>All items picked</div>
+        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--ink-teal-800)' }}>All items picked</div>
         <p className="ak-muted" style={{ marginTop: '0.5rem' }}>
           Nothing left to scan on this document.
         </p>
@@ -268,7 +268,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
           textAlign: 'center',
           padding: '1.5rem 1rem',
           transition: 'background 0.2s',
-          background: flash ? '#ecfdf5' : undefined,
+          background: flash ? 'var(--success-soft-bg)' : undefined,
         }}
       >
         <div className="ak-muted" style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -299,8 +299,8 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
               padding: '0.55rem 0.8rem',
               maxWidth: 420,
               borderRadius: 8,
-              background: '#eff6ff',
-              color: '#1e3a8a',
+              background: 'var(--tint-blue-soft)',
+              color: 'var(--ink-blue-700-2)',
               fontWeight: 700,
             }}
           >

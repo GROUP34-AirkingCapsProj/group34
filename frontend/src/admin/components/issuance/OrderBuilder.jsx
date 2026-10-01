@@ -288,9 +288,9 @@ function SetupForm({
                   placeholder="Walk-in customer name *"
                   value={walkInName}
                   onChange={(e) => setWalkInName(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
                 />
-                <p style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
+                <p style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
                   Name will be stored in the order notes. No customer record will be created.
                 </p>
               </div>
@@ -354,7 +354,7 @@ function SetupForm({
             onChange={(e) => setForm((f) => ({ ...f, external_reference: e.target.value }))}
             placeholder="Accounting/POS receipt or invoice number"
           />
-          <p style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
+          <p style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
             Links this inventory DR to the receipt from the separate accounting system. Leave blank if it will be handwritten on the printed copy.
           </p>
         </div>
@@ -368,7 +368,7 @@ function SetupForm({
           <button type="submit" className="isp-btn-primary" disabled={saving || !canIssue}>
             {saving ? 'Starting...' : 'Start Order'}
           </button>
-          {!canIssue && <span style={{ fontSize: 12, color: '#dc2626', marginLeft: 8 }}>You do not have permission to issue stock.</span>}
+          {!canIssue && <span style={{ fontSize: 12, color: 'var(--text-danger)', marginLeft: 8 }}>You do not have permission to issue stock.</span>}
         </div>
       </form>
 
@@ -626,7 +626,7 @@ function LineRow({ line, disabled, onUpdate, onRemove }) {
         <div className="ak-muted" style={{ fontSize: '0.8rem' }}>
           {fmtMoney(line.unit_price)} each
           {line.is_short && (
-            <span style={{ color: '#b91c1c', marginLeft: '0.5rem' }}>
+            <span style={{ color: 'var(--ink-red)', marginLeft: '0.5rem' }}>
               Only {line.available} available — short by {line.short_by}
             </span>
           )}
@@ -778,7 +778,7 @@ export default function OrderBuilder({
       <div className="ak-card" style={{ padding: '1rem' }}>
         <h2 className="isp-card-title" style={{ marginTop: 0 }}>Order Lines</h2>
         {!hasLines ? (
-          <div style={{ textAlign: 'center', padding: '28px 0', color: '#9ca3af', fontSize: 14 }}>
+          <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-label)', fontSize: 14 }}>
             No lines yet. Add a set or custom item above.
           </div>
         ) : (

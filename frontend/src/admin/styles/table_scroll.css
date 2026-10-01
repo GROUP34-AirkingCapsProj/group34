@@ -230,8 +230,8 @@
    ak-table treatment and now match the rest of the admin.
    ============================================================================ */
 .table-wrapper {
-  background: var(--ak-card, #fff);
-  border: 1px solid var(--ak-line, #e7e9f1);
+  background: var(--ak-card);
+  border: 1px solid var(--ak-line);
   border-radius: var(--ak-radius, 16px);
   box-shadow: var(--ak-shadow-lg, 0 10px 30px rgba(20, 24, 31, 0.08));
 }
@@ -249,16 +249,16 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ak-ink-faint, #939aa8);
+  color: var(--ak-ink-faint);
   padding: 0.8rem 0.95rem;
-  border-bottom: 1px solid var(--ak-line, #e7e9f1);
+  border-bottom: 1px solid var(--ak-line);
   white-space: nowrap;
-  background: #fbfbfe;
+  background: var(--bg-muted);
 }
 
 .data-table tbody td {
   padding: 0.75rem 0.95rem;
-  border-bottom: 1px solid var(--ak-line-soft, #eff1f7);
+  border-bottom: 1px solid var(--ak-line-soft);
   font-size: 0.88rem;
   vertical-align: middle;
 }
@@ -268,7 +268,7 @@
 }
 
 .data-table tbody tr:hover {
-  background: var(--ak-band, #f7f8fc);
+  background: var(--ak-band);
 }
 
 .data-table tbody tr:last-child td {
@@ -277,7 +277,7 @@
 
 .data-table .table-empty {
   text-align: center;
-  color: var(--ak-ink-soft, #5b6472);
+  color: var(--ak-ink-soft);
   padding: 2rem 0.95rem;
 }
 

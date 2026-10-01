@@ -95,7 +95,7 @@ export default function IncidentItemsStep({
 
       <fieldset
         className="ak-card"
-        style={{ border: '1px solid var(--ak-border, #ddd)', padding: '0.75rem', margin: 0 }}
+        style={{ border: '1px solid var(--line-slate-100)', padding: '0.75rem', margin: 0 }}
       >
         <legend className="ak-label" style={{ padding: '0 0.35rem' }}>Unit 1</legend>
 
@@ -236,7 +236,7 @@ function ExtraUnitRow({ row, index, products, batches, batchesLoading, locationI
   return (
     <fieldset
       className="ak-card"
-      style={{ border: '1px solid var(--ak-border, #ddd)', padding: '0.75rem', margin: 0 }}
+      style={{ border: '1px solid var(--line-slate-100)', padding: '0.75rem', margin: 0 }}
     >
       <legend className="ak-label" style={{ padding: '0 0.35rem' }}>Unit {index}</legend>
 

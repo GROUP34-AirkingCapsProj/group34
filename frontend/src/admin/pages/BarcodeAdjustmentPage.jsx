@@ -178,8 +178,8 @@ const TypeBadge = ({ type }) => {
   return (
     <span style={{
       display: 'inline-block', padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700,
-      background: isSerialized ? '#eff6ff' : '#f0fdf4',
-      color: isSerialized ? '#2563eb' : '#15803d',
+      background: isSerialized ? 'var(--tint-blue-soft)' : 'var(--success-soft-bg)',
+      color: isSerialized ? 'var(--text-info)' : 'var(--ink-green)',
     }}>
       {isSerialized ? 'Appliance' : 'Installation Material'}
     </span>
@@ -259,22 +259,22 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
       style={{
         padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
         border: '1px solid', transition: 'all 0.1s',
-        background: filterType === key ? '#DC143C' : '#f9fafb',
-        borderColor: filterType === key ? '#DC143C' : '#e5e7eb',
-        color: filterType === key ? '#fff' : '#6b7280',
+        background: filterType === key ? '#DC143C' : 'var(--bg-muted)',
+        borderColor: filterType === key ? '#DC143C' : 'var(--border-color)',
+        color: filterType === key ? '#fff' : 'var(--text-muted)',
       }}
     >{label}</button>
   );
 
   return (
     <div ref={panelRef} style={{ position: 'relative' }}>
-      <Label>Corrected Product <span style={{ color: '#dc2626' }}>*</span></Label>
+      <Label>Corrected Product <span style={{ color: 'var(--text-danger)' }}>*</span></Label>
 
       {/* Trigger / selected display */}
       {selectedProduct ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', border: '1px solid #10b981', borderRadius: 8, background: '#f0fdf4' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', border: '1px solid #10b981', borderRadius: 8, background: 'var(--success-soft-bg)' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {(selectedProduct.unit_role === 'indoor' || selectedProduct.unit_role === 'outdoor') && (
                 <span style={{
                   display: 'inline-block', marginRight: 6, padding: '1px 6px',
@@ -287,7 +287,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
               )}
               {selectedProduct.product_name}
             </div>
-            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
               {selectedProduct.appliance_detail?.brand?.brand_name
                 ? `${selectedProduct.appliance_detail.brand.brand_name}${selectedProduct.appliance_detail.capacity_rating ? ' · ' + selectedProduct.appliance_detail.capacity_rating : ''}`
                 : selectedProduct.installation_material_detail?.unit?.unit_name ?? ''}
@@ -296,7 +296,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
             </div>
           </div>
           <button type="button" onClick={() => { clear(); setOpen(true); }}
-            style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid #d1d5db', background: '#fff', color: '#374151', whiteSpace: 'nowrap' }}>
+            style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-body)', whiteSpace: 'nowrap' }}>
             Change
           </button>
         </div>
@@ -304,7 +304,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
         <button
           type="button"
           onClick={() => setOpen(v => !v)}
-          style={{ width: '100%', padding: '10px 13px', border: '1px dashed #d1d5db', borderRadius: 8, fontSize: 13, background: '#fafafa', color: '#9ca3af', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          style={{ width: '100%', padding: '10px 13px', border: '1px dashed var(--border-strong)', borderRadius: 8, fontSize: 13, background: 'var(--bg-muted)', color: 'var(--text-label)', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         >
           <span>Click to select product...</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
@@ -317,7 +317,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
       {open && (
         <div className="ba-picker-panel">
           {/* Filter controls */}
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid #f3f4f6' }}>
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border-soft)' }}>
             {/* Type toggle */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
               {TAB_BTN('all', 'All')}
@@ -328,7 +328,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
             {/* Category + Brand row */}
             <div style={{ display: 'grid', gridTemplateColumns: filterType !== 'installation_material' ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 8 }}>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.4, marginBottom: 4 }}>CATEGORY</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-label)', letterSpacing: 0.4, marginBottom: 4 }}>CATEGORY</div>
                 <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="baj-select" style={{ padding: '7px 10px', fontSize: 12 }}>
                   <option value="">All Categories</option>
                   {categories.map(c => (
@@ -338,7 +338,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
               </div>
               {filterType !== 'installation_material' && (
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.4, marginBottom: 4 }}>BRAND</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-label)', letterSpacing: 0.4, marginBottom: 4 }}>BRAND</div>
                   <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="baj-select" style={{ padding: '7px 10px', fontSize: 12 }}>
                     <option value="">All Brands</option>
                     {brandOptions.map(b => (
@@ -369,7 +369,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
           {/* Results list */}
           <div style={{ maxHeight: 280, overflowY: 'auto' }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '20px 16px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+              <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-label)', fontSize: 13 }}>
                 No products match the filters.
               </div>
             )}
@@ -395,14 +395,14 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
                   key={p.product_id}
                   onClick={() => pick(p)}
                   style={{
-                    padding: '10px 16px', cursor: 'pointer', borderBottom: '1px solid #f9fafb',
+                    padding: '10px 16px', cursor: 'pointer', borderBottom: '1px solid var(--border-soft)',
                     display: 'flex', alignItems: 'center', gap: 12,
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {half && (
                         <span style={{
                           display: 'inline-block', marginRight: 6, padding: '1px 6px',
@@ -415,10 +415,10 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
                       {p.product_name}
                     </div>
                     {subtitle && (
-                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{subtitle}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{subtitle}</div>
                     )}
                     {catName && (
-                      <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>{catName}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-label)', marginTop: 1 }}>{catName}</div>
                     )}
                   </div>
                   <TypeBadge type={p.product_type} />
@@ -428,7 +428,7 @@ function ProductPicker({ products, categories, onSelect, selectedId }) {
           </div>
 
           {filtered.length === 60 && (
-            <div style={{ padding: '8px 16px', borderTop: '1px solid #f3f4f6', fontSize: 11, color: '#9ca3af', textAlign: 'center' }}>
+            <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border-soft)', fontSize: 11, color: 'var(--text-label)', textAlign: 'center' }}>
               Showing first 60 results — refine filters to narrow down
             </div>
           )}
@@ -1010,8 +1010,8 @@ export default function BarcodeAdjustmentPage() {
           )}
 
           {cameraBlockedPlainHttp && (
-            <div className="baj-hint-card" style={{ margin: '0 0 0 0', borderRadius: 0, border: 'none', borderTop: '1px solid #FECDD3', background: '#fffbeb' }}>
-              <span style={{ fontSize: 12, color: '#b45309' }}>Camera is only available on localhost or HTTPS. Use the text input below.</span>
+            <div className="baj-hint-card" style={{ margin: '0 0 0 0', borderRadius: 0, border: 'none', borderTop: '1px solid var(--line-rose-100)', background: 'var(--warning-bg)' }}>
+              <span style={{ fontSize: 12, color: 'var(--ink-amber)' }}>Camera is only available on localhost or HTTPS. Use the text input below.</span>
             </div>
           )}
 
@@ -1053,7 +1053,7 @@ export default function BarcodeAdjustmentPage() {
 
               {/* PO visible list selector */}
               <div>
-                <Label>Purchase Order <span style={{ color: '#dc2626' }}>*</span></Label>
+                <Label>Purchase Order <span style={{ color: 'var(--text-danger)' }}>*</span></Label>
 
                 {selectedPO && (
                   <div className="baj-po-badge">
@@ -1083,7 +1083,7 @@ export default function BarcodeAdjustmentPage() {
 
                 <div className="baj-po-list">
                   {filteredPOs.length === 0 && (
-                    <div style={{ padding: '16px 14px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No purchase orders found.</div>
+                    <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--text-label)', fontSize: 13 }}>No purchase orders found.</div>
                   )}
                   {filteredPOs.map(po => {
                     const isSel = selectedPO?.po_id === po.po_id;
@@ -1116,7 +1116,7 @@ export default function BarcodeAdjustmentPage() {
 
               {/* Location */}
               <div>
-                <Label>Location <span style={{ color: '#dc2626' }}>*</span></Label>
+                <Label>Location <span style={{ color: 'var(--text-danger)' }}>*</span></Label>
                 {isStrictLocation ? (
                   <LocationBadge locationName={locationName} locationType={locationType} />
                 ) : (
@@ -1149,40 +1149,40 @@ export default function BarcodeAdjustmentPage() {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: '#fafafa', borderBottom: '1px solid #f3f4f6' }}>
+                  <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border-soft)' }}>
                     {['', 'Scanned Barcode', 'Product', 'Type', 'Qty', 'Received At'].map((h, i) => (
-                      <th key={i} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={i} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 10, fontWeight: 700, color: 'var(--text-label)', letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {poData.receiving_details?.length === 0 && (
-                    <tr><td colSpan={6} style={{ padding: '24px 14px', textAlign: 'center', color: '#9ca3af' }}>No scan records for this PO.</td></tr>
+                    <tr><td colSpan={6} style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--text-label)' }}>No scan records for this PO.</td></tr>
                   )}
                   {poData.receiving_details?.map(row => {
                     const isSel = selectedRow?.receiving_detail_id === row.receiving_detail_id;
                     return (
                       <tr key={row.receiving_detail_id} onClick={() => selectRow(row)}
-                        style={{ borderBottom: '1px solid #f9fafb', background: isSel ? '#FFF0F2' : 'transparent', cursor: 'pointer' }}
+                        style={{ borderBottom: '1px solid var(--border-soft)', background: isSel ? 'var(--danger-soft-bg)' : 'transparent', cursor: 'pointer' }}
                         onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#f9fafb'; }}
                         onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = isSel ? '#FFF0F2' : 'transparent'; }}>
                         <td style={{ padding: '10px 14px', width: 32 }}>
-                          <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${isSel ? '#DC143C' : '#d1d5db'}`, background: isSel ? '#DC143C' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {isSel && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                          <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${isSel ? '#DC143C' : 'var(--border-strong)'}`, background: isSel ? '#DC143C' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {isSel && <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bg-card)' }} />}
                           </div>
                         </td>
                         <td style={{ padding: '10px 14px' }}>
-                          <code style={{ fontSize: 12, background: '#f3f4f6', borderRadius: 4, padding: '2px 6px', color: '#374151' }}>
+                          <code style={{ fontSize: 12, background: 'var(--bg-hover)', borderRadius: 4, padding: '2px 6px', color: 'var(--text-body)' }}>
                             {row.scanned_barcode ?? '—'}
                           </code>
                         </td>
                         <td style={{ padding: '10px 14px' }}>
-                          <div style={{ fontWeight: 600, color: '#111827' }}>{row.product_name ?? '—'}</div>
-                          {row.brand_name && <div style={{ fontSize: 11, color: '#9ca3af' }}>{row.brand_name}</div>}
+                          <div style={{ fontWeight: 600, color: 'var(--text-dark)' }}>{row.product_name ?? '—'}</div>
+                          {row.brand_name && <div style={{ fontSize: 11, color: 'var(--text-label)' }}>{row.brand_name}</div>}
                         </td>
                         <td style={{ padding: '10px 14px' }}><TypeBadge type={row.product_type} /></td>
                         <td style={{ padding: '10px 14px', fontWeight: 600 }}>{row.quantity_amount}</td>
-                        <td style={{ padding: '10px 14px', color: '#9ca3af', fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(row.created_at)}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-label)', fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(row.created_at)}</td>
                       </tr>
                     );
                   })}
@@ -1235,7 +1235,7 @@ export default function BarcodeAdjustmentPage() {
                   )}
                 </div>
                 <div>
-                  <Label>Correction Type <span style={{ color: '#dc2626' }}>*</span></Label>
+                  <Label>Correction Type <span style={{ color: 'var(--text-danger)' }}>*</span></Label>
                   <select className="baj-select" value={correctionType} onChange={e => { setCorrectionType(e.target.value); setPreview(null); }}>
                     {CORRECTION_TYPES.map(ct => (
                       <option key={ct.value} value={ct.value}>{ct.label}</option>
@@ -1256,7 +1256,7 @@ export default function BarcodeAdjustmentPage() {
 
               {/* Reason with presets */}
               <div style={{ marginBottom: 16 }}>
-                <Label>Reason <span style={{ color: '#dc2626' }}>*</span></Label>
+                <Label>Reason <span style={{ color: 'var(--text-danger)' }}>*</span></Label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                   {PRESET_REASONS.map((pr, i) => (
                     <button key={i} type="button"
@@ -1271,7 +1271,7 @@ export default function BarcodeAdjustmentPage() {
                   value={reason} onChange={e => { setReason(e.target.value); setPreview(null); }}
                   rows={2} placeholder="Or type a custom reason (min 10 characters)…"
                 />
-                <div style={{ fontSize: 11, color: reason.length < 10 ? '#dc2626' : '#10b981', marginTop: 3 }}>
+                <div style={{ fontSize: 11, color: reason.length < 10 ? 'var(--text-danger)' : 'var(--ink-teal-600)', marginTop: 3 }}>
                   {reason.length < 10 ? `${reason.length} / 10 min characters` : '✓ Reason accepted'}
                 </div>
               </div>
@@ -1298,27 +1298,27 @@ export default function BarcodeAdjustmentPage() {
                     <div className="baj-preview-before">
                       <div className="baj-preview-badge baj-preview-badge--rm">ORIGINAL (BEING REMOVED)</div>
                       <div style={{ fontWeight: 600 }}>{preview.original?.product_name}</div>
-                      <div style={{ color: '#6b7280', marginTop: 2 }}>Barcode: {preview.original?.barcode ?? '—'}</div>
-                      <div style={{ color: '#6b7280' }}>Qty: {preview.original?.quantity}</div>
+                      <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Barcode: {preview.original?.barcode ?? '—'}</div>
+                      <div style={{ color: 'var(--text-muted)' }}>Qty: {preview.original?.quantity}</div>
                     </div>
                     <div className="baj-preview-after">
                       <div className="baj-preview-badge baj-preview-badge--add">CORRECTED (WILL BE APPLIED)</div>
                       <div style={{ fontWeight: 600 }}>{preview.corrected?.product_name}</div>
-                      <div style={{ color: '#6b7280', marginTop: 2 }}>Type: {preview.corrected?.is_serialized ? 'Appliance (serialized)' : 'Installation Material'}</div>
-                      <div style={{ color: '#6b7280' }}>Qty after: {preview.corrected?.quantity_after}</div>
+                      <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Type: {preview.corrected?.is_serialized ? 'Appliance (serialized)' : 'Installation Material'}</div>
+                      <div style={{ color: 'var(--text-muted)' }}>Qty after: {preview.corrected?.quantity_after}</div>
                     </div>
                   </div>
                   <ul style={{ margin: '0 0 16px', paddingLeft: 18 }}>
                     {preview.changes_that_will_occur?.map((c, i) => (
-                      <li key={i} style={{ fontSize: 12, color: '#374151', marginBottom: 4 }}>{c}</li>
+                      <li key={i} style={{ fontSize: 12, color: 'var(--text-body)', marginBottom: 4 }}>{c}</li>
                     ))}
                   </ul>
                   <div className="ba-submit-row">
                     <button className="baj-btn-primary" onClick={handleSubmit} disabled={submitting || !effectiveLocationId || !canSubmitCorrection}>
                       {submitting ? 'Submitting…' : 'Confirm & Submit Correction'}
                     </button>
-                    {!effectiveLocationId && <span style={{ fontSize: 12, color: '#dc2626' }}>Select a location in Step 1 first.</span>}
-                    {effectiveLocationId && !canSubmitCorrection && <span style={{ fontSize: 12, color: '#dc2626' }}>You do not have permission to submit corrections.</span>}
+                    {!effectiveLocationId && <span style={{ fontSize: 12, color: 'var(--text-danger)' }}>Select a location in Step 1 first.</span>}
+                    {effectiveLocationId && !canSubmitCorrection && <span style={{ fontSize: 12, color: 'var(--text-danger)' }}>You do not have permission to submit corrections.</span>}
                   </div>
                 </div>
               )}
@@ -1341,47 +1341,47 @@ export default function BarcodeAdjustmentPage() {
               </div>
             </div>
             {!historyLoading && history.length === 0 ? (
-              <div style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No corrections made for this PO yet.</div>
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-label)', fontSize: 13 }}>No corrections made for this PO yet.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
-                    <tr style={{ background: '#fafafa', borderBottom: '1px solid #f3f4f6' }}>
+                    <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border-soft)' }}>
                       {['Adjustment #', 'Date', 'Type', 'Original → Corrected', 'By', 'Status'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 10, fontWeight: 700, color: 'var(--text-label)', letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {history.map(adj => (
-                      <tr key={adj.adjustment_id} style={{ borderBottom: '1px solid #f9fafb' }}>
+                      <tr key={adj.adjustment_id} style={{ borderBottom: '1px solid var(--border-soft)' }}>
                         <td style={{ padding: '10px 14px' }}>
-                          <code style={{ fontSize: 11, background: '#f3f4f6', borderRadius: 4, padding: '2px 6px', color: '#374151' }}>{adj.adjustment_number}</code>
+                          <code style={{ fontSize: 11, background: 'var(--bg-hover)', borderRadius: 4, padding: '2px 6px', color: 'var(--text-body)' }}>{adj.adjustment_number}</code>
                         </td>
-                        <td style={{ padding: '10px 14px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtDate(adj.adjustment_date)}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(adj.adjustment_date)}</td>
                         <td style={{ padding: '10px 14px' }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FFF0F2', color: '#DC143C' }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'var(--danger-soft-bg)', color: '#DC143C' }}>
                             {adj.adjustment_type === 'barcode_correction' ? 'Barcode Fix' : adj.adjustment_type}
                           </span>
                         </td>
                         <td style={{ padding: '10px 14px' }}>
                           {adj.corrections?.map(c => (
                             <div key={c.correction_id} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ color: '#dc2626' }}>{c.original_product?.product_name ?? c.original_barcode ?? '—'}</span>
+                              <span style={{ color: 'var(--text-danger)' }}>{c.original_product?.product_name ?? c.original_barcode ?? '—'}</span>
                               <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" width="12" height="12"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                              <span style={{ color: '#059669' }}>{c.corrected_product?.product_name ?? c.corrected_barcode ?? '—'}</span>
+                              <span style={{ color: 'var(--ink-teal-700)' }}>{c.corrected_product?.product_name ?? c.corrected_barcode ?? '—'}</span>
                             </div>
-                          )) ?? <span style={{ color: '#9ca3af' }}>—</span>}
+                          )) ?? <span style={{ color: 'var(--text-label)' }}>—</span>}
                         </td>
-                        <td style={{ padding: '10px 14px', color: '#374151' }}>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-body)' }}>
                           {adj.created_by_user?.first_name
                             ? `${adj.created_by_user.first_name} ${adj.created_by_user.last_name ?? ''}`.trim()
                             : adj.created_by_user?.username ?? '—'}
                         </td>
                         <td style={{ padding: '10px 14px' }}>
                           <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
-                            background: adj.status?.status_name === 'Approved' ? '#ecfdf5' : '#fff7ed',
-                            color: adj.status?.status_name === 'Approved' ? '#059669' : '#b45309' }}>
+                            background: adj.status?.status_name === 'Approved' ? 'var(--success-soft-bg)' : 'var(--tint-amber-soft)',
+                            color: adj.status?.status_name === 'Approved' ? 'var(--ink-teal-700)' : 'var(--ink-amber)' }}>
                             {adj.status?.status_name ?? 'Pending'}
                           </span>
                         </td>

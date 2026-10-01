@@ -55,6 +55,30 @@ class AuthController extends Controller
     }
 
     /**
+     * What to tell the user to go and check when a code could not be sent.
+     *
+     * A person who cannot sign in reads this sentence and acts on it, so it has
+     * to name the thing that is actually broken. The single Brevo-credentials
+     * wording this replaced was printed for every failure including a failed
+     * DNS lookup, which sent an admin auditing an SMTP key that was valid.
+     *
+     * Kept vague about our infrastructure on purpose -- this text is served to
+     * anyone who reaches the login form, including someone who only guessed the
+     * password, so it must not confirm which mail provider we use or when it is
+     * down.
+     */
+    private function otpDeliveryAdvice(?string $failure): string
+    {
+        return match ($failure) {
+            LoginOtpIssuer::FAILURE_NETWORK => 'This looks like a network error -- '
+                .'the mail server could not be reached. Check your internet connection and try again.',
+            LoginOtpIssuer::FAILURE_AUTH => 'The mail server rejected our credentials. '
+                .'Ask an administrator to check the mail settings, then try again.',
+            default => 'Please try again, and contact an administrator if it keeps happening.',
+        };
+    }
+
+    /**
      * Record that a second-factor code was issued and the login is pending.
      *
      * Deliberately NOT logLoginAttempt(): that routes every unsuccessful call
@@ -264,15 +288,15 @@ class AuthController extends Controller
             // Logged as unsuccessful because the password was right but the
             // login is not finished; calling it a success would make the
             // activity log claim an authentication that never completed.
-            if (! app(LoginOtpIssuer::class)->issue($user)) {
+            if (! app(LoginOtpIssuer::class)->issue($user, $failure)) {
                 $this->logOtpIssued($request, $user, false);
 
                 // Fail closed. No code was delivered, so no code can be entered.
                 $dest = $user->recovery_email ?: 'your recovery email';
 
                 return response()->json([
-                    'message' => 'We could not send your login code to '.$dest
-                        .'. Check mail settings (Brevo SMTP login/key and verified sender), then try again.',
+                    'message' => 'We could not send your login code to '.$dest.'. '
+                        .$this->otpDeliveryAdvice($failure),
                 ], 503);
             }
 
@@ -383,11 +407,12 @@ class AuthController extends Controller
 
         $user->fill(['recovery_email' => $validated['recovery_email']])->save();
 
-        if (! app(LoginOtpIssuer::class)->issue($user)) {
+        if (! app(LoginOtpIssuer::class)->issue($user, $failure)) {
             $this->logOtpIssued($request, $user, false);
 
             return response()->json([
-                'message' => 'Recovery email saved, but the login code could not be sent. Try signing in again.',
+                'message' => 'Recovery email saved, but the login code could not be sent. '
+                    .$this->otpDeliveryAdvice($failure),
             ], 503);
         }
 

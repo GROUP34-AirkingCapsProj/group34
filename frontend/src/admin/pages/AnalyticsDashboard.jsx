@@ -137,7 +137,7 @@ const AnalyticsDashboard = () => {
     labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
     datasets: [{
       data: weeklyMovement,
-      backgroundColor: '#e5e7eb',
+      backgroundColor: 'var(--bg-sunken)',
       borderRadius: 4,
       barThickness: 40,
     }],
@@ -148,7 +148,7 @@ const AnalyticsDashboard = () => {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 12 } } },
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 12 } } },
       y: { display: false, grid: { display: false } },
     },
   }), []);
@@ -157,7 +157,7 @@ const AnalyticsDashboard = () => {
     labels: branchPerformanceData.map(b => b.name),
     datasets: [{
       data: branchPerformanceData.map(b => b.efficiencyScore),
-      backgroundColor: '#e5e7eb',
+      backgroundColor: 'var(--bg-sunken)',
       borderRadius: 4,
       barThickness: 40,
     }],
@@ -168,11 +168,11 @@ const AnalyticsDashboard = () => {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 } } },
       y: {
         display: true,
         grid: { color: '#f3f4f6' },
-        ticks: { color: '#9ca3af', font: { size: 11 } },
+        ticks: { color: 'var(--text-label)', font: { size: 11 } },
         min: 0,
         max: 100,
       },
@@ -316,7 +316,7 @@ const AnalyticsDashboard = () => {
 
           <div className="items-list">
             {criticalItems.length === 0 ? (
-              <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No critical or low stock items</p>
+              <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No critical or low stock items</p>
             ) : (
               criticalItems.map((item, index) => (
                 <div key={index} className="item-row critical-item">
@@ -343,7 +343,7 @@ const AnalyticsDashboard = () => {
 
           <div className="items-list">
             {overstockItems.length === 0 ? (
-              <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No overstock items</p>
+              <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No overstock items</p>
             ) : (
               overstockItems.map((item, index) => (
                 <div key={index} className="item-row overstock-item">
@@ -440,7 +440,7 @@ const AnalyticsDashboard = () => {
 
           <div className="movement-items-list">
             {fastMovingItems.length === 0 ? (
-              <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No fast-moving items detected</p>
+              <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No fast-moving items detected</p>
             ) : (
               fastMovingItems.map((item, index) => (
                 <div key={index} className="movement-item-row">
@@ -466,7 +466,7 @@ const AnalyticsDashboard = () => {
 
           <div className="movement-items-list">
             {slowMovingItems.length === 0 ? (
-              <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No slow-moving items detected</p>
+              <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No slow-moving items detected</p>
             ) : (
               slowMovingItems.map((item, index) => (
                 <div key={index} className="movement-item-row">
@@ -505,7 +505,7 @@ const AnalyticsDashboard = () => {
             <tbody>
               {consumptionData.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                  <td colSpan="5" style={{ textAlign: 'center', color: 'var(--ink-slate-400)', padding: '24px' }}>
                     No consumption data available
                   </td>
                 </tr>
@@ -608,7 +608,7 @@ const AnalyticsDashboard = () => {
 
         <div className="pred-timeline-list">
           {stockoutTimeline.length === 0 ? (
-            <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No items predicted to stock out within 30 days</p>
+            <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No items predicted to stock out within 30 days</p>
           ) : (
             stockoutTimeline.map((item, index) => (
               <div key={index} className="pred-timeline-item">
@@ -655,7 +655,7 @@ const AnalyticsDashboard = () => {
             <tbody>
               {restockRecommendations.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', color: 'var(--ink-slate-400)', padding: '24px' }}>
                     No restocking recommendations
                   </td>
                 </tr>
@@ -808,7 +808,7 @@ const AnalyticsDashboard = () => {
 
           <div className="loss-branch-list">
             {lossByBranch.length === 0 ? (
-              <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No loss data by location</p>
+              <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No loss data by location</p>
             ) : (
               lossByBranch.map((branch, index) => (
                 <div key={index} className="loss-branch-item">
@@ -830,7 +830,7 @@ const AnalyticsDashboard = () => {
 
           <div className="loss-category-list">
             {lossByCategory.length === 0 ? (
-              <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No loss data by category</p>
+              <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No loss data by category</p>
             ) : (
               lossByCategory.map((cat, index) => (
                 <div key={index} className="loss-category-item">
@@ -871,7 +871,7 @@ const AnalyticsDashboard = () => {
             <tbody>
               {recentLossIncidents.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                  <td colSpan="6" style={{ textAlign: 'center', color: 'var(--ink-slate-400)', padding: '24px' }}>
                     No loss incidents recorded
                   </td>
                 </tr>
@@ -918,7 +918,7 @@ const AnalyticsDashboard = () => {
           {branchPerformanceData.length > 0 ? (
             <Bar data={branchChartData} options={branchChartOptions} />
           ) : (
-            <p style={{ color: '#999', textAlign: 'center', padding: '40px' }}>No location data available</p>
+            <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '40px' }}>No location data available</p>
           )}
         </div>
       </div>
@@ -930,7 +930,7 @@ const AnalyticsDashboard = () => {
 
         <div className="bp-rankings-list">
           {branchPerformanceData.length === 0 ? (
-            <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No location performance data</p>
+            <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No location performance data</p>
           ) : (
             branchPerformanceData.map((branch, index) => (
               <div key={branch.id} className="bp-ranking-card">
@@ -988,7 +988,7 @@ const AnalyticsDashboard = () => {
 
         <div className="bp-restock-grid">
           {branchRestockingNeeds.length === 0 ? (
-            <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No restocking data</p>
+            <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No restocking data</p>
           ) : (
             branchRestockingNeeds.map((branch, index) => (
               <div key={index} className="bp-restock-card">

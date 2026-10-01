@@ -55,7 +55,7 @@ const TrendChart = ({ data, loading }) => {
   return (
     <div className="sm-chart-wrap">
       {loading && (
-        <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+        <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-label)', fontSize: 13 }}>
           Loading chart data…
         </div>
       )}
@@ -634,7 +634,7 @@ const InventoryManagement = () => {
             {/* Metric cards */}
             <div className="sm-stats-row">
               <div className="sm-stat-card">
-                <span className="sm-stat-label">TOTAL STOCK IN <span style={{fontSize:10,color:'#9ca3af',fontWeight:400}}>(30d)</span></span>
+                <span className="sm-stat-label">TOTAL STOCK IN <span style={{fontSize:10,color:'var(--text-label)',fontWeight:400}}>(30d)</span></span>
                 <div className="sm-stat-value-row">
                   <span className="sm-stat-value">{smTotalIn.toLocaleString()}</span>
                   {smInPct !== null && (
@@ -683,7 +683,7 @@ const InventoryManagement = () => {
                 </div>
               </div>
               <div className="sm-stat-card">
-                <span className="sm-stat-label">TOTAL STOCK OUT <span style={{fontSize:10,color:'#9ca3af',fontWeight:400}}>(30d)</span></span>
+                <span className="sm-stat-label">TOTAL STOCK OUT <span style={{fontSize:10,color:'var(--text-label)',fontWeight:400}}>(30d)</span></span>
                 <div className="sm-stat-value-row">
                   <span className="sm-stat-value">{smTotalOut.toLocaleString()}</span>
                   {smOutPct !== null && (
@@ -755,7 +755,7 @@ const InventoryManagement = () => {
                         </div>
                       </div>
                     )) : (
-                      <p style={{ color: '#9ca3af', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>
+                      <p style={{ color: 'var(--text-label)', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>
                         No category data available
                       </p>
                     )}
@@ -806,7 +806,7 @@ const InventoryManagement = () => {
                   <tbody>
                     {top20.length === 0 ? (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                           {loading ? 'Loading...' : 'No products found'}
                         </td>
                       </tr>
@@ -978,7 +978,7 @@ const InventoryManagement = () => {
                   <tbody>
                     {inventory.length === 0 ? (
                       <tr>
-                        <td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                        <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                           {loading ? 'Loading...' : 'No items found'}
                         </td>
                       </tr>
@@ -1279,7 +1279,7 @@ const InventoryManagement = () => {
                     );
                   })}
                 </select>
-                <span style={{ fontSize: 12, color: '#9ca3af', alignSelf: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-label)', alignSelf: 'center' }}>
                   {activityLoading ? 'Loading…' : `${filtered.length} record${filtered.length !== 1 ? 's' : ''}`}
                 </span>
               </div>
@@ -1311,7 +1311,7 @@ const InventoryManagement = () => {
                       <tbody>
                         {filtered.length === 0 ? (
                           <tr>
-                            <td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                            <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                               {activityLog.length === 0
                                 ? 'No scan events recorded yet. Events will appear here after the first barcode scan.'
                                 : 'No records match your filters.'}
@@ -1326,7 +1326,7 @@ const InventoryManagement = () => {
                             : '#16a34a';
                           return (
                             <tr key={r.id}>
-                              <td className="inv-cell-num" style={{ color: '#9ca3af', fontSize: 11 }}>{idx + 1}</td>
+                              <td className="inv-cell-num" style={{ color: 'var(--text-label)', fontSize: 11 }}>{idx + 1}</td>
                               <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{formatDate(r.created_at)}</td>
                               <td>
                                 <span style={{
@@ -1338,15 +1338,15 @@ const InventoryManagement = () => {
                                 </span>
                               </td>
                               <td>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{r.product?.product_name || '—'}</div>
-                                {r.product?.applianceDetail?.model_code && <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.product.applianceDetail.model_code}</div>}
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dark)' }}>{r.product?.product_name || '—'}</div>
+                                {r.product?.applianceDetail?.model_code && <div style={{ fontSize: 10, color: 'var(--text-label)' }}>{r.product.applianceDetail.model_code}</div>}
                               </td>
                               <td><span className="invd-mono invd-small">{getRef(r)}</span></td>
-                              <td style={{ fontSize: 12, color: '#374151' }}>{getLoc(r)}</td>
+                              <td style={{ fontSize: 12, color: 'var(--text-body)' }}>{getLoc(r)}</td>
                               <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: qtyColor }}>
                                 {qtyDisplay(r)}
                               </td>
-                              <td style={{ fontSize: 12, color: '#6b7280' }}>{getBy(r)}</td>
+                              <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{getBy(r)}</td>
                             </tr>
                           );
                         })}

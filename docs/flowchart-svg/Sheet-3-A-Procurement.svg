@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1390" viewBox="0 0 900 1390" role="img"
+           aria-label="Flowchart sheet 3. From connector A, enter purchase request details and compute the total. If budget is not available the request is refused and flow returns to the input. If available, save the request as pending and test manager approval; rejection sets the status and returns to the menu. On approval, enter supplier and prices, create the purchase order, and test its approval. Rejection releases committed budget. Approval commits the budget, writes a budget transaction, and raises an alert if utilisation reaches eighty percent, then returns to connector M.">
+  <style>
+    svg { background: #ffffff; }
+    .sym  { fill: #ffffff; stroke: #000000; stroke-width: 1.7; }
+    .flow { fill: none; stroke: #000000; stroke-width: 1.6; }
+    .jn   { fill: #000000; stroke: none; }
+    .mk   { fill: #000000; }
+    .t  { font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; fill: #000000; text-anchor: middle; }
+    .tb { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .tc { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .yn { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; font-weight: 700; fill: #000000; }
+    .nt { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #555555; }
+  </style>
+
+        <defs>
+          <marker id="f3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+          </marker>
+        </defs>
+
+        <circle class="sym" cx="280" cy="40" r="22"></circle>
+        <text class="tc" x="280" y="46">A</text>
+        <text class="nt" x="312" y="44">from Sheet 2</text>
+
+        <line class="flow" x1="280" y1="62" x2="280" y2="94" marker-end="url(#f3)"></line>
+
+        <polygon class="sym" points="174,96 410,96 386,148 150,148"></polygon>
+        <text class="t" x="280" y="118">Enter PR: branch, items,</text>
+        <text class="t" x="280" y="135">quantities, needed date</text>
+
+        <line class="flow" x1="280" y1="148" x2="280" y2="178" marker-end="url(#f3)"></line>
+
+        <rect class="sym" x="150" y="180" width="260" height="56"></rect>
+        <text class="t" x="280" y="204">Compute PR total and</text>
+        <text class="t" x="280" y="221">read branch allocation</text>
+
+        <line class="flow" x1="280" y1="236" x2="280" y2="266" marker-end="url(#f3)"></line>
+
+        <polygon class="sym" points="280,268 410,316 280,364 150,316"></polygon>
+        <text class="t" x="280" y="312">Budget</text>
+        <text class="t" x="280" y="328">available?</text>
+
+        <line class="flow" x1="410" y1="316" x2="508" y2="316" marker-end="url(#f3)"></line>
+        <text class="yn" x="432" y="308">No</text>
+
+        <polygon class="sym" points="534,290 770,290 746,342 510,342"></polygon>
+        <text class="t" x="640" y="322">Display "insufficient budget"</text>
+
+        <path class="flow" d="M640,290 V122 H402" marker-end="url(#f3)"></path>
+
+        <line class="flow" x1="280" y1="364" x2="280" y2="394" marker-end="url(#f3)"></line>
+        <text class="yn" x="292" y="384">Yes</text>
+
+        <rect class="sym" x="150" y="396" width="260" height="56"></rect>
+        <text class="t" x="280" y="428">Save PR — status = Pending</text>
+
+        <line class="flow" x1="280" y1="452" x2="280" y2="482" marker-end="url(#f3)"></line>
+
+        <polygon class="sym" points="280,484 410,532 280,580 150,532"></polygon>
+        <text class="t" x="280" y="528">Manager</text>
+        <text class="t" x="280" y="544">approves?</text>
+
+        <line class="flow" x1="410" y1="532" x2="508" y2="532" marker-end="url(#f3)"></line>
+        <text class="yn" x="432" y="524">No</text>
+
+        <rect class="sym" x="510" y="504" width="260" height="56"></rect>
+        <text class="t" x="640" y="536">Set PR status = Rejected</text>
+
+        <path class="flow" d="M770,532 H860 V1334 H304" marker-end="url(#f3)"></path>
+
+        <line class="flow" x1="280" y1="580" x2="280" y2="610" marker-end="url(#f3)"></line>
+        <text class="yn" x="292" y="600">Yes</text>
+
+        <rect class="sym" x="150" y="612" width="260" height="56"></rect>
+        <text class="t" x="280" y="636">Set PR = Approved or</text>
+        <text class="t" x="280" y="653">Partially Approved</text>
+
+        <line class="flow" x1="280" y1="668" x2="280" y2="698" marker-end="url(#f3)"></line>
+
+        <polygon class="sym" points="174,700 410,700 386,752 150,752"></polygon>
+        <text class="t" x="280" y="731">Enter supplier and unit prices</text>
+
+        <line class="flow" x1="280" y1="752" x2="280" y2="782" marker-end="url(#f3)"></line>
+
+        <rect class="sym" x="150" y="784" width="260" height="56"></rect>
+        <text class="t" x="280" y="808">Create PO linked to the PR</text>
+        <text class="t" x="280" y="825">— status = Pending</text>
+
+        <line class="flow" x1="280" y1="840" x2="280" y2="870" marker-end="url(#f3)"></line>
+
+        <polygon class="sym" points="280,872 410,920 280,968 150,920"></polygon>
+        <text class="t" x="280" y="924">PO approved?</text>
+
+        <line class="flow" x1="410" y1="920" x2="508" y2="920" marker-end="url(#f3)"></line>
+        <text class="yn" x="432" y="912">No</text>
+
+        <rect class="sym" x="510" y="892" width="260" height="56"></rect>
+        <text class="t" x="640" y="916">Set PO = Rejected;</text>
+        <text class="t" x="640" y="933">release committed budget</text>
+
+        <path class="flow" d="M770,920 H860"></path>
+        <circle class="jn" cx="860" cy="920" r="4"></circle>
+
+        <line class="flow" x1="280" y1="968" x2="280" y2="998" marker-end="url(#f3)"></line>
+        <text class="yn" x="292" y="988">Yes</text>
+
+        <rect class="sym" x="150" y="1000" width="260" height="56"></rect>
+        <line class="flow" x1="162" y1="1000" x2="162" y2="1056"></line>
+        <line class="flow" x1="398" y1="1000" x2="398" y2="1056"></line>
+        <text class="t" x="280" y="1024">BudgetService: commit</text>
+        <text class="t" x="280" y="1041">the PO amount</text>
+
+        <line class="flow" x1="280" y1="1056" x2="280" y2="1086" marker-end="url(#f3)"></line>
+
+        <rect class="sym" x="150" y="1088" width="260" height="56"></rect>
+        <text class="t" x="280" y="1112">Write budget transaction;</text>
+        <text class="t" x="280" y="1129">set PO = Approved</text>
+
+        <line class="flow" x1="280" y1="1144" x2="280" y2="1174" marker-end="url(#f3)"></line>
+
+        <polygon class="sym" points="280,1176 410,1224 280,1272 150,1224"></polygon>
+        <text class="t" x="280" y="1220">Utilisation</text>
+        <text class="t" x="280" y="1236">reaches 80%?</text>
+
+        <line class="flow" x1="410" y1="1224" x2="508" y2="1224" marker-end="url(#f3)"></line>
+        <text class="yn" x="432" y="1216">Yes</text>
+
+        <rect class="sym" x="510" y="1196" width="260" height="56"></rect>
+        <text class="t" x="640" y="1228">Broadcast budget alert</text>
+
+        <path class="flow" d="M640,1252 V1334"></path>
+        <circle class="jn" cx="640" cy="1334" r="4"></circle>
+
+        <line class="flow" x1="280" y1="1272" x2="280" y2="1308" marker-end="url(#f3)"></line>
+        <text class="yn" x="292" y="1292">No</text>
+
+        <circle class="sym" cx="280" cy="1334" r="22"></circle>
+        <text class="tc" x="280" y="1340">M</text>
+        <text class="nt" x="312" y="1338">back to Sheet 2</text>
+      </svg>

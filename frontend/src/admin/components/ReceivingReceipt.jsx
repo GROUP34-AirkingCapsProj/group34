@@ -85,7 +85,7 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
     <Modal isOpen={isOpen} onClose={onClose} title="Goods Received Note" maxWidth={640}>
       <div id="grn-print-area" className="grn-doc">
         <h2 style={{ textAlign: 'center', margin: 0 }}>{companySettings.company_name || 'Airking Air Conditioning'}</h2>
-        <p style={{ textAlign: 'center', margin: '2px 0 12px', color: '#555' }}>
+        <p style={{ textAlign: 'center', margin: '2px 0 12px', color: 'var(--ink-slate-700-2)' }}>
           {[companySettings.company_address, companySettings.company_email, companySettings.company_phone].filter(Boolean).join(' · ')}
         </p>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
@@ -113,11 +113,11 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
             {detailSegments.map((seg) => (
               <React.Fragment key={seg.key}>
                 {seg.group && (
-                  <tr style={{ background: '#f1f5f9' }}>
-                    <td colSpan={6} style={{ padding: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                  <tr style={{ background: 'var(--bg-hover)' }}>
+                    <td colSpan={6} style={{ padding: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-body)' }}>
                       {airconGroupLabel(seg.group)}
                       {seg.group.is_unbalanced && airconUnpairedLabel(seg.group.unpaired) && (
-                        <span style={{ marginLeft: 8, fontWeight: 600, color: '#b45309' }}>
+                        <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--ink-amber)' }}>
                           ⚠ {airconUnpairedLabel(seg.group.unpaired)}
                         </span>
                       )}
@@ -125,7 +125,7 @@ export default function ReceivingReceipt({ receiving, isOpen, onClose }) {
                   </tr>
                 )}
                 {seg.rows.map((d, i) => (
-                  <tr key={d.receiving_detail_id ?? `${seg.key}-${i}`} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <tr key={d.receiving_detail_id ?? `${seg.key}-${i}`} style={{ borderBottom: '1px solid var(--border-color)' }}>
                     <td style={{ padding: 6, paddingLeft: seg.group ? 18 : 6 }}>
                       <strong>{d.product?.product_name || `Product #${d.product_id}`}</strong>
                       {d.product?.product_code ? ` · ${d.product.product_code}` : ''}

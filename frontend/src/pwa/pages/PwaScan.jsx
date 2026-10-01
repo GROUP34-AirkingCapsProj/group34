@@ -186,7 +186,7 @@ export default function PwaScan() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.25rem', margin: '0 0 16px', color: '#111827' }}>Barcode scan</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '0 0 16px', color: 'var(--text-dark)' }}>Barcode scan</h1>
       <p className="pwa-muted" style={{ marginBottom: 12 }}>
         Point the camera at a barcode. Unknown codes create a product automatically with default values.
       </p>

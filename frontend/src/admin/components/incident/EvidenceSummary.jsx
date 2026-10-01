@@ -89,7 +89,7 @@ function RequirementSummary({ incidentId, requirement, attached, alsoAttached = 
   return (
     <fieldset
       className="ak-card"
-      style={{ border: '1px solid var(--ak-line, #ddd)', padding: '0.75rem', margin: 0 }}
+      style={{ border: '1px solid var(--ak-line)', padding: '0.75rem', margin: 0 }}
     >
       <legend className="ak-label" style={{ padding: '0 0.35rem' }}>
         {alsoAttached ? `Also attached: ${meta.label}` : meta.label}{' '}

@@ -353,11 +353,11 @@
 .login-challenge-loading,
 .login-challenge-error {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0 0 8px;
 }
 .login-challenge-error {
-  color: #b91c1c;
+  color: var(--ink-red);
 }
 .login-refresh-captcha {
   margin-top: 8px;
@@ -393,7 +393,7 @@
 }
 
 .login-captcha-row--wrong {
-  border-color: #ef4444;
+  border-color: var(--line-red-400);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
 }
 
@@ -441,14 +441,14 @@
 
 .form-group input.login-captcha-answer--correct {
   border-color: #22c55e !important;
-  background: #f0fdf4 !important;
-  color: #166534;
+  background: var(--success-soft-bg) !important;
+  color: var(--ink-green-800);
 }
 
 .form-group input.login-captcha-answer--wrong {
-  border-color: #ef4444 !important;
-  background: #fef2f2 !important;
-  color: #991b1b;
+  border-color: var(--line-red-400) !important;
+  background: var(--danger-soft-bg) !important;
+  color: var(--ink-red-600);
 }
 
 .login-captcha-refresh {
@@ -468,7 +468,7 @@
 }
 
 .login-captcha-refresh:hover {
-  background: #fff5f5;
+  background: var(--danger-soft-bg);
   border-color: var(--primary);
   color: var(--primary-dark);
 }
@@ -509,12 +509,12 @@
 .login-otp-hint {
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text-muted, #71717a);
+  color: var(--text-muted);
   margin-bottom: 16px;
 }
 
 .login-otp-hint strong {
-  color: var(--text-primary, #18181b);
+  color: var(--ink-slate-900-2);
   word-break: break-all;
 }
 
@@ -544,7 +544,7 @@ input.login-otp-input {
 }
 
 .login-otp-back:hover:not(:disabled) {
-  color: var(--primary-dark, #b91c1c);
+  color: var(--primary-dark);
 }
 
 .login-otp-back:disabled {
@@ -557,15 +557,15 @@ input.login-otp-input {
   display: flex;
   gap: 8px;
   padding: 4px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   border-radius: 999px;
-  background: #f9fafb;
+  background: var(--bg-muted);
 }
 .login-channel-btn {
   flex: 1;
   border: none;
   background: transparent;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 600;
   padding: 8px 12px;
@@ -577,6 +577,6 @@ input.login-otp-input {
   color: #fff;
 }
 .login-channel-btn:hover:not(.is-active) {
-  color: #111827;
+  color: var(--text-dark);
   background: rgba(0, 0, 0, 0.04);
 }

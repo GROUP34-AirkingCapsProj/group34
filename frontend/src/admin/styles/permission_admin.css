@@ -8,13 +8,13 @@
 
 /* Page header — mirrors .um-header / .rp-page-header */
 .perm-header { margin-bottom: 20px; }
-.perm-header h1 { font-size: 22px; font-weight: 700; color: #111827; margin: 0 0 4px 0; }
-.perm-header p { font-size: 13px; color: #6b7280; margin: 0; }
+.perm-header h1 { font-size: 22px; font-weight: 700; color: var(--text-dark); margin: 0 0 4px 0; }
+.perm-header p { font-size: 13px; color: var(--text-muted); margin: 0; }
 
 /* Card wrapper */
 .perm-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   padding: 16px;
@@ -23,7 +23,7 @@
 .perm-card > h2 {
   font-size: 14px;
   font-weight: 700;
-  color: #374151;
+  color: var(--text-body);
   margin: 0 0 12px 0;
   letter-spacing: 0.01em;
 }
@@ -33,11 +33,11 @@
 .perm-toolbar select,
 .perm-toolbar input {
   padding: 8px 10px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--bg-card);
   font-size: 13px;
-  color: #111827;
+  color: var(--text-dark);
 }
 .perm-toolbar select:focus,
 .perm-toolbar input:focus { outline: none; border-color: #dc2626; }
@@ -52,13 +52,13 @@
 .perm-btn-primary:disabled { background: #f3a3a3; cursor: not-allowed; }
 
 .perm-btn-ghost {
-  background: #fff; color: #374151; border: 1px solid #d1d5db;
+  background: var(--bg-card); color: var(--text-body); border: 1px solid var(--border-strong);
   padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
 }
-.perm-btn-ghost:hover:not(:disabled) { background: #f9fafb; }
+.perm-btn-ghost:hover:not(:disabled) { background: var(--bg-muted); }
 
-.perm-dirty { font-size: 13px; color: #b45309; font-weight: 600; }
-.perm-muted { font-size: 13px; color: #6b7280; }
+.perm-dirty { font-size: 13px; color: var(--ink-amber); font-weight: 600; }
+.perm-muted { font-size: 13px; color: var(--text-muted); }
 
 /* ===============================
    Category tabs
@@ -66,28 +66,28 @@
 .perm-tabs {
   display: flex; flex-wrap: wrap; gap: 6px;
   margin: 12px 0 16px; padding-bottom: 10px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
 }
 .perm-tab {
   position: relative;
-  padding: 7px 12px; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 8px;
-  font-size: 12.5px; font-weight: 600; color: #6b7280; cursor: pointer;
+  padding: 7px 12px; border: 1px solid var(--border-color); background: var(--bg-card); border-radius: 8px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-muted); cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.perm-tab:hover { background: #f9fafb; color: #374151; }
+.perm-tab:hover { background: var(--bg-muted); color: var(--text-body); }
 .perm-tab.active { background: #dc2626; color: #ffffff; border-color: #dc2626; }
 .perm-tab-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 50%;
   background: #f59e0b; margin-left: 6px; vertical-align: middle;
 }
-.perm-tab.active .perm-tab-dot { background: #fff; }
+.perm-tab.active .perm-tab-dot { background: var(--bg-card); }
 
 /* ===============================
    Permission grid
 ================================ */
 .perm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .perm-table th,
-.perm-table td { border: 1px solid #eef0f2; padding: 6px 8px; text-align: center; }
+.perm-table td { border: 1px solid var(--border-soft); padding: 6px 8px; text-align: center; }
 .perm-table th:first-child,
 .perm-table td:first-child { text-align: left; }
 
@@ -97,53 +97,53 @@
 
 /* Two-row header: action group spanning role columns, then role codes */
 .perm-table thead th {
-  background: #f9fafb;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-body);
   font-weight: 700;
   text-transform: capitalize;
 }
-.perm-action-group { font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase; color: #6b7280; }
+.perm-action-group { font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
 .perm-role-col {
   font-weight: 800;
-  border-bottom: 3px solid var(--role-accent, #9ca3af);
+  border-bottom: 3px solid var(--role-accent, var(--line-slate-400-2));
 }
-.perm-feature-cell { min-width: 200px; font-weight: 600; color: #374151; }
+.perm-feature-cell { min-width: 200px; font-weight: 600; color: var(--text-body); }
 
 /* Visual divider between action groups */
-.perm-group-start { border-left: 2px solid #e5e7eb; }
+.perm-group-start { border-left: 2px solid var(--border-color); }
 
 .perm-table td.perm-cell-na { color: #d1d5db; }
 .perm-cell-toggle { cursor: pointer; user-select: none; }
-.perm-cell-toggle:hover { background: #f3f4f6; }
+.perm-cell-toggle:hover { background: var(--bg-hover); }
 .perm-cell-toggle input { cursor: pointer; }
 
 /* Override states (User Overrides page) */
-.perm-override-on { background: #ecfdf5; color: #065f46; font-weight: 700; }
-.perm-override-off { background: #fef2f2; color: #991b1b; font-weight: 700; }
-.perm-allow { color: #059669; }
-.perm-deny { color: #9ca3af; }
+.perm-override-on { background: var(--success-soft-bg); color: var(--ink-teal-800); font-weight: 700; }
+.perm-override-off { background: var(--danger-soft-bg); color: var(--ink-red-600); font-weight: 700; }
+.perm-allow { color: var(--ink-teal-700); }
+.perm-deny { color: var(--text-label); }
 
 /* ===============================
    Legend / guide
 ================================ */
 .perm-guide { margin: 0 0 16px 0; }
 .perm-guide-toggle {
-  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
+  background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: 8px;
   padding: 10px 14px; width: 100%; text-align: left;
-  font-size: 13px; font-weight: 600; color: #374151; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text-body); cursor: pointer;
   display: flex; align-items: center; gap: 8px;
 }
-.perm-guide-toggle:hover { background: #f3f4f6; }
-.perm-guide-caret { color: #dc2626; font-size: 12px; }
+.perm-guide-toggle:hover { background: var(--bg-hover); }
+.perm-guide-caret { color: var(--text-danger); font-size: 12px; }
 
 .perm-guide-body {
-  border: 1px solid #e5e7eb; border-top: none;
+  border: 1px solid var(--border-color); border-top: none;
   border-radius: 0 0 8px 8px; padding: 16px;
   display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
 }
 .perm-guide-section h4 {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
-  color: #9ca3af; margin: 0 0 10px 0;
+  color: var(--text-label); margin: 0 0 10px 0;
 }
 .perm-guide-section.full { grid-column: 1 / -1; }
 
@@ -155,17 +155,17 @@
   padding: 2px 6px; border-radius: 5px;
 }
 .perm-role-text { display: flex; flex-direction: column; }
-.perm-role-text strong { font-size: 13px; color: #111827; }
-.perm-role-blurb { font-size: 12px; color: #6b7280; }
+.perm-role-text strong { font-size: 13px; color: var(--text-dark); }
+.perm-role-blurb { font-size: 12px; color: var(--text-muted); }
 
 .perm-guide-actions,
-.perm-guide-key { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: #374151; }
-.perm-guide-actions strong { color: #111827; }
+.perm-guide-key { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--text-body); }
+.perm-guide-actions strong { color: var(--text-dark); }
 
 .perm-key-box {
   display: inline-block; min-width: 22px; text-align: center;
-  border: 1px solid #e5e7eb; border-radius: 5px; padding: 1px 5px;
-  font-weight: 800; color: #374151;
+  border: 1px solid var(--border-color); border-radius: 5px; padding: 1px 5px;
+  font-weight: 800; color: var(--text-body);
 }
 
 /* ===============================
@@ -177,7 +177,7 @@
 .nav-bundle-section { margin-bottom: 14px; }
 .nav-bundle-section-title {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-  color: #9ca3af; margin: 0 0 6px 0;
+  color: var(--text-label); margin: 0 0 6px 0;
 }
 
 .nav-bundle-cards {
@@ -188,9 +188,9 @@
 
 .nav-bundle-card {
   display: flex; flex-direction: column;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-left: 3px solid #e5e7eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--border-color);
   border-radius: 9px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   padding: 9px 10px;
@@ -199,33 +199,33 @@
 .nav-bundle-card:hover { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07); }
 .nav-bundle-card--on { border-left-color: #059669; }
 .nav-bundle-card--partial { border-left-color: #f59e0b; }
-.nav-bundle-card--off { border-left-color: #e5e7eb; }
+.nav-bundle-card--off { border-left-color: var(--border-color); }
 
 .nav-bundle-card-header { display: flex; align-items: center; gap: 6px; }
 .nav-bundle-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 16px; height: 16px; flex: 0 0 auto; color: #6b7280;
+  width: 16px; height: 16px; flex: 0 0 auto; color: var(--text-muted);
 }
 .nav-bundle-icon svg { width: 15px; height: 15px; }
-.nav-bundle-card--on .nav-bundle-icon { color: #059669; }
-.nav-bundle-card-name { font-size: 12px; font-weight: 600; color: #111827; line-height: 1.25; }
+.nav-bundle-card--on .nav-bundle-icon { color: var(--ink-teal-700); }
+.nav-bundle-card-name { font-size: 12px; font-weight: 600; color: var(--text-dark); line-height: 1.25; }
 
 .nav-bundle-badge {
   margin-left: auto; font-size: 9px; font-weight: 800; letter-spacing: 0.02em;
   padding: 1px 6px; border-radius: 999px; text-transform: uppercase;
 }
-.nav-bundle-badge--partial { background: #fef3c7; color: #92400e; }
+.nav-bundle-badge--partial { background: var(--tint-amber); color: var(--warning-text); }
 
-.nav-bundle-card-desc { font-size: 11px; color: #6b7280; margin: 5px 0 0 0; line-height: 1.35; }
+.nav-bundle-card-desc { font-size: 11px; color: var(--text-muted); margin: 5px 0 0 0; line-height: 1.35; }
 
 .nav-bundle-card-footer { margin-top: 8px; display: flex; }
 .nav-bundle-toggle {
   min-width: 48px; padding: 3px 10px; border-radius: 999px;
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; cursor: pointer;
-  border: 1px solid #d1d5db; background: #ffffff; color: #6b7280;
+  border: 1px solid var(--border-strong); background: var(--bg-card); color: var(--text-muted);
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-.nav-bundle-toggle:hover:not(:disabled) { background: #f9fafb; color: #374151; }
+.nav-bundle-toggle:hover:not(:disabled) { background: var(--bg-muted); color: var(--text-body); }
 .nav-bundle-toggle--on {
   background: #059669; color: #ffffff; border-color: #059669;
 }
@@ -239,13 +239,13 @@
   display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 0.02em;
   padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
 }
-.perm-badge--role_default { background: #ede9fe; color: #5b21b6; }
-.perm-badge--user_override { background: #dbeafe; color: #1e40af; }
-.perm-badge--user_override_clear { background: #f3f4f6; color: #4b5563; }
+.perm-badge--role_default { background: var(--tint-violet); color: var(--ink-violet-600); }
+.perm-badge--user_override { background: var(--tint-blue); color: var(--ink-blue-600); }
+.perm-badge--user_override_clear { background: var(--bg-hover); color: var(--ink-slate-700); }
 
 .perm-oldnew { font-weight: 700; }
-.perm-oldnew .on { color: #059669; }
-.perm-oldnew .off { color: #b91c1c; }
+.perm-oldnew .on { color: var(--ink-teal-700); }
+.perm-oldnew .off { color: var(--ink-red); }
 
 @media (max-width: 992px) {
   .perm-guide-body { grid-template-columns: 1fr; }

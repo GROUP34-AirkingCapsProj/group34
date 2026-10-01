@@ -302,17 +302,17 @@ const IssuanceManagement = () => {
           </div>
           {viewingIssuance.details?.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <h4 style={{ marginBottom: 8, color: '#374151' }}>Items Issued</h4>
+              <h4 style={{ marginBottom: 8, color: 'var(--text-body)' }}>Items Issued</h4>
               <table className="data-table">
                 <thead><tr><th>Product</th><th>Qty</th><th>Condition</th></tr></thead>
                 <tbody>{layoutAirconGroups(viewingIssuance.details, viewingAirconGroups, 'issuance_detail_id').map((seg) => (
                   <React.Fragment key={seg.key}>
                     {seg.group && (
                       <tr>
-                        <td colSpan={3} style={{ background: '#f1f5f9', fontWeight: 700, fontSize: 12, color: '#334155' }}>
+                        <td colSpan={3} style={{ background: 'var(--bg-hover)', fontWeight: 700, fontSize: 12, color: 'var(--text-body)' }}>
                           {airconGroupLabel(seg.group)}
                           {seg.group.is_unbalanced && airconUnpairedLabel(seg.group.unpaired) && (
-                            <span style={{ marginLeft: 8, fontWeight: 600, color: '#b45309' }}>
+                            <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--ink-amber)' }}>
                               ⚠ {airconUnpairedLabel(seg.group.unpaired)}
                             </span>
                           )}
@@ -328,7 +328,7 @@ const IssuanceManagement = () => {
                           <UnitRoleBadge role={d.product?.unit_role} />
                           {d.product?.product_name || '—'}
                           {d.product?.ac_type_name && (
-                            <span style={{ color: '#6b7280', fontSize: 11 }}> · {d.product.ac_type_name}</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}> · {d.product.ac_type_name}</span>
                           )}
                         </td>
                         <td>{d.quantity_issued}</td>
@@ -384,7 +384,7 @@ const IssuanceManagement = () => {
 
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h4 style={{ margin: 0, color: '#374151' }}>Items to Issue</h4>
+                <h4 style={{ margin: 0, color: 'var(--text-body)' }}>Items to Issue</h4>
                 <button type="button" className="btn-secondary" style={{ padding: '4px 12px', fontSize: 13 }} onClick={addDetailRow}>+ Add Item</button>
               </div>
               <table className="data-table">

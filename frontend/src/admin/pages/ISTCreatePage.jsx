@@ -19,12 +19,12 @@ const LockedField = ({ label, value }) => (
   <div className="po-field">
     <label className="po-field-label">{label}</label>
     <div style={{
-      background: '#f8fafc',
-      border: '1px solid #e2e8f0',
+      background: 'var(--bg-muted)',
+      border: '1px solid var(--border-color)',
       borderRadius: 8,
       padding: '9px 12px',
       fontSize: 13,
-      color: '#374151',
+      color: 'var(--text-body)',
       minHeight: 38,
     }}>
       {value || '—'}
@@ -127,7 +127,7 @@ const ISTCreatePage = () => {
       <AdminLayout>
         <div className="ak-page po-recommendation-page">
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <p style={{ color: '#dc2626', fontWeight: 600 }}>{loadErr || 'Request not found or not yet approved.'}</p>
+            <p style={{ color: 'var(--text-danger)', fontWeight: 600 }}>{loadErr || 'Request not found or not yet approved.'}</p>
             <button type="button" className="po-btn" style={{ marginTop: 16 }} onClick={() => navigate('/admin/transfer-requests')}>
               ← Back to Transfer Requests
             </button>
@@ -153,7 +153,7 @@ const ISTCreatePage = () => {
             <div className="po-creator-header-main">
               <button
                 type="button"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, padding: 0, marginBottom: 8 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-blue-500)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, padding: 0, marginBottom: 8 }}
                 onClick={() => navigate('/admin/transfer-requests')}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
@@ -180,7 +180,7 @@ const ISTCreatePage = () => {
 
         {/* Locked header fields */}
         <div className="po-details-card">
-          <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <div style={{ background: 'var(--warning-bg)', border: '1px solid var(--line-amber-400-2)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--warning-text)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="16" height="16" style={{ flexShrink: 0, marginTop: 1 }}>
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
               <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -242,26 +242,26 @@ const ISTCreatePage = () => {
 
                   return (
                     <tr key={d.transfer_detail_id}
-                      style={excluded ? { opacity: 0.5 } : overApproved ? { background: '#fef2f2' } : {}}>
-                      <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
+                      style={excluded ? { opacity: 0.5 } : overApproved ? { background: 'var(--danger-soft-bg)' } : {}}>
+                      <td style={{ color: 'var(--ink-blue-300)', fontSize: 12 }}>{idx + 1}</td>
                       <td>
                         <div style={{ fontWeight: 500 }}>{d.product?.product_name || '—'}</div>
                         {d.product?.applianceDetail?.model_code && (
-                          <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>
+                          <small style={{ color: 'var(--ink-blue-300)' }}>{d.product.applianceDetail.model_code}</small>
                         )}
                       </td>
                       <td>
-                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{approved}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--ink-blue-800-3)' }}>{approved}</span>
                       </td>
                       <td>
                         {stock !== null ? (
-                          <span style={{ color: stock >= entered && !excluded ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
+                          <span style={{ color: stock >= entered && !excluded ? 'var(--text-success)' : 'var(--text-danger)', fontWeight: 600 }}>
                             {stock}
                             {exceedsStock && !excluded && (
                               <span title="Quantity exceeds available stock" style={{ marginLeft: 4 }}>⚠</span>
                             )}
                           </span>
-                        ) : <span style={{ color: '#94a3b8' }}>—</span>}
+                        ) : <span style={{ color: 'var(--ink-blue-300)' }}>—</span>}
                       </td>
                       <td>
                         <input
@@ -274,23 +274,23 @@ const ISTCreatePage = () => {
                           style={{
                             width: 80,
                             borderColor: overApproved ? '#dc2626' : undefined,
-                            outline: overApproved ? '2px solid #fca5a5' : undefined,
+                            outline: overApproved ? '2px solid var(--line-red-200)' : undefined,
                           }}
                         />
                         {overApproved && (
-                          <div style={{ color: '#dc2626', fontSize: 11, marginTop: 2 }}>
+                          <div style={{ color: 'var(--text-danger)', fontSize: 11, marginTop: 2 }}>
                             Max {approved}
                           </div>
                         )}
                       </td>
                       <td>
                         {excluded
-                          ? <span style={{ fontSize: 11, color: '#94a3b8', background: '#f1f5f9', borderRadius: 4, padding: '2px 6px' }}>EXCLUDED</span>
+                          ? <span style={{ fontSize: 11, color: 'var(--ink-blue-300)', background: 'var(--bg-hover)', borderRadius: 4, padding: '2px 6px' }}>EXCLUDED</span>
                           : overApproved
-                            ? <span style={{ fontSize: 11, color: '#dc2626', background: '#fef2f2', borderRadius: 4, padding: '2px 6px' }}>OVER LIMIT</span>
+                            ? <span style={{ fontSize: 11, color: 'var(--text-danger)', background: 'var(--danger-soft-bg)', borderRadius: 4, padding: '2px 6px' }}>OVER LIMIT</span>
                             : exceedsStock
-                              ? <span style={{ fontSize: 11, color: '#d97706', background: '#fffbeb', borderRadius: 4, padding: '2px 6px' }}>LOW STOCK</span>
-                              : <span style={{ fontSize: 11, color: '#16a34a', background: '#f0fdf4', borderRadius: 4, padding: '2px 6px' }}>OK</span>}
+                              ? <span style={{ fontSize: 11, color: 'var(--ink-orange-600)', background: 'var(--warning-bg)', borderRadius: 4, padding: '2px 6px' }}>LOW STOCK</span>
+                              : <span style={{ fontSize: 11, color: 'var(--text-success)', background: 'var(--success-soft-bg)', borderRadius: 4, padding: '2px 6px' }}>OK</span>}
                       </td>
                     </tr>
                   );
@@ -304,7 +304,7 @@ const ISTCreatePage = () => {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
           <button
             type="button"
-            style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}
+            style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 13, color: 'var(--text-body)' }}
             onClick={() => navigate('/admin/transfer-requests')}
             disabled={submitting}
           >

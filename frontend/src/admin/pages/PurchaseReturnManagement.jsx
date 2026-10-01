@@ -159,9 +159,9 @@ const PurchaseReturnManagement = () => {
         <div className="stats-row">
           {[
             { label: 'Total Returns', value: pagination.total || returns.length, color: '#6366f1' },
-            { label: 'Pending', value: returns.filter(r => r.status?.status_name === 'Pending').length, color: '#f59e0b' },
-            { label: 'Approved', value: returns.filter(r => r.status?.status_name === 'Approved').length, color: '#10b981' },
-            { label: 'Total Value', value: '₱' + totalValue.toLocaleString('en-PH', { minimumFractionDigits: 2 }), color: '#ef4444' },
+            { label: 'Pending', value: returns.filter(r => r.status?.status_name === 'Pending').length, color: 'var(--ink-orange-500-2)' },
+            { label: 'Approved', value: returns.filter(r => r.status?.status_name === 'Approved').length, color: 'var(--ink-teal-600)' },
+            { label: 'Total Value', value: '₱' + totalValue.toLocaleString('en-PH', { minimumFractionDigits: 2 }), color: 'var(--ink-red-400)' },
           ].map((s, i) => (
             <div key={i} className="stat-card">
               <div className="stat-icon" style={{ background: s.color + '20', color: s.color }}>
@@ -186,7 +186,7 @@ const PurchaseReturnManagement = () => {
             </thead>
             <tbody>
               {loading ? <tr><td colSpan="8"><Loader /></td></tr>
-                : error ? <tr><td colSpan="8" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchReturns(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
+                : error ? <tr><td colSpan="8" className="table-empty"><span style={{ color: 'var(--ink-red-400)' }}>{error}</span><button className="btn-link" onClick={() => fetchReturns(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : returns.length === 0 ? <tr><td colSpan="8" className="table-empty">No purchase returns found.</td></tr>
                     : returns.map(r => (
                       <tr key={r.pr_id}>
@@ -225,13 +225,13 @@ const PurchaseReturnManagement = () => {
             <div><span className="detail-label">PO Number</span><span className="detail-value">{viewingReturn.purchase_order?.po_number || '—'}</span></div>
             <div><span className="detail-label">Supplier</span><span className="detail-value">{viewingReturn.supplier?.name || viewingReturn.supplier?.supplier_name || '—'}</span></div>
             <div><span className="detail-label">Return Date</span><span className="detail-value">{viewingReturn.return_date ? new Date(viewingReturn.return_date).toLocaleDateString() : '—'}</span></div>
-            <div><span className="detail-label">Total Amount</span><span className="detail-value" style={{ color: '#ef4444' }}>₱{parseFloat(viewingReturn.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span></div>
+            <div><span className="detail-label">Total Amount</span><span className="detail-value" style={{ color: 'var(--ink-red-400)' }}>₱{parseFloat(viewingReturn.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span></div>
             <div style={{ gridColumn: '1 / -1' }}><span className="detail-label">Reason</span><span className="detail-value">{viewingReturn.reason || '—'}</span></div>
             <div><span className="detail-label">Status</span><span className="detail-value">{viewingReturn.status?.status_name || '—'}</span></div>
           </div>
           {viewingReturn.details?.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <h4 style={{ marginBottom: 8, color: '#374151' }}>Items Returned</h4>
+              <h4 style={{ marginBottom: 8, color: 'var(--text-body)' }}>Items Returned</h4>
               <table className="data-table">
                 <thead><tr><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Condition</th><th>Subtotal</th></tr></thead>
                 <tbody>{viewingReturn.details.map((d, i) => (
@@ -291,7 +291,7 @@ const PurchaseReturnManagement = () => {
 
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h4 style={{ margin: 0, color: '#374151' }}>Items to Return</h4>
+                <h4 style={{ margin: 0, color: 'var(--text-body)' }}>Items to Return</h4>
                 <button type="button" className="btn-secondary" style={{ padding: '4px 12px', fontSize: 13 }} onClick={addDetailRow}>+ Add Item</button>
               </div>
               <table className="data-table" style={{ marginBottom: 8 }}>
@@ -317,7 +317,7 @@ const PurchaseReturnManagement = () => {
                   ))}
                 </tbody>
               </table>
-              <div style={{ textAlign: 'right', fontWeight: 600, color: '#374151' }}>
+              <div style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text-body)' }}>
                 Total Amount: ₱{totalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </div>
             </div>

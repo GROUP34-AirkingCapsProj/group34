@@ -195,18 +195,18 @@ const ISTReceivePage = () => {
         <div className="ak-page po-recommendation-page">
           <div className="po-details-card" style={{ textAlign: 'center', padding: '40px 32px' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>✓</div>
-            <h2 style={{ color: '#16a34a', fontWeight: 700, marginBottom: 8 }}>Receipt Confirmed</h2>
-            <p style={{ color: '#475569', marginBottom: 24 }}>
+            <h2 style={{ color: 'var(--text-success)', fontWeight: 700, marginBottom: 8 }}>Receipt Confirmed</h2>
+            <p style={{ color: 'var(--ink-blue-700)', marginBottom: 24 }}>
               {ist?.transfer_number} has been received successfully.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button type="button" className="po-btn" style={{ background: '#1e293b', color: '#fff' }} onClick={() => navigate(`/admin/ist/${id}/receipt`)}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-contrast)', color: '#fff' }} onClick={() => navigate(`/admin/ist/${id}/receipt`)}>
                 View On-Screen Receipt
               </button>
               <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="po-btn" style={{ background: '#f59e0b', color: '#fff', textDecoration: 'none' }}>
                 Download PDF Receipt
               </a>
-              <button type="button" className="po-btn" style={{ background: '#f1f5f9', color: '#475569' }} onClick={() => navigate('/admin/ist')}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }} onClick={() => navigate('/admin/ist')}>
                 Back to IST List
               </button>
             </div>
@@ -274,7 +274,7 @@ const ISTReceivePage = () => {
                 ].map(({ label, value, bold }) => (
                   <div key={label} className="po-field">
                     <span className="po-field-label">{label}</span>
-                    <span style={{ fontSize: 14, color: '#1e293b', fontWeight: bold ? 700 : 500 }}>{value}</span>
+                    <span style={{ fontSize: 14, color: 'var(--ink-blue-800-3)', fontWeight: bold ? 700 : 500 }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -393,7 +393,7 @@ const ISTReceivePage = () => {
                         onChange={(e) => setScanQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
                         disabled={scanning}
                         title="Quantity per scan (installation material)"
-                        style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, textAlign: 'center' }}
+                        style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 13, textAlign: 'center' }}
                       />
                     )}
                     <button
@@ -439,7 +439,7 @@ const ISTReceivePage = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveScan(s.did, s)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 11, padding: '2px 6px', borderRadius: 3 }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-danger)', fontSize: 11, padding: '2px 6px', borderRadius: 3 }}
                               title="Remove this scan"
                             >
                               Remove
@@ -457,7 +457,7 @@ const ISTReceivePage = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px 24px' }}>
                 <div className="po-field">
                   <span className="po-field-label">RECEIVED BY</span>
-                  <span style={{ fontSize: 14, color: '#1e293b', fontWeight: 500 }}>{userName(user)}</span>
+                  <span style={{ fontSize: 14, color: 'var(--ink-blue-800-3)', fontWeight: 500 }}>{userName(user)}</span>
                 </div>
                 <div className="po-field">
                   <label htmlFor="ist-received-date" className="po-field-label">RECEIVED DATE</label>
@@ -466,7 +466,7 @@ const ISTReceivePage = () => {
                     value={receivedDate}
                     onChange={(e) => setReceivedDate(e.target.value)}
                     required
-                    style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, color: '#1e293b', background: '#fff' }}
+                    style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14, color: 'var(--ink-blue-800-3)', background: 'var(--bg-card)' }}
                   />
                 </div>
               </div>
@@ -476,7 +476,7 @@ const ISTReceivePage = () => {
               <button
                 type="button"
                 className="po-btn"
-                style={{ background: '#f1f5f9', color: '#475569' }}
+                style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }}
                 onClick={() => navigate(`/admin/ist/${id}`)}
                 disabled={submitting}
               >
@@ -486,7 +486,7 @@ const ISTReceivePage = () => {
                 type="button"
                 className="po-btn"
                 style={{
-                  background: totalReceived < 1 ? '#94a3b8' : '#1e293b',
+                  background: totalReceived < 1 ? '#94a3b8' : 'var(--bg-contrast)',
                   color: '#fff', minWidth: 180,
                   cursor: totalReceived < 1 ? 'not-allowed' : 'pointer',
                 }}

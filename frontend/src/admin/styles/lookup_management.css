@@ -50,7 +50,7 @@
 .lk-empty { text-align: center; padding: 2rem 1rem; color: var(--ak-ink-faint); }
 .lk-error {
   padding: 0.9rem 1.1rem; border-radius: var(--ak-radius-sm);
-  background: #fff4f5; border: 1px solid #f8d2d8; color: var(--ak-crimson-deep);
+  background: var(--danger-soft-bg); border: 1px solid var(--line-rose-100-2); color: var(--ak-crimson-deep);
   font-size: 0.88rem; margin-bottom: 1.25rem;
 }
 .lk-actions-cell { display: flex; gap: 0.5rem; white-space: nowrap; }

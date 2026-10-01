@@ -15,8 +15,8 @@
 .bk-stat-card {
   flex: 1 1 200px;
   min-width: 180px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 16px 18px;
   display: flex;
@@ -29,13 +29,13 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #94a3b8;
+  color: var(--ink-blue-300);
 }
 
 .bk-stat-value {
   font-size: 22px;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--ink-blue-800-3);
 }
 
 .bk-stat-value--sm {
@@ -45,7 +45,7 @@
 
 .bk-stat-sub {
   font-size: 12px;
-  color: #64748b;
+  color: var(--ink-blue-500);
 }
 
 .bk-columns {
@@ -64,13 +64,13 @@
 
 .bk-summary {
   margin-top: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #f8fafc;
+  background: var(--bg-muted);
 }
 
 .bk-summary > div {
@@ -81,11 +81,11 @@
 }
 
 .bk-summary span {
-  color: #64748b;
+  color: var(--ink-blue-500);
 }
 
 .bk-summary strong {
-  color: #1e293b;
+  color: var(--ink-blue-800-3);
   font-weight: 600;
   text-align: right;
 }
@@ -103,13 +103,13 @@
 .bk-safety-item h3 {
   font-size: 13px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ink-blue-800-3);
   margin: 0 0 4px;
 }
 
 .bk-safety-item p {
   font-size: 13px;
-  color: #64748b;
+  color: var(--ink-blue-500);
   margin: 0;
   line-height: 1.5;
 }
@@ -147,7 +147,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: #2563eb;
+  color: var(--text-info);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -155,11 +155,11 @@
 }
 
 .bk-link-btn:hover:not(:disabled) {
-  color: #1d4ed8;
+  color: var(--ink-blue);
 }
 
 .bk-link-btn:disabled {
-  color: #94a3b8;
+  color: var(--ink-blue-300);
   cursor: not-allowed;
   text-decoration: none;
 }

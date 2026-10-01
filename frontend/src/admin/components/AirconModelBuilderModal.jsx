@@ -301,7 +301,7 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
               disabled={!canSubmit}
             />
             {errors.model_name?.[0] && (
-              <span style={{ color: '#b91c1c', fontSize: '0.78rem' }}>{errors.model_name[0]}</span>
+              <span style={{ color: 'var(--ink-red)', fontSize: '0.78rem' }}>{errors.model_name[0]}</span>
             )}
           </div>
 
@@ -488,7 +488,7 @@ export default function AirconModelBuilderModal({ isOpen, onClose, initialModel,
               realistically return reaches the user somewhere other than a
               toast that scrolls away. */}
           {linesMessage(errors) && (
-            <p style={{ color: '#b91c1c', fontSize: '0.78rem', margin: '0.5rem 0 0' }}>{linesMessage(errors)}</p>
+            <p style={{ color: 'var(--ink-red)', fontSize: '0.78rem', margin: '0.5rem 0 0' }}>{linesMessage(errors)}</p>
           )}
 
           {canSubmit && (

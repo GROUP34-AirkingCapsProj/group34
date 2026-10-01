@@ -32,6 +32,25 @@
   padding-bottom: 3rem;
 }
 
+/* Dark: this console predates the ak-* system but mirrors it, so it takes the
+   same navy surfaces and chroma-reduced accents. Keep in step with the dark
+   block in airking_ds.css. */
+html[data-theme='dark'] .rbac-console {
+  --rc-bg:        #18212f;
+  --rc-ink:       #d3dce8;
+  --rc-ink-soft:  #97a7ba;
+  --rc-ink-faint: #8797ab;
+  --rc-card:      #212d3f;
+  --rc-line:      #3a4a5f;
+  --rc-line-soft: #2d3a4e;
+  --rc-band:      #1b2537;
+  --rc-crimson:      #e1495f;
+  --rc-crimson-deep: #c03350;
+  --rc-gold:         #e0ae4a;
+  --rc-amber:        #dd9c4b;
+  --rc-green:        #5fbf9b;
+}
+
 /* ---- load reveal --------------------------------------------------------- */
 @keyframes rcx-rise {
   from { opacity: 0; transform: translateY(14px); }
@@ -108,7 +127,7 @@
 .rcx-pill {
   font-family: var(--rc-mono); font-size: 0.74rem; font-weight: 600;
   letter-spacing: 0.02em; color: var(--rc-amber);
-  background: #fff7ed; border: 1px solid #fde2c2;
+  background: var(--tint-amber-soft); border: 1px solid var(--line-orange-100);
   padding: 0.32rem 0.7rem; border-radius: 999px; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 0.45rem;
 }
@@ -147,7 +166,7 @@
 }
 .rcx-legend-code {
   font-family: var(--rc-mono); font-size: 0.64rem; font-weight: 600; color: #fff;
-  background: var(--rc-chip, #888); padding: 0.08rem 0.34rem; border-radius: 5px;
+  background: var(--rc-ink-faint); padding: 0.08rem 0.34rem; border-radius: 5px;
   letter-spacing: 0.04em;
 }
 
@@ -165,7 +184,7 @@
   font-size: 0.95rem; background: var(--rc-card); border: 1px dashed var(--rc-line-soft);
   border-radius: 16px;
 }
-.rcx-state--error { color: var(--rc-crimson-deep); background: #fff4f5; border: 1px solid #f8d2d8; border-style: solid; }
+.rcx-state--error { color: var(--rc-crimson-deep); background: var(--danger-soft-bg); border: 1px solid var(--line-rose-100-2); border-style: solid; }
 .rcx-loading-dots::after {
   content: '·'; animation: rcx-dots 1.2s steps(4, end) infinite; font-weight: 800; letter-spacing: 2px;
 }
@@ -181,7 +200,7 @@
 
 .rcx-matrix thead th {
   position: sticky; top: 0; z-index: 3;
-  background: #fbfbfe; border-bottom: 1px solid var(--rc-line);
+  background: var(--bg-muted); border-bottom: 1px solid var(--rc-line);
   padding: 0.85rem 0.6rem;
 }
 .rcx-matrix thead th:first-child {
@@ -207,7 +226,7 @@
 /* group band */
 .rcx-group td {
   position: sticky; left: 0;
-  background: linear-gradient(90deg, var(--rc-band), #fff);
+  background: linear-gradient(90deg, var(--rc-band), var(--bg-card));
   font-family: var(--rc-mono); font-weight: 600; font-size: 0.7rem;
   letter-spacing: 0.1em; text-transform: uppercase; color: var(--rc-crimson-deep);
   padding: 0.6rem 1.1rem; border-top: 1px solid var(--rc-line);
@@ -234,8 +253,8 @@
 
 /* ---- toggle control ----------------------------------------------------- */
 .rcx-toggle {
-  --c: var(--rc-chip, #888);
-  appearance: none; border: 1.5px solid var(--rc-line); background: #fff;
+  --c: var(--rc-ink-faint);
+  appearance: none; border: 1.5px solid var(--rc-line); background: var(--bg-card);
   width: 26px; height: 26px; border-radius: 8px; cursor: pointer; position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
@@ -272,17 +291,17 @@
    Sits in a right-aligned bar below the panel header. */
 .rcx-viewtoggle-bar { display: flex; justify-content: flex-end; margin-bottom: 1.25rem; }
 .rcx-viewtoggle {
-  display: inline-flex; border: 1px solid #e5e7eb; border-radius: 10px;
-  overflow: hidden; background: #fff;
+  display: inline-flex; border: 1px solid var(--border-color); border-radius: 10px;
+  overflow: hidden; background: var(--bg-card);
 }
 .rcx-viewtoggle-btn {
   appearance: none; border: none; background: transparent;
   padding: 9px 16px; font-family: var(--rc-display); font-size: 13px;
-  font-weight: 600; color: #374151; cursor: pointer;
+  font-weight: 600; color: var(--text-body); cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.rcx-viewtoggle-btn.is-active { background: #fef2f2; color: #DC143C; }
-.rcx-viewtoggle-btn:not(.is-active):hover { background: #f9fafb; }
+.rcx-viewtoggle-btn.is-active { background: var(--danger-soft-bg); color: #DC143C; }
+.rcx-viewtoggle-btn:not(.is-active):hover { background: var(--bg-muted); }
 
 /* ============================ PICKER / FIELDS =========================== */
 .rcx-picker { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
@@ -306,7 +325,7 @@
   padding: 0.3rem 0.5rem; border-radius: 7px; border: 1px solid var(--rc-line);
   background: var(--rc-card); cursor: pointer;
 }
-.rcx-tri.is-pending { border-color: #f3c98b; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14); }
+.rcx-tri.is-pending { border-color: var(--line-orange-300); box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14); }
 
 /* ---- filter bar --------------------------------------------------------- */
 .rcx-filters {
@@ -325,10 +344,10 @@
 }
 .rcx-access::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .rcx-access:hover { transform: translateY(-1px); filter: brightness(0.97); }
-.rcx-access.is-on      { background: #e7f8ef; color: #15803d; border-color: #bbe9cd; }
-.rcx-access.is-off     { background: #fdecee; color: #b91c1c; border-color: #f6cdd2; }
+.rcx-access.is-on      { background: var(--success-soft-bg); color: var(--ink-green); border-color: var(--line-green-200-2); }
+.rcx-access.is-off     { background: var(--danger-soft-bg); color: var(--ink-red); border-color: var(--line-rose-100-3); }
 /* unsaved / pending change — amber, until Save is pressed */
-.rcx-access.is-pending { background: #fff7ed; color: #b45309; border-color: #f3c98b; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14); }
+.rcx-access.is-pending { background: var(--tint-amber-soft); color: var(--ink-amber); border-color: var(--line-orange-300); box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14); }
 .rcx-access.is-pending::before { animation: rcx-pop 1.4s ease-in-out infinite; }
 
 /* ============================ DATA TABLE (audit/bundles) =============== */
@@ -350,9 +369,9 @@
   letter-spacing: 0.05em; text-transform: uppercase; padding: 0.18rem 0.5rem;
   border-radius: 6px; white-space: nowrap;
 }
-.rcx-badge--role     { background: #f1edff; color: #5b21b6; }
-.rcx-badge--user     { background: #fff3c4; color: #92400e; }
-.rcx-badge--clear    { background: #eef1f6; color: #475569; }
+.rcx-badge--role     { background: var(--tint-violet); color: var(--ink-violet-600); }
+.rcx-badge--user     { background: var(--tint-amber); color: var(--warning-text); }
+.rcx-badge--clear    { background: var(--bg-hover); color: var(--ink-blue-700); }
 .rcx-bool { font-weight: 700; font-size: 0.82rem; }
 .rcx-bool--granted { color: var(--rc-green); }
 .rcx-bool--denied  { color: var(--rc-crimson); }
@@ -360,7 +379,7 @@
 /* reason capsule */
 .rcx-reason {
   margin-top: 1.5rem; padding: 1.15rem 1.25rem; border-radius: 14px;
-  background: linear-gradient(180deg, #fff, var(--rc-band));
+  background: linear-gradient(180deg, var(--bg-card), var(--rc-band));
   border: 1px solid var(--rc-line);
 }
 .rcx-reason-req { color: var(--rc-crimson); }
@@ -392,10 +411,10 @@
 
 /* access status badge */
 .rcx-statusb { font-family: var(--rc-mono); font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.55rem; border-radius: 999px; white-space: nowrap; }
-.rcx-statusb--none    { background: #fdecee; color: #b91c1c; }
-.rcx-statusb--view    { background: #eef2f7; color: #475569; }
-.rcx-statusb--partial { background: #fff7ed; color: #b45309; }
-.rcx-statusb--full    { background: #e7f8ef; color: #15803d; }
+.rcx-statusb--none    { background: var(--danger-soft-bg); color: var(--ink-red); }
+.rcx-statusb--view    { background: var(--bg-hover); color: var(--ink-blue-700); }
+.rcx-statusb--partial { background: var(--tint-amber-soft); color: var(--ink-amber); }
+.rcx-statusb--full    { background: var(--success-soft-bg); color: var(--ink-green); }
 .rcx-navrow-dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--rc-amber); box-shadow: 0 0 0 3px rgba(217,119,6,0.16); }
 
 /* modal action list */

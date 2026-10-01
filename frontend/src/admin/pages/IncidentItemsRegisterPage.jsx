@@ -137,7 +137,7 @@ const IncidentItemsRegisterPage = () => {
                         <UnitRoleBadge role={item.unit_role} />
                         {item.product_name || `#${item.product_id}`}
                         {item.ac_type_name && (
-                          <span style={{ color: '#6b7280', fontSize: 11 }}> · {item.ac_type_name}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}> · {item.ac_type_name}</span>
                         )}
                       </td>
                       <td>

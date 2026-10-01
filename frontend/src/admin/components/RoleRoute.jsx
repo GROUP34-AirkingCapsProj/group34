@@ -23,7 +23,7 @@ const RoleRoute = ({ children }) => {
     // gate themselves with can().
     if (permissions == null) {
       if (location.pathname === '/admin/dashboard') return children;
-      return <div style={{ padding: '1.5rem', color: 'var(--text-muted, #6b7280)' }}>Checking access…</div>;
+      return <div style={{ padding: '1.5rem', color: 'var(--text-muted)' }}>Checking access…</div>;
     }
     if (!bundleVisible(bundle, permissions)) return <Navigate to="/admin/dashboard" replace />;
     return children;
@@ -34,7 +34,7 @@ const RoleRoute = ({ children }) => {
   const requiredPerm = PERMISSION_GATED_ROUTES[location.pathname];
   if (requiredPerm) {
     if (permissions == null) {
-      return <div style={{ padding: '1.5rem', color: 'var(--text-muted, #6b7280)' }}>Checking access…</div>;
+      return <div style={{ padding: '1.5rem', color: 'var(--text-muted)' }}>Checking access…</div>;
     }
     if (permissions[requiredPerm] !== true) return <Navigate to="/admin/dashboard" replace />;
     return children;

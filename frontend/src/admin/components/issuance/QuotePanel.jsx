@@ -104,7 +104,7 @@ export default function QuotePanel({ issuanceId, quote, canIssue, onQuoteUpdate,
           )}
         </div>
         {l.is_short && (
-          <div style={{ color: '#b91c1c', fontSize: '0.82rem', marginTop: 2 }}>
+          <div style={{ color: 'var(--ink-red)', fontSize: '0.82rem', marginTop: 2 }}>
             Only {l.available} available — short by {l.short_by}
             <span style={{ marginLeft: '0.5rem', display: 'inline-flex', gap: '0.4rem' }}>
               <button type="button" className="ak-btn" onClick={() => reduceToAvailable(l)} disabled={busy || !canIssue}>
@@ -131,7 +131,7 @@ export default function QuotePanel({ issuanceId, quote, canIssue, onQuoteUpdate,
           {quote?.has_shortages && (
             <>
               <span className="isp-session-sep">|</span>
-              <span style={{ color: '#b91c1c', fontWeight: 600 }}>Has shortages</span>
+              <span style={{ color: 'var(--ink-red)', fontWeight: 600 }}>Has shortages</span>
             </>
           )}
         </div>
@@ -142,7 +142,7 @@ export default function QuotePanel({ issuanceId, quote, canIssue, onQuoteUpdate,
         <h2 className="isp-card-title" style={{ marginTop: 0 }}>Review Quote</h2>
 
         {lines.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '28px 0', color: '#9ca3af' }}>No lines on this order.</div>
+          <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-label)' }}>No lines on this order.</div>
         ) : (
           <div style={{ display: 'grid', gap: '1rem' }}>
             {setGroups.map((g) => {

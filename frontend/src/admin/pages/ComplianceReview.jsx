@@ -7,11 +7,11 @@ import '../styles/compliance_review.css';
 import DateInput from '../components/DateInput';
 
 const ACTION_LABELS = {
-  barcode_correction:    { label: 'Correction',  color: '#dc2626', bg: '#fef2f2' },
-  receiving:             { label: 'Receiving',   color: '#059669', bg: '#ecfdf5' },
-  inventory_adjustment:  { label: 'Adjustment',  color: '#ea580c', bg: '#fff7ed' },
-  stock_transfer:        { label: 'Transfer',    color: '#2563eb', bg: '#eff6ff' },
-  stock_issuance:        { label: 'Issuance',    color: '#7c3aed', bg: '#f5f3ff' },
+  barcode_correction:    { label: 'Correction',  color: 'var(--text-danger)', bg: '#fef2f2' },
+  receiving:             { label: 'Receiving',   color: 'var(--ink-teal-700)', bg: '#ecfdf5' },
+  inventory_adjustment:  { label: 'Adjustment',  color: 'var(--ink-orange-500)', bg: '#fff7ed' },
+  stock_transfer:        { label: 'Transfer',    color: 'var(--text-info)', bg: '#eff6ff' },
+  stock_issuance:        { label: 'Issuance',    color: 'var(--ink-violet)', bg: '#f5f3ff' },
 };
 
 const ADJ_TYPE_LABELS = {
@@ -38,23 +38,23 @@ const fmtDate = (d) => {
 };
 
 const JsonPreview = ({ values }) => {
-  if (!values || typeof values !== 'object') return <span style={{ color: '#9ca3af' }}>—</span>;
+  if (!values || typeof values !== 'object') return <span style={{ color: 'var(--text-label)' }}>—</span>;
   const entries = Object.entries(values).filter(([k]) => !['user_agent'].includes(k));
-  if (entries.length === 0) return <span style={{ color: '#9ca3af' }}>—</span>;
+  if (entries.length === 0) return <span style={{ color: 'var(--text-label)' }}>—</span>;
   return (
-    <span style={{ fontSize: 11, color: '#374151' }}>
+    <span style={{ fontSize: 11, color: 'var(--text-body)' }}>
       {entries.slice(0, 3).map(([k, v]) => (
         <span key={k} style={{ display: 'inline-block', marginRight: 6 }}>
-          <span style={{ color: '#9ca3af' }}>{k}:</span> <strong>{String(v ?? '').slice(0, 30)}</strong>
+          <span style={{ color: 'var(--text-label)' }}>{k}:</span> <strong>{String(v ?? '').slice(0, 30)}</strong>
         </span>
       ))}
-      {entries.length > 3 && <span style={{ color: '#9ca3af' }}>+{entries.length - 3} more</span>}
+      {entries.length > 3 && <span style={{ color: 'var(--text-label)' }}>+{entries.length - 3} more</span>}
     </span>
   );
 };
 
 const ActionBadge = ({ action }) => {
-  const meta = ACTION_LABELS[action] || { label: action, color: '#6b7280', bg: '#f3f4f6' };
+  const meta = ACTION_LABELS[action] || { label: action, color: 'var(--text-muted)', bg: '#f3f4f6' };
   return (
     <span style={{
       display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 10,
@@ -201,13 +201,13 @@ const ComplianceReview = () => {
         {/* Filters */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18, alignItems: 'center' }}>
           <DateInput value={dateFrom} onChange={e => { setDateFrom(e.target.value); setLogsPage(1); setAdjPage(1); }}
-            style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }} />
-          <span style={{ color: '#9ca3af', fontSize: 12 }}>to</span>
+            style={{ padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13 }} />
+          <span style={{ color: 'var(--text-label)', fontSize: 12 }}>to</span>
           <DateInput value={dateTo} onChange={e => { setDateTo(e.target.value); setLogsPage(1); setAdjPage(1); }}
-            style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }} />
+            style={{ padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13 }} />
           {activeTab === 'logs' && (
             <select value={actionFilter} onChange={e => { setActionFilter(e.target.value); setLogsPage(1); }}
-              style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff' }}>
+              style={{ padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13, background: 'var(--bg-card)' }}>
               <option value="">All Actions</option>
               <option value="barcode_correction">Barcode Correction</option>
               <option value="receiving">Receiving</option>
@@ -218,17 +218,17 @@ const ComplianceReview = () => {
           )}
           {(dateFrom || dateTo || actionFilter) && (
             <button onClick={clearFilters}
-              style={{ padding: '8px 14px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#fff', cursor: 'pointer', color: '#374151' }}>
+              style={{ padding: '8px 14px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 12, background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-body)' }}>
               Clear Filters
             </button>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af' }}>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-label)' }}>
             {activeTab === 'logs' ? `${logsTotal} log(s)` : `${adjTotal} adjustment(s)`}
           </span>
         </div>
 
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#dc2626', fontSize: 13 }}>
+          <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--line-red)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: 'var(--text-danger)', fontSize: 13 }}>
             {error}
           </div>
         )}
@@ -247,28 +247,28 @@ const ComplianceReview = () => {
                 {logsLoading ? (
                   <Loader label="Loading logs" />
                 ) : logs.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No compliance logs found for the selected filters.</div>
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-label)', fontSize: 13 }}>No compliance logs found for the selected filters.</div>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
-                        <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <tr style={{ borderBottom: '1px solid var(--border-soft)' }}>
                           {['Date', 'User', 'Action', 'Table', 'Before', 'After'].map(h => (
-                            <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                            <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-label)', letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {logs.map(log => (
-                          <tr key={log.audit_id} style={{ borderBottom: '1px solid #f9fafb' }}>
-                            <td style={{ padding: '10px 10px', whiteSpace: 'nowrap', color: '#374151' }}>{fmt(log.created_at)}</td>
-                            <td style={{ padding: '10px 10px', color: '#374151' }}>
+                          <tr key={log.audit_id} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                            <td style={{ padding: '10px 10px', whiteSpace: 'nowrap', color: 'var(--text-body)' }}>{fmt(log.created_at)}</td>
+                            <td style={{ padding: '10px 10px', color: 'var(--text-body)' }}>
                               {log.user?.first_name
                                 ? `${log.user.first_name} ${log.user.last_name ?? ''}`.trim()
-                                : log.user?.username ?? <span style={{ color: '#9ca3af' }}>System</span>}
+                                : log.user?.username ?? <span style={{ color: 'var(--text-label)' }}>System</span>}
                             </td>
                             <td style={{ padding: '10px 10px' }}><ActionBadge action={log.action} /></td>
-                            <td style={{ padding: '10px 10px', color: '#6b7280', fontSize: 11 }}>{log.table_name ?? '—'}</td>
+                            <td style={{ padding: '10px 10px', color: 'var(--text-muted)', fontSize: 11 }}>{log.table_name ?? '—'}</td>
                             <td style={{ padding: '10px 10px', maxWidth: 200 }}><JsonPreview values={log.old_values} /></td>
                             <td style={{ padding: '10px 10px', maxWidth: 200 }}><JsonPreview values={log.new_values} /></td>
                           </tr>
@@ -281,12 +281,12 @@ const ComplianceReview = () => {
                 {logsTotalPages > 1 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'center' }}>
                     <button onClick={() => setLogsPage(p => Math.max(1, p - 1))} disabled={logsPage === 1}
-                      style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, cursor: logsPage === 1 ? 'not-allowed' : 'pointer', background: '#fff', color: logsPage === 1 ? '#d1d5db' : '#374151' }}>
+                      style={{ padding: '6px 14px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, cursor: logsPage === 1 ? 'not-allowed' : 'pointer', background: 'var(--bg-card)', color: logsPage === 1 ? '#d1d5db' : 'var(--text-body)' }}>
                       Previous
                     </button>
-                    <span style={{ fontSize: 12, color: '#6b7280' }}>Page {logsPage} of {logsTotalPages}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Page {logsPage} of {logsTotalPages}</span>
                     <button onClick={() => setLogsPage(p => Math.min(logsTotalPages, p + 1))} disabled={logsPage === logsTotalPages}
-                      style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, cursor: logsPage === logsTotalPages ? 'not-allowed' : 'pointer', background: '#fff', color: logsPage === logsTotalPages ? '#d1d5db' : '#374151' }}>
+                      style={{ padding: '6px 14px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, cursor: logsPage === logsTotalPages ? 'not-allowed' : 'pointer', background: 'var(--bg-card)', color: logsPage === logsTotalPages ? '#d1d5db' : 'var(--text-body)' }}>
                       Next
                     </button>
                   </div>
@@ -304,14 +304,14 @@ const ComplianceReview = () => {
                 {adjLoading ? (
                   <Loader label="Loading adjustments" />
                 ) : adjustments.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No adjustments found for the selected filters.</div>
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-label)', fontSize: 13 }}>No adjustments found for the selected filters.</div>
                 ) : (
                   <div className="cr-exceptions-list">
                     {adjustments.map(adj => {
                       const isExpanded = expandedAdj === adj.adjustment_id;
                       const typeMeta = adj.adjustment_type === 'barcode_correction'
-                        ? { color: '#dc2626', bg: '#fef2f2' }
-                        : { color: '#ea580c', bg: '#fff7ed' };
+                        ? { color: 'var(--text-danger)', bg: '#fef2f2' }
+                        : { color: 'var(--ink-orange-500)', bg: '#fff7ed' };
                       return (
                         <div key={adj.adjustment_id} className="cr-exception-card" style={{ cursor: 'default' }}>
                           <div className="cr-exception-top">
@@ -321,11 +321,11 @@ const ComplianceReview = () => {
                             <span className="cr-exception-location">{adj.location?.location_name ?? '—'}</span>
                           </div>
                           <h4 className="cr-exception-title">{adj.adjustment_number}</h4>
-                          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                             <span><strong>Date:</strong> {fmtDate(adj.adjustment_date)}</span>
                             <span><strong>PO:</strong> {adj.purchase_order?.po_number ?? '—'}</span>
                             <span><strong>By:</strong> {adj.created_by_user?.first_name ? `${adj.created_by_user.first_name} ${adj.created_by_user.last_name ?? ''}`.trim() : adj.created_by_user?.username ?? '—'}</span>
-                            <span><strong style={{ color: '#10b981' }}>+{adj.total_variance_positive ?? 0}</strong> / <strong style={{ color: '#ef4444' }}>−{adj.total_variance_negative ?? 0}</strong></span>
+                            <span><strong style={{ color: 'var(--ink-teal-600)' }}>+{adj.total_variance_positive ?? 0}</strong> / <strong style={{ color: 'var(--ink-red-400)' }}>−{adj.total_variance_negative ?? 0}</strong></span>
                             <span><StatusBadge name={adj.status?.status_name} /></span>
                           </div>
                           {adj.corrections?.length > 0 && (
@@ -336,20 +336,20 @@ const ComplianceReview = () => {
                             </div>
                           )}
                           {isExpanded && adj.corrections?.map(c => (
-                            <div key={c.correction_id} style={{ marginTop: 12, background: '#f9fafb', borderRadius: 8, padding: '12px 14px', fontSize: 12 }}>
+                            <div key={c.correction_id} style={{ marginTop: 12, background: 'var(--bg-muted)', borderRadius: 8, padding: '12px 14px', fontSize: 12 }}>
                               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
-                                <span style={{ fontWeight: 700, color: '#374151' }}>{c.original_product?.product_name ?? '—'}</span>
+                                <span style={{ fontWeight: 700, color: 'var(--text-body)' }}>{c.original_product?.product_name ?? '—'}</span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" width="14" height="14"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                                <span style={{ fontWeight: 700, color: '#059669' }}>{c.corrected_product?.product_name ?? '—'}</span>
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#eff6ff', color: '#2563eb' }}>
+                                <span style={{ fontWeight: 700, color: 'var(--ink-teal-700)' }}>{c.corrected_product?.product_name ?? '—'}</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'var(--tint-blue-soft)', color: 'var(--text-info)' }}>
                                   {c.correction_type?.replace(/_/g, ' ').toUpperCase() ?? '—'}
                                 </span>
                               </div>
-                              <div style={{ color: '#6b7280', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                              <div style={{ color: 'var(--text-muted)', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                                 <span><strong>Barcode:</strong> {c.original_barcode ?? '—'} → {c.corrected_barcode ?? '—'}</span>
                                 <span><strong>By:</strong> {c.corrected_by_user?.first_name ? `${c.corrected_by_user.first_name} ${c.corrected_by_user.last_name ?? ''}`.trim() : '—'}</span>
                               </div>
-                              {c.reason && <div style={{ marginTop: 4, color: '#374151', fontStyle: 'italic' }}>"{c.reason}"</div>}
+                              {c.reason && <div style={{ marginTop: 4, color: 'var(--text-body)', fontStyle: 'italic' }}>"{c.reason}"</div>}
                             </div>
                           ))}
                         </div>
@@ -361,12 +361,12 @@ const ComplianceReview = () => {
                 {adjTotalPages > 1 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'center' }}>
                     <button onClick={() => setAdjPage(p => Math.max(1, p - 1))} disabled={adjPage === 1}
-                      style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, cursor: adjPage === 1 ? 'not-allowed' : 'pointer', background: '#fff', color: adjPage === 1 ? '#d1d5db' : '#374151' }}>
+                      style={{ padding: '6px 14px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, cursor: adjPage === 1 ? 'not-allowed' : 'pointer', background: 'var(--bg-card)', color: adjPage === 1 ? '#d1d5db' : 'var(--text-body)' }}>
                       Previous
                     </button>
-                    <span style={{ fontSize: 12, color: '#6b7280' }}>Page {adjPage} of {adjTotalPages}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Page {adjPage} of {adjTotalPages}</span>
                     <button onClick={() => setAdjPage(p => Math.min(adjTotalPages, p + 1))} disabled={adjPage === adjTotalPages}
-                      style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, cursor: adjPage === adjTotalPages ? 'not-allowed' : 'pointer', background: '#fff', color: adjPage === adjTotalPages ? '#d1d5db' : '#374151' }}>
+                      style={{ padding: '6px 14px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, cursor: adjPage === adjTotalPages ? 'not-allowed' : 'pointer', background: 'var(--bg-card)', color: adjPage === adjTotalPages ? '#d1d5db' : 'var(--text-body)' }}>
                       Next
                     </button>
                   </div>
@@ -394,7 +394,7 @@ const ComplianceReview = () => {
                 </div>
                 <div className="cr-score-metric">
                   <span>Pending Approvals</span>
-                  <span className="cr-metric-val" style={{ color: '#b45309' }}>{pendingCount}</span>
+                  <span className="cr-metric-val" style={{ color: 'var(--ink-amber)' }}>{pendingCount}</span>
                 </div>
               </div>
             </div>
@@ -402,7 +402,7 @@ const ComplianceReview = () => {
               <h3 className="cr-security-title">Action Types</h3>
               {Object.entries(ACTION_LABELS).map(([key, meta]) => (
                 <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: '#6b7280' }}>{meta.label}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{meta.label}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: meta.bg, color: meta.color }}>
                     {logs.filter(l => l.action === key).length}
                   </span>

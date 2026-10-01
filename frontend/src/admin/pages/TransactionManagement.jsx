@@ -1097,7 +1097,7 @@ const TransactionManagement = () => {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', borderTop: '1px solid #e5e7eb', paddingTop: '0.9rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.9rem' }}>
               {!detail.isDraft && (
                 <>
                   <select className="ak-select" value={pdfPaperSize} onChange={(e) => setPdfPaperSize(e.target.value)}>
@@ -1267,7 +1267,7 @@ const TransactionManagement = () => {
                 </table>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
                 {transactionDocumentPath(txn) && <>
                   <select className="ak-select" value={pdfPaperSize} onChange={(e) => setPdfPaperSize(e.target.value)}>
                     <option value="a4">A4</option><option value="letter">Letter</option>

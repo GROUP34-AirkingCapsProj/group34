@@ -21,9 +21,9 @@
 .ak-page .war-stats .ak-stat-icon svg { width: 17px; height: 17px; }
 .ak-page .war-stats .ak-stat-value { font-size: 1.15rem; }
 
-.ak-page .war-stat--green .ak-stat-icon { background: #e7f8ef; color: #15803d; }
-.ak-page .war-stat--red   .ak-stat-icon { background: #fdecee; color: #b91c1c; }
-.ak-page .war-stat--blue  .ak-stat-icon { background: #eef4ff; color: #1d4ed8; }
+.ak-page .war-stat--green .ak-stat-icon { background: var(--success-soft-bg); color: var(--ink-green); }
+.ak-page .war-stat--red   .ak-stat-icon { background: var(--danger-soft-bg); color: var(--ink-red); }
+.ak-page .war-stat--blue  .ak-stat-icon { background: var(--tint-blue-soft); color: var(--ink-blue); }
 
 /* ---- serial lookup ---------------------------------------------------------
    Kept as its own panel rather than folded into the filter bar: this is the
@@ -41,10 +41,10 @@
 /* Tinted by STATE, because the panel now answers where a unit is and not only
    whether a warranty exists. Amber is "look closer" — returned, or sold with no
    cover recorded — rather than an error. */
-.ak-page .war-result--in_stock         { background: #f2fbf6; border-color: #bfe8d0; }
-.ak-page .war-result--sold             { background: #f4f7ff; border-color: #cddafb; }
-.ak-page .war-result--returned         { background: #fff7ed; border-color: #fde2c2; }
-.ak-page .war-result--sold_no_warranty { background: #fff7ed; border-color: #fde2c2; }
+.ak-page .war-result--in_stock         { background: var(--success-soft-bg); border-color: var(--line-green-200-3); }
+.ak-page .war-result--sold             { background: var(--tint-violet-soft); border-color: var(--line-blue-100-6); }
+.ak-page .war-result--returned         { background: var(--tint-amber-soft); border-color: var(--line-orange-100); }
+.ak-page .war-result--sold_no_warranty { background: var(--tint-amber-soft); border-color: var(--line-orange-100); }
 .ak-page .war-result--unknown          { background: var(--ak-band); border-color: var(--ak-line); }
 
 /* The two clocks, stacked so they read as a pair rather than as competing facts. */

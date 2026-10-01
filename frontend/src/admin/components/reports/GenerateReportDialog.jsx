@@ -166,7 +166,7 @@ export default function GenerateReportDialog({
         )}
 
         {error && (
-          <div className="ak-muted" role="alert" style={{ color: '#dc2626', marginBottom: '0.9rem' }}>
+          <div className="ak-muted" role="alert" style={{ color: 'var(--text-danger)', marginBottom: '0.9rem' }}>
             {error}
           </div>
         )}

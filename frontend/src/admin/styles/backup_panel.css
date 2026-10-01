@@ -7,7 +7,7 @@
 
 .bp-loading {
   padding: 28px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -18,8 +18,8 @@
 }
 
 .bp-stat {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 14px 16px;
   display: flex;
@@ -32,13 +32,13 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #9ca3af;
+  color: var(--text-label);
 }
 
 .bp-stat-value {
   font-size: 22px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-dark);
 }
 
 .bp-stat-value--sm {
@@ -48,7 +48,7 @@
 
 .bp-stat-sub {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .bp-grid {
@@ -58,8 +58,8 @@
 }
 
 .bp-card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 18px;
 }
@@ -71,13 +71,13 @@
 .bp-card-head h3 {
   margin: 0 0 4px;
   font-size: 16px;
-  color: #111827;
+  color: var(--text-dark);
 }
 
 .bp-card-head p {
   margin: 0 0 14px;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .bp-card-head--row {
@@ -94,7 +94,7 @@
   margin-bottom: 14px;
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-body);
 }
 
 .bp-field {
@@ -105,24 +105,24 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #4b5563;
+  color: var(--ink-slate-700);
   margin-bottom: 5px;
 }
 
 .bp-field input,
 .bp-field select {
   width: 100%;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   padding: 9px 11px;
   font-size: 13px;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .bp-summary {
   margin-top: 8px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 12px 14px;
   display: grid;
@@ -137,11 +137,11 @@
 }
 
 .bp-summary span {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .bp-summary strong {
-  color: #111827;
+  color: var(--text-dark);
   text-align: right;
   font-weight: 600;
 }
@@ -174,9 +174,9 @@
 }
 
 .bp-btn--ghost {
-  background: #fff;
-  border-color: #d1d5db;
-  color: #374151;
+  background: var(--bg-card);
+  border-color: var(--border-strong);
+  color: var(--text-body);
 }
 
 .bp-btn--primary {
@@ -195,7 +195,7 @@
   margin: 0 0 14px;
   padding-left: 18px;
   font-size: 13px;
-  color: #4b5563;
+  color: var(--ink-slate-700);
   line-height: 1.45;
 }
 
@@ -207,8 +207,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 12px;
 }
@@ -216,13 +216,13 @@
 .bp-db span {
   display: block;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 2px;
 }
 
 .bp-db strong {
   font-size: 14px;
-  color: #111827;
+  color: var(--text-dark);
 }
 
 .bp-table-wrap {
@@ -237,14 +237,14 @@
 
 .bp-table th,
 .bp-table td {
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
   padding: 10px 8px;
   text-align: left;
   vertical-align: top;
 }
 
 .bp-table th {
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -260,12 +260,12 @@
 
 .bp-details {
   max-width: 180px;
-  color: #4b5563;
+  color: var(--ink-slate-700);
 }
 
 .bp-empty {
   text-align: center;
-  color: #9ca3af;
+  color: var(--text-label);
   padding: 24px 8px !important;
 }
 
@@ -279,18 +279,18 @@
 }
 
 .bp-badge--success {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--tint-green);
+  color: var(--ink-green-800);
 }
 
 .bp-badge--failed {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--tint-red);
+  color: var(--ink-red-600);
 }
 
 .bp-badge--running {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--tint-amber);
+  color: var(--warning-text);
 }
 
 .bp-row-actions {
@@ -303,14 +303,14 @@
   background: none;
   border: none;
   padding: 0;
-  color: #2563eb;
+  color: var(--text-info);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .bp-link--danger {
-  color: #dc2626;
+  color: var(--text-danger);
 }
 
 .bp-link:disabled {
@@ -319,7 +319,7 @@
 }
 
 .bp-muted {
-  color: #9ca3af;
+  color: var(--text-label);
 }
 
 @media (max-width: 960px) {

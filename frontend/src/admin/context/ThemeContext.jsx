@@ -18,7 +18,7 @@ export function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', next);
   document.documentElement.style.colorScheme = next;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', next === 'dark' ? '#0f1419' : '#b91c1c');
+  if (meta) meta.setAttribute('content', next === 'dark' ? '#141c29' : '#b91c1c');
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {

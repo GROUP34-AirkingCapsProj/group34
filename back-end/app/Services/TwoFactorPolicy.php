@@ -8,12 +8,16 @@ use App\Models\User;
 /**
  * Decides who must clear a second factor at login.
  *
- * Admins are deliberately exempt from the global toggle. The admin UI can turn
- * two-factor off, and before this the account with the most to lose could
- * therefore disable its own protection. Keeping the rule here rather than
- * inline in AuthController means there is exactly one place to read when
- * someone asks "which roles are covered?", and it can be tested without going
- * through HTTP.
+ * The global toggle covers every role, admins included. Admins were previously
+ * exempt so that the account with the most to lose could not switch off its own
+ * protection; that was reversed deliberately, because an operator turning the
+ * setting off and still being challenged reads as the setting being broken.
+ * The tradeoff is real: an admin can now disable two-factor for the whole
+ * system, their own account included.
+ *
+ * Keeping the rule here rather than inline in AuthController means there is
+ * exactly one place to read when someone asks "which roles are covered?", and
+ * it can be tested without going through HTTP.
  */
 class TwoFactorPolicy
 {
@@ -28,7 +32,7 @@ class TwoFactorPolicy
             return true;
         }
 
-        return $user->isAdmin() || SystemSetting::twoFactorAuthEnabled();
+        return SystemSetting::twoFactorAuthEnabled();
     }
 
     /**

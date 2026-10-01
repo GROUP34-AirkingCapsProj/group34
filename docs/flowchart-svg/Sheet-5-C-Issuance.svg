@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1470" viewBox="0 0 900 1470" role="img"
+           aria-label="Flowchart sheet 5. From connector C, select a customer and add lines, save as a draft issuance, and confirm the quote. The FIFO picking service suggests the oldest batches; if stock is insufficient a shortage is displayed and flow returns to the input. Otherwise reservations are inserted and the status set to pending. Each item is scanned; a scan that does not match the FIFO suggestion is recorded as an override and sent to connector E. Once all lines are picked, quantity is deducted, reservations released, a warranty record created for serialised units, the issuance completed and a delivery receipt printed.">
+  <style>
+    svg { background: #ffffff; }
+    .sym  { fill: #ffffff; stroke: #000000; stroke-width: 1.7; }
+    .flow { fill: none; stroke: #000000; stroke-width: 1.6; }
+    .jn   { fill: #000000; stroke: none; }
+    .mk   { fill: #000000; }
+    .t  { font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; fill: #000000; text-anchor: middle; }
+    .tb { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .tc { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .yn { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; font-weight: 700; fill: #000000; }
+    .nt { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #555555; }
+  </style>
+
+        <defs>
+          <marker id="f5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+          </marker>
+        </defs>
+
+        <circle class="sym" cx="280" cy="40" r="22"></circle>
+        <text class="tc" x="280" y="46">C</text>
+        <text class="nt" x="312" y="44">from Sheet 2</text>
+
+        <line class="flow" x1="280" y1="62" x2="280" y2="94" marker-end="url(#f5)"></line>
+
+        <polygon class="sym" points="174,96 410,96 386,148 150,148"></polygon>
+        <text class="t" x="280" y="118">Select customer; add product</text>
+        <text class="t" x="280" y="135">sets or custom lines</text>
+
+        <line class="flow" x1="280" y1="148" x2="280" y2="178" marker-end="url(#f5)"></line>
+
+        <rect class="sym" x="150" y="180" width="260" height="56"></rect>
+        <text class="t" x="280" y="212">Save as Draft issuance</text>
+
+        <line class="flow" x1="280" y1="236" x2="280" y2="268" marker-end="url(#f5)"></line>
+
+        <polygon class="sym" points="280,270 410,318 280,366 150,318"></polygon>
+        <text class="t" x="280" y="314">Confirm the</text>
+        <text class="t" x="280" y="330">quote?</text>
+
+        <path class="flow" d="M150,318 H70 V122 H164" marker-end="url(#f5)"></path>
+        <text class="yn" x="106" y="310">No</text>
+
+        <line class="flow" x1="280" y1="366" x2="280" y2="398" marker-end="url(#f5)"></line>
+        <text class="yn" x="292" y="388">Yes</text>
+
+        <rect class="sym" x="150" y="400" width="260" height="56"></rect>
+        <line class="flow" x1="162" y1="400" x2="162" y2="456"></line>
+        <line class="flow" x1="398" y1="400" x2="398" y2="456"></line>
+        <text class="t" x="280" y="424">FifoPickingService:</text>
+        <text class="t" x="280" y="441">suggest oldest batches</text>
+
+        <line class="flow" x1="280" y1="456" x2="280" y2="488" marker-end="url(#f5)"></line>
+
+        <polygon class="sym" points="280,490 410,538 280,586 150,538"></polygon>
+        <text class="t" x="280" y="534">Enough available</text>
+        <text class="t" x="280" y="550">stock?</text>
+
+        <line class="flow" x1="410" y1="538" x2="508" y2="538" marker-end="url(#f5)"></line>
+        <text class="yn" x="432" y="530">No</text>
+
+        <polygon class="sym" points="534,512 770,512 746,564 510,564"></polygon>
+        <text class="t" x="640" y="536">Display shortage; keep Draft</text>
+
+        <path class="flow" d="M640,512 V122 H402" marker-end="url(#f5)"></path>
+
+        <line class="flow" x1="280" y1="586" x2="280" y2="618" marker-end="url(#f5)"></line>
+        <text class="yn" x="292" y="608">Yes</text>
+
+        <rect class="sym" x="150" y="620" width="260" height="64"></rect>
+        <text class="t" x="280" y="644">Insert pick reservations</text>
+        <text class="t" x="280" y="661">(240-minute hold);</text>
+        <text class="t" x="280" y="678">set status = Pending</text>
+
+        <line class="flow" x1="280" y1="684" x2="280" y2="716" marker-end="url(#f5)"></line>
+
+        <polygon class="sym" points="174,718 410,718 386,770 150,770"></polygon>
+        <text class="t" x="280" y="749">Scan item barcode at counter</text>
+
+        <line class="flow" x1="280" y1="770" x2="280" y2="802" marker-end="url(#f5)"></line>
+
+        <polygon class="sym" points="280,804 410,852 280,900 150,852"></polygon>
+        <text class="t" x="280" y="848">Scanned batch =</text>
+        <text class="t" x="280" y="864">FIFO suggestion?</text>
+
+        <line class="flow" x1="410" y1="852" x2="508" y2="852" marker-end="url(#f5)"></line>
+        <text class="yn" x="432" y="844">No</text>
+
+        <rect class="sym" x="510" y="824" width="260" height="56"></rect>
+        <text class="t" x="640" y="848">Record FIFO override and</text>
+        <text class="t" x="640" y="865">file an incident report</text>
+
+        <line class="flow" x1="640" y1="880" x2="640" y2="918" marker-end="url(#f5)"></line>
+        <circle class="sym" cx="640" cy="942" r="22"></circle>
+        <text class="tc" x="640" y="948">E</text>
+        <text class="nt" x="672" y="946">Sheet 7</text>
+
+        <line class="flow" x1="280" y1="900" x2="280" y2="932" marker-end="url(#f5)"></line>
+        <text class="yn" x="292" y="922">Yes</text>
+
+        <polygon class="sym" points="280,934 410,982 280,1030 150,982"></polygon>
+        <text class="t" x="280" y="978">All lines</text>
+        <text class="t" x="280" y="994">picked?</text>
+
+        <path class="flow" d="M150,982 H70 V744 H164" marker-end="url(#f5)"></path>
+        <text class="yn" x="106" y="974">No</text>
+
+        <line class="flow" x1="280" y1="1030" x2="280" y2="1062" marker-end="url(#f5)"></line>
+        <text class="yn" x="292" y="1052">Yes</text>
+
+        <rect class="sym" x="150" y="1064" width="260" height="64"></rect>
+        <text class="t" x="280" y="1088">Deduct quantity; release</text>
+        <text class="t" x="280" y="1105">reservations; append batch</text>
+        <text class="t" x="280" y="1122">movement records</text>
+
+        <line class="flow" x1="280" y1="1128" x2="280" y2="1160" marker-end="url(#f5)"></line>
+
+        <polygon class="sym" points="280,1162 410,1210 280,1258 150,1210"></polygon>
+        <text class="t" x="280" y="1206">Serialised unit</text>
+        <text class="t" x="280" y="1222">issued?</text>
+
+        <line class="flow" x1="410" y1="1210" x2="508" y2="1210" marker-end="url(#f5)"></line>
+        <text class="yn" x="432" y="1202">Yes</text>
+
+        <rect class="sym" x="510" y="1182" width="260" height="56"></rect>
+        <text class="t" x="640" y="1206">Create warranty record</text>
+        <text class="t" x="640" y="1223">— status = Active</text>
+
+        <path class="flow" d="M640,1238 V1284 H286" marker-end="url(#f5)"></path>
+
+        <line class="flow" x1="280" y1="1258" x2="280" y2="1310" marker-end="url(#f5)"></line>
+        <text class="yn" x="292" y="1278">No</text>
+        <circle class="jn" cx="280" cy="1284" r="4"></circle>
+
+        <rect class="sym" x="150" y="1312" width="260" height="56"></rect>
+        <text class="t" x="280" y="1344">Set issuance = Completed</text>
+
+        <line class="flow" x1="280" y1="1368" x2="280" y2="1396" marker-end="url(#f5)"></line>
+
+        <circle class="sym" cx="280" cy="1420" r="22"></circle>
+        <text class="tc" x="280" y="1426">M</text>
+        <text class="nt" x="312" y="1424">back to Sheet 2</text>
+      </svg>

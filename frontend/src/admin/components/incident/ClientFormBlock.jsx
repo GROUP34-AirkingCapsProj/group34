@@ -39,7 +39,7 @@ export default function ClientFormBlock({
 
       <fieldset
         className="ak-card"
-        style={{ border: '1px solid var(--ak-border, #ddd)', padding: '0.75rem', margin: 0 }}
+        style={{ border: '1px solid var(--line-slate-100)', padding: '0.75rem', margin: 0 }}
       >
         <legend className="ak-label" style={{ padding: '0 0.35rem' }}>Dealer</legend>
 
@@ -61,7 +61,7 @@ export default function ClientFormBlock({
 
       <fieldset
         className="ak-card"
-        style={{ border: '1px solid var(--ak-border, #ddd)', padding: '0.75rem', margin: 0 }}
+        style={{ border: '1px solid var(--line-slate-100)', padding: '0.75rem', margin: 0 }}
       >
         <legend className="ak-label" style={{ padding: '0 0.35rem' }}>Customer and site</legend>
 

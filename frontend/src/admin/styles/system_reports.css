@@ -4,7 +4,7 @@
   padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
-  background: #f3f4f6;
+  background: var(--bg-hover);
   min-height: 100%;
 }
 
@@ -15,13 +15,13 @@
 .sr-page-title {
   font-size: 24px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-dark);
   margin: 0 0 4px 0;
 }
 
 .sr-page-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -34,25 +34,25 @@
 }
 
 .sr-card {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
 }
 
 .sr-card-title {
   font-size: 16px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-dark);
   margin: 0 0 6px 0;
 }
 
 .sr-card-desc {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0 0 20px 0;
   line-height: 1.45;
 }
@@ -81,33 +81,33 @@
 }
 
 .sr-report-icon-inventory {
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--tint-blue);
+  color: var(--text-info);
 }
 
 .sr-report-icon-transaction {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--tint-green);
+  color: var(--text-success);
 }
 
 .sr-report-icon-branch {
-  background: #f3e8ff;
-  color: #7c3aed;
+  background: var(--tint-violet);
+  color: var(--ink-violet);
 }
 
 .sr-report-icon-lowstock {
-  background: #ffedd5;
-  color: #ea580c;
+  background: var(--fill-orange-100-2);
+  color: var(--ink-orange-500);
 }
 
 .sr-report-icon-warehouse {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--bg-hover);
+  color: var(--text-muted);
 }
 
 .sr-report-icon-user {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--bg-hover);
+  color: var(--text-muted);
 }
 
 .sr-card-format-block {
@@ -119,14 +119,14 @@
 .sr-format-label {
   font-size: 11px;
   font-weight: 600;
-  color: #9ca3af;
+  color: var(--text-label);
   letter-spacing: 0.02em;
 }
 
 .sr-format-types {
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-body);
 }
 
 /* Generate = light red bg + red text; Schedule = white + border */
@@ -140,8 +140,8 @@
 .sr-btn-generate {
   width: 100%;
   padding: 10px 16px;
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--danger-soft-bg);
+  color: var(--text-danger);
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -151,15 +151,15 @@
 }
 
 .sr-btn-generate:hover {
-  background: #fee2e2;
+  background: var(--tint-red);
 }
 
 .sr-btn-schedule {
   width: 100%;
   padding: 10px 16px;
-  background: #fff;
-  color: #111827;
-  border: 1px solid #d1d5db;
+  background: var(--bg-card);
+  color: var(--text-dark);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -168,29 +168,29 @@
 }
 
 .sr-btn-schedule:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
+  background: var(--bg-muted);
+  border-color: var(--line-slate-400-2);
 }
 
 /* Recent Reports - white card, list in light grey sub-cards */
 .sr-recent-card {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
   padding: 24px 28px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
 }
 
 .sr-recent-title {
   font-size: 18px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-dark);
   margin: 0 0 4px 0;
 }
 
 .sr-recent-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0 0 20px 0;
 }
 
@@ -205,8 +205,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: #f9fafb;
-  border: 1px solid #f3f4f6;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
 }
 
@@ -220,8 +220,8 @@
 .sr-file-icon {
   width: 44px;
   height: 44px;
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--tint-blue);
+  color: var(--text-info);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -243,12 +243,12 @@
 .sr-recent-name {
   font-size: 14px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-dark);
 }
 
 .sr-recent-meta {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .sr-recent-item-right {
@@ -260,15 +260,15 @@
 
 .sr-recent-size {
   font-size: 13px;
-  color: #374151;
+  color: var(--text-body);
   font-weight: 500;
 }
 
 /* Download = light blue bg + blue text; View = light green bg + green text */
 .sr-btn-download {
   padding: 8px 14px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--tint-blue-soft);
+  color: var(--text-info);
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -277,13 +277,13 @@
 }
 
 .sr-btn-download:hover {
-  background: #dbeafe;
+  background: var(--tint-blue);
 }
 
 .sr-btn-view {
   padding: 8px 14px;
-  background: #ecfdf5;
-  color: #059669;
+  background: var(--success-soft-bg);
+  color: var(--ink-teal-700);
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -292,7 +292,7 @@
 }
 
 .sr-btn-view:hover {
-  background: #d1fae5;
+  background: var(--fill-green-100);
 }
 
 /* Inline catalog-load error banner */
@@ -303,9 +303,9 @@
   gap: 16px;
   padding: 14px 18px;
   margin-bottom: 20px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
+  background: var(--danger-soft-bg);
+  border: 1px solid var(--line-red);
+  color: var(--ink-red);
   border-radius: 10px;
   font-size: 13px;
   font-weight: 500;
@@ -319,11 +319,11 @@
 .sr-empty-state {
   padding: 40px 24px;
   margin-bottom: 32px;
-  background: #fff;
-  border: 1px dashed #d1d5db;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-strong);
   border-radius: 12px;
   text-align: center;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -334,7 +334,7 @@
 
 .sr-skeleton-line,
 .sr-skeleton-icon {
-  background: linear-gradient(90deg, #eef0f3 25%, #f7f8fa 37%, #eef0f3 63%);
+  background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-muted) 37%, var(--bg-hover) 63%);
   background-size: 400% 100%;
   animation: sr-shimmer 1.4s ease infinite;
   border-radius: 6px;
@@ -378,16 +378,16 @@
 
 /* Expired run row — greyed with a "File expired" tag, Re-run instead of Download */
 .sr-recent-item--expired {
-  background: #f3f4f6;
+  background: var(--bg-hover);
 }
 
 .sr-recent-item--expired .sr-recent-name {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 /* Generate Report dialog (rendered via the shared Modal component) */
 .sr-dialog-error {
-  color: #dc2626;
+  color: var(--text-danger);
   font-size: 13px;
   margin-bottom: 0.9rem;
 }

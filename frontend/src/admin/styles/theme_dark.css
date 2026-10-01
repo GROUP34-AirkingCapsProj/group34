@@ -109,8 +109,8 @@
 [data-theme='dark'] .admin-shell [style*='background:#fef3c7'],
 [data-theme='dark'] .admin-shell [style*='background: #fffbeb'],
 [data-theme='dark'] .admin-shell [style*='background:#fffbeb'] {
-  background: rgba(217, 119, 6, 0.18) !important;
-  color: #fcd34d !important;
+  background: rgba(224, 174, 74, 0.16) !important;
+  color: #e8c179 !important;
 }
 
 /* Low-stock / warning panels often use yellow fills */
@@ -118,8 +118,8 @@
 [data-theme='dark'] .low-stock-alert,
 [data-theme='dark'] .low-stock-section,
 [data-theme='dark'] [class*='low-stock'] {
-  background: rgba(217, 119, 6, 0.12) !important;
-  border-color: rgba(245, 179, 1, 0.35) !important;
+  background: rgba(224, 174, 74, 0.12) !important;
+  border-color: rgba(224, 174, 74, 0.32) !important;
   color: var(--text-dark);
 }
 

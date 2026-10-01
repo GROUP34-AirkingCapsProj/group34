@@ -328,7 +328,7 @@ export default function ProductRegisterModal({
   if (editingItem) {
     return (
       <Modal isOpen onClose={onClose} title="Register product">
-        <p style={{ color: '#374151', marginBottom: 16 }}>Use Item Management to edit catalog products.</p>
+        <p style={{ color: 'var(--text-body)', marginBottom: 16 }}>Use Item Management to edit catalog products.</p>
         <div className="im-modal-footer">
           <button type="button" className="im-modal-btn-cancel" onClick={onClose}>Close</button>
         </div>
@@ -347,8 +347,8 @@ export default function ProductRegisterModal({
               flex: 1,
               padding: '8px 12px',
               borderRadius: 8,
-              border: kind === 'installation_material' ? '2px solid #dc2626' : '1px solid #e5e7eb',
-              background: kind === 'installation_material' ? '#fef2f2' : '#fff',
+              border: kind === 'installation_material' ? '2px solid #dc2626' : '1px solid var(--border-color)',
+              background: kind === 'installation_material' ? 'var(--danger-soft-bg)' : 'var(--bg-card)',
               fontWeight: 600,
               fontSize: 13,
               cursor: 'pointer',
@@ -363,8 +363,8 @@ export default function ProductRegisterModal({
               flex: 1,
               padding: '8px 12px',
               borderRadius: 8,
-              border: kind === 'appliance' ? '2px solid #dc2626' : '1px solid #e5e7eb',
-              background: kind === 'appliance' ? '#fef2f2' : '#fff',
+              border: kind === 'appliance' ? '2px solid #dc2626' : '1px solid var(--border-color)',
+              background: kind === 'appliance' ? 'var(--danger-soft-bg)' : 'var(--bg-card)',
               fontWeight: 600,
               fontSize: 13,
               cursor: 'pointer',
@@ -709,7 +709,7 @@ export default function ProductRegisterModal({
           </>
         )}
 
-        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
           Submissions go to the approval queue. An admin or branch manager must approve before the item appears in Item Master.
         </p>
 

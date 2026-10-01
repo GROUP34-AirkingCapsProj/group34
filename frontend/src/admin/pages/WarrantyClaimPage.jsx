@@ -338,7 +338,7 @@ export default function WarrantyClaimPage() {
                         <td>{it.quantity_requested} {it.quantity_unit || 'unit'}</td>
                         <td>{it.available_quantity}</td>
                         <td>{it.quantity_issued} / {it.quantity_requested}</td>
-                        <td style={{ color: it.is_fulfilled ? '#15803d' : (it.has_sufficient_stock ? '#92400e' : '#b91c1c'), fontWeight: 700 }}>
+                        <td style={{ color: it.is_fulfilled ? 'var(--ink-green)' : (it.has_sufficient_stock ? 'var(--warning-text)' : 'var(--ink-red)'), fontWeight: 700 }}>
                           {it.is_fulfilled ? 'Fulfilled' : (it.has_sufficient_stock ? 'Ready to scan' : 'Insufficient stock')}
                         </td>
                         <td style={{ textAlign: 'right' }}>
@@ -459,7 +459,7 @@ export default function WarrantyClaimPage() {
         {step === STEP.DONE && claim && (
           <div className="isp-card">
             <h2 className="isp-card-title">Claim {claim.claim_number} completed</h2>
-            <p style={{ color: 'var(--text-secondary, #6b7280)', marginTop: 0 }}>
+            <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
               {isReplacement
                 ? 'The original warranty is marked Claimed; the replacement carries the original end date and remains claimable.'
                 : 'The repaired unit was returned to the customer and its original warranty remains active for the remaining coverage.'}

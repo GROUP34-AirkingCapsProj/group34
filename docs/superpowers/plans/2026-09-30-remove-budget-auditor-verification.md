@@ -261,7 +261,8 @@ git commit -m "refactor(budget): name the surviving failure NoActiveBudgetExcept
 The behaviour change. After this task an unverified budget funds requests, and editing a budget's total no longer resets anything.
 
 **Files:**
-- Modify: `app/Services/BudgetService.php:41,321-330`
+- Modify: `app/Services/BudgetService.php:41,317-326`
+- Modify: `app/Http/Controllers/Api/PurchaseRequestController.php:581`
 - Create: `tests/Feature/Budget/BudgetNoVerificationTest.php`
 - Test: `tests/Feature/Budget/BudgetServiceTest.php`, `tests/Feature/Budget/PoCommitTest.php`, `tests/Feature/Budget/BudgetEnforcementTest.php`
 
@@ -354,7 +355,44 @@ In the same file, delete lines 321-330 — the four field assignments and the `v
         });
 ```
 
-- [ ] **Step 5: Delete the tests that asserted the gate**
+- [ ] **Step 5: Drop the verification check from the legacy PR branch**
+
+Task 1 deliberately left this one in place, because removing it there would have been a behaviour change in a refactor-only commit. It belongs here. In `app/Http/Controllers/Api/PurchaseRequestController.php` line 581, the direct-`budget_id` branch keeps only the existence check:
+
+```php
+                    $budget = \App\Models\BudgetAllocation::find($pr->budget_id);
+                    if (!$budget) {
+                        $whName = \App\Models\Location::where('location_id', $pr->location_id)->value('location_name');
+                        throw new NoActiveBudgetException($whName ?? "warehouse #{$pr->location_id}");
+                    }
+```
+
+This branch runs for PRs with no line-level warehouses — which includes every PR built by `BudgetTestCase::makePr()`, so it is the path `BudgetNoVerificationTest::test_a_freshly_created_budget_funds_a_pr_approval` exercises.
+
+- [ ] **Step 6: Remove the second, hand-rolled copy of the gate**
+
+`app/Console/Commands/ReanchorBudgetCommitments.php:80-90` does not call `resolveActiveBudget()` — it re-implements the same query inline, including the `verified` filter. Removing the filter from the service alone would leave this copy silently enforcing a rule that no longer exists. Delete line 83 and reword the warning on line 89:
+
+```php
+                $budgetId = DB::table('budget_allocations')
+                    ->where('location_id', $locationId)
+                    ->whereDate('period_start', '<=', today())
+                    ->whereDate('period_end', '>=', today())
+                    ->orderByDesc('period_start')
+                    ->value('budget_id');
+                if (!$budgetId) {
+                    $this->warn("No active budget for location {$locationId} (PO {$po->po_id}) — skipped");
+                    continue;
+                }
+```
+
+Also fix the docblock on `app/Exceptions/NoActiveBudgetException.php`, which currently claims verification is already gone — true only from this task onward, and it reads as a changelog rather than a description. Its sibling `InsufficientBudgetException` carries none at all:
+
+```php
+/** No budget's period covers today for this warehouse. */
+```
+
+- [ ] **Step 7: Delete the tests that asserted the gate**
 
 From `tests/Feature/Budget/BudgetServiceTest.php`, delete these four methods in full:
 - `test_commit_po_throws_when_budget_rejected` (line 234)
@@ -391,7 +429,40 @@ From `tests/Feature/Budget/BudgetEnforcementTest.php`, delete all three of these
 - `test_store_message_reflects_rejected_budget`
 - `test_approve_blocked_when_budget_unverified_after_submission`
 
-- [ ] **Step 6: Run the budget suite to verify it passes**
+Two more tests fail the moment the gate goes, in files this task's file list didn't name. Both belong here:
+
+From `tests/Feature/Budget/BudgetEndpointsTest.php::test_store_tops_up_existing_budget_for_same_period`, delete the reset assertion and its comment — `adjustTotal` no longer resets anything:
+
+```php
+        // Top-up voids the prior verification (increased amount needs re-verification).
+        $this->assertSame('pending', $existing->verification_status);
+```
+
+Leave the rest of that test alone; the ₱1500 total and the adjustment-transaction assertions still hold. Reword its fixture comment from `// An existing VERIFIED budget for July at this location.` to `// An existing budget for July at this location.`
+
+`tests/Feature/Budget/WarehousePrApproveTest.php::test_approve_all_or_nothing_when_one_warehouse_unverified` must be **rewritten, not deleted**. The property it proves — a multi-warehouse PR approval is atomic, so one bad warehouse rolls back the whole thing and commits nothing — survives this change; only its cause is obsolete. Give warehouse B no budget at all, which is the failure that still exists:
+
+```php
+    public function test_approve_all_or_nothing_when_one_warehouse_has_no_budget(): void
+    {
+        $admin = $this->makeUser('admin');
+        $whA = $this->locationId; $whB = $this->warehouse();
+        $bA = $this->makeBudget(10000, ['location_id' => $whA]);
+        // No budget for $whB at all — the one failure that still blocks approval.
+        $pr = $this->twoWarehousePr($whA, $whB);
+
+        $res = $this->actingAs($admin, 'sanctum')->patchJson("/api/purchase-requests/{$pr->pr_id}/approve");
+
+        $res->assertStatus(422);
+        $this->assertSame(13, (int) $pr->fresh()->status_id);
+        $this->assertSame('0.00', (string) $bA->fresh()->committed);
+        $this->assertSame(0, BudgetTransaction::where('pr_id', $pr->pr_id)->count());
+    }
+```
+
+`$bB` is gone, so don't leave an unused variable behind.
+
+- [ ] **Step 8: Run the budget suite to verify it passes**
 
 ```bash
 php artisan test --filter="Budget"
@@ -399,10 +470,10 @@ php artisan test --filter="Budget"
 
 Expected: PASS. `BudgetNoVerificationTest` runs 3 tests green.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add app/Services/BudgetService.php tests/Feature/Budget
+git add app/Services/BudgetService.php app/Exceptions/NoActiveBudgetException.php app/Console/Commands/ReanchorBudgetCommitments.php app/Http/Controllers/Api/PurchaseRequestController.php tests/Feature/Budget
 git commit -m "feat(budget): an admin's budget funds requests without auditor verification"
 ```
 
@@ -604,14 +675,7 @@ From `tests/Feature/Budget/VerificationPermissionTest.php`, delete `test_invento
 
 From `tests/Feature/Budget/VerificationExportTest.php`, delete `test_budget_index_filters_by_verification_status` (lines 25-36). The PO export test above it stays.
 
-From `tests/Feature/Budget/BudgetEndpointsTest.php`, delete `test_available_endpoint_exposes_verification_status` (lines 184-194). In `test_store_tops_up_existing_budget_for_same_period`, delete the reset assertion and its comment (around line 220):
-
-```php
-        // Top-up voids the prior verification (increased amount needs re-verification).
-        $this->assertSame('pending', $existing->verification_status);
-```
-
-and reword the fixture comment at line 199 from `// An existing VERIFIED budget for July at this location.` to `// An existing budget for July at this location.`
+From `tests/Feature/Budget/BudgetEndpointsTest.php`, delete `test_available_endpoint_exposes_verification_status` (lines 184-194). The top-up test in the same file was already fixed in Task 2 — the reset it asserted disappears the moment `adjustTotal` stops resetting, so that edit could not wait until here.
 
 In `tests/Feature/Permissions/SeederTest.php`, the carve-out assertion counts rows at runtime so it still passes, but the docblock (lines 56-62) names a deleted test and a deleted permission:
 
