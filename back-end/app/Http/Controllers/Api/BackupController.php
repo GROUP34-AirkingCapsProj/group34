@@ -40,10 +40,19 @@ class BackupController extends Controller
     public function updateSettings(Request $request)
     {
         $validated = $request->validate([
-            'enabled'      => 'sometimes|boolean',
-            'time'         => 'sometimes|string|regex:/^\d{2}:\d{2}$/',
-            'frequency'    => ['sometimes', Rule::in(['daily'])],
-            'storage_path' => 'sometimes|nullable|string|max:500',
+            'enabled'             => 'sometimes|boolean',
+            // \A..\z, not ^..$: PCRE's $ also matches before a trailing newline,
+            // which would let "00:30\n" through. Must stay in step with the same
+            // pattern in BackupService::dueForScheduledRun().
+            // Array form, not a single pipe-delimited string: Laravel explodes a
+            // string rule list on every "|", which would also split the regex's
+            // own alternation inside ([01]\d|2[0-3]).
+            'time'                => ['sometimes', 'string', 'regex:/\A([01]\d|2[0-3]):[0-5]\d\z/'],
+            'frequency'           => ['sometimes', Rule::in(['daily'])],
+            'storage_path'        => 'sometimes|nullable|string|max:500',
+            'keep_daily_days'     => 'sometimes|integer|min:1|max:365',
+            'keep_weekly_weeks'   => 'sometimes|integer|min:1|max:260',
+            'keep_monthly_months' => 'sometimes|integer|min:1|max:120',
         ]);
 
         $current = $this->scheduleWithDefaults();
@@ -124,6 +133,9 @@ class BackupController extends Controller
             'frequency'               => 'daily',
             'storage_path'            => null,
             'last_scheduled_run_date' => null,
+            'keep_daily_days'         => 14,
+            'keep_weekly_weeks'       => 12,
+            'keep_monthly_months'     => 12,
         ], SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, []));
     }
 
@@ -156,11 +168,12 @@ class BackupController extends Controller
 
     private function nextRunAt(?string $time): ?Carbon
     {
-        if (! $time) {
+        if (! is_string($time) || ! preg_match('/\A([01]\d|2[0-3]):[0-5]\d\z/', $time)) {
             return null;
         }
 
-        $today = Carbon::createFromFormat('H:i', $time)->setDate(now()->year, now()->month, now()->day);
+        [$hour, $minute] = array_map('intval', explode(':', $time));
+        $today = now()->copy()->setTime($hour, $minute);
 
         return $today->isFuture() ? $today : $today->addDay();
     }
