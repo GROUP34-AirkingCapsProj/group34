@@ -26,6 +26,15 @@ class BackupService
     private const LOCK_TTL_SECONDS = 300;
     private const LOCK_WAIT_SECONDS = 10;
 
+    /**
+     * Canonical 24-hour HH:MM pattern for a stored schedule time.
+     *
+     * \A..\z, not ^..$: PCRE's $ also matches before a trailing newline, so a
+     * $-anchored version accepts "00:30\n". Public because BackupController
+     * validates the same value on the way in — one pattern, one place.
+     */
+    public const TIME_REGEX = '/\A([01]\d|2[0-3]):[0-5]\d\z/';
+
     private const MYSQLDUMP_FLAGS = [
         '--single-transaction',
         '--routines',
@@ -169,7 +178,7 @@ class BackupService
         }
 
         $time = $schedule['time'] ?? null;
-        if (! is_string($time) || ! preg_match('/\A([01]\d|2[0-3]):[0-5]\d\z/', $time)) {
+        if (! is_string($time) || ! preg_match(self::TIME_REGEX, $time)) {
             return false;
         }
 

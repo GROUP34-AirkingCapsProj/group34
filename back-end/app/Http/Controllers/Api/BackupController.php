@@ -41,13 +41,11 @@ class BackupController extends Controller
     {
         $validated = $request->validate([
             'enabled'             => 'sometimes|boolean',
-            // \A..\z, not ^..$: PCRE's $ also matches before a trailing newline,
-            // which would let "00:30\n" through. Must stay in step with the same
-            // pattern in BackupService::dueForScheduledRun().
-            // Array form, not a single pipe-delimited string: Laravel explodes a
-            // string rule list on every "|", which would also split the regex's
-            // own alternation inside ([01]\d|2[0-3]).
-            'time'                => ['sometimes', 'string', 'regex:/\A([01]\d|2[0-3]):[0-5]\d\z/'],
+            // See BackupService::TIME_REGEX for the pattern and why it's anchored
+            // \A..\z. Array form, not a single pipe-delimited string: Laravel
+            // explodes a string rule list on every "|", which would also split
+            // the regex's own alternation inside ([01]\d|2[0-3]).
+            'time'                => ['sometimes', 'string', 'regex:' . BackupService::TIME_REGEX],
             'frequency'           => ['sometimes', Rule::in(['daily'])],
             'storage_path'        => 'sometimes|nullable|string|max:500',
             'keep_daily_days'     => 'sometimes|integer|min:1|max:365',
@@ -127,7 +125,7 @@ class BackupController extends Controller
 
     private function scheduleWithDefaults(): array
     {
-        return array_merge([
+        $defaults = [
             'enabled'                 => false,
             'time'                    => '00:01',
             'frequency'               => 'daily',
@@ -136,7 +134,21 @@ class BackupController extends Controller
             'keep_daily_days'         => 14,
             'keep_weekly_weeks'       => 12,
             'keep_monthly_months'     => 12,
-        ], SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, []));
+        ];
+
+        $schedule = array_merge($defaults, SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, []));
+
+        // A stored blob predating this validation (or edited by hand) can hold a
+        // non-numeric or out-of-range window. Fall back to the default rather than
+        // reporting nonsense the Backup page would then display as fact.
+        foreach (['keep_daily_days' => 365, 'keep_weekly_weeks' => 260, 'keep_monthly_months' => 120] as $key => $max) {
+            $value = $schedule[$key];
+            $schedule[$key] = (is_numeric($value) && (int) $value >= 1 && (int) $value <= $max)
+                ? (int) $value
+                : $defaults[$key];
+        }
+
+        return $schedule;
     }
 
     private function buildStats(array $schedule): array
@@ -153,29 +165,54 @@ class BackupController extends Controller
 
         $lastRun = SystemSetting::getValue(SystemSetting::KEY_BACKUP_LAST_RUN, null);
 
+        $overdue = (bool) $schedule['enabled']
+            && $this->nextRunAt($schedule['time'], $schedule['last_scheduled_run_date'])?->lessThanOrEqualTo(now());
+
         return [
-            'schedule_enabled'   => (bool) $schedule['enabled'],
-            'next_scheduled_run' => $schedule['enabled'] ? $this->nextRunAt($schedule['time'])?->toIso8601String() : null,
-            'backups_total'      => (int) ($backupCounts->sum() ?? 0),
-            'backups_failed'     => (int) ($backupCounts['failed'] ?? 0),
-            'restores_total'     => (int) ($restoreCounts->sum() ?? 0),
-            'restores_failed'    => (int) ($restoreCounts['failed'] ?? 0),
-            'last_success_at'    => $lastRun['ran_at'] ?? null,
-            'server_timezone'    => config('app.timezone'),
-            'server_time'        => now()->toIso8601String(),
+            'schedule_enabled'      => (bool) $schedule['enabled'],
+            'next_scheduled_run'    => $schedule['enabled']
+                ? $this->nextRunAt($schedule['time'], $schedule['last_scheduled_run_date'])?->toIso8601String()
+                : null,
+            'scheduled_run_overdue' => $overdue,
+            'backups_total'         => (int) ($backupCounts->sum() ?? 0),
+            'backups_failed'        => (int) ($backupCounts['failed'] ?? 0),
+            'restores_total'        => (int) ($restoreCounts->sum() ?? 0),
+            'restores_failed'       => (int) ($restoreCounts['failed'] ?? 0),
+            'last_success_at'       => $lastRun['ran_at'] ?? null,
+            'server_timezone'       => config('app.timezone'),
+            'server_time'           => now()->toIso8601String(),
         ];
     }
 
-    private function nextRunAt(?string $time): ?Carbon
+    /**
+     * When the next scheduled backup will actually happen.
+     *
+     * Must agree with BackupService::dueForScheduledRun(), which treats a backup as
+     * due any time today once the configured time has passed and today has not run
+     * yet. Reporting tomorrow in that window would have the dashboard promise
+     * "tomorrow 00:30" while the next per-minute tick is about to fire a catch-up.
+     */
+    private function nextRunAt(?string $time, ?string $lastRunDate = null): ?Carbon
     {
-        if (! is_string($time) || ! preg_match('/\A([01]\d|2[0-3]):[0-5]\d\z/', $time)) {
+        if (! is_string($time) || ! preg_match(BackupService::TIME_REGEX, $time)) {
             return null;
         }
 
         [$hour, $minute] = array_map('intval', explode(':', $time));
-        $today = now()->copy()->setTime($hour, $minute);
 
-        return $today->isFuture() ? $today : $today->addDay();
+        $now   = now();
+        $today = $now->copy()->setTime($hour, $minute);
+
+        if ($today->isFuture()) {
+            return $today;
+        }
+
+        // Today's slot has passed. If today has not run yet, a catch-up is owed now.
+        if ($lastRunDate !== $now->toDateString()) {
+            return $now;
+        }
+
+        return $today->addDay();
     }
 
     private function resolvedStoragePath(array $schedule): string

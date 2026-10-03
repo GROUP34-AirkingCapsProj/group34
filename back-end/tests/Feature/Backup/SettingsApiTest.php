@@ -123,4 +123,58 @@ class SettingsApiTest extends TestCase
 
         \Illuminate\Support\Carbon::setTestNow();
     }
+
+    public function test_next_scheduled_run_reports_an_owed_catch_up_rather_than_tomorrow(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-10-03 09:00:00');
+
+        SystemSetting::setValue(SystemSetting::KEY_BACKUP_SCHEDULE, [
+            'enabled'                 => true,
+            'time'                    => '00:30',
+            'last_scheduled_run_date' => '2026-10-02',
+        ]);
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->getJson('/api/backup/settings')
+            ->assertOk()
+            ->assertJsonPath('data.stats.next_scheduled_run', '2026-10-03T09:00:00+00:00')
+            ->assertJsonPath('data.stats.scheduled_run_overdue', true);
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
+    public function test_next_scheduled_run_is_tomorrow_once_today_has_run(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-10-03 09:00:00');
+
+        SystemSetting::setValue(SystemSetting::KEY_BACKUP_SCHEDULE, [
+            'enabled'                 => true,
+            'time'                    => '00:30',
+            'last_scheduled_run_date' => '2026-10-03',
+        ]);
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->getJson('/api/backup/settings')
+            ->assertOk()
+            ->assertJsonPath('data.stats.next_scheduled_run', '2026-10-04T00:30:00+00:00')
+            ->assertJsonPath('data.stats.scheduled_run_overdue', false);
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
+    public function test_a_corrupt_stored_retention_value_is_reported_as_the_default(): void
+    {
+        SystemSetting::setValue(SystemSetting::KEY_BACKUP_SCHEDULE, [
+            'keep_daily_days'     => 'abc',
+            'keep_weekly_weeks'   => -5,
+            'keep_monthly_months' => 99999,
+        ]);
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->getJson('/api/backup/settings')
+            ->assertOk()
+            ->assertJsonPath('data.schedule.keep_daily_days', 14)
+            ->assertJsonPath('data.schedule.keep_weekly_weeks', 12)
+            ->assertJsonPath('data.schedule.keep_monthly_months', 12);
+    }
 }
