@@ -91,11 +91,19 @@ class SettingsApiTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_a_time_with_a_trailing_newline_is_rejected(): void
+    /**
+     * Not a rejection: Laravel's global TrimStrings middleware strips the newline
+     * before validation runs, so this value cannot reach the validator intact over
+     * HTTP. Asserting a 422 here would pin a path that does not exist. The anchored
+     * \A..\z guard still earns its place in BackupService::dueForScheduledRun(),
+     * which reads the stored JSON blob directly and never passes through middleware.
+     */
+    public function test_a_time_with_a_trailing_newline_is_normalised_and_stored_trimmed(): void
     {
         $this->actingAs($this->admin(), 'sanctum')
-            ->putJson('/api/backup/settings', ['time' => "00:30\n"])
-            ->assertStatus(422);
+            ->putJson('/api/backup/settings', ['enabled' => true, 'time' => "00:30\n"])
+            ->assertOk()
+            ->assertJsonPath('data.time', '00:30');
     }
 
     public function test_next_scheduled_run_is_today_when_the_time_is_still_ahead(): void
