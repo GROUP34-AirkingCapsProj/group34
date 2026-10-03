@@ -40,6 +40,29 @@ class RunScheduledBackup extends Command
 
             $this->info("Backup complete: {$log->file_name}");
 
+            // Prune only after a success, so a run of failures can never age out
+            // the last good snapshots and leave nothing restorable behind.
+            //
+            // NOT wrapped in a lock here. pruneOldBackups() takes the service's own
+            // non-reentrant mutex internally, exactly as createBackup() just did and
+            // released. Holding it around both would block for LOCK_WAIT_SECONDS and
+            // then throw — the same deadlock restore() documents when it calls
+            // performBackup() directly rather than createBackup().
+            try {
+                $pruned = $service->pruneUsingStoredPolicy();
+                if ($pruned > 0) {
+                    $this->line("Pruned {$pruned} aged snapshot(s).");
+                }
+            } catch (BackupInProgressException $e) {
+                // A manual backup or restore holds the lock. Retention is not
+                // urgent and the next tick retries, so this is a skip, not a
+                // failure — the backup itself already succeeded.
+                $this->line('Prune skipped: another backup operation is in progress.');
+            } catch (\Throwable $e) {
+                // A prune failure must not turn a good backup into a failed run.
+                $this->warn('Prune failed: ' . $e->getMessage());
+            }
+
             return self::SUCCESS;
         }
 
