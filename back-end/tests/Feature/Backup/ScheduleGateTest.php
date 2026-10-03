@@ -108,4 +108,19 @@ class ScheduleGateTest extends TestCase
             'time'    => 'not-a-time',
         ]));
     }
+
+    /**
+     * PCRE's `$` matches before a trailing newline, so an anchored `\z` is what
+     * actually rejects this. The 'not-a-time' case above passes against the old
+     * exact-string comparison too, so it does not pin this guard — this one does.
+     */
+    public function test_a_time_with_a_trailing_newline_is_never_due(): void
+    {
+        Carbon::setTestNow('2026-10-03 09:00:00');
+
+        $this->assertFalse($this->service()->dueForScheduledRun([
+            'enabled' => true,
+            'time'    => "00:30\n",
+        ]));
+    }
 }

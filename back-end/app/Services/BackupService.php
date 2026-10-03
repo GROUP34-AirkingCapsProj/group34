@@ -169,17 +169,19 @@ class BackupService
         }
 
         $time = $schedule['time'] ?? null;
-        if (! is_string($time) || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time)) {
+        if (! is_string($time) || ! preg_match('/\A([01]\d|2[0-3]):[0-5]\d\z/', $time)) {
             return false;
         }
 
-        if (($schedule['last_scheduled_run_date'] ?? null) === now()->toDateString()) {
+        $now = now();
+
+        if (($schedule['last_scheduled_run_date'] ?? null) === $now->toDateString()) {
             return false;
         }
 
         [$hour, $minute] = array_map('intval', explode(':', $time));
 
-        return now()->greaterThanOrEqualTo(now()->copy()->setTime($hour, $minute));
+        return $now->greaterThanOrEqualTo($now->copy()->setTime($hour, $minute));
     }
 
     /**
