@@ -213,7 +213,7 @@ CREATE TABLE "backup_logs" (
 );
 COMMENT ON COLUMN "backup_logs"."action" IS 'backup | restore';
 COMMENT ON COLUMN "backup_logs"."triggered_by" IS 'manual | scheduled';
-COMMENT ON COLUMN "backup_logs"."status" IS 'success | failed | pruned';
+COMMENT ON COLUMN "backup_logs"."status" IS 'success | failed | pruned | missing';
 
 --
 -- Table: barcode_scans

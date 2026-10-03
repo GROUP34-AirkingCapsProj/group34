@@ -53,6 +53,13 @@ class BackupService
      */
     private const TRAILER_WINDOW_BYTES = 512;
 
+    /**
+     * How many recent rows protectedSnapshotIds() will stat() looking for
+     * ALWAYS_KEEP_NEWEST reachable ones. Bounded so a long tail of dead rows
+     * cannot turn the floor into a full-table scan.
+     */
+    private const FLOOR_SCAN_WINDOW = 50;
+
     private const MYSQLDUMP_FLAGS = [
         '--single-transaction',
         '--routines',
@@ -249,16 +256,7 @@ class BackupService
 
         $deleted = 0;
 
-        // Computed before anything is deleted, so the floor holds even if the
-        // policy would otherwise sweep the whole catalogue.
-        $protectedIds = BackupLog::query()
-            ->where('action', 'backup')
-            ->where('status', 'success')
-            ->whereNotNull('file_path')
-            ->orderByDesc('log_id')
-            ->limit(self::ALWAYS_KEEP_NEWEST)
-            ->pluck('log_id')
-            ->all();
+        $protectedIds = $this->protectedSnapshotIds();
 
         BackupLog::query()
             ->select(['log_id', 'file_path', 'created_at', 'status', 'action'])
@@ -323,6 +321,52 @@ class BackupService
     protected function deleteSnapshotFile(string $path): bool
     {
         return @unlink($path);
+    }
+
+    /**
+     * The newest snapshots the floor protects, counting only rows whose file is
+     * actually on disk.
+     *
+     * A row whose file vanished outside the app -- deleted by hand, or recorded by
+     * a different install that shared this database -- would otherwise occupy a
+     * protected slot while being worthless, so the floor would guarantee three
+     * rows rather than three restorable backups. This install hit exactly that:
+     * five history rows pointed at another machine's checkout, one of them inside
+     * the floor.
+     *
+     * Scans a bounded window rather than the whole table, so a long history of
+     * dead rows cannot turn this into a full-table stat() sweep. If fewer than
+     * ALWAYS_KEEP_NEWEST reachable rows exist in that window, fewer are protected
+     * -- which is safe, because an unreachable file is also skipped by the
+     * is_dir() guard in the prune loop and so cannot be deleted anyway.
+     *
+     * @return list<int>
+     */
+    private function protectedSnapshotIds(): array
+    {
+        $protected = [];
+
+        BackupLog::query()
+            ->select(['log_id', 'file_path'])
+            ->where('action', 'backup')
+            ->where('status', 'success')
+            ->whereNotNull('file_path')
+            ->orderByDesc('log_id')
+            ->limit(self::FLOOR_SCAN_WINDOW)
+            ->get()
+            ->each(function ($log) use (&$protected) {
+                if (count($protected) >= self::ALWAYS_KEEP_NEWEST) {
+                    return false;
+                }
+
+                if (is_file((string) $log->file_path)) {
+                    $protected[] = (int) $log->log_id;
+                }
+
+                return true;
+            });
+
+        return $protected;
     }
 
     /**

@@ -347,3 +347,11 @@
   background: rgba(130, 130, 130, 0.18);
   color: #6b7280;
 }
+
+/* A row whose snapshot file is not on disk for reasons retention did not cause
+   -- a deleted folder, a moved storage path, a snapshot recorded by a different
+   install. Warmer than `pruned` because this one wants attention. */
+.bp-badge--missing {
+  background: rgba(217, 119, 6, 0.16);
+  color: #b45309;
+}
