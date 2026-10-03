@@ -203,6 +203,7 @@ CREATE TABLE "backup_logs" (
     "file_path" varchar(500),
     "file_name" varchar(255),
     "file_size_bytes" bigint,
+    "checksum_sha256" char(64),
     "restored_from_log_id" bigint,
     "error_message" text,
     "duration_ms" integer,
@@ -212,7 +213,7 @@ CREATE TABLE "backup_logs" (
 );
 COMMENT ON COLUMN "backup_logs"."action" IS 'backup | restore';
 COMMENT ON COLUMN "backup_logs"."triggered_by" IS 'manual | scheduled';
-COMMENT ON COLUMN "backup_logs"."status" IS 'success | failed';
+COMMENT ON COLUMN "backup_logs"."status" IS 'success | failed | pruned';
 
 --
 -- Table: barcode_scans

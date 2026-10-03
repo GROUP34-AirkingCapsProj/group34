@@ -46,6 +46,13 @@ class BackupService
      */
     private const ALWAYS_KEEP_NEWEST = 3;
 
+    /**
+     * How much of the file's tail to inspect for a completion trailer. Generous
+     * enough for mysqldump's multi-line footer, small enough that the phrase
+     * cannot be matched inside ordinary row data earlier in the dump.
+     */
+    private const TRAILER_WINDOW_BYTES = 512;
+
     private const MYSQLDUMP_FLAGS = [
         '--single-transaction',
         '--routines',
@@ -135,6 +142,12 @@ class BackupService
 
             if (! $snapshot->file_path || ! is_file($snapshot->file_path)) {
                 return $this->recordFailure('restore', 'manual', $user, 'Backup file no longer exists on disk', $start, $snapshot->log_id);
+            }
+
+            // Checked before the safety backup, not after: there is no reason to
+            // spend a full dump on a restore that is already known to be unsafe.
+            if ($problem = $this->verifyChecksum($snapshot)) {
+                return $this->recordFailure('restore', 'manual', $user, $problem, $start, $snapshot->log_id);
             }
 
             // Already holding the lock, so this calls the lock-free core
@@ -382,6 +395,89 @@ class BackupService
     }
 
     /**
+     * Did the writer finish?
+     *
+     * A dump killed partway through (full disk, power cut, killed process) is
+     * indistinguishable from a good one by size alone — it parses, it looks like
+     * SQL, and it restores as a half-empty database. Both of this service's dump
+     * paths end with a trailer, and its absence is the signal.
+     */
+    public function dumpLooksComplete(string $path): bool
+    {
+        if (! is_file($path)) {
+            return false;
+        }
+
+        $size = filesize($path);
+        if ($size === false || $size === 0) {
+            return false;
+        }
+
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+
+        try {
+            $window = (int) min($size, self::TRAILER_WINDOW_BYTES);
+            fseek($handle, -$window, SEEK_END);
+            $tail = (string) fread($handle, $window);
+        } finally {
+            fclose($handle);
+        }
+
+        // mysqldump writes the first; runPhpDump() writes the second.
+        return str_contains($tail, 'Dump completed')
+            || str_contains($tail, 'AirKing dump completed');
+    }
+
+    /** SHA-256 of the file on disk, lowercase hex. */
+    public function checksumFor(string $path): string
+    {
+        $hash = hash_file('sha256', $path);
+
+        if ($hash === false) {
+            throw new \RuntimeException("Could not checksum backup file: {$path}");
+        }
+
+        return $hash;
+    }
+
+    /**
+     * Confirms a stored snapshot is byte-for-byte what was written.
+     *
+     * @return string|null  null when it verifies (or predates checksums), an
+     *                      operator-facing reason when it does not.
+     */
+    public function verifyChecksum(BackupLog $log): ?string
+    {
+        $recorded = $log->checksum_sha256;
+
+        // Snapshots taken before the checksum column existed. Refusing these
+        // would make upgrading destroy access to every backup already on disk.
+        if (! $recorded) {
+            return null;
+        }
+
+        if (! $log->file_path || ! is_file($log->file_path)) {
+            return 'Backup file no longer exists on disk';
+        }
+
+        $actual = $this->checksumFor($log->file_path);
+
+        // hash_equals is case-sensitive and hash_file() emits lowercase, but a
+        // value that arrived from elsewhere may not be -- normalise before
+        // comparing so the same bytes are not reported as tampered.
+        if (! hash_equals(strtolower($recorded), strtolower($actual))) {
+            return 'Integrity check failed: the file on disk no longer matches the '
+                . 'checksum recorded when this backup was taken. It has been altered '
+                . 'or corrupted since, and restoring from it is unsafe.';
+        }
+
+        return null;
+    }
+
+    /**
      * The actual mysqldump run + history row, without acquiring the lock —
      * callers that already hold it (restore()'s pre-restore snapshot) call
      * this directly; createBackup() is the lock-acquiring public entry point.
@@ -409,6 +505,21 @@ class BackupService
             return $this->recordFailure('backup', $trigger, $user, 'mysqldump produced no output file', $start);
         }
 
+        // A half-written dump restores as a half-empty database, so it is worse
+        // than no backup at all: it looks like protection you do not have.
+        if (! $this->dumpLooksComplete($filePath)) {
+            @unlink($filePath);
+
+            return $this->recordFailure(
+                'backup',
+                $trigger,
+                $user,
+                'Dump is incomplete (no completion trailer) — refusing to keep it. '
+                . 'Usually a full disk or a killed process.',
+                $start,
+            );
+        }
+
         $log = BackupLog::create([
             'action'               => 'backup',
             'triggered_by'         => $trigger,
@@ -417,6 +528,7 @@ class BackupService
             'file_path'            => $filePath,
             'file_name'            => $fileName,
             'file_size_bytes'      => filesize($filePath),
+            'checksum_sha256'      => $this->checksumFor($filePath),
             'duration_ms'          => (int) ((microtime(true) - $start) * 1000),
         ]);
 
@@ -528,6 +640,16 @@ class BackupService
         return PHP_OS_FAMILY === 'Windows' && PHP_SAPI !== 'cli';
     }
 
+    /**
+     * Public seam over runPhpDump() so a test can prove the PDO dump path really
+     * writes the trailer dumpLooksComplete() looks for. Asserting on a
+     * hand-written fixture would pass even if this path emitted nothing.
+     */
+    public function runPhpDumpTo(string $filePath): void
+    {
+        $this->runPhpDump($filePath);
+    }
+
     private function runPhpDump(string $filePath): void
     {
         $database = (string) config('database.connections.mysql.database');
@@ -593,6 +715,11 @@ class BackupService
             }
 
             fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
+            // Last thing written, deliberately. dumpLooksComplete() treats the
+            // absence of this line as proof the writer died partway through.
+            // mysqldump has its own "Dump completed" trailer; this path had none,
+            // so a truncated PDO dump was indistinguishable from a whole one.
+            fwrite($handle, "-- AirKing dump completed\n");
         } finally {
             fclose($handle);
         }

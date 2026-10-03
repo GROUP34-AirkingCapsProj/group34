@@ -18,6 +18,7 @@ class BackupLog extends Model
         'file_path',
         'file_name',
         'file_size_bytes',
+        'checksum_sha256',
         'restored_from_log_id',
         'error_message',
         'duration_ms',

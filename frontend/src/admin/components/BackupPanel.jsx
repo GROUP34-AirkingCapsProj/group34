@@ -346,6 +346,10 @@ const BackupPanel = () => {
             <li><strong>Conflict protection</strong> — only one backup or restore can run at a time.</li>
             <li><strong>Server storage</strong> — snapshots stay on the server until downloaded or restored.</li>
             <li><strong>Restore tracking</strong> — every restore attempt is logged in history.</li>
+            <li><strong>Integrity</strong> — every snapshot records a SHA-256 and is
+            verified before any restore. A dump without its completion trailer is
+            rejected rather than kept. This catches corruption, not a determined
+            attacker: the checksum lives in the same database the snapshot came from.</li>
             <li><strong>Retention</strong> — aged snapshots are deleted on the schedule
             above, but their history rows stay. The newest 3 are never deleted,
             and an unreachable storage folder is left alone rather than assumed

@@ -251,6 +251,9 @@ class BackupController extends Controller
             'status'           => $log->status,
             'file_name'        => $log->file_name,
             'file_size_bytes'  => $log->file_size_bytes,
+            // Enough to eyeball against a recomputed hash; the full 64 chars are
+            // in backup_logs for anyone who needs to compare properly.
+            'checksum_short'   => $log->checksum_sha256 ? substr($log->checksum_sha256, 0, 12) : null,
             'restored_from_log_id' => $log->restored_from_log_id,
             'triggered_by_name' => $user
                 ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))
