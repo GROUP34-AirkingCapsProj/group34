@@ -69,7 +69,13 @@ class ScheduledCommandTest extends TestCase
         $this->artisan('backup:run')->assertExitCode(1);
     }
 
-    public function test_a_run_that_is_not_due_does_nothing(): void
+    /**
+     * Silent on purpose. This runs every minute so the Backup page's arbitrary
+     * time can drive it, and routes/console.php appends its output to
+     * backup-run.log -- a line per skip would be ~12 MB a year of recording that
+     * nothing happened.
+     */
+    public function test_a_run_that_is_not_due_does_nothing_and_says_nothing(): void
     {
         $service = Mockery::mock(BackupService::class);
         $service->shouldReceive('dueForScheduledRun')->once()->andReturn(false);
@@ -78,6 +84,17 @@ class ScheduledCommandTest extends TestCase
         $this->app->instance(BackupService::class, $service);
 
         $this->artisan('backup:run')
+            ->doesntExpectOutputToContain('Not due')
+            ->assertExitCode(0);
+    }
+
+    public function test_a_skipped_run_explains_itself_when_verbose(): void
+    {
+        $service = Mockery::mock(BackupService::class);
+        $service->shouldReceive('dueForScheduledRun')->once()->andReturn(false);
+        $this->app->instance(BackupService::class, $service);
+
+        $this->artisan('backup:run', ['-v' => true])
             ->expectsOutputToContain('Not due')
             ->assertExitCode(0);
     }

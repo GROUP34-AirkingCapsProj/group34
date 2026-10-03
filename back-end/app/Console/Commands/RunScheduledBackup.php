@@ -18,7 +18,16 @@ class RunScheduledBackup extends Command
         $schedule = SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, []);
 
         if (! $this->option('force') && ! $service->dueForScheduledRun($schedule)) {
-            $this->line('Not due — skipping.');
+            // Silent unless asked. This command runs every minute so the Backup
+            // page's arbitrary time can drive it, which means 1,439 of the day's
+            // 1,440 runs end here. routes/console.php appends this command's
+            // output to storage/logs/backup-run.log, so a line per skip is ~32 KB
+            // a day -- 12 MB a year of recording that nothing happened. Liveness
+            // is already answerable from the scheduler heartbeat; use -v when you
+            // actually want to watch the gate decide.
+            if ($this->output->isVerbose()) {
+                $this->line('Not due — skipping.');
+            }
 
             return self::SUCCESS;
         }
