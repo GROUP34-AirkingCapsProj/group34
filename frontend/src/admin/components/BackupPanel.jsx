@@ -48,6 +48,9 @@ const BackupPanel = () => {
   const [time, setTime] = useState('00:01');
   const [frequency, setFrequency] = useState('daily');
   const [storagePath, setStoragePath] = useState('');
+  const [keepDailyDays, setKeepDailyDays] = useState(14);
+  const [keepWeeklyWeeks, setKeepWeeklyWeeks] = useState(12);
+  const [keepMonthlyMonths, setKeepMonthlyMonths] = useState(12);
 
   const [stats, setStats] = useState({});
   const [database, setDatabase] = useState({});
@@ -66,6 +69,9 @@ const BackupPanel = () => {
       setTime(toInputTime(schedule.time));
       setFrequency(schedule.frequency || 'daily');
       setStoragePath(schedule.storage_path || '');
+      setKeepDailyDays(schedule.keep_daily_days ?? 14);
+      setKeepWeeklyWeeks(schedule.keep_weekly_weeks ?? 12);
+      setKeepMonthlyMonths(schedule.keep_monthly_months ?? 12);
       setStats(payload.stats || {});
       setDatabase(payload.database || {});
       setHistory(Array.isArray(historyRes?.data) ? historyRes.data : []);
@@ -104,6 +110,9 @@ const BackupPanel = () => {
         time,
         frequency: 'daily',
         storage_path: storagePath.trim() || null,
+        keep_daily_days: Number(keepDailyDays) || 14,
+        keep_weekly_weeks: Number(keepWeeklyWeeks) || 12,
+        keep_monthly_months: Number(keepMonthlyMonths) || 12,
       });
       toast.success('Backup schedule saved');
       await loadAll();
@@ -228,13 +237,19 @@ const BackupPanel = () => {
           </div>
 
           <div className="bp-field">
-            <label htmlFor="bp-time">Backup time</label>
+            <label htmlFor="bp-time">
+              Backup time ({stats.server_timezone || 'UTC'})
+            </label>
             <input
               id="bp-time"
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
             />
+            <small className="bp-hint">
+              Server time, not your local time. Server clock now:{' '}
+              {formatWhen(stats.server_time)}
+            </small>
           </div>
 
           <div className="bp-field">
@@ -248,9 +263,65 @@ const BackupPanel = () => {
             />
           </div>
 
+          <div className="bp-field">
+            <label htmlFor="bp-keep-daily">Keep daily snapshots for (days)</label>
+            <input
+              id="bp-keep-daily"
+              type="number"
+              min="1"
+              max="365"
+              value={keepDailyDays}
+              onChange={(e) => setKeepDailyDays(e.target.value)}
+            />
+          </div>
+
+          <div className="bp-field">
+            <label htmlFor="bp-keep-weekly">Keep Sunday snapshots for (weeks)</label>
+            <input
+              id="bp-keep-weekly"
+              type="number"
+              min="1"
+              max="260"
+              value={keepWeeklyWeeks}
+              onChange={(e) => setKeepWeeklyWeeks(e.target.value)}
+            />
+          </div>
+
+          <div className="bp-field">
+            <label htmlFor="bp-keep-monthly">Keep 1st-of-month snapshots for (months)</label>
+            <input
+              id="bp-keep-monthly"
+              type="number"
+              min="1"
+              max="120"
+              value={keepMonthlyMonths}
+              onChange={(e) => setKeepMonthlyMonths(e.target.value)}
+            />
+            <small className="bp-hint">
+              Weekly and monthly copies are what let you go back past an intrusion
+              discovered weeks later, when every recent snapshot already contains
+              the damage. The newest 3 snapshots are always kept, whatever these
+              say. &ldquo;Sunday&rdquo; and &ldquo;1st&rdquo; follow server time
+              ({stats.server_timezone || 'UTC'}), not your local calendar.
+            </small>
+          </div>
+
           <div className="bp-summary">
             <div><span>Summary</span><strong>{enabled ? 'Scheduled backups enabled' : 'Scheduled backups disabled'}</strong></div>
-            <div><span>Next scheduled run</span><strong>{enabled ? formatWhen(stats.next_scheduled_run) : '—'}</strong></div>
+            <div>
+              <span>Next scheduled run</span>
+              {/* Overdue means the configured time has passed and today has not
+                  run yet, so the next scheduler tick will fire a catch-up within
+                  the minute. Printing the raw timestamp there would read as a
+                  future appointment when it is really "now". */}
+              <strong>
+                {!enabled
+                  ? '—'
+                  : stats.scheduled_run_overdue
+                    ? 'Overdue — runs within a minute'
+                    : formatWhen(stats.next_scheduled_run)}
+              </strong>
+            </div>
             <div><span>Server timezone</span><strong>{stats.server_timezone || 'UTC'}</strong></div>
             <div><span>Server storage</span><strong className="bp-path">{displayPath}</strong></div>
           </div>
@@ -275,6 +346,10 @@ const BackupPanel = () => {
             <li><strong>Conflict protection</strong> — only one backup or restore can run at a time.</li>
             <li><strong>Server storage</strong> — snapshots stay on the server until downloaded or restored.</li>
             <li><strong>Restore tracking</strong> — every restore attempt is logged in history.</li>
+            <li><strong>Retention</strong> — aged snapshots are deleted on the schedule
+            above, but their history rows stay. The newest 3 are never deleted,
+            and an unreachable storage folder is left alone rather than assumed
+            empty.</li>
           </ul>
 
           <div className="bp-db">

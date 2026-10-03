@@ -328,3 +328,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Explanatory text under a field — the timezone warning and the retention
+   rationale. Smaller and dimmer than a label, but not so faint it reads as
+   decoration: both hints carry information an admin needs to not misconfigure
+   this. */
+.bp-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  opacity: 0.72;
+}
+
+/* A retention-pruned snapshot: the history row survives, the file does not, so
+   it reads as neither a success nor a failure. */
+.bp-badge--pruned {
+  background: rgba(130, 130, 130, 0.18);
+  color: #6b7280;
+}
