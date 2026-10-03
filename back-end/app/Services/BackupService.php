@@ -303,12 +303,21 @@ class BackupService
         return false;
     }
 
-    /** Reads the stored policy and prunes. Convenience for the scheduled command. */
+    /**
+     * Reads the stored policy and prunes. Convenience for the scheduled command.
+     *
+     * SystemSetting::getValue() hands back the raw stored string when the blob
+     * does not decode, and a bare scalar when it decodes to one (`5`, `"true"`),
+     * so this cannot assume it got an array. A non-array means the settings row is
+     * corrupt and nothing can be trusted about the admin's intent -- prune with an
+     * empty policy, which retentionWindow() turns into the documented 14/12/12
+     * defaults rather than anything more destructive.
+     */
     public function pruneUsingStoredPolicy(): int
     {
-        return $this->pruneOldBackups(
-            SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, [])
-        );
+        $policy = SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, []);
+
+        return $this->pruneOldBackups(is_array($policy) ? $policy : []);
     }
 
     /**

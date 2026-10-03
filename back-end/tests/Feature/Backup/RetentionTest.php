@@ -200,4 +200,23 @@ class RetentionTest extends TestCase
 
         $this->assertFileExists($restore->refresh()->file_path);
     }
+
+    public function test_a_corrupt_settings_blob_prunes_with_defaults_rather_than_throwing(): void
+    {
+        Carbon::setTestNow('2026-10-03 01:00:00');
+
+        // getValue() returns the raw string when the blob does not decode as JSON,
+        // and a bare scalar when it decodes to one -- neither is an array.
+        \App\Models\SystemSetting::setValue(\App\Models\SystemSetting::KEY_BACKUP_SCHEDULE, 'abc');
+
+        $recent = $this->snapshot('2026-09-23');   // 10 days old, inside the 14-day default
+        $old    = $this->snapshot('2026-09-15');   // 18 days old, Tuesday, not the 1st
+        $oldPath = $old->file_path;
+
+        $deleted = app(BackupService::class)->pruneUsingStoredPolicy();
+
+        $this->assertSame(1, $deleted);
+        $this->assertFileExists($recent->file_path, 'the 14-day default must still protect this');
+        $this->assertFileDoesNotExist($oldPath);
+    }
 }
