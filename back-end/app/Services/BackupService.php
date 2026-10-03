@@ -194,6 +194,124 @@ class BackupService
     }
 
     /**
+     * Grandfather-father-son retention over the recorded snapshots.
+     *
+     * Deletes the FILE but keeps the history row, flipped to `pruned`. The row is
+     * the audit trail this feature promises; deleting it would make an aged-out
+     * backup indistinguishable from one that never happened.
+     *
+     * Driven off `backup_logs.created_at` rather than the file mtime, because a
+     * file copied or restored from elsewhere carries a mtime that has nothing to
+     * do with when the snapshot was taken.
+     *
+     * @param  array<string,mixed>  $policy
+     * @return int  how many files this call actually deleted
+     */
+    public function pruneOldBackups(array $policy): int
+    {
+        $keepDailyDays     = $this->retentionWindow($policy, 'keep_daily_days', 14, 365);
+        $keepWeeklyWeeks   = $this->retentionWindow($policy, 'keep_weekly_weeks', 12, 260);
+        $keepMonthlyMonths = $this->retentionWindow($policy, 'keep_monthly_months', 12, 120);
+
+        $deleted = 0;
+
+        $candidates = BackupLog::query()
+            ->where('action', 'backup')
+            ->where('status', 'success')
+            ->whereNotNull('file_path')
+            ->orderBy('log_id')
+            ->get();
+
+        foreach ($candidates as $log) {
+            if ($this->shouldKeepSnapshot($log->created_at, $keepDailyDays, $keepWeeklyWeeks, $keepMonthlyMonths)) {
+                continue;
+            }
+
+            $path = (string) $log->file_path;
+
+            if (is_file($path)) {
+                if (@unlink($path)) {
+                    $deleted++;
+                } else {
+                    // Locked by a virus scanner or an open download. Leave the row
+                    // alone so the next run retries rather than losing track of a
+                    // file that is still on disk.
+                    continue;
+                }
+            }
+
+            // Reached either by a successful delete or by the file already being
+            // gone -- both mean the snapshot is no longer restorable.
+            $log->forceFill([
+                'status'    => 'pruned',
+                'file_path' => null,
+            ])->save();
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * One retention window, read defensively.
+     *
+     * Falls back to the DEFAULT on anything invalid, deliberately not to a clamped
+     * minimum. `max(1, (int) $v)` looks safe and is the opposite: `(int) "abc"` is
+     * 0, so `max(1, 0)` is 1, turning a corrupted settings blob into "keep only one
+     * day" -- the most destructive setting available. On the one path in this
+     * service that deletes files, bad input has to fail toward keeping data.
+     */
+    private function retentionWindow(array $policy, string $key, int $default, int $max): int
+    {
+        $raw = $policy[$key] ?? null;
+
+        if (! is_numeric($raw)) {
+            return $default;
+        }
+
+        $value = (int) $raw;
+
+        return ($value >= 1 && $value <= $max) ? $value : $default;
+    }
+
+    /**
+     * Keep if inside the daily window, or a Sunday inside the weekly window, or a
+     * 1st-of-month inside the monthly window. Outside all three it is expendable.
+     */
+    private function shouldKeepSnapshot(
+        ?\Illuminate\Support\Carbon $takenAt,
+        int $keepDailyDays,
+        int $keepWeeklyWeeks,
+        int $keepMonthlyMonths,
+    ): bool {
+        if ($takenAt === null) {
+            // No date to judge by -- never destroy it.
+            return true;
+        }
+
+        if ($takenAt->greaterThanOrEqualTo(now()->copy()->subDays($keepDailyDays))) {
+            return true;
+        }
+
+        if ($takenAt->isSunday() && $takenAt->greaterThanOrEqualTo(now()->copy()->subWeeks($keepWeeklyWeeks))) {
+            return true;
+        }
+
+        if ($takenAt->day === 1 && $takenAt->greaterThanOrEqualTo(now()->copy()->subMonths($keepMonthlyMonths))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Reads the stored policy and prunes. Convenience for the scheduled command. */
+    public function pruneUsingStoredPolicy(): int
+    {
+        return $this->pruneOldBackups(
+            SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, [])
+        );
+    }
+
+    /**
      * The actual mysqldump run + history row, without acquiring the lock —
      * callers that already hold it (restore()'s pre-restore snapshot) call
      * this directly; createBackup() is the lock-acquiring public entry point.
