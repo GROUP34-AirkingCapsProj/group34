@@ -46,11 +46,13 @@ $ErrorActionPreference = 'Stop'
 $TaskName = 'AirkingInventory-Scheduler'
 $Php      = 'C:\xampp\php\php.exe'
 $Artisan  = 'C:\xampp\htdocs\Airking_Inventory\back-end\artisan'
+$Wrapper  = 'C:\xampp\htdocs\Airking_Inventory\scripts\run-scheduler.ps1'
 
 # --- preflight ---------------------------------------------------------------
 
 if (-not (Test-Path $Php))     { throw "php.exe not found at $Php" }
 if (-not (Test-Path $Artisan)) { throw "artisan not found at $Artisan" }
+if (-not (Test-Path $Wrapper)) { throw "run-scheduler.ps1 not found at $Wrapper" }
 
 # Registering a task for SYSTEM needs elevation. Fail with a clear message
 # rather than a raw Access Denied from Register-ScheduledTask.
@@ -65,24 +67,34 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 # service, so warn rather than fail -- the task is still worth registering.
 $mysqlService = Get-Service | Where-Object { $_.Name -match 'mysql|maria' }
 if (-not $mysqlService) {
-    Write-Warning @'
-No MySQL/MariaDB Windows service found.
+    Write-Output @'
+MySQL is started by hand (no Windows service) -- this is supported.
 
-MySQL on this machine only runs while the XAMPP Control Panel is open, so a
-backup scheduled for 00:30 will fail to connect and log "Can't connect to MySQL
-server on 127.0.0.1 (10061)". Every run of the old backup script between
-14 Sept and 1 Oct 2026 failed exactly this way.
+run-scheduler.ps1 checks port 3306 before invoking Laravel and exits silently
+when nothing is listening, so ticks taken while XAMPP is closed cost nothing and
+write nothing to the log.
 
-Install it: close the XAMPP Control Panel, reopen it as Administrator, and tick
-the checkbox in the Service column on the MySQL row.
+What it means in practice: the Backup page's time becomes a "not before" rather
+than an appointment. The catch-up gate takes that day's backup on the first tick
+at or after the configured time WHILE MYSQL IS RUNNING -- so the backup happens
+the next time you open the system. On a day the system is never opened, no
+backup is taken.
+
+Install MySQL as a service only if you want backups on days nobody uses the PC:
+close the XAMPP Control Panel, reopen it as Administrator, tick the checkbox in
+the Service column on the MySQL row.
 '@
 } elseif ($mysqlService.StartType -ne 'Automatic') {
-    Write-Warning "MySQL service '$($mysqlService.Name)' exists but StartType is '$($mysqlService.StartType)', not Automatic. Scheduled backups will fail after a reboot until someone starts it."
+    Write-Warning "MySQL service '$($mysqlService.Name)' exists but StartType is '$($mysqlService.StartType)', not Automatic. Scheduled backups will be skipped after a reboot until someone starts it."
 }
 
 # --- task definition ---------------------------------------------------------
 
-$action = New-ScheduledTaskAction -Execute $Php -Argument "`"$Artisan`" schedule:run"
+# Goes through run-scheduler.ps1 rather than straight to php.exe, so a tick taken
+# while MySQL is down is skipped silently instead of booting Laravel to throw a
+# connection exception into the log once a minute.
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+    -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Wrapper`""
 
 # Every minute, indefinitely. Laravel gates what actually runs, so a tick that
 # has nothing to do exits immediately.
@@ -122,8 +134,14 @@ if ($PSCmdlet.ShouldProcess($TaskName, 'Register scheduled task')) {
     Write-Output 'Verify in two minutes:'
     Write-Output "  Get-ScheduledTaskInfo -TaskName '$TaskName' | Select-Object LastRunTime, LastTaskResult, NextRunTime"
     Write-Output ''
-    Write-Output 'LastTaskResult 0 means the tick is firing. Then confirm Laravel is being'
-    Write-Output 'reached -- this file only appears once schedule:run has executed:'
+    Write-Output 'LastTaskResult 0 means the tick is firing. Then read the heartbeat, which'
+    Write-Output 'is overwritten every minute and says whether MySQL was up:'
+    Write-Output '  Get-Content C:\xampp\htdocs\Airking_Inventory\back-end\storage\logs\scheduler-heartbeat.txt'
+    Write-Output ''
+    Write-Output '  "skipped: MySQL not listening"  -> tick alive, XAMPP closed (expected)'
+    Write-Output '  "last schedule:run exited 0"    -> tick alive, Laravel reached'
+    Write-Output ''
+    Write-Output 'With MySQL running, confirm Laravel is being reached:'
     Write-Output '  Get-Content C:\xampp\htdocs\Airking_Inventory\back-end\storage\logs\backup-run.log -Tail 5'
     Write-Output ''
     Write-Output 'It should contain "Not due - skipping." lines until the Backup page'
