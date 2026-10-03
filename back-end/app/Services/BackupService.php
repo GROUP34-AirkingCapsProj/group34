@@ -151,7 +151,17 @@ class BackupService
         });
     }
 
-    /** Enabled, current minute matches the configured time, not already run today. */
+    /**
+     * Is a scheduled backup owed right now?
+     *
+     * Deliberately "at or after", not "exactly at": this runs off a per-minute
+     * scheduler tick, and an exact H:i comparison loses the entire day if the
+     * machine is asleep, rebooting, or powered off for that one minute. The
+     * old standalone task leaned on Task Scheduler's StartWhenAvailable for the
+     * same reason -- its log shows runs landing at 09:50 and 05:12 for a 00:30
+     * schedule. `last_scheduled_run_date` is what keeps a late catch-up from
+     * becoming a second backup on a day already covered.
+     */
     public function dueForScheduledRun(array $schedule): bool
     {
         if (empty($schedule['enabled'])) {
@@ -159,16 +169,17 @@ class BackupService
         }
 
         $time = $schedule['time'] ?? null;
-        if (! $time || now()->format('H:i') !== $time) {
+        if (! is_string($time) || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time)) {
             return false;
         }
 
-        $lastRunDate = $schedule['last_scheduled_run_date'] ?? null;
-        if ($lastRunDate === now()->toDateString()) {
+        if (($schedule['last_scheduled_run_date'] ?? null) === now()->toDateString()) {
             return false;
         }
 
-        return true;
+        [$hour, $minute] = array_map('intval', explode(':', $time));
+
+        return now()->greaterThanOrEqualTo(now()->copy()->setTime($hour, $minute));
     }
 
     /**
