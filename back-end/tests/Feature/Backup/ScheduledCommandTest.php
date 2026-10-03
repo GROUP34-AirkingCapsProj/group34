@@ -15,12 +15,16 @@ class ScheduledCommandTest extends TestCase
 {
     use DatabaseTransactions;
 
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow();
-        Mockery::close();
-        parent::tearDown();
-    }
+    /*
+     * No custom tearDown(). The framework's own teardown
+     * (InteractsWithTestCaseLifecycle::tearDownTheTestEnvironment) already runs the
+     * DatabaseTransactions rollback FIRST, then Mockery::close(), then resets
+     * Carbon. An override calling Mockery::close() before parent::tearDown() lets
+     * an unmet-expectation throw escape before the rollback callback runs, which
+     * strands the open transaction and leaves the system_settings row locked --
+     * every later test in the file then dies of a lock wait timeout instead of its
+     * own assertion.
+     */
 
     public function test_a_successful_scheduled_run_also_prunes(): void
     {
