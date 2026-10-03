@@ -35,6 +35,17 @@ class BackupService
      */
     public const TIME_REGEX = '/\A([01]\d|2[0-3]):[0-5]\d\z/';
 
+    /**
+     * Newest successful snapshots that are never pruned, whatever the policy says.
+     *
+     * A floor, not a window: `keep_daily_days: 1` is a legal setting, and on a
+     * machine that is often off for days every snapshot can age out of every tier
+     * at once, leaving nothing restorable. Clock skew reaches the same place. The
+     * newest few are the ones most likely to be wanted, so age never applies to
+     * them.
+     */
+    private const ALWAYS_KEEP_NEWEST = 3;
+
     private const MYSQLDUMP_FLAGS = [
         '--single-transaction',
         '--routines',
@@ -209,46 +220,96 @@ class BackupService
      */
     public function pruneOldBackups(array $policy): int
     {
+        return $this->withLock(fn () => $this->performPrune($policy));
+    }
+
+    /**
+     * The prune itself, without the lock. Separate so the public entry point can
+     * hold the same mutex every other destructive operation here holds, while a
+     * caller that already owns it can reach the core directly.
+     */
+    private function performPrune(array $policy): int
+    {
         $keepDailyDays     = $this->retentionWindow($policy, 'keep_daily_days', 14, 365);
         $keepWeeklyWeeks   = $this->retentionWindow($policy, 'keep_weekly_weeks', 12, 260);
         $keepMonthlyMonths = $this->retentionWindow($policy, 'keep_monthly_months', 12, 120);
 
         $deleted = 0;
 
-        $candidates = BackupLog::query()
+        // Computed before anything is deleted, so the floor holds even if the
+        // policy would otherwise sweep the whole catalogue.
+        $protectedIds = BackupLog::query()
+            ->where('action', 'backup')
+            ->where('status', 'success')
+            ->whereNotNull('file_path')
+            ->orderByDesc('log_id')
+            ->limit(self::ALWAYS_KEEP_NEWEST)
+            ->pluck('log_id')
+            ->all();
+
+        BackupLog::query()
+            ->select(['log_id', 'file_path', 'created_at', 'status', 'action'])
             ->where('action', 'backup')
             ->where('status', 'success')
             ->whereNotNull('file_path')
             ->orderBy('log_id')
-            ->get();
+            ->chunkById(100, function ($logs) use (&$deleted, $protectedIds, $keepDailyDays, $keepWeeklyWeeks, $keepMonthlyMonths) {
+                foreach ($logs as $log) {
+                    if (in_array($log->log_id, $protectedIds, true)) {
+                        continue;
+                    }
 
-        foreach ($candidates as $log) {
-            if ($this->shouldKeepSnapshot($log->created_at, $keepDailyDays, $keepWeeklyWeeks, $keepMonthlyMonths)) {
-                continue;
-            }
+                    if ($this->shouldKeepSnapshot($log->created_at, $keepDailyDays, $keepWeeklyWeeks, $keepMonthlyMonths)) {
+                        continue;
+                    }
 
-            $path = (string) $log->file_path;
+                    $path = (string) $log->file_path;
 
-            if (is_file($path)) {
-                if (@unlink($path)) {
-                    $deleted++;
-                } else {
-                    // Locked by a virus scanner or an open download. Leave the row
-                    // alone so the next run retries rather than losing track of a
-                    // file that is still on disk.
-                    continue;
+                    // is_file() is also false when the volume is unreachable -- an offline
+                    // NAS, an unplugged drive, a denied stat. Treating that as "already
+                    // gone" would erase the only pointer to a backup that still exists.
+                    if (! is_dir(dirname($path))) {
+                        continue;
+                    }
+
+                    if (is_file($path)) {
+                        if (! $this->deleteSnapshotFile($path)) {
+                            // Locked by a virus scanner or an open download. Leave the row
+                            // untouched so the next run retries rather than losing track of
+                            // a file that is still on disk.
+                            \Illuminate\Support\Facades\Log::warning(
+                                'Backup prune could not delete a snapshot; will retry next run',
+                                ['log_id' => $log->log_id, 'path' => $path],
+                            );
+
+                            continue;
+                        }
+
+                        $deleted++;
+
+                        $log->forceFill(['status' => 'pruned', 'file_path' => null])->save();
+
+                        continue;
+                    }
+
+                    // The file is genuinely gone (the directory is reachable, the file is
+                    // not). Reconcile the row but KEEP the path: `status` already marks it
+                    // unusable, and the path is what a human needs to go looking.
+                    $log->forceFill(['status' => 'pruned'])->save();
                 }
-            }
-
-            // Reached either by a successful delete or by the file already being
-            // gone -- both mean the snapshot is no longer restorable.
-            $log->forceFill([
-                'status'    => 'pruned',
-                'file_path' => null,
-            ])->save();
-        }
+            }, 'log_id', 'log_id');
 
         return $deleted;
+    }
+
+    /**
+     * Isolated so a test can force a delete failure. Holding an open handle makes
+     * unlink fail on Windows but not on Linux, so the branch is otherwise
+     * untestable in a portable way.
+     */
+    protected function deleteSnapshotFile(string $path): bool
+    {
+        return @unlink($path);
     }
 
     /**
