@@ -703,7 +703,8 @@ export const auditEvidenceAPI = {
 };
 
 /* ======================
-   LOCATIONS API (ERD — replaces branches & warehouses)
+   LOCATIONS API — the single source for branches and warehouses alike.
+   `location_type` distinguishes them; there is no separate branch endpoint.
 ====================== */
 export const locationsAPI = {
   getAll: async (params = {}) => {
@@ -723,19 +724,6 @@ export const locationsAPI = {
   },
   restore: async (id) =>
     apiRequest(`/locations/${id}/restore`, { method: 'POST' }),
-};
-
-/* Backward-compat: branches & warehouses are now location_type filters on locations */
-export const branchesAPI = {
-  getAll: async (params = {}) =>
-    locationsAPI.getAll({ ...params, location_type: 'branch_office' }),
-  getById: async (id) => locationsAPI.getById(id),
-};
-
-export const warehousesAPI = {
-  getAll: async (params = {}) =>
-    locationsAPI.getAll({ ...params, location_type: 'warehouse' }),
-  getById: async (id) => locationsAPI.getById(id),
 };
 
 /* ======================

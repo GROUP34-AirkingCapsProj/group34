@@ -18,7 +18,9 @@ class ReferenceUnscopedTest extends TestCase
 
     public function test_scoped_user_sees_full_locations_list(): void
     {
-        $a = $this->loc(); $b = $this->loc();
+        // One of each type: branches and warehouses are a location_type column on
+        // this one endpoint, not separate resources, so both must come back here.
+        $a = $this->loc('branch_office'); $b = $this->loc('warehouse');
         $bm = $this->userAt(3, $a->location_id);
         $data = $this->actingAs($bm)->getJson('/api/locations')->assertStatus(200)->json('data');
         $ids = collect($data)->pluck('location_id')->all();
@@ -43,33 +45,4 @@ class ReferenceUnscopedTest extends TestCase
         $this->assertContains($c2->customer_id, $ids);
     }
 
-    public function test_scoped_user_sees_all_branches(): void
-    {
-        // /branches is a backward-compat proxy onto LocationController::index
-        // filtered to location_type=branch_office; it carries no user-location filter.
-        $a = $this->loc('branch_office');
-        $b = $this->loc('branch_office');
-        $bm = $this->userAt(3, $a->location_id);
-
-        $data = $this->actingAs($bm)->getJson('/api/branches')->assertStatus(200)->json('data');
-        $ids = collect($data)->pluck('location_id')->all();
-
-        $this->assertContains($a->location_id, $ids);
-        $this->assertContains($b->location_id, $ids);
-    }
-
-    public function test_scoped_user_sees_all_warehouses(): void
-    {
-        // /warehouses is a backward-compat proxy onto LocationController::index
-        // filtered to location_type=warehouse; it carries no user-location filter.
-        $a = $this->loc('warehouse');
-        $b = $this->loc('warehouse');
-        $bm = $this->userAt(3, $a->location_id);
-
-        $data = $this->actingAs($bm)->getJson('/api/warehouses')->assertStatus(200)->json('data');
-        $ids = collect($data)->pluck('location_id')->all();
-
-        $this->assertContains($a->location_id, $ids);
-        $this->assertContains($b->location_id, $ids);
-    }
 }

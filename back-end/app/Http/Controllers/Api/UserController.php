@@ -380,23 +380,4 @@ class UserController extends Controller
         }
     }
 
-    /**
-     * Get users by role
-     */
-    public function byRole($roleId)
-    {
-        try {
-            $users = User::where('role_id', $roleId)
-                ->with(['role', 'status', 'location'])
-                ->get();
-
-            return $this->success([
-                'users' => $users,
-                'count' => $users->count(),
-            ], 'Role users retrieved successfully');
-
-        } catch (\Exception $e) {
-            return $this->error('Failed to retrieve users: ' . $e->getMessage(), 500);
-        }
-    }
 }

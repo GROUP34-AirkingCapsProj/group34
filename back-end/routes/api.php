@@ -456,20 +456,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | BACKWARD COMPAT: /branches & /warehouses → proxy to /locations
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/branches', function (Illuminate\Http\Request $request) {
-        $request->merge(['location_type' => 'branch_office']);
-        return app()->call([app(LocationController::class), 'index']);
-    });
-    Route::get('/warehouses', function (Illuminate\Http\Request $request) {
-        $request->merge(['location_type' => 'warehouse']);
-        return app()->call([app(LocationController::class), 'index']);
-    });
-
-    /*
-    |--------------------------------------------------------------------------
     | ERD: PRODUCT (Product table)
     |--------------------------------------------------------------------------
     */
