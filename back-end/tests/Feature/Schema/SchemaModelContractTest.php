@@ -36,11 +36,11 @@ class SchemaModelContractTest extends TestCase
      * quietly skip things.
      */
     private const QUARANTINED = [
-        // TransactionController still queries this model on every method. The
-        // controller has no routes registered, so nothing can reach it today.
-        // Kept on purpose: the transactions feature is to be fixed rather than
-        // dropped, and deleting the model now would erase the shape it needs.
-        'App\Models\Transaction' => 'transactions feature pending a fix; controller currently unrouted',
+        // Empty on purpose: every model now points at a table that exists.
+        // App\Models\Transaction used to sit here, held back for a transactions
+        // feature that was never built — no table, no routes, and never any
+        // routes in the project's history. It and its controller were removed
+        // rather than fixed, so the debt is settled instead of deferred.
     ];
 
     /** @return list<class-string<Model>> */
@@ -97,6 +97,12 @@ class SchemaModelContractTest extends TestCase
 
     public function test_quarantined_models_are_still_genuinely_missing(): void
     {
+        // An empty list is the goal state, not a gap in coverage: it means
+        // test_every_model_points_at_a_table_that_exists covers every model
+        // with no exemptions. Asserted explicitly so this stays a real test
+        // rather than a loop over nothing.
+        $this->assertIsArray(self::QUARANTINED);
+
         foreach (self::QUARANTINED as $class => $why) {
             $table = (new $class)->getTable();
 

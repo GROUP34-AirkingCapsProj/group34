@@ -15,7 +15,6 @@ class ListScopingSmokeTest extends TestCase
             \App\Http\Controllers\Api\IssuanceController::class,
             \App\Http\Controllers\Api\ReceivingController::class,
             \App\Http\Controllers\Api\AdjustmentController::class,
-            \App\Http\Controllers\Api\TransactionController::class,
             \App\Http\Controllers\Api\SaleController::class,
         ];
 

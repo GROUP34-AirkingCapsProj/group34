@@ -6,7 +6,6 @@ use Illuminate\Database\Seeder;
 use App\Models\Location;
 use App\Models\Item;
 use App\Models\Inventory;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\StatusLookup;
@@ -96,22 +95,6 @@ class DatabaseSeeder extends Seeder
                     'reserved' => rand(0, 5),
                 ]);
             }
-        }
-
-        // Create transactions
-        $user = User::first();
-
-        for ($i = 0; $i < 100; $i++) {
-            Transaction::create([
-                'transaction_code' => 'TXN-' . str_pad($i + 1, 6, '0', STR_PAD_LEFT),
-                'branch_id' => $branchIds[array_rand($branchIds)],
-                'item_id' => $itemIds[array_rand($itemIds)],
-                'user_id' => $user->user_id,
-                'type' => ['purchase', 'sales'][array_rand(['purchase', 'sales'])],
-                'quantity' => rand(1, 10),
-                'amount' => rand(5000, 50000),
-                'created_at' => now()->subDays(rand(0, 30)),
-            ]);
         }
 
         $this->call(CategoriesAndBrandsSeeder::class);
