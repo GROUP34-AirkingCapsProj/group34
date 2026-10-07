@@ -37,6 +37,23 @@ class AuthController extends Controller
      */
     private const MAX_OTP_ATTEMPTS = 5;
 
+    /**
+     * Failed bot checks allowed per (email, IP) before login is refused outright.
+     *
+     * The CAPTCHA is verified BEFORE the password is ever compared, so a client
+     * that never solves it never reaches the credentials limiter -- the gate that
+     * locks the front door sits at zero attempts however long the hammering goes
+     * on. The route's throttle:12,1 is the only other ceiling, and it decays every
+     * sixty seconds, so it caps nothing across the span of an attack.
+     *
+     * Deliberately looser than maxLoginAttempts() and deliberately not that same
+     * setting. Failing this check proves nothing about any password, so the
+     * response to it should be sized to stopping an automated solver -- not to
+     * the credential policy, where a strict value of 3 would shut a person out of
+     * a password they know over mistyped arithmetic.
+     */
+    private const MAX_CAPTCHA_FAILURES = 10;
+
     private function issueAuthToken(User $user): string
     {
         $minutes = SystemSetting::sessionTimeoutMinutes();
@@ -215,6 +232,24 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => [
                     'Too many login attempts. Try again in ' . ceil($seconds / 60) . ' minute(s).',
+                ],
+            ]);
+        }
+
+        if (RateLimiter::tooManyAttempts($captchaKey, self::MAX_CAPTCHA_FAILURES)) {
+            $seconds = RateLimiter::availableIn($captchaKey);
+            $this->logLoginAttempt(
+                $request,
+                User::where('email', $request->input('email'))->first(),
+                false,
+                'Blocked (too many failed security checks).'
+            );
+
+            // Refused before the challenge is even looked at, so a solver cannot
+            // buy itself another round by finally getting one right.
+            throw ValidationException::withMessages([
+                'captcha_answer' => [
+                    'Too many failed security checks. Try again in ' . ceil($seconds / 60) . ' minute(s).',
                 ],
             ]);
         }
