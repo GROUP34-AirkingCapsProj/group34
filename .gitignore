@@ -74,5 +74,13 @@ back-end/database/*.sqlite
 
 # One-off dev/debug scripts (seeders, token minters, phase test harnesses).
 # Not part of the app; back-end/scripts/phase5_tests.php held a live token.
-back-end/scripts/
+# Trailing /* not /: git does not descend into an excluded directory, so a
+# negation inside one never applies. Excluding the contents keeps the negations
+# below working.
+back-end/scripts/*
+# ...except the operational scripts the docs tell you to run. Both read PG_*
+# from .env at runtime and neither prints a password, so the reason this
+# directory is ignored does not apply to them.
+!back-end/scripts/check-aiven.ps1
+!back-end/scripts/backup-aiven.ps1
 back-end/tinker_tmp.php

@@ -1,5 +1,23 @@
 # Moving the business data from local MySQL to Aiven PostgreSQL
 
+> **This has already been done, and `data:transfer` must not be run again.**
+>
+> The transfer below describes a one-way push from this machine into an empty
+> production database. That is no longer the situation: production has been in
+> use, and on 2026-10-07 it held rows this machine has never seen (20 users
+> against the 8 recorded here). Every run empties the 80 tables and reloads them
+> from local MySQL, so a re-run now *deletes live data*.
+>
+> Production was also reset on 2026-10-07 with
+> `php artisan data:reset-transactional` — transactional tables emptied, item
+> master, lookups and users kept. See
+> [POSTGRES.md](POSTGRES.md#starting-the-live-system-fresh).
+>
+> To change production now, use a migration and
+> `php artisan migrate --database=pgsql_target --force`, and take a backup first
+> with `back-end/scripts/backup-aiven.ps1`. The historical procedure below is
+> kept for the reasoning it records, not as a thing to execute.
+
 Production currently has the right *shape* and none of your *data*: `migrate`
 loaded the 86-table baseline plus 16 tables of reference data (roles,
 permissions, lookups, locations), and stopped there. Your products, inventory,
