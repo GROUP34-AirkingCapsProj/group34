@@ -1165,6 +1165,28 @@ _1 controller · 1 route_
 - `show` — GET /sanctum/csrf-cookie
 
 
+### 52. OPS: external scheduler trigger
+
+_1 controller · 1 route_
+
+**SchedulerTickController**
+
+- `__invoke` — GET|POST /api/scheduler/tick
+
+The only route outside `auth:sanctum` that causes server-side work. It exists
+because the deployed container has no cron, so `schedule:run` never fires on its
+own; a free external cron service calls this once a minute instead.
+
+It carries its own shared-secret check rather than Sanctum, because the caller
+is a cron service with no user and no session. Disabled — 404, not 403 — unless
+`SCHEDULER_RUN_TOKEN` is set to 32+ characters, so it does not exist at all in
+environments that do not use it. Rate limited to 6/min.
+
+It runs one tick of Laravel's scheduler and exposes no way to name a command;
+`routes/console.php` still decides what is due. See
+[DEPLOY-RENDER.md](DEPLOY-RENDER.md) Phase 9.
+
+
 ---
 
 ## Regenerating this file

@@ -412,6 +412,140 @@ re-run — it does nothing if an admin already exists.
 
 ---
 
+## Phase 8 — Real-time updates (Reverb)
+
+Optional. Skip it and notifications still arrive, on the 60-second poll.
+
+Reverb is a long-running WebSocket server, so it cannot share the API's Apache
+process. It does not need a new image: the container's entrypoint ends with
+`exec "$@"`, so the **same Docker image** runs Reverb when given a different
+start command.
+
+1. **Invent two secrets.** Any 32+ random characters each — `php artisan
+   key:generate --show` twice, minus the `base64:` prefix, works:
+
+   - `REVERB_APP_KEY` — the frontend will carry this. Public by design.
+   - `REVERB_APP_SECRET` — **server-side only.** Never put it in the frontend.
+
+2. **Render → New + → Web Service**, same repository and branch.
+
+   | Field | Value |
+   |---|---|
+   | Runtime | Docker |
+   | Dockerfile Path | `./Dockerfile` |
+   | Docker Command | `php artisan reverb:start --host=0.0.0.0 --port=$PORT` |
+   | Instance Type | Free |
+
+   The `--host`/`--port` flags are not optional. Render routes to whatever
+   `$PORT` holds, and a server bound to `127.0.0.1` is unreachable from outside
+   the container.
+
+3. **Environment** on the Reverb service — the same `APP_KEY` and database
+   values as the API, plus:
+
+   | Key | Value |
+   |---|---|
+   | `REVERB_APP_ID` | `airking` |
+   | `REVERB_APP_KEY` | the key from step 1 |
+   | `REVERB_APP_SECRET` | the secret from step 1 |
+   | `BROADCAST_CONNECTION` | `reverb` |
+   | `RUN_MIGRATIONS` | `false` — the API owns migrations |
+
+4. **Point the API at it.** On the **API** service, set:
+
+   | Key | Value |
+   |---|---|
+   | `BROADCAST_CONNECTION` | `reverb` |
+   | `REVERB_APP_ID` / `REVERB_APP_KEY` / `REVERB_APP_SECRET` | identical to step 3 |
+   | `REVERB_HOST` | `your-reverb-service.onrender.com` (no scheme, no port) |
+   | `REVERB_PORT` | `443` |
+   | `REVERB_SCHEME` | `https` |
+
+   Render terminates TLS, so the public port is 443 and the scheme is https
+   whatever port Reverb binds inside the container.
+
+5. **Rebuild the frontend with the socket settings.** These are read at *build*
+   time, so setting them without a rebuild changes nothing. On the static site:
+
+   | Key | Value |
+   |---|---|
+   | `REACT_APP_REVERB_APP_KEY` | the key from step 1 |
+   | `REACT_APP_REVERB_HOST` | `your-reverb-service.onrender.com` |
+   | `REACT_APP_REVERB_PORT` | `443` |
+   | `REACT_APP_REVERB_SCHEME` | `https` |
+
+   Then **Manual Deploy → Clear build cache & deploy**. Never set
+   `REVERB_APP_SECRET` here — the frontend bundle is public.
+
+6. **Verify.** Log in, open DevTools → Network → WS. Expect a `101 Switching
+   Protocols` to your Reverb host, then a `pusher:connection_established` frame.
+   A 4xx on `/broadcasting/auth` instead means the API's `REVERB_*` values do not
+   match Reverb's.
+
+> **Free-tier behaviour.** Since February 2026 a free service stays awake while
+> it receives WebSocket messages, so an open browser keeps it alive. After 15
+> idle minutes it spins down, and the next connection waits ~1 minute for the
+> cold start — the app falls back to polling meanwhile. Free services also share
+> **750 instance hours a month** across your account; two always-on free services
+> exceed that, so watch the usage page or put Reverb on a paid instance.
+
+---
+
+## Phase 9 — The scheduler
+
+Without this, `analytics:restock`, `archive:auto`, `warranties:expire`,
+`archive:cleanup` and `ledger:drift-check` never run.
+
+A Render Cron Job running `php artisan schedule:run` every minute is the normal
+answer and costs about $1/month. If you would rather not pay, the API exposes a
+trigger a free external cron can call.
+
+1. **Generate a token.** 32+ random characters, `php artisan key:generate --show`
+   minus the `base64:` prefix. Do **not** reuse `APP_KEY`.
+
+2. On the **API** service, set `SCHEDULER_RUN_TOKEN` to it, and redeploy.
+
+   Leaving it unset leaves the route returning 404. It fails closed on purpose:
+   forgetting this cannot leave a world-callable trigger behind.
+
+3. **Point a free cron at it** — [cron-job.org](https://cron-job.org),
+   EasyCron, or similar:
+
+   | Field | Value |
+   |---|---|
+   | URL | `https://YOUR-API.onrender.com/api/scheduler/tick` |
+   | Method | `POST` |
+   | Schedule | every minute |
+   | Header | `X-Scheduler-Token: <your token>` |
+
+   **Prefer the header.** The endpoint also accepts `?token=...`, for services
+   that cannot set headers, but query strings are written to access logs, proxy
+   logs and history in a way headers are not.
+
+4. **Verify.**
+
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+     -H "X-Scheduler-Token: YOUR_TOKEN" \
+     https://YOUR-API.onrender.com/api/scheduler/tick
+   ```
+
+   `200` means it ran. `404` means the token is wrong or unset — deliberately
+   indistinguishable, so an attacker cannot tell a bad token from a missing
+   route. `429` means more than 6 calls in a minute.
+
+What it does **not** do is pick which commands run — it is one tick of Laravel's
+scheduler, and `routes/console.php` still decides what is due. There is no way
+to name a command through it; that would be remote command execution with extra
+steps.
+
+> **A free API service sleeps after 15 idle minutes.** A cron hitting it every
+> minute keeps it permanently awake, which is convenient but consumes instance
+> hours continuously. If you are near the 750-hour limit, every 5 or 15 minutes
+> is enough for jobs that run daily.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -447,14 +581,16 @@ replaces that disk on each deploy. Anything uploaded is lost. Fixing this means
 moving to object storage (S3 or Cloudflare R2). *Do this before anyone relies on
 incident photos as evidence.*
 
-**Real-time updates do not work.** The dashboard's live updates need a Reverb
-WebSocket server, which cannot run inside the API container. `BROADCAST_CONNECTION=log`
-keeps the app working; the pages simply do not update by themselves. Fixing this
-means a second Render service.
+**Real-time updates are off until you deploy Reverb.** With
+`BROADCAST_CONNECTION=log` the app works but pages do not update by themselves,
+and notifications arrive on the frontend's 60-second poll instead of instantly.
+The poll does chime, so this is a delay rather than silence. Phase 8 below
+deploys Reverb and removes the limitation.
 
-**The restock analytics job never runs.** `analytics:restock` is scheduled but
-nothing triggers it. Fixing this means a Render Cron Job running
-`php artisan schedule:run`.
+**Scheduled jobs do not run until you wire a cron.** This container has no cron,
+so `schedule:run` never fires and `analytics:restock`, `archive:auto`,
+`warranties:expire`, `archive:cleanup` and `ledger:drift-check` never execute.
+Phase 9 below fixes it.
 
 **Your existing data is not there.** The deployment creates an empty system with
 configuration only — roles, permissions, statuses, categories, brands, units,

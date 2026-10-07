@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\SchedulerTickController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\InventoryBatchController;
@@ -102,6 +103,16 @@ Route::post('/reset-password', [ForgotPasswordOtpController::class, 'reset'])->m
 // location.scope) so auditors can authenticate to the org channel. Channel-level
 // authorization is enforced in routes/channels.php via ChannelAccess.
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
+
+// External cron entry point for Laravel's scheduler. Carries its own shared-secret
+// check (see SchedulerTickController) rather than auth:sanctum, because the caller
+// is a cron service with no user and no session. 404s unless SCHEDULER_RUN_TOKEN is
+// configured, so it does not exist at all in environments that do not use it.
+//
+// throttle:6,1 against a once-a-minute caller: generous enough to absorb a retry
+// or a clock skew, tight enough that the token cannot be brute-forced at speed.
+Route::match(['get', 'post'], '/scheduler/tick', SchedulerTickController::class)
+    ->middleware('throttle:6,1');
 
 Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session', 'password.changed'])->group(function () {
 
