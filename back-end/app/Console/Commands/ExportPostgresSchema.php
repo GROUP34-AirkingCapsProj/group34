@@ -88,6 +88,7 @@ class ExportPostgresSchema extends Command
         'audit_trail.old_values',
         'audit_trail.new_values',
         'inventory_scan_events.meta',
+        'ledger_drift_findings.scope',
         'pending_products.appliance_snapshot',
         'report_runs.parameters',
         'restock_recommendations.reason_codes',

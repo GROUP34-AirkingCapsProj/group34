@@ -22,7 +22,13 @@ return new class extends Migration
             $table->string('source_type', 40)->nullable();
             $table->date('period_start')->nullable();
             $table->date('period_end')->nullable();
-            $table->json('scope')->nullable();     // {product_id, location_id} where applicable
+            // jsonb, not json: PostgreSQL's `json` type has no equality operator,
+            // and DriftChecker matches an existing finding with
+            // `where('scope', json_encode($scope))`. On `json` that is
+            // "operator does not exist: json = unknown" at runtime; jsonb compares
+            // semantically, so key order stops mattering too. MySQL maps both
+            // spellings to `json`, so this changes nothing there.
+            $table->jsonb('scope')->nullable();    // {product_id, location_id} where applicable
             $table->decimal('expected', 18, 2)->nullable();
             $table->decimal('actual', 18, 2)->nullable();
             $table->decimal('variance', 18, 2)->nullable();
