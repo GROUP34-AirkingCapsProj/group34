@@ -5,6 +5,7 @@ import { authAPI, layoutAPI, resolveStorageUrl } from '../services/api';
 import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
 import { channelFor, REALTIME_EVENTS } from '../utils/realtimeChannel';
 import { playNotifySound, initNotifySound } from '../utils/notifySound';
+import { shouldChimeForBadge } from '../utils/badgeChime';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
@@ -33,6 +34,11 @@ const AdminLayout = ({ children }) => {
   const profileRef = useRef(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const prevBadgeRef = useRef(0);
+  // Whether prevBadgeRef holds a real reading yet. The first summary response
+  // describes what was already waiting when the page opened, which is not news
+  // and must not chime -- without this, every page load with unread
+  // notifications would ring.
+  const badgeBaselineRef = useRef(false);
   const [pendingPrCount, setPendingPrCount] = useState(0);
   const [awaitingIstCount, setAwaitingIstCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -81,8 +87,22 @@ const AdminLayout = ({ children }) => {
         const res = await layoutAPI.getSummary();
         const d = res?.data ?? {};
         if (!mounted) return;
-        setUnreadNotifications(Number(d.badge_count ?? 0));
-        prevBadgeRef.current = Number(d.badge_count ?? 0);
+        const nextBadge = Number(d.badge_count ?? 0);
+
+        // The chime used to live only on the Reverb path, so deployments
+        // without a WebSocket server were silent however many notifications
+        // arrived -- the badge moved and nothing else did. Ringing on a rise
+        // here is what actually makes the comment below ("falls back to the
+        // 60s poll") true of the sound and not just the counts.
+        //
+        // See badgeChime.js for why a rise is the only case that rings.
+        if (shouldChimeForBadge(prevBadgeRef.current, nextBadge, badgeBaselineRef.current)) {
+          playNotifySound();
+        }
+        badgeBaselineRef.current = true;
+
+        setUnreadNotifications(nextBadge);
+        prevBadgeRef.current = nextBadge;
         setPendingPrCount(Number(d.pending_pr_count ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
       } catch (_) {
@@ -102,7 +122,11 @@ const AdminLayout = ({ children }) => {
   }, []);
 
   // Realtime: defer Echo/Pusher until the browser is idle so dashboard APIs
-  // win the first-paint race. Falls back to the 60s poll above when Reverb is down.
+  // win the first-paint race. Falls back to the 60s poll above when Reverb is
+  // down -- for the chime as well as the counts, which is only true since the
+  // poll learned to ring on a rise. Deployed builds have no
+  // REACT_APP_REVERB_APP_KEY, so getEcho() returns null and this path never
+  // runs there; the poll is the whole notification story in production.
   useEffect(() => {
     if (!can('notification_panel', 'read')) return;
     const channelName = channelFor(user);
@@ -120,9 +144,14 @@ const AdminLayout = ({ children }) => {
         const d = res?.data ?? {};
         if (cancelled) return;
         setUnreadNotifications(Number(d.badge_count ?? 0));
+        // Also marks the baseline as taken, so the next poll compares against
+        // this reading and does not chime a second time for the same event.
         prevBadgeRef.current = Number(d.badge_count ?? 0);
+        badgeBaselineRef.current = true;
         setPendingPrCount(Number(d.pending_pr_count ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
+        // Unconditional here: a socket event is itself the news, so there is no
+        // count to compare against -- unlike the poll, which only sees totals.
         playNotifySound();
       } catch (_) {
         // ignore — poll will reconcile
