@@ -64,7 +64,6 @@ const adminMenuSections = [
       { name: 'Location Management', path: '/admin/branches', icon: 'location' },
       { name: 'System Configuration', path: '/admin/config', icon: 'config' },
       { name: 'Archive Management', path: '/admin/archive', icon: 'archive' },
-      { name: 'Backup', path: '/admin/backup', icon: 'backup', adminOnly: true },
     ],
   },
   {

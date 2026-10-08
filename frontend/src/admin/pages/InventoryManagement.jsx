@@ -30,7 +30,7 @@ const TrendChart = ({ data, loading }) => {
   const sals = data?.outbound ?? new Array(days.length).fill(0);
   const maxV = Math.max(...sals, ...buys, 1) * 1.15;
 
-  const px = (i) => pL + i * (cW / (days.length - 1));
+  const px = (i) => pL + i * (cW / Math.max(days.length - 1, 1));
   const py = (v) => pT + cH - (v / maxV) * cH;
   const baseY = pT + cH;
 
@@ -90,10 +90,10 @@ const TrendChart = ({ data, loading }) => {
 
       <div className="sm-chart-legend">
         <span className="sm-legend-item">
-          <span className="sm-legend-dot" style={{ background: '#f59e0b' }} />purchase
+          <span className="sm-legend-dot" style={{ background: '#f59e0b' }} />receipts
         </span>
         <span className="sm-legend-item">
-          <span className="sm-legend-dot" style={{ background: '#dc2626' }} />sales
+          <span className="sm-legend-dot" style={{ background: '#dc2626' }} />issuances
         </span>
       </div>
     </div>
@@ -186,6 +186,7 @@ const InventoryManagement = () => {
 
   // Inventory state
   const [inventory, setInventory] = useState([]);
+  const [stockSummary, setStockSummary] = useState({});
   const [warehouses, setWarehouses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -249,20 +250,21 @@ const InventoryManagement = () => {
     fetchLookups();
   }, []);
 
-  useEffect(() => {
-    const fetchTrends = async () => {
-      setTrendLoading(true);
-      try {
-        const res = await dashboardAPI.getStockMovementTrends();
-        setTrendData(res?.data ?? null);
-      } catch (err) {
-        console.error('Stock movement trends fetch failed:', err);
-      } finally {
-        setTrendLoading(false);
-      }
-    };
-    fetchTrends();
+  const [trendError, setTrendError] = useState(null);
+  const fetchTrends = useCallback(async () => {
+    setTrendLoading(true);
+    setTrendError(null);
+    try {
+      const res = await dashboardAPI.getStockMovementTrends();
+      setTrendData(res?.data ?? null);
+    } catch (err) {
+      setTrendData(null);
+      setTrendError('Could not load stock movement data. Please refresh to retry.');
+    } finally {
+      setTrendLoading(false);
+    }
   }, []);
+  useEffect(() => { fetchTrends(); }, [fetchTrends]);
 
   const fetchInventory = useCallback(async (page = 1) => {
     try {
@@ -274,6 +276,7 @@ const InventoryManagement = () => {
       if (stockStatusFilter) params.stock_status = stockStatusFilter;
       const res = await inventoryAPI.getAll(params);
       setInventory(Array.isArray(res.data) ? res.data : []);
+      setStockSummary(res.summary ?? {});
       setPagination(res.pagination || { total: 0, last_page: 1 });
       setError(null);
     } catch (err) {
@@ -363,6 +366,8 @@ const InventoryManagement = () => {
   useEffect(() => {
     const onScanApplied = () => {
       fetchInventory(currentPage);
+      fetchTrends();
+      if (viewingItem) loadInventoryHistory(viewingItem.inventory_id);
       // The PO console's quantities come from a snapshot fetched only when the
       // sub-tab becomes active, so re-fetch it too when it's the one on screen.
       if (activeTab === 'inventory' && inventorySubTab === 'po-console') {
@@ -371,7 +376,7 @@ const InventoryManagement = () => {
     };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage, activeTab, inventorySubTab, fetchPoGroups]);
+  }, [fetchInventory, currentPage, activeTab, inventorySubTab, fetchPoGroups, fetchTrends, viewingItem, loadInventoryHistory]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -451,84 +456,60 @@ const InventoryManagement = () => {
   };
 
   /* ── stock-movement derived data ─── */
-  const currentStock = useMemo(() => inventory.reduce((s, i) => s + getItemQty(i), 0), [inventory]);
+  const movementProducts = trendData?.products ?? [];
+  const currentStock = Number(trendData?.current_stock ?? 0);
 
   // Use real 30-day totals from API when available; fall back to inventory-derived estimates
-  const smTotalIn  = trendData?.total_in  ?? currentStock;
-  const smTotalOut = trendData?.total_out ?? Math.round(currentStock * 0.74);
+  const smTotalIn  = trendData?.total_in  ?? '?';
+  const smTotalOut = trendData?.total_out ?? '?';
 
   // Period-over-period percentage changes (null when no prior-period data)
   const smInPct = useMemo(() => {
-    if (!trendData || trendData.prev_total_in === 0) return null;
+    if (!trendData || !(trendData.prev_total_in > 0)) return null;
     return Math.round((trendData.total_in - trendData.prev_total_in) / trendData.prev_total_in * 100);
   }, [trendData]);
   const smOutPct = useMemo(() => {
-    if (!trendData || trendData.prev_total_out === 0) return null;
+    if (!trendData || !(trendData.prev_total_out > 0)) return null;
     return Math.round((trendData.total_out - trendData.prev_total_out) / trendData.prev_total_out * 100);
   }, [trendData]);
 
   const smTurnover = useMemo(() => {
-    const avgStock = currentStock > 0 ? currentStock : 1;
-    return smTotalOut > 0 ? (smTotalOut / avgStock).toFixed(1) : '0.0';
+    return currentStock > 0 ? (smTotalOut / currentStock).toFixed(1) : '?';
   }, [smTotalOut, currentStock]);
   const smDays = useMemo(() =>
-    parseFloat(smTurnover) > 0 ? Math.round(30 / parseFloat(smTurnover)) : 0,
-    [smTurnover]);
+    smTotalOut > 0 ? Math.round(currentStock * 30 / smTotalOut) : '?',
+    [smTotalOut, currentStock]);
 
-  const smFastCount = useMemo(
-    () => inventory.filter((i) => getItemQty(i) >= getItemReorder(i) * 3).length,
-    [inventory]);
-  const smSlowCount = useMemo(
-    () => inventory.filter((i) => { const q = getItemQty(i); return q > 0 && q < getItemReorder(i); }).length,
-    [inventory]);
-
+  const smFastCount = movementProducts.filter((item) => item.outbound > 0).length;
+  const smSlowCount = movementProducts.filter((item) => item.outbound === 0 && item.quantity_on_hand > 0).length;
   const categoryPerf = useMemo(() => {
     const map = {};
-    inventory.forEach((item) => {
-      const cat = getItemCat(item);
-      if (!map[cat]) map[cat] = { total: 0, reorder: 0 };
-      map[cat].total   += getItemQty(item);
-      map[cat].reorder += Math.max(getItemReorder(item), 1);
+    (trendData?.products ?? []).forEach((item) => {
+      const name = getItemCat(item);
+      map[name] = (map[name] ?? 0) + item.outbound;
     });
-    const cats = Object.entries(map)
-      .map(([name, d]) => ({ name, rate: parseFloat((d.total / d.reorder).toFixed(1)) }))
-      .sort((a, b) => b.rate - a.rate)
-      .slice(0, 4);
-    const maxR = cats.length > 0 ? cats[0].rate : 1;
-    return cats.map((c) => ({ ...c, pct: maxR > 0 ? (c.rate / maxR) * 100 : 0 }));
-  }, [inventory]);
-
-  const top20 = useMemo(() => {
+    const cats = Object.entries(map).map(([name, rate]) => ({ name, rate }))
+      .sort((a, b) => b.rate - a.rate).slice(0, 4);
+    const max = cats[0]?.rate ?? 0;
+    return cats.map((cat) => ({ ...cat, pct: max > 0 ? cat.rate / max * 100 : 0 }));
+  }, [trendData]);
+  const top20 = movementProducts.filter((item) => {
     const term = smSearch.toLowerCase();
-    const filtered = term
-      ? inventory.filter(
-          (i) =>
-            getItemName(i).toLowerCase().includes(term) ||
-            getItemCode(i).toLowerCase().includes(term)
-        )
-      : inventory;
-    return [...filtered]
-      .sort((a, b) => getItemQty(b) - getItemQty(a))
-      .slice(0, 20)
-      .map((item, idx) => {
-        const qty     = getItemQty(item);
-        const reorder = getItemReorder(item);
-        const inbound  = Math.round(qty * 0.6);
-        const outbound = Math.round(qty * 0.85);
-        const turnover = reorder > 0 ? parseFloat((outbound / reorder).toFixed(1)) : 0;
-        return { item, rank: idx + 1, inbound, outbound, turnover, cat: getItemCat(item) };
-      });
-  }, [inventory, smSearch]);
+    return (item.inbound > 0 || item.outbound > 0) &&
+      (!term || getItemName(item).toLowerCase().includes(term) || getItemCode(item).toLowerCase().includes(term));
+  }).sort((a, b) => b.outbound - a.outbound || b.inbound - a.inbound)
+    .slice(0, 20).map((item, idx) => ({
+      item, rank: idx + 1, inbound: item.inbound, outbound: item.outbound,
+      turnover: item.quantity_on_hand > 0 ? (item.outbound / item.quantity_on_hand).toFixed(1) : '?',
+      cat: getItemCat(item),
+    }));
 
   /* ── inventory-tab counts ─── */
   const totalItems    = pagination.total || 0;
   const totalPages    = pagination.last_page || 1;
-  const criticalCount = inventory.filter((i) => getItemQty(i) <= getItemReorder(i) * 0.5 && getItemQty(i) > 0).length;
-  const reorderCount  = inventory.filter((i) => {
-    const qty = getItemQty(i), reorder = getItemReorder(i);
-    return qty > reorder * 0.5 && qty <= reorder;
-  }).length;
-  const overstockCount = inventory.filter((i) => getItemQty(i) >= getItemMax(i)).length;
+  const criticalCount = stockSummary.critical ?? 0;
+  const reorderCount = stockSummary.reorder ?? 0;
+  const overstockCount = stockSummary.overstock ?? 0;
   const stockOutHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Stock Out');
   const transferHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Transfer');
 
@@ -631,6 +612,7 @@ const InventoryManagement = () => {
         ════════════════════════════════════════════════ */}
         {activeTab === 'stock-movement' && (
           <>
+            {trendError && <div role="alert">{trendError}</div>}
             {/* Metric cards */}
             <div className="sm-stats-row">
               <div className="sm-stat-card">
@@ -694,7 +676,7 @@ const InventoryManagement = () => {
                 </div>
               </div>
               <div className="sm-stat-card">
-                <span className="sm-stat-label">INVENTORY TURNOVER</span>
+                <span className="sm-stat-label">OUTBOUND / CURRENT STOCK</span>
                 <div className="sm-stat-value-row">
                   <span className="sm-stat-value">{smTurnover}x</span>
                 </div>
@@ -742,13 +724,13 @@ const InventoryManagement = () => {
                 {/* Category performance */}
                 <div className="sm-card">
                   <h3 className="sm-card-title">Category Performance</h3>
-                  <p className="sm-card-sub">Turnover velocity by product type</p>
+                  <p className="sm-card-sub">Issued pieces by product type</p>
                   <div className="sm-cat-list">
                     {categoryPerf.length > 0 ? categoryPerf.map((c, i) => (
                       <div key={i} className="sm-cat-row">
                         <div className="sm-cat-header">
                           <span className="sm-cat-name">{c.name}</span>
-                          <span className="sm-cat-rate">{c.rate}x</span>
+                          <span className="sm-cat-rate">{c.rate} pcs</span>
                         </div>
                         <div className="sm-cat-track">
                           <div className="sm-cat-fill" style={{ width: `${c.pct}%` }} />
@@ -768,14 +750,14 @@ const InventoryManagement = () => {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
                       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
-                    <div className="sm-moving-label sm-fast-label">FAST MOVING</div>
+                    <div className="sm-moving-label sm-fast-label">ISSUED IN LAST 30 DAYS</div>
                     <div className="sm-moving-count sm-fast-count">{smFastCount} Items</div>
                   </div>
                   <div className="sm-slow-card">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2">
                       <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                     </svg>
-                    <div className="sm-moving-label sm-slow-label">SLOW MOVING</div>
+                    <div className="sm-moving-label sm-slow-label">NO ISSUANCES IN 30 DAYS</div>
                     <div className="sm-moving-count sm-slow-count">{smSlowCount} Items</div>
                   </div>
                 </div>
@@ -786,7 +768,7 @@ const InventoryManagement = () => {
             <div className="sm-card sm-products-card">
               <div className="sm-products-header">
                 <h3 className="sm-card-title">Top 20 Moving Products</h3>
-                <p className="sm-card-sub">Ranked by stock movement frequency and turnover ratio</p>
+                <p className="sm-card-sub">Ranked by recorded outbound pieces, then inbound pieces (30 days)</p>
               </div>
 
               {loading && <Loader />}
@@ -799,7 +781,7 @@ const InventoryManagement = () => {
                       <th>CATEGORY</th>
                       <th>INBOUND (30D)</th>
                       <th>OUTBOUND (30D)</th>
-                      <th>TURNOVER</th>
+                      <th>OUT / STOCK</th>
                       <th>STATUS</th>
                     </tr>
                   </thead>
@@ -1413,7 +1395,7 @@ const InventoryManagement = () => {
                       </div>
                       <div className="invd-field">
                         <span className="invd-label">Model Code</span>
-                        <span className="invd-value invd-mono">{historyData?.product?.applianceDetail?.model_code || getModelCode(viewingItem) || '—'}</span>
+                        <span className="invd-value invd-mono">{historyData?.product?.model_name || getModelCode(viewingItem) || '—'}</span>
                       </div>
                       <div className="invd-field">
                         <span className="invd-label">Type</span>

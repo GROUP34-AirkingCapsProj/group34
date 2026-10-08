@@ -99,10 +99,21 @@ class InventoryController extends Controller
             $query->whereRaw('quantity_on_hand <= (SELECT recommended_stocks FROM products WHERE products.product_id = inventory.product_id)');
         }
 
+        $recommended = '(SELECT recommended_stocks FROM products WHERE products.product_id = inventory.product_id)';
+        $configuredMax = '(SELECT max_stock_level FROM products WHERE products.product_id = inventory.product_id)';
+        $reorder = "COALESCE(NULLIF({$recommended}, 0), NULLIF(inventory.reorder_level, 0), 5)";
+        $maximum = "COALESCE(NULLIF({$configuredMax}, 0), ({$reorder} * 4))";
+        $summary = [
+            'critical' => (clone $query)->where('quantity_on_hand', '>', 0)->whereRaw("quantity_on_hand <= ({$reorder} * 0.5)")->count(),
+            'reorder' => (clone $query)->whereRaw("quantity_on_hand > ({$reorder} * 0.5)")->whereRaw("quantity_on_hand <= {$reorder}")->count(),
+            'overstock' => (clone $query)->whereRaw("quantity_on_hand > {$reorder}")->whereRaw("quantity_on_hand >= {$maximum}")->count(),
+        ];
         $perPage = $request->input('per_page', 15);
         $page    = $query->paginate($perPage);
 
-        return $this->paginated($this->withQuarantined($page), 'Inventory retrieved successfully');
+        $response = $this->paginated($this->withQuarantined($page), 'Inventory retrieved successfully');
+        $response->setData(array_merge($response->getData(true), ['summary' => $summary]));
+        return $response;
     }
 
     /**

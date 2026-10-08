@@ -2,6 +2,9 @@
 
 return [
 
+    // Optional override for installations whose database host does not identify the environment.
+    'environment' => env('BACKUP_ENVIRONMENT'),
+
     /*
     |--------------------------------------------------------------------------
     | MySQL client binaries

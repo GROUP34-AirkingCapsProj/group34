@@ -209,84 +209,66 @@ class DashboardController extends Controller
         return 'general';
     }
 
-    public function stockMovementTrends()
+    public function stockMovementTrends(Request $request)
     {
-        $chartDays = 7;
-
-        $inboundRows = DB::table('receiving_details as rd')
-            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
-            ->selectRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) as day, SUM(rd.quantity_amount) as total')
-            ->whereRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
-            ->groupBy('day')
-            ->pluck('total', 'day')
-            ->toArray();
-
-        $outboundRows = DB::table('issuance_details as d')
+        $user = $request->user();
+        $scope = function ($query, $column) use ($user) {
+            if (! $user->isCentralized()) {
+                $location = $user->scopedLocationId();
+                $location === null ? $query->whereRaw('1 = 0') : $query->where($column, $location);
+            }
+            return $query;
+        };
+        $today = now()->toDateString();
+        $start = now()->subDays(29)->toDateString();
+        $previousStart = now()->subDays(59)->toDateString();
+        $previousEnd = now()->subDays(30)->toDateString();
+        $inDate = 'COALESCE(DATE(r.receiving_date), DATE(r.created_at))';
+        $outDate = 'COALESCE(DATE(i.issuance_date), DATE(i.created_at))';
+        $in = $scope(DB::table('receiving_details as rd')
+            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id'), 'r.location_id');
+        $out = $scope(DB::table('issuance_details as d')
             ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
-            ->where('d.quantity_issued', '>', 0)
-            ->selectRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) as day, '
-                . 'SUM(COALESCE(d.quantity_in_pieces, d.quantity_issued, 0)) as total')
-            ->whereRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
-            ->groupBy('day')
-            ->pluck('total', 'day')
-            ->toArray();
-
-        $labels = [];
-        $inbound = [];
-        $outbound = [];
-
-        for ($i = $chartDays - 1; $i >= 0; $i--) {
-            $date      = now()->subDays($i)->toDateString();
-            $labels[]  = now()->subDays($i)->format('D');
-            $inbound[]  = (int) ($inboundRows[$date]  ?? 0);
-            $outbound[] = (int) ($outboundRows[$date] ?? 0);
+            ->where('d.quantity_issued', '>', 0), 'i.location_id');
+        $outQuantity = 'COALESCE(d.quantity_in_pieces, d.quantity_issued, 0)';
+        $periodIn = (clone $in)->whereRaw("$inDate BETWEEN ? AND ?", [$start, $today]);
+        $periodOut = (clone $out)->whereRaw("$outDate BETWEEN ? AND ?", [$start, $today]);
+        $inDays = (clone $periodIn)->selectRaw("$inDate as day, SUM(rd.quantity_amount) as total")
+            ->groupBy('day')->pluck('total', 'day');
+        $outDays = (clone $periodOut)->selectRaw("$outDate as day, SUM($outQuantity) as total")
+            ->groupBy('day')->pluck('total', 'day');
+        $labels = $inbound = $outbound = [];
+        for ($day = 6; $day >= 0; $day--) {
+            $date = now()->subDays($day);
+            $labels[] = $date->format('M j');
+            $inbound[] = (int) ($inDays[$date->toDateString()] ?? 0);
+            $outbound[] = (int) ($outDays[$date->toDateString()] ?? 0);
         }
-
-        // 30-day totals for the stat cards
-        $totalIn = (int) DB::table('receiving_details as rd')
-            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
-            ->whereRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) >= ?', [now()->subDays(30)->toDateString()])
-            ->sum('rd.quantity_amount');
-
-        $totalOut = (int) DB::table('issuance_details as d')
-            ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
-            ->where('d.quantity_issued', '>', 0)
-            ->whereRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) >= ?', [now()->subDays(30)->toDateString()])
-            ->sum(DB::raw('COALESCE(d.quantity_in_pieces, d.quantity_issued, 0)'));
-
-        // Previous 30-day totals for period-over-period badges
-        $prevTotalIn = (int) DB::table('receiving_details as rd')
-            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
-            ->whereRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) BETWEEN ? AND ?', [
-                now()->subDays(60)->toDateString(),
-                now()->subDays(31)->toDateString(),
-            ])
-            ->sum('rd.quantity_amount');
-
-        $prevTotalOut = (int) DB::table('issuance_details as d')
-            ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
-            ->where('d.quantity_issued', '>', 0)
-            ->whereRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) BETWEEN ? AND ?', [
-                now()->subDays(60)->toDateString(),
-                now()->subDays(31)->toDateString(),
-            ])
-            ->sum(DB::raw('COALESCE(d.quantity_in_pieces, d.quantity_issued, 0)'));
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'labels'         => $labels,
-                'inbound'        => $inbound,
-                'outbound'       => $outbound,
-                'total_in'       => $totalIn,
-                'total_out'      => $totalOut,
-                'prev_total_in'  => $prevTotalIn,
-                'prev_total_out' => $prevTotalOut,
-            ],
-        ]);
+        $received = (clone $periodIn)->selectRaw('rd.product_id, SUM(rd.quantity_amount) as quantity')
+            ->groupBy('rd.product_id')->pluck('quantity', 'rd.product_id');
+        $issued = (clone $periodOut)->selectRaw("d.product_id, SUM($outQuantity) as quantity")
+            ->groupBy('d.product_id')->pluck('quantity', 'd.product_id');
+        $rows = Inventory::forUser($user)->whereHas('product')->with('product.category')->get();
+        $products = $rows->groupBy('product_id')->map(function ($stock, $id) use ($received, $issued) {
+            $item = $stock->first();
+            return [
+                'inventory_id' => $item->inventory_id,
+                'product' => $item->product,
+                'quantity_on_hand' => (int) $stock->sum('quantity_on_hand'),
+                'inbound' => (int) ($received[$id] ?? 0),
+                'outbound' => (int) ($issued[$id] ?? 0),
+            ];
+        })->values();
+        return response()->json(['success' => true, 'data' => [
+            'labels' => $labels, 'inbound' => $inbound, 'outbound' => $outbound,
+            'total_in' => (int) $periodIn->sum('rd.quantity_amount'),
+            'total_out' => (int) $periodOut->sum(DB::raw($outQuantity)),
+            'prev_total_in' => (int) (clone $in)->whereRaw("$inDate BETWEEN ? AND ?", [$previousStart, $previousEnd])->sum('rd.quantity_amount'),
+            'prev_total_out' => (int) (clone $out)->whereRaw("$outDate BETWEEN ? AND ?", [$previousStart, $previousEnd])->sum(DB::raw($outQuantity)),
+            'current_stock' => (int) $rows->sum('quantity_on_hand'),
+            'products' => $products,
+        ]]);
     }
-
-    // ─── Private helpers ──────────────────────────────────────────────────────
 
     public function pendingApprovals()
     {

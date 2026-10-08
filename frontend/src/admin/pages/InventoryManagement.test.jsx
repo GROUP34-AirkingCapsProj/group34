@@ -603,3 +603,20 @@ test('printing a tag from the Inventory Batch modal sends that one tag', async (
   const [sent] = global.__labelPrinter.sendToPrinter.mock.calls[0];
   expect(sent.map((t) => t.serial_number)).toEqual(['INT-PO-20260901-5YOK-237-01']);
 });
+
+test('overview displays recorded movements outside the current inventory page', async () => {
+  dashboardAPI.getStockMovementTrends.mockResolvedValue({ data: {
+    labels: ['Oct 8', 'Oct 9'], inbound: [0, 12], outbound: [0, 7],
+    total_in: 12, total_out: 7, prev_total_in: 0, prev_total_out: 0,
+    current_stock: 50,
+    products: [{ inventory_id: 999, product: { product_name: 'Recorded product', product_code: 'REAL' },
+      quantity_on_hand: 50, inbound: 12, outbound: 7 }],
+  } });
+  render(<MemoryRouter><InventoryManagement /></MemoryRouter>);
+  expect(await screen.findByText('Recorded product')).toBeInTheDocument();
+  expect(screen.getByText('+12')).toBeInTheDocument();
+  expect(screen.getByText('-7')).toBeInTheDocument();
+  const calls = dashboardAPI.getStockMovementTrends.mock.calls.length;
+  await act(async () => { window.dispatchEvent(new Event('inventory-scan-applied')); });
+  await waitFor(() => expect(dashboardAPI.getStockMovementTrends.mock.calls.length).toBeGreaterThan(calls));
+});

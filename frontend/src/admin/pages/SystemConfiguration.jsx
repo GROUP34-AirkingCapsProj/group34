@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/AdminLayout';
+import { useSearchParams } from 'react-router-dom';
 import Loader from '../components/Loader';
 import UserManagementPanel from '../components/UserManagementPanel';
 import { toast } from '../utils/toast';
@@ -157,7 +158,15 @@ function formatResetCodeDate(iso) {
 }
 
 const SystemConfiguration = () => {
-  const [activeTab, setActiveTab] = useState('security');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams.get('tab');
+    return TABS.some((item) => item.id === tab) ? tab : 'security';
+  });
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (TABS.some((item) => item.id === tab)) setActiveTab(tab);
+  }, [searchParams]);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [policy, setPolicy] = useState({ avatar: true, email: true, phone: true, address: true });
   const [policyLoading, setPolicyLoading] = useState(true);

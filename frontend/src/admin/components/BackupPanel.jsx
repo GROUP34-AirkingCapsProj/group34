@@ -39,6 +39,9 @@ const StatusBadge = ({ status }) => (
 
 const BackupPanel = () => {
   const [loading, setLoading] = useState(true);
+  const [environment, setEnvironment] = useState(null);
+  const [backupTab, setBackupTab] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -59,12 +62,16 @@ const BackupPanel = () => {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [settingsRes, historyRes] = await Promise.all([
         backupAPI.getSettings(),
         backupAPI.getHistory({ per_page: 20 }),
       ]);
       const payload = settingsRes?.data || settingsRes || {};
+      const currentEnvironment = payload.environment;
+      setEnvironment(currentEnvironment === 'live' || currentEnvironment === 'local' ? currentEnvironment : null);
+      setBackupTab((current) => current || currentEnvironment || 'live');
       const schedule = payload.schedule || {};
       setEnabled(Boolean(schedule.enabled));
       setTime(toInputTime(schedule.time));
@@ -78,6 +85,7 @@ const BackupPanel = () => {
       setRemote(payload.remote || {});
       setHistory(Array.isArray(historyRes?.data) ? historyRes.data : []);
     } catch (err) {
+      setLoadError(err.message || 'Failed to load backup settings');
       toast.error(err.message || 'Failed to load backup settings');
     } finally {
       setLoading(false);
@@ -190,6 +198,33 @@ const BackupPanel = () => {
 
   return (
     <div className="bp-root">
+      <div className="sc-tabs-bar" role="tablist" aria-label="Backup environment">
+        {['live', 'local'].map((target) => (
+          <button key={target} type="button" role="tab" id={`backup-tab-${target}`}
+            aria-selected={backupTab === target} aria-controls="backup-environment-panel"
+            className={`sc-tab ${backupTab === target ? 'active' : ''}`}
+            onClick={() => setBackupTab(target)}>
+            {target === 'live' ? 'Live Backup' : 'Local Backup'}
+          </button>
+        ))}
+      </div>
+      <div id="backup-environment-panel" role="tabpanel" aria-labelledby={`backup-tab-${backupTab}`}>
+      {loadError ? (
+        <div className="bp-card" role="alert">
+          <p>{loadError}</p>
+          <button type="button" className="sc-btn-save" onClick={loadAll}>Retry</button>
+        </div>
+      ) : backupTab !== environment ? (
+        <div className="bp-card">
+          <h3>{backupTab === 'live' ? 'Live Backup' : 'Local Backup'}</h3>
+          <p>{!environment ? 'The server has not identified its backup environment. Update the backend before using backup controls.'
+            : backupTab === 'live'
+              ? 'Open System Configuration ? Backup on the live website to manage production backups.'
+              : 'Open System Configuration ? Backup in your local XAMPP application to manage local backups.'}</p>
+        </div>
+      ) : (
+      <>
+      <p>Managing {environment === 'live' ? 'live production' : 'local'} database backups: <strong>{database.name || '?'}</strong></p>
       <div className="bp-stats">
         <div className="bp-stat">
           <span className="bp-stat-label">Schedule</span>
@@ -477,6 +512,9 @@ const BackupPanel = () => {
           </table>
         </div>
       </section>
+      </>
+      )}
+      </div>
     </div>
   );
 };

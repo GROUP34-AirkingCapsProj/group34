@@ -24,8 +24,13 @@ class BackupController extends Controller
     public function settings()
     {
         $schedule = $this->scheduleWithDefaults();
+        $connection = config('database.default');
+        $host = strtolower((string) config("database.connections.{$connection}.host", ''));
+        $environment = config('backup.environment')
+            ?: (in_array($host, ['localhost', '127.0.0.1', '::1'], true) ? 'local' : 'live');
 
         return $this->success([
+            'environment' => $environment,
             'schedule' => $schedule,
             'stats'    => $this->buildStats($schedule),
             'database' => [

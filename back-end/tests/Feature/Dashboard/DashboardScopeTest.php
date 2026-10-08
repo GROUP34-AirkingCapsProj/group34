@@ -38,6 +38,13 @@ class DashboardScopeTest extends TestCase
 
         $labels = $res->json('location_distribution.labels');
         $this->assertEquals(['Dash A'], $labels, 'scoped user must only see their own location');
+        $this->actingAs($bm)->getJson('/api/dashboard/stock-movement-trends')
+            ->assertOk()
+            ->assertJsonPath('data.current_stock', 0)
+            ->assertJsonPath('data.total_in', 0)
+            ->assertJsonPath('data.total_out', 0)
+            ->assertJsonPath('data.products', []);
+
     }
 
     public function test_centralized_user_sees_all_locations(): void
