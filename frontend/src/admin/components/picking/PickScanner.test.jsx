@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PickScanner from './PickScanner';
 
@@ -141,4 +141,60 @@ test('a scan in flight disables the override control, so it cannot be double-sub
   expect(screen.getByRole('button', { name: /confirm override/i })).toBeDisabled();
   expect(screen.getByLabelText(/reason for overriding fifo/i)).toBeDisabled();
   expectExpectedZoneVisible();
+});
+
+
+test('accepted scans keep feedback visible when the final product is completed', async () => {
+  const onScan = jest.fn().mockResolvedValue({ scan_result: { status: 'ACCEPTED', accepted: true } });
+  const { rerender } = render(<PickScanner plan={plan} onScan={onScan} />);
+  expect(screen.getByText(/Next scan:/)).toHaveTextContent('2 pieces');
+  fireEvent.change(screen.getByLabelText(/scan barcode/i), { target: { value: 'GOOD-1' } });
+  await act(async () => { fireEvent.submit(screen.getByLabelText(/scan barcode/i).closest('form')); });
+  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText('GOOD-1')).toBeInTheDocument();
+  expect(screen.getByLabelText(/scan barcode/i)).toHaveFocus();
+  rerender(<PickScanner plan={[]} onScan={onScan} />);
+  expect(screen.getByText('All items picked')).toBeInTheDocument();
+  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+});
+
+test('rejects scans visibly and permits an immediate retry without dismissing feedback', async () => {
+  const onScan = jest.fn().mockResolvedValueOnce({ scan_result: { status: 'ERROR', message: 'Wrong product' } })
+    .mockResolvedValueOnce({ scan_result: { status: 'ACCEPTED', accepted: true } });
+  render(<PickScanner plan={plan} onScan={onScan} />);
+  const input = screen.getByLabelText(/scan barcode/i);
+  fireEvent.change(input, { target: { value: 'WRONG' } });
+  await act(async () => { fireEvent.submit(input.closest('form')); });
+  expect(screen.getByText(/Scan not accepted/)).toBeInTheDocument();
+  expect(screen.getByText('Wrong product')).toBeInTheDocument();
+  fireEvent.change(input, { target: { value: 'RIGHT' } });
+  await act(async () => { fireEvent.submit(input.closest('form')); });
+  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(onScan).toHaveBeenCalledTimes(2);
+});
+
+test('prevents overlapping submissions before the parent busy state updates', async () => {
+  let resolveScan;
+  const onScan = jest.fn(() => new Promise((resolve) => { resolveScan = resolve; }));
+  render(<PickScanner plan={plan} onScan={onScan} />);
+  const input = screen.getByLabelText(/scan barcode/i);
+  fireEvent.change(input, { target: { value: 'FIRST' } });
+  fireEvent.submit(input.closest('form'));
+  fireEvent.change(input, { target: { value: 'SECOND' } });
+  fireEvent.submit(input.closest('form'));
+  expect(onScan).toHaveBeenCalledTimes(1);
+  await act(async () => { resolveScan({ scan_result: { status: 'ACCEPTED' } }); });
+  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+});
+
+
+test('scanner input refocusing preserves the page scroll position after a scan', async () => {
+  const focus = jest.spyOn(HTMLInputElement.prototype, 'focus');
+  const onScan = jest.fn().mockResolvedValue({ scan_result: { status: 'ACCEPTED' } });
+  render(<PickScanner plan={plan} onScan={onScan} />);
+  const input = screen.getByLabelText(/scan barcode/i);
+  fireEvent.change(input, { target: { value: 'GOOD' } });
+  await act(async () => { fireEvent.submit(input.closest('form')); });
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  focus.mockRestore();
 });

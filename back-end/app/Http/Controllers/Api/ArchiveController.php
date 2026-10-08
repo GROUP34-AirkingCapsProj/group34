@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class ArchiveController extends Controller
@@ -225,13 +226,43 @@ class ArchiveController extends Controller
             return $this->notFound('Archived record not found');
         }
 
+        // Read off the model before the delete: afterwards the attributes are
+        // still in memory, but capturing here keeps the audit payload honest if
+        // the model ever starts clearing them.
+        $table = $record->getTable();
+        $key   = $record->getKey();
+        $name  = $record->{$config['name_col']};
+
+        // Several tables reference these rows with ON DELETE RESTRICT (a user
+        // who filed an incident report or generated a report, for instance), so
+        // the delete can be refused by the database. Unhandled, that surfaced as
+        // a bare 500: the operator was left believing the record was gone while
+        // it was still archived and still holding its unique email, username and
+        // recovery address -- which then read as "that email is already in use"
+        // when they tried to recreate the account.
+        try {
+            $record->forceDelete();
+        } catch (QueryException $e) {
+            report($e);
+
+            return $this->error(
+                'This ' . $config['label'] . ' cannot be permanently deleted because other '
+                . 'records in the system still reference it (for example reports or incident '
+                . 'reports it is linked to). It stays archived, and can be restored instead.',
+                409
+            );
+        }
+
+        // Written only once the deletion actually went through. Logging it first
+        // put a "permanently_deleted" claim in the trail for deletions the
+        // database had refused.
         try {
             \App\Models\AuditTrail::create([
                 'user_id'    => auth()->id(),
                 'action'     => 'force_delete',
-                'table_name' => $record->getTable(),
-                'record_id'  => $record->getKey(),
-                'old_values' => ['name' => $record->{$config['name_col']}],
+                'table_name' => $table,
+                'record_id'  => $key,
+                'old_values' => ['name' => $name],
                 'new_values' => ['permanently_deleted' => true],
                 'ip_address' => request()->ip(),
                 'user_agent' => request()->userAgent(),
@@ -239,8 +270,6 @@ class ArchiveController extends Controller
         } catch (\Throwable $e) {
             report($e);
         }
-
-        $record->forceDelete();
 
         return $this->success(null, ucfirst($config['label']) . ' permanently deleted');
     }

@@ -227,14 +227,19 @@ const Login = () => {
     <div className="login-page">
       <ThemeToggle className="theme-toggle--login" size={20} />
       <div className="login-container">
-        <div className="left-side">
-          <div className="logo-box">
-            <img src="/images/air.png" alt="AirKing Logo" className="logo" />
+        <div className="left-side login-brand-panel">
+          <div className="login-brand" aria-label="AirKing Air Conditioning">
+            <div className="login-brand-wordmark" aria-hidden="true">
+              <svg className="login-brand-crown" viewBox="0 0 180 110" fill="currentColor">
+                <path d="M12 28 42 58Q53 67 65 48L90 12l25 36q12 19 23 10l30-30-14 57H26Z" />
+                <circle cx="12" cy="23" r="10" /><circle cx="90" cy="12" r="11" /><circle cx="168" cy="23" r="10" />
+                <rect x="26" y="94" width="128" height="14" rx="3" />
+              </svg>
+              <span>AirKing</span>
+            </div>
+            <div className="login-brand-service" aria-hidden="true">AIR CONDITIONING</div>
+            <p className="login-brand-tagline">PRIME COOLING, MAX SAVINGS</p>
           </div>
-          <h1>AirKing Air Conditioning</h1>
-          <p className="description">
-            WEB-BASED ADAPTIVE BARCODE AUDITING AND INVENTORY MANAGEMENT SYSTEM FOR AIRKING AIR CONDITIONING
-          </p>
         </div>
 
         <div className="right-side">

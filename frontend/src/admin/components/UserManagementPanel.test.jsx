@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import UserManagementPanel from './UserManagementPanel';
 import { usersAPI, authAPI, batchAPI } from '../services/api';
 
@@ -89,5 +89,116 @@ describe('the Resend credentials button', () => {
     const button = await renderWith(row({ recovery_email: null }));
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute('title', expect.stringMatching(/no recovery email/i));
+  });
+});
+
+/**
+ * The edit form's password field posts to PUT /users/{id}, which enforces the
+ * app's full password policy. The form used to check length only, so an admin
+ * resetting someone's password filled it in, waited for the request, and got a
+ * 422 back for a rule nothing on screen had stated.
+ */
+describe('the edit form password field', () => {
+  const row = {
+    user_id: 7,
+    first_name: 'New',
+    last_name: 'Hire',
+    username: 'new_hire',
+    email: 'new_hire@airking.com',
+    recovery_email: 'new_hire@gmail.com',
+    must_change_password: false,
+    role_id: 1,
+    status_id: 1,
+  };
+
+  const openEditForm = async () => {
+    usersAPI.getAll.mockResolvedValue({ data: [row], pagination: { total: 1, last_page: 1 } });
+    usersAPI.update = jest.fn().mockResolvedValue({ data: {} });
+    render(<UserManagementPanel />);
+    await waitFor(() => expect(screen.getByText('New Hire')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    return screen.getByLabelText(/new password/i);
+  };
+
+  test('rejects a password that meets the length but not the policy', async () => {
+    const field = await openEditForm();
+    fireEvent.change(field, { target: { value: 'weakpassword' } });
+    fireEvent.click(screen.getByRole('button', { name: /update user/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/upper and lower case, a number, and a symbol/i)).toBeInTheDocument()
+    );
+    expect(usersAPI.update).not.toHaveBeenCalled();
+  });
+
+  test('submits a policy-compliant password to the API', async () => {
+    const field = await openEditForm();
+    fireEvent.change(field, { target: { value: 'Brand!New9Pass' } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), {
+      target: { value: 'Brand!New9Pass' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /update user/i }));
+
+    await waitFor(() => expect(usersAPI.update).toHaveBeenCalled());
+    expect(usersAPI.update.mock.calls[0][1]).toMatchObject({
+      password: 'Brand!New9Pass',
+      password_confirmation: 'Brand!New9Pass',
+    });
+  });
+});
+
+/**
+ * Editing your own account through this panel is the one password change that
+ * still costs the current password -- the server demands it, so the form has to
+ * collect it rather than letting the admin submit into a 422.
+ */
+describe('editing your own account', () => {
+  const self = {
+    user_id: 1,
+    first_name: 'Ad',
+    last_name: 'Min',
+    username: 'admin',
+    email: 'admin@airking.com',
+    recovery_email: 'admin@gmail.com',
+    must_change_password: false,
+    role_id: 1,
+    status_id: 1,
+  };
+
+  const openOwnEditForm = async () => {
+    usersAPI.getAll.mockResolvedValue({ data: [self], pagination: { total: 1, last_page: 1 } });
+    usersAPI.update = jest.fn().mockResolvedValue({ data: {} });
+    render(<UserManagementPanel />);
+    await waitFor(() => expect(screen.getByText('Ad Min')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const field = screen.getByLabelText(/new password/i);
+    fireEvent.change(field, { target: { value: 'Brand!New9Pass' } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), {
+      target: { value: 'Brand!New9Pass' },
+    });
+  };
+
+  test('asks for the current password before submitting', async () => {
+    await openOwnEditForm();
+    fireEvent.click(screen.getByRole('button', { name: /update user/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/enter your current password/i)).toBeInTheDocument()
+    );
+    expect(usersAPI.update).not.toHaveBeenCalled();
+  });
+
+  test('sends the current password along with the new one', async () => {
+    await openOwnEditForm();
+    fireEvent.change(screen.getByLabelText(/your current password/i), {
+      target: { value: 'Secret123!' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /update user/i }));
+
+    await waitFor(() => expect(usersAPI.update).toHaveBeenCalled());
+    expect(usersAPI.update.mock.calls[0][1]).toMatchObject({
+      current_password: 'Secret123!',
+      password: 'Brand!New9Pass',
+    });
   });
 });

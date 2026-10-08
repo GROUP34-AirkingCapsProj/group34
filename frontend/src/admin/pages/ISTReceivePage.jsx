@@ -1,3 +1,5 @@
+import ScanFeedback from '../components/ScanFeedback';
+import useScanFeedback from '../hooks/useScanFeedback';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
@@ -52,6 +54,9 @@ const ISTReceivePage = () => {
   const [sessionScans,   setSessionScans]   = useState({}); // { [did]: [{ scan_id, barcode, quantity }] }
   const [receivedTotals, setReceivedTotals] = useState({}); // { [did]: quantity_received }
   const [activeLine,     setActiveLine]      = useState(null); // selected transfer_detail_id
+  const { feedback, reportScan } = useScanFeedback();
+  const scanInFlight = useRef(false);
+  const scanFieldRef = useRef(null);
   const [scanInput,      setScanInput]       = useState('');
   const [scanQty,        setScanQty]         = useState(1);    // installation material qty per scan
   const [scanning,       setScanning]        = useState(false);
@@ -96,7 +101,7 @@ const ISTReceivePage = () => {
   // ── Record one scan into the selected line ──
   const handleLineScan = useCallback(async (code) => {
     const barcode = String(code || '').trim();
-    if (!barcode) return;
+    if (!barcode || scanInFlight.current) return;
     if (activeLine == null) {
       toast.error('Select a product first', 'Click an item on the left, then scan.');
       return;
@@ -105,10 +110,14 @@ const ISTReceivePage = () => {
     const serialized = isLineSerialized(detail);
     const quantity = serialized ? 1 : Math.max(1, parseInt(scanQty, 10) || 1);
 
+    scanInFlight.current = true;
     setScanning(true);
     try {
       const result = await istAPI.receiveScan(id, { barcode, transfer_detail_id: activeLine, quantity });
       const data = result?.data ?? result;
+      if (result?.success === false || data?.action === 'rejected') {
+        throw new Error(data?.reason || result?.message || 'Scan rejected.');
+      }
       const did  = data.transfer_detail_id ?? activeLine;
       setSessionScans((prev) => ({
         ...prev,
@@ -119,7 +128,7 @@ const ISTReceivePage = () => {
       const nextTotals = { ...receivedTotalsRef.current, [did]: data.quantity_received };
       receivedTotalsRef.current = nextTotals;
       setReceivedTotals(nextTotals);
-      toast.success('Unit received');
+      reportScan(true, `${data.quantity ?? quantity} piece(s) received. Keep scanning.`, barcode, detail?.product?.product_name || data.product_name || '');
 
       if (data.remaining === 0) {
         const next = (ist?.details || []).find((d) =>
@@ -130,11 +139,14 @@ const ISTReceivePage = () => {
       }
     } catch (err) {
       const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : (err?.message || 'Scan rejected.');
-      toast.error('Scan rejected', msg);
+      reportScan(false, msg, barcode);
     } finally {
+      scanInFlight.current = false;
       setScanning(false);
     }
-  }, [id, activeLine, ist, scanQty]);
+  }, [id, activeLine, ist, scanQty, reportScan]);
+
+  useEffect(() => { if (!scanning) scanFieldRef.current?.focus({ preventScroll: true }); }, [scanning, activeLine]);
 
   const submitManual = async () => {
     const v = scanInput.trim();
@@ -366,7 +378,11 @@ const ISTReceivePage = () => {
                     </div>
                   </div>
 
+                  
                   <CameraScanner
+                    statusOverlay={<ScanFeedback feedback={feedback} product={activeDetail?.product?.product_name}
+                    quantity={activeSerialized ? 1 : Math.max(1, parseInt(scanQty, 10) || 1)} unit={'pieces'} completed={receivedTotals[activeLine]}
+                    target={activeDetail?.quantity_transferred ?? activeDetail?.quantity_scanned} busy={scanning} overlay />}
                     onDecode={handleLineScan}
                     mountId="ist-receive-scanner"
                     storageKey="bs_inventory_camera_device_id"
@@ -379,6 +395,7 @@ const ISTReceivePage = () => {
                       type="text"
                       className={`bsr-scan-input${scanning ? ' bsr-scan-input--scanning' : ''}`}
                       placeholder={activeLine != null ? 'Scan or type barcode / serial…' : 'Select an item on the left first…'}
+                      ref={scanFieldRef}
                       value={scanInput}
                       onChange={(e) => setScanInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitManual(); } }}

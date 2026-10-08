@@ -1,3 +1,5 @@
+import ScanFeedback from '../components/ScanFeedback';
+import useScanFeedback from '../hooks/useScanFeedback';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
@@ -42,6 +44,9 @@ const ISTDispatchPage = () => {
   const [sessionScans,  setSessionScans]  = useState({}); // { [did]: [{ scan_id, barcode, quantity }] }
   const [scannedTotals, setScannedTotals] = useState({}); // { [did]: total_scanned }
   const [activeLine,    setActiveLine]     = useState(null); // selected transfer_detail_id
+  const { feedback, reportScan } = useScanFeedback();
+  const scanInFlight = useRef(false);
+  const scanFieldRef = useRef(null);
   const [scanInput,     setScanInput]      = useState('');
   const [scanning,      setScanning]       = useState(false);
 
@@ -101,15 +106,19 @@ const ISTDispatchPage = () => {
   // ── Record one scan into the selected line ──
   const handleLineScan = useCallback(async (code) => {
     const barcode = String(code || '').trim();
-    if (!barcode) return;
+    if (!barcode || scanInFlight.current) return;
     if (activeLine == null) {
       toast.error('Select a product first', 'Click an item on the left, then scan.');
       return;
     }
+    scanInFlight.current = true;
     setScanning(true);
     try {
       const result = await istAPI.scan(id, { barcode, transfer_detail_id: activeLine });
       const data = result?.data ?? result;
+      if (result?.success === false || data?.action === 'rejected') {
+        throw new Error(data?.reason || result?.message || 'Scan rejected.');
+      }
       const did  = data.transfer_detail_id ?? activeLine;
       setSessionScans((prev) => ({
         ...prev,
@@ -120,7 +129,7 @@ const ISTDispatchPage = () => {
       const nextTotals = { ...scannedTotalsRef.current, [did]: data.total_scanned };
       scannedTotalsRef.current = nextTotals;
       setScannedTotals(nextTotals);
-      toast.success(`Scanned ${data.product_name || ''}`.trim());
+      reportScan(true, `${data.quantity ?? 1} piece(s) recorded. Keep scanning.`, barcode, data.product_name || activeDetail?.product?.product_name || '');
 
       // Auto-advance to the next incomplete line when this one is fully scanned.
       if (data.remaining === 0) {
@@ -131,11 +140,14 @@ const ISTDispatchPage = () => {
       }
     } catch (err) {
       const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : (err?.message || 'Scan rejected.');
-      toast.error('Scan rejected', msg);
+      reportScan(false, msg, barcode);
     } finally {
+      scanInFlight.current = false;
       setScanning(false);
     }
-  }, [id, activeLine, ist]);
+  }, [id, activeLine, ist, activeDetail, reportScan]);
+
+  useEffect(() => { if (!scanning) scanFieldRef.current?.focus({ preventScroll: true }); }, [scanning, activeLine]);
 
   const submitManual = async () => {
     const v = scanInput.trim();
@@ -361,7 +373,11 @@ const ISTDispatchPage = () => {
                     </div>
                   </div>
 
+                  
                   <CameraScanner
+                    statusOverlay={<ScanFeedback feedback={feedback} product={activeDetail?.product?.product_name}
+                    quantity={1} unit={isLineSerialized(activeDetail) ? 'pieces' : 'packages'} completed={scannedTotals[activeLine]}
+                    target={activeDetail?.quantity_requested} busy={scanning} overlay />}
                     onDecode={handleLineScan}
                     mountId="ist-dispatch-scanner"
                     storageKey="bs_inventory_camera_device_id"
@@ -374,6 +390,7 @@ const ISTDispatchPage = () => {
                       type="text"
                       className={`bsr-scan-input${scanning ? ' bsr-scan-input--scanning' : ''}`}
                       placeholder={activeLine != null ? 'Scan or type barcode / serial…' : 'Select an item on the left first…'}
+                      ref={scanFieldRef}
                       value={scanInput}
                       onChange={(e) => setScanInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitManual(); } }}

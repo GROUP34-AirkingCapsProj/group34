@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CameraScanner from '../CameraScanner';
+import ScanFeedback from '../ScanFeedback';
+import useScanFeedback from '../../hooks/useScanFeedback';
 
 /**
  * PickScanner — shared, CONTROLLED scanner surface for the issuance picker and
@@ -114,8 +116,10 @@ function extractVerdict(response) {
   return response.scan_result || response.data?.scan_result || response;
 }
 
-export default function PickScanner({ plan = [], onScan, onIncident, busy = false, camera = false, canOverrideFifo = false }) {
+export default function PickScanner({ plan = [], onScan, onIncident, busy = false, camera = false, canOverrideFifo = false, singlePackageScan = false }) {
   const [barcode, setBarcode] = useState('');
+  const { feedback, reportScan } = useScanFeedback();
+  const scanInFlight = useRef(false);
   const [verdict, setVerdict] = useState(null);
   const [flash, setFlash] = useState(false); // brief green pulse on ACCEPTED
   const [confirmedZone, setConfirmedZone] = useState('');
@@ -151,7 +155,9 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   const suggestedZone = suggestion?.zone_label || '';
   // Quantity is fixed by the confirmed order. Installation materials apply the current
   // FIFO take in one scan; serialized products remain one scan per serial.
-  const scanQuantity = serialized ? 1 : Math.max(1, Number(suggestion?.quantity) || 1);
+  const scanQuantity = serialized ? 1 : singlePackageScan
+    ? Math.max(1, Number(suggestion?.pieces_per_package) || 1)
+    : Math.max(1, Number(suggestion?.quantity) || 1);
 
   // Default the zone control to the suggested zone whenever the step changes.
   useEffect(() => {
@@ -161,7 +167,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   // Keep the input focused at all times — a picker with a scanner gun never
   // touches the mouse. Re-focus after the plan changes or a scan resolves.
   useEffect(() => {
-    if (!busy) inputRef.current?.focus();
+    if (!busy) inputRef.current?.focus({ preventScroll: true });
   }, [busy, plan, verdict]);
 
   const zoneList = useMemo(() => {
@@ -180,7 +186,8 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   // exactly like a manual scan.
   const submitScan = async (code, cz, opts = null) => {
     const clean = String(code || '').trim();
-    if (!clean || busy || !onScan) return;
+    if (!clean || busy || scanInFlight.current || !onScan) return;
+    scanInFlight.current = true;
     // Clear the input after EVERY attempt, regardless of outcome.
     setBarcode('');
     lastAttemptRef.current = { code: clean, zone: cz };
@@ -192,6 +199,11 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
       if (!mountedRef.current) return;
       const v = extractVerdict(response);
       setVerdict(v);
+      const accepted = v?.status === 'ACCEPTED' || v?.accepted === true;
+      const recordedQuantity = v?.quantity ?? scanQuantity;
+      reportScan(accepted, accepted ? `${recordedQuantity} piece${Number(recordedQuantity) === 1 ? '' : 's'} recorded. Keep scanning.`
+        : (v?.message || v?.reason || response?.message || 'Scan rejected. Try again.'), clean,
+        currentStep?.product_name || '');
       if (v?.status === 'ACCEPTED') {
         setFlash(true);
         if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -201,6 +213,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
       }
     } catch (err) {
       if (!mountedRef.current) return;
+      reportScan(false, err?.message || 'Scan failed. Try again.', clean, currentStep?.product_name || '');
       setVerdict({
         status: 'ERROR',
         accepted: false,
@@ -208,7 +221,8 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
         message: err?.message || 'Scan failed. Try again.',
       });
     } finally {
-      if (mountedRef.current) inputRef.current?.focus();
+      scanInFlight.current = false;
+      if (mountedRef.current) inputRef.current?.focus({ preventScroll: true });
     }
   };
 
@@ -250,6 +264,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   if (!currentStep) {
     return (
       <div className="ak-card" style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+        <ScanFeedback feedback={feedback} />
         <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--ink-teal-800)' }}>All items picked</div>
         <p className="ak-muted" style={{ marginTop: '0.5rem' }}>
           Nothing left to scan on this document.
@@ -260,6 +275,22 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
 
   return (
     <div className="ak-field" style={{ gap: '1rem' }}>
+      {!camera && <ScanFeedback feedback={feedback} product={currentStep.product_name || `Product #${currentStep.product_id}`}
+        quantity={scanQuantity} remaining={currentStep.needed} busy={busy} />}
+      {/* OPTIONAL CAMERA — feeds the SAME FIFO-checked submitScan path as the
+          manual field. Off by default so other consumers are unchanged. */}
+      {camera && (
+        <CameraScanner
+          scanInfo={{ feedback, product: currentStep.product_name || `Product #${currentStep.product_id}`,
+            quantity: scanQuantity, remaining: currentStep.needed }}
+          onDecode={(code) => submitScan(String(code).trim(), currentConfirmedZone)}
+          mountId="issuance-pick-cam"
+          storageKey="issuance-pick-cam"
+          busy={busy}
+          hint="Scan the item barcode"
+        />
+      )}
+
       {/* CURRENT STEP — the zone is the instruction, everything else is context. */}
       <div
         className="ak-card"
@@ -367,7 +398,6 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
             id="pick-barcode"
             ref={inputRef}
             className="ak-input"
-            autoFocus
             autoComplete="off"
             placeholder={serialized ? 'Scan the serial / barcode…' : 'Scan the item barcode…'}
             value={barcode}
@@ -386,18 +416,6 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
         </div>
       </form>
 
-      {/* OPTIONAL CAMERA — feeds the SAME FIFO-checked submitScan path as the
-          manual field. Off by default so other consumers are unchanged. */}
-      {camera && (
-        <CameraScanner
-          onDecode={(code) => submitScan(String(code).trim(), currentConfirmedZone)}
-          mountId="issuance-pick-cam"
-          storageKey="issuance-pick-cam"
-          busy={busy}
-          hint="Scan the item barcode"
-        />
-      )}
-
       {/* VERDICT BANNER */}
       {verdict && banner && (
         <div
@@ -410,7 +428,6 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
             padding: '0.9rem 1rem',
           }}
         >
-          <div style={{ fontWeight: 700 }}>{verdict.message || verdict.reason || verdict.status}</div>
           {verdict.status === 'FIFO_VIOLATION' && (
             <div style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>
               Expected zone <strong>{verdict.expected_zone_label || '—'}</strong>

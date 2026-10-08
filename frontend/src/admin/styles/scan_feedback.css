@@ -1,0 +1,55 @@
+.scan-feedback { width: 100%; margin: 12px 0; text-align: left; }
+.scan-feedback-context { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid var(--border-color, #d1d5db); border-radius: 10px; background: var(--bg-card, #fff); color: var(--text-dark, #1f2937); overflow-wrap: anywhere; }
+.scan-feedback-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted, #64748b); }
+.scan-feedback-context progress { width: 100%; height: 10px; accent-color: #15803d; }
+.scan-feedback-result { display: grid; gap: 4px; padding: 12px 16px; margin-top: 8px; border-radius: 10px; border: 2px solid; overflow-wrap: anywhere; animation: scan-feedback-arrive .25s ease-out; }
+.scan-feedback-result--success { background: #dcfce7; color: #14532d; border-color: #15803d; }
+.scan-feedback-result--error { background: #fee2e2; color: #7f1d1d; border-color: #dc2626; }
+.scan-feedback-result code { font-size: 12px; }
+@keyframes scan-feedback-arrive { from { opacity: .4; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scan-feedback-result { animation: none; } }
+
+/* Keep scan context and the latest result inside the camera frame. */
+.bs-camera-box.bs-camera-box--feedback {
+  aspect-ratio: auto;
+  height: 420px;
+  max-height: none;
+}
+.scan-feedback--overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  width: auto;
+  margin: 0;
+  z-index: 8;
+  pointer-events: none;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.bs-camera-box:has(.bs-cam-modebar) .scan-feedback--overlay { top: 48px; }
+.scan-feedback--overlay .scan-feedback-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, .9);
+  color: #fff;
+  border-color: rgba(255, 255, 255, .35);
+}
+.scan-feedback--overlay .scan-feedback-context > strong { flex-basis: 100%; font-size: 14px; }
+.scan-feedback--overlay .scan-feedback-context > .scan-feedback-label { color: #cbd5e1; flex-basis: 100%; }
+.scan-feedback--overlay progress { display: none; }
+.scan-feedback--overlay .scan-feedback-result { margin-top: 5px; padding: 7px 10px; gap: 2px; }
+.scan-feedback--overlay .scan-feedback-result > .scan-feedback-label { display: none; }
+.scan-feedback--overlay .scan-feedback-result > span,
+.scan-feedback--overlay .scan-feedback-context > strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.scan-feedback--overlay .scan-feedback-result code { font-size: 11px; }
+@media (max-width: 768px) {
+  .bs-camera-box.bs-camera-box--feedback { height: min(68dvh, 480px); max-height: none; min-height: 360px; }
+}

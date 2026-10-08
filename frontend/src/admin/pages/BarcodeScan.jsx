@@ -1,3 +1,5 @@
+import ScanFeedback from '../components/ScanFeedback';
+import useScanFeedback from '../hooks/useScanFeedback';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
@@ -39,26 +41,6 @@ import {
 import '../styles/barcode_scan.css';
 import '../styles/item_management.css';
 import '../styles/po_receiving.css';
-
-/** Short UI beep (success vs not found) — Receive PO smart scan. */
-function playScanFeedback(found) {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = found ? 740 : 185;
-    g.gain.value = 0.07;
-    osc.connect(g);
-    g.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.11);
-  } catch {
-    /* ignore */
-  }
-}
 
 /** Mount point for html5-qrcode (must match DOM id). */
 const HTML5_QR_MOUNT_ID = 'bs-html5-qrcode-mount';
@@ -356,7 +338,7 @@ const getReceivePoBlockReason = (po) => {
   return null;
 };
 
-/** 
+/**
  * NO LONGER USED - LocalStorage merge removed.
  * Purchase Orders dropdown now shows ONLY real POs from the database (API).
  * This ensures the Receive PO dropdown reflects actual database records.
@@ -711,6 +693,9 @@ const BarcodeScan = () => {
 
   /* ── scan state ── */
   const [barcodeInput, setBarcodeInput] = useState('');
+  const { feedback: operationFeedback, reportScan: reportOperationScan } = useScanFeedback();
+  const { feedback: receivingFeedback, reportScan: reportReceivingScan } = useScanFeedback();
+  const operationInFlight = useRef(false);
   const [scanResult,   setScanResult]   = useState(null);
   const [scanning,     setScanning]     = useState(false);
   const [scanHistory,  setScanHistory]  = useState(() => {
@@ -1134,23 +1119,31 @@ const BarcodeScan = () => {
   /* ── scan handler ── */
   const handleScan = useCallback(async (barcode) => {
     const code = String(barcode || '').replace(/\s+/g, '').trim();
-    if (!code) return;
+    if (!code || operationInFlight.current) return;
+    operationInFlight.current = true;
     setBarcodeInput(code);
     setScanning(true);
+    const scanRejected = (message) => reportOperationScan(false, message, code);
+    const scanWarning = (message) => {
+      if (message === 'Barcode not registered' || message === 'This product registration is pending approval') {
+        reportOperationScan(false, message, code);
+      } else toast.warning(message);
+    };
+
     try {
       const modeEarly = scanMode || MODES[modeIndex];
       if (modeEarly?.key === 'receive-po') {
         if (!txForm.location_id) {
-          toast.error('Select a location before scanning.');
+          scanRejected('Select a location before scanning.');
           return;
         }
         if (txForm.pc_id) {
           if (receivePoLinesLoading) {
-            toast.error('Loading PO line items — try again in a moment.');
+            scanRejected('Loading PO line items — try again in a moment.');
             return;
           }
           if (receivePoProductIds.length === 0) {
-            toast.error('This PO has no line items loaded. Re-select the PO or pick another order.');
+            scanRejected('This PO has no line items loaded. Re-select the PO or pick another order.');
             return;
           }
         }
@@ -1158,20 +1151,18 @@ const BarcodeScan = () => {
           const lookupRes = await barcodeScanAPI.lookup(code);
           const lookupPayload = lookupRes?.data;
           if (lookupPayload?.status === 'PENDING_INSTALLATION_MATERIAL') {
-            playScanFeedback(false);
-            toast.warning('This product registration is pending approval');
+            scanWarning('This product registration is pending approval');
             return;
           }
           if (lookupPayload?.status === 'NOT_FOUND') {
-            playScanFeedback(false);
-            toast.warning('Barcode not registered');
+            scanWarning('Barcode not registered');
             setPendingRegisterBarcode(code);
             setNotFoundPromptOpen(true);
             return;
           }
           if (lookupPayload?.status === 'FOUND' && lookupPayload.product) {
-            playScanFeedback(true);
-            toast.success('Product found');
+
+
             const pid = Number(lookupPayload.product.product_id);
             if (
               txForm.pc_id &&
@@ -1179,12 +1170,12 @@ const BarcodeScan = () => {
               Number.isFinite(pid) &&
               !receivePoProductIds.includes(pid)
             ) {
-              toast.error('This product is not on the selected Purchase Order.');
+              scanRejected('This product is not on the selected Purchase Order.');
               return;
             }
           }
         } catch (lookupErr) {
-          toast.error(lookupErr.message || 'Barcode lookup failed.');
+          scanRejected(lookupErr.message || 'Barcode lookup failed.');
           return;
         }
       }
@@ -1193,12 +1184,12 @@ const BarcodeScan = () => {
           NOT_FOUND here often means a unit serial — post issuance immediately with quantity from the form. ── */
       if (modeEarly?.key === 'issue-out') {
         if (!txForm.location_id) {
-          toast.error('Select a location in Issue Out setup before scanning.');
+          scanRejected('Select a location in Issue Out setup before scanning.');
           return;
         }
         const setupQty = Number(txForm.quantity);
         if (!Number.isInteger(setupQty) || setupQty < 1) {
-          toast.error('Enter a valid quantity (whole number ≥ 1) in Issue Out setup.');
+          scanRejected('Enter a valid quantity (whole number ≥ 1) in Issue Out setup.');
           return;
         }
         let lookupPayload = null;
@@ -1206,16 +1197,15 @@ const BarcodeScan = () => {
           const lookupRes = await barcodeScanAPI.lookup(code);
           lookupPayload = lookupRes?.data;
         } catch (lookupErr) {
-          toast.error(lookupErr.message || 'Barcode lookup failed.');
+          scanRejected(lookupErr.message || 'Barcode lookup failed.');
           return;
         }
         if (lookupPayload?.status === 'PENDING_INSTALLATION_MATERIAL') {
-          playScanFeedback(false);
-          toast.warning('This product registration is pending approval');
+          scanWarning('This product registration is pending approval');
           return;
         }
         if (lookupPayload?.status === 'FOUND' && lookupPayload.product) {
-          playScanFeedback(true);
+
           toast.success('Product found — tap Issue stock out to deduct the setup quantity.');
           const product = lookupPayload.product;
           const pid = Number(product.product_id);
@@ -1223,13 +1213,11 @@ const BarcodeScan = () => {
           const inventoryRows = Array.isArray(invRes.data) ? invRes.data : [];
           const inventory = pickInventoryForLocation(inventoryRows, txForm.location_id);
           if (!inventory) {
-            playScanFeedback(false);
-            toast.error('No inventory record at this location for this product.');
+            scanRejected('No inventory record at this location for this product.');
             return;
           }
           if (availableQtyAtInventoryRow(inventory) < 1) {
-            playScanFeedback(false);
-            toast.error('No stock available at this location.');
+            scanRejected('No stock available at this location.');
             return;
           }
           const item = { ...product, id: product.product_id };
@@ -1248,6 +1236,9 @@ const BarcodeScan = () => {
             auditSnapshot: null,
           };
           setScanResult(result);
+          reportOperationScan(true, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+            code, result.item?.product_name || result.item?.name || '');
           setTxLogs([]);
           setScanHistory((prev) => {
             const next = [result, ...prev.slice(0, 49)];
@@ -1255,7 +1246,7 @@ const BarcodeScan = () => {
             return next;
           });
           setBarcodeInput('');
-          setTimeout(() => inputRef.current?.focus(), 50);
+          setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
           try {
             await barcodeScanAPI.create({
               barcode: code,
@@ -1276,21 +1267,20 @@ const BarcodeScan = () => {
           });
           const eng = engRes?.data;
           if (!eng || typeof eng !== 'object') {
-            toast.error('Invalid transaction engine response.');
+            scanRejected('Invalid transaction engine response.');
             return;
           }
           if (eng.action === 'rejected') {
-            playScanFeedback(false);
-            toast.error(eng.reason || 'Use the product barcode to choose quantity, or check serial/stock.');
+            scanRejected(eng.reason || 'Use the product barcode to choose quantity, or check serial/stock.');
             return;
           }
-          (Array.isArray(eng.warnings) ? eng.warnings : []).forEach((w) => toast.warning(w));
+          (Array.isArray(eng.warnings) ? eng.warnings : []).forEach((w) => scanWarning(w));
           const p = eng.product;
           if (!p) {
-            toast.error('No product data returned.');
+            scanRejected('No product data returned.');
             return;
           }
-          playScanFeedback(true);
+
           toast.success('Issuance posted (serial / alternate code).');
           const item = { ...p, id: p.product_id };
           const inventoryRows = Array.isArray(eng.inventory) ? eng.inventory : [];
@@ -1311,6 +1301,9 @@ const BarcodeScan = () => {
             issuedQuantity: qtyEngine,
           };
           setScanResult(result);
+          reportOperationScan(true, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+            code, result.item?.product_name || result.item?.name || '');
           setTxLogs([]);
           setScanHistory((prev) => {
             const next = [result, ...prev.slice(0, 49)];
@@ -1318,7 +1311,7 @@ const BarcodeScan = () => {
             return next;
           });
           setBarcodeInput('');
-          setTimeout(() => inputRef.current?.focus(), 50);
+          setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
           queueMicrotask(() => {
             void mergeFreshInventoryForSession(item.product_id ?? item.id, txForm.location_id, code, result.scannedAt);
             reloadRecentMovement();
@@ -1333,8 +1326,7 @@ const BarcodeScan = () => {
           } catch {}
           return;
         }
-        playScanFeedback(false);
-        toast.warning('Barcode not registered');
+        scanWarning('Barcode not registered');
         setPendingRegisterBarcode(code);
         setNotFoundPromptOpen(true);
         return;
@@ -1351,7 +1343,7 @@ const BarcodeScan = () => {
       if (engineTransactionType) {
         if (engineTransactionType === 'audit') {
           if (!txForm.location_id) {
-            toast.error('Select a location before scanning.');
+            scanRejected('Select a location before scanning.');
             return;
           }
         }
@@ -1375,17 +1367,17 @@ const BarcodeScan = () => {
         const engRes = await inventoryAPI.scanTransaction(body);
         const eng = engRes?.data;
         if (!eng || typeof eng !== 'object') {
-          toast.error('Invalid transaction engine response.');
+          scanRejected('Invalid transaction engine response.');
           return;
         }
         if (eng.action === 'rejected') {
-          toast.error(eng.reason || 'Scan rejected.');
+          scanRejected(eng.reason || 'Scan rejected.');
           return;
         }
-        (Array.isArray(eng.warnings) ? eng.warnings : []).forEach((w) => toast.warning(w));
+        (Array.isArray(eng.warnings) ? eng.warnings : []).forEach((w) => scanWarning(w));
         const p = eng.product;
         if (!p) {
-          toast.error('No product data returned.');
+          scanRejected('No product data returned.');
           return;
         }
         const item = { ...p, id: p.product_id };
@@ -1415,6 +1407,9 @@ const BarcodeScan = () => {
         };
 
         setScanResult(result);
+          reportOperationScan(true, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+            code, result.item?.product_name || result.item?.name || '');
         setTxLogs([]);
         setScanHistory((prev) => {
           const next = [result, ...prev.slice(0, 49)];
@@ -1422,7 +1417,7 @@ const BarcodeScan = () => {
           return next;
         });
         setBarcodeInput('');
-        setTimeout(() => inputRef.current?.focus(), 50);
+        setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
 
         {
           const pidMerge = item.product_id ?? item.id;
@@ -1514,7 +1509,7 @@ const BarcodeScan = () => {
       }
 
       if (!item) {
-        toast.error(`No item found for barcode: ${code}`);
+        scanRejected(`No item found for barcode: ${code}`);
         return;
       }
 
@@ -1522,11 +1517,11 @@ const BarcodeScan = () => {
       if (modeAfterItem?.key === 'receive-po') {
         const pid = Number(item.product_id ?? item.id);
         if (!Number.isFinite(pid) || pid <= 0) {
-          toast.error('Invalid product on this scan. Try another barcode.');
+          scanRejected('Invalid product on this scan. Try another barcode.');
           return;
         }
         if (!receivePoProductIds.includes(pid)) {
-          toast.error(
+          scanRejected(
             'This product is not on the selected Purchase Order. Only items listed on that PO can be scanned for receiving.',
           );
           return;
@@ -1565,6 +1560,9 @@ const BarcodeScan = () => {
       };
 
       setScanResult(result);
+          reportOperationScan(true, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+            code, result.item?.product_name || result.item?.name || '');
       setTxLogs([]);
       setScanHistory((prev) => {
         const next = [result, ...prev.slice(0, 49)];
@@ -1572,7 +1570,7 @@ const BarcodeScan = () => {
         return next;
       });
       setBarcodeInput('');
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
 
       /* ── save to DB (graceful fallback) ── */
       try {
@@ -1585,9 +1583,11 @@ const BarcodeScan = () => {
       } catch {}
 
     } catch (err) {
-      toast.error(err.message || 'Scan failed');
+      scanRejected(err.message || 'Scan failed');
     } finally {
+      operationInFlight.current = false;
       setScanning(false);
+      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
     }
   }, [
     modeIndex,
@@ -1603,6 +1603,7 @@ const BarcodeScan = () => {
     mergeFreshInventoryForSession,
     reloadRecentMovement,
     loadPurchaseOrders,
+    reportOperationScan,
   ]);
 
   useEffect(() => { scanningRef.current = scanning; }, [scanning]);
@@ -1848,13 +1849,7 @@ const BarcodeScan = () => {
     handleScanRef.current?.(code);
   }, [cameraActive]);
 
-  useEffect(() => {
-    if (!scanResult) return;
-    const t = requestAnimationFrame(() => {
-      scanResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    return () => cancelAnimationFrame(t);
-  }, [scanResult]);
+
 
   useEffect(() => () => {
     const h = html5QrRef.current;
@@ -1882,7 +1877,7 @@ const BarcodeScan = () => {
     setModeIndex(idx);
     setScanResult(null);
     setBarcodeInput('');
-    setTimeout(() => inputRef.current?.focus(), 100);
+    setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
   };
 
   const exitScanMode = () => {
@@ -2000,7 +1995,7 @@ const BarcodeScan = () => {
       }
     }
 
-    setTimeout(() => bsrInputRef.current?.focus(), 100);
+    setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 100);
   };
 
   /**
@@ -2099,25 +2094,30 @@ const BarcodeScan = () => {
   }, [bsrActiveLine?.po_detail_id]);
 
   const handleBsrScan = useCallback(async (raw, acceptOverage = false) => {
+    const rejectScan = (alert) => {
+      reportReceivingScan(false, alert.message || alert.title, raw.trim(), bsrActiveLine?.product?.product_name || '');
+      bsrProcessingRef.current = false;
+      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+    };
     // Synchronous ref lock — blocks any second invocation that arrives before
     // the first one's React state update (bsrScanning) has propagated.
     if (bsrProcessingRef.current) return;
     if (!raw.trim()) return;
     if (!bsrLocationId) {
       bsrProcessingRef.current = true;
-      setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
+      rejectScan({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
       setBsrScanInput('');
       return;
     }
     if (!bsrActiveLine) {
       bsrProcessingRef.current = true;
-      setBsrAlertModal({ type: 'error', title: 'No Item Selected', message: 'Select an item from the left panel first.' });
+      rejectScan({ type: 'error', title: 'No Item Selected', message: 'Select an item from the left panel first.' });
       setBsrScanInput('');
       return;
     }
     if (!bsrDraft) {
       bsrProcessingRef.current = true;
-      setBsrAlertModal({ type: 'error', title: 'No Delivery Open', message: 'No delivery is open. Re-select the purchase order.' });
+      rejectScan({ type: 'error', title: 'No Delivery Open', message: 'No delivery is open. Re-select the purchase order.' });
       setBsrScanInput('');
       return;
     }
@@ -2142,7 +2142,7 @@ const BarcodeScan = () => {
     );
     if (inSession && isSerialized) {
       bsrProcessingRef.current = true;
-      setBsrAlertModal({
+      rejectScan({
         type: 'error',
         title: 'Barcode Already Scanned',
         message: `Barcode "${raw.trim()}" was already scanned in this session. Each barcode is a one-time-use identifier — check the label.`,
@@ -2154,7 +2154,7 @@ const BarcodeScan = () => {
     // 2. Check DB-loaded received barcodes for the current PO.
     if (bsrPoReceivedBarcodes.has(normalizedCode)) {
       bsrProcessingRef.current = true;
-      setBsrAlertModal({
+      rejectScan({
         type: 'error',
         title: 'Barcode Already Received',
         message: `Barcode "${raw.trim()}" has already been recorded as received. Each barcode is a one-time-use identifier — check the label.`,
@@ -2173,7 +2173,7 @@ const BarcodeScan = () => {
       if (orderedPcs > 0 && prevReceived >= orderedPcs) {
         bsrProcessingRef.current = true;
         const label = isSerialized ? `${ordered} unit(s)` : `${ordered} package(s) (${orderedPcs} pcs)`;
-        setBsrAlertModal({
+        rejectScan({
           type: 'error',
           title: 'Already Fully Received',
           message: `All ${label} for this line item have already been received.`,
@@ -2196,7 +2196,7 @@ const BarcodeScan = () => {
       const payload = res?.data;
 
       if (payload?.action === 'rejected') {
-        setBsrAlertModal({
+        rejectScan({
           type: 'error',
           title: 'Cannot Stage This Item',
           message: payload.reason,
@@ -2214,20 +2214,25 @@ const BarcodeScan = () => {
         );
       }
 
+      if (!payload?.draft) {
+        rejectScan({ message: 'The server did not confirm this scan. Please try again.' });
+        return;
+      }
       setBsrDraft(payload.draft);
+      reportReceivingScan(true, 'Added to this delivery draft. Submit the delivery to update inventory.', raw.trim(),
+        bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || '');
       // No blocking success modal in the staging flow (the staged list below is
       // the feedback), so release the lock here rather than on a modal dismiss.
       bsrProcessingRef.current = false;
-      setTimeout(() => bsrInputRef.current?.focus(), 80);
+      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
     } catch (e) {
-      setBsrAlertModal({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
+      rejectScan({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
     } finally {
       setBsrScanning(false);
-      // On rejection, bsrProcessingRef stays locked until the error modal is
-      // dismissed (handleBsrAlertDismiss releases it), so no duplicate scan can
-      // slip through while the clerk is reading the message.
+      bsrProcessingRef.current = false;
+      // Inline feedback leaves the scanner ready for the next attempt.
     }
-  }, [bsrLocationId, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, bsrDraft]);
+  }, [bsrLocationId, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, bsrDraft, reportReceivingScan]);
 
   /**
    * Post a hand count for the active PO line (material that arrived with no
@@ -2442,13 +2447,13 @@ const BarcodeScan = () => {
     if (result?.lineComplete) {
       if (result.nextLine) {
         setBsrActiveLine(result.nextLine);
-        setTimeout(() => bsrInputRef.current?.focus(), 80);
+        setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
       } else {
         setBsrActiveLine(null);
         setBsrAlertModal({ type: 'success', title: 'All Items Received!', message: 'All items on this PO are fully received!' });
       }
     } else {
-      setTimeout(() => bsrInputRef.current?.focus(), 80);
+      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
     }
   }, [bsrScanSuccess]);
 
@@ -2458,7 +2463,7 @@ const BarcodeScan = () => {
       return null;
     });
     bsrProcessingRef.current = false;
-    setTimeout(() => bsrInputRef.current?.focus(), 80);
+    setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
   }, []);
 
   /** Remove a staged row. This is the fix for a mis-selected line. */
@@ -2591,7 +2596,7 @@ const BarcodeScan = () => {
     } catch { /* keep empty */ }
     finally { setIstLoadingStatus(false); }
 
-    setTimeout(() => istInputRef.current?.focus(), 100);
+    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 100);
   }, []);
 
   const handleIstScan = useCallback(async (raw) => {
@@ -2685,13 +2690,13 @@ const BarcodeScan = () => {
       });
       if (nextLine) setIstActiveLine(nextLine);
     }
-    setTimeout(() => istInputRef.current?.focus(), 80);
+    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 80);
   }, [istScanSuccess, istSelectedIst, istActiveLine, istProgress]);
 
   const handleIstAlertDismiss = useCallback(() => {
     setIstAlertModal(null);
     istProcessingRef.current = false;
-    setTimeout(() => istInputRef.current?.focus(), 80);
+    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 80);
   }, []);
 
   const handleIstRemoveScan = useCallback(async (item) => {
@@ -3758,6 +3763,8 @@ const BarcodeScan = () => {
               </div>
             </div>
             <div className="bsr-right">
+              
+
 
               {/* ── Scan Success overlay ── */}
               {bsrScanSuccess && (
@@ -3901,7 +3908,16 @@ const BarcodeScan = () => {
                     <strong>Status: {bsrCaptureArmed ? 'Scanning...' : 'Ready to scan'}</strong>
                   </p>
                 )}
-                <div className="bs-camera-box" style={{ marginBottom: 12 }}>
+                <div className="bs-camera-box bs-camera-box--feedback" style={{ marginBottom: 12 }}>
+                  <ScanFeedback feedback={receivingFeedback} progressLabel="Posted + staged"
+                product={bsrActiveLine?.product?.product_name || bsrActiveLine?.product?.name}
+                quantity={bsrActiveLine ? (bsrIsSerialized(bsrActiveLine) ? 1 : Number(bsrActiveLine.product?.pieces_per_package) || 1) : null}
+                completed={(bsrProductProgress[bsrActiveLine?.po_detail_id] || 0) +
+                  (bsrDraft?.items || []).filter((item) => item.po_detail_id === bsrActiveLine?.po_detail_id)
+                    .reduce((sum, item) => sum + Number(item.quantity_amount || 0), 0)}
+                target={bsrActiveLine ? Number(bsrActiveLine.quantity_ordered || 0) *
+                  (bsrIsSerialized(bsrActiveLine) ? 1 : Number(bsrActiveLine.product?.pieces_per_package) || 1) : null}
+                busy={bsrScanning} overlay />
                   <div
                     id={HTML5_QR_MOUNT_ID}
                     className="bs-html5qrcode-mount"
@@ -4513,7 +4529,10 @@ const BarcodeScan = () => {
         )}
 
         {/* ── camera box ── */}
-        <div className="bs-camera-box">
+        
+        <div className="bs-camera-box bs-camera-box--feedback">
+                  <ScanFeedback feedback={operationFeedback} product={scanResult?.item?.product_name || scanResult?.item?.name}
+          quantity={scanMode?.key === 'audit' ? null : Number(txForm.quantity) || 1} busy={scanning} overlay />
           {/* mode bar inside camera */}
           <div className="bs-cam-modebar">
             <button className="bs-cam-arrow" onClick={() => { const ni = (modeIndex - 1 + MODES.length) % MODES.length; setModeIndex(ni); setScanMode(MODES[ni]); }} type="button">
@@ -5266,7 +5285,7 @@ const BarcodeScan = () => {
           onClose={() => {
             setNotFoundPromptOpen(false);
             setPendingRegisterBarcode('');
-            setTimeout(() => inputRef.current?.focus(), 50);
+            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
           }}
           title="Barcode not found"
         >
@@ -5280,7 +5299,7 @@ const BarcodeScan = () => {
               onClick={() => {
                 setNotFoundPromptOpen(false);
                 setPendingRegisterBarcode('');
-                setTimeout(() => inputRef.current?.focus(), 50);
+                setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
               }}
             >
               Cancel
@@ -5303,7 +5322,7 @@ const BarcodeScan = () => {
           onClose={() => {
             setRegisterProductOpen(false);
             setPendingRegisterBarcode('');
-            setTimeout(() => inputRef.current?.focus(), 50);
+            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
           }}
           editingItem={null}
           initialBarcode={pendingRegisterBarcode}
@@ -5313,7 +5332,7 @@ const BarcodeScan = () => {
             setRegisterProductOpen(false);
             setPendingRegisterBarcode('');
             toast.success('Product saved. Scan the barcode again to receive into stock.');
-            setTimeout(() => inputRef.current?.focus(), 50);
+            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
           }}
         />
       </div>

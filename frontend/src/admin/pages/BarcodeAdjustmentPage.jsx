@@ -1,3 +1,5 @@
+import ScanFeedback from '../components/ScanFeedback';
+import useScanFeedback from '../hooks/useScanFeedback';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
@@ -471,7 +473,11 @@ export default function BarcodeAdjustmentPage() {
 
   // Barcode scan (Step 1 — finds PO + item automatically)
   const [barcodeScanInput, setBarcodeScanInput] = useState('');
+  const { feedback, reportScan } = useScanFeedback();
   const [barcodeScanMsg, setBarcodeScanMsg]     = useState(null); // { type: 'ok'|'err', text }
+  useEffect(() => {
+    if (barcodeScanMsg) reportScan(barcodeScanMsg.type === 'ok', barcodeScanMsg.text);
+  }, [barcodeScanMsg, reportScan]);
   const [barcodeScanLoading, setBarcodeScanLoading] = useState(false);
   const barcodeScanRef                            = useRef(null);
 
@@ -944,7 +950,8 @@ export default function BarcodeAdjustmentPage() {
           </div>
 
           {/* ── Camera box — same structure as Receive PO scanner ── */}
-          <div className="ba-adj-camera bs-camera-box">
+          <div className="ba-adj-camera bs-camera-box bs-camera-box--feedback">
+            <ScanFeedback feedback={feedback} product={selectedRow?.product_name} busy={barcodeScanLoading} overlay />
             <div className="bs-cam-modebar" style={{ justifyContent: 'center' }}>
               <div className="bs-cam-modename">
                 <span>ADJUST</span>
@@ -1040,11 +1047,8 @@ export default function BarcodeAdjustmentPage() {
             </button>
           </div>
 
-          {barcodeScanMsg && (
-            <div className={`baj-scan-result baj-scan-result--${barcodeScanMsg.type}`}>
-              {barcodeScanMsg.type === 'ok' ? '✓ ' : '✕ '}{barcodeScanMsg.text}
-            </div>
-          )}
+          
+
 
           <hr className="baj-divider" style={{ margin: '14px 18px' }} />
 

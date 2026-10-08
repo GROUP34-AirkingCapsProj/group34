@@ -12,6 +12,15 @@ import '../styles/dashboard_air.css';
 import '../styles/user_management.css';
 import '../styles/archive_management.css';
 
+/**
+ * The server's password rule, restated so the form can reject a weak entry
+ * before the round trip: at least 8 characters with upper and lower case, a
+ * digit, and a symbol.
+ */
+const PASSWORD_POLICY = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+const PASSWORD_POLICY_HINT =
+  'Use at least 8 characters with upper and lower case, a number, and a symbol.';
+
 const UserManagementPanel = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -37,7 +46,7 @@ const UserManagementPanel = () => {
 
   const [formData, setFormData] = useState({
     first_name: '', last_name: '', username: '', email: '', recovery_email: '',
-    password: '', password_confirmation: '',
+    password: '', password_confirmation: '', current_password: '',
     phone: '', role_id: '', location_id: '', status_id: 1
   });
 
@@ -126,7 +135,7 @@ const UserManagementPanel = () => {
     setEditingUser(null);
     setFormData({
       first_name: '', last_name: '', username: '', email: '', recovery_email: '',
-      password: '', password_confirmation: '',
+      password: '', password_confirmation: '', current_password: '',
       phone: '', role_id: '', location_id: '', status_id: 1
     });
     setFormErrors({});
@@ -144,6 +153,7 @@ const UserManagementPanel = () => {
       recovery_email: user.recovery_email || '',
       password: '',
       password_confirmation: '',
+      current_password: '',
       phone: user.phone || '',
       role_id: user.role_id || '',
       location_id: user.location_id || '',
@@ -158,7 +168,14 @@ const UserManagementPanel = () => {
     const id = user.user_id || user.id;
     try {
       await usersAPI.delete(id);
-      toast.success(`User ${getUserName(user)} archived.`);
+      // Archiving is a soft delete: the row keeps its username, login email and
+      // recovery email, and keeps the unique index on all three. Saying so here
+      // is what stops the next step being a confusing "already in use" error on
+      // a recreate.
+      toast.success(
+        `User ${getUserName(user)} archived. Their username and email addresses stay reserved `
+        + 'until the account is restored or permanently deleted in Archive Management.'
+      );
       await fetchUsers(currentPage);
     } catch (err) { toast.error(err.message || 'Failed to archive user.'); }
   };
@@ -212,6 +229,12 @@ const UserManagementPanel = () => {
     }
   };
 
+  // Changing your OWN password through this form costs the current one, the
+  // same as every other password entry point in the app.
+  const editingSelf = !!editingUser
+    && currentUserId != null
+    && Number(editingUser.user_id || editingUser.id) === Number(currentUserId);
+
   const validateForm = () => {
     const errors = {};
 
@@ -234,9 +257,15 @@ const UserManagementPanel = () => {
 
     // Create mode has no password field at all -- the backend generates one and
     // emails it. Edit mode keeps the optional admin-set password unchanged.
-    if (editingUser) {
-      if (formData.password && formData.password.length < 8) errors.password = 'Password must be at least 8 characters';
-      if (formData.password && formData.password !== formData.password_confirmation) errors.password_confirmation = 'Passwords do not match';
+    if (editingUser && formData.password) {
+      // Mirrors the server rule (Password::min(8)->mixedCase()->numbers()->symbols()).
+      // Checking only the length here meant the admin filled the form, waited for
+      // the request, and got a 422 back for a rule nothing on screen had stated.
+      if (!PASSWORD_POLICY.test(formData.password)) errors.password = PASSWORD_POLICY_HINT;
+      if (formData.password !== formData.password_confirmation) errors.password_confirmation = 'Passwords do not match';
+      if (editingSelf && !formData.current_password) {
+        errors.current_password = 'Enter your current password to change your own password';
+      }
     }
 
     if (!formData.role_id) errors.role_id = 'Position/Role is required';
@@ -259,6 +288,7 @@ const UserManagementPanel = () => {
           delete payload.password;
           delete payload.password_confirmation;
         }
+        if (!payload.password || !editingSelf) delete payload.current_password;
         payload.recovery_email = String(payload.recovery_email || '').trim();
         if (!payload.recovery_email) delete payload.recovery_email;
         payload.role_id = Number(payload.role_id) || null;
@@ -623,7 +653,22 @@ const UserManagementPanel = () => {
                   />
                   {formErrors.password_confirmation && <span className="um-field-error">{formErrors.password_confirmation}</span>}
                 </div>
-                <div className="form-group"></div>
+                {editingSelf ? (
+                  <div className="form-group">
+                    <label htmlFor="um-modal-current-password">Your Current Password <span className="required">*</span></label>
+                    <PasswordFieldWithToggle
+                      id="um-modal-current-password"
+                      name="current_password"
+                      value={formData.current_password}
+                      onChange={(e) => setFormData({ ...formData, current_password: e.target.value })}
+                      placeholder="Enter your current password"
+                      autoComplete="current-password"
+                    />
+                    {formErrors.current_password && <span className="um-field-error">{formErrors.current_password}</span>}
+                  </div>
+                ) : (
+                  <div className="form-group"></div>
+                )}
               </div>
             )}
           </div>

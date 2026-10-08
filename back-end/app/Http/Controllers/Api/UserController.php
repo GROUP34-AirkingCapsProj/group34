@@ -106,7 +106,7 @@ class UserController extends Controller
             );
 
         } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
+            return $this->validationError($this->hintArchivedConflicts($e, $request));
         } catch (\Exception $e) {
             return $this->error('Failed to create user: ' . $e->getMessage(), 500);
         }
@@ -163,6 +163,79 @@ class UserController extends Controller
         }
     }
 
+    /**
+     * Identifier columns carrying a UNIQUE index that survives a soft delete.
+     *
+     * `recovery_email` is checked against BOTH columns because its validation
+     * rules forbid colliding with any account's login address too -- the
+     * forgot-password flow resolves an account BY that address, so a collision
+     * either way would resolve the wrong one.
+     */
+    private const ARCHIVE_HELD_COLUMNS = [
+        'email'          => ['email'],
+        'username'       => ['username'],
+        'recovery_email' => ['recovery_email', 'email'],
+    ];
+
+    /**
+     * Rewrite "has already been taken" into something an admin can act on when
+     * the account holding the value is archived rather than live.
+     *
+     * Archiving a user is a soft delete: the row keeps its email, username and
+     * recovery address, and keeps the UNIQUE indexes on all three. The account
+     * is gone from the user list, so an admin who archived it and then tried to
+     * recreate the person saw only "The email has already been taken" with
+     * nothing in sight using it -- the address looked permanently burned. The
+     * uniqueness itself is correct and stays (restoring the account has to put
+     * a working login back); only the message was unactionable.
+     */
+    private function hintArchivedConflicts(ValidationException $e, Request $request): array
+    {
+        $errors = $e->errors();
+
+        foreach (array_keys($errors) as $field) {
+            if (! isset(self::ARCHIVE_HELD_COLUMNS[$field])) {
+                continue;
+            }
+
+            $hint = $this->archivedConflictMessage($field, (string) $request->input($field));
+
+            if ($hint !== null) {
+                $errors[$field] = [$hint];
+            }
+        }
+
+        return $errors;
+    }
+
+    private function archivedConflictMessage(string $field, string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        if ($value === '') {
+            return null;
+        }
+
+        foreach (self::ARCHIVE_HELD_COLUMNS[$field] as $column) {
+            $holder = User::onlyTrashed()
+                ->whereRaw('LOWER(' . $column . ') = ?', [$value])
+                ->first();
+
+            if (! $holder) {
+                continue;
+            }
+
+            $label = $field === 'username' ? 'username' : 'email address';
+            $name  = trim($holder->first_name . ' ' . $holder->last_name) ?: $holder->username;
+
+            return 'This ' . $label . ' still belongs to the archived account "' . $name
+                . '". Open Archive Management and either restore that account, or permanently '
+                . 'delete the record there to free the ' . $label . ', then try again.';
+        }
+
+        return null;
+    }
+
     public function show(User $user)
     {
         $user->load(['role', 'status', 'location', 'locations']);
@@ -195,12 +268,58 @@ class UserController extends Controller
                 'status_id' => 'sometimes|required|exists:status_lookup,status_id',
                 'location_ids' => 'nullable|array',
                 'location_ids.*' => 'integer|exists:locations,location_id',
+                // The edit form's "New Password (leave blank to keep current)"
+                // field posts here. It used to be absent from this list, so
+                // validate() stripped it and the response still reported
+                // success -- an admin resetting a locked-out employee's password
+                // was told it worked while the old hash stayed in place, which
+                // reads from the employee's side as correct credentials being
+                // rejected. Same policy as every other password entry point:
+                // a weaker rule here would make this form the cheapest way to
+                // put a guessable password on an account.
+                'password' => ['sometimes', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             ]);
 
             $locationIds = array_key_exists('location_ids', $validated) ? $validated['location_ids'] : false;
             unset($validated['location_ids']);
 
+            $newPassword = $validated['password'] ?? null;
+            unset($validated['password']);
+            $isSelf = $request->user()->user_id === $user->user_id;
+
+            if ($newPassword !== null) {
+                // Changing your OWN password still costs the current one, the
+                // same as the account-settings and change-password endpoints.
+                // Without this, a stolen admin session could lock the real admin
+                // out of their own account without ever knowing their password
+                // -- and this form is reachable by every account that can manage
+                // users, so it would be the softest of the three doors.
+                if ($isSelf && ! Hash::check((string) $request->input('current_password'), $user->password_hash)) {
+                    throw ValidationException::withMessages([
+                        'current_password' => ['Enter your current password to change your own password.'],
+                    ]);
+                }
+
+                // An admin setting someone else's password is issuing a
+                // temporary credential, so it re-arms the forced-change gate --
+                // same reasoning as a freshly created account. A self-service
+                // change releases it.
+                $validated['password_hash'] = Hash::make($newPassword);
+                $validated['must_change_password'] = ! $isSelf;
+            }
+
             $user->update($validated);
+
+            if ($newPassword !== null) {
+                app(PasswordAuditLogger::class)->log(
+                    $isSelf ? PasswordAuditLogger::SELF_CHANGE : PasswordAuditLogger::ADMIN_CHANGE,
+                    $user,
+                    $isSelf
+                        ? ['method' => 'self_service_user_form']
+                        : ['method' => 'admin_set_temporary', 'must_change_password' => true],
+                    $request->user(),
+                );
+            }
 
             // Sync location assignments via user_locations pivot
             if ($locationIds !== false) {
@@ -213,7 +332,7 @@ class UserController extends Controller
             );
 
         } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
+            return $this->validationError($this->hintArchivedConflicts($e, $request));
         } catch (\Exception $e) {
             return $this->error('Failed to update user: ' . $e->getMessage(), 500);
         }

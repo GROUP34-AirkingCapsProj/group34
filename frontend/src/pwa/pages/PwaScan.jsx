@@ -1,3 +1,5 @@
+import ScanFeedback from '../../admin/components/ScanFeedback';
+import { signalScan } from '../../admin/hooks/useScanFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
@@ -56,7 +58,7 @@ export default function PwaScan() {
             action: 'found',
             user_id: user.id,
           });
-          if (!silent) setLastMessage({ type: 'found', product: existing });
+          if (!silent) { setLastMessage({ type: 'found', product: existing }); signalScan(true); }
           return true;
         }
 
@@ -78,7 +80,7 @@ export default function PwaScan() {
                 action: 'found',
                 user_id: user.id,
               });
-              if (!silent) setLastMessage({ type: 'found', product: again });
+              if (!silent) { setLastMessage({ type: 'found', product: again }); signalScan(true); }
               return true;
             }
           }
@@ -91,10 +93,11 @@ export default function PwaScan() {
           action: 'created',
           user_id: user.id,
         });
-        if (!silent) setLastMessage({ type: 'created', product: inserted });
+        if (!silent) { setLastMessage({ type: 'created', product: inserted }); signalScan(true); }
         return true;
       } catch (e) {
         if (!silent) {
+          signalScan(false);
           setError(e.message || 'Scan failed.');
           setLastMessage(null);
         }
@@ -191,10 +194,19 @@ export default function PwaScan() {
         Point the camera at a barcode. Unknown codes create a product automatically with default values.
       </p>
 
-      {error ? <div className="pwa-login-error">{error}</div> : null}
 
-      <div className="pwa-scan-reader-wrap">
-        <div id={READER_ID} style={{ minHeight: 220 }} />
+      <div className="pwa-scan-reader-wrap" style={{ position: 'relative', minHeight: 360 }}>
+        <ScanFeedback overlay busy={busy} product={lastMessage?.product?.name}
+          emptyText="Point the camera at a barcode"
+          feedback={error ? { accepted: false, message: error, sequence: 'error' }
+            : lastMessage?.product ? { accepted: true, product: lastMessage.product.name,
+              barcode: lastMessage.product.barcode, sequence: lastMessage.product.id,
+              message: lastMessage.type === 'created' ? 'Product registered.' : 'Product identified.' } : null} />
+        {lastMessage?.type === 'queued' && <div role="status" style={{ position: 'absolute', top: 78, left: 10, right: 10,
+          zIndex: 8, background: '#fef3c7', color: '#78350f', borderRadius: 8, padding: 10, pointerEvents: 'none' }}>
+          Offline: {lastMessage.code} queued for sync. Awaiting confirmation.
+        </div>}
+        <div id={READER_ID} style={{ minHeight: 360 }} />
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
@@ -211,32 +223,7 @@ export default function PwaScan() {
 
       {busy ? <p className="pwa-muted" style={{ marginTop: 10 }}>Processing…</p> : null}
 
-      {lastMessage ? (
-        <div className={`pwa-scan-result ${lastMessage.type === 'created' || lastMessage.type === 'queued' ? 'new' : ''}`}>
-          {lastMessage.type === 'found' && lastMessage.product ? (
-            <>
-              <strong>Found</strong> — {lastMessage.product.name}
-              <div className="pwa-muted" style={{ marginTop: 6 }}>
-                Qty {lastMessage.product.quantity} · ₱{Number(lastMessage.product.price).toFixed(2)} ·{' '}
-                {lastMessage.product.category}
-              </div>
-            </>
-          ) : null}
-          {lastMessage.type === 'created' && lastMessage.product ? (
-            <>
-              <strong>Registered</strong> — {lastMessage.product.name}
-              <div className="pwa-muted" style={{ marginTop: 6 }}>
-                Edit details under Products. Barcode {lastMessage.product.barcode}
-              </div>
-            </>
-          ) : null}
-          {lastMessage.type === 'queued' ? (
-            <>
-              <strong>Offline</strong> — saved “{lastMessage.code}” to sync when you are back online.
-            </>
-          ) : null}
-        </div>
-      ) : null}
+
     </div>
   );
 }

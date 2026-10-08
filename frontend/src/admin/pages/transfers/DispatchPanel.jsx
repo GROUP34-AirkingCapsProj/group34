@@ -106,6 +106,7 @@ const DispatchPanel = ({ transfer, onDone }) => {
       return {
         scan_result: {
           status: 'ACCEPTED',
+          quantity: data.quantity ?? 1,
           accepted: true,
           overridable: false,
           message: `${data.product_name || 'Item'} scanned.`,
@@ -239,6 +240,7 @@ const DispatchPanel = ({ transfer, onDone }) => {
                 onIncident={handleIncident}
                 busy={scanBusy || planLoading}
                 camera
+                singlePackageScan
               />
             )}
           </div>

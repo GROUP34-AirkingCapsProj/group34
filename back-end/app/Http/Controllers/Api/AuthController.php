@@ -224,7 +224,7 @@ class AuthController extends Controller
             $seconds = RateLimiter::availableIn($credentialsKey);
             $this->logLoginAttempt(
                 $request,
-                User::where('email', $request->input('email'))->first(),
+                User::withTrashed()->where('email', $request->input('email'))->first(),
                 false,
                 'Account temporarily locked (too many attempts).'
             );
@@ -240,7 +240,7 @@ class AuthController extends Controller
             $seconds = RateLimiter::availableIn($captchaKey);
             $this->logLoginAttempt(
                 $request,
-                User::where('email', $request->input('email'))->first(),
+                User::withTrashed()->where('email', $request->input('email'))->first(),
                 false,
                 'Blocked (too many failed security checks).'
             );
@@ -261,7 +261,7 @@ class AuthController extends Controller
             // An unknown email here still falls through to the anonymous path.
             $this->logLoginAttempt(
                 $request,
-                User::where('email', $request->input('email'))->first(),
+                User::withTrashed()->where('email', $request->input('email'))->first(),
                 false,
                 'Invalid CAPTCHA.'
             );
@@ -271,7 +271,14 @@ class AuthController extends Controller
             ]);
         }
 
-        $user = User::where('email', $request->email)->first();
+        // withTrashed: an archived account is a real account, and resolving it
+        // here is what lets the branch below tell its holder what actually
+        // happened. Default scoping hid the row entirely, so an archived user
+        // typing the right password was told "invalid email or password" --
+        // indistinguishable from a typo, and it sent admins hunting a password
+        // that was never wrong. Nothing past the trashed() check below can be
+        // reached by an archived account.
+        $user = User::withTrashed()->where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password_hash)) {
             RateLimiter::hit($credentialsKey, self::LOGIN_DECAY_SECONDS);
@@ -287,6 +294,19 @@ class AuthController extends Controller
                 ],
                 'login_attempts_remaining' => $remaining,
             ], 422);
+        }
+
+        // Only named AFTER the password matched, exactly like the inactive
+        // branch below it: a caller who merely guessed an address learns
+        // nothing, and the person who owns the credential gets the one fact
+        // they need to get back in.
+        if ($user->trashed()) {
+            RateLimiter::hit($credentialsKey, self::LOGIN_DECAY_SECONDS);
+            $this->logLoginAttempt($request, $user, false, 'Archived account.');
+
+            throw ValidationException::withMessages([
+                'email' => ['This account has been archived. Please contact an administrator to restore it.'],
+            ]);
         }
 
         if ($user->status_id !== 1) {

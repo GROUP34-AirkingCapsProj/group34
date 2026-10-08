@@ -1,4 +1,5 @@
 import React from 'react';
+import ScanFeedback from './ScanFeedback';
 import { useBarcodeCamera } from '../hooks/useBarcodeCamera';
 import '../styles/barcode_scan.css';
 
@@ -6,7 +7,7 @@ import '../styles/barcode_scan.css';
  * Global camera scanner used by the transfer dispatch/receive pages.
  * Calls onDecode(code) for each scanned barcode. `busy` disables the shutter/start.
  */
-export default function CameraScanner({ onDecode, mountId, storageKey, busy = false, hint }) {
+export default function CameraScanner({ onDecode, mountId, storageKey, busy = false, hint, scanInfo, statusOverlay }) {
   const {
     cameraActive, cameraError, cameraDevices, cameraSelectValue,
     startCamera, stopCamera, onCameraDeviceChange, manualFrameScan,
@@ -15,7 +16,9 @@ export default function CameraScanner({ onDecode, mountId, storageKey, busy = fa
 
   return (
     <>
-      <div className="bs-camera-box" style={{ marginBottom: 12 }}>
+      <div className={`bs-camera-box${scanInfo || statusOverlay ? ' bs-camera-box--feedback' : ''}`} style={{ marginBottom: 12 }}>
+        {statusOverlay}
+        {scanInfo && <ScanFeedback {...scanInfo} busy={busy} overlay />}
         <div id={mountId} className="bs-html5qrcode-mount" style={{ display: cameraActive ? 'block' : 'none' }} />
         {!cameraActive && (
           <div className="bs-cam-idle">
