@@ -16,6 +16,8 @@ class BackupLog extends Model
         'triggered_by_user_id',
         'status',
         'file_path',
+        'remote_disk',
+        'remote_path',
         'file_name',
         'file_size_bytes',
         'checksum_sha256',

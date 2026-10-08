@@ -546,6 +546,67 @@ steps.
 
 ---
 
+## Phase 10 — Database backups
+
+Works out of the box, local-only: the Backup page in the admin sidebar already
+runs on the deployed database (`BackupService` dispatches by
+`database.default`'s driver -- `pg_dump`/`psql`, both shipped via
+`postgresql-client` in the Dockerfile, in production; `mysqldump`/`mysql`
+locally). Nothing in this phase is required to use it.
+
+What this phase adds: a backup written to the container disk survives until
+the **next deploy**, then it is gone -- Render replaces that disk on every
+deploy, the same fact that already applies to uploaded files. A schedule that
+runs nightly and a retention policy that keeps 14 days are both real, but
+neither outlives a deploy without this.
+
+1. **Get an S3-compatible bucket.** Cloudflare R2 has a free tier (10 GB) and
+   needs no card on file, which is the easier path for a capstone project; real
+   AWS S3 works identically. Create a bucket, then an access key for it.
+
+2. On the **API** service, set:
+
+   | Key | Value |
+   |---|---|
+   | `BACKUP_REMOTE_DISK` | `s3` |
+   | `AWS_ACCESS_KEY_ID` | from the bucket's access key |
+   | `AWS_SECRET_ACCESS_KEY` | from the bucket's access key |
+   | `AWS_BUCKET` | your bucket name |
+   | `AWS_DEFAULT_REGION` | `auto` (R2) or your AWS region |
+   | `AWS_ENDPOINT` | R2 only: `https://<account-id>.r2.cloudflarestorage.com` |
+   | `AWS_USE_PATH_STYLE_ENDPOINT` | R2 only: `true` |
+
+   Leave `AWS_ENDPOINT` and `AWS_USE_PATH_STYLE_ENDPOINT` unset for real AWS S3.
+
+3. **Configure the schedule** in the admin Backup page, same form whether or
+   not you did step 1-2: enabled, time, frequency, and the three retention
+   tiers (daily/weekly/monthly). This writes to `system_settings`, not to an
+   environment variable, so it is unaffected by redeploys.
+
+4. Scheduled backups need **Phase 9** wired up (`backup:run` is on the
+   scheduler already, but nothing calls `schedule:run` without it). A manual
+   **Run Now** from the panel works regardless.
+
+5. **Verify.** Run a backup, then check the row in the panel: `synced_to_remote`
+   turns `true` once the copy lands in the bucket (a few seconds after the
+   local backup finishes -- sync is best-effort and happens right after, not
+   blocking the backup itself). The settings response's `remote.configured`
+   field confirms the server sees `BACKUP_REMOTE_DISK` at all.
+
+What remote sync actually buys you: restoring, or downloading, a backup whose
+local file is gone (the usual case: backed up before a deploy, restoring
+after) transparently pulls it back from the bucket first. Retention deletes the
+remote copy too when a backup ages out -- "keep 14 days" means 14 days
+everywhere, not forever in the bucket once local disk forgets about it.
+
+A sync failure is logged (`backup.remote_sync failed`) but never turns a
+successful local backup into a reported failure -- the local backup it
+describes already succeeded. Check the API's logs if `synced_to_remote` stays
+`false` after a backup that itself reports success; the usual cause is a wrong
+bucket name or a credential typo.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

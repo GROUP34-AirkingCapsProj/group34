@@ -54,6 +54,7 @@ const BackupPanel = () => {
 
   const [stats, setStats] = useState({});
   const [database, setDatabase] = useState({});
+  const [remote, setRemote] = useState({});
   const [history, setHistory] = useState([]);
 
   const loadAll = useCallback(async () => {
@@ -74,6 +75,7 @@ const BackupPanel = () => {
       setKeepMonthlyMonths(schedule.keep_monthly_months ?? 12);
       setStats(payload.stats || {});
       setDatabase(payload.database || {});
+      setRemote(payload.remote || {});
       setHistory(Array.isArray(historyRes?.data) ? historyRes.data : []);
     } catch (err) {
       toast.error(err.message || 'Failed to load backup settings');
@@ -91,6 +93,7 @@ const BackupPanel = () => {
       const payload = settingsRes?.data || settingsRes || {};
       setStats(payload.stats || {});
       setDatabase(payload.database || {});
+      setRemote(payload.remote || {});
     } catch (err) {
       toast.error(err.message || 'Failed to refresh history');
     } finally {
@@ -205,6 +208,18 @@ const BackupPanel = () => {
         <div className="bp-stat">
           <span className="bp-stat-label">Last success</span>
           <strong className="bp-stat-value bp-stat-value--sm">{formatWhen(stats.last_success_at)}</strong>
+        </div>
+        <div className="bp-stat">
+          <span className="bp-stat-label">Offsite copy</span>
+          {/* Read-only: which disk this points at is an environment
+              variable (BACKUP_REMOTE_DISK), set on the server, not something
+              this panel edits -- same reasoning as the scheduler's token. */}
+          <strong className="bp-stat-value bp-stat-value--sm">
+            {remote.configured ? `Enabled (${remote.disk})` : 'Not configured'}
+          </strong>
+          {!remote.configured && (
+            <span className="bp-stat-sub">A deploy erases local-only backups</span>
+          )}
         </div>
       </div>
 
@@ -399,6 +414,7 @@ const BackupPanel = () => {
                 <th>Status</th>
                 <th>File name</th>
                 <th>Size</th>
+                <th>Offsite</th>
                 <th>Details</th>
                 <th>Actions</th>
               </tr>
@@ -406,7 +422,7 @@ const BackupPanel = () => {
             <tbody>
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="bp-empty">No backups yet. Create one with “Create backup now”.</td>
+                  <td colSpan={9} className="bp-empty">No backups yet. Create one with “Create backup now”.</td>
                 </tr>
               ) : history.map((row) => (
                 <tr key={row.log_id}>
@@ -416,6 +432,17 @@ const BackupPanel = () => {
                   <td><StatusBadge status={row.status} /></td>
                   <td className="bp-mono">{row.file_name || '—'}</td>
                   <td>{row.file_size_bytes != null ? formatBytes(row.file_size_bytes) : '—'}</td>
+                  <td>
+                    {/* Only backup rows have a file to sync; a restore record
+                        never does. synced_to_remote is per-row, not a reflection
+                        of whether remote sync is configured generally -- a sync
+                        attempt can fail (logged) while the backup itself
+                        succeeds, so this is the thing to trust, not the stat tile
+                        above. */}
+                    {row.action === 'backup' && row.status === 'success'
+                      ? (row.synced_to_remote ? '✓' : '—')
+                      : ''}
+                  </td>
                   <td className="bp-details">
                     {row.error_message
                       || (row.triggered_by_name ? `By ${row.triggered_by_name}` : '—')}
